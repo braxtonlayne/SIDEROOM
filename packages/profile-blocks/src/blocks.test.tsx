@@ -101,3 +101,31 @@ describe('the shared profile block renderer', () => {
     expect(container.textContent).not.toContain('secret');
   });
 });
+
+describe('tip entries of the Links block (ARC-ROOM-001)', () => {
+  it('open a payment URI only for a valid Bitcoin or Lightning link', () => {
+    draw(
+      page([
+        block('l', 'linktree', {
+          links: [
+            {
+              label: 'Tip BTC',
+              url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+              tip: 'btc',
+            },
+            { label: 'Bad scheme', url: 'javascript:alert(1)', tip: 'btc' },
+            { label: 'Wrong kind', url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq' },
+            { label: 'Ko-fi', url: 'https://ko-fi.com/someone', tip: 'kofi' },
+            { label: 'Elsewhere', url: 'https://example.com/x', tip: 'kofi' },
+          ],
+        }),
+      ]),
+    );
+    const links = screen.getAllByRole('link');
+    expect(links.map((a) => a.textContent)).toEqual(['Tip BTC', 'Ko-fi']);
+    expect(links[0]).toHaveAttribute(
+      'href',
+      'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+    );
+  });
+});

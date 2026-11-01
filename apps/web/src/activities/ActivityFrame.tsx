@@ -1,20 +1,26 @@
-// The iframe host of an Activity (DEV-ACT-004): a sandboxed frame on the Activity's own origin and the
-// postMessage bridge to it. The sandbox keeps scripts, forms and popups, and `allow-same-origin` only means the
-// Activity's own origin (never this app's: the frame is cross-origin). A strict `allow` list delegates nothing
-// but full screen, and a message is believed only when it comes from this frame's window.
+// The iframe host of an Activity (DEV-ACT-004, hardened by ARC-SBX-001): a frame served from the Activity's own
+// cookieless origin and the postMessage bridge to it. The sandbox is `allow-scripts allow-pointer-lock` and
+// nothing else: no `allow-same-origin`, so the frame's origin is opaque (no cookies, no storage, no reach into
+// this app or the Activity host's other documents), no forms, popups, modals or downloads. Networking, identity,
+// storage and saving files all go through the validated bridge in host.ts. A strict `allow` list delegates
+// nothing but full screen, and a message is believed only when it comes from this frame's window.
 import { Button, Modal } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
-import { activityOrigin, httpAssetsApi, httpOAuthApi } from './api';
-import { createActivityHost, type HostEnv, type VoicePerson } from './host';
+import { activityOrigin, httpAssetsApi, httpOAuthApi, mintProxyToken } from './api';
+import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } from './host';
+import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
 import { activityDataPort } from '../voice/dataPort';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
 
 type Ask = Parameters<HostEnv['confirm']>[0];
+
+/** The whole sandbox: scripts and pointer lock. Never add `allow-same-origin`; a test pins this string. */
+export const ACTIVITY_SANDBOX = 'allow-scripts allow-pointer-lock';
 
 export function ActivityFrame({
   instance,
@@ -37,6 +43,7 @@ export function ActivityFrame({
     () =>
       createActivityHost({
         origin,
+        senderOrigin: OPAQUE_ORIGIN,
         applicationId: instance.application_id,
         instance: () => latest.current.instance,
         channel: () => ({
@@ -62,7 +69,15 @@ export function ActivityFrame({
         oauth: httpOAuthApi,
         confirm: (a) => new Promise<boolean>((answer) => setAsk({ ask: a, answer })),
         openLink: (url) => void window.open(url, '_blank', 'noopener,noreferrer'),
-        post: (f) => frame.current?.contentWindow?.postMessage(f, origin),
+        // An opaque-origin frame cannot be named as a target origin, so the window itself is the address: the
+        // reference is this component's own iframe, and the frame navigating away drops its messages.
+        post: (f) => frame.current?.contentWindow?.postMessage(f, '*'),
+        storage: createBridgeStorage(
+          useStore.getState().currentUserId ?? null,
+          instance.application_id,
+        ),
+        saveFile: downloadBytes,
+        proxyToken: mintProxyToken,
         selfId: () => useStore.getState().currentUserId ?? null,
         data: instance.channel_type === 'voice' ? activityDataPort : undefined,
         setPresence: (activity) => reportPresence({ activity }),
@@ -120,7 +135,7 @@ export function ActivityFrame({
         className="act-frame"
         title={t('activities.frame.title', { name: instance.application_name })}
         src={`${origin}/`}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        sandbox={ACTIVITY_SANDBOX}
         allow="fullscreen"
         referrerPolicy="no-referrer"
       />
@@ -131,12 +146,16 @@ export function ActivityFrame({
           title={
             ask.ask.kind === 'authorize'
               ? t('activities.confirm.authorizeTitle', { name: instance.application_name })
-              : t('activities.confirm.linkTitle', { name: instance.application_name })
+              : ask.ask.kind === 'save'
+                ? t('activities.confirm.saveTitle', { name: instance.application_name })
+                : t('activities.confirm.linkTitle', { name: instance.application_name })
           }
           description={
             ask.ask.kind === 'authorize'
               ? t('activities.confirm.authorizeBody', { scopes: ask.ask.scopes.join(', ') })
-              : ask.ask.url
+              : ask.ask.kind === 'save'
+                ? t('activities.confirm.saveBody', { file: ask.ask.name, size: ask.ask.size })
+                : ask.ask.url
           }
           footer={
             <>
@@ -146,7 +165,9 @@ export function ActivityFrame({
               <Button onClick={() => decide(true)}>
                 {ask.ask.kind === 'authorize'
                   ? t('activities.confirm.authorize')
-                  : t('activities.confirm.openLink')}
+                  : ask.ask.kind === 'save'
+                    ? t('activities.confirm.save')
+                    : t('activities.confirm.openLink')}
               </Button>
             </>
           }

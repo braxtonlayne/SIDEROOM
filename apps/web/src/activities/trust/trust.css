@@ -1,0 +1,43 @@
+/* Build trust badges and the vouch control (ARC-SBX-001). Logical properties only. */
+.trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 1px;
+  padding-inline: 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.trust-badge[data-tone='featured'] {
+  color: var(--sr-gold, #c9a24d);
+}
+.trust-badge[data-tone='signed'] {
+  color: var(--sr-success, #4caf7d);
+}
+.trust-badge[data-tone='warning'] {
+  color: var(--sr-warning, #e0a030);
+  letter-spacing: 0;
+  font-weight: 500;
+}
+.trust-badge[data-tone='plain'] {
+  color: var(--sr-text-muted, #9a9a9a);
+}
+.trust-vouch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.trust-vouch-hint {
+  margin-block: 0;
+  font-size: 0.85em;
+  color: var(--sr-text-muted, #9a9a9a);
+}

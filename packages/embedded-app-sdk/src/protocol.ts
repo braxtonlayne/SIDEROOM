@@ -24,6 +24,13 @@
 //     when no asset has that name. Calling it again replaces the activity; `{ activity: null }` clears it.
 //     The host clears it when the Activity closes or the instance ends.
 //   subscribe { event, args? } / unsubscribe { event }
+//   storageSet { key, value } / storageRemove { key } -> {}   ARC-SBX-001, needs the `storage` capability: the
+//     Activity runs in an opaque-origin sandbox with no `localStorage`, so the host keeps a small per-member,
+//     per-application key-value store (64 keys, 32 KiB a value, 128 KiB in all) and sends it in `ready`
+//     (`config.storage`). Reads are local to the SDK; writes go through the bridge.
+//   saveFile { name, mime, b } -> { saved }   ARC-SBX-001: hand the person a file (base64, at most 8 MiB, png, jpeg,
+//     webp, json or plain text only). A sandbox without `allow-downloads` cannot save one itself, so the host
+//     asks the person and downloads it from the app page.
 //   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
 //     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
@@ -49,6 +56,9 @@ export const COMMANDS = [
   'subscribe',
   'unsubscribe',
   'dataSend',
+  'storageSet',
+  'storageRemove',
+  'saveFile',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -72,9 +82,39 @@ export interface ReadyConfig {
   user_id?: string;
   /** The member who launched the instance: the only writer of `host:*` keys. */
   host_id?: string;
-  /** What the reviewed bundle declared in `sideroom.json` (`datachannel`). */
+  /** What the reviewed bundle declared in `sideroom.json` (`datachannel`, `storage`). */
   capabilities?: string[];
+  /** The `storage` capability: every key the member has stored for this application (ARC-SBX-001). */
+  storage?: Record<string, string>;
+  /**
+   * The instance's own credential for writes through the application's URL mappings (D-399): the sandboxed
+   * frame's requests carry `Origin: null`, which the proxy accepts only with this token in
+   * [`PROXY_TOKEN_HEADER`]. `sdk.mappedFetch` sends it. Absent when the client could not mint one.
+   */
+  proxy_token?: string;
 }
+
+/** Request header of the proxy token on writes under a URL mapping (D-399). */
+export const PROXY_TOKEN_HEADER = 'X-SR-Activity-Token';
+
+/** The capability a bundle declares to use `storageSet` / `storageRemove` and receive `config.storage`. */
+export const STORAGE_CAPABILITY = 'storage';
+/** Limits of the bridge key-value store; the host enforces them, the SDK mirrors them for early errors. */
+export const STORAGE_LIMITS = {
+  keys: 64,
+  keyChars: 128,
+  valueChars: 32 * 1024,
+  totalChars: 128 * 1024,
+} as const;
+/** Most bytes `saveFile` takes, and the types it hands over. */
+export const SAVE_FILE_MAX_BYTES = 8 * 1024 * 1024;
+export const SAVE_FILE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/json',
+  'text/plain',
+] as const;
 
 export interface UserInfo {
   id: string;

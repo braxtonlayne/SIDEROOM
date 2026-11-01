@@ -12,6 +12,7 @@ pub mod permissions;
 pub mod platform_permissions;
 pub mod snowflake;
 pub mod time;
+pub mod tips;
 
 pub use error::{ApiError, ErrorCode};
 pub use ids::*;

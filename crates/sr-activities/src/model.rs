@@ -100,6 +100,13 @@ pub struct BundleView {
     /// Capabilities the bundle declares in `sideroom.json` (`datachannel`), shown to staff at review.
     #[serde(default)]
     pub capabilities: Vec<String>,
+    /// The tier the manifest declares: `TIER_1_ORIGINAL` or `TIER_2_REIMPLEMENTATION`. Absent in a manifest
+    /// written before tiers; such a game is not listed on the Arcade.
+    #[serde(default)]
+    pub tier: Option<String>,
+    /// Creator tip links the manifest declares (Ko-fi, Patreon, Bitcoin or Lightning).
+    #[serde(default)]
+    pub tip_links: Vec<crate::arcade::TipView>,
 }
 
 /// One file of a bundle.

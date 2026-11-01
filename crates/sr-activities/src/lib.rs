@@ -10,12 +10,15 @@
 //!
 //! The HTTP layer (owner and staff routes, instance routes, the proxy) is `sr_api::routes::activities`.
 
+pub mod arcade;
 pub mod bundle;
 pub mod error;
 pub mod model;
 pub mod ports;
 pub mod rules;
+pub mod sandbox;
 pub mod service;
+pub mod trust;
 pub mod voice;
 
 pub use error::{ActivityError, ActivityResult};

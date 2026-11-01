@@ -863,3 +863,71 @@ async fn the_datachannel_switch_strips_the_capability_from_new_and_running_insta
     assert_eq!(running.capabilities, vec!["datachannel"]);
     r.db.cleanup().await.unwrap();
 }
+
+/// ARC-SBX-001 (D-399): the proxy token is the instance's own credential for URL-mapping writes from the
+/// opaque-origin sandbox. Only a current participant gets one, it is valid only for the instance's own
+/// application while the instance runs and its member stays, and minting again replaces it.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn proxy_tokens_belong_to_a_participant_of_a_running_instance() {
+    let r = rig().await;
+    let app = approved_app(&r, "Mapped").await;
+    let other = approved_app(&r, "Other").await;
+    let a = account(r.db.pool()).await;
+    let b = account(r.db.pool()).await;
+    let inst = r.svc.launch(a, app, 3).await.unwrap();
+    let id: i64 = inst.id.parse().unwrap();
+
+    // A member who has not joined gets nothing; neither does anybody for a missing instance.
+    assert!(matches!(
+        r.svc.mint_proxy_token(b, id).await.unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+    assert!(matches!(
+        r.svc.mint_proxy_token(a, 404).await.unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+
+    let t = r.svc.mint_proxy_token(a, id).await.unwrap();
+    assert_eq!(t.len(), 64);
+    assert!(t.bytes().all(|c| c.is_ascii_hexdigit()));
+    assert!(r.svc.proxy_token_valid(app, &t).await.unwrap());
+    // Bound to the instance's own application; garbage is refused without a lookup.
+    assert!(!r.svc.proxy_token_valid(other, &t).await.unwrap());
+    assert!(!r.svc.proxy_token_valid(app, "").await.unwrap());
+    assert!(!r.svc.proxy_token_valid(app, &"0".repeat(64)).await.unwrap());
+    assert!(!r.svc.proxy_token_valid(app, &t[..63]).await.unwrap());
+    // Only the digest is stored.
+    let stored: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM activity_proxy_tokens WHERE encode(token_sha256, 'hex') = $1",
+    )
+    .bind(&t)
+    .fetch_one(r.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(stored, 0);
+
+    // Minting again replaces the token.
+    let t2 = r.svc.mint_proxy_token(a, id).await.unwrap();
+    assert_ne!(t, t2);
+    assert!(!r.svc.proxy_token_valid(app, &t).await.unwrap());
+    assert!(r.svc.proxy_token_valid(app, &t2).await.unwrap());
+
+    // Leaving drops it, and a rejoin does not bring it back.
+    r.svc.join(b, id).await.unwrap();
+    let tb = r.svc.mint_proxy_token(b, id).await.unwrap();
+    assert!(r.svc.proxy_token_valid(app, &tb).await.unwrap());
+    r.svc.leave(b, id).await.unwrap();
+    assert!(!r.svc.proxy_token_valid(app, &tb).await.unwrap());
+    r.svc.join(b, id).await.unwrap();
+    assert!(!r.svc.proxy_token_valid(app, &tb).await.unwrap());
+    assert!(r.svc.proxy_token_valid(app, &t2).await.unwrap());
+
+    // The end of the instance ends every token.
+    r.svc.end(a, id).await.unwrap();
+    assert!(!r.svc.proxy_token_valid(app, &t2).await.unwrap());
+    assert!(matches!(
+        r.svc.mint_proxy_token(a, id).await.unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+}

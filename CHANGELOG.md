@@ -8,6 +8,25 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 42 - 2026-11-01
+
+- **The Arcade is a room of its own.** `/games` opens on the Operator's Featured games, your servers' Guild
+  Cartridges and a Coming Soon showcase with a "Notify me" toggle. The emulator is a card inside it. The Arcade link
+  is always in the main rail.
+- **Two kinds of game, and nothing else.** Every game says whether it is an original (all its code, art and sound are
+  the developer's own) or a clean-room reimplementation (desktop app only, no bundled assets). Games built on someone
+  else's names, characters or assets are not accepted anywhere, unlisted cartridges included.
+- **Tip the people who made it.** Games (and `/~handle` profiles) can show Ko-fi, Patreon, Bitcoin or Lightning links.
+  The money goes straight to them; SIDE ROOM takes nothing.
+- **Games run in a sealed box.** A game can no longer see the app's cookies or storage or reach other pages. It talks
+  to SIDE ROOM only through the Activity bridge, keeps its saves there, and reaches only the servers its reviewed
+  settings name. Games that send data to their own server keep working.
+- **Know what you are running.** Cards show OPERATOR-FEATURED and SWARM-SAFETY-SIGNED (the operator signed this exact
+  code after an automated check). Members in good standing can "Vouch for Build"; when the code changes, the badge
+  turns to UNVERIFIED UPDATE with the previous build's count until people vouch again.
+- **Cartridges from a shelf.** A server can list a game or mod straight from a shelf it can see; each member opens the
+  file with their own access, and a file taken down disappears from the list.
+
 ## Phase 41 - 2026-11-01
 
 - **Three rooms.** After the Entrance the main rail is now The Lounge, The Arcade and The Study. The Study opens on

@@ -169,3 +169,102 @@ describe('SideRoomSDK', () => {
     expect(r.listeners.size).toBe(1); // only `lone` still listens
   });
 });
+
+describe('SideRoomSDK storage (ARC-SBX-001)', () => {
+  async function ready(capabilities: string[], storage: Record<string, string> = {}) {
+    const r = rig();
+    const sdk = new SideRoomSDK('7', { env: r.env });
+    const p = sdk.ready();
+    r.deliver({ sr: 1, kind: 'ready', config: { ...cfg, capabilities, storage } });
+    await p;
+    return { r, sdk };
+  }
+
+  it('reads what the host sent and writes through the bridge', async () => {
+    const { r, sdk } = await ready(['storage'], { a: '1' });
+    expect(sdk.storage.getItem('a')).toBe('1');
+    expect(sdk.storage.getItem('nope')).toBeNull();
+    sdk.storage.setItem('b', '2');
+    expect(sdk.storage.getItem('b')).toBe('2');
+    expect(sdk.storage.length).toBe(2);
+    const sets = r.sent.map((s) => s.msg).filter((m) => m.kind === 'request');
+    expect(sets.at(-1)).toMatchObject({ cmd: 'storageSet', args: { key: 'b', value: '2' } });
+    sdk.storage.removeItem('a');
+    expect(sdk.storage.getItem('a')).toBeNull();
+    expect(r.sent.at(-1)?.msg).toMatchObject({ cmd: 'storageRemove', args: { key: 'a' } });
+  });
+
+  it('throws without the capability and over the quota', async () => {
+    const off = await ready([]);
+    expect(() => off.sdk.storage.setItem('a', 'b')).toThrow(/storage capability/);
+    const { sdk } = await ready(['storage']);
+    expect(() => sdk.storage.setItem('a', 'x'.repeat(32 * 1024 + 1))).toThrow(/quota/);
+    expect(() => sdk.storage.setItem('', 'x')).toThrow(/quota/);
+  });
+
+  it('can stand in for localStorage', async () => {
+    const { sdk } = await ready(['storage'], { a: '1' });
+    const target: { localStorage?: Storage } = {};
+    sdk.storage.install(target);
+    expect(target.localStorage?.getItem('a')).toBe('1');
+  });
+
+  it('saveFile sends base64 and the type', async () => {
+    const { r, sdk } = await ready([]);
+    void sdk.commands.saveFile({ name: 'a.png', mime: 'image/png', bytes: new Uint8Array([1, 2]) });
+    expect(r.sent.at(-1)?.msg).toMatchObject({
+      cmd: 'saveFile',
+      args: { name: 'a.png', mime: 'image/png', b: 'AQI=' },
+    });
+  });
+});
+
+describe('SideRoomSDK mappedFetch (D-399)', () => {
+  it('sends the proxy token from ready, without credentials', async () => {
+    const r = rig();
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const sdk = new SideRoomSDK('7', {
+      env: {
+        ...r.env,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return new Response('{"ok":true}', { status: 201 });
+        },
+      },
+    });
+    const p = sdk.ready();
+    r.deliver({ sr: 1, kind: 'ready', config: { ...cfg, proxy_token: 'ab'.repeat(32) } });
+    await p;
+    const res = await sdk.mappedFetch('/api/scores', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"score":7}',
+    });
+    expect(res.status).toBe(201);
+    expect(calls[0]?.url).toBe('/api/scores');
+    const headers = new Headers(calls[0]?.init?.headers);
+    expect(headers.get('x-sr-activity-token')).toBe('ab'.repeat(32));
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(calls[0]?.init?.credentials).toBe('omit');
+  });
+
+  it('refuses a full URL and sends no token it does not have', async () => {
+    const r = rig();
+    const calls: RequestInit[] = [];
+    const sdk = new SideRoomSDK('7', {
+      env: {
+        ...r.env,
+        fetch: async (_u, init) => {
+          calls.push(init ?? {});
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    await expect(sdk.mappedFetch('https://evil.example/x')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENTS',
+    });
+    await expect(sdk.mappedFetch('//evil.example/x')).rejects.toBeInstanceOf(SdkError);
+    await sdk.mappedFetch('/api/x');
+    expect(new Headers(calls[0]?.headers).has('x-sr-activity-token')).toBe(false);
+  });
+});

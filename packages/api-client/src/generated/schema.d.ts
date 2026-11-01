@@ -24,6 +24,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activities/{application_id}/trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The trust badge of a game's current build: the operator's code signature, the featured flag, the vouches
+         *     pinned to this exact code hash and, after an update, what the previous build had earned. The Arcade page
+         *     renders `headline` (`operator_featured`, `swarm_safety_signed`, `unverified_update`, `unsigned`).
+         */
+        get: operations["get_trust"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activities/{application_id}/vouch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vouch for a build ("Vouch for Build"), pinned to its `code_sha256`. Needs a member in good standing (an
+         *     active, non-bot account at least three days old: 403 otherwise), at most 30 vouches a day (409) and the
+         *     hash of the build being served now (409 when the game was updated). Vouching again changes nothing.
+         */
+        put: operations["put_vouch"];
+        post?: never;
+        /** Withdraw my vouches for this game (every build). */
+        delete: operations["delete_vouch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity-instances/{instance_id}": {
         parameters: {
             query?: never;
@@ -70,6 +113,23 @@ export interface paths {
         put?: never;
         /** Leave an Activity; the last one out ends it. */
         post: operations["leave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/proxy-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399). */
+        post: operations["proxy_token"];
         delete?: never;
         options?: never;
         head?: never;
@@ -568,6 +628,75 @@ export interface paths {
          *     409 once the announcement has ended. Every session hears `SR_ANNOUNCEMENT_UPDATE`.
          */
         patch: operations["edit"];
+        trace?: never;
+    };
+    "/admin/arcade/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Released Activities that declare a tier, for the Operator to feature (`OPERATOR`). */
+        get: operations["candidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/arcade/coming-soon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a game in development to the Coming Soon showcase (`OPERATOR`, audited). */
+        post: operations["add_coming_soon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/arcade/coming-soon/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a Coming Soon entry and everyone's "Notify me" on it (`OPERATOR`, audited). */
+        delete: operations["remove_coming_soon"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/arcade/featured/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Feature a game on the Front Page, or change its place and blurb (`OPERATOR`, audited). */
+        put: operations["feature"];
+        post?: never;
+        /** Take a game off the Front Page (`OPERATOR`, audited). 404 when it was not featured. */
+        delete: operations["unfeature"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/admin/bans": {
@@ -4783,6 +4912,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/arcade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Front Page: Featured, Coming Soon and the capability flags. */
+        get: operations["front"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/arcade/coming-soon/{entry_id}/notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Turn "Notify me" on or off for one Coming Soon entry. */
+        put: operations["set_notify"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/channels/{channel_id}": {
         parameters: {
             query?: never;
@@ -7501,6 +7664,41 @@ export interface paths {
         head?: never;
         /** Set or clear the server accent colour (`MANAGE_GUILD`). */
         patch: operations["set_appearance"];
+        trace?: never;
+    };
+    "/guilds/{guild_id}/arcade/cartridges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The cartridges a server lists. Members of the server only. */
+        get: operations["cartridges"];
+        put?: never;
+        /** List a cartridge on a server (`MANAGE_GUILD`). */
+        post: operations["add_cartridge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/guilds/{guild_id}/arcade/cartridges/{cartridge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unlist a cartridge (`MANAGE_GUILD`). */
+        delete: operations["remove_cartridge"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/guilds/{guild_id}/audit-logs": {
@@ -16870,6 +17068,166 @@ export interface components {
             /** @description Staff Server role ids to start with. */
             role_ids: string[];
         };
+        /** @description A released Activity the Operator could feature. */
+        ArcadeCandidate: {
+            application_id: string;
+            bundle_sha256: string;
+            featured: boolean;
+            name: string;
+            tier: components["schemas"]["ArcadeTier"];
+        };
+        /** @description A cartridge a server lists from its shelf. */
+        ArcadeCartridge: {
+            /** Format: int64 */
+            added_at_ms: number;
+            added_by: string;
+            capabilities: string[];
+            description: string;
+            eligibility: components["schemas"]["ArcadeEligibility"];
+            guild_id: string;
+            id: string;
+            /** @description `game` or `mod`. */
+            kind: string;
+            object_hash?: string | null;
+            /**
+             * @description The shelf (wave 41) of the catalog object the cartridge names; with `object_hash`, the client fetches it
+             *     through `GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the member's grant.
+             */
+            shelf_id?: string | null;
+            /** @description Where on the server's shelf the cartridge lives (an opaque locator the shelf code resolves). */
+            source_ref: string;
+            tier: components["schemas"]["ArcadeTier"];
+            tip_links: components["schemas"]["ArcadeTip"][];
+            title: string;
+        };
+        /** @description A cartridge to list. */
+        ArcadeCartridgeInput: {
+            capabilities?: string[];
+            description?: string;
+            /** @description `game` or `mod`. */
+            kind: string;
+            object_hash?: string | null;
+            /**
+             * @description A catalog object of a shelf (wave 41, `shelf_objects`): both or neither. It must be in the catalog and not
+             *     delisted.
+             */
+            shelf_id?: string | null;
+            /**
+             * @description A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes
+             *     `shelf:<shelf_id>/<object_hash>`.
+             */
+            source_ref?: string;
+            tier: components["schemas"]["ArcadeTier"];
+            tip_links?: components["schemas"]["ArcadeTipInput"][];
+            title: string;
+        };
+        /** @description A game being built, in the Coming Soon showcase. */
+        ArcadeComingSoonCard: {
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            /** @description Whether the caller asked to be told when it is out. */
+            notify: boolean;
+            /** @description The project's repository (https). */
+            repo_url: string;
+            summary: string;
+            tier: components["schemas"]["ArcadeTier"];
+            title: string;
+        };
+        /** @description A Coming Soon entry to add. */
+        ArcadeComingSoonInput: {
+            repo_url: string;
+            summary: string;
+            tier: components["schemas"]["ArcadeTier"];
+            title: string;
+        };
+        /** @description Where a tier may be played or shown. */
+        ArcadeEligibility: {
+            /** @description Plays in the browser, in a call. */
+            browser_play: boolean;
+            /** @description Runs in the desktop app only. */
+            desktop_only: boolean;
+            /** @description May be featured on the Front Page. */
+            featured: boolean;
+            /** @description May be offered on a shareable `/play/<token>` guest link (wave 43). */
+            guest_links: boolean;
+            /** @description Needs the local base-game hint of the desktop launcher (46-B). */
+            needs_base_game_hint: boolean;
+        };
+        /** @description What the Operator sets when featuring. */
+        ArcadeFeatureInput: {
+            /** @description One line of at most 120 characters. */
+            blurb?: string | null;
+            /**
+             * Format: int32
+             * @description Lower first. Default 0.
+             */
+            position?: number | null;
+        };
+        /** @description A game on the Front Page. The Operator chose it. */
+        ArcadeFeaturedCard: {
+            application_id: string;
+            /** @description The Operator's one-line note for the card. */
+            blurb?: string | null;
+            /** @description SHA-256 of the reviewed bundle (the whole zip, assets included). */
+            bundle_sha256: string;
+            /** @description What the reviewed build declares. */
+            capabilities: string[];
+            /**
+             * @description The hash of the reviewed build's executable code only (ARC-SBX-001, `sandbox::code_sha256`): the key the
+             *     trust badges attach to, because the operator's signature and the members' vouches are pinned to it.
+             *     `None` until it is computed for a bundle from before code hashes (the trust route computes it).
+             */
+            code_sha256?: string | null;
+            description: string;
+            eligibility: components["schemas"]["ArcadeEligibility"];
+            /** Format: int64 */
+            featured_at_ms: number;
+            name: string;
+            /** Format: int32 */
+            position: number;
+            tier: components["schemas"]["ArcadeTier"];
+            tip_links: components["schemas"]["ArcadeTip"][];
+        };
+        /** @description A capability flag in the catalogue. */
+        ArcadeFlag: {
+            name: string;
+            status: components["schemas"]["ArcadeFlagStatus"];
+            summary: string;
+        };
+        /**
+         * @description Whether a flag is enforced today.
+         * @enum {string}
+         */
+        ArcadeFlagStatus: "active" | "reserved";
+        /** @description The Front Page. */
+        ArcadeFront: {
+            coming_soon: components["schemas"]["ArcadeComingSoonCard"][];
+            featured: components["schemas"]["ArcadeFeaturedCard"][];
+            flags: components["schemas"]["ArcadeFlag"][];
+        };
+        /** @description Body of `PUT /arcade/coming-soon/{entry_id}/notify`. */
+        ArcadeNotifyBody: {
+            /** @description Whether to tell me when the game ships. */
+            notify: boolean;
+        };
+        /**
+         * @description The two content tiers of a game manifest.
+         * @enum {string}
+         */
+        ArcadeTier: "TIER_1_ORIGINAL" | "TIER_2_REIMPLEMENTATION";
+        /** @description One tip link as the API shows it. */
+        ArcadeTip: {
+            /** @description `btc`, `lightning`, `kofi` or `patreon`. */
+            kind: string;
+            /** @description A `bitcoin:` or `lightning:` URI (drawn as a QR code) or an https link on an allow-listed host. */
+            url: string;
+        };
+        /** @description A tip link in a request. */
+        ArcadeTipInput: {
+            kind: string;
+            url: string;
+        };
         /** @description The pre-inspection of one archive. */
         ArchiveReport: {
             comic_info?: null | components["schemas"]["ComicInfoFacts"];
@@ -17154,6 +17512,11 @@ export interface components {
             /** Format: int64 */
             snapshot_ms?: number | null;
         };
+        /**
+         * @description The label of a build shown on cards and in the game's details.
+         * @enum {string}
+         */
+        BadgeKind: "operator_featured" | "swarm_safety_signed" | "unverified_update" | "unsigned";
         /**
          * @description A public profile badge: the catalogue id with English fallback text and an icon name
          *     (G-53). Clients translate the ids they know and fall back to `description`.
@@ -17596,6 +17959,13 @@ export interface components {
             /** @description SHA-256 (hex) of the uploaded zip: what staff approve. */
             sha256: string;
             state: components["schemas"]["BundleState"];
+            /**
+             * @description The tier the manifest declares: `TIER_1_ORIGINAL` or `TIER_2_REIMPLEMENTATION`. Absent in a manifest
+             *     written before tiers; such a game is not listed on the Arcade.
+             */
+            tier?: string | null;
+            /** @description Creator tip links the manifest declares (Ko-fi, Patreon, Bitcoin or Lightning). */
+            tip_links?: components["schemas"]["ArcadeTip"][];
             /** Format: int64 */
             uploaded_at_ms: number;
         };
@@ -24293,6 +24663,18 @@ export interface components {
         PreviewBody: {
             preview: Record<string, never>;
         };
+        /** @description The build before the current one that people had vouched for or the operator had signed. */
+        PreviousBuild: {
+            code_sha256: string;
+            /** @description The first 8 characters, for text such as "build 1a2b3c4d". */
+            short: string;
+            signed: boolean;
+            /**
+             * Format: int64
+             * @description Members in good standing who vouched for it.
+             */
+            vouches: number;
+        };
         /** @description A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`. */
         PrimaryGuildObject: {
             /**
@@ -24732,6 +25114,15 @@ export interface components {
             requires_url: boolean;
             /** @description `true` when linking proves the account (OAuth / OpenID); `false` for a typed link. */
             verified: boolean;
+        };
+        /** @description The proxy token of the caller in a running Activity (ARC-SBX-001, D-399). */
+        ProxyTokenResponse: {
+            /**
+             * @description 64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as
+             *     `X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid
+             *     while the instance runs and the caller has not left it; minting again replaces the previous one.
+             */
+            token: string;
         };
         PruneBody: {
             /**
@@ -26446,6 +26837,16 @@ export interface components {
             reviewed_by?: string | null;
             state: components["schemas"]["SignalState"];
         };
+        /** @description The operator's signature on a build, as shown. */
+        SignatureView: {
+            /** Format: int32 */
+            audit_version: number;
+            signature: string;
+            /** Format: int64 */
+            signed_at_ms: number;
+            /** @description The signing key's verify key (hex), so anyone can check the signature offline. */
+            verify_key: string;
+        };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -27727,6 +28128,27 @@ export interface components {
             presets?: number[];
             regex_patterns?: string[];
         };
+        /** @description Everything the UI needs to draw a build's badge and the vouch button. */
+        TrustView: {
+            application_id: string;
+            /** @description Every badge that applies (`operator_featured` implies `swarm_safety_signed`). */
+            badges: components["schemas"]["BadgeKind"][];
+            /** @description The viewer may vouch: a member in good standing, and the build has a hash. */
+            can_vouch: boolean;
+            /** @description The hash of the code being served now; `None` when the game has no reviewed code bundle. */
+            code_sha256?: string | null;
+            /** @description The operator has this game on the front page (it only shows as a badge while the code is signed). */
+            featured: boolean;
+            headline: components["schemas"]["BadgeKind"];
+            previous?: null | components["schemas"]["PreviousBuild"];
+            signature?: null | components["schemas"]["SignatureView"];
+            vouched_by_me: boolean;
+            /**
+             * Format: int64
+             * @description Members in good standing who vouched for the current hash.
+             */
+            vouches: number;
+        };
         /** @description TURN credentials, coturn REST style. */
         TurnCredentialsObject: {
             password: string;
@@ -28672,6 +29094,14 @@ export interface components {
             /** Format: int64 */
             up: number;
         };
+        /** @description A member's vouch for the build they looked at. */
+        VouchBody: {
+            /**
+             * @description The `code_sha256` of the build being vouched for, as the badge showed it. Refused with 409 when the game
+             *     has shipped different code since.
+             */
+            code_sha256: string;
+        };
         WalletResult: {
             /** @description The first addresses, to compare with the operator's own wallet. */
             addresses: string[];
@@ -29125,6 +29555,124 @@ export interface operations {
             };
         };
     };
+    get_trust: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_instance: {
         parameters: {
             query?: never;
@@ -29246,6 +29794,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    proxy_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyTokenResponse"];
+                };
             };
             404: {
                 headers: {
@@ -30876,6 +31454,250 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    candidates: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeCandidate"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_coming_soon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArcadeComingSoonInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeComingSoonCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_coming_soon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Coming Soon entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    feature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArcadeFeatureInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeFeaturedCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    unfeature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -44734,6 +45556,73 @@ export interface operations {
             };
         };
     };
+    front: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeFront"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    set_notify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Coming Soon entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArcadeNotifyBody"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     get_channel: {
         parameters: {
             query?: never;
@@ -53390,6 +54279,156 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cartridges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server (guild) snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeCartridge"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    add_cartridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server (guild) snowflake */
+                guild_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArcadeCartridgeInput"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeCartridge"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    remove_cartridge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Server (guild) snowflake */
+                guild_id: string;
+                /** @description Cartridge snowflake */
+                cartridge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

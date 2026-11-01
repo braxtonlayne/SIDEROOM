@@ -1,7 +1,10 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
 # METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)
+DELETE	/activities/{application_id}/vouch	authenticated	self	allow	-	-
 DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
+DELETE	/admin/arcade/coming-soon/{entry_id}	authenticated	staff	deny	-	OPERATOR
+DELETE	/admin/arcade/featured/{application_id}	authenticated	staff	deny	-	OPERATOR
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-	DELETE_CONTENT
 DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-	DELETE_CONTENT
@@ -66,6 +69,7 @@ DELETE	/cinema/titles/{title_id}/progress	authenticated	self	allow	-	-
 DELETE	/cinema/titles/{title_id}/rating	authenticated	self	allow	-	-
 DELETE	/cinema/titles/{title_id}/review	authenticated	self	allow	-	-
 DELETE	/guilds/{guild_id}	authenticated	membership	allow	-	-
+DELETE	/guilds/{guild_id}/arcade/cartridges/{cartridge_id}	authenticated	membership	deny	-	-
 DELETE	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/bans/{user_id}	authenticated	membership	allow	-	-
 DELETE	/guilds/{guild_id}/bridge/maps/{map_id}	authenticated	bridge_admin	deny	-	-
@@ -155,6 +159,7 @@ DELETE	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allo
 DELETE	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 DELETE	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
 GET	/activities	authenticated	user	allow	-	-
+GET	/activities/{application_id}/trust	authenticated	user	allow	-	-
 GET	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
 GET	/admin/access-log	authenticated	staff	deny	-	VIEW_ACCESS_LOG
 GET	/admin/access-log/verify	authenticated	staff	deny	-	VIEW_ACCESS_LOG
@@ -168,6 +173,7 @@ GET	/admin/accounts/{account_id}/invite-tree	authenticated	staff	deny	-	MANAGE_I
 GET	/admin/accounts/{account_id}/sessions	authenticated	staff	deny	-	MANAGE_ACCOUNTS
 GET	/admin/alerts	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
+GET	/admin/arcade/candidates	authenticated	staff	deny	-	OPERATOR
 GET	/admin/bans	authenticated	staff	deny	-	PLATFORM_BAN
 GET	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -274,6 +280,7 @@ GET	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permi
 GET	/applications/{application_id}/installs	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/testers	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/versions	authenticated	owner	deny	-	-
+GET	/arcade	authenticated	user	deny	-	-
 GET	/channels/{channel_id}	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
 GET	/channels/{channel_id}/application-commands	authenticated	membership	deny	-	-
@@ -358,6 +365,7 @@ GET	/guilds/templates/builtin	authenticated	membership	allow	-	-
 GET	/guilds/templates/{code}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/appearance	authenticated	membership	deny	-	-
+GET	/guilds/{guild_id}/arcade/cartridges	authenticated	membership	deny	-	-
 GET	/guilds/{guild_id}/audit-logs	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
 GET	/guilds/{guild_id}/auto-moderation/rules/{rule_id}	authenticated	membership	allow	-	-
@@ -699,6 +707,7 @@ PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
 POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-	-
 POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-	-
+POST	/activity-instances/{instance_id}/proxy-token	authenticated	membership	allow	-	-
 POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-	MANAGE_ACCOUNTS
 POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
 POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-	MANAGE_ACCOUNTS
@@ -715,6 +724,7 @@ POST	/admin/accounts/{account_id}/unlink	authenticated	staff	deny	-	MANAGE_ACCOU
 POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-	MANAGE_ACCOUNTS
 POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
+POST	/admin/arcade/coming-soon	authenticated	staff	deny	-	OPERATOR
 POST	/admin/card-actions	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -864,6 +874,7 @@ POST	/guilds	authenticated	membership	deny	-	-
 POST	/guilds/templates/{code}	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/ack	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/alert-actions	authenticated	membership	allow	-	-
+POST	/guilds/{guild_id}/arcade/cartridges	authenticated	membership	deny	-	-
 POST	/guilds/{guild_id}/auto-moderation/rules	authenticated	membership	allow	-	-
 POST	/guilds/{guild_id}/bridge/conflicts/{conflict_id}/dismiss	authenticated	bridge_admin	deny	-	-
 POST	/guilds/{guild_id}/bridge/conflicts/{conflict_id}/resolve	authenticated	bridge_admin	deny	-	-
@@ -1038,6 +1049,8 @@ POST	/watch-parties/{party_id}/queue	authenticated	party_control	allow	-	-
 POST	/watch-parties/{party_id}/reactions	authenticated	party_member	allow	-	-
 POST	/webhooks/{webhook_id}/reset-token	authenticated	membership	allow	-	-
 POST	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+PUT	/activities/{application_id}/vouch	authenticated	self	allow	-	-
+PUT	/admin/arcade/featured/{application_id}	authenticated	staff	deny	-	OPERATOR
 PUT	/admin/cinema/assets/{asset_id}/link	authenticated	staff	deny	-	PUBLISH_MEDIA
 PUT	/admin/cinema/assets/{asset_id}/original-downloads	authenticated	staff	deny	-	PUBLISH_MEDIA
 PUT	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
@@ -1075,6 +1088,7 @@ PUT	/applications/{application_id}/activity	authenticated	owner	deny	-	-
 PUT	/applications/{application_id}/commands	authenticated	owner	allow	-	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands	authenticated	owner	allow	-	-
 PUT	/applications/{application_id}/guilds/{guild_id}/commands/{command_id}/permissions	authenticated	membership	allow	applications.commands.permissions.update	-
+PUT	/arcade/coming-soon/{entry_id}/notify	authenticated	self	deny	-	-
 PUT	/channels/{channel_id}/jukebox	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/jukebox/dj	authenticated	membership	deny	-	-
 PUT	/channels/{channel_id}/jukebox/listening	authenticated	membership	deny	-	-

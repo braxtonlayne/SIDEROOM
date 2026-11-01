@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 41)
+### 4b. Decisions of the feature phase (waves 27 to 42)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -75,6 +75,18 @@ The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 - [ ] **The member submission API with the ingest switch** (D-404). **Default:** `/submissions*` and `/library/submissions/*` answer 404 while `platform.ingest_queues` is off, like the staff queue. **Option:** keep member submissions open with the queue off.
 - [ ] **The PlayStation HLE BIOS: D-390 and P37-EMU-2 disagree.** Roadmap-p28 (D-390) allows the built-in open-source HLE BIOS when no user BIOS is mounted; wave 37's default (P37-EMU-2) does not offer it. Wave 41 did not touch the emulator. **Default until you say:** the shipped behaviour (P37-EMU-2, not offered); the wave that next touches the emulator should follow D-390 unless you object.
 - [ ] **Shelf strikes and the takedown counter.** A delist strike (`shelf_delist_strikes`) records the notice id but does not count toward the repeat-infringer counter. **Default:** separate. **Option:** feed the counter.
+
+The Arcade and the sandbox (wave 42, [handoff](handoff/integration-phase42.md)):
+
+- [ ] **Vouch "good standing"** (D-405). **Default:** an active, non-bot account at least 3 days old, at most 30 vouches a day. **Option:** other numbers.
+- [ ] **OPERATOR-FEATURED only while the current code is signed** (D-406). **Default:** an unsigned update keeps its Front Page place but shows UNVERIFIED UPDATE. **Option:** featured shows regardless.
+- [ ] **UNVERIFIED UPDATE names the previous build by an 8-character code-hash prefix** (D-407). **Default:** stands (no version number is stored). **Option:** store and show a developer version.
+- [ ] **URL-mapping writes from the sandbox** (D-408). **Default:** `Origin: null` plus the instance's per-participant proxy token; reviewed URL mappings admit `'self'`. **Option:** keep mapped writes off for games.
+- [ ] **Trust keyed on the code hash** (D-409), **cartridges on shelf objects** (D-410), **the Arcade link always shown** (D-411). **Default:** all stand.
+- [ ] **"Notify me" delivery is not built.** Opt-ins are stored (`arcade_coming_soon_notify`); nothing tells members when a game comes out yet. **Default:** leave it for a later wave. **Option:** an inbox notice when the Operator releases it.
+- [ ] **Profile tip links: no Bitcoin/Lightning QR code.** They show as a payment link and the text. **Default:** stands (no QR library is a dependency). **Option:** approve a QR encoder or write one.
+- [ ] **Bitcoin addresses are not checksum-verified** on the server (only shape and prefix). **Default:** stands. **Option:** verify base58check/bech32 checksums.
+- [ ] **Drop the scratch database `sr_p42_arcade_room`** on the development machine: the integrator's session was not allowed to drop it.
 
 The emulator (wave 37, [handoff](handoff/integration-phase37.md)):
 

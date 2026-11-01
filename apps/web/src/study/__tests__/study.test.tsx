@@ -75,8 +75,8 @@ describe('the room trio', () => {
     const names = within(nav)
       .getAllByRole('link')
       .map((a) => a.textContent);
-    expect(names.filter((n) => n !== 'The Arcade')).toEqual(['The Lounge', 'The Study']);
-    expect(names[0]).toBe('The Lounge');
+    // The Arcade shows whatever the emulator switch says (ARC-ROOM-001).
+    expect(names).toEqual(['The Lounge', 'The Arcade', 'The Study']);
   });
 });
 

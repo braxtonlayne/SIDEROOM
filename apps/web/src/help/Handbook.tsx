@@ -133,7 +133,7 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     id: 'emulator',
     title: 'help.handbook.emulator.title',
     body: ['help.handbook.emulator.body1', 'help.handbook.emulator.body2'],
-    links: [{ href: '/games', label: 'help.handbook.emulator.link' }],
+    links: [{ href: '/games/emulator', label: 'help.handbook.emulator.link' }],
   },
   {
     id: 'games',

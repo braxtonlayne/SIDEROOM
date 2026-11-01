@@ -13,6 +13,10 @@ import {
   b64,
   unb64,
   MAX_DATA_BYTES,
+  SAVE_FILE_MAX_BYTES,
+  SAVE_FILE_TYPES,
+  STORAGE_CAPABILITY,
+  STORAGE_LIMITS,
   type RpcErrorBody,
   type SpeakingUpdate,
   type VoiceStateUpdate,
@@ -59,9 +63,71 @@ export interface PresenceActivity {
   };
 }
 
+/**
+ * The origin a message from a sandboxed Activity frame carries. The frame has `sandbox` without
+ * `allow-same-origin`, so its origin is opaque and the browser names it "null"; the host tells frames apart by
+ * the window a message came from (`ActivityFrame` checks that), never by this string.
+ */
+export const OPAQUE_ORIGIN = 'null';
+
+/** The member's per-application key-value store behind the `storage` capability (a browser-side port). */
+export interface ActivityStorage {
+  all(): Record<string, string>;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}
+
+/** Most characters of one request's arguments; larger frames are refused before any command runs. */
+export const MAX_REQUEST_CHARS = 12 * 1024 * 1024;
+/** Requests allowed per window from one frame; a flood is answered `RATE_LIMITED` and costs the host little. */
+const REQUEST_LIMIT = 4000;
+const REQUEST_WINDOW_MS = 10_000;
+
+/** Why a request frame is malformed, or `null`: lengths of the envelope fields and a bounded argument size. */
+export function requestProblem(f: { nonce: string; cmd: string; args?: unknown }): string | null {
+  if (f.nonce.length === 0 || f.nonce.length > 64) return 'nonce must be 1 to 64 characters.';
+  if (f.cmd.length === 0 || f.cmd.length > 64) return 'cmd must be 1 to 64 characters.';
+  if (f.args === undefined) return null;
+  let size = 0;
+  let nodes = 0;
+  const stack: unknown[] = [f.args];
+  while (stack.length) {
+    const v = stack.pop();
+    if (++nodes > 20_000) return 'args are too large.';
+    if (typeof v === 'string') size += v.length;
+    else if (typeof v === 'number' || typeof v === 'boolean') size += 8;
+    else if (Array.isArray(v)) stack.push(...v);
+    else if (typeof v === 'object' && v !== null) {
+      for (const k of Object.keys(v)) {
+        if (k === '__proto__') return 'args must not contain __proto__.';
+        size += k.length;
+      }
+      stack.push(...Object.values(v));
+    } else if (typeof v === 'function' || typeof v === 'symbol' || typeof v === 'bigint') {
+      return 'args must be plain data.';
+    }
+    if (size > MAX_REQUEST_CHARS) return 'args are too large.';
+  }
+  return null;
+}
+
 export interface HostEnv {
-  /** The origin the Activity runs on; frames from anywhere else are dropped. */
+  /** The origin the Activity is served from (its OAuth redirect base). */
   origin: string;
+  /**
+   * The origin string messages from the frame carry. Default `origin` (a frame that keeps its origin); the
+   * sandboxed frame is `OPAQUE_ORIGIN`. Frames from any other origin are dropped.
+   */
+  senderOrigin?: string;
+  /** Where `storageSet` and `storageRemove` keep the member's values; without it the capability is off. */
+  storage?: ActivityStorage;
+  /**
+   * Mint the member's proxy token for the instance (D-399), sent to the frame in `ready` so its writes through
+   * the app's URL mappings pass the proxy. Absent or failing: no token.
+   */
+  proxyToken?: (instanceId: string) => Promise<string | null>;
+  /** Hand the person a file the Activity produced (after they agreed); the host page downloads it. */
+  saveFile?: (name: string, mime: string, bytes: Uint8Array) => void;
   applicationId: string;
   instance: () => ActivityInstance;
   channel: () => { id: string; guild_id: string; name: string };
@@ -70,7 +136,10 @@ export interface HostEnv {
   oauth: OAuthApi;
   /** Ask the person; resolves false when they decline. */
   confirm: (
-    ask: { kind: 'authorize'; scopes: string[] } | { kind: 'link'; url: string },
+    ask:
+      | { kind: 'authorize'; scopes: string[] }
+      | { kind: 'link'; url: string }
+      | { kind: 'save'; name: string; mime: string; size: number },
   ) => Promise<boolean>;
   openLink: (url: string) => void;
   post: (frame: Frame) => void;
@@ -217,9 +286,13 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   let presenceSet = false;
   const subscribed = new Set<EventName>();
   const calls: number[] = [];
+  const requests: number[] = [];
   const now = env.now ?? Date.now;
   let voiceBaseline: Map<string, VoicePerson> | null = null;
   let dataJoined: { instance: string; off: () => void } | null = null;
+
+  const hasStorage = () =>
+    !!env.storage && (env.instance().capabilities ?? []).includes(STORAGE_CAPABILITY);
 
   const hasData = () => !!env.data && (env.instance().capabilities ?? []).includes(DATA_CAPABILITY);
 
@@ -370,6 +443,76 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         if (bytes.length > MAX_DATA_BYTES) throw invalid('b must be base64 of at most 16 KiB.');
         return { sent: await env.data.send(env.instance().id, bytes) };
       }
+      case 'storageSet':
+      case 'storageRemove': {
+        const store = env.storage;
+        if (!store || !hasStorage()) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the storage capability.',
+          );
+        }
+        const a = obj(args);
+        const key = a.key;
+        if (
+          typeof key !== 'string' ||
+          key.length === 0 ||
+          key.length > STORAGE_LIMITS.keyChars ||
+          !/^[\w.:@-]+$/.test(key)
+        ) {
+          throw invalid('key must be 1 to 128 letters, digits or . _ : @ -.');
+        }
+        if (cmd === 'storageRemove') {
+          store.remove(key);
+          return {};
+        }
+        const value = a.value;
+        if (typeof value !== 'string' || value.length > STORAGE_LIMITS.valueChars) {
+          throw invalid('value must be a string of at most 32768 characters.');
+        }
+        const all = store.all();
+        const keys = Object.keys(all);
+        let total = value.length;
+        for (const k of keys) if (k !== key) total += (all[k] ?? '').length;
+        if (
+          total > STORAGE_LIMITS.totalChars ||
+          (!(key in all) && keys.length >= STORAGE_LIMITS.keys)
+        ) {
+          throw new RpcError(RPC_ERRORS.failed, 'The storage quota is used up.');
+        }
+        store.set(key, value);
+        return {};
+      }
+      case 'saveFile': {
+        if (!env.saveFile) {
+          throw new RpcError(RPC_ERRORS.notAuthorized, 'Saving files is not available.');
+        }
+        const a = obj(args);
+        const name = a.name;
+        const mime = a.mime;
+        if (typeof name !== 'string' || !/^\w[\w. -]{0,99}$/.test(name) || name.includes('..')) {
+          throw invalid('name must be a plain file name of at most 100 characters.');
+        }
+        if (typeof mime !== 'string' || !(SAVE_FILE_TYPES as readonly string[]).includes(mime)) {
+          throw invalid(`mime must be one of: ${SAVE_FILE_TYPES.join(', ')}.`);
+        }
+        const b = a.b;
+        if (typeof b !== 'string' || b.length > Math.ceil((SAVE_FILE_MAX_BYTES * 4) / 3) + 8) {
+          throw invalid('b must be base64 of at most 8 MiB.');
+        }
+        let bytes: Uint8Array;
+        try {
+          bytes = unb64(b);
+        } catch {
+          throw invalid('b must be base64.');
+        }
+        if (bytes.length > SAVE_FILE_MAX_BYTES) throw invalid('b must be base64 of at most 8 MiB.');
+        if (!(await env.confirm({ kind: 'save', name, mime, size: bytes.length }))) {
+          return { saved: false };
+        }
+        env.saveFile(name, mime, bytes);
+        return { saved: true };
+      }
       case 'subscribe':
       case 'unsubscribe': {
         const a = obj(args);
@@ -404,11 +547,16 @@ export function createActivityHost(env: HostEnv): ActivityHost {
 
   return {
     async handle(data, origin) {
-      if (origin !== env.origin) return;
+      if (origin !== (env.senderOrigin ?? env.origin)) return;
       const f = parseFrame(data);
       if (!f) return;
       if (f.kind === 'handshake') {
         if (f.application_id !== env.applicationId) return;
+        // D-399: the instance's own credential for writes through the app's URL mappings (the frame's origin
+        // is opaque). Without one the game still runs; only its mapped writes are refused.
+        const proxyToken = env.proxyToken
+          ? await env.proxyToken(env.instance().id).catch(() => null)
+          : null;
         ready = true;
         joinData();
         const inst = env.instance();
@@ -423,11 +571,28 @@ export function createActivityHost(env: HostEnv): ActivityHost {
             ...(env.selfId?.() ? { user_id: env.selfId() ?? undefined } : {}),
             host_id: inst.started_by,
             capabilities: inst.capabilities ?? [],
+            ...(hasStorage() && env.storage ? { storage: env.storage.all() } : {}),
+            ...(proxyToken ? { proxy_token: proxyToken } : {}),
           },
         });
         return;
       }
       if (f.kind !== 'request') return;
+      const problem = requestProblem(f);
+      if (problem) {
+        fail(f.nonce, { code: RPC_ERRORS.invalidArguments, message: problem });
+        return;
+      }
+      const at = now();
+      while (requests.length && at - (requests[0] ?? 0) > REQUEST_WINDOW_MS) requests.shift();
+      if (requests.length >= REQUEST_LIMIT) {
+        fail(f.nonce, {
+          code: RPC_ERRORS.rateLimited,
+          message: 'Too many requests. Try again soon.',
+        });
+        return;
+      }
+      requests.push(at);
       if (!ready) {
         fail(f.nonce, { code: RPC_ERRORS.notAuthorized, message: 'Call ready() first.' });
         return;

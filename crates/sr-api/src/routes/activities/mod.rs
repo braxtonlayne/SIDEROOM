@@ -170,6 +170,11 @@ pub fn router() -> Router<AppState> {
             post(h::admin_decide),
         )
         .route("/activities", get(h::shelf))
+        .route("/activities/{application_id}/trust", get(h::get_trust))
+        .route(
+            "/activities/{application_id}/vouch",
+            axum::routing::put(h::put_vouch).delete(h::delete_vouch),
+        )
         .route(
             "/channels/{channel_id}/activity",
             get(h::in_channel).post(h::launch),
@@ -180,6 +185,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/activity-instances/{instance_id}/join", post(h::join))
         .route("/activity-instances/{instance_id}/leave", post(h::leave))
+        .route(
+            "/activity-instances/{instance_id}/proxy-token",
+            post(h::proxy_token),
+        )
 }
 
 /// OpenAPI fragment for the Activities endpoints.
@@ -195,11 +204,15 @@ pub fn router() -> Router<AppState> {
         handlers::admin_pending,
         handlers::admin_decide,
         handlers::shelf,
+        handlers::get_trust,
+        handlers::put_vouch,
+        handlers::delete_vouch,
         handlers::in_channel,
         handlers::launch,
         handlers::get_instance,
         handlers::join,
         handlers::leave,
+        handlers::proxy_token,
         handlers::end,
     ),
     components(schemas(
@@ -220,6 +233,12 @@ pub fn router() -> Router<AppState> {
         handlers::SubmitBody,
         handlers::LaunchBody,
         handlers::ShelfResponse,
+        handlers::VouchBody,
+        handlers::ProxyTokenResponse,
+        sr_activities::trust::TrustView,
+        sr_activities::trust::BadgeKind,
+        sr_activities::trust::PreviousBuild,
+        sr_activities::trust::SignatureView,
         handlers::ChannelActivity,
     ))
 )]

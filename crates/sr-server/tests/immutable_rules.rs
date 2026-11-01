@@ -144,8 +144,8 @@ fn all_flag_names_of(registry: &sr_features::FeatureRegistry) -> Vec<(String, St
     for g in sr_storage::scopes::Grant::ALL {
         names.push(("storage grant".into(), g.as_str().to_owned()));
     }
-    for c in sr_activities::bundle::CAPABILITIES {
-        names.push(("activity capability".into(), (*c).to_owned()));
+    for f in sr_activities::arcade::FLAGS {
+        names.push(("activity capability".into(), f.name.to_owned()));
     }
     for id in [
         sr_features::BRIDGE_MODULE_ID,

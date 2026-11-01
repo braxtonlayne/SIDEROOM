@@ -19,6 +19,19 @@ use crate::ports::{
     ActivityEvents, ChannelAccess, ChannelPerms, EVENT_INSTANCE_UPDATE, NoChannels, NoEvents,
 };
 use crate::rules;
+use crate::sandbox;
+
+mod trust_db;
+pub use trust_db::{BuildRef, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY};
+
+/// Length of a proxy token (64 lowercase hex digits).
+pub const PROXY_TOKEN_LEN: usize = 64;
+
+/// The stored form of a proxy token.
+fn proxy_token_digest(token: &str) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(token.as_bytes()).to_vec()
+}
 
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -59,6 +72,9 @@ pub enum Serving {
 pub struct ServeSpec {
     pub serving: Serving,
     pub url_mappings: Vec<UrlMapping>,
+    /// The reviewed manifest's `connect` list (hosts the sandbox's CSP `connect-src` may name); empty means
+    /// `connect-src 'none'` (ARC-SBX-001).
+    pub connect: Vec<String>,
 }
 
 /// The proxy's view of an application.
@@ -99,12 +115,14 @@ fn bundle_of(r: &PgRow) -> Result<BundleView, sqlx::Error> {
         reviewed_at_ms: r.try_get("reviewed_ms")?,
         note: r.try_get("note")?,
         capabilities: r.try_get("capabilities")?,
+        tier: r.try_get("tier")?,
+        tip_links: crate::arcade::tips_from_json(r.try_get("tip_links")?),
     })
 }
 
 fn bundle_columns() -> String {
     format!(
-        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, b.capabilities, {} AS uploaded_ms, \
+        "b.id, b.sha256, b.byte_size, b.entry_count, b.state, b.note, b.capabilities, b.tier, b.tip_links, {} AS uploaded_ms, \
          {} AS reviewed_ms",
         ms("b.uploaded_at"),
         ms("b.reviewed_at")
@@ -408,7 +426,7 @@ impl ActivityService {
                 sqlx::query(
                     "INSERT INTO application_activity_bundles \
                      (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by, \
-                      capabilities) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                      capabilities, tier, tip_links) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
                 )
                 .bind(id)
                 .bind(app)
@@ -418,11 +436,34 @@ impl ActivityService {
                 .bind(json!(manifest))
                 .bind(user)
                 .bind(&unpacked.capabilities)
+                .bind(unpacked.tier.map(|t| t.as_str()))
+                .bind(json!(unpacked.tip_links))
                 .execute(&mut *tx)
                 .await?;
                 (id, true)
             }
         };
+        // The code hash and the sandbox's `connect` list come from the files, not from the zip's hash (ARC-SBX-001).
+        let code_hash = sandbox::code_sha256(
+            unpacked
+                .files
+                .iter()
+                .map(|f| (f.path.as_str(), f.data.as_slice())),
+        );
+        let connect = match unpacked.files.iter().find(|f| f.path == bundle::MANIFEST) {
+            Some(f) => sandbox::parse_connect(&f.data).map_err(|m| {
+                ActivityError::Invalid("bundle", format!("{}: {m}", bundle::MANIFEST))
+            })?,
+            None => Vec::new(),
+        };
+        sqlx::query(
+            "UPDATE application_activity_bundles SET code_sha256 = $2, connect_hosts = $3 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(code_hash.as_deref())
+        .bind(&connect)
+        .execute(&mut *tx)
+        .await?;
         Self::refresh_state(&mut tx, app).await?;
         tx.commit().await?;
 
@@ -604,6 +645,19 @@ impl ActivityService {
         }
         let mut tx = self.pool().begin().await?;
         Self::lock_row(&mut tx, app).await?;
+        if approve {
+            // The previously approved bundle steps aside first: at most one bundle is approved at a time
+            // (a unique index), so approving an update would otherwise fail on the old one. If the decision
+            // below finds nothing to decide, the early return rolls this back with the transaction.
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'superseded' \
+                 WHERE application_id = $1 AND state = 'approved' AND id <> $2",
+            )
+            .bind(app)
+            .bind(bundle_id)
+            .execute(&mut *tx)
+            .await?;
+        }
         let moved = sqlx::query(
             "UPDATE application_activity_bundles SET state = $3, reviewed_by = $4, \
              reviewed_at = now(), note = $5 \
@@ -658,7 +712,7 @@ impl ActivityService {
     /// application in development serves its live development URL; a suspended one nothing.
     pub async fn lookup(&self, app: i64) -> ActivityResult<Lookup> {
         let row = sqlx::query(
-            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, a.release_state::text AS state, \
+            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, b.connect_hosts, a.release_state::text AS state, \
                (a.release_state::text = 'released' OR (a.release_state::text = 'in_review' AND EXISTS \
                  (SELECT 1 FROM application_versions v WHERE v.application_id = a.id AND v.state = 'approved'))) \
                  AS released \
@@ -678,10 +732,14 @@ impl ActivityService {
         let sha: Option<String> = r.try_get("sha256")?;
         let dev: Option<String> = r.try_get("dev_entry_url")?;
         let mappings: Value = r.try_get("url_mappings")?;
+        let connect: Vec<String> = r
+            .try_get::<Option<Vec<String>>, _>("connect_hosts")?
+            .unwrap_or_default();
         let spec = |serving| {
             Lookup::Ready(ServeSpec {
                 serving,
                 url_mappings: serde_json::from_value(mappings.clone()).unwrap_or_default(),
+                connect: connect.clone(),
             })
         };
         Ok(match (state.as_str(), sha, dev) {
@@ -833,14 +891,11 @@ impl ActivityService {
             .map_err(Into::into)
     }
 
-    /// The capabilities an instance row runs with: its reviewed bundle's, or every one in development.
+    /// The capabilities an instance row runs with: its reviewed bundle's, or every active one in development.
     fn capabilities(r: &PgRow) -> ActivityResult<Vec<String>> {
         let development: bool = r.try_get("dev")?;
         Ok(if development {
-            bundle::CAPABILITIES
-                .iter()
-                .map(|c| (*c).to_owned())
-                .collect()
+            crate::arcade::active_flags().map(str::to_owned).collect()
         } else {
             r.try_get::<Option<Vec<String>>, _>("caps")?
                 .unwrap_or_default()
@@ -851,11 +906,12 @@ impl ActivityService {
         let id: i64 = r.try_get("id")?;
         let development: bool = r.try_get("dev")?;
         let mut capabilities = Self::capabilities(r)?;
-        // `byos_write` is reserved (D-399): accepted in a manifest, never handed to a running instance.
-        capabilities.retain(|c| c != bundle::BYOS_WRITE);
         if !self.datachannel_allowed() {
             capabilities.retain(|c| c != bundle::DATACHANNEL);
         }
+        // A reserved flag (ARC-ROOM-001; `byos_write`, D-399) is accepted in a manifest but never handed to a
+        // running instance.
+        capabilities.retain(|c| crate::arcade::is_active(c));
         Ok(InstanceView {
             id: id.to_string(),
             application_id: r.try_get::<i64, _>("application_id")?.to_string(),
@@ -975,6 +1031,12 @@ impl ActivityService {
         if !self.may_start(user, app, p.guild_id).await? {
             return Err(ActivityError::NotFound("activity"));
         }
+        // TIER_2_REIMPLEMENTATION games run in the desktop app only (ARC-ROOM-001).
+        if crate::arcade::desktop_only(self.pool(), app).await? {
+            return Err(ActivityError::Conflict(
+                "This game runs in the desktop app only.".to_owned(),
+            ));
+        }
         let id = (self.inner.ids)();
         let mut tx = self.pool().begin().await?;
         let inserted = sqlx::query(
@@ -1058,6 +1120,12 @@ impl ActivityService {
         .bind(user)
         .execute(self.pool())
         .await?;
+        // A member who leaves loses their proxy token; a rejoin mints a new one.
+        sqlx::query("DELETE FROM activity_proxy_tokens WHERE instance_id = $1 AND user_id = $2")
+            .bind(instance)
+            .bind(user)
+            .execute(self.pool())
+            .await?;
         let left: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM activity_participants WHERE instance_id = $1 AND left_at IS NULL",
         )
@@ -1083,6 +1151,59 @@ impl ActivityService {
             self.announce(channel, Some(&view)).await;
         }
         Ok(())
+    }
+
+    /// Mint the proxy token of `user` in `instance` (ARC-SBX-001, D-399): the credential a sandboxed game sends
+    /// (`X-SR-Activity-Token`) so the activity proxy accepts its URL-mapping writes, which arrive with
+    /// `Origin: null`. Only a current participant of a running instance gets one; minting again replaces the
+    /// previous one, and leaving the instance (or its end) drops it. Only the SHA-256 digest is stored.
+    pub async fn mint_proxy_token(&self, user: i64, instance: i64) -> ActivityResult<String> {
+        let joined: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM activity_participants p \
+             JOIN activity_instances i ON i.id = p.instance_id \
+             WHERE p.instance_id = $1 AND p.user_id = $2 AND p.left_at IS NULL AND i.ended_at IS NULL)",
+        )
+        .bind(instance)
+        .bind(user)
+        .fetch_one(self.pool())
+        .await?;
+        if !joined {
+            return Err(ActivityError::NotFound("activity"));
+        }
+        // Two version-4 UUIDs from the database's strong random source: 244 random bits as 64 hex digits.
+        let token: String = sqlx::query_scalar(
+            "SELECT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')",
+        )
+        .fetch_one(self.pool())
+        .await?;
+        sqlx::query(
+            "INSERT INTO activity_proxy_tokens (instance_id, user_id, token_sha256) VALUES ($1, $2, $3) \
+             ON CONFLICT (instance_id, user_id) \
+             DO UPDATE SET token_sha256 = EXCLUDED.token_sha256, created_at = now()",
+        )
+        .bind(instance)
+        .bind(user)
+        .bind(proxy_token_digest(&token))
+        .execute(self.pool())
+        .await?;
+        Ok(token)
+    }
+
+    /// Whether `token` is the proxy token of a current participant of a running instance of `app`.
+    pub async fn proxy_token_valid(&self, app: i64, token: &str) -> ActivityResult<bool> {
+        if token.len() != PROXY_TOKEN_LEN || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Ok(false);
+        }
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM activity_proxy_tokens t \
+             JOIN activity_instances i ON i.id = t.instance_id \
+             JOIN activity_participants p ON p.instance_id = t.instance_id AND p.user_id = t.user_id \
+             WHERE t.token_sha256 = $1 AND i.application_id = $2 AND i.ended_at IS NULL AND p.left_at IS NULL)",
+        )
+        .bind(proxy_token_digest(token))
+        .bind(app)
+        .fetch_one(self.pool())
+        .await?)
     }
 
     /// Leave an activity. The last participant leaving ends it.

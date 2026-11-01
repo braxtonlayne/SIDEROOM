@@ -126,6 +126,7 @@ fn bundle_spec() -> ServeSpec {
             sha256: SHA.to_owned(),
         },
         url_mappings: mappings(),
+        connect: vec![],
     }
 }
 
@@ -135,6 +136,7 @@ fn dev_spec() -> ServeSpec {
             url: "https://dev.example.com/".to_owned(),
         },
         url_mappings: mappings(),
+        connect: vec![],
     }
 }
 
@@ -154,7 +156,13 @@ fn assert_hardened(h: &HeaderMap) {
         csp.contains("frame-ancestors https://chat.example.org"),
         "{csp}"
     );
-    assert!(csp.contains("script-src 'self'") && csp.contains("connect-src 'self'"));
+    // ARC-SBX-001: the server enforces the sandbox itself, and a bundle that declared no hosts may connect nowhere.
+    assert!(
+        csp.starts_with("sandbox allow-scripts allow-pointer-lock;"),
+        "{csp}"
+    );
+    assert!(!csp.contains("allow-same-origin"), "{csp}");
+    assert!(csp.contains("script-src 'self'"), "{csp}");
     assert_eq!(h[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
     assert_eq!(h[header::REFERRER_POLICY], "no-referrer");
     assert!(
@@ -196,6 +204,41 @@ async fn the_reviewed_bundle_is_served_from_storage_with_the_hardened_headers() 
     assert!(f.asked.lock().unwrap().is_empty());
 }
 
+fn csp_of(h: &HeaderMap) -> String {
+    h[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn the_sandbox_connects_nowhere_unless_the_reviewed_manifest_named_hosts() {
+    let (d, _) = rig(true).await;
+    let mut spec = bundle_spec();
+    spec.url_mappings = vec![];
+    let (_, h, _) = text(proxy::serve(&d, APP, &spec, "/app.js").await).await;
+    assert!(csp_of(&h).contains("connect-src 'none';"), "{}", csp_of(&h));
+    // Module scripts and fonts of an opaque-origin page are CORS fetches.
+    assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+
+    // Declared hosts are named and "self" is honoured. CSP is per host: the whole host is admitted.
+    spec.connect = vec!["https://assets.example.com".to_owned(), "self".to_owned()];
+    let (_, h, _) = text(proxy::serve(&d, APP, &spec, "/app.js").await).await;
+    assert!(
+        csp_of(&h).contains("connect-src https://assets.example.com 'self';"),
+        "{}",
+        csp_of(&h)
+    );
+    // D-399: reviewed URL mappings are the game's own pipe to its developer's server, reached through 'self'.
+    let (_, h, _) = text(proxy::serve(&d, APP, &bundle_spec(), "/app.js").await).await;
+    assert!(csp_of(&h).contains("connect-src 'self';"), "{}", csp_of(&h));
+
+    // Error pages never get more than the strictest policy.
+    let (s, h, _) = text(proxy::serve(&d, APP, &bundle_spec(), "/nope.js").await).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert!(csp_of(&h).contains("connect-src 'none';"));
+}
+
 #[tokio::test]
 async fn bundle_paths_never_leave_the_bundle_and_unknown_files_are_404() {
     let (d, f) = rig(true).await;
@@ -225,6 +268,7 @@ async fn bundle_paths_never_leave_the_bundle_and_unknown_files_are_404() {
             sha256: "f".repeat(64),
         },
         url_mappings: vec![],
+        connect: vec![],
     };
     let (s, _, _) = text(proxy::serve(&d, APP, &other, "/").await).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
@@ -241,6 +285,8 @@ async fn mapped_paths_go_to_the_target_and_an_unreachable_server_is_a_502() {
     let (s, h, _) = text(proxy::serve(&d, APP, &spec, "/api/rooms?x=1").await).await;
     assert_eq!(s, StatusCode::OK);
     assert_hardened(&h);
+    // The sandboxed game's GET of its own mapping is a CORS fetch without credentials (D-399).
+    assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
     assert_eq!(
         *f.asked.lock().unwrap(),
         vec!["https://api.example.com/v1/rooms?x=1"]
@@ -428,6 +474,8 @@ async fn writes_are_limited_to_one_mebibyte_and_to_the_activitys_own_origin() {
         "https://evil.example",
         "https://chat.example.org",
         "https://78.activities.chat.example.org",
+        // A sandboxed frame without allow-same-origin: an opaque origin is never the Activity's own.
+        "null",
     ] {
         let r = proxy::forward_write(
             &d,
@@ -442,6 +490,203 @@ async fn writes_are_limited_to_one_mebibyte_and_to_the_activitys_own_origin() {
         assert_eq!(text(r).await.0, StatusCode::FORBIDDEN, "{origin}");
     }
     assert_eq!(f.sent.lock().unwrap().len(), 1);
+}
+
+/// D-399: `Origin: null` is what any sandboxed page sends, so without the instance's proxy token (or with
+/// something that cannot be one) the write is refused before any lookup, and the refusal is not readable.
+#[tokio::test]
+async fn an_opaque_origin_without_a_proxy_token_cannot_write() {
+    let (d, f) = rig(true).await;
+    let spec = bundle_spec();
+    let not_hex = "z".repeat(64);
+    for token in [None, Some(""), Some("abc"), Some(not_hex.as_str())] {
+        let mut h = origin_headers(Some("null"), Some("application/json"));
+        if let Some(t) = token {
+            h.insert(proxy::TOKEN_HEADER, HeaderValue::from_str(t).unwrap());
+        }
+        let r =
+            proxy::forward_write(&d, APP, &spec, &Method::POST, &h, "/api/x", Body::empty()).await;
+        let (s, h, _) = text(r).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{token:?}");
+        assert!(h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+    }
+    assert!(f.sent.lock().unwrap().is_empty());
+}
+
+/// D-399: the CORS preflight of the sandboxed game's write admits the token header, under a mapping and for
+/// `Origin: null` only.
+#[tokio::test]
+async fn the_preflight_admits_the_token_header_under_a_mapping_only() {
+    let (d, _) = rig(true).await;
+    let spec = bundle_spec();
+    let r = proxy::preflight_answer(&d, &spec, &origin_headers(Some("null"), None), "/api/rooms");
+    let (s, h, body) = text(r).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert!(body.is_empty());
+    assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "null");
+    assert!(
+        h[header::ACCESS_CONTROL_ALLOW_HEADERS]
+            .to_str()
+            .unwrap()
+            .contains(proxy::TOKEN_HEADER)
+    );
+    assert_hardened(&h);
+    for (origin, path) in [
+        (Some("null"), "/app.js"),
+        (Some("null"), "/"),
+        (Some("null"), "/api/../x"),
+        (Some("https://evil.example"), "/api/rooms"),
+        (Some(OWN_ORIGIN), "/api/rooms"),
+        (None, "/api/rooms"),
+    ] {
+        let r = proxy::preflight_answer(&d, &spec, &origin_headers(origin, None), path);
+        let (s, h, _) = text(r).await;
+        assert_eq!(s, StatusCode::METHOD_NOT_ALLOWED, "{origin:?} {path}");
+        assert!(h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+    }
+}
+
+/// D-399 over real tables: a game with a URL mapping POSTs through it with its instance's proxy token; a page
+/// without the token, with a stale one or with one of another application cannot.
+/// `SR_TEST_DATABASE_URL=... cargo test -p sr-api --lib routes::activities::tests -- --ignored --test-threads=1`
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_game_with_a_url_mapping_posts_through_it_with_its_proxy_token() {
+    let db = sr_db::testing::TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let seq = std::sync::atomic::AtomicI64::new(0);
+    let base = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|t| t.as_micros() as i64)
+        .unwrap_or(1);
+    let next = || base * 1000 + seq.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let account = async |name: &str| {
+        let id = next();
+        let n = format!("{name}{id}");
+        assert!(
+            sr_db::accounts::create_account(
+                &pool,
+                &sr_db::accounts::NewAccount {
+                    id,
+                    person_id: next(),
+                    username: &n,
+                    display_name: None,
+                    email: &format!("{n}@example.test"),
+                    password_hash: "x",
+                    state: "active",
+                    email_verified: true,
+                    initial_credits: 0,
+                    flags: 0,
+                },
+                next(),
+            )
+            .await
+            .unwrap()
+        );
+        id
+    };
+    let player = account("player").await;
+    let stranger = account("stranger").await;
+    let owner = account("owner").await;
+    let bot = account("bot").await;
+    let (app, other_app, instance) = (next(), next(), next());
+    for (id, bot_id) in [(app, bot), (other_app, account("bot").await)] {
+        sqlx::query(
+            "INSERT INTO applications (id, owner_id, bot_user_id, name, client_secret_hash) \
+             VALUES ($1, $2, $3, 'Mapped game', decode(repeat('ab', 32), 'hex'))",
+        )
+        .bind(id)
+        .bind(owner)
+        .bind(bot_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    sqlx::query(
+        "INSERT INTO activity_instances (id, application_id, guild_id, channel_id, channel_type, started_by) \
+         VALUES ($1, $2, 9, 3, 'text', $3)",
+    )
+    .bind(instance)
+    .bind(app)
+    .bind(player)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO activity_participants (instance_id, user_id) VALUES ($1, $2)")
+        .bind(instance)
+        .bind(player)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let f = Arc::new(FakeFetcher::default());
+    let d = Arc::new(ActivitiesDeps::new(
+        ActivityService::new(pool.clone(), Arc::new(|| 1)).with_storage(storage),
+        true,
+        "https://chat.example.org",
+        Some(f.clone()),
+    ));
+    let spec = bundle_spec();
+    let token = d.service.mint_proxy_token(player, instance).await.unwrap();
+    assert!(
+        d.service
+            .mint_proxy_token(stranger, instance)
+            .await
+            .is_err()
+    );
+    let post = async |app: i64, token: Option<&str>| {
+        let mut h = origin_headers(Some("null"), Some("application/json"));
+        if let Some(t) = token {
+            h.insert(proxy::TOKEN_HEADER, HeaderValue::from_str(t).unwrap());
+        }
+        text(
+            proxy::forward_write(
+                &d,
+                app,
+                &spec,
+                &Method::POST,
+                &h,
+                "/api/scores",
+                Body::from("{\"score\":7}"),
+            )
+            .await,
+        )
+        .await
+    };
+
+    // The game, with its token: forwarded, and the answer is readable by the opaque origin.
+    let (s, h, body) = post(app, Some(&token)).await;
+    assert_eq!(s, StatusCode::CREATED);
+    assert_eq!(body, "{\"ok\":true}");
+    assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "null");
+    assert_hardened(&h);
+    {
+        let sent = f.sent.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].1, "https://api.example.com/v1/scores");
+        assert_eq!(sent[0].3, b"{\"score\":7}");
+    }
+
+    // A page without the token, with a made-up one, or with this token on another application: refused.
+    let made_up = "ab".repeat(32);
+    for (a, t) in [
+        (app, None),
+        (app, Some(made_up.as_str())),
+        (other_app, Some(token.as_str())),
+    ] {
+        let (s, h, _) = post(a, t).await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{a} {t:?}");
+        assert!(h.get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+    }
+    // Once the player has left, the token is stale.
+    d.service.leave(player, instance).await.unwrap();
+    let (s, _, _) = post(app, Some(&token)).await;
+    assert_eq!(s, StatusCode::FORBIDDEN);
+    assert_eq!(
+        f.sent.lock().unwrap().len(),
+        1,
+        "refused writes are never forwarded"
+    );
 }
 
 #[tokio::test]

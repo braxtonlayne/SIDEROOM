@@ -67,6 +67,8 @@ const ROWS: Row[] = [
   { name: 'library home', path: () => '/library', auth: true },
   { name: 'cinema title', path: (w) => `/cinema/t/${w.titleId}`, auth: true },
   { name: 'admin home', path: () => '/admin', auth: true },
+  // ARC-ROOM-001: the Arcade and its own section bar (Featured, Guild Cartridges, Coming Soon).
+  { name: 'arcade', path: () => '/games', auth: true },
 ];
 
 export interface Clip {

@@ -497,6 +497,37 @@ pub async fn join(
     ))
 }
 
+/// The proxy token of the caller in a running Activity (ARC-SBX-001, D-399).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProxyTokenResponse {
+    /// 64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as
+    /// `X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid
+    /// while the instance runs and the caller has not left it; minting again replaces the previous one.
+    pub token: String,
+}
+
+/// Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399).
+#[utoipa::path(
+    post, path = "/activity-instances/{instance_id}/proxy-token", tag = "activities",
+    params(("instance_id" = String, Path, description = INSTANCE)),
+    responses((status = 200, body = ProxyTokenResponse), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn proxy_token(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(instance): Path<String>,
+) -> MsgResult<Json<ProxyTokenResponse>> {
+    deps.require_enabled()?;
+    let instance = id(&instance, sr_not_found())?;
+    let token = deps
+        .service
+        .mint_proxy_token(p.user_id, instance)
+        .await
+        .map_err(act)?;
+    Ok(Json(ProxyTokenResponse { token }))
+}
+
 /// Leave an Activity; the last one out ends it.
 #[utoipa::path(
     post, path = "/activity-instances/{instance_id}/leave", tag = "activities",
@@ -531,4 +562,85 @@ pub async fn end(
     let instance = id(&instance, sr_not_found())?;
     deps.service.end(p.user_id, instance).await.map_err(act)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------------------------------------------------------------------------- build trust (ARC-SBX-001)
+
+/// A member's vouch for the build they looked at.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct VouchBody {
+    /// The `code_sha256` of the build being vouched for, as the badge showed it. Refused with 409 when the game
+    /// has shipped different code since.
+    pub code_sha256: String,
+}
+
+/// The trust badge of a game's current build: the operator's code signature, the featured flag, the vouches
+/// pinned to this exact code hash and, after an update, what the previous build had earned. The Arcade page
+/// renders `headline` (`operator_featured`, `swarm_safety_signed`, `unverified_update`, `unsigned`).
+#[utoipa::path(
+    get, path = "/activities/{application_id}/trust", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    responses((status = 200, body = sr_activities::trust::TrustView), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn get_trust(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(app): Path<String>,
+) -> MsgResult<Json<sr_activities::trust::TrustView>> {
+    deps.require_enabled()?;
+    let app = id(&app, ErrorCode::SrNotFound)?;
+    Ok(Json(
+        deps.service
+            .trust(app, Some(p.user_id))
+            .await
+            .map_err(act)?,
+    ))
+}
+
+/// Vouch for a build ("Vouch for Build"), pinned to its `code_sha256`. Needs a member in good standing (an
+/// active, non-bot account at least three days old: 403 otherwise), at most 30 vouches a day (409) and the
+/// hash of the build being served now (409 when the game was updated). Vouching again changes nothing.
+#[utoipa::path(
+    put, path = "/activities/{application_id}/vouch", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    request_body = VouchBody,
+    responses((status = 200, body = sr_activities::trust::TrustView), (status = 400, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn put_vouch(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(app): Path<String>,
+    ApiJson(body): ApiJson<VouchBody>,
+) -> MsgResult<Json<sr_activities::trust::TrustView>> {
+    deps.require_enabled()?;
+    let app = id(&app, ErrorCode::SrNotFound)?;
+    Ok(Json(
+        deps.service
+            .vouch(app, p.user_id, &body.code_sha256)
+            .await
+            .map_err(act)?,
+    ))
+}
+
+/// Withdraw my vouches for this game (every build).
+#[utoipa::path(
+    delete, path = "/activities/{application_id}/vouch", tag = "activities",
+    params(("application_id" = String, Path, description = "Application snowflake")),
+    responses((status = 200, body = sr_activities::trust::TrustView), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn delete_vouch(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(app): Path<String>,
+) -> MsgResult<Json<sr_activities::trust::TrustView>> {
+    deps.require_enabled()?;
+    let app = id(&app, ErrorCode::SrNotFound)?;
+    Ok(Json(
+        deps.service.unvouch(app, p.user_id).await.map_err(act)?,
+    ))
 }

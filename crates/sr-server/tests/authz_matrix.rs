@@ -846,12 +846,15 @@ fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 /// A zip of one file, an Activity bundle that unpacks.
-fn tiny_zip() -> Vec<u8> {
+fn tiny_zip(code: &str) -> Vec<u8> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     z.start_file("index.html", zip::write::SimpleFileOptions::default())
         .unwrap();
     z.write_all(b"<h1>authz</h1>").unwrap();
+    z.start_file("app.js", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    z.write_all(code.as_bytes()).unwrap();
     z.finish().unwrap().into_inner()
 }
 
@@ -2115,6 +2118,71 @@ async fn seed(
     {
         a.insert("announcement_id", n.to_owned());
     }
+    // ARC-ROOM-001: a Coming Soon entry, a cartridge on each tenant's server, and a released game that
+    // declares a tier (the Operator features it in the write phase).
+    if let Some(v) = create(
+        &srv,
+        &staff,
+        "POST",
+        "/admin/arcade/coming-soon",
+        "/admin/arcade/coming-soon",
+        infos,
+        Some(json!({"title": "Authz soon", "summary": "authz matrix", "tier": "TIER_1_ORIGINAL", "repo_url": "https://github.com/example/authz"})),
+    )
+    .await
+        && let Some(n) = v["id"].as_str()
+    {
+        a.insert("arcade_entry_id", n.to_owned());
+        b.insert("arcade_entry_id", n.to_owned());
+    }
+    for (cred, guild, map) in [(&oa, ga, &mut a), (&ob, gb, &mut b)] {
+        let path = format!("/guilds/{guild}/arcade/cartridges");
+        if let Some(v) = create(
+            &srv,
+            cred,
+            "POST",
+            "/guilds/{guild_id}/arcade/cartridges",
+            &path,
+            infos,
+            Some(json!({"title": "Authz cart", "kind": "game", "tier": "TIER_1_ORIGINAL", "source_ref": "games/authz.zip"})),
+        )
+        .await
+            && let Some(n) = v["id"].as_str()
+        {
+            map.insert("arcade_cartridge_id", n.to_owned());
+        }
+    }
+    {
+        let bot = account(&pool, &ids, "arcadegamebot").await;
+        let app = ids.generate().get() as i64;
+        let bundle = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO applications (id, owner_id, bot_user_id, name, release_state, client_secret_hash) \n             VALUES ($1, $2, $2, 'Authz game', 'released', decode(repeat('ab', 32), 'hex'))",
+        )
+        .bind(app)
+        .bind(bot)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO application_activity_bundles (id, application_id, sha256, byte_size, entry_count, state, tier) \n             VALUES ($1, $2, repeat('a', 64), 1, 1, 'approved', 'TIER_1_ORIGINAL')",
+        )
+        .bind(bundle)
+        .bind(app)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO application_activities (application_id, review_state, reviewed_bundle_id) \n             VALUES ($1, 'approved', $2)",
+        )
+        .bind(app)
+        .bind(bundle)
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("arcade_app_id", app.to_string());
+        b.insert("arcade_app_id", app.to_string());
+    }
     if let Some(v) = create(
         &srv,
         &member_cred,
@@ -2790,7 +2858,76 @@ async fn seed(
     {
         a.insert("party_id", id.to_owned());
     }
-    let zipped = tiny_zip();
+    // ARC-SBX-001: the application is released with an approved first bundle (set directly: nobody in the matrix
+    // is a second reviewer), so the trust and vouch routes have a served build to work on; the second upload
+    // below is the draft that `activity/submit` takes.
+    {
+        let first = srv
+            .call_bytes(
+                &appowner_cred,
+                "POST",
+                &format!("/applications/{aid}/activity/bundles"),
+                "application/zip",
+                &tiny_zip("1;"),
+            )
+            .await;
+        if let Some(bid) = serde_json::from_str::<Value>(&first.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            let code_hash = "ab".repeat(32);
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'approved', code_sha256 = $2 WHERE id = $1::text::bigint",
+            )
+            .bind(&bid)
+            .bind(&code_hash)
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "UPDATE application_activities SET reviewed_bundle_id = $2::text::bigint WHERE application_id = $1::text::bigint",
+            )
+            .bind(aid.to_string())
+            .bind(&bid)
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "UPDATE applications SET release_state = 'released'::app_release_state WHERE id = $1::text::bigint",
+            )
+            .bind(aid.to_string())
+            .execute(&pool)
+            .await
+            .unwrap();
+            a.insert("code_sha256", code_hash);
+        }
+    }
+    // ARC-SBX-001 (D-399): a running instance of that game in server A that owner A takes part in, so the
+    // proxy-token route has a real instance (its own channel id: no other activity route is touched).
+    {
+        let instance = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO activity_instances (id, application_id, guild_id, channel_id, channel_type, started_by) \
+             VALUES ($1, $2::text::bigint, $3, $4, 'text', $5)",
+        )
+        .bind(instance)
+        .bind(aid.to_string())
+        .bind(ga)
+        .bind(ids.generate().get() as i64)
+        .bind(u("ownera"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO activity_participants (instance_id, user_id) VALUES ($1, $2)")
+            .bind(instance)
+            .bind(u("ownera"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        a.insert("proxy_instance_id", instance.to_string());
+    }
+    let zipped = tiny_zip("2;");
     let r = srv
         .call_bytes(
             &appowner_cred,
@@ -4572,6 +4709,12 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/admin/arcade/coming-soon") => {
+            r#"{"title":"Authz soon two","summary":"authz","tier":"TIER_2_REIMPLEMENTATION","repo_url":"https://github.com/example/two"}"#
+        }
+        ("POST", "/guilds/{guild_id}/arcade/cartridges") => {
+            r#"{"title":"Authz cart two","kind":"mod","tier":"TIER_1_ORIGINAL","source_ref":"games/two.zip"}"#
+        }
         ("POST", "/admin/cinema/titles/{title_id}/merge") => r#"{"target_id":"{title_id}"}"#,
         ("POST", "/admin/library/series/{series_id}/merge") => r#"{"target_id":"{series_id}"}"#,
         ("POST", "/moderation/age/restrictions") => {
@@ -4620,6 +4763,7 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
         ("POST", "/developers/tester-invites/{invite_id}/respond")
         | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
+        ("PUT", "/activities/{application_id}/vouch") => r#"{"code_sha256":"{code_sha256}"}"#,
         ("POST", "/applications/{application_id}/activity/submit") => {
             r#"{"bundle_id":"{bundle_id}"}"#
         }
@@ -5259,7 +5403,29 @@ fn ctx_for(
 /// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
 /// published one. The write phase (and every other pass) fills them from the family's own seeded key.
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
+    // ARC-SBX-001 (D-399): the proxy token is minted on the seeded running instance owner A takes part in.
+    (
+        &["/activity-instances/{instance_id}/proxy-token"],
+        "instance_id",
+        "proxy_instance_id",
+    ),
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
+    // ARC-ROOM-001: the Arcade routes act on the seeded entry, cartridge and released game.
+    (
+        &["/arcade/coming-soon/", "/admin/arcade/coming-soon/"],
+        "entry_id",
+        "arcade_entry_id",
+    ),
+    (
+        &["/guilds/{guild_id}/arcade/"],
+        "cartridge_id",
+        "arcade_cartridge_id",
+    ),
+    (
+        &["/admin/arcade/featured/"],
+        "application_id",
+        "arcade_app_id",
+    ),
     (
         &["/cinema/", "/admin/cinema/"],
         "asset_id",
