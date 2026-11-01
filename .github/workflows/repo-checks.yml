@@ -39,6 +39,10 @@ jobs:
         run: node scripts/check-tools-corpus.mjs
       - name: Dependabot directories exist
         run: node scripts/check-dependabot.mjs
+      # OPS-CRASH-001 (T45): the secret-pattern grep of a built crash card bites on the hostile fixture and passes the card
+      # the allow-list builds from it (the unit tests of both allow-lists feed the same fixture).
+      - name: Crash card secret-pattern grep
+        run: node scripts/check-crash-card.mjs --self-test
       - name: Automation scripts
         run: node --test "scripts/*.test.mjs"
       # SEC-ENT-004 (D-385): the same two files run in the step above; named here so the log shows them. Each public
