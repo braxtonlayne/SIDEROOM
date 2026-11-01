@@ -14,6 +14,8 @@ import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } fro
 import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
 import { activityDataPort } from '../voice/dataPort';
+import { guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
+import { restoreGuestBridge } from './ShareLinkDialog';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
 
@@ -78,12 +80,27 @@ export function ActivityFrame({
         ),
         saveFile: downloadBytes,
         proxyToken: mintProxyToken,
+        guests: () => guestParticipants(latest.current.instance.id),
         selfId: () => useStore.getState().currentUserId ?? null,
-        data: instance.channel_type === 'voice' ? activityDataPort : undefined,
+        data: instance.channel_type === 'voice' ? guestAwareData(activityDataPort) : undefined,
         setPresence: (activity) => reportPresence({ activity }),
         assets: () => httpAssetsApi.list(instance.application_id),
       }),
     [origin, instance.application_id, instance.channel_type],
+  );
+
+  // A reload of this tab seats the guest bridge again when it still holds a live link (ARC-GST-002).
+  useEffect(() => {
+    restoreGuestBridge(latest.current.instance);
+  }, [instance.id]);
+
+  // The guests of a guest link are in the game's participant list; tell the game when they come and go.
+  useEffect(
+    () =>
+      onGuestRoster((id) => {
+        if (id === latest.current.instance.id) host.participantsChanged();
+      }),
+    [host],
   );
 
   // The Activity's Rich Presence goes away with the frame.

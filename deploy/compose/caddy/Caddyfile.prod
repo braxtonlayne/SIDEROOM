@@ -139,6 +139,16 @@
 		file_server
 	}
 
+	@guest-play path /play/*
+	handle @guest-play {
+		root * {$SR_WEB_ROOT:/srv/web}
+		rewrite * /guest-play.html
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' wss://{http.request.hostport}; frame-src https://*.activities.{http.request.hostport}; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+		header Reporting-Endpoints "csp-endpoint=\"/internal/csp-report\""
+		header Cache-Control "no-cache"
+		file_server
+	}
+
 	# The legal page is plain HTML rendered by sr-server (the operator's country and contact are filled in there).
 	@legal path /house-notes
 	handle @legal {

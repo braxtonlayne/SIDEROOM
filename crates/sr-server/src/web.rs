@@ -43,6 +43,44 @@ use sr_core::config::Config;
 /// pins them together.
 pub const PUBLIC_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
 
+/// ARC-GST-002 (wave 43, D-385): the policy of the guest-play shell (`/play/<token>`), the only public document that
+/// frames anything. It is [`PUBLIC_CSP`] plus `frame-src` for the game's own sandboxed, cookieless origin
+/// (`<application-id>.activities.<this host>`) and the guest socket on this host. `{h}` is the request's host and
+/// `{s}` the secure-or-plain scheme pair; [`guest_play_csp`] fills them. `apps/web/src/security/csp.ts` is the other
+/// copy; `csp.test.ts` pins them together.
+pub const GUEST_PLAY_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' {w}://{h}; frame-src {s}://*.activities.{h}; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
+
+/// The guest-play policy for a request to `host` (`Host` header, with port), or `None` when the host is not a plain
+/// host name (letters, digits, dots, dashes, an optional port): a hostile `Host` can never put a source into the
+/// policy. A local development host also admits `http`/`ws`.
+pub fn guest_play_csp(host: &str) -> Option<String> {
+    let (name, port) = match host.rsplit_once(':') {
+        Some((n, p)) if !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) => (n, Some(p)),
+        _ => (host, None),
+    };
+    let name_ok = !name.is_empty()
+        && name.len() <= 253
+        && !name.starts_with(['.', '-'])
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
+    if !name_ok || port.is_some_and(|p| p.len() > 5) {
+        return None;
+    }
+    let local = name == "localhost" || name.ends_with(".localhost") || name == "127.0.0.1";
+    let (s, w) = if local {
+        ("http", "ws")
+    } else {
+        ("https", "wss")
+    };
+    Some(
+        GUEST_PLAY_CSP
+            .replace("{h}", host)
+            .replace("{s}", s)
+            .replace("{w}", w),
+    )
+}
+
 /// The legal and error pages: plain HTML, no script, no fetch.
 pub const NO_SCRIPT_CSP: &str = "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
 
@@ -94,6 +132,8 @@ struct Surface {
     paths: Vec<String>,
     files: Vec<String>,
     reserved: bool,
+    /// Names a policy other than the plain public one for this surface's shell (`"guest-play"`).
+    csp: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -308,6 +348,16 @@ impl WebGate {
             .and_then(|s| s.shell.as_deref())
     }
 
+    /// The policy name the surface that owns `path` asks for, if any.
+    fn surface_csp(&self, path: &str) -> Option<&str> {
+        self.table
+            .surfaces
+            .iter()
+            .filter(|s| s.kind == "bundle" && !s.reserved)
+            .find(|s| s.paths.iter().any(|p| pattern_matches(p, path)))
+            .and_then(|s| s.csp.as_deref())
+    }
+
     /// Whether `path` belongs to a public surface (a bundle, reserved or not, or a plain-HTML page).
     fn is_public_path(&self, path: &str) -> bool {
         self.table
@@ -485,7 +535,11 @@ async fn fallback_inner(gs: GateState, req: Request) -> Response {
             return gate.app_shell(&method, &path).await;
         }
         return if gate.serve_public {
-            serve_public_path(gate, &path, &method).await
+            let host = req
+                .headers()
+                .get(header::HOST)
+                .and_then(|v| v.to_str().ok());
+            serve_public_path(gate, &path, &method, host).await
         } else {
             // Caddy serves these; one that reaches the server is not ours to answer.
             plain(StatusCode::NOT_FOUND)
@@ -507,7 +561,12 @@ async fn fallback_inner(gs: GateState, req: Request) -> Response {
 }
 
 /// A public shell or file, only with `serve_public`.
-async fn serve_public_path(gate: &WebGate, path: &str, method: &Method) -> Response {
+async fn serve_public_path(
+    gate: &WebGate,
+    path: &str,
+    method: &Method,
+    host: Option<&str>,
+) -> Response {
     let (file, ct, cache, is_doc) = if let Some(shell) = gate.surface_shell(path) {
         (
             gate.root.join(shell),
@@ -555,9 +614,17 @@ async fn serve_public_path(gate: &WebGate, path: &str, method: &Method) -> Respo
         } else {
             PUBLIC_CSP
         };
+        // ARC-GST-002: the guest-play shell frames its game; it gets its own policy, or none at all when the host
+        // is not a plain host name (the page then cannot frame anything).
+        let guest = (gate.surface_csp(path) == Some("guest-play"))
+            .then(|| {
+                host.and_then(guest_play_csp)
+                    .unwrap_or_else(|| NO_SCRIPT_CSP.to_owned())
+            })
+            .and_then(|v| HeaderValue::from_str(&v).ok());
         h.insert(
             header::CONTENT_SECURITY_POLICY,
-            HeaderValue::from_static(csp),
+            guest.unwrap_or_else(|| HeaderValue::from_static(csp)),
         );
         h.insert(
             HeaderName::from_static("reporting-endpoints"),
@@ -973,6 +1040,54 @@ pub const LOGOUT_CLEAR_SITE_DATA: &str = CLEAR_SITE_DATA;
 
 #[cfg(test)]
 mod tests {
+    // ARC-GST-002: the guest-play policy.
+    #[test]
+    fn the_guest_play_policy_frames_only_this_hosts_activity_origins() {
+        let csp = guest_play_csp("chat.example.org").unwrap();
+        assert!(csp.contains("frame-src https://*.activities.chat.example.org;"));
+        assert!(csp.contains("connect-src 'self' wss://chat.example.org;"));
+        assert!(csp.contains("script-src 'self';") && !csp.contains("wasm-unsafe-eval"));
+        assert!(csp.contains("frame-ancestors 'none'") && !csp.contains("blob:"));
+        // A port stays; a local development host also admits http and ws.
+        assert!(
+            guest_play_csp("chat.example.org:8443")
+                .unwrap()
+                .contains("https://*.activities.chat.example.org:8443;")
+        );
+        let local = guest_play_csp("localhost:5173").unwrap();
+        assert!(local.contains("frame-src http://*.activities.localhost:5173;"));
+        assert!(local.contains("connect-src 'self' ws://localhost:5173;"));
+        // Everything else the public policy says is unchanged.
+        for part in [
+            "default-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ] {
+            assert!(csp.contains(part) && PUBLIC_CSP.contains(part), "{part}");
+        }
+    }
+
+    #[test]
+    fn a_hostile_host_header_never_reaches_the_policy() {
+        for bad in [
+            "",
+            "a b",
+            "x;y",
+            "evil.test; script-src *",
+            "a.b/c",
+            "-x.test",
+            ".x.test",
+            "x.test:",
+            "x.test:123456",
+            "x\"y",
+            "*.test",
+            "x.test:80:90",
+        ] {
+            assert!(guest_play_csp(bad).is_none(), "{bad:?}");
+        }
+    }
+
     use super::*;
 
     #[test]

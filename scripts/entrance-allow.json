@@ -55,6 +55,26 @@
       "file": "sw.js",
       "token": "profile.",
       "reason": "PRF-PRO-001: the worker precaches the public shells, profile.html among them (entrance-isolation.md section 5); the shell name is the surface table row."
+    },
+    {
+      "surface": "guest-play",
+      "token": "/gateway/guest",
+      "reason": "ARC-GST-002: the guest socket (sr_gateway::guest, GET /gateway/guest?v=1) is the one connection the runner opens; it accepts a guest token and a single topic game:<lobby_token>, and the relay drops anything else with 4403. No other surface names it."
+    },
+    {
+      "surface": "guest-play",
+      "token": ".activities.",
+      "reason": "ARC-GST-002: the runner frames the lobby's game from https://<application-id>.activities.<host>, the same sandboxed, cookieless origin members use. It is only an address string; the word names no feature and the page lists none."
+    },
+    {
+      "surface": "guest-play",
+      "token": "guestplay.",
+      "reason": "ARC-GST-002: the runner page strings (guestplay.* in p43-guest-runner-2), registered by this surface alone. No other surface carries them (the check still fails them there)."
+    },
+    {
+      "surface": "guest-play",
+      "token": "/api/v1/play/",
+      "reason": "ARC-GST-002: the join route, POST /api/v1/play/{lobby_token}/join, the one REST call of the page (unauthenticated, rate limited, no cookie). It answers a guest token and a callsign and nothing about the server."
     }
   ]
 }

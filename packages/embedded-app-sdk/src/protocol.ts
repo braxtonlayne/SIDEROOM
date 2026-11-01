@@ -84,6 +84,13 @@ export interface ReadyConfig {
   host_id?: string;
   /** What the reviewed bundle declared in `sideroom.json` (`datachannel`, `storage`). */
   capabilities?: string[];
+  /**
+   * ARC-GST-002 (D-397): true when the game runs for a guest on `/play/<token>`. A guest bridge has no channel,
+   * server or member data: `channel_id`/`guild_id` are placeholders, `user_id` is the lobby id the relay stamps and
+   * `callsign` the name they play under.
+   */
+  guest?: boolean;
+  callsign?: string;
   /** The `storage` capability: every key the member has stored for this application (ARC-SBX-001). */
   storage?: Record<string, string>;
   /**

@@ -75,6 +75,26 @@ export const PUBLIC_API_EXACT = [
   },
 ];
 
+/**
+ * ARC-GST-002 (wave 43, D-385, D-397): the guest-play surface (`/play/<token>`) is the one public surface that runs a
+ * game, so it gets rules the other four do not need. Its modules are an explicit whitelist kept HERE, not only in
+ * `src/public/guest-play/ALLOWED.ts`: widening ALLOWED.ts alone cannot let an app module into the guest bundle. And
+ * its one REST call is the join route: any other `/api/v<n>/<name>` string in its files fails.
+ */
+export const GUEST_PLAY_SURFACE = 'guest-play';
+export const GUEST_PLAY_SRC =
+  /^src\/(?:public\/|components\/(?:EntranceShell|SkipLink|icons|entrance\.css)|lib\/(?:useNoindex|searchCodec)|i18n\/|a11y\/announcer|pwa\/|styles\/)/;
+/** The only API prefix a guest-play file may name, after `/api/v1/`. */
+export const GUEST_PLAY_API = 'play';
+
+/** Sources that are libraries or build helpers, not app code. */
+const isLibrarySource = (src) =>
+  /\.html$/.test(src) ||
+  src.startsWith('node_modules/') ||
+  src.startsWith('../../node_modules/') ||
+  src.startsWith('vite/') ||
+  src.startsWith('\0');
+
 const isWordChar = (c) => c !== undefined && /[A-Za-z0-9_]/.test(c);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -686,6 +706,27 @@ export function runCheck(distArg, options = {}) {
       for (const f of reach) {
         if (appRefs.has(f) || appBaseNames.has(basename(f))) {
           fail(name, f, '', 'rule: the file is also referenced from app.html');
+        }
+      }
+
+      // guest-play: the runner and shared scaffolding only, and one REST call (ARC-GST-002)
+      if (name === GUEST_PLAY_SURFACE) {
+        for (const f of reach) {
+          const src = srcFor(f);
+          if (src && !GUEST_PLAY_SRC.test(src) && !isLibrarySource(src)) {
+            fail(
+              name,
+              f,
+              src,
+              'rule: guest-play carries the runner and shared scaffolding only, not an app module',
+            );
+          }
+          const code = readFileSync(join(dist, f), 'utf8');
+          for (const m of code.matchAll(/\/api\/v\d+\/([A-Za-z0-9_-]*)/g)) {
+            if (m[1] !== GUEST_PLAY_API) {
+              fail(name, f, m[0], `rule: guest-play may call /api/v1/${GUEST_PLAY_API}/... only`);
+            }
+          }
         }
       }
 
