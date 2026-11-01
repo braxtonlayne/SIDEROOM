@@ -43,6 +43,7 @@ const SURFACES: &str = r#"{
       "paths": ["/login", "/login/*", "/register", "/forgot", "/reset/*", "/verify-email/*", "/email-change/cancel", "/oauth/discord/callback"] },
     { "surface": "invite", "kind": "bundle", "shell": "invite.html", "paths": ["/invite/*", "/template/*", "/no-invitation"] },
     { "surface": "profile", "kind": "bundle", "shell": "profile.html", "paths": ["/~*"] },
+    { "surface": "guest-play", "kind": "bundle", "shell": "guest-play.html", "paths": ["/play/*"], "csp": "guest-play" },
     { "surface": "legal", "kind": "html", "paths": ["/house-notes", "/fonts/README.md", "/THIRD_PARTY_NOTICES.md"] },
     { "surface": "error", "kind": "html", "files": ["404.html", "50x.html", "offline.html"], "paths": [] }
   ],
@@ -70,6 +71,7 @@ fn web_root() -> tempfile::TempDir {
     write(r, "auth.html", "<html>AUTH</html>");
     write(r, "invite.html", "<html>INVITE</html>");
     write(r, "profile.html", "<html>PROFILE</html>");
+    write(r, "guest-play.html", "<html>GUEST-PLAY</html>");
     write(r, "entrance/index-9f8e7d6c.js", "console.log('landing')");
     write(r, "entrance/.vite/manifest.json", "{}");
     write(r, "fonts/README.md", "fonts");
@@ -688,6 +690,60 @@ async fn with_serve_public_the_surfaces_files_and_error_pages_are_served() {
     assert_eq!(member.status, StatusCode::OK);
     assert!(member.body.contains("APP-SHELL") && !member.body.contains("PROFILE"));
     assert_eq!(member.h("cache-control"), "private, no-store");
+}
+
+// ARC-GST-002 (wave 43, D-385): `/play/<token>` is public, noindex, and the only shell whose policy frames anything.
+#[tokio::test]
+async fn the_guest_play_shell_is_public_with_its_own_policy() {
+    let f = fixture(true).await;
+    let r = send(
+        &f,
+        empty(
+            nav("/play/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12")
+                .header(header::HOST, "chat.example.org"),
+        ),
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(r.body.contains("GUEST-PLAY") && !r.body.contains("APP-SHELL"));
+    let csp = r.h("content-security-policy");
+    assert!(
+        csp.contains("frame-src https://*.activities.chat.example.org;"),
+        "{csp}"
+    );
+    assert!(
+        csp.contains("connect-src 'self' wss://chat.example.org;"),
+        "{csp}"
+    );
+    assert_ne!(csp, PUBLIC_CSP);
+    assert_eq!(r.h("x-robots-tag"), "noindex, nofollow");
+    assert_eq!(r.h("cache-control"), "no-cache");
+    // A hostile Host header fails closed: the page gets the no-script policy and frames nothing.
+    let bad = send(
+        &f,
+        empty(
+            nav("/play/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12")
+                .header(header::HOST, "x; script-src *"),
+        ),
+    )
+    .await;
+    assert!(
+        bad.h("content-security-policy")
+            .starts_with("default-src 'none'")
+    );
+    // A session does not turn the public page into the app (a guest link is for people outside the server too).
+    let member = send(
+        &f,
+        empty(
+            nav("/play/ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12ab12")
+                .header(header::COOKIE, &f.cookie),
+        ),
+    )
+    .await;
+    assert!(member.body.contains("GUEST-PLAY") && !member.body.contains("APP-SHELL"));
+    // The other shells keep the plain public policy.
+    let landing = send(&f, empty(nav("/"))).await;
+    assert_eq!(landing.h("content-security-policy"), PUBLIC_CSP);
 }
 
 // ---- the legal page --------------------------------------------------------------------------------------

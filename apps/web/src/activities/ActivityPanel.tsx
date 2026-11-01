@@ -7,6 +7,7 @@ import { useT } from '../i18n';
 import { useCurrentUser } from '../lounge/data';
 import { httpActivityApi, type ActivityApi } from './api';
 import { useChannelActivity } from './hooks';
+import { canShare, ShareLinkDialog } from './ShareLinkDialog';
 import { useActivitySession } from './session';
 import './activities.css';
 
@@ -52,6 +53,7 @@ export function ActivityPanel({
   const { enabled, instance } = useChannelActivity(channelId, api);
   const adopt = useActivitySession((s) => s.adopt);
   const [busy, setBusy] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   // Keep the shell's dock informed about this channel's instance.
   useEffect(() => {
@@ -91,6 +93,11 @@ export function ActivityPanel({
         </span>
         {joined ? (
           <>
+            {canShare(instance) && (
+              <Button size="sm" variant="ghost" onClick={() => setSharing(true)}>
+                {t('guestShare.button')}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -117,6 +124,9 @@ export function ActivityPanel({
         )}
       </div>
       {joined && <ActivitySlot channelId={channelId} />}
+      {joined && canShare(instance) && (
+        <ShareLinkDialog instance={instance} open={sharing} onClose={() => setSharing(false)} />
+      )}
     </aside>
   );
 }

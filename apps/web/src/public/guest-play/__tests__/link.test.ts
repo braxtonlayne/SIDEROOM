@@ -65,7 +65,7 @@ describe('sealing with the game key', () => {
     expect(await open(other, TOKEN, sealed)).toBeNull();
     expect(await open(k, `${TOKEN}-other-lobby`, sealed)).toBeNull();
     const bent = sealed.slice();
-    bent[bent.length - 1] ^= 1;
+    bent[bent.length - 1] = (bent[bent.length - 1] ?? 0) ^ 1;
     expect(await open(k, TOKEN, bent)).toBeNull();
     expect(await open(k, TOKEN, new Uint8Array(5))).toBeNull();
   });
