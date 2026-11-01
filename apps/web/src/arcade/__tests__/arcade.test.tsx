@@ -1,6 +1,7 @@
 // ARC-ROOM-001: the Arcade sections (Featured, Guild Cartridges, Coming Soon), tip badges and the trust seam.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useEffect } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArcadeApi } from '../api';
 import { CartridgesSection, ComingSoonSection, FeaturedSection } from '../ArcadeSections';
@@ -42,6 +43,7 @@ const featured = (over: Partial<FeaturedCard> = {}): FeaturedCard => ({
   capabilities: ['datachannel', 'guest_play'],
   tip_links: [{ kind: 'kofi', url: 'https://ko-fi.com/dev' }],
   bundle_sha256: 'a'.repeat(64),
+  code_sha256: 'c'.repeat(64),
   position: 0,
   featured_at_ms: 1,
   ...over,
@@ -96,11 +98,40 @@ describe('Featured', () => {
     );
     expect(screen.getByText('SWARM-SAFETY-SIGNED')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Vouch Land.io' })).toBeInTheDocument();
+    // Keyed on the code hash (what signatures and vouches are pinned to), not the bundle hash.
     expect(badges).toHaveBeenCalledWith({
       applicationId: '10',
       name: 'Land.io',
-      bundleSha256: 'a'.repeat(64),
+      codeSha256: 'c'.repeat(64),
     });
+  });
+
+  it('renders a trust Card per build and remounts it when the code hash changes', () => {
+    const mounts: string[] = [];
+    function Card({ card }: { card: { codeSha256: string | null } }) {
+      useEffect(() => {
+        mounts.push(card.codeSha256 ?? '');
+      }, [card.codeSha256]);
+      return <span>trust of {card.codeSha256?.slice(0, 8)}</span>;
+    }
+    const source = { badges: () => [], Card };
+    const { rerender } = render(
+      <TrustProvider source={source}>
+        <FeaturedSection featured={[featured()]} flags={flags} emulatorOn={false} />
+      </TrustProvider>,
+    );
+    expect(screen.getByText('trust of cccccccc')).toBeInTheDocument();
+    rerender(
+      <TrustProvider source={source}>
+        <FeaturedSection
+          featured={[featured({ code_sha256: 'd'.repeat(64) })]}
+          flags={flags}
+          emulatorOn={false}
+        />
+      </TrustProvider>,
+    );
+    expect(screen.getByText('trust of dddddddd')).toBeInTheDocument();
+    expect(mounts).toEqual(['c'.repeat(64), 'd'.repeat(64)]);
   });
 });
 

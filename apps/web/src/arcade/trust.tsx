@@ -1,14 +1,19 @@
 // The seam between the Arcade cards and the trust badges of arcade-sandbox (ARC-SBX-001, wave 42-B): code signing
 // (`[SWARM-SAFETY-SIGNED]`), the Operator's `[OPERATOR-FEATURED]` and hash-pinned vouches. Cards ask this provider
-// for badges and actions by build hash; the default knows none, so the Arcade works without the sandbox wave.
-import { createContext, useContext, type ReactNode } from 'react';
+// for badges and actions; the default knows none, so the Arcade renders without it. The page wires the sandbox's
+// `BuildTrust` in through `Card` (see `sandboxTrust.tsx`).
+//
+// Key: a card's trust is keyed on `code_sha256`, the hash of the build's code only, because that is what the
+// operator signs and what a vouch is pinned to. `bundle_sha256` (the whole zip) changes with art and audio too,
+// which would discard a valid signature and every vouch for nothing.
+import { createContext, useContext, type ComponentType, type ReactNode } from 'react';
 
 /** What a card tells the provider about the build it shows. */
 export interface CardRef {
   applicationId: string;
   name: string;
-  /** SHA-256 of the reviewed bundle. */
-  bundleSha256: string;
+  /** The hash of the reviewed build's code (`code_sha256`); null until the server computed it. */
+  codeSha256: string | null;
 }
 
 export interface TrustBadge {
@@ -23,6 +28,8 @@ export interface TrustSource {
   badges(card: CardRef): TrustBadge[];
   /** Extra controls on a card, such as a "Vouch for Build" button. */
   actions?(card: CardRef): ReactNode;
+  /** A component that loads and renders the card's trust itself (badges and the vouch control). */
+  Card?: ComponentType<{ card: CardRef }>;
 }
 
 const NONE: TrustSource = { badges: () => [] };
@@ -38,7 +45,8 @@ export const useTrust = (): TrustSource => useContext(Ctx);
 export function TrustBadges({ card }: { card: CardRef }) {
   const trust = useTrust();
   const badges = trust.badges(card);
-  if (badges.length === 0 && !trust.actions) return null;
+  const { Card } = trust;
+  if (badges.length === 0 && !trust.actions && !Card) return null;
   return (
     <div className="arc-trust">
       {badges.map((b) => (
@@ -47,6 +55,8 @@ export function TrustBadges({ card }: { card: CardRef }) {
         </span>
       ))}
       {trust.actions?.(card)}
+      {/* A new code hash is a new build: remount so its badge and vouch state load afresh. */}
+      {Card && <Card key={`${card.applicationId}:${card.codeSha256 ?? ''}`} card={card} />}
     </div>
   );
 }

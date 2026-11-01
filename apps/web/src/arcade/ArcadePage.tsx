@@ -5,6 +5,8 @@ import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
 import { httpArcadeApi, type ArcadeApi } from './api';
 import { CartridgesSection, ComingSoonSection, FeaturedSection } from './ArcadeSections';
+import { sandboxTrust } from './sandboxTrust';
+import { TrustProvider, type TrustSource } from './trust';
 import type { ArcadeFront } from './types';
 import './arcade.css';
 
@@ -12,7 +14,14 @@ import './arcade.css';
  * The Arcade (ARC-ROOM-001), route `/games`. Featured is the Operator's Front Page; Guild Cartridges are unlisted
  * games and mods a server lists; Coming Soon shows games in development. Loaded only after sign-in (D-385).
  */
-export function ArcadePage({ api = httpArcadeApi }: { api?: ArcadeApi }) {
+export function ArcadePage({
+  api = httpArcadeApi,
+  trust = sandboxTrust,
+}: {
+  api?: ArcadeApi;
+  /** The build-trust badges on the cards (ARC-SBX-001); tests pass their own. */
+  trust?: TrustSource;
+}) {
   const t = useT();
   const guilds = useGuilds();
   const emulatorOn = useEmulatorOn();
@@ -42,11 +51,11 @@ export function ArcadePage({ api = httpArcadeApi }: { api?: ArcadeApi }) {
       {failed && <Notice variant="danger" title={t('arcade.page.failed')} />}
       {!front && !failed && <Spinner label={t('arcade.page.loading')} />}
       {front && (
-        <>
+        <TrustProvider source={trust}>
           <FeaturedSection featured={front.featured} flags={front.flags} emulatorOn={emulatorOn} />
           <CartridgesSection guilds={guilds} flags={front.flags} api={api} />
           <ComingSoonSection entries={front.coming_soon} api={api} />
-        </>
+        </TrustProvider>
       )}
     </main>
   );

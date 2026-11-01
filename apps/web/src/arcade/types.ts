@@ -32,8 +32,13 @@ export interface FeaturedCard {
   eligibility: Eligibility;
   capabilities: string[];
   tip_links: TipLink[];
-  /** SHA-256 of the reviewed bundle; the key the trust badges attach to. */
+  /** SHA-256 of the reviewed bundle (the whole zip, assets included). */
   bundle_sha256: string;
+  /**
+   * The hash of the reviewed build's code only (ARC-SBX-001): the key the trust badges attach to, because the
+   * operator's signature and the vouches are pinned to it. Null until computed for an old bundle.
+   */
+  code_sha256?: string | null;
   position: number;
   featured_at_ms: number;
 }
@@ -63,6 +68,9 @@ export interface Cartridge {
   tier: Tier;
   eligibility: Eligibility;
   source_ref: string;
+  /** A wave-41 shelf object (both or neither): fetched through the per-object URL route. */
+  shelf_id?: string | null;
+  object_hash?: string | null;
   capabilities: string[];
   tip_links: TipLink[];
   added_by: string;
@@ -75,6 +83,8 @@ export interface CartridgeInput {
   kind: 'game' | 'mod';
   tier: Tier;
   source_ref: string;
+  shelf_id?: string;
+  object_hash?: string;
   capabilities: string[];
   tip_links: TipLink[];
 }

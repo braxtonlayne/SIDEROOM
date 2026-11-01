@@ -8,6 +8,17 @@ import type { ArcadeApi } from './api';
 import { GameCard } from './GameCard';
 import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
 import type { CapabilityFlag } from './types';
+import { apiFetch } from '../api/client';
+import { objectPath } from '../study/objectUrl';
+
+/**
+ * Open a cartridge's shelf object (wave 41): the per-object URL route checks the member's own grant and every
+ * delisting when it mints a ten-minute URL for that one file.
+ */
+async function openShelfObject(shelfId: string, hash: string): Promise<void> {
+  const r = await apiFetch<{ url: string }>(`${objectPath(shelfId, hash)}/url`, { retries: 0 });
+  window.open(r.url, '_blank', 'noopener,noreferrer');
+}
 
 const tierKey = (t: Tier) =>
   t === 'TIER_1_ORIGINAL' ? 'arcade.tier.original' : 'arcade.tier.reimplementation';
@@ -48,7 +59,11 @@ export function FeaturedSection({
             capabilities={f.capabilities}
             flags={flags}
             tips={f.tip_links}
-            trust={{ applicationId: f.application_id, name: f.name, bundleSha256: f.bundle_sha256 }}
+            trust={{
+              applicationId: f.application_id,
+              name: f.name,
+              codeSha256: f.code_sha256 ?? null,
+            }}
           >
             {f.eligibility.browser_play && (
               <p className="arc-dim">{t('arcade.featured.startHint')}</p>
@@ -137,6 +152,7 @@ export function CartridgesSection({
   const [items, setItems] = useState<Cartridge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [openFailed, setOpenFailed] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [kind, setKind] = useState<'game' | 'mod'>('game');
@@ -204,6 +220,7 @@ export function CartridgesSection({
             </select>
           </label>
           {loadFailed && <Notice variant="danger" title={t('arcade.cartridges.failed')} />}
+          {openFailed && <Notice variant="danger" title={t('arcade.cartridges.openFailed')} />}
           <div className="arc-grid">
             {(items ?? []).map((c) => (
               <GameCard
@@ -219,6 +236,19 @@ export function CartridgesSection({
                 flags={flags}
                 tips={c.tip_links}
               >
+                {c.shelf_id && c.object_hash && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setOpenFailed(false);
+                      openShelfObject(c.shelf_id ?? '', c.object_hash ?? '').catch(() =>
+                        setOpenFailed(true),
+                      );
+                    }}
+                  >
+                    {t('arcade.cartridges.open', { title: c.title })}
+                  </Button>
+                )}
                 <Button size="sm" variant="secondary" onClick={() => remove(c.id)}>
                   {t('arcade.cartridges.remove', { title: c.title })}
                 </Button>
