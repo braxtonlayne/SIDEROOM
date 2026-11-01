@@ -4,7 +4,6 @@
 import { Link } from '@tanstack/react-router';
 import { useT } from '../i18n';
 import { carryCall } from '../voice/carry';
-import { useEmulatorOn } from '../emu/SwitchedOff';
 
 export type RoomId = 'lounge' | 'arcade' | 'study';
 
@@ -22,23 +21,16 @@ export function RoomsNav({
   linkClassName: string;
 }) {
   const t = useT();
-  const arcadeOn = useEmulatorOn();
   const cur = (id: RoomId) => (current === id ? ('page' as const) : undefined);
   return (
     <nav aria-label={t('study.rooms.label')} className={className} data-testid="rooms-nav">
       <Link to="/channels" className={linkClassName} aria-current={cur('lounge')}>
         {t('study.rooms.lounge')}
       </Link>
-      {arcadeOn && (
-        <Link
-          to="/games"
-          className={linkClassName}
-          aria-current={cur('arcade')}
-          onClick={carryCall}
-        >
-          {t('study.rooms.arcade')}
-        </Link>
-      )}
+      {/* The Arcade (ARC-ROOM-001) always exists; the emulator switch only governs the emulator card inside it. */}
+      <Link to="/games" className={linkClassName} aria-current={cur('arcade')} onClick={carryCall}>
+        {t('study.rooms.arcade')}
+      </Link>
       <Link to={STUDY_PATH} className={linkClassName} aria-current={cur('study')}>
         {t('study.rooms.study')}
       </Link>
