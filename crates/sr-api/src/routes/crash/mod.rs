@@ -343,27 +343,27 @@ pub async fn submit(
             card,
             replay,
         };
-        if rec.is_new {
-            if deps.limiter.allow_new_group() {
-                if let Some((channel, message)) = sink.post(&view).await {
-                    deps.repo
-                        .set_message(rec.id, channel, message)
-                        .await
-                        .map_err(|e| internal(&e))?;
-                }
+        if rec.is_new && deps.limiter.allow_new_group() {
+            if let Some((channel, message)) = sink.post(&view).await {
+                deps.repo
+                    .set_message(rec.id, channel, message)
+                    .await
+                    .map_err(|e| internal(&e))?;
             }
-        } else if let (Some(channel), Some(message)) = (rec.channel_id, rec.message_id) {
-            if refresh_due(rec.count) {
-                // The stored first card and replay are the reproduction; only the count is news.
-                if let Ok(Some(row)) = deps.repo.get(rec.id).await {
-                    let view = CrashView {
-                        id: row.id,
-                        count: row.count,
-                        card: row.card,
-                        replay: row.replay,
-                    };
-                    sink.refresh(channel, message, &view).await;
-                }
+        } else if let (Some(channel), Some(message), false) =
+            (rec.channel_id, rec.message_id, rec.is_new)
+        {
+            // The stored first card and replay are the reproduction; only the count is news.
+            if refresh_due(rec.count)
+                && let Ok(Some(row)) = deps.repo.get(rec.id).await
+            {
+                let view = CrashView {
+                    id: row.id,
+                    count: row.count,
+                    card: row.card,
+                    replay: row.replay,
+                };
+                sink.refresh(channel, message, &view).await;
             }
         }
     }

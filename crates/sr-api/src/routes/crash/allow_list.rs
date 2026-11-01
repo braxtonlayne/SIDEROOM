@@ -310,10 +310,8 @@ pub fn normalize_file(raw: &str) -> Option<String> {
         }
         let rest = &path[i + 3..];
         // The authority (user:pass@host:port) is dropped whole.
-        path = match rest.find('/') {
-            Some(j) => rest[j..].to_owned(),
-            None => return None,
-        };
+        let j = rest.find('/')?;
+        path = rest[j..].to_owned();
     }
     let segs: Vec<&str> = path
         .split('/')
