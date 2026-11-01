@@ -82110,6 +82110,19 @@
             "type": "string",
             "description": "`game` or `mod`."
           },
+          "object_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shelf_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The shelf (wave 41) of the catalog object the cartridge names; with `object_hash`, the client fetches it\nthrough `GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the member's grant."
+          },
           "source_ref": {
             "type": "string",
             "description": "Where on the server's shelf the cartridge lives (an opaque locator the shelf code resolves)."
@@ -82134,8 +82147,7 @@
         "required": [
           "title",
           "kind",
-          "tier",
-          "source_ref"
+          "tier"
         ],
         "properties": {
           "capabilities": {
@@ -82151,8 +82163,22 @@
             "type": "string",
             "description": "`game` or `mod`."
           },
+          "object_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shelf_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A catalog object of a shelf (wave 41, `shelf_objects`): both or neither. It must be in the catalog and not\ndelisted."
+          },
           "source_ref": {
-            "type": "string"
+            "type": "string",
+            "description": "A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes\n`shelf:<shelf_id>/<object_hash>`."
           },
           "tier": {
             "$ref": "#/components/schemas/ArcadeTier"
@@ -82313,7 +82339,7 @@
           },
           "bundle_sha256": {
             "type": "string",
-            "description": "SHA-256 of the reviewed bundle; the key the trust badges (code signing, vouches) attach to."
+            "description": "SHA-256 of the reviewed bundle (the whole zip, assets included)."
           },
           "capabilities": {
             "type": "array",
@@ -82321,6 +82347,13 @@
               "type": "string"
             },
             "description": "What the reviewed build declares."
+          },
+          "code_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The hash of the reviewed build's executable code only (ARC-SBX-001, `sandbox::code_sha256`): the key the\ntrust badges attach to, because the operator's signature and the members' vouches are pinned to it.\n`None` until it is computed for a bundle from before code hashes (the trust route computes it)."
           },
           "description": {
             "type": "string"

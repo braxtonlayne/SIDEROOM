@@ -17088,6 +17088,12 @@ export interface components {
             id: string;
             /** @description `game` or `mod`. */
             kind: string;
+            object_hash?: string | null;
+            /**
+             * @description The shelf (wave 41) of the catalog object the cartridge names; with `object_hash`, the client fetches it
+             *     through `GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the member's grant.
+             */
+            shelf_id?: string | null;
             /** @description Where on the server's shelf the cartridge lives (an opaque locator the shelf code resolves). */
             source_ref: string;
             tier: components["schemas"]["ArcadeTier"];
@@ -17100,7 +17106,17 @@ export interface components {
             description?: string;
             /** @description `game` or `mod`. */
             kind: string;
-            source_ref: string;
+            object_hash?: string | null;
+            /**
+             * @description A catalog object of a shelf (wave 41, `shelf_objects`): both or neither. It must be in the catalog and not
+             *     delisted.
+             */
+            shelf_id?: string | null;
+            /**
+             * @description A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes
+             *     `shelf:<shelf_id>/<object_hash>`.
+             */
+            source_ref?: string;
             tier: components["schemas"]["ArcadeTier"];
             tip_links?: components["schemas"]["ArcadeTipInput"][];
             title: string;
@@ -17153,10 +17169,16 @@ export interface components {
             application_id: string;
             /** @description The Operator's one-line note for the card. */
             blurb?: string | null;
-            /** @description SHA-256 of the reviewed bundle; the key the trust badges (code signing, vouches) attach to. */
+            /** @description SHA-256 of the reviewed bundle (the whole zip, assets included). */
             bundle_sha256: string;
             /** @description What the reviewed build declares. */
             capabilities: string[];
+            /**
+             * @description The hash of the reviewed build's executable code only (ARC-SBX-001, `sandbox::code_sha256`): the key the
+             *     trust badges attach to, because the operator's signature and the members' vouches are pinned to it.
+             *     `None` until it is computed for a bundle from before code hashes (the trust route computes it).
+             */
+            code_sha256?: string | null;
             description: string;
             eligibility: components["schemas"]["ArcadeEligibility"];
             /** Format: int64 */
