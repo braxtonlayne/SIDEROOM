@@ -35,6 +35,7 @@ sr-cinema-social = { path = "../sr-cinema-social" }
 sr-activities = { path = "../sr-activities" }
 sr-preflight = { path = "../sr-preflight" }
 sr-packages = { path = "../sr-packages" }
+sr-vouch = { path = "../sr-vouch" }
 sr-watchparty = { path = "../sr-watchparty" }
 sr-payments = { path = "../sr-payments" }
 sr-review = { path = "../sr-review" }

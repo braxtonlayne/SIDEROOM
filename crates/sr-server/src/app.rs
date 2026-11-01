@@ -601,6 +601,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         member_joiner.clone(),
         std::time::Duration::from_secs(60),
     ));
+    // MOD-VCH-001: profile vouches; the accountability multiplier scales AutoMod timeouts (wave 44-B).
+    let vouches = sr_vouch::Vouches::new(pool.clone());
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -615,9 +617,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
         .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
-        .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
-            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
-            bus.clone(),
+        .with_timeouter(Arc::new(routes::vouch::WeightedMemberTimeouter::new(
+            Arc::new(routes::settings::AdminMemberTimeouter::new(
+                Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
+                bus.clone(),
+            )),
+            Arc::new(vouches.clone()),
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
@@ -963,6 +968,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_events(Arc::new(routes::packages::BusPackageEvents::new(
                 bus.clone(),
             ))),
+    });
+    let vouch_deps = Arc::new(routes::vouch::VouchDeps {
+        vouches: vouches.clone(),
+        packages: packages_deps.service.clone(),
     });
 
     // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
@@ -1482,6 +1491,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
         )));
+    // MOD-VCH-001 (wave 44-B): the vouch tier weighs automated penalties, set before any observer clone so
+    // every copy of the engine reads it; a serious ban removes the vouches for the banned member and tells their
+    // vouchers privately (subscribed below).
+    let moderation = moderation.with_strike_weight(Arc::new(
+        crate::vouch_wiring::VouchStrikeWeight(vouches.clone()),
+    ));
     // Serious bans that push an inviter over a threshold open a case for senior staff (MOD-SUS-002).
     admin_service.set_suspicion_observer(Arc::new(moderation.clone()));
     // A serious ban opens a subtree case (MOD-GRD-001); the notice refreshes every client's banners.
@@ -1489,6 +1504,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         admin_service.clone(),
     )));
     admin_service.subscribe_serious_ban(Arc::new(moderation.clone()));
+    admin_service.subscribe_serious_ban(Arc::new(crate::vouch_wiring::VouchFallout {
+        vouches: vouches.clone().with_notifier(staff_voice.clone()),
+        pool: pool.clone(),
+    }));
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );
@@ -1693,6 +1712,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(arcade_deps)
         .extension(packages_deps.clone())
+        .extension(vouch_deps)
         .extension(user_feature_deps)
         .extension(tool_room_deps)
         .extension(fx_deps)

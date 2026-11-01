@@ -245,6 +245,12 @@ pub async fn delete_account(
         .bind(id)
         .execute(&mut *tx)
         .await?;
+    // MOD-VCH-001: profile vouches this person gave or received. The accounts row stays, so the foreign key's
+    // cascade never fires; the rows go here, in both directions, and the vouched members' counts drop.
+    sqlx::query("DELETE FROM profile_vouches WHERE voucher_id = $1 OR vouchee_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
     // PRF-PRO-001: the privacy policy (the pending and anonymous notes on this page went with the line above).
     sqlx::query("DELETE FROM profile_privacy WHERE user_id = $1")
         .bind(id)

@@ -130,7 +130,9 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || (p.starts_with("/users/")
             && (p.ends_with("/guestbook")
                 || p.contains("/guestbook/")
-                || p.ends_with("/profile-page")))
+                || p.ends_with("/profile-page")
+                || p.ends_with("/vouch")
+                || p.ends_with("/vouches")))
         || (p.starts_with("/guilds/") && (p.contains("/packages") || p.ends_with("/appearance")))
     {
         return true;

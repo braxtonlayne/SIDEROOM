@@ -4013,6 +4013,7 @@ fn rightful_of(r: &Route) -> &'static str {
         "member"
     } else if (r.path.starts_with("/cinema/") || r.path.starts_with("/library/"))
         || r.path.starts_with("/users/{user_id}/guestbook")
+        || r.path.starts_with("/users/{user_id}/vouch")
     {
         // Their lists, comments and posts are the plain member's.
         "member"

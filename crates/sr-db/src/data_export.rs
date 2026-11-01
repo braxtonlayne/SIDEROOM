@@ -452,6 +452,9 @@ pub async fn build_package<W: Write + Seek>(
         "guestbook_written": rows(pool, "SELECT id::text AS id, profile_id::text AS profile_id, body, created_at FROM profile_guestbook WHERE author_id = $1 ORDER BY id", user).await?,
         // Includes the notes still held for approval, and the notes visitors without an account left (no author).
         "guestbook_received": rows(pool, "SELECT id::text AS id, author_id::text AS author_id, body, status, anonymous, created_at FROM profile_guestbook WHERE profile_id = $1 ORDER BY id", user).await?,
+        // MOD-VCH-001: the profile vouches this member gave and received (ids and dates only).
+        "profile_vouches_given": rows(pool, "SELECT vouchee_id::text AS vouchee_id, created_at FROM profile_vouches WHERE voucher_id = $1 ORDER BY created_at", user).await?,
+        "profile_vouches_received": rows(pool, "SELECT voucher_id::text AS voucher_id, created_at FROM profile_vouches WHERE vouchee_id = $1 ORDER BY created_at", user).await?,
         // PRF-PRO-001 (D-382): who may see the profile and each part of it; its own section, apart from the layout.
         "profile_privacy": rows(pool, "SELECT preset, page_tier, links_tier, top8_tier, now_playing_tier, bio_tier, guestbook_tier, media_tier, ring_tier, guestbook_accepts_public, updated_at FROM profile_privacy WHERE user_id = $1", user).await?,
         "packages": rows(pool, "SELECT p.id::text AS id, p.kind, p.slug, p.name, v.version, v.review_state, v.created_at FROM packages p JOIN package_versions v ON v.package_id = p.id WHERE p.author_id = $1 ORDER BY p.id, v.id", user).await?,

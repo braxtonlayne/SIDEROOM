@@ -65,6 +65,9 @@ pub mod upload_limits;
 pub mod userfeat;
 pub mod userset_jobs;
 pub mod voice;
+#[cfg(test)]
+mod vouch_pg_tests;
+pub mod vouch_wiring;
 pub mod watchparty;
 pub mod web;
 
