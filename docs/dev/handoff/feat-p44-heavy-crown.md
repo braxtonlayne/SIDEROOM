@@ -32,7 +32,11 @@ Holds: this base has no automated hold. `sr_vouch::tiers::scale_hold(base, multi
 
 ## Tests run
 
-RESULTS_PLACEHOLDER
+- Rust (Postgres, scratch DB, one process, `--test-threads=1`): `sr-vouch` unit 6 + `tests/vouches.rs` 8 (pair rules, blocks, standing, sterilization stub, tiers at 49/50/499/500, multiplier, serious ban notice + removal + no penalty, erasure through `delete_account`, rate limits); `sr-server` lib `vouch_pg_tests` 2 + `vouch_wiring` 1 (the real `SeriousBanSlot` event reaches the subscriber, `StrikeWeight` seam answers 1.0/1.5/3.0); `sr-api` lib `vouch` 2 (decorator scales the AutoMod timeout); `sr-api` `route_matrix` (6) and `openapi_names` (2); `sr-server` `authz_matrix` `every_route_enforces_its_authz_row` (the three routes against every actor); `sr-server` `immutable_rules` ignored run (24); `sr-db` `secret_columns` (2), `account_deletion` + `data_export` (8).
+- `cargo clippy -D warnings` on sr-vouch, sr-api, sr-server, sr-db and `cargo fmt --check`: clean.
+- Web: vitest `src/profilepage` (43, incl. 8 new in `vouch.test.tsx` with an axe check, and the `/~handle` page test showing the panel), `src/i18n` (48); `tsc --noEmit`, eslint on the touched dirs, prettier, `scripts/check-css-tokens.mjs` (logical CSS) clean; `node --test scripts/threat-model.test.mjs` (5).
+- Not run: `storage_scopes_hold_over_http` (untouched), the full web build and `scripts/check-bundle-budget.mjs` (needs the wasm build; the panel is in the lazy profile-page chunk), Playwright (not allowed in this wave).
+
 
 ## Still open (with reasons)
 
