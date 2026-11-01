@@ -575,7 +575,10 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       const at = now();
       while (requests.length && at - (requests[0] ?? 0) > REQUEST_WINDOW_MS) requests.shift();
       if (requests.length >= REQUEST_LIMIT) {
-        fail(f.nonce, { code: RPC_ERRORS.rateLimited, message: 'Too many requests. Try again soon.' });
+        fail(f.nonce, {
+          code: RPC_ERRORS.rateLimited,
+          message: 'Too many requests. Try again soon.',
+        });
         return;
       }
       requests.push(at);

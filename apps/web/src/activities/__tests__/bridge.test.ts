@@ -161,7 +161,7 @@ describe('storage over the bridge', () => {
     expect(r.posted[0]).toMatchObject({ kind: 'ready', config: { storage: { a: '1' } } });
     const none = rig([]);
     await none.send(handshake);
-    expect((none.posted[0] as { config: Record<string, unknown> }).config.storage).toBeUndefined();
+    expect((none.posted[0] as unknown as { config: Record<string, unknown> }).config.storage).toBeUndefined();
   });
 
   it('stores, replaces and removes keys', async () => {
@@ -190,7 +190,10 @@ describe('storage over the bridge', () => {
     expect(r.last()).toMatchObject({ ok: false, error: { code: RPC_ERRORS.invalidArguments } });
     // 4 values of 32 KiB fill the 128 KiB total; a fifth is over.
     for (let i = 0; i < 4; i++) {
-      await r.req(`f${i}`, 'storageSet', { key: `f${i}`, value: 'x'.repeat(32 * 1024 - (i === 0 ? 1 : 0)) });
+      await r.req(`f${i}`, 'storageSet', {
+        key: `f${i}`,
+        value: 'x'.repeat(32 * 1024 - (i === 0 ? 1 : 0)),
+      });
       expect(r.last()).toMatchObject({ ok: true });
     }
     await r.req('over', 'storageSet', { key: 'over', value: 'xx' });
@@ -215,7 +218,12 @@ describe('saveFile over the bridge', () => {
     const r = rig();
     await r.send(handshake);
     await r.req('1', 'saveFile', { name: 'board.png', mime: 'image/png', b: png });
-    expect(r.confirm).toHaveBeenCalledWith({ kind: 'save', name: 'board.png', mime: 'image/png', size: 7 });
+    expect(r.confirm).toHaveBeenCalledWith({
+      kind: 'save',
+      name: 'board.png',
+      mime: 'image/png',
+      size: 7,
+    });
     expect(r.last()).toMatchObject({ ok: true, data: { saved: true } });
     expect(r.saved).toEqual([{ name: 'board.png', mime: 'image/png', size: 7 }]);
   });
@@ -274,7 +282,11 @@ describe('createBridgeStorage', () => {
   });
 
   it('survives broken or throwing storage', () => {
-    const broken = { getItem: () => '{not json', setItem: () => undefined, removeItem: () => undefined };
+    const broken = {
+      getItem: () => '{not json',
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    };
     expect(createBridgeStorage('1', '1', broken).all()).toEqual({});
     const throws = {
       getItem: () => {

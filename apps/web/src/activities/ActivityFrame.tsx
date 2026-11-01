@@ -72,7 +72,10 @@ export function ActivityFrame({
         // An opaque-origin frame cannot be named as a target origin, so the window itself is the address: the
         // reference is this component's own iframe, and the frame navigating away drops its messages.
         post: (f) => frame.current?.contentWindow?.postMessage(f, '*'),
-        storage: createBridgeStorage(useStore.getState().currentUserId ?? null, instance.application_id),
+        storage: createBridgeStorage(
+          useStore.getState().currentUserId ?? null,
+          instance.application_id,
+        ),
         saveFile: downloadBytes,
         selfId: () => useStore.getState().currentUserId ?? null,
         data: instance.channel_type === 'voice' ? activityDataPort : undefined,

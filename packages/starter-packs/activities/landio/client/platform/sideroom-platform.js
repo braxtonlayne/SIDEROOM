@@ -54,6 +54,9 @@ export function createSideRoomPlatform(win) {
       const mod = await import('../sdk/index.js');
       sdk = new mod.SideRoomSDK(applicationId);
       config = await sdk.ready();
+      // The sandboxed frame has no localStorage of its own (ARC-SBX-001): settings, key bindings and seen tips
+      // live in the host's per-member store, which the SDK serves through window.localStorage from here on.
+      if (config.capabilities?.includes('storage')) sdk.storage.install(win);
       const ids = memberIds(sdk);
       if (!ids.self) throw new Error('This SIDE ROOM client does not tell activities who they are yet (needs the data channel).');
       people = humans(await sdk.commands.getInstanceConnectedParticipants().catch(() => ({ participants: [] })));

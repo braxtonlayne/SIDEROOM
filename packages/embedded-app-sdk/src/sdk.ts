@@ -178,7 +178,11 @@ export class SideRoomSDK {
       setItem: (key: string, value: string): void => {
         const k = String(key);
         const v = String(value);
-        if (!can()) throw new SdkError({ code: 'NOT_AUTHORIZED', message: 'Declare the storage capability.' });
+        if (!can())
+          throw new SdkError({
+            code: 'NOT_AUTHORIZED',
+            message: 'Declare the storage capability.',
+          });
         let total = v.length;
         for (const [ek, ev] of kv) if (ek !== k) total += ev.length;
         if (
