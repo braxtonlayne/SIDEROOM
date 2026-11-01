@@ -16,7 +16,7 @@ import { usePopOut } from './PopOut';
 import { useSwipeDown } from './swipe';
 import { VoiceChat } from './VoiceChat';
 import { VoiceStatusBar } from './VoiceStatusBar';
-import { WatchPartyStrip } from '../../watchparty/WatchPartyStrip';
+import { ScreeningRoom } from './ScreeningRoom';
 import { ActivityPanel } from '../../activities/ActivityPanel';
 import './voice-p10.css';
 
@@ -156,7 +156,7 @@ export function VoiceChannelView({
         channelId={channel.id}
       />
       <VoiceStatusBar channel={channel} here={here} />
-      <WatchPartyStrip channelId={channel.id} />
+      <ScreeningRoom channelId={channel.id} />
       <Suspense fallback={null}>
         {jukeboxOn && <JukeboxStrip channelId={channel.id} meId={me.id} />}
       </Suspense>

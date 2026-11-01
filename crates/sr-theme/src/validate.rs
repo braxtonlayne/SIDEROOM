@@ -8,6 +8,7 @@ pub const BUILTIN_THEME_IDS: &[&str] = &[
     "lounge-light",
     "lounge-ash",
     "lounge-onyx",
+    "lounge-editorial",
     "sideroom",
     "sideroom-broadcast",
 ];

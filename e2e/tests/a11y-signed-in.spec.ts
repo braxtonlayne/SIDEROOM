@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { test, expect } from '../support/fixtures';
 import { blocking, describe, runAxe, settle } from '../support/a11y';
 import { apiDelete, buildWorld, dropServer, soloServer, type World } from '../support/world';
+import { withStudySurfacesOn } from '../support/studySwitches';
 
 /**
  * RDY-A11Y-001: axe in a real browser over the signed-in routes, on a fixture world built through the API
@@ -104,6 +105,9 @@ const OWNER_STATE = `${OUT}/owner.json`;
 const slug = (n: string) => n.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 // The worker restarts after a failed test, so the world lives on disk, not in module state.
 const loadWorld = (): World => JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as World;
+
+// Cinema Movies is a storefront surface, off by default since wave 41 (D-400).
+withStudySurfacesOn(test);
 
 test('build the fixture world', async ({ owner, signedIn }) => {
   const s = await soloServer(signedIn, owner, 'A11y');

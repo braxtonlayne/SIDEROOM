@@ -1,0 +1,245 @@
+/* The Study (STU-SHF-001). Semantic tokens only (--ui-*); no raw colours; logical properties only. */
+.stu-page {
+  display: grid;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 24px;
+  padding-block: 24px;
+  padding-inline: clamp(16px, 4vw, 48px);
+  color: var(--ui-text);
+}
+@media (max-width: 48rem) {
+  .stu-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.stu-side {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+.stu-side h1 {
+  margin: 0;
+  font-family: var(--ui-font-display, serif);
+}
+.stu-group h2,
+.stu-rail h2 {
+  margin-block: 0 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.stu-group ul,
+.stu-rail ul,
+.stu-folders,
+.stu-grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stu-entry {
+  inline-size: 100%;
+  text-align: start;
+  padding-block: 6px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: var(--ui-radius-md, 6px);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.stu-entry:hover {
+  background: var(--ui-surface-2, transparent);
+}
+.stu-entry[aria-current='true'] {
+  background: var(--ui-surface-2, transparent);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  font-weight: 600;
+}
+.stu-main {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-inline-size: 0;
+}
+.stu-muted {
+  color: var(--ui-text-muted);
+}
+.stu-rails {
+  display: grid;
+  gap: 12px;
+}
+.stu-rail ul {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-block-end: 4px;
+}
+.stu-rail button,
+.stu-mounts button,
+.stu-folder,
+.stu-crumbs button {
+  padding-block: 4px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.stu-mounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stu-mounts button[aria-pressed='true'] {
+  border-color: var(--ui-accent);
+}
+.stu-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.stu-crumbs button {
+  border: 0;
+  padding-inline: 2px;
+  text-decoration: underline;
+}
+.stu-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.stu-folders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.stu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 16px;
+}
+.stu-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.stu-open {
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.stu-cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-surface-2, transparent);
+}
+.stu-cover img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.stu-glyph {
+  font-family: var(--ui-font-display, serif);
+  font-size: 1.25rem;
+  color: var(--ui-text-muted);
+}
+.stu-text {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.stu-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.stu-sub,
+.stu-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ui-text-muted);
+}
+.stu-badge {
+  justify-self: start;
+  padding-block: 1px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--ui-text-muted);
+}
+.stu-badge[data-kind='own'] {
+  color: var(--ui-success);
+  border-color: var(--ui-success);
+}
+.stu-badge[data-kind='guild'] {
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+}
+.stu-viewer {
+  display: grid;
+  gap: 12px;
+}
+.stu-image {
+  max-inline-size: 100%;
+  max-block-size: 70vh;
+  margin-inline: auto;
+}
+.stu-form {
+  display: grid;
+  gap: 12px;
+}
+.stu-field {
+  display: grid;
+  gap: 4px;
+}
+.stu-textarea {
+  inline-size: 100%;
+  font: inherit;
+  color: inherit;
+  background: var(--ui-surface-2, transparent);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md, 6px);
+  padding: 8px;
+}
+/* The room bar (STU-NAV-001): the three rooms, then the Study's own areas. */
+.stu-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  padding-block: 12px;
+  padding-inline: clamp(16px, 4vw, 48px);
+  border-block-end: 1px solid var(--ui-border);
+}
+.stu-bar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.stu-bar-link {
+  color: var(--ui-text-muted);
+  text-decoration: none;
+}
+.stu-bar-link[aria-current='page'] {
+  color: var(--ui-text);
+  font-weight: 600;
+}
+.stu-bar-link:hover,
+.stu-bar-link:focus-visible {
+  color: var(--ui-text);
+  text-decoration: underline;
+}

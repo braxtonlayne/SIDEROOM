@@ -16,6 +16,7 @@ const TotpWizard = lazy(() =>
 
 const THEME_LABEL: Record<ThemeChoice, MessageKey> = {
   system: 'settings.appearance.themeSystem',
+  'lounge-editorial': 'study.theme.editorial',
   'lounge-dark': 'settings.appearance.themeDark',
   'lounge-light': 'settings.appearance.themeLight',
   'lounge-ash': 'settings.appearance.themeAsh',

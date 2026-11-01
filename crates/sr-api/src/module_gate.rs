@@ -18,6 +18,7 @@
 //! | `/channels/{id}/cards*` | `platform.tools.invite` |
 //! | `PUT /channels/{id}/voice-timer` | any of `platform.tools.pomodoro`, `.stopwatch`, `.countdown` |
 //! | `GET /users/@me/games/roms` | `platform.emulator` |
+//! | `/requests*`, `/cinema/trending`, `/library/rankings`, `/cinema/discover`, `/cinema/rows/{key}`, `/admin/review/queue`, `/admin/ingest-sources*` | the Study switches (STU-NAV-001); off by default, answer 404 |
 //!
 //! `platform.tools` is the parent of every `platform.tools.<tool>` (`Feature::gated_by`), so switching it off
 //! refuses all of them. Three more switches act elsewhere: `platform.watch_together_embeds` in the watch party
@@ -31,7 +32,8 @@ use axum::{
 };
 use sr_core::ErrorCode;
 use sr_features::{
-    EMULATOR_ID, FeatureService, JUKEBOX_ID, LISTENING_ROOMS_ID, ScopeRef, tool_flag_id,
+    EMULATOR_ID, FeatureService, GLOBAL_TRENDING_ID, INGEST_QUEUES_ID, JUKEBOX_ID,
+    LISTENING_ROOMS_ID, REQUESTS_BOARD_ID, STOREFRONT_CATEGORIES_ID, ScopeRef, tool_flag_id,
 };
 
 use crate::{
@@ -48,6 +50,8 @@ pub struct Rule {
     pub any: Vec<&'static str>,
     /// The first path segment after `/channels/` is a channel: check the features at its server's scope too.
     pub channel_scope: bool,
+    /// STU-NAV-001: a hidden surface answers 404 `SR_NOT_FOUND` (unreachable, as if it did not exist) instead of 403.
+    pub hidden: bool,
 }
 
 impl Rule {
@@ -56,6 +60,7 @@ impl Rule {
             all: ids.to_vec(),
             any: Vec::new(),
             channel_scope: false,
+            hidden: false,
         }
     }
 
@@ -64,11 +69,17 @@ impl Rule {
             all: Vec::new(),
             any: tools.iter().filter_map(|t| tool_flag_id(t)).collect(),
             channel_scope: false,
+            hidden: false,
         }
     }
 
     fn tool(tool: &str) -> Self {
         Self::any_tool(&[tool])
+    }
+
+    fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
     }
 
     fn in_channel(mut self) -> Self {
@@ -118,6 +129,27 @@ pub fn rule_for(template: &str) -> Option<Rule> {
     }
     if t == "/users/@me/games/roms" {
         return Some(Rule::all(&[EMULATOR_ID]));
+    }
+    // The Study reframe (STU-NAV-001): storefront surfaces are off by default and answer 404 while off.
+    if t == "/requests" || t.starts_with("/requests/") {
+        return Some(Rule::all(&[REQUESTS_BOARD_ID]).hidden());
+    }
+    if t == "/cinema/trending" || t == "/library/rankings" {
+        return Some(Rule::all(&[GLOBAL_TRENDING_ID]).hidden());
+    }
+    if t == "/cinema/discover" || t == "/cinema/rows/{key}" {
+        return Some(Rule::all(&[STOREFRONT_CATEGORIES_ID]).hidden());
+    }
+    // The member submission API goes with the staff queue (owner default of wave 41): nobody uploads into a queue
+    // nobody reviews.
+    if t == "/admin/review/queue"
+        || t == "/admin/ingest-sources"
+        || t.starts_with("/admin/ingest-sources/")
+        || t == "/submissions"
+        || t.starts_with("/submissions/")
+        || t.starts_with("/library/submissions/")
+    {
+        return Some(Rule::all(&[INGEST_QUEUES_ID]).hidden());
     }
     None
 }
@@ -193,7 +225,12 @@ pub async fn module_gate(
     };
     // The platform switch first (it also covers a channel that is not in a server), then the server's.
     if !allows(svc, &rule, None).await || (guild.is_some() && !allows(svc, &rule, guild).await) {
-        return HttpError::from(ErrorCode::SrFeatureDisabled).into_response();
+        let code = if rule.hidden {
+            ErrorCode::SrNotFound
+        } else {
+            ErrorCode::SrFeatureDisabled
+        };
+        return HttpError::from(code).into_response();
     }
     next.run(req).await
 }
@@ -246,6 +283,34 @@ mod tests {
                 .len(),
             3
         );
+    }
+
+    #[test]
+    fn storefront_surfaces_are_hidden_rules() {
+        for (t, id) in [
+            ("/requests", REQUESTS_BOARD_ID),
+            ("/requests/{request_id}/vote", REQUESTS_BOARD_ID),
+            ("/cinema/trending", GLOBAL_TRENDING_ID),
+            ("/library/rankings", GLOBAL_TRENDING_ID),
+            ("/cinema/discover", STOREFRONT_CATEGORIES_ID),
+            ("/admin/review/queue", INGEST_QUEUES_ID),
+            ("/admin/ingest-sources/{source_id}/scan", INGEST_QUEUES_ID),
+            ("/submissions", INGEST_QUEUES_ID),
+            (
+                "/submissions/{submission_id}/cinema/draft",
+                INGEST_QUEUES_ID,
+            ),
+            (
+                "/library/submissions/{submission_id}/cover",
+                INGEST_QUEUES_ID,
+            ),
+        ] {
+            let r = rule_for(t).unwrap_or_else(|| panic!("{t}"));
+            assert_eq!(r.all, vec![id], "{t}");
+            assert!(r.hidden, "{t} answers 404 while off");
+        }
+        assert!(rule_for("/cinema/titles").is_none(), "titles stay");
+        assert!(rule_for("/library/series").is_none(), "the library stays");
     }
 
     #[test]

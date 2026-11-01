@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { manifestDiff, safeThemeCss } from '../../review/ReviewExtras';
@@ -137,3 +138,6 @@ describe('review page extras', () => {
     ).toBeInTheDocument();
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

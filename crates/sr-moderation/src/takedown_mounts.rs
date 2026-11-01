@@ -140,3 +140,94 @@ impl Moderation {
             .map_err(|e| ModError::Storage(e.to_string()))
     }
 }
+
+impl Moderation {
+    /// Delist one object of a shelf by its `object_hash` (P28-LEG-1, D-393). It disappears from every catalog
+    /// response and can no longer be minted a URL; a strike row is kept for the shelf's owner and the delisting
+    /// is written to the access log. The bucket is untouched. `notice_id` ties it to a takedown notice when
+    /// one exists. The owner is told, with the strike reference.
+    pub async fn delist_shelf_object(
+        &self,
+        who: &Who<'_>,
+        shelf_id: i64,
+        object_hash: &str,
+        notice_id: Option<i64>,
+        reason: Option<&str>,
+    ) -> ModResult<sr_db::shelf_access_repo::Delisted> {
+        require_staff(who, P::MANAGE_TAKEDOWNS, "MANAGE_TAKEDOWNS")?;
+        let reason = rules::reason(reason)?;
+        if object_hash.len() != 64
+            || !object_hash
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
+            return Err(ModError::Invalid("object_hash is not a hash".into()));
+        }
+        let mut tx = self.pool.begin().await?;
+        let d = sr_db::shelf_access_repo::delist_object(
+            &mut tx,
+            self.next_id(),
+            shelf_id,
+            object_hash,
+            notice_id,
+            &reason,
+            who.user_id(),
+        )
+        .await
+        .map_err(|e| ModError::Storage(e.to_string()))?
+        .ok_or(ModError::NotFound("shelf object"))?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "storage.shelf.object.delist",
+            ("storage_mount", shelf_id),
+            &reason,
+            json!({ "object_hash": object_hash, "strike": d.strike_id.to_string() }),
+        )
+        .await?;
+        tx.commit().await?;
+        if let Some(to) = d.subject_account {
+            let _ = self
+                .dm_subject(
+                    to,
+                    &format!(
+                        "A file in your shelf (\"{}\") was delisted by the staff, so it is no longer shown or served to anyone. Strike reference: {}.\n\nWhy: {reason}\n\nYour bucket is untouched; we cannot and do not delete it. If you think this is a mistake, send a counter-notice through the operator.",
+                        d.path, d.strike_id
+                    ),
+                )
+                .await;
+        }
+        Ok(d)
+    }
+
+    /// Put a delisted shelf object back (the strike row stays, marked restored).
+    pub async fn relist_shelf_object(
+        &self,
+        who: &Who<'_>,
+        shelf_id: i64,
+        object_hash: &str,
+        reason: Option<&str>,
+    ) -> ModResult<sr_db::shelf_access_repo::Delisted> {
+        require_staff(who, P::MANAGE_TAKEDOWNS, "MANAGE_TAKEDOWNS")?;
+        let reason = rules::reason(reason)?;
+        let mut tx = self.pool.begin().await?;
+        let d =
+            sr_db::shelf_access_repo::relist_object(&mut tx, shelf_id, object_hash, who.user_id())
+                .await
+                .map_err(|e| ModError::Storage(e.to_string()))?
+                .ok_or_else(|| ModError::Conflict("That object is not delisted".into()))?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "storage.shelf.object.relist",
+            ("storage_mount", shelf_id),
+            &reason,
+            json!({ "object_hash": object_hash, "strike": d.strike_id.to_string() }),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(d)
+    }
+}

@@ -24,6 +24,7 @@ import { createSupportRoutes } from './support/routes';
 import { createProfilePageRoutes } from './profilepage/routes';
 import { createPwaRoutes } from './pwa/routes';
 import { createStorageRoutes } from './storage/routes';
+import { createStudyRoutes } from './study/routes';
 import { createEmuRoutes } from './emu/routes';
 import { isPublicPath } from './player/scope';
 import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
@@ -123,6 +124,7 @@ const routeTree = root.addChildren([
   ...createProfilePageRoutes(root),
   ...createPwaRoutes(root),
   ...createStorageRoutes(root),
+  ...createStudyRoutes(root),
   ...createEmuRoutes(root),
 ]);
 

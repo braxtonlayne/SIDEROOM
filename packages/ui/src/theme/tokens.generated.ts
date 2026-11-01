@@ -118,6 +118,7 @@ export const THEME_IDS = [
   "lounge-light",
   "lounge-ash",
   "lounge-onyx",
+  "lounge-editorial",
   "sideroom",
   "sideroom-broadcast",
 ] as const;

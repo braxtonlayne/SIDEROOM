@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 // Review Queues hub (ADM-CNT-001): one tab per queue the staff member may work.
 import { screen } from '@testing-library/react';
 import { asStaff, http, HttpResponse, openAdmin, server } from './helpers';
@@ -55,3 +56,6 @@ describe('review queues hub tabs (ADM-CNT-001)', () => {
     }
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
@@ -495,3 +496,6 @@ describe('review detail of a Cinema submission (RDY-MED-002)', () => {
     expect(screen.queryByText('Something went wrong!')).not.toBeInTheDocument();
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

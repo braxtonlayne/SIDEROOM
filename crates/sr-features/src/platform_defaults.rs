@@ -22,6 +22,7 @@ pub const SHIPPED_THEMES: &[(&str, &str)] = &[
     ("lounge-light", "Lounge Light"),
     ("lounge-ash", "Lounge Ash"),
     ("lounge-onyx", "Lounge Onyx"),
+    ("lounge-editorial", "Editorial"),
     ("sideroom", "Side Room"),
     ("sideroom-broadcast", "Side Room Broadcast"),
 ];

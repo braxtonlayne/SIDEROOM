@@ -17,6 +17,7 @@ SIDE ROOM is a self-hosted, invitation-only "private corner of the internet." It
 | Entrance (landing, login, register-with-invite) | `/`, `/login`, `/join/:code`, `/invite/:code` | Side Room (dark, cream, muted gold, serif) | [entry-landing-and-login](specs/entry-landing-and-login.md) |
 | Lounge (chat, voice, video) | `/channels/...` | Discord look-alike | [lounge-chat](specs/lounge-chat.md), [lounge-voice-video](specs/lounge-voice-video.md) |
 | Cinema (movies, series, anime, Live TV) | `/cinema/...` | Side Room Cinema | [cinema-media](specs/cinema-media.md), [cinema-live-tv](specs/cinema-live-tv.md), [watch-parties](specs/watch-parties.md) |
+| _Wave 41 (D-400): the Cinema and Library are rooms of The Study; the storefront surfaces (external metadata, Movies/Series/Anime categories, Global Trending, Requests, ingest review queues) are off by default behind platform switches._ | | | |
 | Library (manga, manhwa, comics, ebooks) | `/library/...` | Side Room Library | [library-reader](specs/library-reader.md) |
 | Staff Server + admin pages | `/channels/<staff-guild-id>/...`, `/admin/...` | Discord look-alike | [admin-staff-server](specs/admin-staff-server.md) |
 | Donations | `/support`, plus server settings → Boosts | Side Room | [08-donations…](08-donations-perks-and-cost-model.md) |

@@ -345,6 +345,14 @@ pub trait ScopeFacts: Send + Sync {
     async fn attached_guilds(&self, mount_id: i64) -> Result<Vec<i64>, FactsError>;
     /// Which of `keys` are delisted on this mount.
     async fn delisted(&self, mount_id: i64, keys: &[String]) -> Result<Vec<String>, FactsError>;
+    /// The live whole-shelf grants of the mount (`shelf_grants`, STU-ZK-001). The default is none, so a
+    /// store that predates shelf grants keeps its old decisions.
+    async fn shelf_grants(
+        &self,
+        _mount_id: i64,
+    ) -> Result<Vec<crate::shelf::ShelfGrantFact>, FactsError> {
+        Ok(Vec::new())
+    }
 }
 
 /// The viewer's reach into one mount, before any key is looked at. Everything that needs the database is
@@ -413,6 +421,29 @@ pub async fn access(
     // The owner reads their own mount.
     if mount.owner == MountOwner::User(viewer.id) {
         return Ok(mk(Scope::Own, all, true, true));
+    }
+    // A whole-shelf grant of the owner (STU-ZK-001): to a friend (while the friendship holds) or to a guild
+    // role the viewer holds. Read-only: every kind but the emulator's files.
+    if let MountOwner::User(owner) = mount.owner {
+        for g in facts.shelf_grants(mount.id).await? {
+            let hit = if g.guild_role {
+                match g.guild_id {
+                    Some(gid) => facts
+                        .guild_standing(gid, viewer.id)
+                        .await?
+                        .filter(|st| st.role_ids.contains(&g.grantee_id))
+                        .map(|_| Scope::Guild(gid)),
+                    None => None,
+                }
+            } else if g.grantee_id == viewer.id && facts.are_friends(owner, viewer.id).await? {
+                Some(Scope::Friend { owner })
+            } else {
+                None
+            };
+            if let Some(scope) = hit {
+                return Ok(mk(scope, all, false, false));
+            }
+        }
     }
     // A guild shelf: the owning guild, or a guild the mount is attached to.
     let mut guilds: Vec<i64> = Vec::new();

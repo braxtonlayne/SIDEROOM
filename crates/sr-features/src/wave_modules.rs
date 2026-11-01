@@ -39,6 +39,28 @@ pub const EMULATOR_ID: &str = "platform.emulator";
 /// Watch Together on a provider embed or a direct file.
 pub const WATCH_TOGETHER_EMBEDS_ID: &str = "platform.watch_together_embeds";
 
+/// STU-NAV-001 (wave 41, The Study): the storefront and inducement surfaces. Each is OFF until the operator
+/// switches it on at platform scope; the routes and engines stay (hide, never delete), only the surface is hidden
+/// and, for external metadata, the outbound lookup is refused.
+pub const EXTERNAL_METADATA_ID: &str = "platform.external_metadata";
+/// The Movies, Series and Anime storefront categories.
+pub const STOREFRONT_CATEGORIES_ID: &str = "platform.storefront_categories";
+/// The Global Trending rails and rankings.
+pub const GLOBAL_TRENDING_ID: &str = "platform.global_trending";
+/// The global Requests board.
+pub const REQUESTS_BOARD_ID: &str = "platform.requests_board";
+/// The staff upload and ingest review queues.
+pub const INGEST_QUEUES_ID: &str = "platform.ingest_queues";
+
+/// The five switches of the Study reframe, in the order the registry lists them.
+pub const STUDY_SWITCH_IDS: [&str; 5] = [
+    EXTERNAL_METADATA_ID,
+    STOREFRONT_CATEGORIES_ID,
+    GLOBAL_TRENDING_ID,
+    REQUESTS_BOARD_ID,
+    INGEST_QUEUES_ID,
+];
+
 const PLATFORM_GUILD: &[Scope] = &[Scope::Platform, Scope::Guild];
 const PLATFORM_ONLY: &[Scope] = &[Scope::Platform];
 
@@ -51,6 +73,8 @@ struct Switch {
     phase: u8,
     scopes: &'static [Scope],
     gated_by: Option<&'static str>,
+    /// Whether the switch is on until the operator says otherwise.
+    default_on: bool,
 }
 
 impl Switch {
@@ -60,7 +84,7 @@ impl Switch {
             description: self.description.into(),
             section: self.section.into(),
             phase: self.phase,
-            default_enabled: true,
+            default_enabled: self.default_on,
         }
     }
 }
@@ -100,6 +124,7 @@ const JUKEBOX: Switch = Switch {
     phase: 31,
     scopes: PLATFORM_GUILD,
     gated_by: None,
+    default_on: true,
 };
 const LISTENING_ROOMS: Switch = Switch {
     id: LISTENING_ROOMS_ID,
@@ -109,6 +134,7 @@ const LISTENING_ROOMS: Switch = Switch {
     phase: 31,
     scopes: PLATFORM_GUILD,
     gated_by: Some(JUKEBOX_ID),
+    default_on: true,
 };
 const TOOLS: Switch = Switch {
     id: TOOLS_ID,
@@ -118,6 +144,7 @@ const TOOLS: Switch = Switch {
     phase: 32,
     scopes: PLATFORM_ONLY,
     gated_by: None,
+    default_on: true,
 };
 const DATACHANNEL: Switch = Switch {
     id: ACTIVITIES_DATACHANNEL_ID,
@@ -127,6 +154,7 @@ const DATACHANNEL: Switch = Switch {
     phase: 36,
     scopes: PLATFORM_ONLY,
     gated_by: None,
+    default_on: true,
 };
 const EMULATOR: Switch = Switch {
     id: EMULATOR_ID,
@@ -136,6 +164,7 @@ const EMULATOR: Switch = Switch {
     phase: 37,
     scopes: PLATFORM_ONLY,
     gated_by: None,
+    default_on: true,
 };
 const EMBEDS: Switch = Switch {
     id: WATCH_TOGETHER_EMBEDS_ID,
@@ -145,8 +174,65 @@ const EMBEDS: Switch = Switch {
     phase: 34,
     scopes: PLATFORM_ONLY,
     gated_by: None,
+    default_on: true,
 };
 
+const EXTERNAL_METADATA: Switch = Switch {
+    id: EXTERNAL_METADATA_ID,
+    name: "External metadata lookup",
+    description: "Fetches titles, posters and details from TMDB, AniList, MangaDex, MangaUpdates and ComicVine. Off by default: nothing on the server calls an external metadata host until an operator switches this on.",
+    section: "Study",
+    phase: 41,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
+const STOREFRONT_CATEGORIES: Switch = Switch {
+    id: STOREFRONT_CATEGORIES_ID,
+    name: "Storefront categories",
+    description: "The Movies, Series and Anime browse pages of the Cinema. Off by default: the Study shows shelves and sources instead of a catalog storefront. The routes stay.",
+    section: "Study",
+    phase: 41,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
+const GLOBAL_TRENDING: Switch = Switch {
+    id: GLOBAL_TRENDING_ID,
+    name: "Global trending",
+    description: "The trending rails and rankings of the Cinema and the Library. Off by default; the routes stay.",
+    section: "Study",
+    phase: 41,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
+const REQUESTS_BOARD: Switch = Switch {
+    id: REQUESTS_BOARD_ID,
+    name: "Requests board",
+    description: "The global board where members ask for titles. Off by default; the routes stay.",
+    section: "Study",
+    phase: 41,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
+const INGEST_QUEUES: Switch = Switch {
+    id: INGEST_QUEUES_ID,
+    name: "Upload and ingest review queues",
+    description: "The staff queues that review uploads and ingested files, and the member upload and submission pages that feed them. Off by default; the routes and the engine stay.",
+    section: "Study",
+    phase: 41,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
+
+switch_feature!(ExternalMetadata, EXTERNAL_METADATA);
+switch_feature!(StorefrontCategories, STOREFRONT_CATEGORIES);
+switch_feature!(GlobalTrending, GLOBAL_TRENDING);
+switch_feature!(RequestsBoard, REQUESTS_BOARD);
+switch_feature!(IngestQueues, INGEST_QUEUES);
 switch_feature!(Jukebox, JUKEBOX);
 switch_feature!(ListeningRooms, LISTENING_ROOMS);
 switch_feature!(Tools, TOOLS);
@@ -261,6 +347,11 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         ActivitiesDatachannel,
         Emulator,
         WatchTogetherEmbeds,
+        ExternalMetadata,
+        StorefrontCategories,
+        GlobalTrending,
+        RequestsBoard,
+        IngestQueues,
     )?;
     for flag in TOOL_FLAGS {
         registry.register(ToolSwitch(flag))?;

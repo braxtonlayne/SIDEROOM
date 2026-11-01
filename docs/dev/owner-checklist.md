@@ -65,7 +65,16 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 40)
+### 4b. Decisions of the feature phase (waves 27 to 41)
+
+The Study (wave 41, [handoff](handoff/integration-phase41.md)):
+
+- [ ] **Write-capable mount keys** (D-401). The roadmap asked the mount check to refuse a key that can `PutObject`. **Default:** write keys stay allowed, because uploads, conversions and emulator saves use the mount key; grantees never hold a key either way. **Option:** split read and write keys per mount (a later wave).
+- [ ] **Who edits titles, covers and notes on a server's shelf** (D-402). **Default:** the bucket owner and the server's managers. **Option:** the bucket owner only.
+- [ ] **Continue Watching and Continue Reading across devices** (D-403). **Default:** per browser, never sent to the server. **Option:** a server table that follows the account.
+- [ ] **The member submission API with the ingest switch** (D-404). **Default:** `/submissions*` and `/library/submissions/*` answer 404 while `platform.ingest_queues` is off, like the staff queue. **Option:** keep member submissions open with the queue off.
+- [ ] **The PlayStation HLE BIOS: D-390 and P37-EMU-2 disagree.** Roadmap-p28 (D-390) allows the built-in open-source HLE BIOS when no user BIOS is mounted; wave 37's default (P37-EMU-2) does not offer it. Wave 41 did not touch the emulator. **Default until you say:** the shipped behaviour (P37-EMU-2, not offered); the wave that next touches the emulator should follow D-390 unless you object.
+- [ ] **Shelf strikes and the takedown counter.** A delist strike (`shelf_delist_strikes`) records the notice id but does not count toward the repeat-infringer counter. **Default:** separate. **Option:** feed the counter.
 
 The emulator (wave 37, [handoff](handoff/integration-phase37.md)):
 

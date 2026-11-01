@@ -294,6 +294,8 @@ pub fn router() -> Router<AppState> {
             "/admin/storage/mounts/{mount_id}/relist",
             post(storage::relist),
         )
+        .route("/admin/shelves/delist", post(storage::delist_object))
+        .route("/admin/shelves/relist", post(storage::relist_object))
         .route("/admin/alerts", get(announce::alerts))
         .route("/admin/alerts/{alert_id}/ack", post(announce::ack))
         .route("/admin/card-actions", post(announce::card_action))
@@ -366,6 +368,8 @@ pub fn router() -> Router<AppState> {
         storage::list,
         storage::delist,
         storage::relist,
+        storage::delist_object,
+        storage::relist_object,
         announce::alerts,
         announce::ack,
         announce::card_action,
@@ -439,6 +443,8 @@ pub fn router() -> Router<AppState> {
         announce::CardActionBody,
         storage::AdminStorageMount,
         storage::StorageMountLegal,
+        storage::ShelfDelistBody,
+        storage::ShelfObjectLegal,
         data_requests::DataRequestList,
         data_requests::CreateBody,
         data_requests::ExtendBody,

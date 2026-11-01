@@ -220,3 +220,120 @@ pub async fn relist(
     .await
     .map(|m| Json(m.into()))
 }
+
+/// Body of `POST /admin/shelves/delist`.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ShelfDelistBody {
+    /// The shelf (storage mount snowflake).
+    pub shelf_id: String,
+    /// The object's hash (64 lowercase hex characters).
+    pub object_hash: String,
+    /// The takedown notice this belongs to, when there is one.
+    #[serde(default)]
+    pub notice_id: Option<String>,
+    /// Why. Required (or the `X-Audit-Log-Reason` header).
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// The answer of a shelf-object delist or relist.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ShelfObjectLegal {
+    pub shelf_id: String,
+    pub object_hash: String,
+    /// The strike row (snowflake) the delisting was logged under.
+    pub strike_id: String,
+    pub path: String,
+}
+
+/// Delist one object of a shelf by `object_hash` (`MANAGE_TAKEDOWNS`): it vanishes from every catalog response and
+/// can no longer be minted a URL, and a strike is logged against the shelf's owner. The bucket is untouched.
+#[utoipa::path(
+    post, path = "/admin/shelves/delist",
+    request_body = ShelfDelistBody,
+    responses((status = 200, body = ShelfObjectLegal), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn delist_object(
+    ctx: StaffCtx,
+    Ext(deps): Ext<ModerationDeps>,
+    headers: HeaderMap,
+    Json(body): Json<ShelfDelistBody>,
+) -> ApiResult<Json<ShelfObjectLegal>> {
+    let sid = id(&body.shelf_id, "shelf")?;
+    let notice = match body.notice_id.as_deref() {
+        None | Some("") => None,
+        Some(n) => Some(id(n, "takedown notice")?),
+    };
+    let reason = reason_from(&headers, body.reason.as_deref());
+    let r = deps
+        .svc
+        .delist_shelf_object(
+            &Who::Staff(&ctx.caller),
+            sid,
+            &body.object_hash,
+            notice,
+            reason.as_deref(),
+        )
+        .await;
+    staff_result(
+        &ctx,
+        "storage.shelf.object.delist",
+        Some(("storage_mount", sid)),
+        r,
+    )
+    .await
+    .map(|d| {
+        Json(ShelfObjectLegal {
+            shelf_id: body.shelf_id.clone(),
+            object_hash: body.object_hash.clone(),
+            strike_id: d.strike_id.to_string(),
+            path: d.path,
+        })
+    })
+}
+
+/// Put a delisted shelf object back (`MANAGE_TAKEDOWNS`; the strike row stays, marked restored).
+#[utoipa::path(
+    post, path = "/admin/shelves/relist",
+    request_body = ShelfDelistBody,
+    responses((status = 200, body = ShelfObjectLegal), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn relist_object(
+    ctx: StaffCtx,
+    Ext(deps): Ext<ModerationDeps>,
+    headers: HeaderMap,
+    Json(body): Json<ShelfDelistBody>,
+) -> ApiResult<Json<ShelfObjectLegal>> {
+    let sid = id(&body.shelf_id, "shelf")?;
+    let reason = reason_from(&headers, body.reason.as_deref());
+    let r = deps
+        .svc
+        .relist_shelf_object(
+            &Who::Staff(&ctx.caller),
+            sid,
+            &body.object_hash,
+            reason.as_deref(),
+        )
+        .await;
+    staff_result(
+        &ctx,
+        "storage.shelf.object.relist",
+        Some(("storage_mount", sid)),
+        r,
+    )
+    .await
+    .map(|d| {
+        Json(ShelfObjectLegal {
+            shelf_id: body.shelf_id.clone(),
+            object_hash: body.object_hash.clone(),
+            strike_id: d.strike_id.to_string(),
+            path: d.path,
+        })
+    })
+}

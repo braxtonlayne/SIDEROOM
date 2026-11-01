@@ -59,6 +59,12 @@ fn every_feature_of_waves_27_to_39_is_registered_with_its_scopes_and_default() {
         ("platform.watch_together_embeds", P, true, true),
         // GSV-PAGE-001: shows or hides the cosmetic "Coming soon" page only.
         ("platform.game_servers", P, true, true),
+        // STU-NAV-001: the storefront surfaces, hidden (not deleted) until an operator switches them on.
+        ("platform.external_metadata", P, false, true),
+        ("platform.storefront_categories", P, false, true),
+        ("platform.global_trending", P, false, true),
+        ("platform.requests_board", P, false, true),
+        ("platform.ingest_queues", P, false, true),
     ];
     for (id, scopes, default_on, client) in expected {
         let f = reg
