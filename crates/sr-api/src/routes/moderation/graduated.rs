@@ -286,7 +286,7 @@ pub async fn member_actions(
         .map(Json)
 }
 
-/// Lift a restriction early (`MANAGE_CASES`, or `MANAGE_INVITES` for an invite freeze; reason required).
+/// Lift a restriction early (`MANAGE_CASES`; reason required).
 #[utoipa::path(
     post, path = "/admin/moderation/restrictions/{restriction_id}/lift", request_body = MemberReasonBody,
     params(("restriction_id" = String, Path, description = "Restriction snowflake")),

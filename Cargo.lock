@@ -6146,6 +6146,7 @@ dependencies = [
  "sr-db",
  "sr-library",
  "sr-media",
+ "sr-moderation",
  "sr-packages",
  "sr-preflight",
  "sr-server",

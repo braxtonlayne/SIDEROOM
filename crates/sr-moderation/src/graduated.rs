@@ -413,22 +413,18 @@ impl Moderation {
         rows.iter().map(restriction_from).collect()
     }
 
-    /// Lift a restriction early (`MANAGE_CASES`, or `MANAGE_INVITES` for an invite freeze). A reason is required.
+    /// Lift a restriction early (`MANAGE_CASES`). A reason is required.
     pub async fn lift_restriction(
         &self,
         who: &Who<'_>,
         id: i64,
         reason: Option<&str>,
     ) -> ModResult<RestrictionView> {
+        require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
         let c = caller_of(who)?;
         let reason = rules::reason(reason)?;
         let mut tx = self.pool.begin().await?;
         let r = self.restriction_by_id(&mut tx, id, true).await?;
-        let ok = c.permissions.has(P::MANAGE_CASES)
-            || (r.kind == "invite_freeze" && c.permissions.has(P::MANAGE_INVITES));
-        if !ok {
-            return Err(ModError::MissingPermission("MANAGE_CASES"));
-        }
         if r.state != "active" {
             return Err(conflict("That restriction is no longer active"));
         }

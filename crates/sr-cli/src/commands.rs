@@ -20,7 +20,8 @@ use sr_db::{
 };
 
 use crate::{
-    ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd,
+    ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, ModerationCmd, PackageCmd, StaffCmd, StorageCmd,
+    TvCmd, UserCmd,
     guilds,
 };
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
@@ -125,6 +126,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
         Command::Arcade(cmd) => arcade(&pool, &cfg, ids, cmd).await?,
+        Command::Moderation(cmd) => moderation(&pool, &cfg, ids, cmd).await?,
         Command::Seed {
             password,
             force,
@@ -554,6 +556,77 @@ async fn account_by_name(pool: &PgPool, who: &str) -> Result<i64> {
     accounts::find_account_id(pool, &who.to_lowercase())
         .await?
         .with_context(|| format!("no account '{who}'"))
+}
+
+/// `sr-cli moderation ...` (MOD-GRD-001): the branch action and the drill. Both run as the Operator on this host.
+async fn moderation(
+    pool: &PgPool,
+    cfg: &Config,
+    ids: IdSource,
+    cmd: ModerationCmd,
+) -> Result<()> {
+    use sr_moderation::{Moderation, model::Who};
+    let op = Caller::operator(ADMIN_SYSTEM_USER);
+    let who = Who::Staff(&op);
+    let m = Moderation::new(pool.clone(), ids.clone());
+    match cmd {
+        ModerationCmd::Drill { synthetic } => {
+            if !synthetic {
+                bail!("the drill only runs on a synthetic tree: pass --synthetic");
+            }
+            let r = m
+                .run_drill(&who)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!(
+                "drill: {} accounts in the synthetic tree, {} frozen automatically, {} waiting for review, {} rows left behind",
+                r.tree_size, r.auto_frozen, r.waiting_review, r.rows_left_behind
+            );
+            println!("notice: {} / {}", r.notice.title, r.notice.body);
+            let detail = format!(
+                "DRILL (synthetic, nothing real changed): {} / {} ({} accounts, {} frozen automatically, {} waiting for review).",
+                r.notice.title, r.notice.body, r.tree_size, r.auto_frozen, r.waiting_review
+            );
+            match sr_server::staff_feed::drill_card(pool.clone(), cfg, &detail).await {
+                Ok(true) => println!("posted to the Staff Server #alerts"),
+                Ok(false) => println!("the Staff Server card was not posted (no Staff Server channel yet)"),
+                Err(e) => println!("the Staff Server card could not be posted: {e:#}"),
+            }
+        }
+        ModerationCmd::BranchAction {
+            request: Some(request),
+            ..
+        } => {
+            let admin = admin_service(pool, ids);
+            let out = m
+                .execute_branch_action(&who, request, &admin)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!(
+                "branch action {} on case {}: {} accounts actioned ({} already gone); notice: {}",
+                out.action, out.case_id, out.nodes_actioned, out.already_banned_or_gone, out.notice.body
+            );
+        }
+        ModerationCmd::BranchAction {
+            case: Some(case),
+            action: Some(action),
+            reason: Some(reason),
+            request: None,
+        } => {
+            let r = m
+                .request_branch_action(&who, case, &action, &reason)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            println!(
+                "request {} filed. A second staff member must approve it in Admin, then run: sr-cli moderation branch-action --request {}",
+                r.id, r.id
+            );
+        }
+        ModerationCmd::BranchAction { .. } => {
+            bail!("pass --case, --action and --reason to file a request, or --request <id> to execute an approved one");
+        }
+    }
+    Ok(())
 }
 
 /// Staff commands run as the operator (the system user acting as Owner): shell access is the

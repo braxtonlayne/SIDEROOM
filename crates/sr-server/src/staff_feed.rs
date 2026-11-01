@@ -21,7 +21,7 @@ use sr_admin::{
     AdminService, Announcement, AnnouncementSeverity, SYSTEM_USER_ID, StaffNotifier, StaffOffer,
 };
 use sr_api::routes::{
-    auth::mail::{Mailer, OutgoingMail},
+    auth::mail::{MailError, Mailer, OutgoingMail},
     messages::{MessagesDeps, render::event_payload},
 };
 use sr_chat::{
@@ -941,16 +941,11 @@ pub fn alert_test_detail(host: &str, public_url: &str, stamp: &str) -> String {
     )
 }
 
-/// `sr-cli preflight --alert-test` (RDY-OPS-006): post a test alert through the real [`StaffFeed`] path (the stored
-/// alert, the `#alerts` card, and the Owner email when that setting is on) from a process that is not the server.
-/// The card is stored like any message; clients that are connected to the running server see it when they next load
-/// the channel, because this process has no gateway to push it live.
-pub async fn alert_test(
+async fn cli_feed(
     pool: PgPool,
     cfg: &sr_core::config::Config,
     mailer: Arc<dyn Mailer>,
-    detail: &str,
-) -> anyhow::Result<AlertOutcome> {
+) -> anyhow::Result<StaffFeed> {
     use anyhow::Context;
     let clock: Arc<dyn sr_core::Clock> = Arc::new(sr_core::SystemClock);
     let bus: Arc<dyn EventBus> = Arc::new(sr_events::InProcessBus::new());
@@ -1002,7 +997,44 @@ pub async fn alert_test(
         bus,
         throttle: MailThrottle::default(),
     };
+    Ok(feed)
+}
+
+
+/// `sr-cli preflight --alert-test` (RDY-OPS-006): post a test alert through the real [`StaffFeed`] path (the stored
+/// alert, the `#alerts` card, and the Owner email when that setting is on) from a process that is not the server.
+/// The card is stored like any message; clients that are connected to the running server see it when they next load
+/// the channel, because this process has no gateway to push it live.
+pub async fn alert_test(
+    pool: PgPool,
+    cfg: &sr_core::config::Config,
+    mailer: Arc<dyn Mailer>,
+    detail: &str,
+) -> anyhow::Result<AlertOutcome> {
+    let feed = cli_feed(pool, cfg, mailer).await?;
     Ok(feed.deliver_alert(StaffAlertKind::AlertTest, detail).await)
+}
+
+/// `sr-cli moderation drill --synthetic` (MOD-GRD-001): post the drill's report to the Staff Server's `#alerts`
+/// channel and nowhere else: no stored alert, no email, no banner, nothing for members. `true` when it was posted.
+pub async fn drill_card(
+    pool: PgPool,
+    cfg: &sr_core::config::Config,
+    detail: &str,
+) -> anyhow::Result<bool> {
+    let feed = cli_feed(pool, cfg, Arc::new(crate::staff_feed::NoMail)).await?;
+    let card = alert_card(StaffAlertKind::AlertTest, detail, 0, feed.voice.base_url());
+    Ok(feed.voice.post("alerts", card).await)
+}
+
+/// A mailer that sends nothing (the drill must never email anybody).
+pub struct NoMail;
+
+#[async_trait::async_trait]
+impl Mailer for NoMail {
+    async fn send(&self, _mail: OutgoingMail) -> Result<(), MailError> {
+        Ok(())
+    }
 }
 
 /// Everything the consumer needs.
