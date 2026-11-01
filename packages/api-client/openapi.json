@@ -63177,7 +63177,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GrantList"
+                  "$ref": "#/components/schemas/ShelfGrantList"
                 }
               }
             }
@@ -63220,7 +63220,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GrantBody"
+                "$ref": "#/components/schemas/ShelfGrantBody"
               }
             }
           },
@@ -63232,7 +63232,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GrantView"
+                  "$ref": "#/components/schemas/ShelfGrantView"
                 }
               }
             }
@@ -92642,30 +92642,6 @@
           }
         }
       },
-      "GrantList": {
-        "type": "object",
-        "description": "Who can see a shelf: the grants with their history, and the older per-kind shares.",
-        "required": [
-          "grants",
-          "legacy_shares"
-        ],
-        "properties": {
-          "grants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/GrantView"
-            },
-            "description": "Newest first, revoked ones included (the audit trail)."
-          },
-          "legacy_shares": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/LegacyShareView"
-            },
-            "description": "Per-kind friend shares that predate shelf grants."
-          }
-        }
-      },
       "GrantPage": {
         "type": "object",
         "required": [
@@ -109297,6 +109273,102 @@
               "$ref": "#/components/schemas/ShelfPartView"
             },
             "description": "Episodes or chapters, in order."
+          }
+        }
+      },
+      "ShelfGrantBody": {
+        "type": "object",
+        "description": "Body of `POST /shelves/{shelf_id}/grants`.",
+        "required": [
+          "grantee_kind",
+          "grantee_id"
+        ],
+        "properties": {
+          "grantee_id": {
+            "type": "string",
+            "description": "The friend (snowflake) or the role (snowflake)."
+          },
+          "grantee_kind": {
+            "type": "string",
+            "description": "`friend` or `guild_role`."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required for `guild_role`: the server the role belongs to. You must manage that server."
+          }
+        }
+      },
+      "ShelfGrantList": {
+        "type": "object",
+        "description": "Who can see a shelf: the grants with their history, and the older per-kind shares.",
+        "required": [
+          "grants",
+          "legacy_shares"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfGrantView"
+            },
+            "description": "Newest first, revoked ones included (the audit trail)."
+          },
+          "legacy_shares": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyShareView"
+            },
+            "description": "Per-kind friend shares that predate shelf grants."
+          }
+        }
+      },
+      "ShelfGrantView": {
+        "type": "object",
+        "description": "A grant, live or revoked.",
+        "required": [
+          "id",
+          "grantee_kind",
+          "grantee_id",
+          "granted_by",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "description": "When (ISO 8601)."
+          },
+          "granted_by": {
+            "type": "string",
+            "description": "Who granted it."
+          },
+          "grantee_id": {
+            "type": "string",
+            "description": "The friend (snowflake) or the role (snowflake)."
+          },
+          "grantee_kind": {
+            "type": "string",
+            "description": "`friend` or `guild_role`."
+          },
+          "guild_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "For `guild_role`: the server."
+          },
+          "id": {
+            "type": "string",
+            "description": "Grant snowflake."
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When revoked (ISO 8601), absent while live."
           }
         }
       },

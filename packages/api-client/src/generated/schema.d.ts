@@ -20704,13 +20704,6 @@ export interface components {
             usd_cents?: number | null;
             user_id?: string | null;
         };
-        /** @description Who can see a shelf: the grants with their history, and the older per-kind shares. */
-        GrantList: {
-            /** @description Newest first, revoked ones included (the audit trail). */
-            grants: components["schemas"]["GrantView"][];
-            /** @description Per-kind friend shares that predate shelf grants. */
-            legacy_shares: components["schemas"]["LegacyShareView"][];
-        };
         GrantPage: {
             items: components["schemas"]["GrantView"][];
             next_before?: string | null;
@@ -26184,6 +26177,39 @@ export interface components {
             item: components["schemas"]["ShelfItemView"];
             /** @description Episodes or chapters, in order. */
             parts: components["schemas"]["ShelfPartView"][];
+        };
+        /** @description Body of `POST /shelves/{shelf_id}/grants`. */
+        ShelfGrantBody: {
+            /** @description The friend (snowflake) or the role (snowflake). */
+            grantee_id: string;
+            /** @description `friend` or `guild_role`. */
+            grantee_kind: string;
+            /** @description Required for `guild_role`: the server the role belongs to. You must manage that server. */
+            guild_id?: string | null;
+        };
+        /** @description Who can see a shelf: the grants with their history, and the older per-kind shares. */
+        ShelfGrantList: {
+            /** @description Newest first, revoked ones included (the audit trail). */
+            grants: components["schemas"]["ShelfGrantView"][];
+            /** @description Per-kind friend shares that predate shelf grants. */
+            legacy_shares: components["schemas"]["LegacyShareView"][];
+        };
+        /** @description A grant, live or revoked. */
+        ShelfGrantView: {
+            /** @description When (ISO 8601). */
+            created_at: string;
+            /** @description Who granted it. */
+            granted_by: string;
+            /** @description The friend (snowflake) or the role (snowflake). */
+            grantee_id: string;
+            /** @description `friend` or `guild_role`. */
+            grantee_kind: string;
+            /** @description For `guild_role`: the server. */
+            guild_id?: string | null;
+            /** @description Grant snowflake. */
+            id: string;
+            /** @description When revoked (ISO 8601), absent while live. */
+            revoked_at?: string | null;
         };
         /** @description An Activity in the launcher's shelf. */
         ShelfItem: {
@@ -69625,7 +69651,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrantList"];
+                    "application/json": components["schemas"]["ShelfGrantList"];
                 };
             };
             404: {
@@ -69650,7 +69676,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["GrantBody"];
+                "application/json": components["schemas"]["ShelfGrantBody"];
             };
         };
         responses: {
@@ -69659,7 +69685,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GrantView"];
+                    "application/json": components["schemas"]["ShelfGrantView"];
                 };
             };
             400: {

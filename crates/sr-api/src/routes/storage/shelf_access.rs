@@ -146,7 +146,7 @@ pub struct ObjectUrl {
 
 /// A grant, live or revoked.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct GrantView {
+pub struct ShelfGrantView {
     /// Grant snowflake.
     pub id: String,
     /// `friend` or `guild_role`.
@@ -165,7 +165,7 @@ pub struct GrantView {
     pub revoked_at: Option<String>,
 }
 
-impl From<GrantRow> for GrantView {
+impl From<GrantRow> for ShelfGrantView {
     fn from(g: GrantRow) -> Self {
         Self {
             id: g.id.to_string(),
@@ -194,16 +194,16 @@ pub struct LegacyShareView {
 
 /// Who can see a shelf: the grants with their history, and the older per-kind shares.
 #[derive(Debug, Serialize, ToSchema)]
-pub struct GrantList {
+pub struct ShelfGrantList {
     /// Newest first, revoked ones included (the audit trail).
-    pub grants: Vec<GrantView>,
+    pub grants: Vec<ShelfGrantView>,
     /// Per-kind friend shares that predate shelf grants.
     pub legacy_shares: Vec<LegacyShareView>,
 }
 
 /// Body of `POST /shelves/{shelf_id}/grants`.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct GrantBody {
+pub struct ShelfGrantBody {
     /// `friend` or `guild_role`.
     pub grantee_kind: String,
     /// The friend (snowflake) or the role (snowflake).
@@ -572,7 +572,7 @@ pub async fn patch_shelf_object(
     get,
     path = "/shelves/{shelf_id}/grants",
     params(("shelf_id" = String, Path, description = "Shelf (mount) snowflake")),
-    responses((status = 200, body = GrantList), (status = 404, body = ErrorBody)),
+    responses((status = 200, body = ShelfGrantList), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn list_shelf_grants(
@@ -580,11 +580,11 @@ pub async fn list_shelf_grants(
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
     Path(shelf_id): Path<String>,
-) -> MsgResult<Json<GrantList>> {
+) -> MsgResult<Json<ShelfGrantList>> {
     let m = owned(&d, uid(&p), &shelf_id).await?;
     let grants = s.store.grants_of(m.id).await.map_err(store_failed)?;
     let legacy = d.store.shares_of_mount(m.id).await.map_err(facts_failed)?;
-    Ok(Json(GrantList {
+    Ok(Json(ShelfGrantList {
         grants: grants.into_iter().map(Into::into).collect(),
         legacy_shares: legacy
             .into_iter()
@@ -604,9 +604,9 @@ pub async fn list_shelf_grants(
     post,
     path = "/shelves/{shelf_id}/grants",
     params(("shelf_id" = String, Path, description = "Shelf (mount) snowflake")),
-    request_body = GrantBody,
+    request_body = ShelfGrantBody,
     responses(
-        (status = 201, body = GrantView),
+        (status = 201, body = ShelfGrantView),
         (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
@@ -619,8 +619,8 @@ pub async fn create_shelf_grant(
     Ext(d): Ext<ScopeDeps>,
     Ext(s): Ext<ShelfAccessDeps>,
     Path(shelf_id): Path<String>,
-    ApiJson(body): ApiJson<GrantBody>,
-) -> MsgResult<(StatusCode, Json<GrantView>)> {
+    ApiJson(body): ApiJson<ShelfGrantBody>,
+) -> MsgResult<(StatusCode, Json<ShelfGrantView>)> {
     let user = uid(&p);
     let m = owned(&d, user, &shelf_id).await?;
     let grantee = parse_row(&body.grantee_id)?;
