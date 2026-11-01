@@ -619,7 +619,12 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&M
                     }
                 }
                 let mut kinds = BTreeSet::new();
-                if !c.links.iter().filter_map(|l| l.tip.as_deref()).all(|k| kinds.insert(k)) {
+                if !c
+                    .links
+                    .iter()
+                    .filter_map(|l| l.tip.as_deref())
+                    .all(|k| kinds.insert(k))
+                {
                     problem(out, p("links"), "at most one tip link of each kind");
                 }
             }
@@ -972,9 +977,7 @@ mod tests {
 
     #[test]
     fn the_links_block_takes_tip_links_on_the_allow_list() {
-        let tree = |links: Value| {
-            json!({"blocks": [block("l", "linktree", 0, 0, 6, 4, json!({"links": links}))]})
-        };
+        let tree = |links: Value| json!({"blocks": [block("l", "linktree", 0, 0, 6, 4, json!({"links": links}))]});
         let btc = "bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
         let ok = tree(json!([
             {"label": "Tip", "url": btc, "tip": "btc"},

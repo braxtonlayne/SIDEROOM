@@ -258,7 +258,7 @@ function Custom({ block }: { block: BlockLike }) {
   const title = text(block.config, 'title');
   const links = list<{ label: string; url: string }>(block.config, 'links')
     .map((l) => ({ label: l?.label ?? '', href: httpsUrl(l?.url) }))
-    .filter((l): l is { label: string; href: string; pay: boolean } => l.href !== null);
+    .filter((l): l is { label: string; href: string } => l.href !== null);
   return (
     <>
       {title && <h3 className="pp-title">{title}</h3>}
@@ -286,7 +286,7 @@ function Linktree({ block }: { block: BlockLike }) {
       href: l?.tip ? tipUri(l.tip, l.url) : httpsUrl(l?.url),
       pay: !!l?.tip,
     }))
-    .filter((l): l is { label: string; href: string } => l.href !== null);
+    .filter((l): l is { label: string; href: string; pay: boolean } => l.href !== null);
   return (
     <>
       <h3 className="pp-title">{text(block.config, 'title') || t('profile.blocks.linksTitle')}</h3>
