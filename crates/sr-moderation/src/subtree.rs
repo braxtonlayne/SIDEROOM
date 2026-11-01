@@ -1426,3 +1426,108 @@ impl SeriousBanObserver for Moderation {
     }
 }
 
+
+impl Moderation {
+    /// `sr-cli moderation drill --synthetic` (Owner / operator only): build a throw-away invite tree of seven
+    /// synthetic accounts, run a case through to the notice, and roll the whole transaction back, so nothing the
+    /// drill made (accounts, freezes, the notice, the banner) is ever visible to anyone. Only the audit entry of the
+    /// drill itself is kept. The caller posts the returned report to the Staff Server and nowhere else.
+    pub async fn run_drill(&self, who: &Who<'_>) -> ModResult<crate::graduated_model::DrillReport> {
+        let c = caller_of(who)?;
+        if !c.is_owner {
+            return Err(ModError::MissingPermission("OWNER"));
+        }
+        let tag = self.next_id();
+        let mut tx = self.pool.begin().await?;
+        // inviter2 -> inviter -> root -> { A (unactivated) -> D (unactivated), B (voice), C (too young) }
+        let names = ["j", "i", "r", "a", "b", "c", "d"];
+        let ages = [90, 90, 60, 40, 40, 2, 40];
+        let mut ids = Vec::new();
+        for (n, age) in names.iter().zip(ages) {
+            let id = self.next_id();
+            sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "INSERT INTO accounts (id, person_id, username, email, password_hash, email_verified_at, created_at) \
+                 VALUES ($1, $1, $2, $3, 'x', now(), now() - make_interval(days => $4))",
+            )
+            .bind(id)
+            .bind(format!("drill{n}{tag}"))
+            .bind(format!("drill{n}{tag}@drill.invalid"))
+            .bind(age)
+            .execute(&mut *tx)
+            .await?;
+            ids.push(id);
+        }
+        let edges = [(0, 1), (1, 2), (2, 3), (2, 4), (2, 5), (3, 6)];
+        for (from, to) in edges {
+            let inv = self.next_id();
+            let code: String = format!("{:010}", inv.rem_euclid(10_000_000_000));
+            sqlx::query(
+                "INSERT INTO platform_invites (id, code, issuer_account_id, state, redeemed_by_account_id, redeemed_at) \
+                 VALUES ($1, $2, $3, 'redeemed', $4, now())",
+            )
+            .bind(inv)
+            .bind(code)
+            .bind(ids[from])
+            .bind(ids[to])
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("UPDATE accounts SET invited_by_invite_id = $1 WHERE id = $2")
+                .bind(inv)
+                .bind(ids[to])
+                .execute(&mut *tx)
+                .await?;
+        }
+        sqlx::query("INSERT INTO account_activity (account_id, voice_seconds) VALUES ($1, 600)")
+            .bind(ids[4])
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("UPDATE accounts SET state = 'platform_banned' WHERE id = $1")
+            .bind(ids[2])
+            .execute(&mut *tx)
+            .await?;
+        let opened = self
+            .open_case_in(
+                &mut tx,
+                &OpenInput {
+                    ban_id: None,
+                    root_account: ids[2],
+                    category: "fraud".to_owned(),
+                    actor: c.user_id,
+                },
+            )
+            .await?
+            .ok_or_else(|| conflict("the drill case did not open"))?;
+        tx.rollback().await?;
+        let left: i64 =
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM accounts WHERE username LIKE $1")
+                .bind(format!("drill%{tag}"))
+                .fetch_one(&self.pool)
+                .await?;
+        let mut tx = self.pool.begin().await?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "moderation.drill",
+            ("drill", tag),
+            "synthetic drill",
+            json!({
+                "tree_size": opened.nodes, "auto_frozen": opened.auto_frozen,
+                "waiting_review": opened.waiting_review, "rows_left_behind": left,
+            }),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(crate::graduated_model::DrillReport {
+            tree_size: opened.nodes,
+            auto_frozen: opened.auto_frozen,
+            waiting_review: opened.waiting_review,
+            notice: opened.notice,
+            rows_left_behind: left,
+        })
+    }
+}
