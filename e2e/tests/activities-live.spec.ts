@@ -141,7 +141,9 @@ test.describe('Activities (real browser)', () => {
       const res = await entry;
       expect(res.status()).toBe(200);
       const csp = (await res.allHeaders())['content-security-policy'] ?? '';
-      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain('sandbox allow-scripts allow-pointer-lock');
+      expect(csp).toContain("default-src 'none'");
+      expect(csp).toContain("connect-src 'none'");
       expect(csp).toContain("script-src 'self'");
       expect(csp).toContain('frame-ancestors http://localhost:5173');
       expect((await res.allHeaders())['x-content-type-options']).toBe('nosniff');
@@ -165,7 +167,10 @@ test.describe('Activities (real browser)', () => {
         .frames()
         .find((f) => f.url().includes(activityHost))
         ?.evaluate(() => location.origin);
-      expect(frameOrigin).toBe(`http://${activityHost}:5173`);
+      // ARC-SBX-001: no allow-same-origin, so the frame's origin is opaque ("null"); it is still served from the
+      // Activity's own host.
+      expect(frameOrigin).toBe('null');
+      expect(a.page.frames().some((f) => f.url().includes(activityHost))).toBe(true);
 
       // authorize: the host asks the person, then hands the Activity an OAuth2 code.
       await frameA.getByRole('button', { name: 'Authorize' }).click();
