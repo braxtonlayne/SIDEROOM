@@ -4237,6 +4237,21 @@ const WRITE_OBSERVED: &[(&str, &str, &str)] = &[
         "bearer-only route: needs a user token with applications.commands.permissions.update, which no actor holds",
     ),
     (
+        "GET",
+        "/activities/{application_id}/trust",
+        "needs a released application with an approved Activity bundle; the seeded bundle is a draft (ARC-SBX-001)",
+    ),
+    (
+        "PUT",
+        "/activities/{application_id}/vouch",
+        "needs a released application with an approved Activity bundle; the seeded bundle is a draft (ARC-SBX-001)",
+    ),
+    (
+        "DELETE",
+        "/activities/{application_id}/vouch",
+        "needs a released application with an approved Activity bundle; the seeded bundle is a draft (ARC-SBX-001)",
+    ),
+    (
         "POST",
         "/activity-instances/{instance_id}/join",
         "needs an approved Activity bundle and a running instance; no Activity host runs in this stack",
