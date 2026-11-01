@@ -1106,6 +1106,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         bus.clone(),
     );
     gateway.start();
+    // The guest socket resolves a member's seat from the session cookie like the gateway does (ARC-GST-001).
+    let guest_authenticator: Arc<dyn sr_gateway::Authenticator> = Arc::new(PgAuthenticator::new(
+        auth_repo.clone(),
+        pool.clone(),
+        clock.clone(),
+    ));
     // The event clock reads voice occupancy and stage instances from the gateway (G-91).
     settings_deps.set_event_world(Arc::new(crate::events_jobs::GatewayEventWorld(
         gateway.clone(),
@@ -1972,11 +1978,30 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             }
         });
     }
+    // The guest socket (ARC-GST-001, D-385, D-397): `/gateway/guest`, beside the gateway and only when Activities
+    // are on. It holds a lobby relay of its own and shares no state with the gateway or the call SFU.
+    let guest_routes = if cfg.activities.enabled {
+        let guest = sr_gateway::guest::GuestGateway::new(
+            guest_authenticator,
+            Arc::new(crate::guest_relay::PgGuestAuthority::new(
+                activities_deps.service.clone(),
+            )),
+            sr_voice::lobby::LobbyHub::default(),
+            sr_gateway::guest::GuestConfig {
+                allowed_origins: vec![cfg.server.public_url.trim_end_matches('/').to_owned()],
+                ..sr_gateway::guest::GuestConfig::default()
+            },
+        );
+        with_request_id(sr_gateway::guest::routes().with_state(guest))
+    } else {
+        Router::new()
+    };
     let web_gate =
         crate::web::WebGate::from_config(&cfg, Arc::new(crate::web::ComplianceOperator))?;
     let web_state = state.clone();
     let mut app = build_router(state, api)
         .merge(gateway_routes)
+        .merge(guest_routes)
         .merge(cdn_routes)
         .merge(worker_routes);
     // The SFU's WebSocket (`/voice/ws`) is served beside the gateway; media uses its own sockets.

@@ -71,6 +71,20 @@ pub struct ActivitiesDeps {
     pub base_host: String,
     scheme: String,
     pub fetcher: Option<Arc<dyn ActivityFetcher>>,
+    /// Guest joins per address (ARC-GST-001): the route is open to anybody, so it is rate limited by address.
+    pub(crate) guest_join_limit: GuestJoinLimit,
+}
+
+/// A keyed limiter: [GUEST_JOINS_PER_MINUTE] joins a minute per address.
+pub(crate) type GuestJoinLimit = governor::DefaultKeyedRateLimiter<String>;
+
+/// Guest joins one address may make in a minute (a burst of this many, then one every few seconds).
+pub const GUEST_JOINS_PER_MINUTE: u32 = 20;
+
+fn guest_join_limiter() -> GuestJoinLimit {
+    governor::RateLimiter::keyed(governor::Quota::per_minute(
+        std::num::NonZeroU32::new(GUEST_JOINS_PER_MINUTE).unwrap_or(std::num::NonZeroU32::MIN),
+    ))
 }
 
 impl ActivitiesDeps {
@@ -99,6 +113,7 @@ impl ActivitiesDeps {
             base_host,
             scheme,
             fetcher,
+            guest_join_limit: guest_join_limiter(),
         }
     }
 
@@ -189,6 +204,15 @@ pub fn router() -> Router<AppState> {
             "/activity-instances/{instance_id}/proxy-token",
             post(h::proxy_token),
         )
+        .route(
+            "/activity-instances/{instance_id}/guest-links",
+            post(h::create_guest_link),
+        )
+        .route(
+            "/activity-instances/{instance_id}/guest-links/{lobby_token}",
+            axum::routing::delete(h::revoke_guest_link),
+        )
+        .route("/play/{lobby_token}/join", post(h::guest_join))
 }
 
 /// OpenAPI fragment for the Activities endpoints.
@@ -213,6 +237,9 @@ pub fn router() -> Router<AppState> {
         handlers::join,
         handlers::leave,
         handlers::proxy_token,
+        handlers::create_guest_link,
+        handlers::revoke_guest_link,
+        handlers::guest_join,
         handlers::end,
     ),
     components(schemas(
@@ -235,6 +262,8 @@ pub fn router() -> Router<AppState> {
         handlers::ShelfResponse,
         handlers::VouchBody,
         handlers::ProxyTokenResponse,
+        sr_activities::guest::GuestLinkCreated,
+        sr_activities::guest::GuestJoined,
         sr_activities::trust::TrustView,
         sr_activities::trust::BadgeKind,
         sr_activities::trust::PreviousBuild,

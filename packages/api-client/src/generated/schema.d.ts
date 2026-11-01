@@ -85,6 +85,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity-instances/{instance_id}/guest-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mint a guest link for a running Activity (ARC-GST-001, D-385, D-397, D-399). The game must declare
+         *     `guest_play`. The lobby token is shown once; the page is `/play/<lobby_token>#key=<key>` and the client makes
+         *     the key, which never reaches the server.
+         */
+        post: operations["create_guest_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activity-instances/{instance_id}/guest-links/{lobby_token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke a guest link: the lobby host (the Activity's starter) or the member who minted it. Guests holding the
+         *     link are disconnected from the lobby within seconds.
+         */
+        delete: operations["revoke_guest_link"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity-instances/{instance_id}/join": {
         parameters: {
             query?: never;
@@ -12279,6 +12320,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/play/{lobby_token}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a lobby with a guest link (ARC-GST-001, D-385, D-397): no account, no cookie. Returns a short-lived guest
+         *     session with a random callsign. The guest token is accepted by the guest socket only; every other route
+         *     answers it with 403. Rate limited per address; a dead link (unknown, expired, revoked, ended) is one 404.
+         */
+        post: operations["guest_join"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profile-pages/{username}": {
         parameters: {
             query?: never;
@@ -17205,6 +17267,35 @@ export interface components {
             coming_soon: components["schemas"]["ArcadeComingSoonCard"][];
             featured: components["schemas"]["ArcadeFeaturedCard"][];
             flags: components["schemas"]["ArcadeFlag"][];
+        };
+        /** @description A response to a guest joining. */
+        ArcadeGuestJoined: {
+            /** @description The game the lobby runs, so the runner loads its bundle (and nothing else of the server). */
+            application_id: string;
+            /** @description The game's name. */
+            application_name: string;
+            /** @description The random callsign the lobby shows for this guest. */
+            callsign: string;
+            /**
+             * @description The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can
+             *     refuse a capability that has not shipped. Flag names only; nothing else of the manifest.
+             */
+            capabilities: string[];
+            /** @description When the guest session ends (RFC 3339, UTC); never later than the link. */
+            expires_at: string;
+            /** @description `srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it. */
+            guest_token: string;
+            /** @description The guest socket's path on the same origin. */
+            socket_path: string;
+            /** @description The one topic the guest socket may hold: `game:<lobby_token>`. */
+            topic: string;
+        };
+        /** @description A response to creating a guest link. */
+        ArcadeGuestLinkCreated: {
+            /** @description When the link stops working (RFC 3339, UTC); earlier if the host revokes it or the lobby ends. */
+            expires_at: string;
+            /** @description 64 hex digits, shown once. The page is `/play/<lobby_token>#key=<key>`; the client adds the key. */
+            lobby_token: string;
         };
         /** @description Body of `PUT /arcade/coming-soon/{entry_id}/notify`. */
         ArcadeNotifyBody: {
@@ -29710,6 +29801,82 @@ export interface operations {
             path: {
                 /** @description Activity instance snowflake */
                 instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_guest_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeGuestLinkCreated"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_guest_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+                /** @description The lobby token of the link */
+                lobby_token: string;
             };
             cookie?: never;
         };
@@ -69804,6 +69971,52 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    guest_join: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The lobby token from the shared link */
+                lobby_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeGuestJoined"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

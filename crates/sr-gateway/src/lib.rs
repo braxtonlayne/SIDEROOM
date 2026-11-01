@@ -9,6 +9,7 @@
 
 pub mod compress;
 pub mod conn;
+pub mod guest;
 pub mod hub;
 mod lists;
 pub mod member_list;
@@ -49,6 +50,8 @@ pub use voice_status::{ChannelStatus, MAX_STATUS_CHARS, StatusError};
 pub use voice_stream::{PreviewError, stream_key};
 pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
 
+#[cfg(test)]
+mod guest_tests;
 #[cfg(test)]
 mod members_request_tests;
 #[cfg(test)]

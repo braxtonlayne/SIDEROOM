@@ -14,6 +14,8 @@ sr-events = { path = "../sr-events" }
 sr-chat = { path = "../sr-chat" }
 sr-e2ee = { path = "../sr-e2ee" }
 sr-voice-proto = { path = "../sr-voice-proto" }
+# ARC-GST-001: the guest socket relays through the per-lobby sub-room (sr_voice::lobby), which shares nothing with the call SFU.
+sr-voice = { path = "../sr-voice" }
 async-trait.workspace = true
 axum = { version = "0.8", default-features = false, features = ["ws", "query"] }
 futures.workspace = true
@@ -23,6 +25,7 @@ metrics = "0.24"
 ruzstd = "0.9.1"
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.11"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "rt"] }
 tracing = "0.1"

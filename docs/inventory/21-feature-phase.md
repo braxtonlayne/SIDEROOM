@@ -356,3 +356,11 @@ Playwright, in-memory object storage, no Garage locally).
   (opaque origin, no fetch leaves including its own host, CSP violation reported, no cookies, no parent page, storage
   through the bridge). Unticked: the gate spec's signing and vouch-flip steps need object storage shared by sr-server and
   sr-cli (CI's Garage, live job); the `byos_read` sandbox path is not built_
+
+
+## Wave 43 — Guest links (roadmap P28)
+
+Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST-002). Threat-model rows T41 (relay) and T42 (runner).
+
+### ARC — Guest links
+- [ ] **ARC-GST-001** [BE] Guest relay: guest-link routes (`POST/DELETE /activity-instances/{id}/guest-links`, unauthenticated rate-limited `POST /play/{lobby_token}/join`), lobby tokens and guest sessions stored as digests, expiring with the lobby and revocable by its host (migration 2080), the per-lobby sub-room in `sr-voice` (data leg, per-lobby keys, no MLS membership; media leg designed in `docs/dev/design/ingame-voice.md`), the gateway guest socket with exactly one topic `game:<lobby_token>` enforced at the relay, `guest_play` and `lobby_channel` active and `ingame_voice` reserved in `arcade::FLAGS` (D-385, D-397, D-399). See [handoff](../dev/handoff/feat-p43-guest-relay.md)

@@ -377,7 +377,8 @@ async fn a_tier_two_game_will_not_launch_in_the_browser_and_reserved_flags_are_n
     .await;
     assert!(!r.arcade.is_desktop_only(one).await.unwrap());
     let inst = r.acts.launch(member, one, 1).await.unwrap();
-    assert_eq!(inst.capabilities, vec!["datachannel"]);
+    // ARC-GST-001: guest_play is enforced now; ingame_voice and asset_cache are accepted but never handed out.
+    assert_eq!(inst.capabilities, vec!["datachannel", "guest_play"]);
     r.db.cleanup().await.unwrap();
 }
 

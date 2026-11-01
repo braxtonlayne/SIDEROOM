@@ -2926,6 +2926,27 @@ async fn seed(
             .await
             .unwrap();
         a.insert("proxy_instance_id", instance.to_string());
+        // ARC-GST-001: the game declares guest_play and lobby_channel, and a live guest link exists for the
+        // write phase (a fixed token; only its digest is stored, like every lobby token).
+        sqlx::query(
+            "UPDATE application_activity_bundles SET capabilities = ARRAY['guest_play','lobby_channel']              WHERE id = (SELECT reviewed_bundle_id FROM application_activities WHERE application_id = $1::text::bigint)",
+        )
+        .bind(aid.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+        let lobby_token = "5a".repeat(32);
+        sqlx::query(
+            "INSERT INTO activity_guest_links (id, instance_id, created_by, lobby_sha256, expires_at)              VALUES ($1, $2, $3, sha256(convert_to($4, 'UTF8')), now() + interval '1 day')",
+        )
+        .bind(ids.generate().get() as i64)
+        .bind(instance)
+        .bind(u("ownera"))
+        .bind(&lobby_token)
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("guest_lobby_token", lobby_token);
     }
     let zipped = tiny_zip("2;");
     let r = srv
@@ -4700,6 +4721,10 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
         vec![("signal_id", world.a["signal2_id"].clone())]
     } else if r.path.starts_with("/watch-parties/") && r.path.contains("{user_id}") {
         vec![("user_id", world.users["insider"].to_string())]
+    } else if r.path.contains("{lobby_token}") {
+        // ARC-GST-001: only the write phase holds the seeded lobby token; every refusal and observe pass uses a
+        // made-up one, so no guest session is written by a call that must not write.
+        vec![("lobby_token", world.a["guest_lobby_token"].clone())]
     } else {
         Vec::new()
     }
@@ -5405,7 +5430,10 @@ fn ctx_for(
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
     // ARC-SBX-001 (D-399): the proxy token is minted on the seeded running instance owner A takes part in.
     (
-        &["/activity-instances/{instance_id}/proxy-token"],
+        &[
+            "/activity-instances/{instance_id}/proxy-token",
+            "/activity-instances/{instance_id}/guest-links",
+        ],
         "instance_id",
         "proxy_instance_id",
     ),
@@ -8869,6 +8897,459 @@ async fn module_kill_switches_stop_their_routes() {
     assert!(
         failures.is_empty(),
         "{} module switch failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// ARC-GST-001 (wave 43, D-385, D-397, D-399): guest links over the wire. A guest session is a credential for
+// the guest socket and nothing else: every authenticated route answers it 403, the socket holds exactly one
+// topic and drops a second one before anything is relayed, and a revoked link disconnects its seats.
+
+/// A just-enough WebSocket client: the upgrade, masked text frames out, text and close frames in.
+struct Ws {
+    s: TcpStream,
+    buf: Vec<u8>,
+}
+
+impl Ws {
+    async fn connect(port: u16, path: &str, headers: &[(String, String)]) -> Ws {
+        let mut s = TcpStream::connect(("127.0.0.1", port))
+            .await
+            .expect("connect");
+        let mut req = format!(
+            "GET {path} HTTP/1.1\r\nHost: localhost:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
+             Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+        );
+        for (k, v) in headers {
+            req.push_str(&format!("{k}: {v}\r\n"));
+        }
+        req.push_str("\r\n");
+        s.write_all(req.as_bytes()).await.unwrap();
+        let mut buf = Vec::new();
+        let head_end = loop {
+            let mut chunk = [0u8; 1024];
+            let n = tokio::time::timeout(Duration::from_secs(10), s.read(&mut chunk))
+                .await
+                .expect("upgrade answer in time")
+                .expect("read");
+            assert!(n > 0, "closed before the upgrade answer");
+            buf.extend_from_slice(&chunk[..n]);
+            if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                break i + 4;
+            }
+        };
+        let head = String::from_utf8_lossy(&buf[..head_end]).to_string();
+        assert!(head.starts_with("HTTP/1.1 101"), "upgrade refused: {head}");
+        buf.drain(..head_end);
+        Ws { s, buf }
+    }
+
+    async fn send(&mut self, text: &str) {
+        let b = text.as_bytes();
+        let mut f = vec![0x81u8];
+        if b.len() < 126 {
+            f.push(0x80 | b.len() as u8);
+        } else {
+            f.push(0x80 | 126);
+            f.extend_from_slice(&(b.len() as u16).to_be_bytes());
+        }
+        f.extend_from_slice(&[0, 0, 0, 0]);
+        f.extend_from_slice(b);
+        self.s.write_all(&f).await.unwrap();
+    }
+
+    /// The next frame: `(opcode, payload)`; `None` when the peer closed the TCP stream.
+    async fn recv(&mut self) -> Option<(u8, Vec<u8>)> {
+        loop {
+            if self.buf.len() >= 2 {
+                let op = self.buf[0] & 0x0f;
+                let (len, hdr) = match self.buf[1] & 0x7f {
+                    126 if self.buf.len() >= 4 => {
+                        (u16::from_be_bytes([self.buf[2], self.buf[3]]) as usize, 4)
+                    }
+                    126 => (usize::MAX, 0),
+                    127 => panic!("frame too large for this client"),
+                    n => (n as usize, 2),
+                };
+                if len != usize::MAX && self.buf.len() >= hdr + len {
+                    let payload = self.buf[hdr..hdr + len].to_vec();
+                    self.buf.drain(..hdr + len);
+                    return Some((op, payload));
+                }
+            }
+            let mut chunk = [0u8; 4096];
+            let n = tokio::time::timeout(Duration::from_secs(20), self.s.read(&mut chunk))
+                .await
+                .ok()?
+                .ok()?;
+            if n == 0 {
+                return None;
+            }
+            self.buf.extend_from_slice(&chunk[..n]);
+        }
+    }
+
+    async fn json(&mut self) -> Value {
+        let (op, p) = self.recv().await.expect("a frame");
+        assert_eq!(op, 1, "expected a text frame, got opcode {op}");
+        serde_json::from_slice(&p).unwrap()
+    }
+
+    /// Read until the close frame; its code.
+    async fn close_code(&mut self) -> Option<u16> {
+        loop {
+            let (op, p) = self.recv().await?;
+            if op == 8 {
+                return (p.len() >= 2).then(|| u16::from_be_bytes([p[0], p[1]]));
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guest_links_hold_over_http() {
+    if harness::embedded() {
+        return;
+    }
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let srv = &world.srv;
+    let owner = world.actor("owner_a").cred.clone();
+    let outsider = world.actor("outsider").cred.clone();
+    let instance = world.a["proxy_instance_id"].clone();
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(160).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+
+    // 1. Minting: a member of the running instance gets a lobby token; an outsider and a made-up instance do not.
+    let links = format!("/activity-instances/{instance}/guest-links");
+    expect!(
+        "outsider mints",
+        srv.call(&outsider, "POST", &links, None).await,
+        404
+    );
+    expect!(
+        "anon mints",
+        srv.call(&Cred::Anon, "POST", &links, None).await,
+        401
+    );
+    expect!(
+        "made-up instance",
+        srv.call(
+            &owner,
+            "POST",
+            "/activity-instances/900000000000000001/guest-links",
+            None
+        )
+        .await,
+        404
+    );
+    let minted = expect!(
+        "member mints",
+        srv.call(&owner, "POST", &links, None).await,
+        201
+    );
+    let minted: Value = serde_json::from_str(&minted.body).unwrap_or(Value::Null);
+    let lobby = minted["lobby_token"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert_eq!(lobby.len(), 64, "lobby token: {minted}");
+    assert!(
+        minted["expires_at"]
+            .as_str()
+            .is_some_and(|t| t.ends_with('Z'))
+    );
+
+    // 2. Joining needs no credentials; a dead link is one 404, whatever is wrong with it.
+    let joined = expect!(
+        "guest joins",
+        srv.call(&Cred::Anon, "POST", &format!("/play/{lobby}/join"), None)
+            .await,
+        200
+    );
+    let joined: Value = serde_json::from_str(&joined.body).unwrap_or(Value::Null);
+    let guest_token = joined["guest_token"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(
+        guest_token.starts_with("srg_") && guest_token.len() == 68,
+        "{joined}"
+    );
+    assert_eq!(joined["topic"], json!(format!("game:{lobby}")));
+    assert!(
+        !joined.to_string().contains(&world.a["guild_id"]),
+        "the join answer names no server: {joined}"
+    );
+    for dead in [
+        "x".to_owned(),
+        "0".repeat(64),
+        "5b".repeat(32),
+        format!("{lobby}0"),
+    ] {
+        expect!(
+            "dead link joins",
+            srv.call(&Cred::Anon, "POST", &format!("/play/{dead}/join"), None)
+                .await,
+            404
+        );
+    }
+
+    // 3. The guest token is refused on every authenticated route, as a bearer and as a cookie: 403, not 401.
+    // (A fresh made-up guest token per call: the limiter counts per credential, and the refusal is by shape.)
+    let as_bearer = Cred::Bearer(guest_token.clone());
+    let as_cookie = Cred::Session(guest_token.clone());
+    let mut swept = 0;
+    for r in routes.iter().filter(|r| r.access == "authenticated") {
+        let (ctx, _) = ctx_for(r, &world.a);
+        let path = fill(&r.path, &ctx);
+        for how in ["bearer", "cookie"] {
+            let fresh = format!("srg_{:064x}", swept);
+            let cred = &if how == "bearer" {
+                Cred::Bearer(fresh)
+            } else {
+                Cred::Session(fresh)
+            };
+            let body = if is_write(&r.method) {
+                Some(json!({}))
+            } else {
+                None
+            };
+            let resp = srv.call(cred, &r.method, &path, body.as_ref()).await;
+            swept += 1;
+            if resp.status != 403 {
+                failures.push(format!(
+                    "guest token as {how} on {} {}: expected 403, got {} {}",
+                    r.method,
+                    r.path,
+                    resp.status,
+                    resp.body.chars().take(100).collect::<String>()
+                ));
+            }
+        }
+    }
+    assert!(swept > 1000, "swept {swept} calls");
+    // The named cases of the gate proof, with the ids of the seeded world: chat, members, profile, shelf.
+    let (ch, gu, us) = (
+        world.a["channel_id"].clone(),
+        world.a["guild_id"].clone(),
+        world.a["user_id"].clone(),
+    );
+    for (what, method, path) in [
+        ("REST chat read", "GET", format!("/channels/{ch}/messages")),
+        ("REST chat send", "POST", format!("/channels/{ch}/messages")),
+        ("members", "GET", format!("/guilds/{gu}/members")),
+        ("own profile", "GET", "/users/@me".to_owned()),
+        ("profile", "GET", format!("/users/{us}/profile")),
+        ("shelves", "GET", "/shelves/visible".to_owned()),
+        (
+            "shelf summary",
+            "GET",
+            "/users/@me/shelves/summary".to_owned(),
+        ),
+    ] {
+        for cred in [&as_bearer, &as_cookie] {
+            expect!(
+                what,
+                srv.call(cred, method, &path, Some(&json!({"content": "hi"})))
+                    .await,
+                403
+            );
+        }
+    }
+
+    // 4. The socket. A member's seat (cookie + allowed origin) and two guests share the lobby.
+    let origin = srv.public.clone();
+    let owner_headers = srv.headers(&owner, "GET");
+    let mut host = Ws::connect(srv.port, "/gateway/guest?v=1", &owner_headers).await;
+    host.send(&json!({"op": "hello", "lobby_token": lobby}).to_string())
+        .await;
+    let ready = host.json().await;
+    if ready["op"] != "ready" || ready["role"] != "member" {
+        failures.push(format!("member seat: {ready}"));
+    }
+    let plain = vec![("Origin".to_owned(), origin.clone())];
+    let mut g1 = Ws::connect(srv.port, "/gateway/guest?v=1", &plain).await;
+    g1.send(&json!({"op": "hello", "guest_token": guest_token}).to_string())
+        .await;
+    let ready = g1.json().await;
+    if ready["op"] != "ready" || ready["role"] != "guest" {
+        failures.push(format!("guest seat: {ready}"));
+    }
+    let peer = host.json().await;
+    if peer["op"] != "peer" || peer["peer"]["callsign"] != joined["callsign"] {
+        failures.push(format!("host sees the guest join: {peer}"));
+    }
+    // Opaque frames go both ways on the one topic.
+    let topic = format!("game:{lobby}");
+    host.send(&json!({"op": "publish", "topic": topic, "data": "c3RhdGU="}).to_string())
+        .await;
+    let d = g1.json().await;
+    if d["op"] != "data" || d["data"] != "c3RhdGU=" {
+        failures.push(format!("guest receives the host's frame: {d}"));
+    }
+    g1.send(&json!({"op": "publish", "topic": topic, "data": "aW5wdXQ="}).to_string())
+        .await;
+    let d = host.json().await;
+    if d["op"] != "data" || d["data"] != "aW5wdXQ=" {
+        failures.push(format!("host receives the guest's frame: {d}"));
+    }
+    // Forging a second subscription is dropped: the channel the seeded world has, the guild, the call, a user.
+    for forged in [
+        format!("channel:{ch}"),
+        format!("guild:{gu}"),
+        format!("voice:{ch}"),
+        format!("user:{us}"),
+        format!("game:{}", "5b".repeat(32)),
+    ] {
+        let mut g = Ws::connect(srv.port, "/gateway/guest?v=1", &plain).await;
+        let other = expect!(
+            "second guest joins",
+            srv.call(&Cred::Anon, "POST", &format!("/play/{lobby}/join"), None)
+                .await,
+            200
+        );
+        let other: Value = serde_json::from_str(&other.body).unwrap_or(Value::Null);
+        g.send(&json!({"op": "hello", "guest_token": other["guest_token"]}).to_string())
+            .await;
+        let ready = g.json().await;
+        if ready["op"] != "ready" {
+            failures.push(format!("second guest: {ready}"));
+            continue;
+        }
+        g.send(&json!({"op": "subscribe", "topic": forged}).to_string())
+            .await;
+        let code = g.close_code().await;
+        if code != Some(4403) {
+            failures.push(format!("forged subscription to {forged}: close {code:?}"));
+        }
+    }
+    // A guest token on the member gateway and a lobby token as a session are nothing.
+    let mut bad = Ws::connect(srv.port, "/gateway/guest?v=1", &plain).await;
+    bad.send(&json!({"op": "hello", "guest_token": lobby}).to_string())
+        .await;
+    if bad.close_code().await != Some(4401) {
+        failures.push("a lobby token is not a guest token".to_owned());
+    }
+    let mut ident = Ws::connect(srv.port, "/gateway?v=1", &plain).await;
+    let _hello = ident.json().await;
+    ident
+        .send(
+            &json!({"op": 2, "d": {"token": guest_token, "intents": 1, "properties": {}}})
+                .to_string(),
+        )
+        .await;
+    let (op, p) = ident.recv().await.unwrap_or((0, Vec::new()));
+    let closed_at_identify = op == 8 || ident.close_code().await.is_some();
+    if !closed_at_identify {
+        failures.push(format!(
+            "the member gateway accepted a guest token: {}",
+            String::from_utf8_lossy(&p)
+        ));
+    }
+
+    // 5. Revoking: the minter's DELETE ends the guest's seat within the socket's recheck interval; nobody else
+    // can revoke; the link and the guest session are dead afterwards.
+    let one = format!("{links}/{lobby}");
+    expect!(
+        "outsider revokes",
+        srv.call(&outsider, "DELETE", &one, None).await,
+        404
+    );
+    expect!(
+        "anon revokes",
+        srv.call(&Cred::Anon, "DELETE", &one, None).await,
+        401
+    );
+    expect!(
+        "guest revokes",
+        srv.call(&as_bearer, "DELETE", &one, None).await,
+        403
+    );
+    expect!(
+        "member revokes",
+        srv.call(&owner, "DELETE", &one, None).await,
+        204
+    );
+    // (The seats that came and went in step 4 were announced to it first.)
+    let told = loop {
+        let f = g1.json().await;
+        if f["op"] != "peer" {
+            break f;
+        }
+    };
+    if told != json!({"op": "closed", "reason": "revoked"}) {
+        failures.push(format!("the guest is told why: {told}"));
+    }
+    if g1.close_code().await != Some(4410) {
+        failures.push("the revoked guest is closed with 4410".to_owned());
+    }
+    expect!(
+        "join after revoke",
+        srv.call(&Cred::Anon, "POST", &format!("/play/{lobby}/join"), None)
+            .await,
+        404
+    );
+    let mut late = Ws::connect(srv.port, "/gateway/guest?v=1", &plain).await;
+    late.send(&json!({"op": "hello", "guest_token": guest_token}).to_string())
+        .await;
+    if late.close_code().await != Some(4401) {
+        failures.push("a revoked guest session cannot sit again".to_owned());
+    }
+
+    // 6. The join route is rate limited per address (the dead-link answers count too).
+    let mut limited = None;
+    for i in 0..40 {
+        let r = srv
+            .call(
+                &Cred::Anon,
+                "POST",
+                &format!("/play/{}/join", "5c".repeat(32)),
+                None,
+            )
+            .await;
+        if r.status == 429 {
+            limited = Some(i);
+            break;
+        }
+        if r.status != 404 {
+            failures.push(format!("join of a dead link answered {}", r.status));
+        }
+    }
+    if limited.is_none() {
+        failures.push("40 joins from one address were never rate limited".to_owned());
+    }
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} guest link failures:\n{}",
         failures.len(),
         failures.join("\n")
     );
