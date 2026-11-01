@@ -7240,6 +7240,134 @@
         ]
       }
     },
+    "/admin/crash-reports": {
+      "get": {
+        "tags": [
+          "crash"
+        ],
+        "summary": "The crashes, most recently seen first (any appointed staff member).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrashSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/crash-reports/{report_id}": {
+      "get": {
+        "tags": [
+          "crash"
+        ],
+        "summary": "One crash with its replay buffer (any appointed staff member). Leaves a platform audit entry.",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "description": "Crash report id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrashDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/data-requests": {
       "get": {
         "tags": [
@@ -37836,6 +37964,82 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/crash-reports": {
+      "post": {
+        "tags": [
+          "crash"
+        ],
+        "summary": "Report a crash. Session only (nothing before sign-in, D-385); at most 32 KiB; the server rebuilds the card from the\nallow-list and drops every other field. 400 for a report without a valid commit and kind, 429 past the limits.",
+        "operationId": "submit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrashReportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrashAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "",
             "content": {
               "application/json": {
@@ -91179,6 +91383,215 @@
           "image": {
             "type": "string",
             "description": "`data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB."
+          }
+        }
+      },
+      "CrashAccepted": {
+        "type": "object",
+        "required": [
+          "id",
+          "count",
+          "deduplicated"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Reports with this fingerprint so far."
+          },
+          "deduplicated": {
+            "type": "boolean",
+            "description": "An earlier report had the same fingerprint."
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "CrashDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CrashSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "card",
+              "replay"
+            ],
+            "properties": {
+              "card": {
+                "type": "object",
+                "description": "The allow-listed card: commit, kind, route, frames, capability flags."
+              },
+              "replay": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                },
+                "description": "The last 60 ticks, oldest first: `{t, src, input}` with `input` an opaque enum."
+              }
+            }
+          }
+        ]
+      },
+      "CrashFrameBody": {
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "col": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "file": {
+            "type": "string"
+          },
+          "fn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "CrashReportBody": {
+        "type": "object",
+        "description": "What a browser may send. This type only documents the allow-list for the generated client: the handler reads a\nplain JSON value and takes nothing from it that [`allow_list::sanitize`] does not name, so an extra field is\nignored, not rejected.",
+        "required": [
+          "commit",
+          "kind"
+        ],
+        "properties": {
+          "at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Client time, Unix ms."
+          },
+          "caps": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Capability flags: booleans named in the allow-list, and `engine`."
+          },
+          "commit": {
+            "type": "string",
+            "description": "The build's commit, 7 to 40 lowercase hex characters."
+          },
+          "frames": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CrashFrameBody"
+            },
+            "description": "Stack frames, newest first (at most 24 are kept)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`error`, `unhandled_rejection`, `react_boundary`, `wasm_panic` or `webgpu_panic`."
+          },
+          "route": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The route NAME (for example `lounge.:guildId`), never a URL."
+          },
+          "ticks": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CrashTickBody"
+            },
+            "description": "The last 60 deterministic ticks, oldest first."
+          }
+        }
+      },
+      "CrashSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "fingerprint",
+          "commit",
+          "kind",
+          "route",
+          "count",
+          "first_seen_ms",
+          "last_seen_ms"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "first_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "last_seen_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "route": {
+            "type": "string"
+          }
+        }
+      },
+      "CrashTickBody": {
+        "type": "object",
+        "required": [
+          "src",
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "type": "string",
+            "description": "An opaque input enum; anything outside the list is recorded as `other`."
+          },
+          "src": {
+            "type": "string",
+            "description": "`activity`, `game` or `emulator`."
+          },
+          "t": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
