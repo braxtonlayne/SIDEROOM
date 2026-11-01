@@ -38,4 +38,8 @@ export const ALLOWED: AllowList = [
   'pwa/pwa.css',
   'pwa/state',
   'styles/',
+  // Workspace packages the runner imports (listed, as the profile surface lists its package): the theme provider
+  // and button, and the SDK's protocol types and base64 helpers (no host, no OAuth; the guest bridge is ours).
+  '@sideroom/ui',
+  '@sideroom/embedded-app-sdk',
 ];
