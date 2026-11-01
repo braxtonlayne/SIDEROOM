@@ -14,7 +14,7 @@ import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } fro
 import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
 import { activityDataPort } from '../voice/dataPort';
-import { guestAwareData } from './guestBridge';
+import { guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
 import { restoreGuestBridge } from './ShareLinkDialog';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
@@ -80,6 +80,7 @@ export function ActivityFrame({
         ),
         saveFile: downloadBytes,
         proxyToken: mintProxyToken,
+        guests: () => guestParticipants(latest.current.instance.id),
         selfId: () => useStore.getState().currentUserId ?? null,
         data: instance.channel_type === 'voice' ? guestAwareData(activityDataPort) : undefined,
         setPresence: (activity) => reportPresence({ activity }),
@@ -92,6 +93,15 @@ export function ActivityFrame({
   useEffect(() => {
     restoreGuestBridge(latest.current.instance);
   }, [instance.id]);
+
+  // The guests of a guest link are in the game's participant list; tell the game when they come and go.
+  useEffect(
+    () =>
+      onGuestRoster((id) => {
+        if (id === latest.current.instance.id) host.participantsChanged();
+      }),
+    [host],
+  );
 
   // The Activity's Rich Presence goes away with the frame.
   useEffect(() => () => host.dispose(), [host]);

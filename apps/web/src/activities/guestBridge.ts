@@ -10,6 +10,7 @@
 //   control         the game's host id, so guests can tell which messages are the host's (`encodeSys`)
 //
 // One bridge per instance per browser tab. Its key lives in this tab's sessionStorage only.
+import type { Participant } from '@sideroom/embedded-app-sdk';
 import type { ActivityDataBridge } from './host';
 import {
   decodeLobby,
@@ -35,6 +36,24 @@ export interface BridgeOptions {
 }
 
 type GuestListener = (instance: string, from: string, bytes: Uint8Array) => void;
+
+/** Who is in each instance's lobby as a guest, by callsign; the game's participant list adds them (D-397). */
+const guestRoster = new Map<string, Participant[]>();
+const rosterListeners = new Set<(instance: string) => void>();
+
+export const guestParticipants = (instanceId: string): Participant[] =>
+  guestRoster.get(instanceId) ?? [];
+
+export function onGuestRoster(cb: (instance: string) => void): () => void {
+  rosterListeners.add(cb);
+  return () => rosterListeners.delete(cb);
+}
+
+const setRoster = (instance: string, list: Participant[]) => {
+  if (list.length === 0) guestRoster.delete(instance);
+  else guestRoster.set(instance, list);
+  for (const l of [...rosterListeners]) l(instance);
+};
 
 /** Frames listening for guest messages, whenever a bridge starts (a frame subscribes before the link exists). */
 const guestListeners = new Set<GuestListener>();
@@ -63,11 +82,27 @@ export class GuestBridge {
     });
     this.lobby = lobby;
     await lobby.seated;
+    const roster = () =>
+      setRoster(
+        this.o.instanceId,
+        lobby
+          .peers()
+          .filter((p) => p.role === 'guest')
+          .map((p) => ({
+            id: `g${p.seat}`,
+            username: p.callsign,
+            global_name: p.callsign,
+            avatar: null,
+            bot: false,
+          })),
+      );
     const announce = () => void lobby.publish(encodeSys({ host: this.o.hostId }));
     announce();
     // A guest who sits down later learns the host too.
     let known = new Set(lobby.peers().map((p) => p.seat));
+    roster();
     lobby.onPeers(() => {
+      roster();
       const now = lobby.peers();
       if (now.some((p) => !known.has(p.seat) && p.role === 'guest')) announce();
       known = new Set(now.map((p) => p.seat));
@@ -103,6 +138,7 @@ export class GuestBridge {
     this.offRoom = null;
     this.lobby?.close();
     this.lobby = null;
+    setRoster(this.o.instanceId, []);
   }
 }
 

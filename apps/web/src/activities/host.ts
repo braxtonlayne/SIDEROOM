@@ -154,6 +154,11 @@ export interface HostEnv {
    * seals every message with the room's key; the SFU relays opaque bytes to the instance's other members.
    */
   data?: ActivityDataBridge;
+  /**
+   * ARC-GST-002 (D-397): the guests of this instance's guest link, by lobby callsign only (no handle, no avatar).
+   * They join the participant list the game sees, because they are in its session; they are in nothing else.
+   */
+  guests?: () => Participant[];
   /** Test seam. */
   now?: () => number;
 }
@@ -313,8 +318,10 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   const fail = (nonce: string, error: RpcErrorBody) =>
     env.post({ sr: PROTOCOL_VERSION, kind: 'response', nonce, ok: false, error });
 
-  const participants = (): Participant[] =>
-    env.users(env.instance().participants.map((p) => p.user_id));
+  const participants = (): Participant[] => [
+    ...env.users(env.instance().participants.map((p) => p.user_id)),
+    ...(env.guests?.() ?? []),
+  ];
 
   const emit = (event: EventName, data: unknown) => {
     if (ready && subscribed.has(event))
