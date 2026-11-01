@@ -413,7 +413,17 @@ struct LinktreeCfg {
     #[serde(default)]
     title: Option<String>,
     #[serde(default)]
-    links: Vec<CustomLink>,
+    links: Vec<LinktreeLink>,
+}
+/// A Links block entry. `tip` (ARC-ROOM-001) marks a creator tip link: `btc`, `lightning`, `kofi` or `patreon`; the
+/// address is then checked by `sr_core::tips` (payment URI or allow-listed host) instead of the plain https rule.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LinktreeLink {
+    label: String,
+    url: String,
+    #[serde(default)]
+    tip: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -591,9 +601,31 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&M
                     if l.label.trim().is_empty() {
                         problem(out, p("links"), "each link needs a label");
                     }
-                    if https_url(&l.url).is_none() {
-                        problem(out, p("links"), "each link needs an https address");
+                    match &l.tip {
+                        Some(kind) => {
+                            if sr_core::tips::validate_tip(kind, &l.url).is_err() {
+                                problem(
+                                    out,
+                                    p("links"),
+                                    "a tip link must be a bitcoin: or lightning: address, or a Ko-fi or Patreon page",
+                                );
+                            }
+                        }
+                        None => {
+                            if https_url(&l.url).is_none() {
+                                problem(out, p("links"), "each link needs an https address");
+                            }
+                        }
                     }
+                }
+                let mut kinds = BTreeSet::new();
+                if !c
+                    .links
+                    .iter()
+                    .filter_map(|l| l.tip.as_deref())
+                    .all(|k| kinds.insert(k))
+                {
+                    problem(out, p("links"), "at most one tip link of each kind");
                 }
             }
         }
@@ -941,6 +973,30 @@ mod tests {
         let gallery = json!({"blocks": [block("g", "gallery", 0, 0, 6, 3,
             json!({"items": [{"url": "https://example.org/a.png"}]}))]});
         assert!(parse_doc(&gallery, false).is_ok());
+    }
+
+    #[test]
+    fn the_links_block_takes_tip_links_on_the_allow_list() {
+        let tree = |links: Value| json!({"blocks": [block("l", "linktree", 0, 0, 6, 4, json!({"links": links}))]});
+        let btc = "bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq";
+        let ok = tree(json!([
+            {"label": "Tip", "url": btc, "tip": "btc"},
+            {"label": "Ko-fi", "url": "https://ko-fi.com/me", "tip": "kofi"},
+            {"label": "Site", "url": "https://example.com"},
+        ]));
+        assert!(parse_doc(&ok, false).is_ok());
+        for bad in [
+            json!([{"label": "x", "url": btc}]),
+            json!([{"label": "x", "url": "https://evil.example/me", "tip": "kofi"}]),
+            json!([{"label": "x", "url": "https://ko-fi.com/me", "tip": "paypal"}]),
+            json!([{"label": "x", "url": "javascript:alert(1)", "tip": "btc"}]),
+            json!([
+                {"label": "a", "url": btc, "tip": "btc"},
+                {"label": "b", "url": btc, "tip": "btc"},
+            ]),
+        ] {
+            assert!(parse_doc(&tree(bad.clone()), false).is_err(), "{bad}");
+        }
     }
 
     #[test]

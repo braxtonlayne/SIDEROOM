@@ -54,6 +54,6 @@ export function reloadForEmulatorPolicy(now = Date.now()): boolean {
   } catch {
     return false;
   }
-  window.location.assign('/games');
+  window.location.assign('/games/emulator');
   return true;
 }

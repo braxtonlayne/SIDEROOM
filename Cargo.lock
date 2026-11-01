@@ -6477,6 +6477,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
+ "sr-core",
  "sr-db",
  "sr-storage",
  "sr-theme",

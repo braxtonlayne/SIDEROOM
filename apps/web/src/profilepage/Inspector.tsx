@@ -63,8 +63,19 @@ export function parseLinks(text: string, max = 6): { label: string; url: string 
 export const linksText = (items: { label: string; url: string }[]) =>
   items.map((l) => `${l.label} | ${l.url}`).join('\n');
 
+/** The tip kind a link is (ARC-ROOM-001): payment URIs (Ko-fi and Patreon pages are plain https links); the server decides. */
+function tipKindOf(url: string): 'btc' | 'lightning' | null {
+  if (url.startsWith('bitcoin:')) return 'btc';
+  if (url.startsWith('lightning:')) return 'lightning';
+  return null;
+}
+
 /** `label | url` per line to links, for the Links block (up to twelve). */
-export const parseLinktree = (text: string) => parseLinks(text, MAX_LINKTREE);
+export const parseLinktree = (text: string) =>
+  parseLinks(text, MAX_LINKTREE).map((l) => {
+    const tip = tipKindOf(l.url);
+    return tip ? { ...l, tip } : l;
+  });
 
 export function Inspector({
   block,

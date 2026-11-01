@@ -10,7 +10,7 @@ const open = () => {
     currentUserId: '1',
     users: { '1': { id: '1', username: 'me' } as never },
   });
-  const router = createAppRouter(createMemoryHistory({ initialEntries: ['/games'] }));
+  const router = createAppRouter(createMemoryHistory({ initialEntries: ['/games/emulator'] }));
   render(<RouterProvider router={router} />);
   return router;
 };

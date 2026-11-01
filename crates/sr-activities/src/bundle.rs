@@ -84,7 +84,7 @@ impl BundleError {
         }
     }
 
-    fn at(entry: &str, message: impl Into<String>) -> Self {
+    pub(crate) fn at(entry: &str, message: impl Into<String>) -> Self {
         Self {
             entry: Some(entry.to_owned()),
             message: message.into(),
@@ -128,6 +128,10 @@ pub struct Unpacked {
     pub total: u64,
     /// Capabilities the bundle declares in `sideroom.json` (see [`CAPABILITIES`]), sorted, no duplicates.
     pub capabilities: Vec<String>,
+    /// The tier the manifest declares (ARC-ROOM-001); `None` for a manifest written before tiers.
+    pub tier: Option<crate::arcade::Tier>,
+    /// Creator tip links the manifest declares, already checked against the host allow-list.
+    pub tip_links: Vec<sr_core::tips::TipLink>,
 }
 
 /// The content type of a file name by its extension (case-insensitive), `None` when the extension is not
@@ -314,56 +318,27 @@ pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
             data,
         });
     }
-    let capabilities = match files.iter().find(|f| f.path == MANIFEST) {
-        Some(f) => parse_manifest(&f.data)?,
-        None => Vec::new(),
+    let manifest = match files.iter().find(|f| f.path == MANIFEST) {
+        Some(f) => crate::arcade::parse_manifest(&f.data)?,
+        None => crate::arcade::Manifest::default(),
     };
     Ok(Unpacked {
         sha256,
         entries: seen.len(),
         files,
         total,
-        capabilities,
+        capabilities: manifest.capabilities,
+        tier: manifest.tier,
+        tip_links: manifest.tip_links,
     })
 }
 
 /// The capabilities a `sideroom.json` declares: `{"capabilities": ["datachannel"]}`. Unknown capabilities,
 /// a manifest that is not that shape and one over [`MAX_MANIFEST_BYTES`] are refused, so a bundle cannot
-/// claim something the platform does not know.
+/// claim something the platform does not know. The whole manifest (tier, tip links, flag rules) is
+/// [`crate::arcade::parse_manifest`].
 pub fn parse_manifest(data: &[u8]) -> Result<Vec<String>, BundleError> {
-    if data.len() > MAX_MANIFEST_BYTES {
-        return Err(BundleError::at(MANIFEST, "is larger than 8 KiB"));
-    }
-    let v: serde_json::Value =
-        serde_json::from_slice(data).map_err(|_| BundleError::at(MANIFEST, "is not valid JSON"))?;
-    let obj = v
-        .as_object()
-        .ok_or_else(|| BundleError::at(MANIFEST, "must be a JSON object"))?;
-    let mut out: Vec<String> = Vec::new();
-    if let Some(c) = obj.get("capabilities") {
-        let list = c
-            .as_array()
-            .ok_or_else(|| BundleError::at(MANIFEST, "has capabilities that are not a list"))?;
-        for item in list {
-            let name = item
-                .as_str()
-                .ok_or_else(|| BundleError::at(MANIFEST, "has a capability that is not text"))?;
-            if !CAPABILITIES.contains(&name) {
-                return Err(BundleError::at(
-                    MANIFEST,
-                    format!(
-                        "declares the unknown capability \"{}\"",
-                        name.chars().take(40).collect::<String>()
-                    ),
-                ));
-            }
-            if !out.iter().any(|x| x == name) {
-                out.push(name.to_owned());
-            }
-        }
-    }
-    out.sort();
-    Ok(out)
+    crate::arcade::parse_manifest(data).map(|m| m.capabilities)
 }
 
 #[cfg(test)]

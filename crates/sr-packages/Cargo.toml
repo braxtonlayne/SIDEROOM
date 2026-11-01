@@ -12,6 +12,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.11"
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
+sr-core = { path = "../sr-core", default-features = false }
 sr-storage = { path = "../sr-storage" }
 sr-theme = { path = "../sr-theme" }
 thiserror.workspace = true

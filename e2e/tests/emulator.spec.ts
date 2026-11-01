@@ -130,7 +130,7 @@ test('the NES core boots the test ROM, shows a non-blank frame, answers the keyb
     return route.fulfill({ status: 404, headers });
   });
 
-  await page.goto('/games');
+  await page.goto('/games/emulator');
   await expect(page.getByRole('heading', { name: 'Games', level: 1 })).toBeVisible();
   await expect(page.getByText('sideroom test')).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).click();
@@ -170,7 +170,7 @@ test('a member with no ROMs and no bucket of their own is told how to add games'
     route.fulfill({ json: { roms: [] } }),
   );
   await page.route('**/api/v1/users/@me/storage/mounts', (route) => route.fulfill({ json: [] }));
-  await page.goto('/games');
+  await page.goto('/games/emulator');
   // The empty state is a notice (its title is not a heading).
   await expect(page.getByText('No games yet', { exact: true })).toBeVisible();
   await expect(page.getByText(/Put ROM files in an emu.roms folder/)).toBeVisible();

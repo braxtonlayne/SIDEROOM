@@ -100,6 +100,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     {
         return true;
     }
+    // The Arcade (ARC-ROOM-001): the Front Page, "Notify me" and a server's cartridges are for people.
+    if p.starts_with("/arcade") || (p.starts_with("/guilds/") && p.contains("/arcade/")) {
+        return true;
+    }
     // The Discord bridge is configured by people (BRG-COR-001, D-381): the token is the owner's, never a bot's.
     if p.starts_with("/guilds/") && p.contains("/bridge/") {
         return true;

@@ -2118,6 +2118,71 @@ async fn seed(
     {
         a.insert("announcement_id", n.to_owned());
     }
+    // ARC-ROOM-001: a Coming Soon entry, a cartridge on each tenant's server, and a released game that
+    // declares a tier (the Operator features it in the write phase).
+    if let Some(v) = create(
+        &srv,
+        &staff,
+        "POST",
+        "/admin/arcade/coming-soon",
+        "/admin/arcade/coming-soon",
+        infos,
+        Some(json!({"title": "Authz soon", "summary": "authz matrix", "tier": "TIER_1_ORIGINAL", "repo_url": "https://github.com/example/authz"})),
+    )
+    .await
+        && let Some(n) = v["id"].as_str()
+    {
+        a.insert("arcade_entry_id", n.to_owned());
+        b.insert("arcade_entry_id", n.to_owned());
+    }
+    for (cred, guild, map) in [(&oa, ga, &mut a), (&ob, gb, &mut b)] {
+        let path = format!("/guilds/{guild}/arcade/cartridges");
+        if let Some(v) = create(
+            &srv,
+            cred,
+            "POST",
+            "/guilds/{guild_id}/arcade/cartridges",
+            &path,
+            infos,
+            Some(json!({"title": "Authz cart", "kind": "game", "tier": "TIER_1_ORIGINAL", "source_ref": "games/authz.zip"})),
+        )
+        .await
+            && let Some(n) = v["id"].as_str()
+        {
+            map.insert("arcade_cartridge_id", n.to_owned());
+        }
+    }
+    {
+        let bot = account(&pool, &ids, "arcadegamebot").await;
+        let app = ids.generate().get() as i64;
+        let bundle = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO applications (id, owner_id, bot_user_id, name, release_state, client_secret_hash) \n             VALUES ($1, $2, $2, 'Authz game', 'released', decode(repeat('ab', 32), 'hex'))",
+        )
+        .bind(app)
+        .bind(bot)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO application_activity_bundles (id, application_id, sha256, byte_size, entry_count, state, tier) \n             VALUES ($1, $2, repeat('a', 64), 1, 1, 'approved', 'TIER_1_ORIGINAL')",
+        )
+        .bind(bundle)
+        .bind(app)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO application_activities (application_id, review_state, reviewed_bundle_id) \n             VALUES ($1, 'approved', $2)",
+        )
+        .bind(app)
+        .bind(bundle)
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("arcade_app_id", app.to_string());
+        b.insert("arcade_app_id", app.to_string());
+    }
     if let Some(v) = create(
         &srv,
         &member_cred,
@@ -4620,6 +4685,12 @@ fn path_overrides(r: &Route, world: &World) -> Vec<(&'static str, String)> {
 /// consulted before [`body_override`].
 fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
     Some(match (method, path) {
+        ("POST", "/admin/arcade/coming-soon") => {
+            r#"{"title":"Authz soon two","summary":"authz","tier":"TIER_2_REIMPLEMENTATION","repo_url":"https://github.com/example/two"}"#
+        }
+        ("POST", "/guilds/{guild_id}/arcade/cartridges") => {
+            r#"{"title":"Authz cart two","kind":"mod","tier":"TIER_1_ORIGINAL","source_ref":"games/two.zip"}"#
+        }
         ("POST", "/admin/cinema/titles/{title_id}/merge") => r#"{"target_id":"{title_id}"}"#,
         ("POST", "/admin/library/series/{series_id}/merge") => r#"{"target_id":"{series_id}"}"#,
         ("POST", "/moderation/age/restrictions") => {
@@ -5309,6 +5380,22 @@ fn ctx_for(
 /// published one. The write phase (and every other pass) fills them from the family's own seeded key.
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
+    // ARC-ROOM-001: the Arcade routes act on the seeded entry, cartridge and released game.
+    (
+        &["/arcade/coming-soon/", "/admin/arcade/coming-soon/"],
+        "entry_id",
+        "arcade_entry_id",
+    ),
+    (
+        &["/guilds/{guild_id}/arcade/"],
+        "cartridge_id",
+        "arcade_cartridge_id",
+    ),
+    (
+        &["/admin/arcade/featured/"],
+        "application_id",
+        "arcade_app_id",
+    ),
     (
         &["/cinema/", "/admin/cinema/"],
         "asset_id",
