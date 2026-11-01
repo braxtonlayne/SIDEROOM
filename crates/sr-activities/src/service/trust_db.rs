@@ -3,7 +3,6 @@
 //! `service` so it shares the service's pool and storage without widening their visibility.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU8, Ordering};
 
 use serde_json::Value;
 use sqlx::Row;
@@ -23,9 +22,6 @@ pub const VOUCH_MIN_ACCOUNT_AGE_DAYS: i32 = 3;
 /// `can_vouch` flag and the write.
 const GOOD_STANDING: &str = "a.state::text = 'active' AND NOT a.is_bot \
      AND a.created_at <= now() - make_interval(days => 3)";
-
-/// 0 unknown, 1 table present, 2 table absent.
-static FEATURED_TABLE: AtomicU8 = AtomicU8::new(0);
 
 /// A bundle that carries a given code hash.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,24 +119,6 @@ impl ActivityService {
             }
         }
         Ok(n)
-    }
-
-    /// Store the hash and the `connect` list computed from a freshly unpacked bundle.
-    pub(super) async fn set_build_facts(
-        &self,
-        bundle_id: i64,
-        code_sha256: Option<&str>,
-        connect: &[String],
-    ) -> ActivityResult<()> {
-        sqlx::query(
-            "UPDATE application_activity_bundles SET code_sha256 = $2, connect_hosts = $3 WHERE id = $1",
-        )
-        .bind(bundle_id)
-        .bind(code_sha256)
-        .bind(connect)
-        .execute(self.pool())
-        .await?;
-        Ok(())
     }
 
     /// The bundles that carry `code_sha256` (newest first). The operator signs by hash; the result says
@@ -344,14 +322,10 @@ impl ActivityService {
     /// Arcade room (ARC-ROOM-001) and may not exist in a build without it; then nobody is featured. When both
     /// are integrated this can become a plain `EXISTS`.
     async fn is_featured(&self, app: i64) -> ActivityResult<bool> {
-        if FEATURED_TABLE.load(Ordering::Relaxed) == 0 {
-            let present: bool =
-                sqlx::query_scalar("SELECT to_regclass('arcade_featured') IS NOT NULL")
-                    .fetch_one(self.pool())
-                    .await?;
-            FEATURED_TABLE.store(if present { 1 } else { 2 }, Ordering::Relaxed);
-        }
-        if FEATURED_TABLE.load(Ordering::Relaxed) != 1 {
+        let present: bool = sqlx::query_scalar("SELECT to_regclass('arcade_featured') IS NOT NULL")
+            .fetch_one(self.pool())
+            .await?;
+        if !present {
             return Ok(false);
         }
         Ok(

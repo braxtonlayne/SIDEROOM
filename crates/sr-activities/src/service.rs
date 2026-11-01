@@ -631,6 +631,19 @@ impl ActivityService {
         }
         let mut tx = self.pool().begin().await?;
         Self::lock_row(&mut tx, app).await?;
+        if approve {
+            // The previously approved bundle steps aside first: at most one bundle is approved at a time
+            // (a unique index), so approving an update would otherwise fail on the old one. If the decision
+            // below finds nothing to decide, the early return rolls this back with the transaction.
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'superseded' \
+                 WHERE application_id = $1 AND state = 'approved' AND id <> $2",
+            )
+            .bind(app)
+            .bind(bundle_id)
+            .execute(&mut *tx)
+            .await?;
+        }
         let moved = sqlx::query(
             "UPDATE application_activity_bundles SET state = $3, reviewed_by = $4, \
              reviewed_at = now(), note = $5 \
