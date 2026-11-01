@@ -156,6 +156,8 @@ pub struct VoiceState {
     pub tier: u8,
     /// The channel's `video_quality_mode` at join (1 auto, 2 full), told to the SFU in the token.
     pub video_quality: u8,
+    /// When this stay in voice began (unix ms); the base of the voice seconds D-392 counts (MOD-GRD-001).
+    pub joined_ms: i64,
 }
 
 impl VoiceState {
@@ -219,6 +221,8 @@ pub enum JoinDenied {
     /// The client did not declare `sr_e2ee` at join (E2EE is the only voice mode, OPS-IMM-001), or did not start the
     /// MLS handshake (op 101 `hello`) within 10 seconds (D-263).
     E2eeRequired,
+    /// A timeout or a case freeze is in force on the account (MOD-GRD-001); it can still sign in and appeal.
+    AccountRestricted,
 }
 
 impl JoinDenied {
@@ -235,6 +239,7 @@ impl JoinDenied {
             Self::NotInVoice => "not_in_voice",
             Self::AlreadyStreaming => "already_streaming",
             Self::E2eeRequired => "e2ee_required",
+            Self::AccountRestricted => "account_restricted",
             Self::MissingPermission => "missing_permission",
             Self::ChannelFull => "channel_full",
             Self::Unavailable => "voice_unavailable",
@@ -257,6 +262,9 @@ impl JoinDenied {
             Self::NotInVoice => "Join the voice channel first.",
             Self::AlreadyStreaming => "You are already sharing your screen.",
             Self::E2eeRequired => "This server requires encrypted calls; your client cannot join.",
+            Self::AccountRestricted => {
+                "Your account is restricted while it is reviewed, so you cannot join voice. You can still appeal."
+            }
             Self::MissingPermission => "You do not have permission to join this voice channel.",
             Self::ChannelFull => "This voice channel is full.",
             Self::Unavailable => "Voice is not available on this server right now.",
@@ -737,6 +745,9 @@ impl Gateway {
             return Err(JoinDenied::Unavailable);
         }
         let dir = &self.inner.dir;
+        if dir.account_restricted(s.user).await {
+            return Err(JoinDenied::AccountRestricted);
+        }
         let (info, perms) = match guild {
             Some(g) => {
                 let info = dir
@@ -845,6 +856,7 @@ impl Gateway {
             exempt: limits.exempt,
             tier: limits.tier,
             video_quality: info.video_quality,
+            joined_ms: cur.as_ref().map_or_else(unix_ms, |c| c.joined_ms),
         };
         let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.
@@ -990,6 +1002,10 @@ impl Gateway {
         .await;
         self.announce_left(&old).await;
         self.voice_after_removal(&old).await;
+        let seconds = (unix_ms() - old.joined_ms).div_euclid(1000);
+        if seconds > 0 {
+            self.inner.dir.voice_session_ended(user, seconds).await;
+        }
         Some(old)
     }
 
@@ -1470,6 +1486,7 @@ mod tests {
             exempt: false,
             tier: 0,
             video_quality: 1,
+            joined_ms: 0,
         }
     }
 

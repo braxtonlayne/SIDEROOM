@@ -14,6 +14,7 @@ import { CaseQueue } from './CaseQueue';
 import { DashboardTab } from './DashboardTab';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
 import { SignalsTab } from './SignalsTab';
+import { SubtreeCasesTab } from './SubtreeCases';
 import { TakedownsTab } from './TakedownsTab';
 
 export function ModerationSection() {
@@ -34,18 +35,22 @@ export function ModerationSection() {
   const wantSignals = signals && /(^|[?&])tab=signals/.test(search);
   // `?tab=dashboard` opens the Dashboard (the Review hub's Reports tile).
   const wantDashboard = dashboard && /(^|[?&])tab=dashboard/.test(search);
+  // `?tab=subtree` opens the subtree cases (MOD-GRD-001, MANAGE_CASES).
+  const wantSubtree = manage && /(^|[?&])tab=subtree/.test(search);
   const [tab, setTab] = useState(
     wantSignals
       ? 'signals'
-      : wantDashboard
-        ? 'dashboard'
-        : cases
-          ? 'cases'
-          : takedowns
-            ? 'takedowns'
-            : signals
-              ? 'signals'
-              : 'dashboard',
+      : wantSubtree
+        ? 'subtree'
+        : wantDashboard
+          ? 'dashboard'
+          : cases
+            ? 'cases'
+            : takedowns
+              ? 'takedowns'
+              : signals
+                ? 'signals'
+                : 'dashboard',
   );
   // A deep link `?case=<id>` opens that case (the suspicion panel's "folded into case n", D-351).
   const [caseId, setCaseId] = useState<string | null>(
@@ -102,6 +107,15 @@ export function ModerationSection() {
             id: 'appeals',
             label: t('admin.moderation.tabAppeals'),
             content: <AppealsTab onOpenCase={open} />,
+          },
+        ]
+      : []),
+    ...(manage
+      ? [
+          {
+            id: 'subtree',
+            label: t('admin.moderation.grd.tab'),
+            content: <SubtreeCasesTab />,
           },
         ]
       : []),

@@ -32,6 +32,7 @@ sr-admin = { path = "../sr-admin" }
 sr-activities = { path = "../sr-activities" }
 sr-preflight = { path = "../sr-preflight" }
 sr-packages = { path = "../sr-packages" }
+sr-vouch = { path = "../sr-vouch" }
 sr-api = { path = "../sr-api" }
 sr-apps = { path = "../sr-apps" }
 sr-auth = { path = "../sr-auth", features = ["webauthn"] }

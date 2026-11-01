@@ -70,6 +70,9 @@ pub enum Command {
     /// The Arcade's code signing (ARC-SBX-001).
     #[command(subcommand)]
     Arcade(ArcadeCmd),
+    /// Moderation tools only the Operator has: the branch action and the pipeline drill (MOD-GRD-001, D-395).
+    #[command(subcommand)]
+    Moderation(ModerationCmd),
     /// Theme packages: check one locally before submitting it (needs no server or database).
     #[command(subcommand)]
     Package(PackageCmd),
@@ -207,6 +210,35 @@ pub enum ArcadeCmd {
     },
     /// Compute the code hash of stored bundles uploaded before hashes existed.
     BackfillHashes,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ModerationCmd {
+    /// The Operator's branch action on a subtree case: freeze or ban every descendant at once. Without `--request` it
+    /// files the request (a reason of 20 or more characters is required) and prints its id; a second staff member
+    /// must approve it in Admin (with their own 2FA step-up). With `--request <id>` it executes the approved request.
+    /// Runs as the Operator on this host; every step is in the hash-chained audit log.
+    BranchAction {
+        /// The subtree case (to file a request).
+        #[arg(long, conflicts_with = "request")]
+        case: Option<i64>,
+        /// `freeze` or `ban` (to file a request).
+        #[arg(long, conflicts_with = "request")]
+        action: Option<String>,
+        /// Why (to file a request).
+        #[arg(long, conflicts_with = "request")]
+        reason: Option<String>,
+        /// Execute this approved request.
+        #[arg(long)]
+        request: Option<i64>,
+    },
+    /// Build an isolated synthetic invite tree, run a case through to the notice and roll everything back. The
+    /// report goes to the Staff Server's #alerts only; nothing is broadcast and nothing real changes.
+    Drill {
+        /// Required: the drill never touches real accounts.
+        #[arg(long)]
+        synthetic: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]

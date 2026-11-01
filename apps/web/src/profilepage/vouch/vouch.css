@@ -1,0 +1,46 @@
+/* The vouch panel of a profile (MOD-VCH-001). Logical properties only. */
+.vouch-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding-block: 8px;
+  padding-inline: 16px;
+}
+.vouch-badge {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 1px;
+  padding-inline: 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: help;
+  color: var(--sr-text-muted, #9a9a9a);
+}
+.vouch-badge[data-tier='pillar'] {
+  color: var(--sr-warning, #e0a030);
+}
+.vouch-badge[data-tier='elder'] {
+  color: var(--sr-gold, #c9a24d);
+}
+.vouch-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-inline-size: 320px;
+  text-align: start;
+}
+.vouch-count {
+  font-size: 0.9em;
+}
+.vouch-hint {
+  margin-block: 0;
+  font-size: 0.85em;
+  color: var(--sr-text-muted, #9a9a9a);
+}

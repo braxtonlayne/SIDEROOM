@@ -116,6 +116,7 @@ error_codes! {
     SrAppSuspended = 900121, 403, "This application is suspended";
     SrTesterRecentlyDeclined = 900122, 409, "This person declined recently; wait 24 hours before inviting them again";
     SrMfaEnrollmentRequired = 900123, 403, "This server requires two-factor authentication";
+    SrAccountRestricted = 900124, 403, "Your account is restricted while it is reviewed; you can still sign in and appeal";
     SrIgnoreListFull = 900101, 400, "Your ignore list is full";
     SrInternal = 900500, 500, "Internal server error";
 }

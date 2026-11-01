@@ -8,6 +8,24 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 44 - 2026-11-01
+
+- **Moderation is now a set of proportionate tools.** Staff can warn, time out, pause someone's invites for a chosen
+  time, revoke their unused invite codes, or ban with a stated reason. Every one of these is written to the audit log,
+  and the member sees it in plain words under Settings > Privacy and can appeal it once.
+- **A serious ban opens a review, not a purge.** Only accounts the banned member invited that never did anything (at
+  least a week old, no messages, no voice time) are paused automatically; they can still sign in and appeal, and are
+  removed after 30 days unless staff clear them. Everyone else is only listed for staff to look at, one by one.
+- **Pausing someone's ability to invite takes two people.** It needs a written reason, a second staff member's
+  approval and a second-factor check from both, lasts 12 months and can be appealed. Acting on a whole branch at once
+  is reserved for the Operator, behind the same safeguards.
+- **The public notice says what happened, not who.** A serious case shows a short banner with the kind of offence and
+  how many accounts were affected; a monthly transparency page adds the counts up. No names, no invite tree.
+- **Vouch for people you trust.** On a member's profile you can vouch for them (and take it back). The vouch count
+  sets a tier: Citizen, Pillar (50+) or Elder (500+). Higher tiers carry more weight, so automated penalties on them
+  are longer (1.5x, 3x), as the tooltip says. If someone you vouched for is banned for a serious reason, you get a
+  private note and your vouch is removed; nothing happens to your account. Vouching needs a profile page you can see.
+
 ## Phase 43 - 2026-11-01
 
 - **Invite someone to play without an account.** In a voice call, a member playing a game that allows guests can press

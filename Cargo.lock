@@ -5996,6 +5996,7 @@ dependencies = [
  "sr-tv",
  "sr-unfurl",
  "sr-userfeat",
+ "sr-vouch",
  "sr-watchparty",
  "subtle",
  "thiserror 2.0.21",
@@ -6146,6 +6147,7 @@ dependencies = [
  "sr-db",
  "sr-library",
  "sr-media",
+ "sr-moderation",
  "sr-packages",
  "sr-preflight",
  "sr-server",
@@ -6438,6 +6440,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "sr-admin",
+ "sr-auth",
  "sr-core",
  "sr-db",
  "thiserror 2.0.21",
@@ -6670,6 +6673,7 @@ dependencies = [
  "sr-userfeat",
  "sr-voice",
  "sr-voice-proto",
+ "sr-vouch",
  "sr-watchparty",
  "tempfile",
  "thiserror 2.0.21",
@@ -6844,6 +6848,18 @@ dependencies = [
  "sha2 0.11.0",
  "sr-core",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "sr-vouch"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "sqlx",
+ "sr-db",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

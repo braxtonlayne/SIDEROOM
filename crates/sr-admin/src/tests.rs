@@ -1090,3 +1090,47 @@ async fn a_saved_boolean_setting_reads_as_one_or_zero() {
         .unwrap();
     assert_eq!(svc.setting_value_i64(key).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn serious_ban_event_fires_for_serious_only_with_the_reason() {
+    use crate::{SeriousBan, SeriousBanObserver};
+    struct Rec(std::sync::Mutex<Vec<SeriousBan>>);
+    #[async_trait::async_trait]
+    impl SeriousBanObserver for Rec {
+        async fn serious_ban(&self, b: &SeriousBan) {
+            self.0.lock().unwrap().push(b.clone());
+        }
+    }
+    let e = env();
+    let m = appointed(&e, MOD, R_MOD).await;
+    let rec = std::sync::Arc::new(Rec(Default::default()));
+    e.svc.subscribe_serious_ban(rec.clone());
+    e.svc
+        .ban_person(
+            &m,
+            BOB + 500_000,
+            Some(BOB),
+            BanCategory::Standard,
+            Some("rude"),
+        )
+        .await
+        .unwrap();
+    assert!(rec.0.lock().unwrap().is_empty());
+    let out = e
+        .svc
+        .ban_person_with_reason(
+            &m,
+            CAROL + 500_000,
+            Some(CAROL),
+            BanCategory::Serious,
+            Some("fraud"),
+            Some("chargebacks"),
+        )
+        .await
+        .unwrap();
+    let seen = rec.0.lock().unwrap().clone();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].ban_id, out.ban.id);
+    assert_eq!(seen[0].source_account_id, Some(CAROL));
+    assert_eq!(seen[0].reason_category.as_deref(), Some("fraud"));
+}

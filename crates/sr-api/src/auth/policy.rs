@@ -130,7 +130,9 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || (p.starts_with("/users/")
             && (p.ends_with("/guestbook")
                 || p.contains("/guestbook/")
-                || p.ends_with("/profile-page")))
+                || p.ends_with("/profile-page")
+                || p.ends_with("/vouch")
+                || p.ends_with("/vouches")))
         || (p.starts_with("/guilds/") && (p.contains("/packages") || p.ends_with("/appearance")))
     {
         return true;
@@ -288,5 +290,52 @@ mod tests {
         ] {
             assert!(!bot_denied(&m, p), "{m} {p}");
         }
+    }
+}
+
+/// MOD-GRD-001: the routes by which a member posts. A timeout or a case freeze in force on the account answers
+/// these with `SrAccountRestricted` (sign-in, reading and appealing stay open). Matched route templates without
+/// the version prefix.
+pub fn posting_route(method: &Method, pattern: &str) -> bool {
+    let p = normalise(pattern);
+    match *method {
+        Method::POST => matches!(
+            p,
+            "/channels/{channel_id}/messages"
+                | "/channels/{channel_id}/threads"
+                | "/channels/{channel_id}/messages/{message_id}/threads"
+        ),
+        Method::PUT => p == "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me",
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod restriction_tests {
+    use super::*;
+
+    #[test]
+    fn posting_routes_are_the_ways_to_post() {
+        assert!(posting_route(
+            &Method::POST,
+            "/api/v1/channels/{channel_id}/messages"
+        ));
+        assert!(posting_route(
+            &Method::POST,
+            "/api/v10/channels/{channel_id}/threads"
+        ));
+        assert!(posting_route(
+            &Method::PUT,
+            "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}/@me"
+        ));
+        assert!(!posting_route(
+            &Method::GET,
+            "/channels/{channel_id}/messages"
+        ));
+        assert!(!posting_route(&Method::POST, "/moderation/appeals"));
+        assert!(!posting_route(
+            &Method::POST,
+            "/sr/moderation/restrictions/{restriction_id}/appeal"
+        ));
     }
 }

@@ -27,6 +27,16 @@ const COMMANDS: { title: MessageKey; cmd: string; note: MessageKey }[] = [
     cmd: 'sr-cli verify-access-log',
     note: 'admin.cliParity.verify.note',
   },
+  {
+    title: 'admin.cliParity.branchAction.title',
+    cmd: 'sr-cli moderation branch-action --case <id> --action freeze --reason "why, in full"\nsr-cli moderation branch-action --request <id>',
+    note: 'admin.cliParity.branchAction.note',
+  },
+  {
+    title: 'admin.cliParity.drill.title',
+    cmd: 'sr-cli moderation drill --synthetic',
+    note: 'admin.cliParity.drill.note',
+  },
 ];
 
 /** Operator escape hatches that exist only on the command line (spec: CLI parity). Read-only information. */

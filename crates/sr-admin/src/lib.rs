@@ -17,6 +17,7 @@ pub mod memory;
 pub mod model;
 pub mod repo;
 pub mod rules;
+pub mod serious_ban;
 pub mod service;
 mod service_ext;
 pub mod settings;
@@ -39,6 +40,9 @@ pub use ext::*;
 pub use invite_controls::{InactiveRoot, InactiveRoots, InviteControls, PruneRun};
 pub use model::*;
 pub use repo::AdminRepository;
+pub use serious_ban::{
+    DefaultStrikeWeight, SeriousBan, SeriousBanObserver, SeriousBanSlot, StrikeWeight, scale_up,
+};
 pub use service::{AdminService, SYSTEM_USER_ID, SettingView};
 pub use service_ext::{
     AlertSettings, BADGES, Badge, CardActionResult, STATS_TTL_MS, badge, valid_email,

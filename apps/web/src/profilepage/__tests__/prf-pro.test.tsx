@@ -70,9 +70,26 @@ describe('the new profile blocks in the app (PRF-PRO-001)', () => {
       http.get('*/api/v1/profile-pages/bob', () =>
         HttpResponse.json(page([blk('a', 'about', { text: 'short address works' })])),
       ),
+      http.get('*/api/v1/users/2/vouches', () =>
+        HttpResponse.json({
+          count: 60,
+          tier: 'pillar',
+          multiplier: 1.5,
+          pillar_min: 50,
+          elder_min: 500,
+          pillar_multiplier: 1.5,
+          elder_multiplier: 3,
+          viewer_vouched: false,
+          can_vouch: true,
+          is_self: false,
+        }),
+      ),
     );
     const router = createAppRouter(createMemoryHistory({ initialEntries: ['/~bob'] }));
     render(<RouterProvider router={router} />);
     expect(await screen.findByText('short address works')).toBeInTheDocument();
+    // MOD-VCH-001: the vouch panel sits on the profile, with the tier badge and the Vouch button.
+    expect(await screen.findByRole('button', { name: 'Vouch tier: Pillar' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Vouch' })).toBeInTheDocument();
   });
 });

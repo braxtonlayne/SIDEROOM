@@ -23,6 +23,7 @@ pub mod feature_actions;
 pub mod features_store;
 pub mod fx_jobs;
 pub mod gateway_pg;
+pub mod graduated_mod;
 pub mod guest_relay;
 pub mod healthcheck;
 pub mod inbox_pg;
@@ -64,6 +65,9 @@ pub mod upload_limits;
 pub mod userfeat;
 pub mod userset_jobs;
 pub mod voice;
+#[cfg(test)]
+mod vouch_pg_tests;
+pub mod vouch_wiring;
 pub mod watchparty;
 pub mod web;
 

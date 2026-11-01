@@ -14454,6 +14454,1691 @@
         ]
       }
     },
+    "/admin/moderation/branch-action": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant\nof the case at once. The platform Operator only (the Owner, or a holder of the Owner-only `OPERATOR` bit),\nbehind a 2FA step-up, with a written reason and a second staff approver\nalready recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit\nentry names the case, the approver and the node count, and an anonymised notice is emitted.",
+        "operationId": "branch_action",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BranchActionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BranchOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/actions": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Every warning and restriction on an account, newest first (`MANAGE_CASES`; the read is logged).",
+        "operationId": "member_actions",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RestrictionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/ban": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Ban a member's Person with a required reason category (`PLATFORM_BAN`). A serious ban opens a subtree case on\nthe invite tree. The ban can be appealed through the existing appeal routes.",
+        "operationId": "ban",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberBanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/invite-freeze": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Freeze a member's invite creation for a chosen number of days (`MANAGE_INVITES`, reason required). Lift it\nearly with `POST /admin/moderation/restrictions/{restriction_id}/lift`.",
+        "operationId": "invite_freeze",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberInviteFreezeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/revoke-invites": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Revoke every unused invite code the member holds (`MANAGE_INVITES`, reason required). Redeemed invites and the\ninvite graph are not touched.",
+        "operationId": "revoke_invites",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokedInvites"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/timeout": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Time a member out of posting and voice (`MANAGE_CASES`, reason required). They can still sign in and appeal.",
+        "operationId": "timeout",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberTimeoutBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/members/{account_id}/warn": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Warn a member: a warning on their record for 180 days, with the strike weight of the moment (`MANAGE_CASES`,\nreason required). The member gets a system DM.",
+        "operationId": "warn",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/requests": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Requests waiting for a second staff member or the Operator, then the recent ones (`MANAGE_CASES`).",
+        "operationId": "list_requests",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModRequest"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/requests/{request_id}/approve": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Approve a request as the second staff member (`MANAGE_CASES`; never the proposer). Needs a fresh 2FA step-up.\nA sterilization takes effect now; a branch action becomes executable by the Operator.",
+        "operationId": "approve_request",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/requests/{request_id}/reject": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Reject a waiting request (`MANAGE_CASES`, reason required); the proposer withdrawing their own cancels it.",
+        "operationId": "reject_request",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "description": "Request snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/restriction-appeals": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Appeals of restrictions waiting for a decision, oldest first (`MANAGE_CASES`).",
+        "operationId": "restriction_appeals",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RestrictionView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/restrictions/{restriction_id}/appeal-decision": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Decide the appeal of a restriction (`MANAGE_CASES`): a staff member other than the one who imposed it, or the\nOwner when nobody else can. `overturned` ends the restriction.",
+        "operationId": "decide_restriction_appeal",
+        "parameters": [
+          {
+            "name": "restriction_id",
+            "in": "path",
+            "description": "Restriction snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictionAppealDecisionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/restrictions/{restriction_id}/lift": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Lift a restriction early (`MANAGE_CASES`; reason required).",
+        "operationId": "lift",
+        "parameters": [
+          {
+            "name": "restriction_id",
+            "in": "path",
+            "description": "Restriction snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Subtree cases, open first (`MANAGE_CASES`).",
+        "operationId": "list_cases",
+        "parameters": [
+          {
+            "name": "open",
+            "in": "query",
+            "description": "Only open cases.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubtreeCaseSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "One case with every node (activity stats, lineage, status) and the requests on it (`MANAGE_CASES`; logged).",
+        "operationId": "get_case",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtreeCaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}/close": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Close a case (`MANAGE_CASES`, reason required). Restrictions already imposed stand until they end or are lifted.",
+        "operationId": "close_case",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Closed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Ban a node of a case on its own evidence (`MANAGE_CASES` and `PLATFORM_BAN`). The ban is standard severity, so\nit never opens another case; the person can appeal it like any ban.",
+        "operationId": "ban_node",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeBanBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BanOutcome"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/clear": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Clear a node of a case: lift its freeze and mark it cleared (`MANAGE_CASES`, reason required). Clearing an\nautomatically frozen account stops its 30-day removal.",
+        "operationId": "clear_node",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cleared"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/freeze": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Freeze a node on staff's own evidence: 12 months, no automatic removal, appealable (`MANAGE_CASES`).",
+        "operationId": "freeze_node",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account_id",
+            "in": "path",
+            "description": "Account snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReasonBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Frozen"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/moderation/subtree-cases/{case_id}/requests": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Propose a sterilization of one node (`can_invite = false` for 12 months, `MANAGE_CASES`) or the Operator's branch\naction on the whole subtree (Owner only). Needs a fresh 2FA step-up; nothing takes effect until a second staff\nmember approves.",
+        "operationId": "new_request",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "description": "Subtree case snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtreeRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/persons/{person_id}": {
       "get": {
         "tags": [
@@ -61219,6 +62904,42 @@
         ]
       }
     },
+    "/moderation/transparency": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "The monthly transparency counts: notices, accounts actioned and frozen, sterilizations and appeals, by offense\ncategory. Counts only, never handles or tree shape. Any signed-in member may read it.",
+        "operationId": "transparency",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transparency"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/music/library": {
       "get": {
         "tags": [
@@ -66122,6 +67843,132 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/moderation/restrictions": {
+      "get": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "The restrictions in force on the caller's own account, in plain words: no case, no staff member, no tree.",
+        "operationId": "my_restrictions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyRestriction"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/sr/moderation/restrictions/{restriction_id}/appeal": {
+      "post": {
+        "tags": [
+          "graduated"
+        ],
+        "summary": "Appeal a restriction on the caller's own account (once per restriction). A frozen account can do this.",
+        "operationId": "appeal_restriction",
+        "parameters": [
+          {
+            "name": "restriction_id",
+            "in": "path",
+            "description": "Restriction snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictionAppealBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyRestriction"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -78135,6 +79982,168 @@
         ]
       }
     },
+    "/users/{user_id}/vouch": {
+      "put": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "Vouch for a member on their profile. One vouch per pair; vouching again changes nothing. 400 for yourself,\n403 when you cannot vouch (an account under three days old, or one that may not invite), 404 when the member\nis missing, blocked either way or the page is not visible to you, 409 past 20 new vouches a day.",
+        "operationId": "put_vouch",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileVouchSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "Take my vouch for a member back. 204 whether or not there was one.",
+        "operationId": "delete_vouch",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/{user_id}/vouches": {
+      "get": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "The vouch panel of a member's profile: count, tier, multiplier and whether I vouched.",
+        "operationId": "get_vouches",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake, or @me",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileVouchSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/watch-parties": {
       "post": {
         "tags": [
@@ -84314,6 +86323,54 @@
           }
         }
       },
+      "BranchActionBody": {
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "description": "The approved branch-action request."
+          }
+        }
+      },
+      "BranchOutcome": {
+        "type": "object",
+        "description": "What a branch action did.",
+        "required": [
+          "request_id",
+          "case_id",
+          "action",
+          "nodes_actioned",
+          "already_banned_or_gone",
+          "notice"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "`freeze` or `ban`."
+          },
+          "already_banned_or_gone": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "case_id": {
+            "type": "string"
+          },
+          "nodes_actioned": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notice": {
+            "$ref": "#/components/schemas/NoticeView",
+            "description": "The anonymised notice it emitted (counts and category only)."
+          },
+          "request_id": {
+            "type": "string"
+          }
+        }
+      },
       "BridgeChannelState": {
         "type": "object",
         "description": "The bridge state of a channel: which way its messages flow.",
@@ -85680,6 +87737,22 @@
               "$ref": "#/components/schemas/CatalogObject"
             },
             "description": "Objects the caller may open, ordered by hash."
+          }
+        }
+      },
+      "CategoryCount": {
+        "type": "object",
+        "required": [
+          "category",
+          "notices"
+        ],
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "notices": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -92423,6 +94496,40 @@
         "properties": {
           "drain": {
             "type": "boolean"
+          }
+        }
+      },
+      "DrillReport": {
+        "type": "object",
+        "description": "What `sr-cli moderation drill --synthetic` reports.",
+        "required": [
+          "tree_size",
+          "auto_frozen",
+          "waiting_review",
+          "notice",
+          "rows_left_behind"
+        ],
+        "properties": {
+          "auto_frozen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "notice": {
+            "$ref": "#/components/schemas/NoticeView"
+          },
+          "rows_left_behind": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Rows of the real tables the drill left behind (always 0: it ran in a transaction that was rolled back)."
+          },
+          "tree_size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Accounts in the synthetic tree (all rolled back with it)."
+          },
+          "waiting_review": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -99340,6 +101447,31 @@
           }
         }
       },
+      "MemberBanBody": {
+        "type": "object",
+        "required": [
+          "reason_category"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_category": {
+            "type": "string",
+            "description": "Required: `spam`, `harassment`, `illegal_content`, `child_safety`, `ban_evasion`, `fraud`,\n`platform_abuse`, `nsfw_policy` or `other`."
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`serious` or `standard`; the category's default when absent (spam, fraud, ban evasion, child safety,\nillegal content and platform abuse are serious)."
+          }
+        }
+      },
       "MemberCreateInviteBody": {
         "type": "object",
         "description": "Body of `POST /sr/invites`.",
@@ -99395,6 +101527,25 @@
                 "$ref": "#/components/schemas/RedeemedBy",
                 "description": "Redeemed codes only: the account that joined, and when."
               }
+            ]
+          }
+        }
+      },
+      "MemberInviteFreezeBody": {
+        "type": "object",
+        "required": [
+          "days"
+        ],
+        "properties": {
+          "days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 to 365."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
             ]
           }
         }
@@ -99601,6 +101752,37 @@
           },
           "user": {
             "$ref": "#/components/schemas/GuildUserRef"
+          }
+        }
+      },
+      "MemberReasonBody": {
+        "type": "object",
+        "description": "A body that is only a reason (also read from the `X-Audit-Log-Reason` header by the staff routes).",
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MemberTimeoutBody": {
+        "type": "object",
+        "required": [
+          "minutes"
+        ],
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "1 to 40320 (four weeks)."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -100274,6 +102456,71 @@
             "items": {
               "$ref": "#/components/schemas/MirrorRoleObject"
             }
+          }
+        }
+      },
+      "ModRequest": {
+        "type": "object",
+        "description": "A sterilization or branch-action request (the two-person step).",
+        "required": [
+          "id",
+          "kind",
+          "case_id",
+          "reason",
+          "proposed_by",
+          "state",
+          "created_at_ms"
+        ],
+        "properties": {
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`freeze` or `ban` (branch action only)."
+          },
+          "approved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "case_id": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`sterilize` or `branch_action`."
+          },
+          "nodes_actioned": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "proposed_by": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`pending`, `approved`, `executed`, `rejected` or `cancelled`."
+          },
+          "target_account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -101572,6 +103819,52 @@
           }
         }
       },
+      "MyRestriction": {
+        "type": "object",
+        "description": "What a member sees of a restriction on their own account: no case, no staff member, no tree.",
+        "required": [
+          "id",
+          "kind",
+          "effect",
+          "reason",
+          "ends_at_ms",
+          "state",
+          "can_appeal"
+        ],
+        "properties": {
+          "appeal_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "can_appeal": {
+            "type": "boolean"
+          },
+          "effect": {
+            "type": "string",
+            "description": "What the member is told it covers, in words."
+          },
+          "ends_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`warn`, `timeout`, `invite_freeze`, `case_freeze` (shown as a freeze) or `sterilization` (shown as\n\"you cannot invite right now\")."
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason staff wrote for the warning or timeout; case freezes and sterilizations say only that the\naccount is under review."
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
       "MySeatObject": {
         "type": "object",
         "description": "The caller's own seat.",
@@ -101811,6 +104104,24 @@
               "null"
             ],
             "description": "Empty or null clears the nickname (max 32 characters)."
+          }
+        }
+      },
+      "NodeBanBody": {
+        "type": "object",
+        "required": [
+          "reason_category"
+        ],
+        "properties": {
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason_category": {
+            "type": "string",
+            "description": "A `ban_reason_category` value (required)."
           }
         }
       },
@@ -102075,6 +104386,46 @@
           "triage_overdue": {
             "type": "boolean",
             "description": "Received or in triage and past the one-business-day target."
+          }
+        }
+      },
+      "NoticeView": {
+        "type": "object",
+        "description": "The anonymised notice: a category and counts, by construction nothing else.",
+        "required": [
+          "kind",
+          "category",
+          "title",
+          "body",
+          "accounts_actioned",
+          "accounts_frozen",
+          "created_at_ms"
+        ],
+        "properties": {
+          "accounts_actioned": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "accounts_frozen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`serious_ban` or `branch_action`."
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -106463,6 +108814,78 @@
           "friend"
         ]
       },
+      "ProfileVouchSummary": {
+        "type": "object",
+        "description": "The vouch panel of a profile.",
+        "required": [
+          "count",
+          "tier",
+          "multiplier",
+          "pillar_min",
+          "elder_min",
+          "pillar_multiplier",
+          "elder_multiplier",
+          "viewer_vouched",
+          "can_vouch",
+          "is_self"
+        ],
+        "properties": {
+          "can_vouch": {
+            "type": "boolean",
+            "description": "I may vouch for this member now."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Vouches from members in good standing."
+          },
+          "elder_min": {
+            "type": "integer",
+            "format": "int64",
+            "description": "First count of the Elder tier (500)."
+          },
+          "elder_multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The multiplier of the Elder tier (3.0)."
+          },
+          "is_self": {
+            "type": "boolean",
+            "description": "This is my own profile."
+          },
+          "multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The accountability multiplier of the tier: automated timeouts, holds and strike weights are scaled by it\nwhen this member breaks a rule. 1.0, 1.5 or 3.0."
+          },
+          "pillar_min": {
+            "type": "integer",
+            "format": "int64",
+            "description": "First count of the Pillar tier (50)."
+          },
+          "pillar_multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The multiplier of the Pillar tier (1.5)."
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ProfileVouchTier"
+          },
+          "viewer_vouched": {
+            "type": "boolean",
+            "description": "I have an active vouch for this member."
+          }
+        }
+      },
+      "ProfileVouchTier": {
+        "type": "string",
+        "description": "The vouch tier of a member.",
+        "enum": [
+          "citizen",
+          "pillar",
+          "elder"
+        ]
+      },
       "Progress": {
         "type": "object",
         "description": "A member's progress in one chapter.",
@@ -108434,6 +110857,34 @@
           }
         }
       },
+      "RestrictionAppealBody": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "RestrictionAppealDecisionBody": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {
+            "$ref": "#/components/schemas/AppealDecision"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "RestrictionBody": {
         "type": "object",
         "description": "Body of `POST /moderation/age/restrictions`.",
@@ -108467,6 +110918,86 @@
           "restricted": {
             "type": "boolean",
             "description": "`true` marks it age-restricted, `false` removes the mark."
+          }
+        }
+      },
+      "RestrictionView": {
+        "type": "object",
+        "description": "One per-member restriction or warning (what staff see; the member sees [`MyRestriction`]).",
+        "required": [
+          "id",
+          "account_id",
+          "kind",
+          "reason",
+          "imposed_by",
+          "weight",
+          "starts_at_ms",
+          "ends_at_ms",
+          "removes_account",
+          "state"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "appeal_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appeal_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`open`, `upheld` or `overturned`."
+          },
+          "approved_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ends_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "imposed_by": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`warn`, `timeout`, `invite_freeze`, `case_freeze` or `sterilization`."
+          },
+          "reason": {
+            "type": "string"
+          },
+          "removes_account": {
+            "type": "boolean",
+            "description": "The freeze ends in the account's removal unless cleared."
+          },
+          "starts_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "description": "`active`, `lifted`, `overturned`, `expired` or `removed`."
+          },
+          "weight": {
+            "type": "number",
+            "format": "float",
+            "description": "1.0 times the account's accountability multiplier when the act was recorded."
           }
         }
       },
@@ -108640,6 +111171,19 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "RevokedInvites": {
+        "type": "object",
+        "description": "Result of an act that names no row (revoking unused codes).",
+        "required": [
+          "codes_revoked"
+        ],
+        "properties": {
+          "codes_revoked": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -113261,6 +115805,187 @@
           }
         }
       },
+      "SubtreeCaseDetail": {
+        "type": "object",
+        "required": [
+          "case",
+          "opened_by",
+          "nodes_truncated",
+          "nodes",
+          "requests"
+        ],
+        "properties": {
+          "case": {
+            "$ref": "#/components/schemas/SubtreeCaseSummary"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtreeNode"
+            }
+          },
+          "nodes_truncated": {
+            "type": "boolean"
+          },
+          "opened_by": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModRequest"
+            },
+            "description": "Requests waiting for a second staff member, or approved and waiting for the Operator."
+          }
+        }
+      },
+      "SubtreeCaseSummary": {
+        "type": "object",
+        "description": "A subtree case in the list.",
+        "required": [
+          "id",
+          "root_account_id",
+          "root_username",
+          "category",
+          "state",
+          "opened_at_ms",
+          "nodes",
+          "auto_frozen",
+          "waiting_review"
+        ],
+        "properties": {
+          "auto_frozen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "category": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "nodes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "opened_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "root_account_id": {
+            "type": "string"
+          },
+          "root_username": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "`open` or `closed`."
+          },
+          "waiting_review": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubtreeNode": {
+        "type": "object",
+        "description": "One node of a case with its activity stats and lineage.",
+        "required": [
+          "account_id",
+          "username",
+          "role",
+          "depth",
+          "registered_at_ms",
+          "messages",
+          "voice_seconds",
+          "unactivated",
+          "status",
+          "restricted",
+          "note"
+        ],
+        "properties": {
+          "account_id": {
+            "type": "string"
+          },
+          "depth": {
+            "type": "integer",
+            "format": "int32",
+            "description": "0 root, 1.. below it, -1 and -2 the inviters."
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "note": {
+            "type": "string"
+          },
+          "parent_account_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account that issued the invite this one redeemed."
+          },
+          "registered_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "Frozen or sterilized right now."
+          },
+          "role": {
+            "type": "string",
+            "description": "`root`, `descendant`, `inviter` or `inviter2`."
+          },
+          "status": {
+            "type": "string",
+            "description": "`auto_frozen`, `review`, `frozen`, `banned`, `sterilized`, `cleared`, `removed` or `not_active`."
+          },
+          "unactivated": {
+            "type": "boolean",
+            "description": "D-392 when the case opened."
+          },
+          "username": {
+            "type": "string"
+          },
+          "voice_seconds": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SubtreeRequestBody": {
+        "type": "object",
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "properties": {
+          "account_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`freeze` or `ban` (branch action)."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`sterilize` (needs `account_id`) or `branch_action` (needs `action`; Owner only)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why, in at least 20 characters."
+          }
+        }
+      },
       "Suggestion": {
         "type": "object",
         "required": [
@@ -115552,6 +118277,77 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Transparency": {
+        "type": "object",
+        "required": [
+          "months"
+        ],
+        "properties": {
+          "months": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TransparencyMonth"
+            },
+            "description": "Newest month first, at most 24."
+          }
+        }
+      },
+      "TransparencyMonth": {
+        "type": "object",
+        "description": "One month of the transparency page: counts only.",
+        "required": [
+          "month",
+          "serious_bans",
+          "branch_actions",
+          "accounts_actioned",
+          "accounts_frozen",
+          "sterilizations",
+          "appeals_filed",
+          "appeals_overturned",
+          "by_category"
+        ],
+        "properties": {
+          "accounts_actioned": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "accounts_frozen": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "appeals_filed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "appeals_overturned": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "branch_actions": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "by_category": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "description": "By offense category: `(category label, notices)`."
+          },
+          "month": {
+            "type": "string",
+            "description": "`YYYY-MM`."
+          },
+          "serious_bans": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sterilizations": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

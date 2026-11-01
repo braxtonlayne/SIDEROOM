@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 43)
+### 4b. Decisions of the feature phase (waves 27 to 44)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -129,6 +129,17 @@ Profiles, invites and operator switches (waves 34 and 39):
 - [ ] **Lock the Doors also blocks emergency invites** (P39-INV-2) and `invites.locked` defaults to off. **Default:** both stand.
 - [ ] **Existing profiles become private** (wave 34, important). No backfill was run. **Default:** leave it. **Options:** a notice in the profile editor (shipped as a notice), or a one-time switch to Members only for customised profiles.
 - [ ] **O-1** (storage grants as a table or permission bits 61 and 62): the table stands. **O-4** (the emulator core set): the recommended set stands. **O-6** (`profiles.access`, `invites.locked`): the defaults stand.
+
+Graduated moderation and profile vouches (wave 44, [handoff](handoff/integration-phase44.md)):
+
+- [ ] **The CLI branch action asks for no TOTP code** (MOD-GRD-001, T43). `sr-cli moderation branch-action` runs as the Operator on the host (shell access) after a second staff member approved the request on the web with a 2FA step-up; the web route `POST /admin/moderation/branch-action` does demand the Operator's step-up. **Default:** the CLI stays as it is. **Option:** wire the AuthService into the CLI so it asks for the Operator's code too.
+- [ ] **Who is "the Operator"** (D-395, D-422). **Default (integrator):** the Owner, or a staff member the Owner granted the Owner-only `OPERATOR` bit (the same Operator as the infrastructure routes); a branch ban also needs `PLATFORM_BAN`. 44-A had built it as the Owner alone. **Option:** go back to the Owner alone.
+- [ ] **Young accounts are never auto-frozen** (D-421). An account younger than 7 days cannot be judged "unactivated" under D-392, so a case lists it for review and never freezes it automatically. **Default:** stands.
+- [ ] **The "serious" set** (D-420). The member ban route treats spam, fraud, ban evasion, child safety, illegal content and platform abuse as serious (a subtree case opens and vouchers are told). **Default:** that list. Confirm or change it.
+- [ ] **A member cannot remove a vouch given to them** (D-426). Only the voucher can withdraw it, so many aged accounts could pile vouches on someone to raise their automated penalties up to 3x (T44 residual, capped by the limits below). **Default:** no "decline vouch". **Option:** let the recipient remove a vouch.
+- [ ] **Vouch limits** (D-425): at most 20 new vouches a day, 500 outstanding, and the voucher's account at least 3 days old. **Default:** those numbers.
+- [ ] **The voucher notice names the category, never the banned member** (D-428). **Default:** stands. **Option:** name the member (the voucher already knew whom they vouched for).
+- [ ] **Vouching needs a visible profile** (D-429 with the wave-34 privacy rule). A page is private until its owner opens it, so nobody can vouch for (or see the vouch panel of) a member whose page is private. **Default:** stands; it follows the profile privacy the member chose.
 
 Dependencies:
 

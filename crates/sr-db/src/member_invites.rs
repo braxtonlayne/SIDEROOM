@@ -59,6 +59,18 @@ async fn block_for(
     if row.try_get::<bool, _>("frozen")? || i64::from(suspicion) >= freeze {
         return Ok(Some(InviteBlock::Frozen));
     }
+    // MOD-GRD-001: a timed invite freeze, a case freeze or an inviter sterilization is in force. Same generic
+    // answer as the suspicion freeze: the member reads that creation is paused, never why.
+    let restricted: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM member_restrictions WHERE account_id = $1 AND state = 'active'          AND ends_at > to_timestamp($2::bigint) AND kind IN ('invite_freeze', 'case_freeze', 'sterilization'))",
+    )
+    .bind(account)
+    .bind(now)
+    .fetch_one(&mut *conn)
+    .await?;
+    if restricted {
+        return Ok(Some(InviteBlock::Frozen));
+    }
     let cap = setting_int(conn, "accounts.cap", DEFAULT_CAP).await?;
     let active: i64 =
         sqlx::query_scalar("SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot")

@@ -8,6 +8,7 @@ import { cdnUrl } from '../store/cdn';
 import { useLoad } from '../packages/useLoad';
 import { getPageByName } from './api';
 import { ProfileRenderer } from './ProfileRenderer';
+import { VouchPanel } from './vouch/VouchPanel';
 import type { ProfilePage } from './types';
 import './profilepage.css';
 
@@ -40,6 +41,7 @@ export function ProfilePageView({ username }: { username: string }) {
         </span>
       </header>
       <main className="pp-body">
+        {page && <VouchPanel userId={page.user.id} />}
         {res.loading && !page ? (
           <p className="pp-plain" role="status">
             <Spinner size="sm" label={t('lounge.profilePage.loading')} />{' '}
