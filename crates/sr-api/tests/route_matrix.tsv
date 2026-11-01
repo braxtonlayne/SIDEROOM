@@ -153,6 +153,7 @@ DELETE	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount
 DELETE	/users/@me/tools/loot-tables/{table_id}	authenticated	self	deny	-	-
 DELETE	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-
 DELETE	/users/{user_id}/guestbook/{entry_id}	authenticated	author	deny	-	-
+DELETE	/users/{user_id}/vouch	authenticated	self	deny	-	-
 DELETE	/watch-parties/{party_id}	authenticated	party_manager	allow	-	-
 DELETE	/watch-parties/{party_id}/members/{user_id}	authenticated	party_manager	allow	-	-
 DELETE	/watch-parties/{party_id}/queue/{item_id}	authenticated	party_control	allow	-	-
@@ -622,6 +623,7 @@ GET	/users/@me/tools/notes	authenticated	self	deny	-	-
 GET	/users/{user_id}/guestbook	authenticated	visibility	deny	-	-
 GET	/users/{user_id}/profile	authenticated	user	allow	-	-
 GET	/users/{user_id}/profile-page	authenticated	visibility	deny	-	-
+GET	/users/{user_id}/vouches	authenticated	visibility	deny	-	-
 GET	/watch-parties/me	authenticated	self	allow	-	-
 GET	/watch-parties/time	authenticated	user	allow	-	-
 GET	/watch-parties/{party_id}	authenticated	party_access	allow	-	-
@@ -1171,6 +1173,7 @@ PUT	/users/@me/profile-privacy	authenticated	self	allow	-	-
 PUT	/users/@me/relationships/{user_id}	authenticated	self	deny	-	-
 PUT	/users/@me/storage/mounts/{mount_id}/shares/{user_id}	authenticated	mount_owner	deny	-	-
 PUT	/users/@me/tools/notes/{note_id}	authenticated	self	deny	-	-
+PUT	/users/{user_id}/vouch	authenticated	visibility	deny	-	-
 PUT	/watch-parties/{party_id}/controllers/{user_id}	authenticated	party_manager	allow	-	-
 PUT	/watch-parties/{party_id}/media	authenticated	party_control	allow	-	-
 #undocumented	/
