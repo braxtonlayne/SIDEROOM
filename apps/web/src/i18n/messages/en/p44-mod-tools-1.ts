@@ -113,4 +113,10 @@ export default {
   'settings.privacy.transparency.listLabel': 'Moderation counts by month',
   'settings.privacy.transparency.month':
     '{serious, plural, one {# serious ban} other {# serious bans}}, {branch, plural, one {# branch action} other {# branch actions}}, {actioned} accounts actioned, {frozen} frozen pending review, {sterilizations} invite stops, {appeals} appeals ({overturned} lifted)',
+  'admin.cliParity.branchAction.title': 'Branch action on a subtree case (Operator)',
+  'admin.cliParity.branchAction.note':
+    'The first command files the request; a second staff member approves it in Admin with their own second factor; the second command runs it. Freezes or bans every account below the banned one, each with its own appeal.',
+  'admin.cliParity.drill.title': 'Moderation drill',
+  'admin.cliParity.drill.note':
+    'Builds a throw-away invite tree, runs a case through to the notice and rolls everything back. The result is posted to the Staff Server alerts channel only.',
 } satisfies Record<string, string>;

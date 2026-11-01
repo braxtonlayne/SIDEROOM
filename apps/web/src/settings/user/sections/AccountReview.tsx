@@ -67,7 +67,8 @@ export function AccountReviewCard() {
               <strong>{r.effect}</strong>
               <span className="us-muted">
                 {' '}
-                {r.reason} · {t('settings.privacy.review.until', { when: formatDate(r.ends_at_ms) })}
+                {r.reason} ·{' '}
+                {t('settings.privacy.review.until', { when: formatDate(r.ends_at_ms) })}
                 {r.appeal_state ? ` · ${t(APPEAL_KEYS[r.appeal_state])}` : ''}
               </span>
             </div>

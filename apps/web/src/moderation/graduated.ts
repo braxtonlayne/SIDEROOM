@@ -6,7 +6,8 @@
 import { apiFetch } from '../api/client';
 import { withReauth } from '../admin/reauth';
 
-export type RestrictionKind = 'warn' | 'timeout' | 'invite_freeze' | 'case_freeze' | 'sterilization';
+export type RestrictionKind =
+  'warn' | 'timeout' | 'invite_freeze' | 'case_freeze' | 'sterilization';
 
 export interface RestrictionView {
   id: string;

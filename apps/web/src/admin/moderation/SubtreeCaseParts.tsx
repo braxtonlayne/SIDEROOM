@@ -25,14 +25,7 @@ export const ROLE_KEYS: Record<g.SubtreeNode['role'], MessageKey> = {
 };
 
 export type NodeAct =
-  | 'clear'
-  | 'freeze'
-  | 'ban'
-  | 'sterilize'
-  | 'warn'
-  | 'timeout'
-  | 'inviteFreeze'
-  | 'revoke';
+  'clear' | 'freeze' | 'ban' | 'sterilize' | 'warn' | 'timeout' | 'inviteFreeze' | 'revoke';
 
 export function NodeRow({
   node: n,
