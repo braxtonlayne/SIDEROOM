@@ -1,7 +1,8 @@
 import { expect, test, apiPost, apiPostBytes, apiPut, loginApi } from '../support/fixtures';
 import { builtInActivityBundle, testActivityBundle } from '../support/activityBundle';
 import { startActivityForTwo } from '../support/activities';
-import { runCli } from '../support/cli';
+import { execFileSync } from 'node:child_process';
+import { DATABASE_URL, runCli } from '../support/cli';
 import { VOICE_STACK } from '../support/voice';
 
 /**
@@ -128,7 +129,15 @@ test.describe('Arcade sandbox (real browser)', () => {
       runCli(['arcade', 'sign-code', '--hash', hash, '--application', appId]);
       expect((await trustOf()).headline).toBe('swarm_safety_signed');
 
-      // 5. The Owner (an old account) vouches, pinned to the hash.
+      // 5. The Owner vouches, pinned to the hash. Vouching needs an account at least 3 days old (D-405) and CI
+      // creates the owner minutes earlier, so age it first.
+      execFileSync('psql', [
+        DATABASE_URL,
+        '-X',
+        '-q',
+        '-c',
+        `UPDATE accounts SET created_at = now() - interval '30 days' WHERE id = ${BigInt(owner.id)}`,
+      ]);
       const vouched = await apiPut<Trust>(staff, `/activities/${appId}/vouch`, {
         code_sha256: hash,
       });
