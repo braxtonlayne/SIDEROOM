@@ -148,6 +148,9 @@ jobs:
       - name: Voice, Activities, the Arcade sandbox gate (wave 42), message components, the keyboard voice flow and co-op play (Chromium)
         run: |
           ./target/debug/sr-cli migrate
+          # arcade-sandbox.spec runs `sr-cli arcade sign-code`, which opens the sealed signing seed: the server and the
+          # CLI need the same server.secret_key (an empty one is a fresh ephemeral key per process).
+          export SR_SERVER__SECRET_KEY="$(openssl rand -hex 32)"
           ./deploy/compose/e2e-run.sh --project=chromium tests/voice-live.spec.ts tests/activities-live.spec.ts tests/arcade-sandbox.spec.ts tests/message-components.spec.ts tests/keyboard-6-voice.spec.ts tests/emulator-coop.spec.ts
         env:
           CI: "true"

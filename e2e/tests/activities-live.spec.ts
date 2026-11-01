@@ -166,8 +166,9 @@ test.describe('Activities (real browser)', () => {
       const frameOrigin = await a.page
         .frames()
         .find((f) => f.url().includes(activityHost))
-        ?.evaluate(() => location.origin);
-      // ARC-SBX-001: no allow-same-origin, so the frame's origin is opaque ("null"); it is still served from the
+        ?.evaluate(() => self.origin);
+      // ARC-SBX-001: no allow-same-origin, so the document's origin (self.origin; location.origin is the URL's) is
+      // opaque ("null"); it is still served from the
       // Activity's own host.
       expect(frameOrigin).toBe('null');
       expect(a.page.frames().some((f) => f.url().includes(activityHost))).toBe(true);

@@ -65,7 +65,7 @@ test.describe('Arcade sandbox (real browser)', () => {
       // 1. The sandbox attribute is exactly scripts + pointer lock; the document's origin is opaque.
       expect(await iframe.getAttribute('sandbox')).toBe('allow-scripts allow-pointer-lock');
       const fa = a.page.frames().find((f) => f.url().includes(host))!;
-      expect(await fa.evaluate(() => location.origin)).toBe('null');
+      expect(await fa.evaluate(() => self.origin)).toBe('null');
       await expect(session.a.frame.locator('#start')).toBeVisible({ timeout: 60_000 });
 
       // 2. Nothing leaves. CSP violations are reported by the browser; every fetch rejects.
@@ -87,6 +87,8 @@ test.describe('Arcade sandbox (real browser)', () => {
             tries[label] = 'blocked';
           }
         }
+        // The violation report is queued as its own task: give it a moment to arrive.
+        await new Promise((r) => setTimeout(r, 250));
         let cookie = 'readable';
         try {
           void document.cookie;
