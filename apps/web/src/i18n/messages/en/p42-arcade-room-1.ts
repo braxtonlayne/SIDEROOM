@@ -53,6 +53,7 @@ export default {
   'arcade.soon.notify': 'Notify me',
   'arcade.soon.notifying': 'You will be told when it ships',
   'arcade.soon.notifyFailed': 'That choice could not be saved.',
+  'arcade.admin.section': 'Arcade',
   'arcade.admin.heading': 'Arcade',
   'arcade.admin.intro':
     'Choose what the Front Page features. Only released Activities whose build declares a content tier can be featured. Every change is written to the audit log.',

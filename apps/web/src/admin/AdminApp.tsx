@@ -51,6 +51,8 @@ import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
 import { ModerationSection } from './moderation/ModerationSection';
 import { JobsSection, SystemSection } from './sections/System';
+import { ArcadeAdminSection } from '../arcade/ArcadeAdmin';
+import '../arcade/arcade.css';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
 
 // T-03 (D-369): the runbook carries the 34 KB deploy/RUNBOOK.md, so it is its own chunk.
@@ -282,6 +284,13 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.platform',
     visible: (v) => v.can('OPERATOR'),
     component: SystemSection,
+  },
+  {
+    id: 'arcade',
+    label: 'arcade.admin.section',
+    group: 'admin.adminApp.group.platform',
+    visible: (v) => v.can('OPERATOR'),
+    component: ArcadeAdminSection,
   },
   {
     id: 'runbook',
