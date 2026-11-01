@@ -17,10 +17,10 @@ describe('Appearance', () => {
     await user.click(await screen.findByRole('button', { name: /Light/ }));
     expect(themeRoot()).toHaveAttribute('data-theme', 'lounge-light');
     expect(await screen.findByRole('alert')).toHaveTextContent('unsaved changes');
-    expect(usePrefsStore.getState().prefs.theme).toBe('lounge-dark');
+    expect(usePrefsStore.getState().prefs.theme).toBe('lounge-editorial');
 
     await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(themeRoot()).toHaveAttribute('data-theme', 'lounge-dark');
+    expect(themeRoot()).toHaveAttribute('data-theme', 'lounge-editorial');
 
     await user.click(screen.getByRole('button', { name: /Onyx/ }));
     expect(themeRoot()).toHaveAttribute('data-theme', 'lounge-onyx');
@@ -62,6 +62,6 @@ describe('Appearance', () => {
       .save({ ...usePrefsStore.getState().prefs, fontScale: 9999, theme: 'nope' as never });
     const p = usePrefsStore.getState().prefs;
     expect(p.fontScale).toBe(150);
-    expect(p.theme).toBe('lounge-dark');
+    expect(p.theme).toBe('lounge-editorial');
   });
 });

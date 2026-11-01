@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
@@ -19,10 +20,7 @@ describe('Library home', () => {
       await screen.findByRole('heading', { name: 'Find your next good story.' }),
     ).toBeInTheDocument();
     // chrome
-    expect(screen.getByRole('link', { name: 'The library' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    expect(screen.getByRole('link', { name: 'The Study' })).toHaveAttribute('aria-current', 'page');
     expect(await screen.findByLabelText('6 followed')).toBeInTheDocument();
     // spotlight, trending, genres, fresh, finished, footer
     expect((await screen.findAllByRole('heading', { name: 'Frieren' })).length).toBeGreaterThan(0);
@@ -323,3 +321,6 @@ describe('chrome and other pages', () => {
     expect(await screen.findByText('Monster')).toBeInTheDocument();
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

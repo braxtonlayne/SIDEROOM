@@ -299,7 +299,15 @@ pub async fn revoke_shares_between(
     .bind(b)
     .execute(&mut **tx)
     .await?;
-    Ok(r.rows_affected())
+    // STU-ZK-001: a friend grant ends with the friendship (the row stays for the trail).
+    let g = sqlx::query(
+        "UPDATE shelf_grants g SET revoked_at = now(), revoked_by = NULL FROM storage_mounts m \n         WHERE g.shelf_id = m.id AND g.revoked_at IS NULL AND g.grantee_kind = 'friend' AND m.owner_kind = 'user' \n           AND ((m.owner_id = $1 AND g.grantee_id = $2) OR (m.owner_id = $2 AND g.grantee_id = $1))",
+    )
+    .bind(a)
+    .bind(b)
+    .execute(&mut **tx)
+    .await?;
+    Ok(r.rows_affected() + g.rows_affected())
 }
 
 #[async_trait]
@@ -414,10 +422,24 @@ impl ScopeFacts for PgScopeFacts {
     }
 
     async fn delisted(&self, mount_id: i64, keys: &[String]) -> Result<Vec<String>, FactsError> {
-        // BYOS-LEG-001: the keys of an upheld takedown notice (register item kind `storage_object`).
-        crate::storage_legal::delisted_keys(&self.pool, mount_id, keys)
+        // BYOS-LEG-001: the keys of an upheld takedown notice (register item kind `storage_object`), and
+        // STU-ZK-001: the objects staff delisted one by one (`shelf_objects.delisted_at`).
+        let mut gone = crate::storage_legal::delisted_keys(&self.pool, mount_id, keys)
             .await
-            .map_err(|e| FactsError(e.to_string()))
+            .map_err(|e| FactsError(e.to_string()))?;
+        for k in crate::shelf_access_repo::delisted_paths(&self.pool, mount_id, keys).await? {
+            if !gone.contains(&k) {
+                gone.push(k);
+            }
+        }
+        Ok(gone)
+    }
+
+    async fn shelf_grants(
+        &self,
+        mount_id: i64,
+    ) -> Result<Vec<sr_storage::shelf::ShelfGrantFact>, FactsError> {
+        crate::shelf_access_repo::live_grants(&self.pool, mount_id).await
     }
 }
 

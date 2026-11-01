@@ -1,47 +1,26 @@
-import { Link } from '@tanstack/react-router';
 import { Icon, Tooltip } from '@sideroom/ui';
 import { useT } from '../i18n';
-import { carryCall } from '../voice/carry';
 import { useVoiceSession } from '../voice/session';
 import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
-import { useNavVisibility } from '../storage/navModes';
 import { useLoungeUi } from './store';
-import { useEmulatorOn } from '../emu/SwitchedOff';
+import { RoomsNav } from '../study/RoomsNav';
 
 /** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
 export function SectionBar() {
   const t = useT();
   const show = useLoungeUi((s) => s.showSectionBar);
-  const nav = useNavVisibility();
-  const emulatorOn = useEmulatorOn();
   const voiceName = useVoiceSession((s) => (s.status === 'connected' ? s.channelName : null));
   if (!show) return null;
   return (
     <header className="lng-sectionbar" aria-label={t('lounge.chrome.sections')}>
       <span className="lng-sectionbar-brand">{t('lounge.chrome.brand')}</span>
       <span aria-hidden="true">/</span>
-      <nav aria-label={t('lounge.chrome.sections')} className="lng-sectionbar-nav">
-        <Link to="/channels" className="lng-sectionbar-link" aria-current="page">
-          {t('lounge.chrome.lounge')}
-        </Link>
-        {nav.cinema && (
-          <Link to="/cinema" className="lng-sectionbar-link">
-            {t('lounge.chrome.cinema')}
-          </Link>
-        )}
-        {nav.library && (
-          <Link to="/library" className="lng-sectionbar-link">
-            {t('lounge.chrome.library')}
-          </Link>
-        )}
-        {/* The emulator (ACT-EMU-001). In-app, and the call is carried along (voice/carry.ts), so a game can be hosted. */}
-        {emulatorOn && (
-          <Link to="/games" className="lng-sectionbar-link" onClick={carryCall}>
-            {t('lounge.chrome.games')}
-          </Link>
-        )}
-      </nav>
+      <RoomsNav
+        current="lounge"
+        className="lng-sectionbar-nav"
+        linkClassName="lng-sectionbar-link"
+      />
       {voiceName && (
         <span className="lng-sectionbar-voice" role="status">
           <Icon name="volume" size={16} /> {t('lounge.chrome.voiceConnected', { name: voiceName })}

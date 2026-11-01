@@ -1,9 +1,11 @@
-import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { createRoute, Navigate, type AnyRoute } from '@tanstack/react-router';
 import { lazyNamed } from '../lib/lazyRoute';
 import { validateBrowseSearch } from './browseSearch';
 import { createPlayerRoutes } from './player/routes';
 import { createTvRoutes } from './tv/routes';
 import { createWatchPartyRoutes } from '../watchparty/routes';
+import { HiddenWhenOff } from '../study/Hidden';
+import { useStudyFlag } from '../study/flags';
 import { createShelfRoutes } from '../storage/shelves/routes';
 
 // Pages load on demand (XC-PERF-001).
@@ -33,14 +35,23 @@ export function createCinemaRoutes(root: AnyRoute) {
   });
 
   // ---- browse-agent routes (p6-cinema-browse) ----
-  const index = createRoute({ getParentRoute: () => layout, path: '/', component: Discover });
+  // STU-NAV-001: the Discover storefront is hidden by default; the Study opens on the shelves instead.
+  function StudyIndex() {
+    const on = useStudyFlag('storefrontCategories');
+    return on ? <Discover /> : <Navigate to="/cinema/shelves" replace />;
+  }
+  const index = createRoute({ getParentRoute: () => layout, path: '/', component: StudyIndex });
   const browse = (page: 'movies' | 'series' | 'anime') => {
     const route = createRoute({
       getParentRoute: () => layout,
       path: page,
       validateSearch: validateBrowseSearch,
       component: function BrowseRoute() {
-        return <Browse page={page} search={route.useSearch()} />;
+        return (
+          <HiddenWhenOff flag="storefrontCategories">
+            <Browse page={page} search={route.useSearch()} />
+          </HiddenWhenOff>
+        );
       },
     });
     return route;
@@ -71,7 +82,11 @@ export function createCinemaRoutes(root: AnyRoute) {
     validateSearch: (s: Record<string, unknown>): { new?: 1 } =>
       s.new === 1 || s.new === '1' ? { new: 1 } : {},
     component: function SubmitRoute() {
-      return <SubmitPage startCreating={submit.useSearch().new === 1} />;
+      return (
+        <HiddenWhenOff flag="ingestQueues">
+          <SubmitPage startCreating={submit.useSearch().new === 1} />
+        </HiddenWhenOff>
+      );
     },
   });
   const submission = createRoute({
@@ -79,7 +94,11 @@ export function createCinemaRoutes(root: AnyRoute) {
     path: 'submit/$submissionId',
     component: function SubmissionRoute() {
       const { submissionId } = submission.useParams();
-      return <DraftPage key={submissionId} id={submissionId} />;
+      return (
+        <HiddenWhenOff flag="ingestQueues">
+          <DraftPage key={submissionId} id={submissionId} />
+        </HiddenWhenOff>
+      );
     },
   });
   // ---- end member video submissions ----

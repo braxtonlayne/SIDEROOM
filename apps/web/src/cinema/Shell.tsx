@@ -17,6 +17,9 @@ import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
+import { useStudyFlag, type StudyFlag } from '../study/flags';
+import { RoomsNav } from '../study/RoomsNav';
+import { StudyAreas } from '../study/StudyAreas';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { keys } from './api';
@@ -31,17 +34,16 @@ export function SectionBar() {
       <span aria-hidden="true" className="cin-sectionbar-slash">
         /
       </span>
-      <nav aria-label={t('cinema.shell.sections')} className="cin-sectionbar-nav">
-        <a href="/channels" className="cin-sectionbar-link">
-          {t('cinema.shell.lounge')}
-        </a>
-        <a href="/cinema" className="cin-sectionbar-link" aria-current="page">
-          {t('cinema.shell.cinema')}
-        </a>
-        <a href="/library" className="cin-sectionbar-link">
-          {t('cinema.shell.library')}
-        </a>
-      </nav>
+      <RoomsNav
+        current="study"
+        className="cin-sectionbar-nav"
+        linkClassName="cin-sectionbar-link"
+      />
+      <StudyAreas
+        current="cinema"
+        className="cin-sectionbar-nav"
+        linkClassName="cin-sectionbar-link"
+      />
     </header>
   );
 }
@@ -54,17 +56,25 @@ interface NavItem {
   mark?: 'sparkle' | 'dot';
   exact?: boolean;
   anime?: boolean;
+  /** Shown only while this Study switch is on (STU-NAV-001). */
+  flag?: StudyFlag;
 }
 
 export const NAV: NavItem[] = [
   { href: '/cinema', label: 'cinema.shell.navDiscover', exact: true },
-  { href: '/cinema/movies', label: 'cinema.shell.navMovies' },
-  { href: '/cinema/series', label: 'cinema.shell.navSeries' },
-  { href: '/cinema/anime', label: 'cinema.shell.navAnime', mark: 'sparkle', anime: true },
+  { href: '/cinema/movies', label: 'cinema.shell.navMovies', flag: 'storefrontCategories' },
+  { href: '/cinema/series', label: 'cinema.shell.navSeries', flag: 'storefrontCategories' },
+  {
+    href: '/cinema/anime',
+    label: 'cinema.shell.navAnime',
+    mark: 'sparkle',
+    anime: true,
+    flag: 'storefrontCategories',
+  },
   { href: '/cinema/tv', label: 'cinema.shell.navLiveTv', mark: 'dot' },
   { href: '/cinema/my-list', label: 'cinema.shell.navMyList' },
   { href: '/cinema/shelves', label: 'shelves.nav' },
-  { href: '/cinema/submit', label: 'cinema.submit.nav' },
+  { href: '/cinema/submit', label: 'cinema.submit.nav', flag: 'ingestQueues' },
 ];
 
 const isActive = (path: string, i: NavItem) =>
@@ -73,9 +83,13 @@ const isActive = (path: string, i: NavItem) =>
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const t = useT();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const categories = useStudyFlag('storefrontCategories');
+  const ingest = useStudyFlag('ingestQueues');
+  const on = (f?: StudyFlag) =>
+    !f || (f === 'storefrontCategories' ? categories : f === 'ingestQueues' ? ingest : true);
   return (
     <ul className="cin-nav-list">
-      {NAV.map((i) => (
+      {NAV.filter((i) => on(i.flag)).map((i) => (
         <li key={i.href}>
           <a
             href={i.href}
@@ -106,21 +120,31 @@ function AvatarMenu() {
     me.data?.global_name ?? me.data?.display_name ?? me.data?.username ?? t('cinema.shell.you');
   // D-367: "My uploads" opens the Cinema's own submissions list and "Upload" the same list with the form open.
   // "Requests" still goes to the Library board until the Cinema has a requests board of its own.
+  const requestsOn = useStudyFlag('requestsBoard');
+  const ingestOn = useStudyFlag('ingestQueues');
   const items: MenuEntry[] = [
     { type: 'label', label: name },
     { label: t('cinema.shell.profile'), onSelect: () => openSettings() },
-    {
-      label: t('cinema.shell.myUploads'),
-      onSelect: () => void navigate({ to: '/cinema/submit' }),
-    },
-    {
-      label: t('cinema.shell.upload'),
-      onSelect: () => void navigate({ to: '/cinema/submit', search: { new: 1 } }),
-    },
-    {
-      label: t('cinema.shell.requests'),
-      onSelect: () => void navigate({ to: '/library/requests' }),
-    },
+    ...(ingestOn
+      ? [
+          {
+            label: t('cinema.shell.myUploads'),
+            onSelect: () => void navigate({ to: '/cinema/submit' }),
+          },
+          {
+            label: t('cinema.shell.upload'),
+            onSelect: () => void navigate({ to: '/cinema/submit', search: { new: 1 } }),
+          },
+        ]
+      : []),
+    ...(requestsOn
+      ? [
+          {
+            label: t('cinema.shell.requests'),
+            onSelect: () => void navigate({ to: '/library/requests' }),
+          },
+        ]
+      : []),
     { label: t('cinema.shell.settings'), onSelect: () => openSettings() },
     { type: 'separator' },
     { label: t('cinema.shell.backToLounge'), onSelect: () => void navigate({ to: '/channels' }) },

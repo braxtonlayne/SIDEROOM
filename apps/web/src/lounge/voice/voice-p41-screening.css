@@ -1,0 +1,31 @@
+/* The Screening Room of a voice channel (STU-SHF-001). Semantic tokens; logical properties. */
+.vc-screening {
+  margin-block: 4px;
+  margin-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  padding-block: 6px;
+  padding-inline: 12px;
+}
+.vc-screening > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.vc-screening-body {
+  display: grid;
+  gap: 8px;
+  padding-block-start: 8px;
+}
+.vc-screening-hint {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.85rem;
+}
+.vc-screening-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -9,6 +9,7 @@ use sr_api::routes::review::{
     AniList, ComicVine, LookupProvider, LookupSwitch, MangaDex, MangaUpdates, Tmdb,
 };
 use sr_core::config::LookupConfig;
+use sr_features::{EXTERNAL_METADATA_ID, FeatureService, ScopeRef};
 
 /// The platform setting (Admin > Limits, group `library`).
 pub const LOOKUP_SETTING: &str = "review.lookup.enabled";
@@ -72,9 +73,35 @@ impl LookupSwitch for PgLookupSwitch {
     }
 }
 
+/// STU-NAV-001: the platform switch `platform.external_metadata` (off by default) in front of the lookup setting.
+/// While it is off no provider is offered, so nothing on the server calls TMDB or any other metadata host.
+pub struct GatedLookupSwitch {
+    inner: Arc<dyn LookupSwitch>,
+    features: FeatureService,
+}
+
+impl GatedLookupSwitch {
+    pub fn new(inner: Arc<dyn LookupSwitch>, features: FeatureService) -> Self {
+        Self { inner, features }
+    }
+}
+
+#[async_trait]
+impl LookupSwitch for GatedLookupSwitch {
+    async fn enabled(&self) -> bool {
+        let on = self
+            .features
+            .is_enabled(EXTERNAL_METADATA_ID, &ScopeRef::Platform)
+            .await
+            .unwrap_or(false);
+        on && self.inner.enabled().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sr_features::{FeatureRegistry, InMemorySettingsStore, wave_modules::register_all};
 
     #[test]
     fn nothing_is_on_by_default() {
@@ -91,5 +118,30 @@ mod tests {
         assert_eq!(ids(&cfg), vec!["anilist"]);
         cfg.tmdb_api_key = serde_json::from_str("\"k\"").unwrap();
         assert_eq!(ids(&cfg), vec!["anilist", "tmdb"]);
+    }
+
+    struct AlwaysOn;
+
+    #[async_trait]
+    impl LookupSwitch for AlwaysOn {
+        async fn enabled(&self) -> bool {
+            true
+        }
+    }
+
+    #[tokio::test]
+    async fn with_default_settings_no_provider_is_offered() {
+        let mut reg = FeatureRegistry::new();
+        register_all(&mut reg).unwrap();
+        let features =
+            FeatureService::new(Arc::new(reg), Arc::new(InMemorySettingsStore::new()), None);
+        // Even with the setting on and every provider configured, the platform switch is off by default.
+        let gate = GatedLookupSwitch::new(Arc::new(AlwaysOn), features.clone());
+        assert!(!gate.enabled().await, "off by default");
+        features
+            .set_enabled(EXTERNAL_METADATA_ID, &ScopeRef::Platform, Some(true))
+            .await
+            .unwrap();
+        assert!(gate.enabled().await, "an operator can switch it on");
     }
 }

@@ -295,3 +295,37 @@ Integration: this wave's handoffs are [feat-p40-ops-docs.md](../dev/handoff/feat
 ### OPS — Docs, CI and dependencies
 - [ ] **OPS-DEP-001** [BE] tantivy 0.27 (DEP-FU-001). _Not started, by design: it runs on or after 2026-11-17 or on the advisory trigger (P26-NEXT-1); the owner checklist lists it with its date._
 - [x] **OPS-DOC-001** [DOC] Docs truth and the owner's packet: `docs/13` gains waves 27 to 40 (38 deferred) with the gates and links; this inventory ticked where a CI run or a recorded test ran and the game-server items listed as deferred; `docs/15` rows T33 to T38 and T30's presign controls; `docs/09`, `docs/05` and `docs/07` rows for the feature phase; the lawyer brief's Part E checked against the decisions log (Q25 added); the member handbook pages and the operator page; `deploy/OPERATOR.md`; the owner checklist sections 4 and 5 _Proven 2026-10-31: `check-doc-links.mjs`, `check-ops-files.mjs`, `threat-model.test.mjs` (T1 to T38) and `handbook.test.tsx` green, see the handoff for the web gates._
+
+## Wave 41 — The Study reframe (roadmap P28)
+
+Integration: [dev/handoff/integration-phase41.md](../dev/handoff/integration-phase41.md). Decisions: D-387 to D-404
+(D-400 the reframe, D-401 to D-404 the integrator's defaults). Ticked where the item's own proofs ran on the merged
+tree (scratch databases, Chromium only for Playwright, no Garage locally).
+
+### STU — The Study
+- [x] **STU-NAV-001** [BE][FE] Room trio (The Lounge, The Arcade, The Study at `/study`), the five storefront switches
+  OFF by default with their routes answering 404 (`module_gate` hidden rules; with D-404 the member submission API
+  too), no outbound metadata call by default (`GatedLookupSwitch`), web surfaces hidden not deleted, the
+  `lounge-editorial` preset as the Lounge default _Merged tree: `sr-features`, `sr-theme` and `sr-api` lib (incl.
+  `storefront_surfaces_are_hidden_rules`), `sr-server --lib` (245 incl. ignored; `with_default_settings_no_provider_is_offered`),
+  `feature_registry` (7), `authz_matrix` (9, incl. `module_kill_switches_stop_their_routes` with the 404 proof),
+  `immutable_rules` (14 plus 23 with ignored), Vitest full suite (426 files; the Requests board suite fixed to switch
+  its surface on) incl. the external-host scan in `study.test.tsx`, Playwright `exit-gate`, `lounge-shell` and
+  `a11y-signed-in` (the last with the switches on for its run), entrance isolation ok_
+- [x] **STU-SHF-001** [FE][BE] The Study page: sidebar by source from `GET /shelves/visible`, provenance badge on every
+  card, type filters, covers from the files themselves, owner/manager titles, covers and notes on the shelf catalog
+  (D-402), Continue/Recently Added/Pinned rails (per browser, D-403), the Screening Room in the voice channel; every
+  file body through the per-object URL _Merged tree: Vitest `src/study` (incl. the per-object URL test) and
+  `screeningRoom.test.tsx`, Playwright `study-shelves.spec.ts` (2, route-faked server: sidebar, badges, filter, owner
+  edit through the PATCH, playback src = the per-object URL, no foreign host), bundle budget ok. Not built: the
+  owner's client uploading its own index, a batch URL mint for covers, the OPF-declared EPUB cover_
+- [x] **STU-ZK-001** [BE] Server-side shelf access (D-393, D-394): `shelf_grants`, the plaintext catalog
+  `shelf_objects` with per-object delisting and strikes, 10-minute per-object URLs, grants audited, `byos_read`
+  accepted and `byos_write` reserved _Merged tree: `sr-db` full suite (351, incl. `shelf_access` 4, `shelf_repo` 3,
+  `secret_columns`, `migration_versions`; the 2020 trigger fixed for a vanished mount), `sr-storage`,
+  `sr-moderation`, `sr-activities` (498 with the other crates), `authz_matrix::shelf_access_holds_over_http` (two
+  sessions of one friend account, revoke at the next mint, delist plus strike, no credential in any grantee response,
+  a grantee's catalog says `can_edit:false` and its PATCH is 403), `route_matrix` (6), `openapi_names` (2, after the
+  shelf grant schemas were renamed). Not built: a web UI for grants and delisting, the sandbox CSP allow-list for
+  `byos_read`, refusing write-capable keys (D-401 keeps them). The real-bucket, two-browser-profile Playwright run
+  needs Garage (the CI live job)_

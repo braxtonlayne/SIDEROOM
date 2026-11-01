@@ -1,6 +1,7 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
 import { apiPost, expect, test, type SignedIn } from '../support/fixtures';
+import { withStudySurfacesOn } from '../support/studySwitches';
 
 /**
  * RDY-LIB-001, the Library exit gate (D-368, T-02), on all three browsers:
@@ -173,6 +174,9 @@ function readZip(zip: Buffer): { name: string; data: Buffer; crcOk: boolean }[] 
   }
   return out;
 }
+
+// The submission flow and the review queue are storefront surfaces, off by default since wave 41 (D-400, D-404).
+withStudySurfacesOn(test);
 
 test('the generated chapter ZIPs are well-formed archives of distinct PNG pages', () => {
   const seen = new Set<string>();

@@ -2,6 +2,7 @@ import { Notice, Spinner } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
+import type { Presigned } from '../api';
 import { presignShelfFile } from './api';
 import './shelves.css';
 
@@ -19,13 +20,23 @@ export function ShelfPlayer({
   objectKey,
   kind,
   title,
+  startAt,
+  onTime,
+  presign = presignShelfFile,
 }: {
   mountId: string;
   objectKey: string;
   kind: 'video' | 'audio';
   title: string;
+  /** Seconds to resume at on the first load (the Study's Continue rail). */
+  startAt?: number;
+  /** Called about every 5 seconds of playback and on pause, with the position and length in seconds. */
+  onTime?: (at: number, of: number) => void;
+  /** Where the short-lived link comes from (the Study passes its per-object URL mint). */
+  presign?: (mountId: string, key: string) => Promise<Presigned>;
 }) {
   const t = useT();
+  const lastTick = useRef(0);
   const el = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +46,7 @@ export function ShelfPlayer({
   const load = useCallback(
     async (live: () => boolean) => {
       try {
-        const p = await presignShelfFile(mountId, objectKey);
+        const p = await presign(mountId, objectKey);
         if (!live()) return;
         const media = el.current;
         if (media && !media.paused) resume.current = { at: media.currentTime, playing: true };
@@ -55,7 +66,7 @@ export function ShelfPlayer({
         setError(code === 'CORS_NOT_READY' ? t('shelves.cors') : t('shelves.playFailed'));
       }
     },
-    [mountId, objectKey, t],
+    [mountId, objectKey, t, presign],
   );
 
   useEffect(() => {
@@ -85,7 +96,22 @@ export function ShelfPlayer({
     preload: 'metadata' as const,
     className: 'shv-player',
     'aria-label': title,
-    onLoadedMetadata: restore,
+    onLoadedMetadata: () => {
+      if (startAt && !resume.current && el.current && el.current.currentTime === 0) {
+        el.current.currentTime = startAt;
+      }
+      restore();
+    },
+    onTimeUpdate: () => {
+      const m = el.current;
+      if (!onTime || !m || Date.now() - lastTick.current < 5000) return;
+      lastTick.current = Date.now();
+      onTime(m.currentTime, Number.isFinite(m.duration) ? m.duration : 0);
+    },
+    onPause: () => {
+      const m = el.current;
+      if (onTime && m) onTime(m.currentTime, Number.isFinite(m.duration) ? m.duration : 0);
+    },
     // An expired or dropped link: ask again once, the effect's timer handles the normal case.
     onError: () => {
       void load(() => true);

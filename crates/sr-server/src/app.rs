@@ -510,6 +510,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         sealer: mount_sealer.clone(),
         guard: Some(mount_guard.clone()),
     });
+    // Shelf access (STU-ZK-001): the plaintext catalog, account-bound grants and per-object delisting.
+    let shelf_access_deps = Arc::new(routes::storage::ShelfAccessDeps {
+        store: Arc::new(sr_db::shelf_access_repo::PgShelfAccess::new(
+            pool.clone(),
+            {
+                let ids = ids.clone();
+                Arc::new(move || ids.generate().get() as i64)
+            },
+        )),
+    });
     // The member's music library (MUS-LIB-001): playlists, favorites, recently played.
     let music_lib_deps = Arc::new(routes::music::MusicLibDeps::new(
         Arc::new(sr_db::music_lib_repo::PgMusicLib::new(pool.clone())),
@@ -1245,7 +1255,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let lookup_deps = Arc::new(
         routes::review::LookupDeps::new(
             crate::lookup_wiring::all_providers_from(&cfg.lookup),
-            Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+            Arc::new(crate::lookup_wiring::GatedLookupSwitch::new(
+                Arc::new(crate::lookup_wiring::PgLookupSwitch::new(pool.clone())),
+                features.clone(),
+            )),
             Some(cdn_signer.clone()),
         )
         .with_live_enabled(live_policy.lookup.clone()),
@@ -1668,6 +1681,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(fx_deps)
         .extension(card_deps)
         .extension(storage_scope_deps)
+        .extension(shelf_access_deps)
         .extension(mount_transcode_deps)
         .extension(upload_deps)
         .extension(shelf_deps)

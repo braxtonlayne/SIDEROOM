@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
@@ -42,7 +43,7 @@ describe('cinema chrome', () => {
   it('shows the section bar with the cinema active, the cinema nav and the footer, no board', async () => {
     useCinemaApi();
     const { container } = renderAt('/cinema/movies');
-    expect(await screen.findByRole('link', { name: 'The cinema' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'The Study' })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -587,3 +588,6 @@ describe('Title page', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/cinema/watch/4'));
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());
