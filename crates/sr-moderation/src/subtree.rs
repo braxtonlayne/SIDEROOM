@@ -474,10 +474,12 @@ impl Moderation {
         .await?
         .ok_or(ModError::NotFound("case"))?;
         let case = summary_from(&head)?;
-        let meta = sqlx::query("SELECT opened_by, nodes_truncated FROM moderation_subtree_cases WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await?;
+        let meta = sqlx::query(
+            "SELECT opened_by, nodes_truncated FROM moderation_subtree_cases WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
         let node_rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {NODE_COLS} FROM moderation_subtree_nodes n JOIN accounts a ON a.id = n.account_id \
              WHERE n.case_id = $1 ORDER BY n.depth, n.account_id"
@@ -510,7 +512,10 @@ impl Moderation {
         .bind(id)
         .fetch_all(&mut *tx)
         .await?;
-        let requests = req_rows.iter().map(request_from).collect::<ModResult<_>>()?;
+        let requests = req_rows
+            .iter()
+            .map(request_from)
+            .collect::<ModResult<_>>()?;
         log_staff(
             &mut tx,
             who,
@@ -539,11 +544,12 @@ impl Moderation {
         case_id: i64,
         account: i64,
     ) -> ModResult<(String, String)> {
-        let open: Option<String> =
-            sqlx::query_scalar("SELECT state FROM moderation_subtree_cases WHERE id = $1 FOR UPDATE")
-                .bind(case_id)
-                .fetch_optional(&mut *conn)
-                .await?;
+        let open: Option<String> = sqlx::query_scalar(
+            "SELECT state FROM moderation_subtree_cases WHERE id = $1 FOR UPDATE",
+        )
+        .bind(case_id)
+        .fetch_optional(&mut *conn)
+        .await?;
         match open.as_deref() {
             None => return Err(ModError::NotFound("case")),
             Some("open") => {}
@@ -574,7 +580,9 @@ impl Moderation {
         let mut tx = self.pool.begin().await?;
         let (status, _) = Self::node_status(&mut tx, case_id, account).await?;
         if !matches!(status.as_str(), "auto_frozen" | "frozen" | "review") {
-            return Err(conflict(format!("A node that is {status} cannot be cleared")));
+            return Err(conflict(format!(
+                "A node that is {status} cannot be cleared"
+            )));
         }
         sqlx::query(
             "UPDATE member_restrictions SET state = 'lifted', lifted_by = $3, lifted_at = now(), lift_reason = $4 \
@@ -615,7 +623,9 @@ impl Moderation {
         let mut tx = self.pool.begin().await?;
         let (status, role) = Self::node_status(&mut tx, case_id, account).await?;
         if role == "root" || !matches!(status.as_str(), "review" | "cleared") {
-            return Err(conflict(format!("A node that is {status} cannot be frozen")));
+            return Err(conflict(format!(
+                "A node that is {status} cannot be frozen"
+            )));
         }
         guard_target(&mut tx, c, account).await?;
         let weight = self.strike_weight_multiplier(account).await;
@@ -650,18 +660,15 @@ impl Moderation {
 
     /// Check that `account` is a node staff may ban in this case and return its Person (the route bans through the
     /// admin service, then calls [`Self::mark_node_banned`]).
-    pub async fn node_person(
-        &self,
-        who: &Who<'_>,
-        case_id: i64,
-        account: i64,
-    ) -> ModResult<i64> {
+    pub async fn node_person(&self, who: &Who<'_>, case_id: i64, account: i64) -> ModResult<i64> {
         require_staff(who, P::PLATFORM_BAN, "PLATFORM_BAN")?;
         require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
         let mut tx = self.pool.begin().await?;
         let (status, role) = Self::node_status(&mut tx, case_id, account).await?;
         if role == "root" || matches!(status.as_str(), "banned" | "removed" | "not_active") {
-            return Err(conflict(format!("A node that is {status} cannot be banned")));
+            return Err(conflict(format!(
+                "A node that is {status} cannot be banned"
+            )));
         }
         let person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
             .bind(account)
@@ -761,8 +768,15 @@ impl Moderation {
         let reason = gr::case_reason(reason)?;
         let mut tx = self.pool.begin().await?;
         let (status, role) = Self::node_status(&mut tx, case_id, account).await?;
-        if role == "root" || matches!(status.as_str(), "banned" | "removed" | "not_active" | "sterilized") {
-            return Err(conflict(format!("A node that is {status} cannot be sterilized")));
+        if role == "root"
+            || matches!(
+                status.as_str(),
+                "banned" | "removed" | "not_active" | "sterilized"
+            )
+        {
+            return Err(conflict(format!(
+                "A node that is {status} cannot be sterilized"
+            )));
         }
         guard_target(&mut tx, c, account).await?;
         let dup: bool = sqlx::query_scalar(
@@ -773,7 +787,9 @@ impl Moderation {
         .fetch_one(&mut *tx)
         .await?;
         if dup {
-            return Err(conflict("A sterilization of that account is already waiting for approval"));
+            return Err(conflict(
+                "A sterilization of that account is already waiting for approval",
+            ));
         }
         let id = self.next_id();
         sqlx::query(
@@ -819,11 +835,12 @@ impl Moderation {
         }
         let reason = gr::case_reason(reason)?;
         let mut tx = self.pool.begin().await?;
-        let open: Option<String> =
-            sqlx::query_scalar("SELECT state FROM moderation_subtree_cases WHERE id = $1 FOR UPDATE")
-                .bind(case_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        let open: Option<String> = sqlx::query_scalar(
+            "SELECT state FROM moderation_subtree_cases WHERE id = $1 FOR UPDATE",
+        )
+        .bind(case_id)
+        .fetch_optional(&mut *tx)
+        .await?;
         match open.as_deref() {
             None => return Err(ModError::NotFound("case")),
             Some("open") => {}
@@ -1052,7 +1069,9 @@ impl Moderation {
             return Err(ModError::NotFound("request"));
         }
         let (Some(approver), Some(action)) = (req.approved_by, req.action.clone()) else {
-            return Err(conflict("A second staff member has not approved that request"));
+            return Err(conflict(
+                "A second staff member has not approved that request",
+            ));
         };
         if req.state != "approved" {
             return Err(conflict("That request is not waiting for the Operator"));
@@ -1060,12 +1079,13 @@ impl Moderation {
         if approver == c.user_id {
             return Err(ModError::Forbidden);
         }
-        let category: String =
-            sqlx::query_scalar("SELECT category FROM moderation_subtree_cases WHERE id = $1 AND state = 'open'")
-                .bind(req.case_id)
-                .fetch_optional(&self.pool)
-                .await?
-                .ok_or_else(|| conflict("That case is closed"))?;
+        let category: String = sqlx::query_scalar(
+            "SELECT category FROM moderation_subtree_cases WHERE id = $1 AND state = 'open'",
+        )
+        .bind(req.case_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| conflict("That case is closed"))?;
 
         let todo: Vec<i64> = sqlx::query_scalar(
             "SELECT n.account_id FROM moderation_subtree_nodes n WHERE n.case_id = $1 AND n.role = 'descendant' \
@@ -1111,7 +1131,15 @@ impl Moderation {
                     false,
                 )
                 .await?;
-                set_node(&mut tx, req.case_id, *account, "frozen", c.user_id, "branch action").await?;
+                set_node(
+                    &mut tx,
+                    req.case_id,
+                    *account,
+                    "frozen",
+                    c.user_id,
+                    "branch action",
+                )
+                .await?;
                 actioned += 1;
             }
             tx.commit().await?;
@@ -1133,7 +1161,15 @@ impl Moderation {
                         .bind(c.user_id)
                         .execute(&mut *tx)
                         .await?;
-                        set_node(&mut tx, req.case_id, *account, "banned", c.user_id, "branch action").await?;
+                        set_node(
+                            &mut tx,
+                            req.case_id,
+                            *account,
+                            "banned",
+                            c.user_id,
+                            "branch action",
+                        )
+                        .await?;
                         tx.commit().await?;
                         actioned += 1;
                     }
@@ -1283,10 +1319,12 @@ impl Moderation {
         for r in &due {
             let (rid, account): (i64, i64) = (r.try_get("id")?, r.try_get("account_id")?);
             let case: Option<i64> = r.try_get("case_id")?;
-            sqlx::query("UPDATE member_restrictions SET state = 'removed', lifted_at = now() WHERE id = $1")
-                .bind(rid)
-                .execute(&mut *tx)
-                .await?;
+            sqlx::query(
+                "UPDATE member_restrictions SET state = 'removed', lifted_at = now() WHERE id = $1",
+            )
+            .bind(rid)
+            .execute(&mut *tx)
+            .await?;
             sqlx::query(
                 "UPDATE moderation_subtree_nodes SET status = 'removed', decided_at = now(), note = '30 days without a staff clearance' \
                  WHERE account_id = $1 AND case_id = $2 AND status = 'auto_frozen'",
@@ -1425,7 +1463,6 @@ impl SeriousBanObserver for Moderation {
         }
     }
 }
-
 
 impl Moderation {
     /// `sr-cli moderation drill --synthetic` (Owner / operator only): build a throw-away invite tree of seven

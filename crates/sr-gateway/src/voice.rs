@@ -856,9 +856,7 @@ impl Gateway {
             exempt: limits.exempt,
             tier: limits.tier,
             video_quality: info.video_quality,
-            joined_ms: cur
-                .as_ref()
-                .map_or_else(unix_ms, |c| c.joined_ms),
+            joined_ms: cur.as_ref().map_or_else(unix_ms, |c| c.joined_ms),
         };
         let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.

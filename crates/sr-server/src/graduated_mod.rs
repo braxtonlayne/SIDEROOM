@@ -83,7 +83,9 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
 
 /// The restriction check as an `AppState` extension value.
 pub fn gate(pool: PgPool) -> Arc<sr_api::auth::RestrictionGate> {
-    Arc::new(sr_api::auth::RestrictionGate(Arc::new(PgRestrictions(pool))))
+    Arc::new(sr_api::auth::RestrictionGate(Arc::new(PgRestrictions(
+        pool,
+    ))))
 }
 
 #[cfg(test)]

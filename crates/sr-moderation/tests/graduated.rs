@@ -188,12 +188,14 @@ async fn appoint(pool: &PgPool, a: Acct) {
         .await
         .unwrap();
     }
-    sqlx::query("INSERT INTO staff_appointments (id, account_id, appointed_by) VALUES ($1, $2, $2)")
-        .bind(uid())
-        .bind(a.account)
-        .execute(pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO staff_appointments (id, account_id, appointed_by) VALUES ($1, $2, $2)",
+    )
+    .bind(uid())
+    .bind(a.account)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 struct World {
@@ -217,12 +219,10 @@ async fn world() -> World {
     let admin = AdminService::new(Arc::new(repo));
     admin.subscribe_serious_ban(Arc::new(m.clone()));
     // The system user the banner is written under.
-    sqlx::query(
-        "INSERT INTO persons (id) VALUES (1) ON CONFLICT DO NOTHING",
-    )
-    .execute(db.pool())
-    .await
-    .unwrap();
+    sqlx::query("INSERT INTO persons (id) VALUES (1) ON CONFLICT DO NOTHING")
+        .execute(db.pool())
+        .await
+        .unwrap();
     sqlx::query(
         "INSERT INTO accounts (id, person_id, username, email, password_hash, state) \
          VALUES (1, 1, 'sideroom', 'system@example.test', 'x', 'active') ON CONFLICT DO NOTHING",
@@ -347,7 +347,10 @@ async fn serious_ban_freezes_only_unactivated_descendants() {
 
     let case = the_case(pool, t.g3).await;
     // Frozen: the unactivated Gen 4 node and the unactivated Gen 5 node below it.
-    assert_eq!(node_status(pool, case, t.g4_idle.account).await, "auto_frozen");
+    assert_eq!(
+        node_status(pool, case, t.g4_idle.account).await,
+        "auto_frozen"
+    );
     assert_eq!(node_status(pool, case, t.g5.account).await, "auto_frozen");
     // Listed, untouched: active (voice), too young to judge, and both inviters.
     assert_eq!(node_status(pool, case, t.g4_active.account).await, "review");
@@ -404,7 +407,12 @@ async fn serious_ban_freezes_only_unactivated_descendants() {
         .find(|n| n.account_id == t.g4_idle.account)
         .unwrap();
     assert_eq!(
-        (idle.messages, idle.voice_seconds, idle.unactivated, idle.restricted),
+        (
+            idle.messages,
+            idle.voice_seconds,
+            idle.unactivated,
+            idle.restricted
+        ),
         (0, 0, true, true)
     );
     assert_eq!(idle.parent_account_id, Some(t.g3.account));
@@ -501,7 +509,8 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
     assert!(m_blocked(&m, member, Blocked::Posting).await);
     assert!(!m_blocked(&m, member, Blocked::Invites).await);
     assert!(matches!(
-        m.timeout_member(&who, member.account, 60, Some("again")).await,
+        m.timeout_member(&who, member.account, 60, Some("again"))
+            .await,
         Err(ModError::Conflict(_))
     ));
     assert!((m.strike_total(member.account).await.unwrap() - 2.0 * weight).abs() < 0.01);
@@ -517,10 +526,11 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
         m.warn_member(&who, member.account, None).await,
         Err(ModError::ReasonRequired)
     ));
-    assert!(m
-        .timeout_member(&who, member.account, 0, Some("x"))
-        .await
-        .is_err());
+    assert!(
+        m.timeout_member(&who, member.account, 0, Some("x"))
+            .await
+            .is_err()
+    );
     assert!(matches!(
         m.warn_member(
             &Who::GuildMod {
@@ -535,10 +545,11 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
     ));
     // Not the system user, not oneself.
     assert!(m.warn_member(&who, 1, Some("x")).await.is_err());
-    assert!(m
-        .warn_member(&who, mod_acct.account, Some("x"))
-        .await
-        .is_err());
+    assert!(
+        m.warn_member(&who, mod_acct.account, Some("x"))
+            .await
+            .is_err()
+    );
 
     // A timed invite freeze blocks `create`; lifting it opens it again.
     assert!(can_invite(pool, member).await);
@@ -546,7 +557,10 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
         .freeze_member_invites(&who, member.account, 14, Some("invited strangers"))
         .await
         .unwrap();
-    assert_eq!(blocked_reason(pool, member).await, Some(InviteBlock::Frozen));
+    assert_eq!(
+        blocked_reason(pool, member).await,
+        Some(InviteBlock::Frozen)
+    );
     assert!(!can_invite(pool, member).await);
     m.lift_restriction(&who, freeze.id, Some("resolved"))
         .await
@@ -585,8 +599,14 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
         Err(ModError::Conflict(_))
     ));
     assert!(matches!(
-        m.decide_restriction_appeal(&who, timeout.id, AppealDecision::Overturned, Some("ok"), true)
-            .await,
+        m.decide_restriction_appeal(
+            &who,
+            timeout.id,
+            AppealDecision::Overturned,
+            Some("ok"),
+            true
+        )
+        .await,
         Err(ModError::Forbidden)
     ));
     let other = acct(pool, "second", 100).await;
@@ -605,7 +625,8 @@ async fn per_member_acts_are_audited_weighted_and_appealable() {
     assert!(!m_blocked(&m, member, Blocked::Posting).await);
     // Another member cannot appeal it.
     assert!(matches!(
-        m.appeal_restriction(other.account, warn.id, "not mine").await,
+        m.appeal_restriction(other.account, warn.id, "not mine")
+            .await,
         Err(ModError::NotFound(_))
     ));
 
@@ -650,21 +671,21 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
     let wb = Who::Staff(&cb);
 
     // A short reason is refused; a staff account cannot be a target; the banned root cannot either.
-    assert!(w
-        .m
-        .request_sterilization(&wa, case, t.g2.account, "too short")
-        .await
-        .is_err());
-    assert!(w
-        .m
-        .request_sterilization(
+    assert!(
+        w.m.request_sterilization(&wa, case, t.g2.account, "too short")
+            .await
+            .is_err()
+    );
+    assert!(
+        w.m.request_sterilization(
             &wa,
             case,
             t.g3.account,
             "the root is already banned so this must fail"
         )
         .await
-        .is_err());
+        .is_err()
+    );
     assert!(
         matches!(
             w.m.request_sterilization(
@@ -679,9 +700,8 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
         "a wrong case names nothing"
     );
 
-    let req = w
-        .m
-        .request_sterilization(
+    let req =
+        w.m.request_sterilization(
             &wa,
             case,
             t.g2.account,
@@ -692,15 +712,23 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
     assert_eq!(req.state, "pending");
     // Nothing is in force before the second approver.
     assert!(can_invite(pool, t.g2).await);
-    assert_eq!(restriction_state(pool, t.g2.account, "sterilization").await, None);
+    assert_eq!(
+        restriction_state(pool, t.g2.account, "sterilization").await,
+        None
+    );
     // The proposer cannot approve their own; a second proposal for the same account is a conflict.
     assert!(matches!(
         w.m.approve_request(&wa, req.id).await,
         Err(ModError::Forbidden)
     ));
     assert!(matches!(
-        w.m.request_sterilization(&wb, case, t.g2.account, "A second proposal for the same account, no.")
-            .await,
+        w.m.request_sterilization(
+            &wb,
+            case,
+            t.g2.account,
+            "A second proposal for the same account, no."
+        )
+        .await,
         Err(ModError::Conflict(_))
     ));
     // Without MANAGE_CASES a staff member cannot approve either.
@@ -750,9 +778,13 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
     // Posting still works: sterilization removes the invite right only.
     assert!(!m_blocked(&w.m, t.g2, Blocked::Posting).await);
     // Appealable: a third staff member overturns it and the member may invite again.
-    w.m.appeal_restriction(t.g2.account, done_restriction(pool, t.g2).await, "I did not know")
-        .await
-        .unwrap();
+    w.m.appeal_restriction(
+        t.g2.account,
+        done_restriction(pool, t.g2).await,
+        "I did not know",
+    )
+    .await
+    .unwrap();
     let c3 = acct(pool, "staffc", 100).await;
     let cc = staff(c3.account, P::MANAGE_CASES);
     w.m.decide_restriction_appeal(
@@ -766,9 +798,8 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
     .unwrap();
     assert!(can_invite(pool, t.g2).await);
     // Expiry: after twelve months the sweep marks it expired and the right is back.
-    let again = w
-        .m
-        .request_sterilization(
+    let again =
+        w.m.request_sterilization(
             &wa,
             case,
             t.g1.account,
@@ -788,11 +819,13 @@ async fn sterilization_needs_a_second_approver_and_expires_in_twelve_months() {
 }
 
 async fn done_restriction(pool: &PgPool, a: Acct) -> i64 {
-    sqlx::query_scalar("SELECT id FROM member_restrictions WHERE account_id = $1 AND kind = 'sterilization'")
-        .bind(a.account)
-        .fetch_one(pool)
-        .await
-        .unwrap()
+    sqlx::query_scalar(
+        "SELECT id FROM member_restrictions WHERE account_id = $1 AND kind = 'sterilization'",
+    )
+    .bind(a.account)
+    .fetch_one(pool)
+    .await
+    .unwrap()
 }
 
 /// The branch action: Owner only, a second approver, one chosen action on every descendant, one audit entry with
@@ -829,21 +862,20 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
             .await,
         Err(ModError::MissingPermission("OWNER"))
     ));
-    assert!(w
-        .m
-        .request_branch_action(&Who::Staff(&owner_c), case, "freeze", "short")
-        .await
-        .is_err());
-    assert!(w
-        .m
-        .request_branch_action(&Who::Staff(&owner_c), case, "delete", reason)
-        .await
-        .is_err());
-    let req = w
-        .m
-        .request_branch_action(&Who::Staff(&owner_c), case, "freeze", reason)
-        .await
-        .unwrap();
+    assert!(
+        w.m.request_branch_action(&Who::Staff(&owner_c), case, "freeze", "short")
+            .await
+            .is_err()
+    );
+    assert!(
+        w.m.request_branch_action(&Who::Staff(&owner_c), case, "delete", reason)
+            .await
+            .is_err()
+    );
+    let req =
+        w.m.request_branch_action(&Who::Staff(&owner_c), case, "freeze", reason)
+            .await
+            .unwrap();
     struct NoBan;
     #[async_trait]
     impl NodeBanner for NoBan {
@@ -853,7 +885,8 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     }
     // Not approved yet: refused.
     assert!(matches!(
-        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan).await,
+        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan)
+            .await,
         Err(ModError::Conflict(_))
     ));
     // The proposer cannot approve; a non-Owner cannot execute even an approved one.
@@ -861,27 +894,29 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
         w.m.approve_request(&Who::Staff(&owner_c), req.id).await,
         Err(ModError::Forbidden)
     ));
-    let approved = w
-        .m
-        .approve_request(&Who::Staff(&approver), req.id)
-        .await
-        .unwrap();
+    let approved =
+        w.m.approve_request(&Who::Staff(&approver), req.id)
+            .await
+            .unwrap();
     assert_eq!(approved.state, "approved");
     assert!(matches!(
-        w.m.execute_branch_action(&Who::Staff(&approver), req.id, &NoBan).await,
+        w.m.execute_branch_action(&Who::Staff(&approver), req.id, &NoBan)
+            .await,
         Err(ModError::MissingPermission("OWNER"))
     ));
 
-    let out = w
-        .m
-        .execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan)
-        .await
-        .unwrap();
+    let out =
+        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan)
+            .await
+            .unwrap();
     // Every descendant of the case: 4 below Gen 3 plus Gen 5 = 5 nodes... (g4 x3, g5) = 4 descendants.
     assert_eq!(out.nodes_actioned, 4);
     assert_eq!(out.action, "freeze");
     assert_eq!(out.notice.category, "spam");
-    assert_eq!(out.notice.body, "4 accounts actioned, 4 frozen pending review.");
+    assert_eq!(
+        out.notice.body,
+        "4 accounts actioned, 4 frozen pending review."
+    );
     for d in [t.g4_active, t.g4_idle, t.g4_young, t.g5] {
         assert_eq!(node_status(pool, case, d.account).await, "frozen");
         assert!(m_blocked(&w.m, d, Blocked::Posting).await);
@@ -915,7 +950,8 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     );
     // It cannot run twice.
     assert!(matches!(
-        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan).await,
+        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan)
+            .await,
         Err(ModError::Conflict(_))
     ));
 
@@ -938,15 +974,21 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     appoint(pool2, ap2).await;
     let o2 = owner(op2.account);
     w2.admin
-        .ban_person_with_reason(&o2, t2.g3.person, Some(t2.g3.account), BanCategory::Serious, Some("spam"), Some("ring"))
+        .ban_person_with_reason(
+            &o2,
+            t2.g3.person,
+            Some(t2.g3.account),
+            BanCategory::Serious,
+            Some("spam"),
+            Some("ring"),
+        )
         .await
         .unwrap();
     let case2 = the_case(pool2, t2.g3).await;
-    let req2 = w2
-        .m
-        .request_branch_action(&Who::Staff(&o2), case2, "ban", reason)
-        .await
-        .unwrap();
+    let req2 =
+        w2.m.request_branch_action(&Who::Staff(&o2), case2, "ban", reason)
+            .await
+            .unwrap();
     w2.m.approve_request(
         &Who::Staff(&staff(ap2.account, P::PLATFORM_BAN | P::MANAGE_CASES)),
         req2.id,
@@ -954,11 +996,10 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     .await
     .unwrap();
     let bans = Bans(Mutex::default());
-    let out2 = w2
-        .m
-        .execute_branch_action(&Who::Staff(&o2), req2.id, &bans)
-        .await
-        .unwrap();
+    let out2 =
+        w2.m.execute_branch_action(&Who::Staff(&o2), req2.id, &bans)
+            .await
+            .unwrap();
     assert_eq!((out2.action.as_str(), out2.nodes_actioned), ("ban", 4));
     assert_eq!(bans.0.lock().unwrap().len(), 4);
     assert_eq!(node_status(pool2, case2, t2.g5.account).await, "banned");
@@ -975,16 +1016,32 @@ async fn thirty_days_removes_the_unactivated_unless_cleared() {
     let mod_acct = acct(pool, "moderator", 100).await;
     let op = staff(mod_acct.account, P::PLATFORM_BAN | P::MANAGE_CASES);
     w.admin
-        .ban_person_with_reason(&op, t.g3.person, Some(t.g3.account), BanCategory::Serious, Some("fraud"), Some("x"))
+        .ban_person_with_reason(
+            &op,
+            t.g3.person,
+            Some(t.g3.account),
+            BanCategory::Serious,
+            Some("fraud"),
+            Some("x"),
+        )
         .await
         .unwrap();
     let case = the_case(pool, t.g3).await;
     let who = Who::Staff(&op);
     // Staff clear one of the two frozen accounts, with a reason.
-    assert!(w.m.clear_node(&who, case, t.g5.account, None).await.is_err());
-    w.m.clear_node(&who, case, t.g5.account, Some("a friend of the owner, verified"))
-        .await
-        .unwrap();
+    assert!(
+        w.m.clear_node(&who, case, t.g5.account, None)
+            .await
+            .is_err()
+    );
+    w.m.clear_node(
+        &who,
+        case,
+        t.g5.account,
+        Some("a friend of the owner, verified"),
+    )
+    .await
+    .unwrap();
     assert_eq!(node_status(pool, case, t.g5.account).await, "cleared");
     assert!(!m_blocked(&w.m, t.g5, Blocked::Posting).await);
     // Nothing happens before the day.
@@ -1015,13 +1072,24 @@ async fn thirty_days_removes_the_unactivated_unless_cleared() {
         .await
         .unwrap();
     assert_eq!(g5, "active");
-    assert_eq!(log_count(pool, "moderation.subtree_case.remove_unactivated").await, 1);
+    assert_eq!(
+        log_count(pool, "moderation.subtree_case.remove_unactivated").await,
+        1
+    );
     // Manual node decisions: freeze the active one on evidence, ban the young one via the route's two calls.
-    w.m.freeze_node(&who, case, t.g4_active.account, Some("posts match the ring's template"))
-        .await
-        .unwrap();
+    w.m.freeze_node(
+        &who,
+        case,
+        t.g4_active.account,
+        Some("posts match the ring's template"),
+    )
+    .await
+    .unwrap();
     assert!(m_blocked(&w.m, t.g4_active, Blocked::Posting).await);
-    let person = w.m.node_person(&who, case, t.g4_young.account).await.unwrap();
+    let person =
+        w.m.node_person(&who, case, t.g4_young.account)
+            .await
+            .unwrap();
     assert_eq!(person, t.g4_young.person);
     w.m.mark_node_banned(&who, case, t.g4_young.account, "same ring")
         .await
@@ -1031,7 +1099,8 @@ async fn thirty_days_removes_the_unactivated_unless_cleared() {
         .await
         .unwrap();
     assert!(matches!(
-        w.m.clear_node(&who, case, t.g2.account, Some("closed")).await,
+        w.m.clear_node(&who, case, t.g2.account, Some("closed"))
+            .await,
         Err(ModError::Conflict(_))
     ));
 }
@@ -1046,13 +1115,28 @@ async fn transparency_counts_hold_no_identity() {
     let mod_acct = acct(pool, "moderator", 100).await;
     let op = staff(mod_acct.account, P::PLATFORM_BAN | P::MANAGE_CASES);
     w.admin
-        .ban_person_with_reason(&op, t.g3.person, Some(t.g3.account), BanCategory::Serious, Some("child_safety"), Some("x"))
+        .ban_person_with_reason(
+            &op,
+            t.g3.person,
+            Some(t.g3.account),
+            BanCategory::Serious,
+            Some("child_safety"),
+            Some("x"),
+        )
         .await
         .unwrap();
     let page = w.m.transparency().await.unwrap();
     assert_eq!(page.months.len(), 1);
     let m = &page.months[0];
-    assert_eq!((m.serious_bans, m.branch_actions, m.accounts_actioned, m.accounts_frozen), (1, 0, 1, 2));
+    assert_eq!(
+        (
+            m.serious_bans,
+            m.branch_actions,
+            m.accounts_actioned,
+            m.accounts_frozen
+        ),
+        (1, 0, 1, 2)
+    );
     assert_eq!(m.by_category.len(), 1);
     assert_eq!(m.by_category[0].category, "Illegal content");
     let json = serde_json::to_string(&page).unwrap();
@@ -1071,7 +1155,8 @@ async fn drill_runs_the_pipeline_and_rolls_everything_back() {
     let op = acct(pool, "operator", 200).await;
     let o = owner(op.account);
     assert!(matches!(
-        w.m.run_drill(&Who::Staff(&staff(op.account, P::MANAGE_CASES))).await,
+        w.m.run_drill(&Who::Staff(&staff(op.account, P::MANAGE_CASES)))
+            .await,
         Err(ModError::MissingPermission("OWNER"))
     ));
     let before: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts")
@@ -1082,8 +1167,14 @@ async fn drill_runs_the_pipeline_and_rolls_everything_back() {
     // inviter2, inviter, root, three below it, one more below the first.
     assert_eq!(report.tree_size, 7);
     assert_eq!(report.auto_frozen, 2, "the idle child and its child");
-    assert_eq!(report.waiting_review, 4, "voice-active, too young, both inviters");
-    assert_eq!(report.notice.body, "1 account actioned, 2 frozen pending review.");
+    assert_eq!(
+        report.waiting_review, 4,
+        "voice-active, too young, both inviters"
+    );
+    assert_eq!(
+        report.notice.body,
+        "1 account actioned, 2 frozen pending review."
+    );
     assert_eq!(report.rows_left_behind, 0);
     for table in [
         "moderation_subtree_cases",
@@ -1093,10 +1184,11 @@ async fn drill_runs_the_pipeline_and_rolls_everything_back() {
         "platform_announcements",
         "account_activity",
     ] {
-        let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
-            .fetch_one(pool)
-            .await
-            .unwrap();
+        let n: i64 =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                .fetch_one(pool)
+                .await
+                .unwrap();
         assert_eq!(n, 0, "{table}");
     }
     let after: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts")

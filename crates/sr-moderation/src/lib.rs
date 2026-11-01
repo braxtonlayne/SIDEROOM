@@ -16,12 +16,11 @@ pub mod age;
 mod appeals;
 pub mod blocklist;
 mod cases;
+pub mod dashboard;
+pub mod error;
 mod graduated;
 pub mod graduated_model;
 pub mod graduated_rules;
-mod subtree;
-pub mod dashboard;
-pub mod error;
 pub mod holds;
 pub mod model;
 mod reports;
@@ -29,6 +28,7 @@ pub mod rings;
 pub mod rules;
 pub mod service;
 pub mod snapshot;
+mod subtree;
 mod suspicion;
 pub mod suspicion_rules;
 mod takedown_mounts;
@@ -39,10 +39,9 @@ pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
 pub use age::{
     AgeBand, AgeChange, AgeTargetKind, ChannelSink, ItemIndexSink, UNDER18_DM, UnderageOutcome,
 };
-pub use graduated::{Blocked, SYSTEM_ACTOR};
-pub use subtree::{NodeBanner, NoticeSink, OpenedCase};
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
+pub use graduated::{Blocked, SYSTEM_ACTOR};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
 pub use rings::HeldRing;
 pub use service::{
@@ -51,5 +50,6 @@ pub use service::{
 };
 pub use sr_db::shelf_access_repo::Delisted as ShelfObjectDelisted;
 pub use sr_db::storage_legal::{AdminMountRow, MountLegal};
+pub use subtree::{NodeBanner, NoticeSink, OpenedCase};
 pub use suspicion::{HOUSEKEEPING_JOB_ID, SCAN_BATCH};
 pub use takedowns::register_csv;

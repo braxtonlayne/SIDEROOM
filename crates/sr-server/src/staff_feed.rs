@@ -1000,7 +1000,6 @@ async fn cli_feed(
     Ok(feed)
 }
 
-
 /// `sr-cli preflight --alert-test` (RDY-OPS-006): post a test alert through the real [`StaffFeed`] path (the stored
 /// alert, the `#alerts` card, and the Owner email when that setting is on) from a process that is not the server.
 /// The card is stored like any message; clients that are connected to the running server see it when they next load

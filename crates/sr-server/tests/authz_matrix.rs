@@ -9423,12 +9423,14 @@ async fn graduated_moderation_holds_over_http() {
         ("grdgen4young", 2),
     ] {
         let id = account(&pool, &ids, name).await;
-        sqlx::query("UPDATE accounts SET created_at = now() - make_interval(days => $2) WHERE id = $1")
-            .bind(id)
-            .bind(age)
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "UPDATE accounts SET created_at = now() - make_interval(days => $2) WHERE id = $1",
+        )
+        .bind(id)
+        .bind(age)
+        .execute(&pool)
+        .await
+        .unwrap();
         tree.insert(name, id);
     }
     for (from, to) in [
@@ -9474,10 +9476,7 @@ async fn graduated_moderation_holds_over_http() {
     }
     let mut sess: HashMap<&str, Cred> = HashMap::new();
     for n in tree.keys() {
-        sess.insert(
-            n,
-            Cred::Session(session_for(&auth, &ids, tree[n]).await),
-        );
+        sess.insert(n, Cred::Session(session_for(&auth, &ids, tree[n]).await));
     }
 
     // Two more staff members: the second approver (MANAGE_CASES and PLATFORM_BAN, enrolled in TOTP) and one who
@@ -9529,7 +9528,11 @@ async fn graduated_moderation_holds_over_http() {
         TotpRepository::confirm(&auth, uid, step_now - 10)
             .await
             .unwrap();
-        extra_staff.push((name, Cred::Session(session_for(&auth, &ids, uid).await), uid));
+        extra_staff.push((
+            name,
+            Cred::Session(session_for(&auth, &ids, uid).await),
+            uid,
+        ));
     }
     let approver = extra_staff[0].1.clone();
     let approver_id = extra_staff[0].2;
@@ -9622,12 +9625,20 @@ async fn graduated_moderation_holds_over_http() {
     }
     let r = expect!(
         "the frozen node creates an invite",
-        srv.call(&sess["grdgen4idle"], "POST", "/sr/invites", Some(&json!({})))
-            .await,
+        srv.call(
+            &sess["grdgen4idle"],
+            "POST",
+            "/sr/invites",
+            Some(&json!({}))
+        )
+        .await,
         400
     );
     if !r.body.contains("paused for review") {
-        failures.push(format!("the frozen node is told only that creation is paused: {}", r.body));
+        failures.push(format!(
+            "the frozen node is told only that creation is paused: {}",
+            r.body
+        ));
     }
     let r = expect!(
         "the frozen node posts",
@@ -9641,13 +9652,21 @@ async fn graduated_moderation_holds_over_http() {
         403
     );
     if !r.body.contains("900124") {
-        failures.push(format!("the frozen node posting answers SrAccountRestricted: {}", r.body));
+        failures.push(format!(
+            "the frozen node posting answers SrAccountRestricted: {}",
+            r.body
+        ));
     }
     // It can still read its own restrictions and appeal.
     let mine = expect!(
         "the frozen node reads its restrictions",
-        srv.call(&sess["grdgen4idle"], "GET", "/sr/moderation/restrictions", None)
-            .await,
+        srv.call(
+            &sess["grdgen4idle"],
+            "GET",
+            "/sr/moderation/restrictions",
+            None
+        )
+        .await,
         200
     );
     let mine: Value = serde_json::from_str(&mine.body).unwrap_or(Value::Null);
@@ -9674,7 +9693,9 @@ async fn graduated_moderation_holds_over_http() {
         200
     );
     if !motd.body.contains("Safety notice: Fraud")
-        || !motd.body.contains("1 account actioned, 1 frozen pending review.")
+        || !motd
+            .body
+            .contains("1 account actioned, 1 frozen pending review.")
     {
         failures.push(format!("the notice text: {}", motd.body));
     }
@@ -9685,8 +9706,16 @@ async fn graduated_moderation_holds_over_http() {
     }
     // The case view is for staff with MANAGE_CASES; a member and the roster's outsiders get nothing.
     let view = format!("/admin/moderation/subtree-cases/{case}");
-    expect!("a member reads the case", srv.call(&sess["grdgen1"], "GET", &view, None).await, 403);
-    let seen = expect!("the Operator reads the case", srv.call(&owner, "GET", &view, None).await, 200);
+    expect!(
+        "a member reads the case",
+        srv.call(&sess["grdgen1"], "GET", &view, None).await,
+        403
+    );
+    let seen = expect!(
+        "the Operator reads the case",
+        srv.call(&owner, "GET", &view, None).await,
+        200
+    );
     let seen: Value = serde_json::from_str(&seen.body).unwrap_or(Value::Null);
     if seen["nodes"].as_array().map(Vec::len) != Some(6) {
         failures.push(format!("the case lists six accounts: {seen}"));
@@ -9701,11 +9730,15 @@ async fn graduated_moderation_holds_over_http() {
     });
     let r = expect!(
         "the approver proposes without a step-up",
-        srv.call(&approver, "POST", &requests, Some(&sterilize)).await,
+        srv.call(&approver, "POST", &requests, Some(&sterilize))
+            .await,
         403
     );
     if !r.body.contains("900004") {
-        failures.push(format!("a proposal without the step-up answers 900004: {}", r.body));
+        failures.push(format!(
+            "a proposal without the step-up answers 900004: {}",
+            r.body
+        ));
     }
     let proposed = expect!(
         "the Operator proposes",
@@ -9726,7 +9759,10 @@ async fn graduated_moderation_holds_over_http() {
         403
     );
     if !r.body.contains("900004") {
-        failures.push(format!("an approval without the step-up answers 900004: {}", r.body));
+        failures.push(format!(
+            "an approval without the step-up answers 900004: {}",
+            r.body
+        ));
     }
     expect!(
         "Gen 2 can still invite before the approval",
@@ -9745,7 +9781,9 @@ async fn graduated_moderation_holds_over_http() {
     );
     let done: Value = serde_json::from_str(&done.body).unwrap_or(Value::Null);
     if done["state"] != "executed" || done["approved_by"] != json!(approver_id.to_string()) {
-        failures.push(format!("the sterilization ran with the approver recorded: {done}"));
+        failures.push(format!(
+            "the sterilization ran with the approver recorded: {done}"
+        ));
     }
     expect!(
         "Gen 2 can no longer invite",
@@ -9813,7 +9851,15 @@ async fn graduated_moderation_holds_over_http() {
     );
     let call_branch = |cred: Cred| {
         let body = json!({ "request_id": branch_id });
-        async move { srv.call(&cred, "POST", "/admin/moderation/branch-action", Some(&body)).await }
+        async move {
+            srv.call(
+                &cred,
+                "POST",
+                "/admin/moderation/branch-action",
+                Some(&body),
+            )
+            .await
+        }
     };
     let mut roster: Vec<(String, Cred)> = world
         .actors
@@ -9831,7 +9877,11 @@ async fn graduated_moderation_holds_over_http() {
         if matches!(r.status, 401 | 403 | 404) {
             refused += 1;
         } else {
-            failures.push(format!("branch-action as {name}: expected a refusal, got {} {}", r.status, r.body.chars().take(120).collect::<String>()));
+            failures.push(format!(
+                "branch-action as {name}: expected a refusal, got {} {}",
+                r.status,
+                r.body.chars().take(120).collect::<String>()
+            ));
         }
     }
     if refused < 20 {
@@ -9843,12 +9893,20 @@ async fn graduated_moderation_holds_over_http() {
         .await
         .unwrap();
     if state != "approved" {
-        failures.push(format!("the refused calls left the request approved, found {state}"));
+        failures.push(format!(
+            "the refused calls left the request approved, found {state}"
+        ));
     }
-    let out = expect!("the Operator runs the branch action", call_branch(owner.clone()).await, 200);
+    let out = expect!(
+        "the Operator runs the branch action",
+        call_branch(owner.clone()).await,
+        200
+    );
     let out: Value = serde_json::from_str(&out.body).unwrap_or(Value::Null);
     if out["nodes_actioned"] != json!(3) {
-        failures.push(format!("the branch action reached the three descendants: {out}"));
+        failures.push(format!(
+            "the branch action reached the three descendants: {out}"
+        ));
     }
     if out["notice"]["body"] != json!("3 accounts actioned, 3 frozen pending review.") {
         failures.push(format!("the branch notice carries counts only: {out}"));
@@ -9861,7 +9919,9 @@ async fn graduated_moderation_holds_over_http() {
     .unwrap();
     match entry {
         Some(d) if d.contains(&approver_id.to_string()) && d.contains("\"node_count\":3") => {}
-        other => failures.push(format!("the audit entry names the approver and the node count: {other:?}")),
+        other => failures.push(format!(
+            "the audit entry names the approver and the node count: {other:?}"
+        )),
     }
     // The transparency page: counts only, for any signed-in member.
     let page = expect!(
@@ -9877,7 +9937,8 @@ async fn graduated_moderation_holds_over_http() {
     }
     expect!(
         "the transparency page needs a login",
-        srv.call(&Cred::Anon, "GET", "/moderation/transparency", None).await,
+        srv.call(&Cred::Anon, "GET", "/moderation/transparency", None)
+            .await,
         401
     );
 

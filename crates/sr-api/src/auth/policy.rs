@@ -331,6 +331,9 @@ mod restriction_tests {
             "/channels/{channel_id}/messages"
         ));
         assert!(!posting_route(&Method::POST, "/moderation/appeals"));
-        assert!(!posting_route(&Method::POST, "/sr/moderation/restrictions/{restriction_id}/appeal"));
+        assert!(!posting_route(
+            &Method::POST,
+            "/sr/moderation/restrictions/{restriction_id}/appeal"
+        ));
     }
 }

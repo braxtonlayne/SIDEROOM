@@ -277,10 +277,7 @@ pub async fn member_actions(
     Path(account_id): Path<String>,
 ) -> ApiResult<Json<Vec<RestrictionView>>> {
     let acc = id(&account_id, "account")?;
-    let r = deps
-        .svc
-        .member_history(&Who::Staff(&ctx.caller), acc)
-        .await;
+    let r = deps.svc.member_history(&Who::Staff(&ctx.caller), acc).await;
     staff_result(&ctx, "moderation.member.history", Some(("account", acc)), r)
         .await
         .map(Json)
@@ -530,7 +527,13 @@ pub async fn close_case(
             reason_of(&headers, &b.reason).as_deref(),
         )
         .await;
-    staff_result(&ctx, "moderation.subtree_case.close", Some(("case", cid)), r).await?;
+    staff_result(
+        &ctx,
+        "moderation.subtree_case.close",
+        Some(("case", cid)),
+        r,
+    )
+    .await?;
     Ok(Json(serde_json::json!({ "closed": true })))
 }
 
@@ -560,7 +563,13 @@ pub async fn clear_node(
             reason_of(&headers, &b.reason).as_deref(),
         )
         .await;
-    staff_result(&ctx, "moderation.subtree_case.clear", Some(("account", acc)), r).await?;
+    staff_result(
+        &ctx,
+        "moderation.subtree_case.clear",
+        Some(("account", acc)),
+        r,
+    )
+    .await?;
     Ok(Json(serde_json::json!({ "cleared": true })))
 }
 
@@ -589,7 +598,13 @@ pub async fn freeze_node(
             reason_of(&headers, &b.reason).as_deref(),
         )
         .await;
-    staff_result(&ctx, "moderation.subtree_case.freeze", Some(("account", acc)), r).await?;
+    staff_result(
+        &ctx,
+        "moderation.subtree_case.freeze",
+        Some(("account", acc)),
+        r,
+    )
+    .await?;
     Ok(Json(serde_json::json!({ "frozen": true })))
 }
 
@@ -683,7 +698,9 @@ pub async fn new_request(
         "sterilize" => {
             let acc = id(b.account_id.as_deref().unwrap_or(""), "account")?;
             ctx.require_reauth().await?;
-            deps.svc.request_sterilization(&who, cid, acc, &b.reason).await
+            deps.svc
+                .request_sterilization(&who, cid, acc, &b.reason)
+                .await
         }
         "branch_action" => {
             ctx.require_reauth().await?;
@@ -732,10 +749,18 @@ pub async fn approve_request(
 ) -> ApiResult<Json<ModRequest>> {
     let rid = id(&request_id, "request")?;
     ctx.require_reauth().await?;
-    let r = deps.svc.approve_request(&Who::Staff(&ctx.caller), rid).await;
-    staff_result(&ctx, "moderation.request.approve", Some(("request", rid)), r)
-        .await
-        .map(Json)
+    let r = deps
+        .svc
+        .approve_request(&Who::Staff(&ctx.caller), rid)
+        .await;
+    staff_result(
+        &ctx,
+        "moderation.request.approve",
+        Some(("request", rid)),
+        r,
+    )
+    .await
+    .map(Json)
 }
 
 /// Reject a waiting request (`MANAGE_CASES`, reason required); the proposer withdrawing their own cancels it.
@@ -792,7 +817,12 @@ pub async fn branch_action(
     if !ctx.caller.is_owner {
         let _ = ctx
             .svc()
-            .record_denied(&ctx.caller, "moderation.branch_action", None, "not the Operator")
+            .record_denied(
+                &ctx.caller,
+                "moderation.branch_action",
+                None,
+                "not the Operator",
+            )
             .await;
         return Err(map_err(ModError::MissingPermission("OWNER")));
     }
@@ -802,12 +832,7 @@ pub async fn branch_action(
         .svc
         .execute_branch_action(&Who::Staff(&ctx.caller), rid, ctx.svc())
         .await;
-    staff_result(
-        &ctx,
-        "moderation.branch_action",
-        Some(("request", rid)),
-        r,
-    )
-    .await
-    .map(Json)
+    staff_result(&ctx, "moderation.branch_action", Some(("request", rid)), r)
+        .await
+        .map(Json)
 }

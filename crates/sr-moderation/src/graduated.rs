@@ -145,10 +145,11 @@ pub(crate) async fn guard_target(
     c: &Caller,
     account: i64,
 ) -> ModResult<()> {
-    let state: Option<String> = sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = $1")
-        .bind(account)
-        .fetch_optional(&mut *conn)
-        .await?;
+    let state: Option<String> =
+        sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = $1")
+            .bind(account)
+            .fetch_optional(&mut *conn)
+            .await?;
     match state.as_deref() {
         None | Some("deleted") => return Err(ModError::NotFound("account")),
         _ => {}
@@ -254,8 +255,7 @@ impl Moderation {
         let id = self.next_id();
         let mut tx = self.pool.begin().await?;
         guard_target(&mut tx, c, account).await?;
-        if self.blocked_in(&mut tx, account, &["timeout"]).await?
-        {
+        if self.blocked_in(&mut tx, account, &["timeout"]).await? {
             return Err(conflict("The member is already timed out"));
         }
         insert_restriction(
@@ -310,7 +310,9 @@ impl Moderation {
         let id = self.next_id();
         let mut tx = self.pool.begin().await?;
         guard_target(&mut tx, c, account).await?;
-        if self.blocked_in(&mut tx, account, &["invite_freeze"]).await?
+        if self
+            .blocked_in(&mut tx, account, &["invite_freeze"])
+            .await?
         {
             return Err(conflict("The member's invites are already frozen"));
         }
@@ -516,10 +518,7 @@ impl Moderation {
     }
 
     /// Restriction appeals waiting for a decision, oldest first (`MANAGE_CASES`).
-    pub async fn open_restriction_appeals(
-        &self,
-        who: &Who<'_>,
-    ) -> ModResult<Vec<RestrictionView>> {
+    pub async fn open_restriction_appeals(&self, who: &Who<'_>) -> ModResult<Vec<RestrictionView>> {
         require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
         let sql = format!(
             "SELECT {R_COLS} FROM member_restrictions WHERE appeal_state = 'open' ORDER BY appealed_at LIMIT 200"
@@ -662,7 +661,6 @@ impl Moderation {
         .await?;
         Ok(t.unwrap_or(0.0) as f32)
     }
-
 }
 
 /// Revoke the account's open (unused) invite codes on this connection; the number revoked.

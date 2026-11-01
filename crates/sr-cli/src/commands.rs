@@ -21,8 +21,7 @@ use sr_db::{
 
 use crate::{
     ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, ModerationCmd, PackageCmd, StaffCmd, StorageCmd,
-    TvCmd, UserCmd,
-    guilds,
+    TvCmd, UserCmd, guilds,
 };
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
@@ -559,12 +558,7 @@ async fn account_by_name(pool: &PgPool, who: &str) -> Result<i64> {
 }
 
 /// `sr-cli moderation ...` (MOD-GRD-001): the branch action and the drill. Both run as the Operator on this host.
-async fn moderation(
-    pool: &PgPool,
-    cfg: &Config,
-    ids: IdSource,
-    cmd: ModerationCmd,
-) -> Result<()> {
+async fn moderation(pool: &PgPool, cfg: &Config, ids: IdSource, cmd: ModerationCmd) -> Result<()> {
     use sr_moderation::{Moderation, model::Who};
     let op = Caller::operator(ADMIN_SYSTEM_USER);
     let who = Who::Staff(&op);
@@ -589,7 +583,9 @@ async fn moderation(
             );
             match sr_server::staff_feed::drill_card(pool.clone(), cfg, &detail).await {
                 Ok(true) => println!("posted to the Staff Server #alerts"),
-                Ok(false) => println!("the Staff Server card was not posted (no Staff Server channel yet)"),
+                Ok(false) => {
+                    println!("the Staff Server card was not posted (no Staff Server channel yet)")
+                }
                 Err(e) => println!("the Staff Server card could not be posted: {e:#}"),
             }
         }
@@ -604,7 +600,11 @@ async fn moderation(
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
             println!(
                 "branch action {} on case {}: {} accounts actioned ({} already gone); notice: {}",
-                out.action, out.case_id, out.nodes_actioned, out.already_banned_or_gone, out.notice.body
+                out.action,
+                out.case_id,
+                out.nodes_actioned,
+                out.already_banned_or_gone,
+                out.notice.body
             );
         }
         ModerationCmd::BranchAction {
@@ -623,7 +623,9 @@ async fn moderation(
             );
         }
         ModerationCmd::BranchAction { .. } => {
-            bail!("pass --case, --action and --reason to file a request, or --request <id> to execute an approved one");
+            bail!(
+                "pass --case, --action and --reason to file a request, or --request <id> to execute an approved one"
+            );
         }
     }
     Ok(())
