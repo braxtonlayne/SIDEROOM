@@ -383,3 +383,10 @@ Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST
   gate proof ran and passes in Chromium (Land.io in a call, incognito guest, sync both ways, 403s, 4403 on a forged topic,
   `ingame_voice` refused by the runner against the relay's `capabilities`, guest bundle isolation, Share dialog at 375 px),
   `/play` in `i18n-pseudo.spec.ts` at phone and desktop; CI's live job runs it_
+
+## Wave 44 — Graduated moderation and profile vouches (roadmap P28)
+
+Branches: `feat/p44-mod-tools` (MOD-GRD-001), `feat/p44-heavy-crown` (MOD-VCH-001). Threat-model rows T43 (44-A) and T44 (44-B).
+
+### MOD — Profile vouches
+- [ ] **MOD-VCH-001** [BE+FE] Profile vouches and the accountability multiplier: any non-sterilized member in good standing vouches for another on their `/~handle` profile (`PUT|DELETE /users/{id}/vouch`, `GET /users/{id}/vouches`; one per pair, revocable, no self-vouch, blocks and the profile privacy rules respected; migration 2130 `profile_vouches`, a table of its own, never the Arcade's `arcade_build_vouches`), tiers Citizen 0-49 / Pillar 50-499 / Elder 500+ (`sr-vouch`), the multiplier 1.0 / 1.5 / 3.0 applied to AutoMod timeouts and offered to wave 44-A's strike weights and holds through its `StrikeWeight` seam, a serious ban removing the vouches for the banned member with a private notice to each voucher and no penalty, GDPR erasure and the data export covering vouches, the profile panel (count, tier badge, tooltip that documents the multiplier, Vouch / Withdraw). See [handoff](../dev/handoff/feat-p44-heavy-crown.md)
