@@ -140,9 +140,14 @@ pub fn rule_for(template: &str) -> Option<Rule> {
     if t == "/cinema/discover" || t == "/cinema/rows/{key}" {
         return Some(Rule::all(&[STOREFRONT_CATEGORIES_ID]).hidden());
     }
+    // The member submission API goes with the staff queue (owner default of wave 41): nobody uploads into a queue
+    // nobody reviews.
     if t == "/admin/review/queue"
         || t == "/admin/ingest-sources"
         || t.starts_with("/admin/ingest-sources/")
+        || t == "/submissions"
+        || t.starts_with("/submissions/")
+        || t.starts_with("/library/submissions/")
     {
         return Some(Rule::all(&[INGEST_QUEUES_ID]).hidden());
     }
@@ -290,12 +295,16 @@ mod tests {
             ("/cinema/discover", STOREFRONT_CATEGORIES_ID),
             ("/admin/review/queue", INGEST_QUEUES_ID),
             ("/admin/ingest-sources/{source_id}/scan", INGEST_QUEUES_ID),
+            ("/submissions", INGEST_QUEUES_ID),
+            ("/submissions/{submission_id}/cinema/draft", INGEST_QUEUES_ID),
+            ("/library/submissions/{submission_id}/cover", INGEST_QUEUES_ID),
         ] {
             let r = rule_for(t).unwrap_or_else(|| panic!("{t}"));
             assert_eq!(r.all, vec![id], "{t}");
             assert!(r.hidden, "{t} answers 404 while off");
         }
         assert!(rule_for("/cinema/titles").is_none(), "titles stay");
+        assert!(rule_for("/library/series").is_none(), "the library stays");
     }
 
     #[test]
