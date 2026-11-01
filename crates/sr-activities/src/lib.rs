@@ -15,7 +15,9 @@ pub mod error;
 pub mod model;
 pub mod ports;
 pub mod rules;
+pub mod sandbox;
 pub mod service;
+pub mod trust;
 pub mod voice;
 
 pub use error::{ActivityError, ActivityResult};

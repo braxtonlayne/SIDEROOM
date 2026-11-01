@@ -19,6 +19,10 @@ use crate::ports::{
     ActivityEvents, ChannelAccess, ChannelPerms, EVENT_INSTANCE_UPDATE, NoChannels, NoEvents,
 };
 use crate::rules;
+use crate::sandbox;
+
+mod trust_db;
+pub use trust_db::{BuildRef, SigningKeyRow, VOUCHES_PER_DAY, VOUCH_MIN_ACCOUNT_AGE_DAYS};
 
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -59,6 +63,9 @@ pub enum Serving {
 pub struct ServeSpec {
     pub serving: Serving,
     pub url_mappings: Vec<UrlMapping>,
+    /// The reviewed manifest's `connect` list (hosts the sandbox's CSP `connect-src` may name); empty means
+    /// `connect-src 'none'` (ARC-SBX-001).
+    pub connect: Vec<String>,
 }
 
 /// The proxy's view of an application.
@@ -423,6 +430,26 @@ impl ActivityService {
                 (id, true)
             }
         };
+        // The code hash and the sandbox's `connect` list come from the files, not from the zip's hash (ARC-SBX-001).
+        let code_hash = sandbox::code_sha256(
+            unpacked
+                .files
+                .iter()
+                .map(|f| (f.path.as_str(), f.data.as_slice())),
+        );
+        let connect = match unpacked.files.iter().find(|f| f.path == bundle::MANIFEST) {
+            Some(f) => sandbox::parse_connect(&f.data)
+                .map_err(|m| ActivityError::Invalid("bundle", format!("{}: {m}", bundle::MANIFEST)))?,
+            None => Vec::new(),
+        };
+        sqlx::query(
+            "UPDATE application_activity_bundles SET code_sha256 = $2, connect_hosts = $3 WHERE id = $1",
+        )
+        .bind(id)
+        .bind(code_hash.as_deref())
+        .bind(&connect)
+        .execute(&mut *tx)
+        .await?;
         Self::refresh_state(&mut tx, app).await?;
         tx.commit().await?;
 
@@ -658,7 +685,7 @@ impl ActivityService {
     /// application in development serves its live development URL; a suspended one nothing.
     pub async fn lookup(&self, app: i64) -> ActivityResult<Lookup> {
         let row = sqlx::query(
-            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, a.release_state::text AS state, \
+            "SELECT c.url_mappings, c.dev_entry_url, b.sha256, b.connect_hosts, a.release_state::text AS state, \
                (a.release_state::text = 'released' OR (a.release_state::text = 'in_review' AND EXISTS \
                  (SELECT 1 FROM application_versions v WHERE v.application_id = a.id AND v.state = 'approved'))) \
                  AS released \
@@ -678,10 +705,14 @@ impl ActivityService {
         let sha: Option<String> = r.try_get("sha256")?;
         let dev: Option<String> = r.try_get("dev_entry_url")?;
         let mappings: Value = r.try_get("url_mappings")?;
+        let connect: Vec<String> = r
+            .try_get::<Option<Vec<String>>, _>("connect_hosts")?
+            .unwrap_or_default();
         let spec = |serving| {
             Lookup::Ready(ServeSpec {
                 serving,
                 url_mappings: serde_json::from_value(mappings.clone()).unwrap_or_default(),
+                connect: connect.clone(),
             })
         };
         Ok(match (state.as_str(), sha, dev) {

@@ -33,7 +33,10 @@ pub const MANIFEST: &str = "sideroom.json";
 /// The data channel capability: the Activity shares state and inputs through the SFU (ACT-CH-001).
 pub const DATACHANNEL: &str = "datachannel";
 /// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
-pub const CAPABILITIES: &[&str] = &[DATACHANNEL];
+pub const CAPABILITIES: &[&str] = &[DATACHANNEL, STORAGE];
+/// The storage capability (ARC-SBX-001): the host keeps a small key-value store for the Activity and sends it
+/// in `ready`, because the sandboxed frame has no `localStorage`.
+pub const STORAGE: &str = "storage";
 /// Largest manifest.
 pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 
