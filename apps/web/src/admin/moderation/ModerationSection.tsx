@@ -14,6 +14,7 @@ import { CaseQueue } from './CaseQueue';
 import { DashboardTab } from './DashboardTab';
 import { AppealsTab, HoldsTab } from './HoldsAndAppeals';
 import { SignalsTab } from './SignalsTab';
+import { SubtreeCasesTab } from './SubtreeCases';
 import { TakedownsTab } from './TakedownsTab';
 
 export function ModerationSection() {
@@ -102,6 +103,15 @@ export function ModerationSection() {
             id: 'appeals',
             label: t('admin.moderation.tabAppeals'),
             content: <AppealsTab onOpenCase={open} />,
+          },
+        ]
+      : []),
+    ...(manage
+      ? [
+          {
+            id: 'subtree',
+            label: t('admin.moderation.grd.tab'),
+            content: <SubtreeCasesTab />,
           },
         ]
       : []),

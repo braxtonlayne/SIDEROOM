@@ -9354,3 +9354,540 @@ async fn guest_links_hold_over_http() {
         failures.join("\n")
     );
 }
+
+/// MOD-GRD-001, the wave 44 gate proof over HTTP, on the real server wiring: a four-generation invite tree with
+/// one D-392 unactivated node in Gen 4, a serious ban on Gen 3 through the staff route, and
+///
+/// * a case opens, only the unactivated Gen 4 node is frozen, Gen 1 and Gen 2 still pass `POST /sr/invites`, the
+///   frozen node is refused by the posting gate (`900124`) and by the invite check, and the notice banner carries
+///   the category and counts only;
+/// * a sterilization of Gen 2 fails without a second approver (the proposer cannot approve), fails without the
+///   second approver's 2FA step-up (`900004`), and succeeds with both, ending twelve months out;
+/// * `POST /admin/moderation/branch-action` is refused for every actor of the roster except the Operator (a staff
+///   member holding every permission bit but Owner included), and runs for the Operator once a second staff member
+///   approved the request.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn graduated_moderation_holds_over_http() {
+    if harness::embedded() {
+        return;
+    }
+    let base = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL");
+    let routes = parse_matrix();
+    let infos = op_infos();
+    let db = TestDb::new().await.expect("test db");
+    let url = match base.rsplit_once('/') {
+        Some((head, _)) => format!("{head}/{}", db.name()),
+        None => panic!("bad SR_TEST_DATABASE_URL"),
+    };
+    let (world, stop, server) = seed(&db, &url, &infos, &pair_names(&routes)).await;
+    let srv = &world.srv;
+    let pool = world.pool.clone();
+    let owner = world.actor("staff_owner").cred.clone();
+    let mut failures: Vec<String> = Vec::new();
+    macro_rules! expect {
+        ($what:expr, $resp:expr, $status:expr) => {{
+            let r: Resp = $resp;
+            if r.status != $status {
+                failures.push(format!(
+                    "{}: expected {}, got {} {}",
+                    $what,
+                    $status,
+                    r.status,
+                    r.body.chars().take(200).collect::<String>()
+                ));
+            }
+            r
+        }};
+    }
+
+    // The cast: a four-generation tree and two extra staff members.
+    let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+    let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 20).expect("ids");
+    let id_src: sr_db::auth_repo::IdSource = {
+        let g = Arc::new(SnowflakeGenerator::new(clock.clone(), 9, 21).expect("ids"));
+        Arc::new(move || g.generate().get() as i64)
+    };
+    let auth = PgAuthRepo::new(
+        pool.clone(),
+        id_src,
+        sr_db::auth_repo::parse_secret_key(KEY_HEX).unwrap(),
+    );
+    let mut tree: BTreeMap<&str, i64> = BTreeMap::new();
+    for (name, age) in [
+        ("grdgen1", 90),
+        ("grdgen2", 80),
+        ("grdgen3", 70),
+        ("grdgen4active", 40),
+        ("grdgen4idle", 40),
+        ("grdgen4young", 2),
+    ] {
+        let id = account(&pool, &ids, name).await;
+        sqlx::query("UPDATE accounts SET created_at = now() - make_interval(days => $2) WHERE id = $1")
+            .bind(id)
+            .bind(age)
+            .execute(&pool)
+            .await
+            .unwrap();
+        tree.insert(name, id);
+    }
+    for (from, to) in [
+        ("grdgen1", "grdgen2"),
+        ("grdgen2", "grdgen3"),
+        ("grdgen3", "grdgen4active"),
+        ("grdgen3", "grdgen4idle"),
+        ("grdgen3", "grdgen4young"),
+    ] {
+        let inv = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO platform_invites (id, code, issuer_account_id, state, redeemed_by_account_id, redeemed_at) \
+             VALUES ($1, $2, $3, 'redeemed', $4, now())",
+        )
+        .bind(inv)
+        .bind(format!("{:010}", inv % 10_000_000_000))
+        .bind(tree[from])
+        .bind(tree[to])
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("UPDATE accounts SET invited_by_invite_id = $1 WHERE id = $2")
+            .bind(inv)
+            .bind(tree[to])
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    sqlx::query("INSERT INTO account_activity (account_id, voice_seconds) VALUES ($1, 900)")
+        .bind(tree["grdgen4active"])
+        .execute(&pool)
+        .await
+        .unwrap();
+    for n in ["grdgen1", "grdgen2"] {
+        sqlx::query(
+            "INSERT INTO invite_credits_ledger (id, account_id, delta, reason) VALUES ($1, $2, 5, 'initial_grant')",
+        )
+        .bind(ids.generate().get() as i64)
+        .bind(tree[n])
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let mut sess: HashMap<&str, Cred> = HashMap::new();
+    for n in tree.keys() {
+        sess.insert(
+            n,
+            Cred::Session(session_for(&auth, &ids, tree[n]).await),
+        );
+    }
+
+    // Two more staff members: the second approver (MANAGE_CASES and PLATFORM_BAN, enrolled in TOTP) and one who
+    // holds every permission bit except Owner.
+    let staff_guild: i64 = sqlx::query_scalar("SELECT id FROM guilds WHERE is_staff_guild")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    let mut extra_staff: Vec<(&str, Cred, i64)> = Vec::new();
+    for (name, perms) in [
+        (
+            "grdapprover",
+            PlatformPermissions::STAFF_BASIC
+                | PlatformPermissions::MANAGE_CASES
+                | PlatformPermissions::PLATFORM_BAN,
+        ),
+        (
+            "grdalmost",
+            PlatformPermissions::all() - PlatformPermissions::OWNER,
+        ),
+    ] {
+        let uid = account(&pool, &ids, name).await;
+        let role = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO roles (id, guild_id, name, color, position, platform_permissions, hoist, mentionable) \
+             VALUES ($1,$2,$3,0,60,$4,true,true)",
+        )
+        .bind(role)
+        .bind(staff_guild)
+        .bind(name)
+        .bind(perms.bits() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        add_member(&pool, staff_guild, uid).await;
+        give_role(&pool, staff_guild, uid, role).await;
+        sqlx::query(
+            "INSERT INTO staff_appointments (id, account_id, appointed_by, reason) VALUES ($1,$2,$2,'gate proof')",
+        )
+        .bind(ids.generate().get() as i64)
+        .bind(uid)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let step_now = SystemClock.now_unix_ms() as u64 / 1000 / 30;
+        TotpRepository::put_pending(&auth, uid, world.totp.as_bytes())
+            .await
+            .unwrap();
+        TotpRepository::confirm(&auth, uid, step_now - 10)
+            .await
+            .unwrap();
+        extra_staff.push((name, Cred::Session(session_for(&auth, &ids, uid).await), uid));
+    }
+    let approver = extra_staff[0].1.clone();
+    let approver_id = extra_staff[0].2;
+    let almost = extra_staff[1].1.clone();
+
+    // The Operator opens the step-up window once (15 minutes).
+    let r = step_up(srv, &owner, &world.totp).await;
+    assert_eq!(r.status, 200, "owner step-up: {}", r.body);
+
+    // 1. A serious ban on Gen 3 through the staff route; the reason category is required.
+    let ban_path = format!("/admin/moderation/members/{}/ban", tree["grdgen3"]);
+    expect!(
+        "ban without a reason category",
+        srv.call(&owner, "POST", &ban_path, Some(&json!({"reason": "x"})))
+            .await,
+        422
+    );
+    expect!(
+        "ban with an unknown reason category",
+        srv.call(
+            &owner,
+            "POST",
+            &ban_path,
+            Some(&json!({"reason_category": "bored", "reason": "x"}))
+        )
+        .await,
+        400
+    );
+    expect!(
+        "a member cannot ban",
+        srv.call(
+            &sess["grdgen1"],
+            "POST",
+            &ban_path,
+            Some(&json!({"reason_category": "fraud", "reason": "I would like to"}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "the serious ban",
+        srv.call(
+            &owner,
+            "POST",
+            &ban_path,
+            Some(&json!({"reason_category": "fraud", "reason": "chargeback ring across several accounts"}))
+        )
+        .await,
+        200
+    );
+    let case: i64 = sqlx::query_scalar("SELECT id FROM moderation_subtree_cases")
+        .fetch_one(&pool)
+        .await
+        .expect("exactly one case opened");
+    let status_of = |name: &'static str| {
+        let pool = pool.clone();
+        let id = tree[name];
+        async move {
+            sqlx::query_scalar::<_, String>(
+                "SELECT status FROM moderation_subtree_nodes WHERE case_id = $1 AND account_id = $2",
+            )
+            .bind(case)
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or_default()
+        }
+    };
+    for (name, want) in [
+        ("grdgen4idle", "auto_frozen"),
+        ("grdgen4active", "review"),
+        ("grdgen4young", "review"),
+        ("grdgen2", "review"),
+        ("grdgen1", "review"),
+        ("grdgen3", "banned"),
+    ] {
+        let got = status_of(name).await;
+        if got != want {
+            failures.push(format!("node {name}: expected {want}, got {got}"));
+        }
+    }
+    // Gen 1 and Gen 2 still pass POST /sr/invites; the frozen node does not; the posting gate refuses it too.
+    for n in ["grdgen1", "grdgen2"] {
+        expect!(
+            "an untouched ancestor creates an invite",
+            srv.call(&sess[n], "POST", "/sr/invites", Some(&json!({})))
+                .await,
+            201
+        );
+    }
+    let r = expect!(
+        "the frozen node creates an invite",
+        srv.call(&sess["grdgen4idle"], "POST", "/sr/invites", Some(&json!({})))
+            .await,
+        400
+    );
+    if !r.body.contains("paused for review") {
+        failures.push(format!("the frozen node is told only that creation is paused: {}", r.body));
+    }
+    let r = expect!(
+        "the frozen node posts",
+        srv.call(
+            &sess["grdgen4idle"],
+            "POST",
+            &format!("/channels/{}/messages", world.a["channel_id"]),
+            Some(&json!({"content": "hello"}))
+        )
+        .await,
+        403
+    );
+    if !r.body.contains("900124") {
+        failures.push(format!("the frozen node posting answers SrAccountRestricted: {}", r.body));
+    }
+    // It can still read its own restrictions and appeal.
+    let mine = expect!(
+        "the frozen node reads its restrictions",
+        srv.call(&sess["grdgen4idle"], "GET", "/sr/moderation/restrictions", None)
+            .await,
+        200
+    );
+    let mine: Value = serde_json::from_str(&mine.body).unwrap_or(Value::Null);
+    let rid = mine[0]["id"].as_str().unwrap_or_default().to_owned();
+    if mine.to_string().contains(&case.to_string()) || mine.to_string().contains("grdgen") {
+        failures.push(format!("a member sees no case or handle: {mine}"));
+    }
+    expect!(
+        "the frozen node appeals",
+        srv.call(
+            &sess["grdgen4idle"],
+            "POST",
+            &format!("/sr/moderation/restrictions/{rid}/appeal"),
+            Some(&json!({"message": "I was away for a month"}))
+        )
+        .await,
+        200
+    );
+    // The banner carries the category and counts only.
+    let motd = expect!(
+        "the banner",
+        srv.call(&sess["grdgen1"], "GET", "/announcements/active", None)
+            .await,
+        200
+    );
+    if !motd.body.contains("Safety notice: Fraud")
+        || !motd.body.contains("1 account actioned, 1 frozen pending review.")
+    {
+        failures.push(format!("the notice text: {}", motd.body));
+    }
+    for n in tree.keys() {
+        if motd.body.contains(n) {
+            failures.push(format!("the notice names {n}"));
+        }
+    }
+    // The case view is for staff with MANAGE_CASES; a member and the roster's outsiders get nothing.
+    let view = format!("/admin/moderation/subtree-cases/{case}");
+    expect!("a member reads the case", srv.call(&sess["grdgen1"], "GET", &view, None).await, 403);
+    let seen = expect!("the Operator reads the case", srv.call(&owner, "GET", &view, None).await, 200);
+    let seen: Value = serde_json::from_str(&seen.body).unwrap_or(Value::Null);
+    if seen["nodes"].as_array().map(Vec::len) != Some(6) {
+        failures.push(format!("the case lists six accounts: {seen}"));
+    }
+
+    // 2. Sterilization of Gen 2: a second approver and a 2FA step-up for both.
+    let requests = format!("/admin/moderation/subtree-cases/{case}/requests");
+    let sterilize = json!({
+        "kind": "sterilize",
+        "account_id": tree["grdgen2"].to_string(),
+        "reason": "Gen 2 invited the account that ran the ring and ignored two reports."
+    });
+    let r = expect!(
+        "the approver proposes without a step-up",
+        srv.call(&approver, "POST", &requests, Some(&sterilize)).await,
+        403
+    );
+    if !r.body.contains("900004") {
+        failures.push(format!("a proposal without the step-up answers 900004: {}", r.body));
+    }
+    let proposed = expect!(
+        "the Operator proposes",
+        srv.call(&owner, "POST", &requests, Some(&sterilize)).await,
+        200
+    );
+    let proposed: Value = serde_json::from_str(&proposed.body).unwrap_or(Value::Null);
+    let req_id = proposed["id"].as_str().unwrap_or_default().to_owned();
+    let approve = format!("/admin/moderation/requests/{req_id}/approve");
+    expect!(
+        "the proposer cannot approve their own",
+        srv.call(&owner, "POST", &approve, None).await,
+        403
+    );
+    let r = expect!(
+        "the second approver without a step-up",
+        srv.call(&approver, "POST", &approve, None).await,
+        403
+    );
+    if !r.body.contains("900004") {
+        failures.push(format!("an approval without the step-up answers 900004: {}", r.body));
+    }
+    expect!(
+        "Gen 2 can still invite before the approval",
+        srv.call(&sess["grdgen2"], "POST", "/sr/invites", Some(&json!({})))
+            .await,
+        201
+    );
+    let r = step_up(srv, &approver, &world.totp).await;
+    if r.status != 200 {
+        failures.push(format!("approver step-up: {} {}", r.status, r.body));
+    }
+    let done = expect!(
+        "the second approver with a step-up",
+        srv.call(&approver, "POST", &approve, None).await,
+        200
+    );
+    let done: Value = serde_json::from_str(&done.body).unwrap_or(Value::Null);
+    if done["state"] != "executed" || done["approved_by"] != json!(approver_id.to_string()) {
+        failures.push(format!("the sterilization ran with the approver recorded: {done}"));
+    }
+    expect!(
+        "Gen 2 can no longer invite",
+        srv.call(&sess["grdgen2"], "POST", "/sr/invites", Some(&json!({})))
+            .await,
+        400
+    );
+    expect!(
+        "Gen 1 still can",
+        srv.call(&sess["grdgen1"], "POST", "/sr/invites", Some(&json!({})))
+            .await,
+        201
+    );
+    let in_months: bool = sqlx::query_scalar(
+        "SELECT ends_at BETWEEN starts_at + interval '12 months' - interval '1 minute' \
+         AND starts_at + interval '12 months' + interval '1 minute' \
+         FROM member_restrictions WHERE account_id = $1 AND kind = 'sterilization'",
+    )
+    .bind(tree["grdgen2"])
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(false);
+    if !in_months {
+        failures.push("the sterilization does not end twelve months out".to_owned());
+    }
+
+    // 3. The branch action: propose and approve, then every actor of the roster tries it.
+    let branch = expect!(
+        "the Operator proposes a branch action",
+        srv.call(
+            &owner,
+            "POST",
+            &requests,
+            Some(&json!({
+                "kind": "branch_action", "action": "freeze",
+                "reason": "The whole branch came from one script; freeze it pending review."
+            }))
+        )
+        .await,
+        200
+    );
+    let branch: Value = serde_json::from_str(&branch.body).unwrap_or(Value::Null);
+    let branch_id = branch["id"].as_str().unwrap_or_default().to_owned();
+    expect!(
+        "a non-Operator cannot propose a branch action",
+        srv.call(
+            &approver,
+            "POST",
+            &requests,
+            Some(&json!({"kind": "branch_action", "action": "ban", "reason": "I would like to ban the whole tree please."}))
+        )
+        .await,
+        403
+    );
+    expect!(
+        "the approver approves the branch action",
+        srv.call(
+            &approver,
+            "POST",
+            &format!("/admin/moderation/requests/{branch_id}/approve"),
+            None
+        )
+        .await,
+        200
+    );
+    let call_branch = |cred: Cred| {
+        let body = json!({ "request_id": branch_id });
+        async move { srv.call(&cred, "POST", "/admin/moderation/branch-action", Some(&body)).await }
+    };
+    let mut roster: Vec<(String, Cred)> = world
+        .actors
+        .iter()
+        .map(|a| (a.name.to_owned(), a.cred.clone()))
+        .collect();
+    roster.push(("staff_all_but_owner".to_owned(), almost));
+    roster.push(("second_approver".to_owned(), approver.clone()));
+    let mut refused = 0;
+    for (name, cred) in roster {
+        if name == "staff_owner" {
+            continue;
+        }
+        let r = call_branch(cred).await;
+        if matches!(r.status, 401 | 403 | 404) {
+            refused += 1;
+        } else {
+            failures.push(format!("branch-action as {name}: expected a refusal, got {} {}", r.status, r.body.chars().take(120).collect::<String>()));
+        }
+    }
+    if refused < 20 {
+        failures.push(format!("only {refused} actors were refused"));
+    }
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_requests WHERE id = $1")
+        .bind(branch_id.parse::<i64>().unwrap())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    if state != "approved" {
+        failures.push(format!("the refused calls left the request approved, found {state}"));
+    }
+    let out = expect!("the Operator runs the branch action", call_branch(owner.clone()).await, 200);
+    let out: Value = serde_json::from_str(&out.body).unwrap_or(Value::Null);
+    if out["nodes_actioned"] != json!(3) {
+        failures.push(format!("the branch action reached the three descendants: {out}"));
+    }
+    if out["notice"]["body"] != json!("3 accounts actioned, 3 frozen pending review.") {
+        failures.push(format!("the branch notice carries counts only: {out}"));
+    }
+    let entry: Option<String> = sqlx::query_scalar(
+        "SELECT detail FROM staff_access_log WHERE action = 'moderation.branch_action.execute'",
+    )
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+    match entry {
+        Some(d) if d.contains(&approver_id.to_string()) && d.contains("\"node_count\":3") => {}
+        other => failures.push(format!("the audit entry names the approver and the node count: {other:?}")),
+    }
+    // The transparency page: counts only, for any signed-in member.
+    let page = expect!(
+        "the transparency page",
+        srv.call(&sess["grdgen1"], "GET", "/moderation/transparency", None)
+            .await,
+        200
+    );
+    for n in tree.keys() {
+        if page.body.contains(n) {
+            failures.push(format!("the transparency page names {n}"));
+        }
+    }
+    expect!(
+        "the transparency page needs a login",
+        srv.call(&Cred::Anon, "GET", "/moderation/transparency", None).await,
+        401
+    );
+
+    let _ = stop.send(());
+    let _ = tokio::time::timeout(Duration::from_secs(40), server).await;
+    db.cleanup().await.ok();
+    assert!(
+        failures.is_empty(),
+        "{} graduated moderation failures:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
