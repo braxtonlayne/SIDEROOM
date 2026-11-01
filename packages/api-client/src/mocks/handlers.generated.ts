@@ -19,6 +19,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"end","method":"delete","path":"/activity-instances/:instance_id","status":204,"body":null},
   {"id":"join","method":"post","path":"/activity-instances/:instance_id/join","status":200,"body":{"application_id":"1","application_name":"string","channel_id":"1","channel_type":"string","created_at_ms":0,"development":false,"guild_id":"1","id":"1","participants":[{}],"started_by":"string"}},
   {"id":"leave","method":"post","path":"/activity-instances/:instance_id/leave","status":204,"body":null},
+  {"id":"proxy_token","method":"post","path":"/activity-instances/:instance_id/proxy-token","status":200,"body":{"token":"string"}},
   {"id":"access_log","method":"get","path":"/admin/access-log","status":200,"body":{"items":[{}]}},
   {"id":"verify_access_log","method":"get","path":"/admin/access-log/verify","status":200,"body":{"ok":false,"rows_checked":0}},
   {"id":"search","method":"get","path":"/admin/accounts","status":200,"body":{"items":[{}]}},

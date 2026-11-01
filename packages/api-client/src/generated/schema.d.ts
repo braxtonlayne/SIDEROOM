@@ -119,6 +119,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity-instances/{instance_id}/proxy-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399). */
+        post: operations["proxy_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/access-log": {
         parameters: {
             query?: never;
@@ -25076,6 +25093,15 @@ export interface components {
             /** @description `true` when linking proves the account (OAuth / OpenID); `false` for a typed link. */
             verified: boolean;
         };
+        /** @description The proxy token of the caller in a running Activity (ARC-SBX-001, D-399). */
+        ProxyTokenResponse: {
+            /**
+             * @description 64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as
+             *     `X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid
+             *     while the instance runs and the caller has not left it; minting again replaces the previous one.
+             */
+            token: string;
+        };
         PruneBody: {
             /**
              * Format: int32
@@ -29746,6 +29772,36 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    proxy_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Activity instance snowflake */
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProxyTokenResponse"];
+                };
             };
             404: {
                 headers: {

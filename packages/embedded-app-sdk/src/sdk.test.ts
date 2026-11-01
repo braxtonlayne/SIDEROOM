@@ -218,3 +218,53 @@ describe('SideRoomSDK storage (ARC-SBX-001)', () => {
     });
   });
 });
+
+describe('SideRoomSDK mappedFetch (D-399)', () => {
+  it('sends the proxy token from ready, without credentials', async () => {
+    const r = rig();
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const sdk = new SideRoomSDK('7', {
+      env: {
+        ...r.env,
+        fetch: async (url, init) => {
+          calls.push({ url, init });
+          return new Response('{"ok":true}', { status: 201 });
+        },
+      },
+    });
+    const p = sdk.ready();
+    r.deliver({ sr: 1, kind: 'ready', config: { ...cfg, proxy_token: 'ab'.repeat(32) } });
+    await p;
+    const res = await sdk.mappedFetch('/api/scores', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"score":7}',
+    });
+    expect(res.status).toBe(201);
+    expect(calls[0]?.url).toBe('/api/scores');
+    const headers = new Headers(calls[0]?.init?.headers);
+    expect(headers.get('x-sr-activity-token')).toBe('ab'.repeat(32));
+    expect(headers.get('content-type')).toBe('application/json');
+    expect(calls[0]?.init?.credentials).toBe('omit');
+  });
+
+  it('refuses a full URL and sends no token it does not have', async () => {
+    const r = rig();
+    const calls: RequestInit[] = [];
+    const sdk = new SideRoomSDK('7', {
+      env: {
+        ...r.env,
+        fetch: async (_u, init) => {
+          calls.push(init ?? {});
+          return new Response(null, { status: 204 });
+        },
+      },
+    });
+    await expect(sdk.mappedFetch('https://evil.example/x')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENTS',
+    });
+    await expect(sdk.mappedFetch('//evil.example/x')).rejects.toBeInstanceOf(SdkError);
+    await sdk.mappedFetch('/api/x');
+    expect(new Headers(calls[0]?.headers).has('x-sr-activity-token')).toBe(false);
+  });
+});

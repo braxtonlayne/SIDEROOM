@@ -34,6 +34,18 @@ export const httpActivityApi: ActivityApi = {
 };
 
 /**
+ * Mint the member's proxy token for an instance they take part in (D-399): the sandboxed frame sends it on
+ * writes through the app's URL mappings. `null` when the server would not mint one.
+ */
+export async function mintProxyToken(instanceId: string): Promise<string | null> {
+  const r = await apiFetch<{ token?: unknown }>(
+    `/activity-instances/${enc(instanceId)}/proxy-token`,
+    { method: 'POST', ...NO_RETRY },
+  );
+  return typeof r?.token === 'string' ? r.token : null;
+}
+
+/**
  * `https://<application-id>.activities.<host>`: each Activity runs on its own origin under the site's host,
  * so it can never read the client's cookies or storage (docs/11 section 3).
  */

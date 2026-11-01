@@ -305,3 +305,29 @@ describe('createBridgeStorage', () => {
     expect(createBridgeStorage('1', '1', null).all()).toEqual({});
   });
 });
+
+describe('the proxy token (D-399)', () => {
+  it('is minted for the instance and sent in ready', async () => {
+    const minted: string[] = [];
+    const r = rig([], {
+      proxyToken: async (id) => {
+        minted.push(id);
+        return 'ab'.repeat(32);
+      },
+    });
+    await r.send(handshake);
+    expect(minted).toEqual(['9']);
+    expect(r.posted[0]).toMatchObject({ kind: 'ready', config: { proxy_token: 'ab'.repeat(32) } });
+  });
+
+  it('is left out when minting fails, and the game still gets ready', async () => {
+    const r = rig([], {
+      proxyToken: async () => {
+        throw new Error('404');
+      },
+    });
+    await r.send(handshake);
+    expect(r.posted[0]).toMatchObject({ kind: 'ready' });
+    expect((r.posted[0] as Extract<Frame, { kind: 'ready' }>).config.proxy_token).toBeUndefined();
+  });
+});

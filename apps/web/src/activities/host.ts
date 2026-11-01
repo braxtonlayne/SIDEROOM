@@ -121,6 +121,11 @@ export interface HostEnv {
   senderOrigin?: string;
   /** Where `storageSet` and `storageRemove` keep the member's values; without it the capability is off. */
   storage?: ActivityStorage;
+  /**
+   * Mint the member's proxy token for the instance (D-399), sent to the frame in `ready` so its writes through
+   * the app's URL mappings pass the proxy. Absent or failing: no token.
+   */
+  proxyToken?: (instanceId: string) => Promise<string | null>;
   /** Hand the person a file the Activity produced (after they agreed); the host page downloads it. */
   saveFile?: (name: string, mime: string, bytes: Uint8Array) => void;
   applicationId: string;
@@ -547,6 +552,11 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       if (!f) return;
       if (f.kind === 'handshake') {
         if (f.application_id !== env.applicationId) return;
+        // D-399: the instance's own credential for writes through the app's URL mappings (the frame's origin
+        // is opaque). Without one the game still runs; only its mapped writes are refused.
+        const proxyToken = env.proxyToken
+          ? await env.proxyToken(env.instance().id).catch(() => null)
+          : null;
         ready = true;
         joinData();
         const inst = env.instance();
@@ -562,6 +572,7 @@ export function createActivityHost(env: HostEnv): ActivityHost {
             host_id: inst.started_by,
             capabilities: inst.capabilities ?? [],
             ...(hasStorage() && env.storage ? { storage: env.storage.all() } : {}),
+            ...(proxyToken ? { proxy_token: proxyToken } : {}),
           },
         });
         return;

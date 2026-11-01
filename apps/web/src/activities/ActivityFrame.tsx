@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
-import { activityOrigin, httpAssetsApi, httpOAuthApi } from './api';
+import { activityOrigin, httpAssetsApi, httpOAuthApi, mintProxyToken } from './api';
 import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } from './host';
 import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
@@ -77,6 +77,7 @@ export function ActivityFrame({
           instance.application_id,
         ),
         saveFile: downloadBytes,
+        proxyToken: mintProxyToken,
         selfId: () => useStore.getState().currentUserId ?? null,
         data: instance.channel_type === 'voice' ? activityDataPort : undefined,
         setPresence: (activity) => reportPresence({ activity }),

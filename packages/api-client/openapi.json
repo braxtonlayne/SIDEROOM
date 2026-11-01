@@ -422,6 +422,53 @@
         ]
       }
     },
+    "/activity-instances/{instance_id}/proxy-token": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399).",
+        "operationId": "proxy_token",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProxyTokenResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/access-log": {
       "get": {
         "tags": [
@@ -106349,6 +106396,19 @@
           "verified": {
             "type": "boolean",
             "description": "`true` when linking proves the account (OAuth / OpenID); `false` for a typed link."
+          }
+        }
+      },
+      "ProxyTokenResponse": {
+        "type": "object",
+        "description": "The proxy token of the caller in a running Activity (ARC-SBX-001, D-399).",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as\n`X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid\nwhile the instance runs and the caller has not left it; minting again replaces the previous one."
           }
         }
       },

@@ -86,7 +86,16 @@ export interface ReadyConfig {
   capabilities?: string[];
   /** The `storage` capability: every key the member has stored for this application (ARC-SBX-001). */
   storage?: Record<string, string>;
+  /**
+   * The instance's own credential for writes through the application's URL mappings (D-399): the sandboxed
+   * frame's requests carry `Origin: null`, which the proxy accepts only with this token in
+   * [`PROXY_TOKEN_HEADER`]. `sdk.mappedFetch` sends it. Absent when the client could not mint one.
+   */
+  proxy_token?: string;
 }
+
+/** Request header of the proxy token on writes under a URL mapping (D-399). */
+export const PROXY_TOKEN_HEADER = 'X-SR-Activity-Token';
 
 /** The capability a bundle declares to use `storageSet` / `storageRemove` and receive `config.storage`. */
 export const STORAGE_CAPABILITY = 'storage';

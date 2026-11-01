@@ -16,6 +16,7 @@ import {
   type SubscribeArgs,
   STORAGE_LIMITS,
   STORAGE_CAPABILITY,
+  PROXY_TOKEN_HEADER,
 } from './protocol';
 import {
   ActivityData,
@@ -36,6 +37,8 @@ export interface SdkEnv {
   removeEventListener(type: 'message', listener: (e: MessageEvent) => void): void;
   /** The host window object a valid message must come from. */
   hostWindow: unknown;
+  /** `fetch` for `mappedFetch`; defaults to the window's. */
+  fetch?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 export class SdkError extends Error {
@@ -211,6 +214,28 @@ export class SideRoomSDK {
       },
     };
     return api;
+  }
+
+  /**
+   * `fetch` through the application's own URL mappings (D-399). `path` is a path on the activity's host under a
+   * mapping prefix of the application's settings (e.g. `/api/scores`); the proxy relays it to the mapped
+   * server. The sandboxed frame's origin is opaque, so writes carry the instance's proxy token from `ready`,
+   * without which the proxy refuses them. Call after `ready()`.
+   */
+  mappedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+    if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) {
+      return Promise.reject(
+        new SdkError({
+          code: 'INVALID_ARGUMENTS',
+          message: 'mappedFetch takes a path such as /api/scores.',
+        }),
+      );
+    }
+    const headers = new Headers(init.headers);
+    const token = this.config?.proxy_token;
+    if (token) headers.set(PROXY_TOKEN_HEADER, token);
+    const f = this.env.fetch ?? ((i: string, o?: RequestInit) => fetch(i, o));
+    return f(path, { ...init, headers, mode: 'cors', credentials: 'omit' });
   }
 
   /** Stop listening. Pending commands fail. */
