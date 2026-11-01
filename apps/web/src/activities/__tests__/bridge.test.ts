@@ -161,7 +161,9 @@ describe('storage over the bridge', () => {
     expect(r.posted[0]).toMatchObject({ kind: 'ready', config: { storage: { a: '1' } } });
     const none = rig([]);
     await none.send(handshake);
-    expect((none.posted[0] as unknown as { config: Record<string, unknown> }).config.storage).toBeUndefined();
+    expect(
+      (none.posted[0] as unknown as { config: Record<string, unknown> }).config.storage,
+    ).toBeUndefined();
   });
 
   it('stores, replaces and removes keys', async () => {
