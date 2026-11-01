@@ -9481,9 +9481,9 @@ async fn guest_links_hold_over_http() {
 ///   the category and counts only;
 /// * a sterilization of Gen 2 fails without a second approver (the proposer cannot approve), fails without the
 ///   second approver's 2FA step-up (`900004`), and succeeds with both, ending twelve months out;
-/// * `POST /admin/moderation/branch-action` is refused for every actor of the roster except the Operator (a staff
-///   member holding every permission bit but Owner included), and runs for the Operator once a second staff member
-///   approved the request.
+/// * `POST /admin/moderation/branch-action` is refused for every actor of the roster except the platform Operator
+///   (the Owner and a holder of the Owner-only `OPERATOR` bit; a staff member holding every other bit is refused),
+///   and runs for a delegated Operator once a second staff member approved the request.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn graduated_moderation_holds_over_http() {
@@ -9613,7 +9613,12 @@ async fn graduated_moderation_holds_over_http() {
         ),
         (
             "grdalmost",
-            PlatformPermissions::all() - PlatformPermissions::OWNER,
+            PlatformPermissions::all() - PlatformPermissions::OWNER - PlatformPermissions::OPERATOR,
+        ),
+        // A delegated Operator: the Owner-only OPERATOR bit and nothing to do with cases.
+        (
+            "grdoperator",
+            PlatformPermissions::STAFF_BASIC | PlatformPermissions::OPERATOR,
         ),
     ] {
         let uid = account(&pool, &ids, name).await;
@@ -9655,10 +9660,61 @@ async fn graduated_moderation_holds_over_http() {
     let approver = extra_staff[0].1.clone();
     let approver_id = extra_staff[0].2;
     let almost = extra_staff[1].1.clone();
+    let delegated_operator = extra_staff[2].1.clone();
 
     // The Operator opens the step-up window once (15 minutes).
     let r = step_up(srv, &owner, &world.totp).await;
     assert_eq!(r.status, 200, "owner step-up: {}", r.body);
+
+    // MOD-VCH-001: three members vouch for Gen 3 on its profile (and the first one for Gen 2 too).
+    let mut vouchers: Vec<(&str, i64, Cred)> = Vec::new();
+    for name in ["grdvoucher1", "grdvoucher2", "grdvoucher3"] {
+        let id = account(&pool, &ids, name).await;
+        sqlx::query("UPDATE accounts SET created_at = now() - interval '30 days' WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        vouchers.push((name, id, Cred::Session(session_for(&auth, &ids, id).await)));
+    }
+    for (_, _, cred) in &vouchers {
+        expect!(
+            "a voucher vouches for Gen 3",
+            srv.call(
+                cred,
+                "PUT",
+                &format!("/users/{}/vouch", tree["grdgen3"]),
+                None
+            )
+            .await,
+            200
+        );
+    }
+    expect!(
+        "a voucher vouches for Gen 2",
+        srv.call(
+            &vouchers[0].2,
+            "PUT",
+            &format!("/users/{}/vouch", tree["grdgen2"]),
+            None
+        )
+        .await,
+        200
+    );
+    let summary = expect!(
+        "Gen 3's vouch panel",
+        srv.call(
+            &sess["grdgen1"],
+            "GET",
+            &format!("/users/{}/vouches", tree["grdgen3"]),
+            None
+        )
+        .await,
+        200
+    );
+    if serde_json::from_str::<Value>(&summary.body).unwrap_or(Value::Null)["count"] != json!(3) {
+        failures.push(format!("Gen 3 has three vouches: {}", summary.body));
+    }
 
     // 1. A serious ban on Gen 3 through the staff route; the reason category is required.
     let ban_path = format!("/admin/moderation/members/{}/ban", tree["grdgen3"]);
@@ -9817,11 +9873,76 @@ async fn graduated_moderation_holds_over_http() {
     {
         failures.push(format!("the notice text: {}", motd.body));
     }
-    for n in tree.keys() {
+    for n in tree.keys().chain(vouchers.iter().map(|(n, _, _)| n)) {
         if motd.body.contains(n) {
             failures.push(format!("the notice names {n}"));
         }
     }
+    for id in tree.values() {
+        if motd.body.contains(&id.to_string()) {
+            failures.push(format!("the notice carries the account id {id}"));
+        }
+    }
+    // MOD-VCH-001: the vouches for Gen 3 are gone (the one for Gen 2 stays); each voucher got one private notice
+    // naming the category only (no handle, no staff note); no voucher is frozen, restricted or kept from posting.
+    let left: Vec<i64> =
+        sqlx::query_scalar("SELECT vouchee_id FROM profile_vouches ORDER BY vouchee_id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    if left != vec![tree["grdgen2"]] {
+        failures.push(format!("only the vouch for Gen 2 is left: {left:?}"));
+    }
+    for (name, id, cred) in &vouchers {
+        let notes: Vec<String> = sqlx::query_scalar(
+            "SELECT m.content FROM messages m JOIN channel_recipients r ON r.channel_id = m.channel_id              WHERE r.user_id = $1 AND m.author_id <> $1 AND m.content LIKE '%you vouched for%'",
+        )
+        .bind(id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        match notes.as_slice() {
+            [n] if n.contains("(fraud)") && n.contains("no penalty") => {
+                for leak in tree
+                    .keys()
+                    .map(|k| k.to_string())
+                    .chain(["chargeback".to_owned(), tree["grdgen3"].to_string()])
+                {
+                    if n.contains(&leak) {
+                        failures.push(format!("{name}'s notice names {leak}: {n}"));
+                    }
+                }
+            }
+            other => failures.push(format!("{name} got one category-only notice: {other:?}")),
+        }
+        let restricted: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM member_restrictions WHERE account_id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let active: bool =
+            sqlx::query_scalar("SELECT state::text = 'active' FROM accounts WHERE id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        if restricted != 0 || !active {
+            failures.push(format!(
+                "{name} is penalised: {restricted} restrictions, active {active}"
+            ));
+        }
+        let mine = expect!(
+            "a voucher reads their restrictions",
+            srv.call(cred, "GET", "/sr/moderation/restrictions", None)
+                .await,
+            200
+        );
+        if mine.body.trim() != "[]" {
+            failures.push(format!("{name} has restrictions: {}", mine.body));
+        }
+    }
+
     // The case view is for staff with MANAGE_CASES; a member and the roster's outsiders get nothing.
     let view = format!("/admin/moderation/subtree-cases/{case}");
     expect!(
@@ -9984,15 +10105,37 @@ async fn graduated_moderation_holds_over_http() {
         .iter()
         .map(|a| (a.name.to_owned(), a.cred.clone()))
         .collect();
-    roster.push(("staff_all_but_owner".to_owned(), almost));
+    roster.push(("staff_all_but_owner_and_operator".to_owned(), almost));
     roster.push(("second_approver".to_owned(), approver.clone()));
+    // The platform Operator (D-395, PLATFORM cell `OPERATOR`): the Owner and a holder of the Owner-only OPERATOR
+    // bit. Exactly those two actors of the roster pass the cell; everyone else is refused before the step-up.
+    let pairs = pair_names(&routes);
+    let operators: Vec<String> = roster
+        .iter()
+        .filter(|(n, _)| holds(n, &pairs).is_some_and(|h| admitted(&h, "OPERATOR")))
+        .map(|(n, _)| n.clone())
+        .collect();
+    if operators != ["staff_owner", "staff_operator"] {
+        failures.push(format!("the roster's Operators are {operators:?}"));
+    }
     let mut refused = 0;
     for (name, cred) in roster {
         if name == "staff_owner" {
             continue;
         }
         let r = call_branch(cred).await;
-        if matches!(r.status, 401 | 403 | 404) {
+        if name == "staff_operator" {
+            // An Operator without a fresh step-up passes the Operator gate and stops at the 2FA step-up.
+            if r.status != 403 || !r.body.contains("900004") {
+                failures.push(format!(
+                    "branch-action as the bit Operator without a step-up: expected 403 900004, got {} {}",
+                    r.status,
+                    r.body.chars().take(120).collect::<String>()
+                ));
+            }
+            continue;
+        }
+        if matches!(r.status, 401 | 403 | 404) && !r.body.contains("900004") {
             refused += 1;
         } else {
             failures.push(format!(
@@ -10015,9 +10158,18 @@ async fn graduated_moderation_holds_over_http() {
             "the refused calls left the request approved, found {state}"
         ));
     }
+    // A delegated Operator (OPERATOR, no other bit) runs it after a step-up; the Owner proposed it and the
+    // approver approved it, so three people took part.
+    let r = step_up(srv, &delegated_operator, &world.totp).await;
+    if r.status != 200 {
+        failures.push(format!(
+            "delegated Operator step-up: {} {}",
+            r.status, r.body
+        ));
+    }
     let out = expect!(
         "the Operator runs the branch action",
-        call_branch(owner.clone()).await,
+        call_branch(delegated_operator.clone()).await,
         200
     );
     let out: Value = serde_json::from_str(&out.body).unwrap_or(Value::Null);

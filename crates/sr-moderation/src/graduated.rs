@@ -131,6 +131,21 @@ pub(crate) async fn is_staff_account(conn: &mut PgConnection, account: i64) -> M
 }
 
 /// The staff caller of a [`Who`], or `Forbidden` for a server moderator.
+/// The platform Operator (D-395): the Owner, or a staff member the Owner granted `OPERATOR` (an Owner-only bit,
+/// `sr_admin::rules::OWNER_ONLY`; the same "Operator" as the infrastructure routes). The branch action and the
+/// drill are theirs alone; every other staff member, whatever else they hold, is refused.
+pub fn is_operator(c: &Caller) -> bool {
+    c.is_owner || c.permissions.has(P::OPERATOR)
+}
+
+pub(crate) fn require_operator(c: &Caller) -> ModResult<()> {
+    if is_operator(c) {
+        Ok(())
+    } else {
+        Err(ModError::MissingPermission("OPERATOR"))
+    }
+}
+
 pub(crate) fn caller_of<'a>(who: &'a Who<'_>) -> ModResult<&'a Caller> {
     match who {
         Who::Staff(c) => Ok(c),

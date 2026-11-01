@@ -799,7 +799,8 @@ pub struct BranchActionBody {
 }
 
 /// The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant
-/// of the case at once. Owner only, behind a 2FA step-up, with a written reason and a second staff approver
+/// of the case at once. The platform Operator only (the Owner, or a holder of the Owner-only `OPERATOR` bit),
+/// behind a 2FA step-up, with a written reason and a second staff approver
 /// already recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit
 /// entry names the case, the approver and the node count, and an anonymised notice is emitted.
 #[utoipa::path(
@@ -814,7 +815,7 @@ pub async fn branch_action(
     Json(b): Json<BranchActionBody>,
 ) -> ApiResult<Json<BranchOutcome>> {
     // The Operator only: refused before anything else, so a non-Operator learns nothing about the request.
-    if !ctx.caller.is_owner {
+    if !sr_moderation::is_operator(&ctx.caller) {
         let _ = ctx
             .svc()
             .record_denied(
@@ -824,7 +825,7 @@ pub async fn branch_action(
                 "not the Operator",
             )
             .await;
-        return Err(map_err(ModError::MissingPermission("OWNER")));
+        return Err(map_err(ModError::MissingPermission("OPERATOR")));
     }
     let rid = id(&b.request_id, "request")?;
     ctx.require_reauth().await?;

@@ -21,7 +21,8 @@ use sr_core::PlatformPermissions as P;
 
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::graduated::{
-    SYSTEM_ACTOR, Span, caller_of, guard_target, insert_restriction, revoke_open_codes,
+    SYSTEM_ACTOR, Span, caller_of, guard_target, insert_restriction, require_operator,
+    revoke_open_codes,
 };
 use crate::graduated_model::{
     BranchOutcome, CategoryCount, ModRequest, NoticeView, SubtreeCaseDetail, SubtreeCaseSummary,
@@ -822,7 +823,7 @@ impl Moderation {
         Ok(v)
     }
 
-    /// Propose the Operator's branch action on a case: freeze or ban every descendant (Owner only).
+    /// Propose the Operator's branch action on a case: freeze or ban every descendant (the Operator only).
     pub async fn request_branch_action(
         &self,
         who: &Who<'_>,
@@ -831,11 +832,13 @@ impl Moderation {
         reason: &str,
     ) -> ModResult<ModRequest> {
         let c = caller_of(who)?;
-        if !c.is_owner {
-            return Err(ModError::MissingPermission("OWNER"));
-        }
+        require_operator(c)?;
         if !matches!(action, "freeze" | "ban") {
             return Err(invalid("action must be freeze or ban"));
+        }
+        // A branch ban bans every node through the platform ban, so the Operator must also hold PLATFORM_BAN.
+        if action == "ban" && !c.permissions.has(P::PLATFORM_BAN) {
+            return Err(ModError::MissingPermission("PLATFORM_BAN"));
         }
         let reason = gr::case_reason(reason)?;
         let mut tx = self.pool.begin().await?;
@@ -1048,7 +1051,7 @@ impl Moderation {
     }
 
     /// The Operator's branch action (D-395): apply the approved request's action to every descendant of the case.
-    /// Owner only; the request must be approved by a second staff member. Every affected account keeps its own
+    /// The Operator only (`is_operator`); the request must be approved by a second staff member. Every affected account keeps its own
     /// appeal; freezes last 12 months. One hash-chained audit entry names the case, the approver and the node
     /// count, and an anonymised notice (category and counts) is emitted.
     pub async fn execute_branch_action(
@@ -1058,9 +1061,7 @@ impl Moderation {
         banner: &dyn NodeBanner,
     ) -> ModResult<BranchOutcome> {
         let c = caller_of(who)?;
-        if !c.is_owner {
-            return Err(ModError::MissingPermission("OWNER"));
-        }
+        require_operator(c)?;
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {REQ_COLS} FROM moderation_requests WHERE id = $1"
         )))
@@ -1082,6 +1083,9 @@ impl Moderation {
         }
         if approver == c.user_id {
             return Err(ModError::Forbidden);
+        }
+        if action == "ban" && !c.permissions.has(P::PLATFORM_BAN) {
+            return Err(ModError::MissingPermission("PLATFORM_BAN"));
         }
         let category: String = sqlx::query_scalar(
             "SELECT category FROM moderation_subtree_cases WHERE id = $1 AND state = 'open'",
@@ -1471,15 +1475,13 @@ impl SeriousBanObserver for Moderation {
 }
 
 impl Moderation {
-    /// `sr-cli moderation drill --synthetic` (Owner / operator only): build a throw-away invite tree of seven
+    /// `sr-cli moderation drill --synthetic` (the Operator only): build a throw-away invite tree of seven
     /// synthetic accounts, run a case through to the notice, and roll the whole transaction back, so nothing the
     /// drill made (accounts, freezes, the notice, the banner) is ever visible to anyone. Only the audit entry of the
     /// drill itself is kept. The caller posts the returned report to the Staff Server and nowhere else.
     pub async fn run_drill(&self, who: &Who<'_>) -> ModResult<crate::graduated_model::DrillReport> {
         let c = caller_of(who)?;
-        if !c.is_owner {
-            return Err(ModError::MissingPermission("OWNER"));
-        }
+        require_operator(c)?;
         let tag = self.next_id();
         let mut tx = self.pool.begin().await?;
         // inviter2 -> inviter -> root -> { A (unactivated) -> D (unactivated), B (voice), C (too young) }

@@ -860,7 +860,21 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     assert!(matches!(
         w.m.request_branch_action(&Who::Staff(&approver), case, "freeze", reason)
             .await,
-        Err(ModError::MissingPermission("OWNER"))
+        Err(ModError::MissingPermission("OPERATOR"))
+    ));
+    // The Operator is the Owner or a holder of the Owner-only OPERATOR bit: every other bit is not enough, and a
+    // delegated Operator without PLATFORM_BAN may not propose a branch ban.
+    let almost = staff(other.account, P::all() - P::OWNER - P::OPERATOR);
+    assert!(matches!(
+        w.m.request_branch_action(&Who::Staff(&almost), case, "freeze", reason)
+            .await,
+        Err(ModError::MissingPermission("OPERATOR"))
+    ));
+    let delegated = staff(other.account, P::STAFF_BASIC | P::OPERATOR);
+    assert!(matches!(
+        w.m.request_branch_action(&Who::Staff(&delegated), case, "ban", reason)
+            .await,
+        Err(ModError::MissingPermission("PLATFORM_BAN"))
     ));
     assert!(
         w.m.request_branch_action(&Who::Staff(&owner_c), case, "freeze", "short")
@@ -902,7 +916,7 @@ async fn branch_action_is_the_operators_with_a_second_approver() {
     assert!(matches!(
         w.m.execute_branch_action(&Who::Staff(&approver), req.id, &NoBan)
             .await,
-        Err(ModError::MissingPermission("OWNER"))
+        Err(ModError::MissingPermission("OPERATOR"))
     ));
 
     let out =
@@ -1157,7 +1171,7 @@ async fn drill_runs_the_pipeline_and_rolls_everything_back() {
     assert!(matches!(
         w.m.run_drill(&Who::Staff(&staff(op.account, P::MANAGE_CASES)))
             .await,
-        Err(ModError::MissingPermission("OWNER"))
+        Err(ModError::MissingPermission("OPERATOR"))
     ));
     let before: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts")
         .fetch_one(pool)

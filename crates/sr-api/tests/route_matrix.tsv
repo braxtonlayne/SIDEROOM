@@ -789,7 +789,7 @@ POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-	PUBLISH_
 POST	/admin/library/series/{series_id}/publish	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-	PUBLISH_READING|DELETE_CONTENT
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-	PUBLISH_READING
-POST	/admin/moderation/branch-action	authenticated	staff	deny	-	OWNER
+POST	/admin/moderation/branch-action	authenticated	staff	deny	-	OPERATOR
 POST	/admin/moderation/members/{account_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
 POST	/admin/moderation/members/{account_id}/invite-freeze	authenticated	staff	deny	-	MANAGE_INVITES
 POST	/admin/moderation/members/{account_id}/revoke-invites	authenticated	staff	deny	-	MANAGE_INVITES
