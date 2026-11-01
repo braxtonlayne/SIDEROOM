@@ -41,7 +41,7 @@ pub use age::{
 };
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
-pub use graduated::{Blocked, SYSTEM_ACTOR};
+pub use graduated::{Blocked, SYSTEM_ACTOR, is_sterilized};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
 pub use rings::HeldRing;
 pub use service::{

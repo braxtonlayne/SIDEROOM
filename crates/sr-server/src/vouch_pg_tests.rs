@@ -149,3 +149,74 @@ async fn the_strike_weight_seam_answers_the_tier_multiplier() {
         assert_eq!(w.strike_weight_multiplier(1).await, want, "{n} vouches");
     }
 }
+
+/// Integrator (wave 44): `SterilizationState` reads 44-A's `member_restrictions`. An active, unexpired
+/// sterilization refuses the vouch (and `can_vouch` says no); an expired, lifted or other kind of restriction does
+/// not.
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn a_sterilized_member_cannot_vouch() {
+    use crate::vouch_wiring::SterilizationState;
+    use sr_vouch::VouchError;
+
+    let db = TestDb::new().await.unwrap();
+    let p = db.pool();
+    for (id, n) in [
+        (1, "sterile"),
+        (2, "target"),
+        (3, "expired"),
+        (4, "lifted"),
+        (5, "frozen"),
+    ] {
+        account(p, id, id + 1000, n).await;
+    }
+    let restrict = |id: i64,
+                    account: i64,
+                    kind: &'static str,
+                    state: &'static str,
+                    ends: &'static str| {
+        let p = p.clone();
+        async move {
+            sqlx::query(
+                "INSERT INTO member_restrictions (id, account_id, kind, reason, imposed_by, approved_by, \
+                 starts_at, ends_at, state) VALUES ($1, $2, $3, 'case reason long enough', 90, 91, \
+                 now() - interval '400 days', now() + $5::text::interval, $4)",
+            )
+            .bind(id)
+            .bind(account)
+            .bind(kind)
+            .bind(state)
+            .bind(ends)
+            .execute(&p)
+            .await
+            .unwrap();
+        }
+    };
+    restrict(1, 1, "sterilization", "active", "300 days").await;
+    restrict(2, 3, "sterilization", "active", "-1 days").await;
+    restrict(3, 4, "sterilization", "lifted", "300 days").await;
+    restrict(4, 5, "invite_freeze", "active", "300 days").await;
+
+    let check = SterilizationState(p.clone());
+    use sr_vouch::SterilizationCheck;
+    assert!(check.is_sterilized(1).await);
+    for free in [2, 3, 4, 5] {
+        assert!(!check.is_sterilized(free).await, "account {free}");
+    }
+
+    let vouches = Vouches::new(p.clone()).with_sterilization_check(Arc::new(check));
+    assert!(matches!(
+        vouches.vouch(1, 2).await,
+        Err(VouchError::NotAllowed)
+    ));
+    assert!(!vouches.summary(1, 2).await.unwrap().can_vouch);
+    // Expired, lifted and a plain invite freeze leave vouching alone.
+    for ok in [3, 4, 5] {
+        assert!(vouches.vouch(ok, 2).await.unwrap(), "account {ok}");
+    }
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM profile_vouches WHERE voucher_id = 1")
+        .fetch_one(p)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+}

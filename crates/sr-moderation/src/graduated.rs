@@ -627,6 +627,12 @@ impl Moderation {
         self.blocked_in(&mut conn, account, what.kinds()).await
     }
 
+    /// Whether `account` is sterilized right now (an active, unexpired `sterilization` restriction): inviting, and
+    /// with it vouching (MOD-VCH-001), is taken from it.
+    pub async fn is_sterilized(&self, account: i64) -> ModResult<bool> {
+        is_sterilized(&self.pool, account).await
+    }
+
     /// Add voice time to an account's activity (D-392 reads it). Called when a voice session ends.
     pub async fn record_voice_seconds(&self, account: i64, seconds: i64) -> ModResult<()> {
         if seconds <= 0 {
@@ -661,6 +667,17 @@ impl Moderation {
         .await?;
         Ok(t.unwrap_or(0.0) as f32)
     }
+}
+
+/// Whether `account` carries an active, unexpired sterilization (wave 44-A state). Read by the vouch system's
+/// `SterilizationCheck` (wave 44-B): a sterilized member cannot vouch.
+pub async fn is_sterilized(pool: &sqlx::PgPool, account: i64) -> ModResult<bool> {
+    Ok(sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM member_restrictions WHERE account_id = $1 AND kind = 'sterilization'          AND state = 'active' AND ends_at > now())",
+    )
+    .bind(account)
+    .fetch_one(pool)
+    .await?)
 }
 
 /// Revoke the account's open (unused) invite codes on this connection; the number revoked.

@@ -602,7 +602,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         std::time::Duration::from_secs(60),
     ));
     // MOD-VCH-001: profile vouches; the accountability multiplier scales AutoMod timeouts (wave 44-B).
-    let vouches = sr_vouch::Vouches::new(pool.clone());
+    // A sterilized member (wave 44-A) cannot vouch.
+    let vouches = sr_vouch::Vouches::new(pool.clone()).with_sterilization_check(Arc::new(
+        crate::vouch_wiring::SterilizationState(pool.clone()),
+    ));
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),

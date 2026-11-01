@@ -6,11 +6,13 @@
 //! * [`VouchFallout`] subscribes to serious bans. A ban is on a Person; the vouches are on accounts, so every
 //!   account of the Person loses the vouches it received and each voucher gets a private notice (category only,
 //!   no handle) and no penalty.
+//! * [`SterilizationState`] answers `SterilizationCheck::is_sterilized` from wave 44-A's `member_restrictions`
+//!   (an active, unexpired `sterilization` row): a sterilized member cannot vouch (integrator, wave 44).
 
 use async_trait::async_trait;
 use sqlx::PgPool;
 use sr_admin::serious_ban::{SeriousBan, SeriousBanObserver, StrikeWeight};
-use sr_vouch::{AccountabilityMultiplier, Vouches};
+use sr_vouch::{AccountabilityMultiplier, SterilizationCheck, Vouches};
 
 /// The real [`StrikeWeight`]: the vouch tier of the account.
 pub struct VouchStrikeWeight(pub Vouches);
@@ -19,6 +21,23 @@ pub struct VouchStrikeWeight(pub Vouches);
 impl StrikeWeight for VouchStrikeWeight {
     async fn strike_weight_multiplier(&self, account: i64) -> f32 {
         self.0.strike_weight_multiplier(account).await
+    }
+}
+
+/// The real [`SterilizationCheck`]: wave 44-A's sterilization state. A database fault answers "sterilized" so
+/// a vouch is refused rather than given by someone who may not (fails closed; the voucher can try again).
+pub struct SterilizationState(pub PgPool);
+
+#[async_trait]
+impl SterilizationCheck for SterilizationState {
+    async fn is_sterilized(&self, account: i64) -> bool {
+        match sr_moderation::is_sterilized(&self.0, account).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!(error = %e, "vouch: reading the sterilization state failed; refusing the vouch");
+                true
+            }
+        }
     }
 }
 
