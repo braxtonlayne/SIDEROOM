@@ -17734,7 +17734,7 @@ export interface components {
             featured: boolean;
             /** @description May be offered on a shareable `/play/<token>` guest link (wave 43). */
             guest_links: boolean;
-            /** @description Needs the local base-game hint of the desktop launcher (46-B). */
+            /** @description Needs the local base-game hint of the desktop launcher (48-B). */
             needs_base_game_hint: boolean;
         };
         /** @description What the Operator sets when featuring. */
