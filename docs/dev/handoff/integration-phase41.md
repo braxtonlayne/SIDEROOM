@@ -1,23 +1,10 @@
 # Integration: phase 41 (The Study reframe)
 
-## Resume here
+## Status
 
-Stopped at 04:55 on 2026-11-01 because the owner restarted the app. Everything sound is committed on
-`integration/phase41`. Nothing I started is still running: no sr-server, vite or fake, and the stopped `sr-db` test
-process is gone. Scratch DBs: keep `sr_p41_integ` and `sr_p41_e2e` (mine). The agents' `sr_p41_study_nav`,
-`sr_p41_shelves` and `sr_p41_study_zk` can be dropped at the end. Target dir:
-`C:/Users/braxt/Desktop/SIDEROOM_wt/p41-study-zk-target`. The env helper (it builds DATABASE_URL from
-`%TEMP%\sr_pg_pw.txt` and never prints it) is at
-`%LOCALAPPDATA%\Temp\claude\...\scratchpad\env.sh`; rebuild it if the scratchpad is gone.
-
-Next, in order, one cargo command at a time with `-j 2`:
-1. `cargo test -p sr-db -- --include-ignored --test-threads=1` (the full suite; interrupted, no result yet).
-2. `cargo test -p sr-api` (lib incl. module_gate; route_matrix; openapi_names).
-3. `cargo test -p sr-features -p sr-theme -p sr-storage -p sr-moderation -p sr-activities` (DB tests with SR_TEST_DATABASE_URL).
-4. sr-server: `--lib`, `--test web_gate`, `--test feature_registry`, `--test immutable_rules` (plain, then `-- --include-ignored --test-threads=1`), `--test authz_matrix -- --include-ignored --test-threads=1` (no ceiling grows; checks the grantee 403 and `can_edit` assertions added here).
-5. Full web vitest: `cd apps/web && npx pnpm@10.12.1 exec vitest run --maxWorkers=2`.
-6. Playwright Chromium (8080/5173/8081 are mine): exit-gate, lounge-shell, study-shelves, a11y-signed-in (the storefront switches go on in beforeAll).
-7. Inventory section for wave 41 in `docs/inventory/21-feature-phase.md` (tick only what ran), then the gates table below, then drop the five scratch DBs.
+Complete on `integration/phase41` (2026-11-01). Not pushed, no PR. All scratch databases are dropped (`sr_p41_integ`,
+`sr_p41_e2e`, `sr_p41_study_nav`, `sr_p41_shelves`, `sr_p41_study_zk`). No server or Vite is left running, and
+ports 8080, 5173 and 8081 are free. The work was interrupted once by an app restart (04:55) and resumed at 05:08.
 
 ## Merges and reconciliation (done)
 
@@ -33,20 +20,53 @@ Next, in order, one cargo command at a time with `-j 2`:
 - **e2e:** `support/studySwitches.ts` turns the five switches on in beforeAll and off in afterAll, for cinema-submit, library-gate, a11y-signed-in and visual. `study-shelves.spec.ts` now fakes 41-C's routes and proves the video src is the per-object URL.
 - **Regenerated once:** OpenAPI, api-client, MSW (`mocks:check` ok).
 
-## Gates run so far (merged tree)
+## Fixes found by the gates on the merged tree
+
+- `openapi_names`: 41-C's `GrantBody` and `GrantView` used the same names as the donations DTOs, so the OpenAPI
+  document carried only one of each. The shelf types are now `ShelfGrantBody`, `ShelfGrantView` and `ShelfGrantList`,
+  and the client is regenerated.
+- `sr-db shelf_repo`: the 2020 trigger failed the indexer for a mount that is gone. Fixed in place.
+- Full Vitest: `review/__tests__/requests.test.tsx` assumed the Requests board was on. It now switches it on.
+- `threat-model.test.mjs`: T39 named the old handler `object_url` and said "open" without an RDY item. Fixed.
+
+## Gates (merged tree, 2026-11-01)
 
 | Gate | Result |
 |---|---|
 | cargo fmt --check (sr-features, sr-api, sr-server, sr-theme, sr-db, sr-storage, sr-moderation, sr-activities) | ok |
 | clippy -D warnings, same crates, --all-targets | ok |
-| sr-db secret_columns / migration_versions / shelf_access / shelf_repo | 2 / 1 / 4 / 3 pass (shelf_repo after the trigger fix) |
-| OpenAPI + api-client + MSW regenerate, mocks:check | ok |
+| sr-db full suite (--include-ignored, incl. secret_columns, migration_versions, shelf_access, shelf_repo) | 351 pass |
+| sr-api full suite (lib incl. module_gate, route_matrix, openapi_names) | 887 + 1 pass after the schema rename (route_matrix 6, openapi_names 2) |
+| sr-features, sr-theme, sr-storage, sr-moderation, sr-activities (--include-ignored) | 498 pass |
+| sr-server --lib (--include-ignored) / web_gate / feature_registry | 245 / 21 / 7 pass |
+| sr-server immutable_rules (plain / --include-ignored, all states) | 14 / 23 pass |
+| sr-server authz_matrix (full, --include-ignored) | 9 pass, incl. shelf_access_holds_over_http, module_kill_switches_stop_their_routes; no ceiling changed in the wave diff |
+| OpenAPI + api-client + MSW regenerated (after the rename), mocks:check | ok |
 | pnpm -r typecheck (incl. e2e), -r lint, prettier --check . | ok |
-| Vitest src/study, storage, cinema, library, lounge/voice | 54 files, 557 pass |
+| Vitest full suite, --maxWorkers=2 | 426 files, 3866 tests (the 5 Requests board tests failed, were fixed and rerun green) |
 | i18n-audit / check-css-tokens | 0 / clean |
 | build-web, bundle budget, entrance isolation | ok |
-| threat-model, check-ops-files, entrance script tests | pass |
-| Not run yet | everything in "Resume here" steps 1 to 6 |
+| threat-model, check-ops-files, entrance script tests, doc links | pass |
+| Playwright Chromium: exit-gate, lounge-shell, study-shelves | 8 pass |
+| Playwright Chromium: a11y-signed-in (the storefront switches on for the run) | 38 pass |
+
+Local Playwright ran without Garage. `sr-server` was started with the storage settings of `.env.example`, so
+`/readyz` stayed 503 on storage and the runner waited on `/healthz` instead. cinema-submit and library-gate skip
+locally (`SR_E2E_LIVE`). The live CI job runs them with the switches on through `e2e/support/studySwitches.ts`.
+The visual spec was not run (its baselines are CI's).
+
+## Roadmap gate proof, where it stands
+
+- **Zero outbound requests to metadata providers by default:** proved.
+  `lookup_wiring::with_default_settings_no_provider_is_offered` covers the server, the web source scan in
+  `study/__tests__/study.test.tsx` covers the client, and the study-shelves spec records no foreign host.
+- **Storefront routes 404 with their switches off:** proved. Covered by `module_gate` unit tests and
+  `authz_matrix::module_kill_switches_stop_their_routes`.
+- **A grantee never sees a credential; a delisted hash is 404 on mint and gone from every catalog:** proved.
+  Covered by `authz_matrix::shelf_access_holds_over_http`.
+- **Shelf browsing and playback end to end through per-object URLs:** partly proved. Locally the
+  `study-shelves.spec.ts` page flow runs against a faked server. The real two-browser-profile run against a real
+  bucket needs Garage (CI live job), and no such spec exists yet.
 
 ## Open (owner)
 
