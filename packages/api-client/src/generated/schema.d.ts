@@ -12461,7 +12461,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Edit the title, cover and note of one object (the shelf's owner only). */
+        /** Edit the title, cover and note of one object (the shelf's owner; on a server shelf, a manager of it). */
         patch: operations["patch_shelf_object"];
         trace?: never;
     };
@@ -17832,6 +17832,8 @@ export interface components {
         };
         /** @description A page of the catalog. */
         CatalogPage: {
+            /** @description The caller may edit titles, covers and notes here (the owner; on a server shelf, a manager of it). */
+            can_edit: boolean;
             /** @description Cursor of the next page, `null` at the end. */
             next_cursor?: string | null;
             /** @description Objects the caller may open, ordered by hash. */
@@ -69800,6 +69802,14 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

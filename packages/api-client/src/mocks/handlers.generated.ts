@@ -892,7 +892,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"list_shelf_grants","method":"get","path":"/shelves/:shelf_id/grants","status":200,"body":{"grants":[{}],"legacy_shares":[{}]}},
   {"id":"create_shelf_grant","method":"post","path":"/shelves/:shelf_id/grants","status":201,"body":{"id":"1","kind":"string","permanent":false,"source":"string","starts_at_ms":0}},
   {"id":"revoke_shelf_grant","method":"delete","path":"/shelves/:shelf_id/grants/:shelf_grant_id","status":204,"body":null},
-  {"id":"shelf_catalog","method":"get","path":"/shelves/:shelf_id/objects","status":200,"body":{"objects":[{}]}},
+  {"id":"shelf_catalog","method":"get","path":"/shelves/:shelf_id/objects","status":200,"body":{"can_edit":false,"objects":[{}]}},
   {"id":"patch_shelf_object","method":"patch","path":"/shelves/:shelf_id/objects/:object_hash","status":200,"body":{"class":"string","cover":"string","note":"string","object_hash":"string","path":"string","size":0,"title":"string","updated_at":"2026-01-01T00:00:00.000Z"}},
   {"id":"shelf_object_url","method":"get","path":"/shelves/:shelf_id/objects/:object_hash/url","status":200,"body":{"expires_at":"2026-01-01T00:00:00.000Z","url":"string"}},
   {"id":"visible_shelves","method":"get","path":"/shelves/visible","status":200,"body":{"shelves":[{}]}},

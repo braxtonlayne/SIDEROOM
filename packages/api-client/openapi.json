@@ -63415,7 +63415,7 @@
         "tags": [
           "shelf_access"
         ],
-        "summary": "Edit the title, cover and note of one object (the shelf's owner only).",
+        "summary": "Edit the title, cover and note of one object (the shelf's owner; on a server shelf, a manager of it).",
         "operationId": "patch_shelf_object",
         "parameters": [
           {
@@ -63459,6 +63459,16 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -84032,9 +84042,14 @@
         "type": "object",
         "description": "A page of the catalog.",
         "required": [
-          "objects"
+          "objects",
+          "can_edit"
         ],
         "properties": {
+          "can_edit": {
+            "type": "boolean",
+            "description": "The caller may edit titles, covers and notes here (the owner; on a server shelf, a manager of it)."
+          },
           "next_cursor": {
             "type": [
               "string",
