@@ -9666,7 +9666,21 @@ async fn graduated_moderation_holds_over_http() {
     let r = step_up(srv, &owner, &world.totp).await;
     assert_eq!(r.status, 200, "owner step-up: {}", r.body);
 
-    // MOD-VCH-001: three members vouch for Gen 3 on its profile (and the first one for Gen 2 too).
+    // MOD-VCH-001: three members vouch for Gen 3 on its profile (and the first one for Gen 2 too). A page is
+    // private until its owner opens it; Gen 2 and Gen 3 open theirs to members.
+    for n in ["grdgen2", "grdgen3"] {
+        expect!(
+            "a member opens their profile page to members",
+            srv.call(
+                &sess[n],
+                "PUT",
+                "/users/@me/profile-privacy",
+                Some(&json!({"preset": "members"}))
+            )
+            .await,
+            200
+        );
+    }
     let mut vouchers: Vec<(&str, i64, Cred)> = Vec::new();
     for name in ["grdvoucher1", "grdvoucher2", "grdvoucher3"] {
         let id = account(&pool, &ids, name).await;
@@ -9757,10 +9771,13 @@ async fn graduated_moderation_holds_over_http() {
         .await,
         200
     );
-    let case: i64 = sqlx::query_scalar("SELECT id FROM moderation_subtree_cases")
-        .fetch_one(&pool)
-        .await
-        .expect("exactly one case opened");
+    // The seeded world has a case of its own (the matrix's routes); this one is rooted on Gen 3.
+    let case: i64 =
+        sqlx::query_scalar("SELECT id FROM moderation_subtree_cases WHERE root_account_id = $1")
+            .bind(tree["grdgen3"])
+            .fetch_one(&pool)
+            .await
+            .expect("exactly one case opened on Gen 3");
     let status_of = |name: &'static str| {
         let pool = pool.clone();
         let id = tree[name];
@@ -10149,10 +10166,11 @@ async fn graduated_moderation_holds_over_http() {
         failures.push(format!("only {refused} actors were refused"));
     }
     let state: String = sqlx::query_scalar("SELECT state FROM moderation_requests WHERE id = $1")
-        .bind(branch_id.parse::<i64>().unwrap())
-        .fetch_one(&pool)
+        .bind(branch_id.parse::<i64>().unwrap_or_default())
+        .fetch_optional(&pool)
         .await
-        .unwrap();
+        .unwrap()
+        .unwrap_or_default();
     if state != "approved" {
         failures.push(format!(
             "the refused calls left the request approved, found {state}"
