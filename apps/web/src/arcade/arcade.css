@@ -1,0 +1,114 @@
+/* The Arcade (ARC-ROOM-001). Semantic tokens only (--ui-*); logical properties only. */
+.arc-page {
+  display: grid;
+  gap: 16px;
+  padding-block: 16px;
+  padding-inline: 16px;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+}
+.arc-dim {
+  color: var(--ui-text-muted, inherit);
+  font-size: 0.875rem;
+  margin: 0;
+}
+.arc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.arc-section {
+  display: grid;
+  gap: 12px;
+}
+.arc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 12px;
+}
+.arc-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg);
+}
+.arc-card header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.arc-card-title {
+  margin: 0;
+  font-size: 1rem;
+}
+.arc-blurb,
+.arc-desc,
+.arc-tier {
+  margin: 0;
+}
+.arc-chip {
+  display: inline-block;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.arc-chip-note {
+  color: var(--ui-text-muted, inherit);
+}
+.arc-flags,
+.arc-tips,
+.arc-trust,
+.arc-tier {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+.arc-tip {
+  padding-block: 2px;
+  padding-inline: 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.arc-tip-pop {
+  display: grid;
+  gap: 6px;
+  margin-block-start: 6px;
+  max-inline-size: 100%;
+}
+.arc-tip-code {
+  overflow-wrap: anywhere;
+  font-size: 0.6875rem;
+}
+.arc-trust-badge {
+  padding-block: 2px;
+  padding-inline: 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  border: 1px solid var(--ui-border);
+}
+.arc-field {
+  display: grid;
+  gap: 4px;
+  max-inline-size: 24rem;
+}
+.arc-form {
+  display: grid;
+  gap: 8px;
+  max-inline-size: 28rem;
+}
+.arc-link {
+  color: var(--ui-accent, inherit);
+}

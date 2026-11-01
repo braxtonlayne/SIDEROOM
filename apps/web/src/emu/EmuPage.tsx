@@ -153,7 +153,7 @@ export function EmuPage() {
         <Notice variant="warning" title={t('games.policy.reloadTitle')} data-testid="emu-policy">
           {t('games.policy.reload')}
           <div>
-            <Button size="sm" variant="secondary" onClick={() => window.location.assign('/games')}>
+            <Button size="sm" variant="secondary" onClick={() => window.location.assign('/games/emulator')}>
               {t('games.policy.reloadButton')}
             </Button>
           </div>
