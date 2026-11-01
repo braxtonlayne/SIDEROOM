@@ -78135,6 +78135,168 @@
         ]
       }
     },
+    "/users/{user_id}/vouch": {
+      "put": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "Vouch for a member on their profile. One vouch per pair; vouching again changes nothing. 400 for yourself,\n403 when you cannot vouch (an account under three days old, or one that may not invite), 404 when the member\nis missing, blocked either way or the page is not visible to you, 409 past 20 new vouches a day.",
+        "operationId": "put_vouch",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileVouchSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "Take my vouch for a member back. 204 whether or not there was one.",
+        "operationId": "delete_vouch",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/users/{user_id}/vouches": {
+      "get": {
+        "tags": [
+          "vouches"
+        ],
+        "summary": "The vouch panel of a member's profile: count, tier, multiplier and whether I vouched.",
+        "operationId": "get_vouches",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User snowflake, or @me",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileVouchSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/watch-parties": {
       "post": {
         "tags": [
@@ -106461,6 +106623,78 @@
           "member",
           "shares_server",
           "friend"
+        ]
+      },
+      "ProfileVouchSummary": {
+        "type": "object",
+        "description": "The vouch panel of a profile.",
+        "required": [
+          "count",
+          "tier",
+          "multiplier",
+          "pillar_min",
+          "elder_min",
+          "pillar_multiplier",
+          "elder_multiplier",
+          "viewer_vouched",
+          "can_vouch",
+          "is_self"
+        ],
+        "properties": {
+          "can_vouch": {
+            "type": "boolean",
+            "description": "I may vouch for this member now."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Vouches from members in good standing."
+          },
+          "elder_min": {
+            "type": "integer",
+            "format": "int64",
+            "description": "First count of the Elder tier (500)."
+          },
+          "elder_multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The multiplier of the Elder tier (3.0)."
+          },
+          "is_self": {
+            "type": "boolean",
+            "description": "This is my own profile."
+          },
+          "multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The accountability multiplier of the tier: automated timeouts, holds and strike weights are scaled by it\nwhen this member breaks a rule. 1.0, 1.5 or 3.0."
+          },
+          "pillar_min": {
+            "type": "integer",
+            "format": "int64",
+            "description": "First count of the Pillar tier (50)."
+          },
+          "pillar_multiplier": {
+            "type": "number",
+            "format": "float",
+            "description": "The multiplier of the Pillar tier (1.5)."
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ProfileVouchTier"
+          },
+          "viewer_vouched": {
+            "type": "boolean",
+            "description": "I have an active vouch for this member."
+          }
+        }
+      },
+      "ProfileVouchTier": {
+        "type": "string",
+        "description": "The vouch tier of a member.",
+        "enum": [
+          "citizen",
+          "pillar",
+          "elder"
         ]
       },
       "Progress": {

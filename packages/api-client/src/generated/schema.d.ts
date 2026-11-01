@@ -16050,6 +16050,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/{user_id}/vouch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vouch for a member on their profile. One vouch per pair; vouching again changes nothing. 400 for yourself,
+         *     403 when you cannot vouch (an account under three days old, or one that may not invite), 404 when the member
+         *     is missing, blocked either way or the page is not visible to you, 409 past 20 new vouches a day.
+         */
+        put: operations["put_vouch"];
+        post?: never;
+        /** Take my vouch for a member back. 204 whether or not there was one. */
+        delete: operations["delete_vouch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/vouches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The vouch panel of a member's profile: count, tier, multiplier and whether I vouched. */
+        get: operations["get_vouches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/watch-parties": {
         parameters: {
             query?: never;
@@ -25121,6 +25160,52 @@ export interface components {
          * @enum {string}
          */
         ProfileViewAs: "public" | "member" | "shares_server" | "friend";
+        /** @description The vouch panel of a profile. */
+        ProfileVouchSummary: {
+            /** @description I may vouch for this member now. */
+            can_vouch: boolean;
+            /**
+             * Format: int64
+             * @description Vouches from members in good standing.
+             */
+            count: number;
+            /**
+             * Format: int64
+             * @description First count of the Elder tier (500).
+             */
+            elder_min: number;
+            /**
+             * Format: float
+             * @description The multiplier of the Elder tier (3.0).
+             */
+            elder_multiplier: number;
+            /** @description This is my own profile. */
+            is_self: boolean;
+            /**
+             * Format: float
+             * @description The accountability multiplier of the tier: automated timeouts, holds and strike weights are scaled by it
+             *     when this member breaks a rule. 1.0, 1.5 or 3.0.
+             */
+            multiplier: number;
+            /**
+             * Format: int64
+             * @description First count of the Pillar tier (50).
+             */
+            pillar_min: number;
+            /**
+             * Format: float
+             * @description The multiplier of the Pillar tier (1.5).
+             */
+            pillar_multiplier: number;
+            tier: components["schemas"]["ProfileVouchTier"];
+            /** @description I have an active vouch for this member. */
+            viewer_vouched: boolean;
+        };
+        /**
+         * @description The vouch tier of a member.
+         * @enum {string}
+         */
+        ProfileVouchTier: "citizen" | "pillar" | "elder";
         /** @description A member's progress in one chapter. */
         Progress: {
             cfi?: string | null;
@@ -80204,6 +80289,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfilePage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileVouchSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_vouches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description User snowflake, or @me */
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileVouchSummary"];
                 };
             };
             404: {
