@@ -389,3 +389,93 @@ async fn staff_and_the_owner_cannot_delete_themselves() {
     .unwrap();
     assert!(delete_account(pool, 2, 9).await.unwrap().is_ok());
 }
+
+/// Integrator (wave 44): erasure and the graduated-moderation rows. Vouches given and received go (MOD-VCH-001);
+/// the member's restrictions and subtree-case nodes stay as staff-side moderation history (D-124, G-66), and the
+/// case is named nowhere on the scrubbed account: its reference lives in the staff tables and the audit log only.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn erasure_removes_vouches_and_keeps_the_moderation_record() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    let (me, voucher, vouchee, staff) = (3001_i64, 3002_i64, 3003_i64, 3004_i64);
+    account(pool, me, "frozen").await;
+    account(pool, voucher, "fan").await;
+    account(pool, vouchee, "pal").await;
+    account(pool, staff, "mod").await;
+    sqlx::query(
+        "INSERT INTO profile_vouches (voucher_id, vouchee_id) VALUES ($1, $2), ($2, $3), ($1, $3)",
+    )
+    .bind(voucher)
+    .bind(me)
+    .bind(vouchee)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO moderation_subtree_cases (id, root_account_id, category, opened_by) VALUES (77, $1, 'fraud', $2)",
+    )
+    .bind(vouchee)
+    .bind(staff)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO moderation_subtree_nodes (case_id, account_id, role, depth, registered_at, unactivated, status) \
+         VALUES (77, $1, 'descendant', 1, now() - interval '40 days', true, 'auto_frozen')",
+    )
+    .bind(me)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO member_restrictions (id, account_id, kind, reason, case_id, imposed_by, ends_at, removes_account, \
+         appeal_message, appealed_at, appeal_state) \
+         VALUES (88, $1, 'case_freeze', 'under review', 77, $2, now() + interval '30 days', true, 'I was away', now(), 'open')",
+    )
+    .bind(me)
+    .bind(staff)
+    .execute(pool)
+    .await
+    .unwrap();
+
+    delete_account(pool, me, 9).await.unwrap().unwrap();
+
+    // Vouches given and received by the erased account are gone; the others stay.
+    let left: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT voucher_id, vouchee_id FROM profile_vouches ORDER BY 1, 2")
+            .fetch_all(pool)
+            .await
+            .unwrap();
+    assert_eq!(left, vec![(voucher, vouchee)]);
+    // The moderation record stays for staff.
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM member_restrictions WHERE account_id = $1",
+            me
+        )
+        .await,
+        1
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM moderation_subtree_nodes WHERE account_id = $1",
+            me
+        )
+        .await,
+        1
+    );
+    // The scrubbed account row carries no case reference.
+    let row: String =
+        sqlx::query_scalar("SELECT row_to_json(a)::text FROM accounts a WHERE id = $1")
+            .bind(me)
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert!(
+        !row.contains("fraud") && !row.contains("\"77\"") && !row.contains("under review"),
+        "{row}"
+    );
+}
