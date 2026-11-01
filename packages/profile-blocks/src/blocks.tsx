@@ -4,7 +4,7 @@
 import { useState, type ReactNode } from 'react';
 import { useEnv } from './context';
 import type { BlockLike, PageLike, PageUserLike } from './types';
-import { httpsUrl } from './url';
+import { httpsUrl, tipUri } from './url';
 
 const text = (c: Record<string, unknown>, k: string): string => {
   const v = c[k];
@@ -258,7 +258,7 @@ function Custom({ block }: { block: BlockLike }) {
   const title = text(block.config, 'title');
   const links = list<{ label: string; url: string }>(block.config, 'links')
     .map((l) => ({ label: l?.label ?? '', href: httpsUrl(l?.url) }))
-    .filter((l): l is { label: string; href: string } => l.href !== null);
+    .filter((l): l is { label: string; href: string; pay: boolean } => l.href !== null);
   return (
     <>
       {title && <h3 className="pp-title">{title}</h3>}
@@ -279,8 +279,13 @@ function Custom({ block }: { block: BlockLike }) {
 /** PRF-PRO-001: a stack of links, each opened in a new tab without a referrer. */
 function Linktree({ block }: { block: BlockLike }) {
   const { t } = useEnv();
-  const links = list<{ label: string; url: string }>(block.config, 'links')
-    .map((l) => ({ label: (l?.label ?? '').trim(), href: httpsUrl(l?.url) }))
+  const links = list<{ label: string; url: string; tip?: string }>(block.config, 'links')
+    .map((l) => ({
+      label: (l?.label ?? '').trim(),
+      // A tip entry (ARC-ROOM-001) is a payment URI; anything else must be an https link.
+      href: l?.tip ? tipUri(l.tip, l.url) : httpsUrl(l?.url),
+      pay: !!l?.tip,
+    }))
     .filter((l): l is { label: string; href: string } => l.href !== null);
   return (
     <>
@@ -294,6 +299,7 @@ function Linktree({ block }: { block: BlockLike }) {
               <a href={l.href} target="_blank" rel="noopener noreferrer nofollow">
                 {l.label || l.href}
               </a>
+              {l.pay && <code className="pp-tipcode">{l.href}</code>}
             </li>
           ))}
         </ul>
