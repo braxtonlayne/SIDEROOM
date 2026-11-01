@@ -113,11 +113,16 @@ test.describe('Showroom (populated preview)', () => {
     await expect(page.getByTestId('showroom-hint')).toContainText('preview sample');
 
     // Nothing the sample screens did reached the server (the /channels load itself reads the real app's data).
+    // Compare URLs (a Request prints as an opaque guid); the dev server's module files under /src are not API calls.
     expect(
-      sent.filter((r) => !['GET', 'HEAD'].includes(r.method())),
+      sent
+        .filter((r) => !['GET', 'HEAD'].includes(r.method()))
+        .map((r) => `${r.method()} ${r.url()}`),
       'no write while the preview shows',
     ).toEqual([]);
-    expect(sent.filter((r) => /\/arcade\/front|\/shelves\//.test(r.url()))).toEqual([]);
+    expect(
+      sent.map((r) => r.url()).filter((u) => /\/api\/v1\/(?:arcade\/front|shelves\/)/.test(u)),
+    ).toEqual([]);
 
     // Off again: the banner and the samples are gone, the device choice is cleared, and the server reads are unchanged.
     await page.getByRole('navigation', { name: 'Rooms' }).getByTestId('showroom-toggle').click();

@@ -45,6 +45,9 @@ jobs:
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
         # The two exit gates (tagged @gate) run in the next step on a server of their own: registration allows 20
         # accounts per address and day, counted in memory, and the gates register seven between them.
+        # UX-SHOW-001 (wave 45 gate proof, half B) runs in this step on every engine: tests/showroom.spec.ts switches
+        # platform.showroom on with the Owner's password session and off again, so it must not run after the @gate
+        # specs enrol a second factor on the Owner; it toggles the preview and proves no write and unchanged reads.
         run: |
           ./target/debug/sr-cli migrate
           ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert @gate
