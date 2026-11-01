@@ -75,6 +75,17 @@
       "surface": "guest-play",
       "token": "/api/v1/play/",
       "reason": "ARC-GST-002: the join route, POST /api/v1/play/{lobby_token}/join, the one REST call of the page (unauthenticated, rate limited, no cookie). It answers a guest token and a callsign and nothing about the server."
+    },
+    {
+      "surface": "guest-play",
+      "token": "/play/$token",
+      "reason": "ARC-GST-001/002: the surface's own page route (/play/<lobby_token>). The API denylist lists /play since the join route POST /api/v1/play/{lobby_token}/join is in openapi.json; the route path is the page itself, not a call."
+    },
+    {
+      "surface": "static",
+      "file": "sw.js",
+      "token": "\"/play/*\"",
+      "reason": "ARC-GST-002: the service worker's surface table names the guest-play shell's paths (/play/*) so it serves guest-play.html for them; it is a path pattern, not a call, and the API's /play/{lobby_token}/join is never cached."
     }
   ]
 }
