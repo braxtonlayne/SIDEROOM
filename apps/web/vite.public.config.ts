@@ -9,6 +9,7 @@ import { ALLOWED as AUTH } from './src/public/auth/ALLOWED';
 import { ALLOWED as INVITE } from './src/public/invite/ALLOWED';
 import { ALLOWED as LANDING } from './src/public/landing/ALLOWED';
 import { ALLOWED as PROFILE } from './src/public/profile/ALLOWED';
+import { ALLOWED as GUEST_PLAY } from './src/public/guest-play/ALLOWED';
 
 /**
  * The PUBLIC build (D-385, docs/dev/entrance-isolation.md section 2): one HTML shell per public surface, each its
@@ -32,7 +33,7 @@ export default defineConfig({
   plugins: [
     neutralTheme(),
     react(),
-    surfaceGuard(root, { landing: LANDING, auth: AUTH, invite: INVITE, profile: PROFILE }),
+    surfaceGuard(root, { landing: LANDING, auth: AUTH, invite: INVITE, profile: PROFILE, 'guest-play': GUEST_PLAY }),
     pwaPlugin(),
     pseudoLocalePlugin(),
   ],

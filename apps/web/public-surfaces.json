@@ -61,6 +61,16 @@
       "budgetGzipKB": 150
     },
     {
+      "surface": "guest-play",
+      "kind": "bundle",
+      "shell": "guest-play.html",
+      "entry": "src/public/guest-play/main.tsx",
+      "paths": ["/play/*"],
+      "samples": ["/play/abcdefghijklmnop0123"],
+      "budgetGzipKB": 120,
+      "csp": "guest-play"
+    },
+    {
       "surface": "legal",
       "kind": "html",
       "paths": ["/house-notes", "/fonts/README.md", "/THIRD_PARTY_NOTICES.md"],
