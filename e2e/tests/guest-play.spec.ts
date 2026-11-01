@@ -603,6 +603,28 @@ test.describe('wave 43 gate proof (real stack)', () => {
       expect(href).toMatch(/\/play\/[0-9a-f]{64}#key=[A-Za-z0-9_-]{43}$/);
       await a.page.getByRole('button', { name: 'Done' }).click();
 
+      // The Share link dialog at a phone width: the link, the QR code and the buttons stay inside the screen.
+      await a.page.setViewportSize({ width: 375, height: 812 });
+      await a.page.getByRole('button', { name: 'Share link' }).click();
+      const dialog = a.page.getByRole('dialog');
+      await expect(dialog.getByRole('textbox', { name: 'Guest link' })).toHaveValue(href);
+      for (const part of [
+        dialog,
+        dialog.getByRole('textbox', { name: 'Guest link' }),
+        dialog.getByRole('img', { name: 'QR code for the guest link' }),
+        dialog.getByRole('button', { name: 'Done' }),
+      ]) {
+        const box = (await part.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(375 + 1);
+      }
+      expect(
+        await dialog.evaluate((d) => d.scrollWidth - d.clientWidth),
+        'the dialog scrolls sideways',
+      ).toBeLessThanOrEqual(1);
+      await dialog.getByRole('button', { name: 'Done' }).click();
+      await a.page.setViewportSize({ width: 1280, height: 1000 });
+
       const incognito = await browser.newContext();
       const g = await incognito.newPage();
       const sockets: string[] = [];

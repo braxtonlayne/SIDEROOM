@@ -9,7 +9,9 @@
   color: var(--sr-text);
 }
 .gp-main {
+  box-sizing: border-box;
   flex: 1;
+  inline-size: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -17,7 +19,11 @@
   padding: 16px;
 }
 .gp-card {
+  box-sizing: border-box;
   inline-size: min(100%, 460px);
+  min-inline-size: 0;
+  /* A long word (a callsign, a pseudo-locale string) wraps instead of pushing a phone page sideways. */
+  overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -78,6 +84,7 @@
   gap: 8px;
 }
 .gp-bar {
+  overflow-wrap: anywhere;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
