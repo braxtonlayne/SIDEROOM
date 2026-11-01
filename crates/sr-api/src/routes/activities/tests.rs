@@ -126,6 +126,7 @@ fn bundle_spec() -> ServeSpec {
             sha256: SHA.to_owned(),
         },
         url_mappings: mappings(),
+        connect: vec![],
     }
 }
 
@@ -135,6 +136,7 @@ fn dev_spec() -> ServeSpec {
             url: "https://dev.example.com/".to_owned(),
         },
         url_mappings: mappings(),
+        connect: vec![],
     }
 }
 
@@ -154,7 +156,13 @@ fn assert_hardened(h: &HeaderMap) {
         csp.contains("frame-ancestors https://chat.example.org"),
         "{csp}"
     );
-    assert!(csp.contains("script-src 'self'") && csp.contains("connect-src 'self'"));
+    // ARC-SBX-001: the server enforces the sandbox itself, and a bundle that declared no hosts may connect nowhere.
+    assert!(
+        csp.starts_with("sandbox allow-scripts allow-pointer-lock;"),
+        "{csp}"
+    );
+    assert!(!csp.contains("allow-same-origin"), "{csp}");
+    assert!(csp.contains("script-src 'self'"), "{csp}");
     assert_eq!(h[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
     assert_eq!(h[header::REFERRER_POLICY], "no-referrer");
     assert!(
@@ -196,6 +204,45 @@ async fn the_reviewed_bundle_is_served_from_storage_with_the_hardened_headers() 
     assert!(f.asked.lock().unwrap().is_empty());
 }
 
+fn csp_of(h: &HeaderMap) -> String {
+    h[header::CONTENT_SECURITY_POLICY]
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn the_sandbox_connects_nowhere_unless_the_reviewed_manifest_named_hosts() {
+    let (d, _) = rig(true).await;
+    let mut spec = bundle_spec();
+    let (_, h, _) = text(proxy::serve(&d, APP, &spec, "/app.js").await).await;
+    assert!(csp_of(&h).contains("connect-src 'none';"), "{}", csp_of(&h));
+    // Module scripts and fonts of an opaque-origin page are CORS fetches.
+    assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+
+    // Declared hosts are named; "self" is ignored while the application has URL mappings (a mapping is a pipe
+    // to the developer's server) and honoured without them. CSP is per host: the whole host is admitted.
+    spec.connect = vec!["https://assets.example.com".to_owned(), "self".to_owned()];
+    let (_, h, _) = text(proxy::serve(&d, APP, &spec, "/app.js").await).await;
+    assert!(
+        csp_of(&h).contains("connect-src https://assets.example.com;"),
+        "{}",
+        csp_of(&h)
+    );
+    spec.url_mappings = vec![];
+    let (_, h, _) = text(proxy::serve(&d, APP, &spec, "/app.js").await).await;
+    assert!(
+        csp_of(&h).contains("connect-src https://assets.example.com 'self';"),
+        "{}",
+        csp_of(&h)
+    );
+
+    // Error pages never get more than the strictest policy.
+    let (s, h, _) = text(proxy::serve(&d, APP, &bundle_spec(), "/nope.js").await).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert!(csp_of(&h).contains("connect-src 'none';"));
+}
+
 #[tokio::test]
 async fn bundle_paths_never_leave_the_bundle_and_unknown_files_are_404() {
     let (d, f) = rig(true).await;
@@ -225,6 +272,7 @@ async fn bundle_paths_never_leave_the_bundle_and_unknown_files_are_404() {
             sha256: "f".repeat(64),
         },
         url_mappings: vec![],
+        connect: vec![],
     };
     let (s, _, _) = text(proxy::serve(&d, APP, &other, "/").await).await;
     assert_eq!(s, StatusCode::NOT_FOUND);
@@ -428,6 +476,8 @@ async fn writes_are_limited_to_one_mebibyte_and_to_the_activitys_own_origin() {
         "https://evil.example",
         "https://chat.example.org",
         "https://78.activities.chat.example.org",
+        // A sandboxed frame without allow-same-origin: an opaque origin is never the Activity's own.
+        "null",
     ] {
         let r = proxy::forward_write(
             &d,

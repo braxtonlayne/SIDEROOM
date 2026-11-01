@@ -7,7 +7,7 @@ import { createTransport } from './net/transport.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Hud, pct } from './hud.js';
-import { bindInput, firstKey, keysOf, hintText } from './input.js';
+import { bindInput, firstKey, keysOf, hintText, loadBindings } from './input.js';
 import { lookColor } from '../shared/look.js';
 import { Predictor } from './predict.js';
 import { FLAG_STOPPED } from './world.js';
@@ -1018,6 +1018,10 @@ async function boot() {
       el.textContent = `Could not sign in: ${/** @type {Error} */ (e).message}`;
       return;
     }
+    // The host's stored settings arrive with the handshake: read the ones read before it.
+    Object.assign(userPrefs, loadPrefs());
+    applyPrefs(userPrefs);
+    loadBindings();
     // The game runs in the browser of the member who launched it; this page reaches it through the SDK's data channel.
     if (platform.channel) {
       transport.attach(platform.channel);

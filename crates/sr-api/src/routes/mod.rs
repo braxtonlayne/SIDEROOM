@@ -19,7 +19,7 @@
 //! * `library`: `/library/*` catalog for members, `/admin/library/*` for publishers.
 //! * `cinema`: `/cinema/*` catalog for members, `/admin/cinema/*` for publishers.
 //! * `watchparty`: `/watch-parties/*` and `GET /channels/{id}/watch-party` (Watch Parties).
-//! * `activities`: `/applications/{id}/activity*`, `/admin/developers/activities*`, `/activities`, `/channels/{id}/activity`, `/activity-instances/*` and the proxy for `<app-id>.activities.<host>` (Activities).
+//! * `activities`: `/applications/{id}/activity*`, `/admin/developers/activities*`, `/activities`, `/activities/{id}/trust` and `/activities/{id}/vouch`, `/channels/{id}/activity`, `/activity-instances/*` and the proxy for `<app-id>.activities.<host>` (Activities).
 //! * `voice`: `GET /sr/voice/turn` and `PATCH /guilds/{id}/voice-states/{user_id}`.
 //! * `developer`: `/developers/*`, `/applications*`, `/oauth2/*`, `/interactions*`, `/gateway*`,
 //!   `/applications/{id}/commands*`, `/webhooks/{app}/{token}/messages/*` and `/admin/developers/*`.

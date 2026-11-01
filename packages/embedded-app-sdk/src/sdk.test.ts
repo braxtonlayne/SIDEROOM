@@ -169,3 +169,52 @@ describe('SideRoomSDK', () => {
     expect(r.listeners.size).toBe(1); // only `lone` still listens
   });
 });
+
+describe('SideRoomSDK storage (ARC-SBX-001)', () => {
+  async function ready(capabilities: string[], storage: Record<string, string> = {}) {
+    const r = rig();
+    const sdk = new SideRoomSDK('7', { env: r.env });
+    const p = sdk.ready();
+    r.deliver({ sr: 1, kind: 'ready', config: { ...cfg, capabilities, storage } });
+    await p;
+    return { r, sdk };
+  }
+
+  it('reads what the host sent and writes through the bridge', async () => {
+    const { r, sdk } = await ready(['storage'], { a: '1' });
+    expect(sdk.storage.getItem('a')).toBe('1');
+    expect(sdk.storage.getItem('nope')).toBeNull();
+    sdk.storage.setItem('b', '2');
+    expect(sdk.storage.getItem('b')).toBe('2');
+    expect(sdk.storage.length).toBe(2);
+    const sets = r.sent.map((s) => s.msg).filter((m) => m.kind === 'request');
+    expect(sets.at(-1)).toMatchObject({ cmd: 'storageSet', args: { key: 'b', value: '2' } });
+    sdk.storage.removeItem('a');
+    expect(sdk.storage.getItem('a')).toBeNull();
+    expect(r.sent.at(-1)?.msg).toMatchObject({ cmd: 'storageRemove', args: { key: 'a' } });
+  });
+
+  it('throws without the capability and over the quota', async () => {
+    const off = await ready([]);
+    expect(() => off.sdk.storage.setItem('a', 'b')).toThrow(/storage capability/);
+    const { sdk } = await ready(['storage']);
+    expect(() => sdk.storage.setItem('a', 'x'.repeat(32 * 1024 + 1))).toThrow(/quota/);
+    expect(() => sdk.storage.setItem('', 'x')).toThrow(/quota/);
+  });
+
+  it('can stand in for localStorage', async () => {
+    const { sdk } = await ready(['storage'], { a: '1' });
+    const target: { localStorage?: Storage } = {};
+    sdk.storage.install(target);
+    expect(target.localStorage?.getItem('a')).toBe('1');
+  });
+
+  it('saveFile sends base64 and the type', async () => {
+    const { r, sdk } = await ready([]);
+    void sdk.commands.saveFile({ name: 'a.png', mime: 'image/png', bytes: new Uint8Array([1, 2]) });
+    expect(r.sent.at(-1)?.msg).toMatchObject({
+      cmd: 'saveFile',
+      args: { name: 'a.png', mime: 'image/png', b: 'AQI=' },
+    });
+  });
+});

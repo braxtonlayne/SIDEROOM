@@ -2,6 +2,7 @@
 
 import { SideRoomSDK } from '@sideroom/embedded-app-sdk';
 import { startApp } from './app';
+import { setHostSave } from './export';
 import { broadcastAdapter } from './loopback';
 import { adapterFromSdk, memberId, type SdkLike } from './sdkState';
 import { S } from './strings';
@@ -27,6 +28,7 @@ async function boot(): Promise<void> {
   const hostName = location.hostname.split('.')[0] ?? '';
   const sdk = new SideRoomSDK(params.get('application_id') ?? hostName);
   await sdk.ready();
+  setHostSave((name, bytes) => sdk.commands.saveFile({ name, mime: 'image/png', bytes }));
   const board = new Board({
     me: memberId(sdk),
     // The host is known once the client has attached the data channel, so it is asked each time.

@@ -12,6 +12,9 @@ export interface MockOperation {
 
 export const mockOperations: readonly MockOperation[] = [
   {"id":"shelf","method":"get","path":"/activities","status":200,"body":{"enabled":false,"items":[{}]}},
+  {"id":"get_trust","method":"get","path":"/activities/:application_id/trust","status":200,"body":{"application_id":"1","badges":["operator_featured"],"can_vouch":false,"featured":false,"headline":"operator_featured","vouched_by_me":false,"vouches":0}},
+  {"id":"put_vouch","method":"put","path":"/activities/:application_id/vouch","status":200,"body":{"application_id":"1","badges":["operator_featured"],"can_vouch":false,"featured":false,"headline":"operator_featured","vouched_by_me":false,"vouches":0}},
+  {"id":"delete_vouch","method":"delete","path":"/activities/:application_id/vouch","status":200,"body":{"application_id":"1","badges":["operator_featured"],"can_vouch":false,"featured":false,"headline":"operator_featured","vouched_by_me":false,"vouches":0}},
   {"id":"get_instance","method":"get","path":"/activity-instances/:instance_id","status":200,"body":{"application_id":"1","application_name":"string","channel_id":"1","channel_type":"string","created_at_ms":0,"development":false,"guild_id":"1","id":"1","participants":[{}],"started_by":"string"}},
   {"id":"end","method":"delete","path":"/activity-instances/:instance_id","status":204,"body":null},
   {"id":"join","method":"post","path":"/activity-instances/:instance_id/join","status":200,"body":{"application_id":"1","application_name":"string","channel_id":"1","channel_type":"string","created_at_ms":0,"development":false,"guild_id":"1","id":"1","participants":[{}],"started_by":"string"}},

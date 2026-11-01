@@ -846,12 +846,15 @@ fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 /// A zip of one file, an Activity bundle that unpacks.
-fn tiny_zip() -> Vec<u8> {
+fn tiny_zip(code: &str) -> Vec<u8> {
     use std::io::Write;
     let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     z.start_file("index.html", zip::write::SimpleFileOptions::default())
         .unwrap();
     z.write_all(b"<h1>authz</h1>").unwrap();
+    z.start_file("app.js", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    z.write_all(code.as_bytes()).unwrap();
     z.finish().unwrap().into_inner()
 }
 
@@ -2790,7 +2793,52 @@ async fn seed(
     {
         a.insert("party_id", id.to_owned());
     }
-    let zipped = tiny_zip();
+    // ARC-SBX-001: the application is released with an approved first bundle (set directly: nobody in the matrix
+    // is a second reviewer), so the trust and vouch routes have a served build to work on; the second upload
+    // below is the draft that `activity/submit` takes.
+    {
+        let first = srv
+            .call_bytes(
+                &appowner_cred,
+                "POST",
+                &format!("/applications/{aid}/activity/bundles"),
+                "application/zip",
+                &tiny_zip("1;"),
+            )
+            .await;
+        if let Some(bid) = serde_json::from_str::<Value>(&first.body)
+            .ok()
+            .as_ref()
+            .and_then(pick_id)
+        {
+            let code_hash = "ab".repeat(32);
+            sqlx::query(
+                "UPDATE application_activity_bundles SET state = 'approved', code_sha256 = $2 WHERE id = $1::text::bigint",
+            )
+            .bind(&bid)
+            .bind(&code_hash)
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "UPDATE application_activities SET reviewed_bundle_id = $2::text::bigint WHERE application_id = $1::text::bigint",
+            )
+            .bind(aid.to_string())
+            .bind(&bid)
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query(
+                "UPDATE applications SET release_state = 'released'::app_release_state WHERE id = $1::text::bigint",
+            )
+            .bind(aid.to_string())
+            .execute(&pool)
+            .await
+            .unwrap();
+            a.insert("code_sha256", code_hash);
+        }
+    }
+    let zipped = tiny_zip("2;");
     let r = srv
         .call_bytes(
             &appowner_cred,
@@ -4620,6 +4668,7 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/watch-parties/{party_id}/host") => r#"{"user_id":"{member_id}"}"#,
         ("POST", "/developers/tester-invites/{invite_id}/respond")
         | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
+        ("PUT", "/activities/{application_id}/vouch") => r#"{"code_sha256":"{code_sha256}"}"#,
         ("POST", "/applications/{application_id}/activity/submit") => {
             r#"{"bundle_id":"{bundle_id}"}"#
         }

@@ -51,6 +51,185 @@
         ]
       }
     },
+    "/activities/{application_id}/trust": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The trust badge of a game's current build: the operator's code signature, the featured flag, the vouches\npinned to this exact code hash and, after an update, what the previous build had earned. The Arcade page\nrenders `headline` (`operator_featured`, `swarm_safety_signed`, `unverified_update`, `unsigned`).",
+        "operationId": "get_trust",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/activities/{application_id}/vouch": {
+      "put": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Vouch for a build (\"Vouch for Build\"), pinned to its `code_sha256`. Needs a member in good standing (an\nactive, non-bot account at least three days old: 403 otherwise), at most 30 vouches a day (409) and the\nhash of the build being served now (409 when the game was updated). Vouching again changes nothing.",
+        "operationId": "put_vouch",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VouchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Withdraw my vouches for this game (every build).",
+        "operationId": "delete_vouch",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/activity-instances/{instance_id}": {
       "get": {
         "tags": [
@@ -82076,6 +82255,16 @@
           }
         }
       },
+      "BadgeKind": {
+        "type": "string",
+        "description": "The label of a build shown on cards and in the game's details.",
+        "enum": [
+          "operator_featured",
+          "swarm_safety_signed",
+          "unverified_update",
+          "unsigned"
+        ]
+      },
       "BadgeObject": {
         "type": "object",
         "description": "A public profile badge: the catalogue id with English fallback text and an icon name\n(G-53). Clients translate the ids they know and fall back to `description`.",
@@ -103755,6 +103944,33 @@
           }
         }
       },
+      "PreviousBuild": {
+        "type": "object",
+        "description": "The build before the current one that people had vouched for or the operator had signed.",
+        "required": [
+          "code_sha256",
+          "short",
+          "vouches",
+          "signed"
+        ],
+        "properties": {
+          "code_sha256": {
+            "type": "string"
+          },
+          "short": {
+            "type": "string",
+            "description": "The first 8 characters, for text such as \"build 1a2b3c4d\"."
+          },
+          "signed": {
+            "type": "boolean"
+          },
+          "vouches": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Members in good standing who vouched for it."
+          }
+        }
+      },
       "PrimaryGuildObject": {
         "type": "object",
         "description": "A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`.",
@@ -110019,6 +110235,34 @@
           }
         }
       },
+      "SignatureView": {
+        "type": "object",
+        "description": "The operator's signature on a build, as shown.",
+        "required": [
+          "verify_key",
+          "signature",
+          "signed_at_ms",
+          "audit_version"
+        ],
+        "properties": {
+          "audit_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "signature": {
+            "type": "string"
+          },
+          "signed_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "verify_key": {
+            "type": "string",
+            "description": "The signing key's verify key (hex), so anyone can check the signature offline."
+          }
+        }
+      },
       "SignedUrlObject": {
         "type": "object",
         "description": "A short-lived signed CDN URL.",
@@ -113928,6 +114172,77 @@
           }
         }
       },
+      "TrustView": {
+        "type": "object",
+        "description": "Everything the UI needs to draw a build's badge and the vouch button.",
+        "required": [
+          "application_id",
+          "headline",
+          "badges",
+          "featured",
+          "vouches",
+          "vouched_by_me",
+          "can_vouch"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BadgeKind"
+            },
+            "description": "Every badge that applies (`operator_featured` implies `swarm_safety_signed`)."
+          },
+          "can_vouch": {
+            "type": "boolean",
+            "description": "The viewer may vouch: a member in good standing, and the build has a hash."
+          },
+          "code_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The hash of the code being served now; `None` when the game has no reviewed code bundle."
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "The operator has this game on the front page (it only shows as a badge while the code is signed)."
+          },
+          "headline": {
+            "$ref": "#/components/schemas/BadgeKind"
+          },
+          "previous": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PreviousBuild"
+              }
+            ]
+          },
+          "signature": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SignatureView"
+              }
+            ]
+          },
+          "vouched_by_me": {
+            "type": "boolean"
+          },
+          "vouches": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Members in good standing who vouched for the current hash."
+          }
+        }
+      },
       "TurnCredentialsObject": {
         "type": "object",
         "description": "TURN credentials, coturn REST style.",
@@ -116869,6 +117184,19 @@
           "up": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "VouchBody": {
+        "type": "object",
+        "description": "A member's vouch for the build they looked at.",
+        "required": [
+          "code_sha256"
+        ],
+        "properties": {
+          "code_sha256": {
+            "type": "string",
+            "description": "The `code_sha256` of the build being vouched for, as the badge showed it. Refused with 409 when the game\nhas shipped different code since."
           }
         }
       },

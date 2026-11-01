@@ -24,6 +24,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activities/{application_id}/trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The trust badge of a game's current build: the operator's code signature, the featured flag, the vouches
+         *     pinned to this exact code hash and, after an update, what the previous build had earned. The Arcade page
+         *     renders `headline` (`operator_featured`, `swarm_safety_signed`, `unverified_update`, `unsigned`).
+         */
+        get: operations["get_trust"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/activities/{application_id}/vouch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Vouch for a build ("Vouch for Build"), pinned to its `code_sha256`. Needs a member in good standing (an
+         *     active, non-bot account at least three days old: 403 otherwise), at most 30 vouches a day (409) and the
+         *     hash of the build being served now (409 when the game was updated). Vouching again changes nothing.
+         */
+        put: operations["put_vouch"];
+        post?: never;
+        /** Withdraw my vouches for this game (every build). */
+        delete: operations["delete_vouch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/activity-instances/{instance_id}": {
         parameters: {
             query?: never;
@@ -17155,6 +17198,11 @@ export interface components {
             snapshot_ms?: number | null;
         };
         /**
+         * @description The label of a build shown on cards and in the game's details.
+         * @enum {string}
+         */
+        BadgeKind: "operator_featured" | "swarm_safety_signed" | "unverified_update" | "unsigned";
+        /**
          * @description A public profile badge: the catalogue id with English fallback text and an icon name
          *     (G-53). Clients translate the ids they know and fall back to `description`.
          */
@@ -24293,6 +24341,18 @@ export interface components {
         PreviewBody: {
             preview: Record<string, never>;
         };
+        /** @description The build before the current one that people had vouched for or the operator had signed. */
+        PreviousBuild: {
+            code_sha256: string;
+            /** @description The first 8 characters, for text such as "build 1a2b3c4d". */
+            short: string;
+            signed: boolean;
+            /**
+             * Format: int64
+             * @description Members in good standing who vouched for it.
+             */
+            vouches: number;
+        };
         /** @description A displayed server tag: `{identity_guild_id, identity_enabled, tag, badge, color}`. */
         PrimaryGuildObject: {
             /**
@@ -26446,6 +26506,16 @@ export interface components {
             reviewed_by?: string | null;
             state: components["schemas"]["SignalState"];
         };
+        /** @description The operator's signature on a build, as shown. */
+        SignatureView: {
+            /** Format: int32 */
+            audit_version: number;
+            signature: string;
+            /** Format: int64 */
+            signed_at_ms: number;
+            /** @description The signing key's verify key (hex), so anyone can check the signature offline. */
+            verify_key: string;
+        };
         /** @description A short-lived signed CDN URL. */
         SignedUrlObject: {
             /**
@@ -27727,6 +27797,27 @@ export interface components {
             presets?: number[];
             regex_patterns?: string[];
         };
+        /** @description Everything the UI needs to draw a build's badge and the vouch button. */
+        TrustView: {
+            application_id: string;
+            /** @description Every badge that applies (`operator_featured` implies `swarm_safety_signed`). */
+            badges: components["schemas"]["BadgeKind"][];
+            /** @description The viewer may vouch: a member in good standing, and the build has a hash. */
+            can_vouch: boolean;
+            /** @description The hash of the code being served now; `None` when the game has no reviewed code bundle. */
+            code_sha256?: string | null;
+            /** @description The operator has this game on the front page (it only shows as a badge while the code is signed). */
+            featured: boolean;
+            headline: components["schemas"]["BadgeKind"];
+            previous?: null | components["schemas"]["PreviousBuild"];
+            signature?: null | components["schemas"]["SignatureView"];
+            vouched_by_me: boolean;
+            /**
+             * Format: int64
+             * @description Members in good standing who vouched for the current hash.
+             */
+            vouches: number;
+        };
         /** @description TURN credentials, coturn REST style. */
         TurnCredentialsObject: {
             password: string;
@@ -28672,6 +28763,14 @@ export interface components {
             /** Format: int64 */
             up: number;
         };
+        /** @description A member's vouch for the build they looked at. */
+        VouchBody: {
+            /**
+             * @description The `code_sha256` of the build being vouched for, as the badge showed it. Refused with 409 when the game
+             *     has shipped different code since.
+             */
+            code_sha256: string;
+        };
         WalletResult: {
             /** @description The first addresses, to compare with the operator's own wallet. */
             addresses: string[];
@@ -29116,6 +29215,124 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_trust: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    put_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VouchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    delete_vouch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustView"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

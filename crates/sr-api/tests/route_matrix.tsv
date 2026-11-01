@@ -1,5 +1,6 @@
 # XC-SEC-005 route matrix. See crates/sr-api/tests/route_matrix.rs.
 # METHOD	PATH	ACCESS	AUTHZ	BOT	BEARER	PLATFORM (a trailing ? on AUTHZ means unreviewed; PLATFORM - means fill it for a staff row: NAME, A+B for all, A|B for any, never mixed)
+DELETE	/activities/{application_id}/vouch	authenticated	self	allow	-	-
 DELETE	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
@@ -155,6 +156,7 @@ DELETE	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allo
 DELETE	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 DELETE	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
 GET	/activities	authenticated	user	allow	-	-
+GET	/activities/{application_id}/trust	authenticated	user	allow	-	-
 GET	/activity-instances/{instance_id}	authenticated	membership	allow	-	-
 GET	/admin/access-log	authenticated	staff	deny	-	VIEW_ACCESS_LOG
 GET	/admin/access-log/verify	authenticated	staff	deny	-	VIEW_ACCESS_LOG
@@ -1038,6 +1040,7 @@ POST	/watch-parties/{party_id}/queue	authenticated	party_control	allow	-	-
 POST	/watch-parties/{party_id}/reactions	authenticated	party_member	allow	-	-
 POST	/webhooks/{webhook_id}/reset-token	authenticated	membership	allow	-	-
 POST	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
+PUT	/activities/{application_id}/vouch	authenticated	self	allow	-	-
 PUT	/admin/cinema/assets/{asset_id}/link	authenticated	staff	deny	-	PUBLISH_MEDIA
 PUT	/admin/cinema/assets/{asset_id}/original-downloads	authenticated	staff	deny	-	PUBLISH_MEDIA
 PUT	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS

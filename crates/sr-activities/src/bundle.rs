@@ -39,7 +39,10 @@ pub const BYOS_READ: &str = "byos_read";
 /// refuses it (never handed to an instance) until it ships.
 pub const BYOS_WRITE: &str = "byos_write";
 /// Capabilities a manifest may declare. `datachannel`: the Activity uses `sdk.state` / `sdk.input` (ACT-CH-001).
-pub const CAPABILITIES: &[&str] = &[DATACHANNEL, BYOS_READ, BYOS_WRITE];
+pub const CAPABILITIES: &[&str] = &[DATACHANNEL, STORAGE, BYOS_READ, BYOS_WRITE];
+/// The storage capability (ARC-SBX-001): the host keeps a small key-value store for the Activity and sends it
+/// in `ready`, because the sandboxed frame has no `localStorage`.
+pub const STORAGE: &str = "storage";
 /// Largest manifest.
 pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 

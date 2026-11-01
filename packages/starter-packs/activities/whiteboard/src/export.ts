@@ -28,8 +28,22 @@ export async function renderPagePng(
   });
 }
 
-/** Hand the PNG to the person: a download when top-level, a new tab when sandboxed (no download right). */
+/**
+ * How a sandboxed Activity saves a file: the host page asks the person and downloads it (the frame has no
+ * download or popup right). Set by main.ts once the SDK is ready.
+ */
+let hostSave: ((name: string, bytes: Uint8Array) => Promise<unknown>) | null = null;
+export function setHostSave(fn: (name: string, bytes: Uint8Array) => Promise<unknown>): void {
+  hostSave = fn;
+}
+
+/** Hand the PNG to the person: through the host when sandboxed, a download when top-level. */
 export function deliverPng(blob: Blob, name: string): void {
+  if (hostSave) {
+    const save = hostSave;
+    void blob.arrayBuffer().then((b) => save(name, new Uint8Array(b)));
+    return;
+  }
   const url = URL.createObjectURL(blob);
   if (window.parent === window) {
     const a = document.createElement('a');

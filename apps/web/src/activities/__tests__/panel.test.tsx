@@ -86,12 +86,9 @@ describe('ActivityPanel and the dock', () => {
       `${window.location.protocol}//7.activities.${window.location.host}/`,
     );
     const sandbox = frame.getAttribute('sandbox') ?? '';
-    expect(sandbox.split(' ').sort()).toEqual([
-      'allow-forms',
-      'allow-popups',
-      'allow-same-origin',
-      'allow-scripts',
-    ]);
+    // ARC-SBX-001: an opaque origin (no allow-same-origin), no forms, popups, modals or downloads.
+    expect(sandbox.split(' ').sort()).toEqual(['allow-pointer-lock', 'allow-scripts']);
+    expect(sandbox).not.toContain('allow-same-origin');
     expect(sandbox).not.toContain('allow-top-navigation');
     expect(frame.getAttribute('allow')).toBe('fullscreen');
     expect(frame.getAttribute('referrerpolicy')).toBe('no-referrer');

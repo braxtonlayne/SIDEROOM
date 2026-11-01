@@ -14,6 +14,12 @@
 //!   and the browser's never reach the application (only the content type and the body travel).
 //! * Every response carries a strict `Content-Security-Policy` (`frame-ancestors` is the app shell only),
 //!   `nosniff`, no referrer and a `Permissions-Policy` with the powerful features off.
+//! * ARC-SBX-001, the hardened sandbox: the policy starts with `sandbox allow-scripts allow-pointer-lock`, so the
+//!   page has an opaque origin even when it is opened directly or framed with a weaker `sandbox` attribute, and
+//!   `connect-src` is `'none'` unless the reviewed manifest named hosts ([`sr_activities::sandbox::csp`]; CSP
+//!   is per host, not per URL). An opaque origin sends `Origin: null`, which is never the activity's origin, so
+//!   no write under a URL mapping can come from a game any more; static bundle files answer
+//!   `Access-Control-Allow-Origin: *` because a module script or font of an opaque-origin page is a CORS fetch.
 
 use super::{ActivitiesDeps, MAX_PROXIED_BYTES};
 use axum::{
@@ -24,7 +30,7 @@ use axum::{
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
 };
-use sr_activities::{Lookup, ServeSpec, Serving, bundle, rules};
+use sr_activities::{Lookup, ServeSpec, Serving, bundle, rules, sandbox};
 use std::sync::Arc;
 
 /// Largest request body forwarded through a URL mapping (J-17).
@@ -122,6 +128,20 @@ pub async fn activity_host_layer(
     .await
 }
 
+/// Replace the default policy with the one this application's reviewed manifest earns it.
+fn apply_csp(d: &ActivitiesDeps, spec: &ServeSpec, resp: &mut Response) {
+    let policy = sandbox::csp(&sandbox::CspInput {
+        app_origin: &d.app_origin,
+        development: matches!(spec.serving, Serving::Dev { .. }),
+        has_mappings: !spec.url_mappings.is_empty(),
+        connect: &spec.connect,
+    });
+    if let Ok(v) = HeaderValue::from_str(&policy) {
+        resp.headers_mut()
+            .insert(header::CONTENT_SECURITY_POLICY, v);
+    }
+}
+
 fn dev_mark(spec: &ServeSpec, resp: &mut Response) {
     if matches!(spec.serving, Serving::Dev { .. }) {
         resp.headers_mut().insert(
@@ -158,6 +178,7 @@ pub(crate) async fn serve(
         (None, Serving::Bundle { sha256 }) => from_bundle(d, app, sha256, path_and_query).await,
     };
     dev_mark(spec, &mut resp);
+    apply_csp(d, spec, &mut resp);
     resp
 }
 
@@ -195,6 +216,13 @@ async fn from_bundle(d: &ActivitiesDeps, app: i64, sha256: &str, path_and_query:
     };
     r.headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static(cache));
+    // The page is sandboxed without `allow-same-origin`, so its module scripts, fonts and fetches of its own
+    // files are cross-origin (CORS) requests. The files are the reviewed bundle, readable by anyone who knows
+    // the application id, and the request carries no credentials, so `*` exposes nothing new.
+    r.headers_mut().insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("*"),
+    );
     r
 }
 
@@ -330,6 +358,7 @@ pub(crate) async fn forward_write(
         }
     };
     dev_mark(spec, &mut resp);
+    apply_csp(d, spec, &mut resp);
     resp
 }
 
@@ -346,12 +375,14 @@ fn not_allowed(d: &ActivitiesDeps) -> Response {
 
 /// The security headers every response of the activity origin carries.
 fn harden(d: &ActivitiesDeps, h: &mut HeaderMap) {
-    let csp = format!(
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
-         img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; \
-         object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors {}",
-        d.app_origin
-    );
+    // Error pages and anything not tied to a reviewed manifest get the strictest policy (`connect-src 'none'`);
+    // `apply_csp` swaps in the application's own after a bundle or mapped response is built.
+    let csp = sandbox::csp(&sandbox::CspInput {
+        app_origin: &d.app_origin,
+        development: false,
+        has_mappings: false,
+        connect: &[],
+    });
     let set = |h: &mut HeaderMap, name: header::HeaderName, v: &str| {
         if let Ok(v) = HeaderValue::from_str(v) {
             h.insert(name, v);

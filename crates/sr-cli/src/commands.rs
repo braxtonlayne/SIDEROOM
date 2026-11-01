@@ -20,7 +20,8 @@ use sr_db::{
 };
 
 use crate::{
-    Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd, guilds,
+    ArcadeCmd, Cli, Command, EmuCmd, InviteCmd, PackageCmd, StaffCmd, StorageCmd, TvCmd, UserCmd,
+    guilds,
 };
 use sr_admin::{AdminService, Caller, SYSTEM_USER_ID as ADMIN_SYSTEM_USER};
 use sr_db::admin_repo::PgAdminRepo;
@@ -123,6 +124,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Staff(cmd) => staff(&pool, &cfg.server, ids, cmd).await?,
         Command::VerifyAccessLog => verify_access_log(&pool, ids).await?,
         Command::RotateSecretKey => rotate_secret_key(&pool, &cfg, ids).await?,
+        Command::Arcade(cmd) => arcade(&pool, &cfg, ids, cmd).await?,
         Command::Seed {
             password,
             force,
@@ -1066,6 +1068,74 @@ fn parse_previous(cfg: &Config) -> Result<Vec<[u8; 32]>> {
         .map(|k| parse_secret_key(k.expose()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| anyhow::anyhow!("server.secret_key_previous: {e}"))
+}
+
+/// `arcade sign-code | revoke-code | backfill-hashes` (ARC-SBX-001).
+async fn arcade(pool: &PgPool, cfg: &Config, ids: IdSource, cmd: ArcadeCmd) -> Result<()> {
+    let s = &cfg.storage;
+    if s.endpoint == "memory:" {
+        bail!("storage.endpoint is memory:, so there are no stored bundles to read");
+    }
+    let storage = sr_storage::ObjectStoreStorage::s3(
+        &s.endpoint,
+        &s.bucket,
+        &s.region,
+        s.access_key.expose(),
+        s.secret_key.expose(),
+    )
+    .context("configuring object storage")?;
+    let new_key_id = ids();
+    let svc =
+        sr_activities::ActivityService::new(pool.clone(), ids).with_storage(Arc::new(storage));
+    match cmd {
+        ArcadeCmd::SignCode {
+            hash,
+            application,
+            signed_by,
+            dry_run,
+        } => {
+            let secrets = mount_box(cfg)?;
+            let r = crate::arcade::sign_code(
+                &svc,
+                &secrets,
+                new_key_id,
+                &hash,
+                application,
+                &signed_by,
+                dry_run,
+            )
+            .await?;
+            if dry_run {
+                println!(
+                    "dry run: application {} would be signed ({} warnings)",
+                    r.application_id, r.warnings
+                );
+            } else {
+                if r.key_created {
+                    println!("made the operator signing key");
+                }
+                println!(
+                    "signed {} for application {} (verify key {})",
+                    r.code_sha256, r.application_id, r.verify_key
+                );
+            }
+        }
+        ArcadeCmd::RevokeCode {
+            hash,
+            application,
+            reason,
+        } => {
+            if svc.revoke_signature(application, &hash, &reason).await? {
+                println!("signature revoked");
+            } else {
+                bail!("no live signature for that build");
+            }
+        }
+        ArcadeCmd::BackfillHashes => {
+            println!("{} bundles hashed", svc.backfill_code_hashes().await?);
+        }
+    }
+    Ok(())
 }
 
 fn mount_box(cfg: &Config) -> Result<sr_db::sealed::SecretBox> {
