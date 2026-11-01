@@ -356,3 +356,27 @@ Playwright, in-memory object storage, no Garage locally).
   (opaque origin, no fetch leaves including its own host, CSP violation reported, no cookies, no parent page, storage
   through the bridge). Unticked: the gate spec's signing and vouch-flip steps need object storage shared by sr-server and
   sr-cli (CI's Garage, live job); the `byos_read` sandbox path is not built_
+
+## Wave 43 — Guest links (roadmap P28)
+
+Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST-002). Threat-model rows T41 (relay) and T42 (runner).
+
+### ARC — Guest links
+- [ ] **ARC-GST-002** [FE] Link generation and the guest runner: "Share link" in a running Arcade lobby (a member of a
+  voice-channel instance whose game declares `guest_play`), `/play/<lobby_token>#key=<game key>` with the key made in the
+  sharer's browser and never sent to a server, a QR code from the existing `@sideroom/ui` encoder, the noindex
+  `/play/<token>` page as the `guest-play` public surface (isolated runner bundle, own whitelist and one-REST-call rule in
+  `check-entrance-isolation.mjs`, own CSP with `frame-src` for this host's activity origin), the reduced `guest` bridge
+  as an allow-list (4 commands, 2 events), the runner refusing `ingame_voice`, the member-side bridge between the room's
+  data channel and the lobby (AES-GCM under the game key), guests in the game's participant list by callsign, Land.io
+  declaring `TIER_1_ORIGINAL` + `guest_play` + `lobby_channel` _Tests that ran: Vitest `src/public/guest-play` (65),
+  `src/activities` (guestBridge, shareLink, guestParticipants; 78 in the directory), `src/security/csp.test.ts` (22),
+  `scripts/check-entrance-isolation.test.mjs` (19), `scripts/threat-model.test.mjs` (5), `sr-server` `web_gate` (22, incl.
+  `the_guest_play_shell_is_public_with_its_own_policy`) and lib `web::` (11), the Land.io pack bundle test (23);
+  Playwright Chromium `guest-play.spec.ts` "guest runner, relay mocked" (6, against the Vite dev server and against the
+  built dist behind `sr-server`), `entrance-isolation.spec.ts` incl. the new guest-play surface (32 with the signed-in
+  steps), `noindex.spec.ts` for `/play/`. Unticked: the real-stack gate proof (Land.io in a call, incognito guest, sync
+  both ways, 403/Drop at the relay) is written in `guest-play.spec.ts` but needs 43-A's relay in the server under test
+  (`SR_E2E_GUEST=1 SR_E2E_ACTIVITIES=1 SR_E2E_VOICE=1`); not built: a lobby-approved nickname (the relay assigns the
+  callsign; guests never choose a name), the join answer's `capabilities` field (assumed), link sharing from a text-channel
+  instance_
