@@ -2704,6 +2704,346 @@
         ]
       }
     },
+    "/admin/arcade/candidates": {
+      "get": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Released Activities that declare a tier, for the Operator to feature (`OPERATOR`).",
+        "operationId": "candidates",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArcadeCandidate"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/arcade/coming-soon": {
+      "post": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Add a game in development to the Coming Soon showcase (`OPERATOR`, audited).",
+        "operationId": "add_coming_soon",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArcadeComingSoonInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeComingSoonCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/arcade/coming-soon/{entry_id}": {
+      "delete": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Remove a Coming Soon entry and everyone's \"Notify me\" on it (`OPERATOR`, audited).",
+        "operationId": "remove_coming_soon",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Coming Soon entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/arcade/featured/{application_id}": {
+      "put": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Feature a game on the Front Page, or change its place and blurb (`OPERATOR`, audited).",
+        "operationId": "feature",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArcadeFeatureInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeFeaturedCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Take a game off the Front Page (`OPERATOR`, audited). 404 when it was not featured.",
+        "operationId": "unfeature",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/bans": {
       "get": {
         "tags": [
@@ -23542,6 +23882,102 @@
         ]
       }
     },
+    "/arcade": {
+      "get": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "The Front Page: Featured, Coming Soon and the capability flags.",
+        "operationId": "front",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeFront"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/arcade/coming-soon/{entry_id}/notify": {
+      "put": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Turn \"Notify me\" on or off for one Coming Soon entry.",
+        "operationId": "set_notify",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Coming Soon entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArcadeNotifyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/channels/{channel_id}": {
       "get": {
         "tags": [
@@ -37163,6 +37599,230 @@
             }
           },
           "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/arcade/cartridges": {
+      "get": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "The cartridges a server lists. Members of the server only.",
+        "operationId": "cartridges",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server (guild) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ArcadeCartridge"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "List a cartridge on a server (`MANAGE_GUILD`).",
+        "operationId": "add_cartridge",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server (guild) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArcadeCartridgeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeCartridge"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/guilds/{guild_id}/arcade/cartridges/{cartridge_id}": {
+      "delete": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Unlist a cartridge (`MANAGE_GUILD`).",
+        "operationId": "remove_cartridge",
+        "parameters": [
+          {
+            "name": "guild_id",
+            "in": "path",
+            "description": "Server (guild) snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cartridge_id",
+            "in": "path",
+            "description": "Cartridge snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
             "description": "",
             "content": {
               "application/json": {
@@ -80532,6 +81192,433 @@
           }
         }
       },
+      "ArcadeCandidate": {
+        "type": "object",
+        "description": "A released Activity the Operator could feature.",
+        "required": [
+          "application_id",
+          "name",
+          "tier",
+          "bundle_sha256",
+          "featured"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "bundle_sha256": {
+            "type": "string"
+          },
+          "featured": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          }
+        }
+      },
+      "ArcadeCartridge": {
+        "type": "object",
+        "description": "A cartridge a server lists from its shelf.",
+        "required": [
+          "id",
+          "guild_id",
+          "title",
+          "description",
+          "kind",
+          "tier",
+          "eligibility",
+          "source_ref",
+          "capabilities",
+          "tip_links",
+          "added_by",
+          "added_at_ms"
+        ],
+        "properties": {
+          "added_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "added_by": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/ArcadeEligibility"
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`game` or `mod`."
+          },
+          "source_ref": {
+            "type": "string",
+            "description": "Where on the server's shelf the cartridge lives (an opaque locator the shelf code resolves)."
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          },
+          "tip_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeTip"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ArcadeCartridgeInput": {
+        "type": "object",
+        "description": "A cartridge to list.",
+        "required": [
+          "title",
+          "kind",
+          "tier",
+          "source_ref"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`game` or `mod`."
+          },
+          "source_ref": {
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          },
+          "tip_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeTipInput"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ArcadeComingSoonCard": {
+        "type": "object",
+        "description": "A game being built, in the Coming Soon showcase.",
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "tier",
+          "repo_url",
+          "notify",
+          "created_at_ms"
+        ],
+        "properties": {
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string"
+          },
+          "notify": {
+            "type": "boolean",
+            "description": "Whether the caller asked to be told when it is out."
+          },
+          "repo_url": {
+            "type": "string",
+            "description": "The project's repository (https)."
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ArcadeComingSoonInput": {
+        "type": "object",
+        "description": "A Coming Soon entry to add.",
+        "required": [
+          "title",
+          "summary",
+          "tier",
+          "repo_url"
+        ],
+        "properties": {
+          "repo_url": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ArcadeEligibility": {
+        "type": "object",
+        "description": "Where a tier may be played or shown.",
+        "required": [
+          "browser_play",
+          "guest_links",
+          "featured",
+          "desktop_only",
+          "needs_base_game_hint"
+        ],
+        "properties": {
+          "browser_play": {
+            "type": "boolean",
+            "description": "Plays in the browser, in a call."
+          },
+          "desktop_only": {
+            "type": "boolean",
+            "description": "Runs in the desktop app only."
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "May be featured on the Front Page."
+          },
+          "guest_links": {
+            "type": "boolean",
+            "description": "May be offered on a shareable `/play/<token>` guest link (wave 43)."
+          },
+          "needs_base_game_hint": {
+            "type": "boolean",
+            "description": "Needs the local base-game hint of the desktop launcher (46-B)."
+          }
+        }
+      },
+      "ArcadeFeatureInput": {
+        "type": "object",
+        "description": "What the Operator sets when featuring.",
+        "properties": {
+          "blurb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line of at most 120 characters."
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Lower first. Default 0."
+          }
+        }
+      },
+      "ArcadeFeaturedCard": {
+        "type": "object",
+        "description": "A game on the Front Page. The Operator chose it.",
+        "required": [
+          "application_id",
+          "name",
+          "description",
+          "tier",
+          "eligibility",
+          "capabilities",
+          "tip_links",
+          "bundle_sha256",
+          "position",
+          "featured_at_ms"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "blurb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Operator's one-line note for the card."
+          },
+          "bundle_sha256": {
+            "type": "string",
+            "description": "SHA-256 of the reviewed bundle; the key the trust badges (code signing, vouches) attach to."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What the reviewed build declares."
+          },
+          "description": {
+            "type": "string"
+          },
+          "eligibility": {
+            "$ref": "#/components/schemas/ArcadeEligibility"
+          },
+          "featured_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/ArcadeTier"
+          },
+          "tip_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeTip"
+            }
+          }
+        }
+      },
+      "ArcadeFlag": {
+        "type": "object",
+        "description": "A capability flag in the catalogue.",
+        "required": [
+          "name",
+          "status",
+          "summary"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArcadeFlagStatus"
+          },
+          "summary": {
+            "type": "string"
+          }
+        }
+      },
+      "ArcadeFlagStatus": {
+        "type": "string",
+        "description": "Whether a flag is enforced today.",
+        "enum": [
+          "active",
+          "reserved"
+        ]
+      },
+      "ArcadeFront": {
+        "type": "object",
+        "description": "The Front Page.",
+        "required": [
+          "featured",
+          "coming_soon",
+          "flags"
+        ],
+        "properties": {
+          "coming_soon": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeComingSoonCard"
+            }
+          },
+          "featured": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeFeaturedCard"
+            }
+          },
+          "flags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeFlag"
+            }
+          }
+        }
+      },
+      "ArcadeNotifyBody": {
+        "type": "object",
+        "description": "Body of `PUT /arcade/coming-soon/{entry_id}/notify`.",
+        "required": [
+          "notify"
+        ],
+        "properties": {
+          "notify": {
+            "type": "boolean",
+            "description": "Whether to tell me when the game ships."
+          }
+        }
+      },
+      "ArcadeTier": {
+        "type": "string",
+        "description": "The two content tiers of a game manifest.",
+        "enum": [
+          "TIER_1_ORIGINAL",
+          "TIER_2_REIMPLEMENTATION"
+        ]
+      },
+      "ArcadeTip": {
+        "type": "object",
+        "description": "One tip link as the API shows it.",
+        "required": [
+          "kind",
+          "url"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "`btc`, `lightning`, `kofi` or `patreon`."
+          },
+          "url": {
+            "type": "string",
+            "description": "A `bitcoin:` or `lightning:` URI (drawn as a QR code) or an https link on an allow-listed host."
+          }
+        }
+      },
+      "ArcadeTipInput": {
+        "type": "object",
+        "description": "A tip link in a request.",
+        "required": [
+          "kind",
+          "url"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "ArchiveReport": {
         "type": "object",
         "description": "The pre-inspection of one archive.",
@@ -82682,6 +83769,20 @@
           },
           "state": {
             "$ref": "#/components/schemas/BundleState"
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tier the manifest declares: `TIER_1_ORIGINAL` or `TIER_2_REIMPLEMENTATION`. Absent in a manifest\nwritten before tiers; such a game is not listed on the Arcade."
+          },
+          "tip_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArcadeTip"
+            },
+            "description": "Creator tip links the manifest declares (Ko-fi, Patreon, Bitcoin or Lightning)."
           },
           "uploaded_at_ms": {
             "type": "integer",
