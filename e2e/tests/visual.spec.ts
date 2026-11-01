@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { apiPost, loginApi, bootstrapState } from '../support/fixtures';
+import { withStudySurfacesOn } from '../support/studySwitches';
 
 /**
  * XC-TEST-005: visual regression snapshots for the Entrance, Cinema and Library pages.
@@ -56,6 +57,8 @@ test.describe('Entrance', () => {
 });
 
 test.describe('Cinema and Library (seeded)', () => {
+  // Movies and the Discover rows are storefront surfaces, off by default since wave 41 (D-400).
+  withStudySurfacesOn(test);
   const TITLE = 'Visual Baseline Film';
 
   test.beforeEach(async ({ page }) => {

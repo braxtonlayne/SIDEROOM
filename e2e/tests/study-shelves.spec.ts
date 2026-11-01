@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Page, Route } from '@playwright/test';
 import { expect, test } from '../support/fixtures';
 
@@ -9,10 +10,12 @@ import { expect, test } from '../support/fixtures';
  *   - the sidebar groups My Files, one entry per friend and one per guild;
  *   - every card carries its provenance badge;
  *   - the type filter narrows the cards;
- *   - the owner edits a title and the card shows it;
+ *   - the owner edits a title and the card shows it (PATCH of the catalog object, 41-C);
+ *   - opening a video plays it from the per-object URL (`GET /shelves/{id}/objects/{sha256(path)}/url`);
  *   - no request leaves for a host other than the app and the stand-in bucket.
  *
- * Not run by the 41-B agent (ports 8080/5173 belong to the navigation work); typechecked only.
+ * The real server's side of the same flow (two sessions of one friend account, revoke, delist, no credential in any
+ * grantee response) is `shelf_access_holds_over_http` in crates/sr-server/tests/authz_matrix.rs.
  */
 const API = '**/api/v1';
 const BUCKET = 'https://bucket.invalid';
@@ -29,26 +32,28 @@ const FILES: Record<string, { key: string; size: number }[]> = {
   '9502': [{ key: 'Shared/akira.cbz', size: 4000 }],
 };
 
+const sha = (k: string) => createHash('sha256').update(k, 'utf8').digest('hex');
+
 async function fakeStudyApi(page: Page, canEdit: boolean) {
-  const notes: { key: string; title?: string }[] = [];
+  const notes = new Map<string, { title: string; note: string; cover: string }>();
   const puts: unknown[] = [];
-  await page.route(`${API}/users/@me/storage/mounts`, (r) =>
-    json(r, [{ id: '9501', label: 'Home', status: 'active' }]),
+  const minted: string[] = [];
+  await page.route(`${API}/shelves/visible`, (r) =>
+    json(r, {
+      shelves: [
+        { shelf_id: '9501', label: 'Home', via: 'own', object_count: 3, can_manage: true },
+        {
+          shelf_id: '9502',
+          label: 'Friend',
+          via: 'friend',
+          owner_id: '777',
+          owner_handle: 'pal',
+          object_count: 1,
+          can_manage: false,
+        },
+      ],
+    }),
   );
-  await page.route(`${API}/users/@me/storage/shares`, (r) =>
-    json(r, [
-      {
-        mount_id: '9502',
-        owner_id: '777',
-        label: 'Friend',
-        cinema: true,
-        library: true,
-        music: false,
-      },
-    ]),
-  );
-  await page.route(`${API}/users/@me/games/roms`, (r) => json(r, { roms: [] }));
-  await page.route(`${API}/shelves/*`, (r) => json(r, { items: [], total: 0, sources: [] }));
   await page.route(`${API}/storage/mounts/*/objects*`, (r) => {
     const mount = new URL(r.request().url()).pathname.split('/')[5] ?? '';
     return json(r, {
@@ -59,21 +64,47 @@ async function fakeStudyApi(page: Page, canEdit: boolean) {
       can_manage: canEdit,
     });
   });
-  await page.route(`${API}/storage/mounts/*/notes`, async (r) => {
-    if (r.request().method() === 'PUT') {
-      const body = r.request().postDataJSON() as { key: string; title: string };
-      puts.push(body);
-      notes.push({ key: body.key, title: body.title });
-      return r.fulfill({ status: 204 });
-    }
-    return json(r, { notes, can_edit: canEdit });
+  // The catalog, the owner's edit and the per-object URL (41-C). Registered after the broader patterns: the last
+  // matching route wins in Playwright.
+  await page.route(/\/api\/v1\/shelves\/\d+\/objects(\?.*)?$/, (r) => {
+    const shelf = new URL(r.request().url()).pathname.split('/')[4] ?? '';
+    return json(r, {
+      objects: (FILES[shelf] ?? []).map((f) => ({
+        object_hash: sha(f.key),
+        path: f.key,
+        size: f.size,
+        class: 'other',
+        title: notes.get(f.key)?.title ?? '',
+        cover: notes.get(f.key)?.cover ?? '',
+        note: notes.get(f.key)?.note ?? '',
+        updated_at: '2026-10-01T00:00:00Z',
+      })),
+      next_cursor: null,
+      can_edit: canEdit,
+    });
   });
-  await page.route(`${API}/storage/mounts/*/presign`, (r) =>
-    json(r, { url: `${BUCKET}/x?sig=1`, expires_at: new Date(Date.now() + 600_000).toISOString() }),
-  );
-  // The covers read the stand-in bucket; it answers nothing, so cards fall back to their type glyph.
+  await page.route(/\/api\/v1\/shelves\/\d+\/objects\/[0-9a-f]{64}(\/url)?$/, (r) => {
+    const parts = new URL(r.request().url()).pathname.split('/');
+    if (parts[parts.length - 1] === 'url') {
+      minted.push(parts[parts.length - 2] ?? '');
+      return json(r, {
+        url: `${BUCKET}/obj?sig=1`,
+        expires_at: new Date(Date.now() + 600_000).toISOString(),
+      });
+    }
+    const hash = parts[parts.length - 1];
+    const f = Object.values(FILES)
+      .flat()
+      .find((x) => sha(x.key) === hash);
+    if (!f) return json(r, { code: 10004, message: 'Unknown' }, 404);
+    const body = r.request().postDataJSON() as { title: string; note: string; cover: string };
+    puts.push({ key: f.key, ...body });
+    notes.set(f.key, body);
+    return json(r, {});
+  });
+  // The covers and the player read the stand-in bucket; it answers nothing, so cards fall back to their type glyph.
   await page.route(`${BUCKET}/**`, (r) => r.fulfill({ status: 404 }));
-  return { puts };
+  return { puts, minted };
 }
 
 test.describe('The Study (STU-SHF-001)', () => {
@@ -91,7 +122,7 @@ test.describe('The Study (STU-SHF-001)', () => {
         foreign.push(u.host);
       }
     });
-    const { puts } = await fakeStudyApi(page, true);
+    const { puts, minted } = await fakeStudyApi(page, true);
 
     await page.goto('/study');
     const nav = page.getByRole('navigation', { name: 'Shelves by source' });
@@ -124,6 +155,15 @@ test.describe('The Study (STU-SHF-001)', () => {
     await dialog.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByRole('button', { name: /^Open Heat \(director cut\), / })).toBeVisible();
     expect(puts).toHaveLength(1);
+
+    // Playback: the player's source is the per-object URL minted for sha256 of the file's path.
+    await page.getByRole('button', { name: /^Open Heat \(director cut\), / }).click();
+    await expect(page.getByRole('dialog').locator('video')).toHaveAttribute(
+      'src',
+      `${BUCKET}/obj?sig=1`,
+    );
+    expect(minted).toContain(sha('Films/heat.mp4'));
+    await page.keyboard.press('Escape');
 
     expect(foreign).toEqual([]);
   });

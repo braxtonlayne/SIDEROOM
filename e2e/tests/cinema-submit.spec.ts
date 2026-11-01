@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { repoRoot, runCli } from '../support/cli';
 import { apiPost, expect, test } from '../support/fixtures';
+import { withStudySurfacesOn } from '../support/studySwitches';
 
 /**
  * Cinema > Submit in the browser (RDY-MED-002, RDY-MED-001): a member starts a series draft, drops a small
@@ -77,6 +78,9 @@ async function apiGet<T>(request: APIRequestContext, path: string): Promise<T> {
 }
 
 /** The browser PUTs parts to the bucket from the app's origin: give the bucket that CORS rule (D-175). */
+// The submission flow and the review queue are storefront surfaces, off by default since wave 41 (D-400, D-404).
+withStudySurfacesOn(test);
+
 test.beforeAll(() => {
   try {
     runCli(['storage', 'ensure-cors']);
