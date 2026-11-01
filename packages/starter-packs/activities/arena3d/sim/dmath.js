@@ -44,8 +44,10 @@ function cosPoly(x) {
 export function sinCos(units) {
   const a = ((units % TURN) + TURN) % TURN;
   // Split into an eighth-of-a-turn-centred quadrant so the polynomial argument stays within +-pi/4.
-  const q = Math.floor((a + 8192) / 16384) & 3;
-  const r = (a - q * 16384) * RAD_PER_UNIT;
+  // k is 0..4 (4 is the last eighth of the turn, i.e. quadrant 0 again); the remainder must use k, not k & 3.
+  const k = Math.floor((a + 8192) / 16384);
+  const q = k & 3;
+  const r = (a - k * 16384) * RAD_PER_UNIT;
   const s = sinPoly(r);
   const c = cosPoly(r);
   switch (q) {
