@@ -17,6 +17,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
+import { RoomsNav } from '../study/RoomsNav';
+import { useStudyFlag, type StudyFlag } from '../study/flags';
+import { StudyAreas } from '../study/StudyAreas';
 import { useT, type MessageKey } from '../i18n';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
@@ -35,17 +38,16 @@ export function SectionBar() {
       <span aria-hidden="true" className="lib-sectionbar-slash">
         /
       </span>
-      <nav aria-label={t('library.shell.sectionsNav')} className="lib-sectionbar-nav">
-        <Link to="/channels" className="lib-sectionbar-link">
-          {t('library.shell.lounge')}
-        </Link>
-        <Link to="/cinema" className="lib-sectionbar-link">
-          {t('library.shell.cinema')}
-        </Link>
-        <Link to="/library" className="lib-sectionbar-link" aria-current="page">
-          {t('library.shell.library')}
-        </Link>
-      </nav>
+      <RoomsNav
+        current="study"
+        className="lib-sectionbar-nav"
+        linkClassName="lib-sectionbar-link"
+      />
+      <StudyAreas
+        current="library"
+        className="lib-sectionbar-nav"
+        linkClassName="lib-sectionbar-link"
+      />
     </header>
   );
 }
@@ -65,21 +67,38 @@ interface NavItem {
   labelKey: MessageKey;
   icon: 'compass' | 'grid' | 'clock' | 'bookmark' | 'list' | 'upload' | 'edit' | 'heart';
   exact?: boolean;
+  /** Shown only while this Study switch is on (STU-NAV-001). */
+  flag?: StudyFlag;
 }
 
 const DISCOVER: NavItem[] = [
   { to: '/library', labelKey: 'library.shell.nav.home', icon: 'compass', exact: true },
   { to: '/library/browse', labelKey: 'library.shell.nav.browse', icon: 'grid' },
   { to: '/library/updates', labelKey: 'library.shell.nav.latestUpdates', icon: 'clock' },
-  { to: '/library/requests', labelKey: 'library.shell.nav.requests', icon: 'heart' },
+  {
+    to: '/library/requests',
+    labelKey: 'library.shell.nav.requests',
+    icon: 'heart',
+    flag: 'requestsBoard',
+  },
   { to: '/library/shelves', labelKey: 'shelves.nav', icon: 'bookmark' },
 ];
 const YOUR_SPACE: NavItem[] = [
   { to: '/library/me', labelKey: 'library.shell.nav.myLibrary', icon: 'bookmark' },
   { to: '/library/history', labelKey: 'library.shell.nav.readingHistory', icon: 'clock' },
   { to: '/library/lists', labelKey: 'library.shell.nav.readingLists', icon: 'list' },
-  { to: '/library/submissions', labelKey: 'library.shell.nav.submissions', icon: 'edit' },
-  { to: '/library/upload', labelKey: 'library.shell.nav.upload', icon: 'upload' },
+  {
+    to: '/library/submissions',
+    labelKey: 'library.shell.nav.submissions',
+    icon: 'edit',
+    flag: 'ingestQueues',
+  },
+  {
+    to: '/library/upload',
+    labelKey: 'library.shell.nav.upload',
+    icon: 'upload',
+    flag: 'ingestQueues',
+  },
 ];
 
 function NavLinks({
@@ -92,9 +111,16 @@ function NavLinks({
   onNavigate?: () => void;
 }) {
   const t = useT();
+  const requests = useStudyFlag('requestsBoard');
+  const ingest = useStudyFlag('ingestQueues');
+  const shown = items.filter(
+    (i) =>
+      !i.flag ||
+      (i.flag === 'requestsBoard' ? requests : i.flag === 'ingestQueues' ? ingest : true),
+  );
   return (
     <ul className="lib-nav-list">
-      {items.map((i) => (
+      {shown.map((i) => (
         <li key={i.to}>
           <Link
             to={i.to}

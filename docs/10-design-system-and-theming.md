@@ -8,7 +8,7 @@ Every visual value is a CSS custom property (token). Components never hard-code 
 
 | Section | Default theme | Character |
 |---|---|---|
-| Lounge, Staff Server, Developer portal | `lounge-dark` (also `lounge-light`, `lounge-ash`, `lounge-onyx`) | Discord look-alike: neutral greys, blurple accent, compact sans, 8px radii |
+| Lounge, Staff Server, Developer portal | `lounge-editorial` (D-393; also `lounge-dark`, `lounge-light`, `lounge-ash`, `lounge-onyx`) | `lounge-editorial` is the default for the Lounge: warm charcoal, cream text, muted gold accent, serif display headers, built from tokens on the Lounge token set. The other themes are the Discord look-alike: neutral greys, blurple accent, compact sans, 8px radii |
 | Entrance, Cinema, Library, Support | `sideroom` | Deep olive-black, cream type, muted gold, editorial serif display, letter-spaced caps |
 | Live TV page | `sideroom-broadcast` (extends `sideroom`) | Same palette with a monospaced "teletext" layer for times and channel numbers, CRT preview frame, scanline overlay |
 

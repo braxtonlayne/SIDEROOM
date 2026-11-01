@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 // Ratings, reviews, lists, rankings, unread counts and mark-read-up-to-here (phase 11: LIB-SOC-001/003/006/008/010/011,
 // LIB-BRW-002, LIB-SER-001/002/004/005).
 import { screen, waitFor, within } from '@testing-library/react';
@@ -520,3 +521,6 @@ describe('my library and history', () => {
     }
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

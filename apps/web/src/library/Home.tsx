@@ -12,6 +12,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
+import { useStudyFlag } from '../study/flags';
 import { useT } from '../i18n';
 import { browseSeries, getChapters, getUpdates, keys } from './api';
 import { getRecommendations } from './p13api';
@@ -41,6 +42,7 @@ const DEFAULT_GENRES = [
 
 export function Home() {
   const t = useT();
+  const trendingOn = useStudyFlag('globalTrending');
   return (
     <div className="lib-home">
       <div className="lib-home-head">
@@ -49,7 +51,7 @@ export function Home() {
       </div>
       <Spotlight />
       <PickUp />
-      <Trending />
+      {trendingOn && <Trending />}
       <Because />
       <Curiosity />
       <div className="lib-two-col">

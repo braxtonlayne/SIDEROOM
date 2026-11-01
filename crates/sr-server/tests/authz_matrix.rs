@@ -974,6 +974,18 @@ async fn seed(
 ) -> (World, tokio::sync::oneshot::Sender<()>, ServerTask) {
     let pool = db.pool().clone();
     sr_db::migrate(&pool).await.expect("migrate");
+    // STU-NAV-001: the Study storefront surfaces are off by default and answer 404; the matrix proves each
+    // route's authorization row, so it opts in to them (the hidden-404 rules are unit-tested in sr-api).
+    for (n, id) in sr_features::STUDY_SWITCH_IDS.iter().enumerate() {
+        sqlx::query(
+            "INSERT INTO feature_enablements (id, feature, scope, scope_id, enabled, config)              VALUES ($1, $2, 'platform'::enablement_scope, 0, true, '{}')",
+        )
+        .bind(9_000_000_000_i64 + n as i64)
+        .bind(*id)
+        .execute(&pool)
+        .await
+        .expect("switch a Study surface on");
+    }
     let clock: Arc<dyn Clock> = Arc::new(SystemClock);
     let ids: Ids = SnowflakeGenerator::new(clock.clone(), 9, 9).expect("ids");
     let id_src: sr_db::auth_repo::IdSource = {
@@ -6424,7 +6436,7 @@ pub mod harness {
 
     /// A PATCH that sets up a state (it is not what is under test). The admin routes and the guild module
     /// toggle are rate limited per account, so a 429 is waited out and the call repeated (at most 20 times).
-    async fn patch_past_429(
+    pub(super) async fn patch_past_429(
         srv: &Server,
         cred: &Cred,
         path: &str,
@@ -8623,6 +8635,63 @@ async fn module_kill_switches_stop_their_routes() {
             "a server could set the platform-only emulator switch: {} {}",
             r.status, r.body
         ));
+    }
+
+    // STU-NAV-001: a Study storefront surface that is switched off answers 404 (unreachable, as if absent);
+    // switched back on, the route answers as its handler decides.
+    for (id, method, path) in [
+        ("platform.requests_board", "GET", "/requests".to_owned()),
+        (
+            "platform.global_trending",
+            "GET",
+            "/cinema/trending".to_owned(),
+        ),
+        (
+            "platform.global_trending",
+            "GET",
+            "/library/rankings".to_owned(),
+        ),
+        (
+            "platform.storefront_categories",
+            "GET",
+            "/cinema/discover".to_owned(),
+        ),
+        (
+            "platform.ingest_queues",
+            "GET",
+            "/admin/review/queue".to_owned(),
+        ),
+    ] {
+        harness::patch_past_429(
+            srv,
+            &staff,
+            &format!("/admin/features/{id}"),
+            &json!({"enabled": false}),
+            true,
+        )
+        .await;
+        let off = srv.call(&staff, method, &path, None).await;
+        if off.status != 404 || !off.body.contains("900009") {
+            failures.push(format!(
+                "{id}: {method} {path} is not a 404 while off: {} {}",
+                off.status,
+                off.body.chars().take(100).collect::<String>()
+            ));
+        }
+        harness::patch_past_429(
+            srv,
+            &staff,
+            &format!("/admin/features/{id}"),
+            &json!({"enabled": true}),
+            true,
+        )
+        .await;
+        let on = srv.call(&staff, method, &path, None).await;
+        if on.status == 404 && on.body.contains("900009") && path != "/cinema/discover" {
+            failures.push(format!(
+                "{id}: {method} {path} still a 404 after the switch came back"
+            ));
+        }
     }
 
     let _ = stop.send(());

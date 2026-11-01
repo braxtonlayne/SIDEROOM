@@ -5,6 +5,7 @@ import { Notice, Tabs, type TabItem } from '@sideroom/ui';
 import { useLocation } from '@tanstack/react-router';
 import { useT } from '../../i18n';
 import * as moderation from '../../moderation/api';
+import { useStudyFlag } from '../../study/flags';
 import { SectionHeader, useAdminViewer, useResource } from '../ui';
 import { AppsReview } from './AppsReview';
 import { DirectoryQueue } from './DirectoryQueue';
@@ -15,6 +16,7 @@ import { PackagesReview } from './PackagesReview';
 export function ReviewHubSection() {
   const t = useT();
   const viewer = useAdminViewer();
+  const ingestOn = useStudyFlag('ingestQueues');
   // Open evasion signals (P-15), for staff who may see sign-in data; a failed count just hides the tile.
   const signalCount = useResource(`review-signals:${viewer.can('MANAGE_ACCOUNTS')}`, async () =>
     viewer.can('MANAGE_ACCOUNTS') ? (await moderation.countEvasionSignals()).open : null,
@@ -31,7 +33,8 @@ export function ReviewHubSection() {
   const items: TabItem[] = [];
   if (viewer.can('DELETE_CONTENT'))
     items.push({ id: 'cinema', label: t('admin.reviewHub.tabCinema'), content: <CinemaReports /> });
-  if (viewer.can('REVIEW_READING') || viewer.can('REVIEW_MEDIA'))
+  // STU-NAV-001: the upload and ingest review queue is hidden while its Study switch is off.
+  if (ingestOn && (viewer.can('REVIEW_READING') || viewer.can('REVIEW_MEDIA')))
     items.push({
       id: 'submissions',
       label: t('admin.reviewHub.tabSubmissions'),

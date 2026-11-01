@@ -1,3 +1,4 @@
+import { switchStudySurfacesOn } from '../../study/testing';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { asStaff, http, HttpResponse, openAdmin, readJson, server } from './helpers';
@@ -98,3 +99,6 @@ describe('ingest sources', () => {
     );
   });
 });
+
+// STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
+beforeEach(() => switchStudySurfacesOn());

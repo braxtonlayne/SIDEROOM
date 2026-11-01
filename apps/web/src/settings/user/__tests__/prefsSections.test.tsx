@@ -455,7 +455,11 @@ describe('Preferences follow the account', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(patches).toHaveLength(1));
     const sent = patches[0]!.user_prefs as Record<string, unknown>;
-    expect(sent).toMatchObject({ highContrast: true, theme: 'lounge-dark', sectionThemes: {} });
+    expect(sent).toMatchObject({
+      highContrast: true,
+      theme: 'lounge-editorial',
+      sectionThemes: {},
+    });
   });
 
   it('adopts the account copy when it arrives, including a theme chosen on another device', async () => {

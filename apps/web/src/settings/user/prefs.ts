@@ -18,6 +18,7 @@ import './prefs-effects.css';
 import { withPlatformDefaults, type PlatformThemes } from './platformThemes';
 
 export const THEME_CHOICES = [
+  'lounge-editorial',
   'lounge-dark',
   'lounge-light',
   'lounge-ash',
@@ -131,7 +132,7 @@ export interface UserPrefs {
 
 export const DEFAULT_PREFS: UserPrefs = {
   // The Lounge has always been dark by default; "Sync with computer" is opt-in.
-  theme: 'lounge-dark',
+  theme: 'lounge-editorial',
   sectionThemes: {},
   navCinema: 'show',
   navLibrary: 'show',

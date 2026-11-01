@@ -43,6 +43,7 @@ pub use schema::{Field, FieldKind, SettingsSchema, ValidationError};
 pub use service::FeatureService;
 pub use store::{InMemorySettingsStore, SettingsRecord, SettingsStore};
 pub use wave_modules::{
-    ACTIVITIES_DATACHANNEL_ID, EMULATOR_ID, JUKEBOX_ID, LISTENING_ROOMS_ID, TOOL_FLAGS, TOOLS_ID,
-    ToolFlag, WATCH_TOGETHER_EMBEDS_ID, tool_flag_id,
+    ACTIVITIES_DATACHANNEL_ID, EMULATOR_ID, EXTERNAL_METADATA_ID, GLOBAL_TRENDING_ID,
+    INGEST_QUEUES_ID, JUKEBOX_ID, LISTENING_ROOMS_ID, REQUESTS_BOARD_ID, STOREFRONT_CATEGORIES_ID,
+    STUDY_SWITCH_IDS, TOOL_FLAGS, TOOLS_ID, ToolFlag, WATCH_TOGETHER_EMBEDS_ID, tool_flag_id,
 };

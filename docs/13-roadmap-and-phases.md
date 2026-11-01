@@ -52,10 +52,14 @@ Staff guild mechanics, platform permissions, appointments, admin pages (accounts
 ## Phase 4 — Library `[LIB-*, REV-*]`
 Submission/review pipeline (shared), reading catalog, archive import, page → WebP, naming conventions, metadata editor, reader (all modes), progress sync, bookmarks, ratings, reviews, comments, lists, follows and update notifications, trending (friends/known/global), contributor leaderboards, downloads for Patrons, age gate.
 
+**Wave 41 (D-393):** the Requests board, Global Trending, the member upload and submission pages and the staff review queue are OFF by default behind platform switches (hidden, routes answer 404 while off); an operator switches them on and the gate below applies as written.
+
 **Exit gate:** a member submits a 10-chapter series as a ZIP, a reviewer approves 9 chapters and requests changes on 1, and readers can read it RTL on mobile with progress syncing to desktop.
 
 ## Phase 5 — Cinema `[CIN-*, TV-*, WP-*]`
 Video ingest (browser, batch, watched folder, storage import), probe, transcode workers, HLS ladder, player (subtitles, audio tracks, skip intro, next episode, PiP), catalog pages (Discover, Movies, Series, Anime, My list, title detail), ratings, reviews, trending, contributor leaderboards, Patron downloads, **Live TV** (channels, guide import, schedule engine, virtual-linear HLS), **watch parties** (in Cinema and from Lounge channels).
+
+**Wave 41 (D-393):** the Movies, Series and Anime categories, Discover rows, Global Trending, external metadata lookup (TMDB and others) and the upload queue are OFF by default behind platform switches; the Cinema opens on shelves. Switch them on to run the gate below.
 
 **Exit gate:** an episode uploaded in the browser is transcoded by a rented GPU worker, plays in Safari and Chrome, appears on a Live TV channel at its scheduled time, and 5 friends can watch it in a synced party while in voice.
 

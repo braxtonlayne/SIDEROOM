@@ -37,7 +37,7 @@ describe('platform default themes (ADM-PLT-004)', () => {
     expect(pick({}, 'cinema')).toBe('lounge-onyx');
     expect(pick({}, 'library')).toBe('lounge-ash');
     // A section without a platform default keeps what it had.
-    expect(pick({}, 'support')).toBe('lounge-dark');
+    expect(pick({}, 'support')).toBe('lounge-editorial');
     // An own per-section choice wins over the platform default.
     expect(pick({ sectionThemes: { cinema: 'sideroom' } }, 'cinema')).toBe('sideroom');
     expect(pick({ sectionThemes: { cinema: 'sideroom' } }, 'library')).toBe('lounge-ash');

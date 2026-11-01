@@ -1,4 +1,5 @@
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { HiddenWhenOff } from '../study/Hidden';
 import { createShelfRoutes } from '../storage/shelves/routes';
 import { lazyNamed } from '../lib/lazyRoute';
 import { Browse, validateBrowseSearch } from './Browse';
@@ -84,7 +85,11 @@ export function createLibraryRoutes(root: AnyRoute) {
       return /^[0-9]+$/.test(v) ? { series: v } : {};
     },
     component: function SubmissionsRoute() {
-      return <SubmissionsPage series={submissions.useSearch().series} />;
+      return (
+        <HiddenWhenOff flag="ingestQueues">
+          <SubmissionsPage series={submissions.useSearch().series} />
+        </HiddenWhenOff>
+      );
     },
   });
   const submission = createRoute({
@@ -92,7 +97,11 @@ export function createLibraryRoutes(root: AnyRoute) {
     path: 'submissions/$submissionId',
     component: function SubmissionRoute() {
       const { submissionId } = submission.useParams();
-      return <SubmissionPage key={submissionId} id={submissionId} />;
+      return (
+        <HiddenWhenOff flag="ingestQueues">
+          <SubmissionPage key={submissionId} id={submissionId} />
+        </HiddenWhenOff>
+      );
     },
   });
   return layout.addChildren([
@@ -105,11 +114,23 @@ export function createLibraryRoutes(root: AnyRoute) {
     child('history', HistoryPage),
     child('lists', ListsPage),
     list,
-    child('rankings', RankingsPage),
-    child('requests', () => <RequestsBoard />),
+    child('rankings', () => (
+      <HiddenWhenOff flag="globalTrending">
+        <RankingsPage />
+      </HiddenWhenOff>
+    )),
+    child('requests', () => (
+      <HiddenWhenOff flag="requestsBoard">
+        <RequestsBoard />
+      </HiddenWhenOff>
+    )),
     submissions,
     submission,
-    child('upload', () => <SoonPage page="upload" />),
+    child('upload', () => (
+      <HiddenWhenOff flag="ingestQueues">
+        <SoonPage page="upload" />
+      </HiddenWhenOff>
+    )),
     ...createShelfRoutes(layout, 'library'),
   ]);
 }

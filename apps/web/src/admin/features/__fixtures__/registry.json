@@ -587,6 +587,21 @@
   },
   {
     "client_visible": true,
+    "default_enabled": false,
+    "description": "Fetches titles, posters and details from TMDB, AniList, MangaDex, MangaUpdates and ComicVine. Off by default: nothing on the server calls an external metadata host until an operator switches this on.",
+    "gated_by": null,
+    "id": "platform.external_metadata",
+    "name": "External metadata lookup",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 41,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
+  },
+  {
+    "client_visible": true,
     "default_enabled": true,
     "description": "Only shows a page. Game servers are not built yet: while this is on, Server Settings has a Game Servers entry and the voice Activities picker has a tile, both marked \"Coming soon\", and nothing behind them works. Turn it off to hide both; the page address then answers not found.",
     "gated_by": null,
@@ -599,6 +614,36 @@
       "platform"
     ],
     "section": "Games"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "The trending rails and rankings of the Cinema and the Library. Off by default; the routes stay.",
+    "gated_by": null,
+    "id": "platform.global_trending",
+    "name": "Global trending",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 41,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "The staff queues that review uploads and ingested files, and the member upload and submission pages that feed them. Off by default; the routes and the engine stay.",
+    "gated_by": null,
+    "id": "platform.ingest_queues",
+    "name": "Upload and ingest review queues",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 41,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
   },
   {
     "client_visible": false,
@@ -629,6 +674,36 @@
       "platform"
     ],
     "section": "Privacy"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "The global board where members ask for titles. Off by default; the routes stay.",
+    "gated_by": null,
+    "id": "platform.requests_board",
+    "name": "Requests board",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 41,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
+  },
+  {
+    "client_visible": true,
+    "default_enabled": false,
+    "description": "The Movies, Series and Anime browse pages of the Cinema. Off by default: the Study shows shelves and sources instead of a catalog storefront. The routes stay.",
+    "gated_by": null,
+    "id": "platform.storefront_categories",
+    "name": "Storefront categories",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 41,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
   },
   {
     "client_visible": true,

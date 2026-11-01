@@ -78,7 +78,7 @@ describe('Lounge shell', () => {
     expect(screen.getByRole('log', { name: 'Messages in general' })).toBeInTheDocument();
     expect(screen.getAllByRole('article').length).toBeGreaterThan(3);
     expect(screen.getByRole('textbox', { name: 'Message #general' })).toBeInTheDocument();
-    expect(screen.getAllByRole('navigation', { name: 'Sections' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('navigation', { name: 'Rooms' }).length).toBeGreaterThan(0);
   });
 
   it('virtualizes: only a window of the loaded messages is mounted', async () => {

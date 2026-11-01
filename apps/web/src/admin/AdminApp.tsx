@@ -47,6 +47,7 @@ import { LimitsSection } from './sections/Limits';
 import { ServersSection } from './sections/Servers';
 import { StaffSection } from './sections/Staff';
 import { StorageSection } from './storage/StorageSection';
+import { useStudyFlag } from '../study/flags';
 import { ReviewHubSection } from './sections/ReviewHub';
 import { PrivateContentSection } from './sections/PrivateContent';
 import { ModerationSection } from './moderation/ModerationSection';
@@ -354,9 +355,14 @@ export function AdminShell({ section }: { section: string | undefined }) {
         : null,
     [me.data],
   );
+  // STU-NAV-001: the ingest sources section is a staff ingest queue; hidden while its Study switch is off.
+  const ingestOn = useStudyFlag('ingestQueues');
   const visible = useMemo(
-    () => (viewer ? ADMIN_SECTIONS.filter((s) => s.visible(viewer)) : []),
-    [viewer],
+    () =>
+      viewer
+        ? ADMIN_SECTIONS.filter((s) => s.visible(viewer) && (ingestOn || s.id !== 'ingest-sources'))
+        : [],
+    [viewer, ingestOn],
   );
   const close = () => void navigate({ to: '/channels/$guildId', params: { guildId: '@me' } });
   // A revoked appointment ends the visit at once (ADM-STF-005).
