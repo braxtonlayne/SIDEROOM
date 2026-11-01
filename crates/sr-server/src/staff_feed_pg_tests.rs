@@ -1251,6 +1251,20 @@ async fn crash_triage_is_created_once_staff_only_and_receives_allow_listed_cards
             .unwrap();
     }
 
+    // A server that starts before the Owner is bootstrapped asks for the channel while there is no Staff Server: that
+    // finds nothing and must not use up the one attempt to make the system user a member (a bug the e2e gate found).
+    sqlx::query("UPDATE guilds SET is_staff_guild = false WHERE id = $1")
+        .bind(f.guild.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert!(f.voice.ensure_crash_channel().await.is_none());
+    sqlx::query("UPDATE guilds SET is_staff_guild = true WHERE id = $1")
+        .bind(f.guild.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+
     // Created once, however often it is asked for.
     let first = f.voice.ensure_crash_channel().await.unwrap();
     let again = f.voice.ensure_crash_channel().await.unwrap();

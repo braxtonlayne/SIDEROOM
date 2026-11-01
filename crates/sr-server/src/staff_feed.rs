@@ -550,14 +550,18 @@ impl StaffVoice {
         id.and_then(|i| u64::try_from(i).ok()).map(ChannelId::new)
     }
 
-    /// The system user must be a member of the Staff Server to post there. Done once.
+    /// The system user must be a member of the Staff Server to post there. Done once, but only once there is a Staff
+    /// Server: a server that started before the Owner was bootstrapped must not use up the one attempt on nothing
+    /// (found by the crash telemetry gate, OPS-CRASH-001).
     async fn ensure_member(&self) {
-        self.member
-            .get_or_init(|| async {
+        let _ = self
+            .member
+            .get_or_try_init(|| async {
+                if self.staff_guild().await.is_none() {
+                    return Err(());
+                }
                 let r = sqlx::query(
-                    "INSERT INTO guild_members (guild_id, user_id) \
-                     SELECT id, $1 FROM guilds WHERE is_staff_guild \
-                     ON CONFLICT (guild_id, user_id) DO NOTHING",
+                    "INSERT INTO guild_members (guild_id, user_id)                      SELECT id, $1 FROM guilds WHERE is_staff_guild                      ON CONFLICT (guild_id, user_id) DO NOTHING",
                 )
                 .bind(SYSTEM_USER_ID)
                 .execute(&self.pool)
@@ -565,6 +569,7 @@ impl StaffVoice {
                 if let Err(e) = r {
                     tracing::warn!(error = %e, "could not add the system user to the Staff Server");
                 }
+                Ok(())
             })
             .await;
     }
