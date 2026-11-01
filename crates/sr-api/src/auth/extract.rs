@@ -34,6 +34,16 @@ pub enum AuthKind {
     },
 }
 
+/// MOD-GRD-001: asks whether a timeout or a case freeze is in force on an account. Registered as an
+/// `AppState` extension (`RestrictionGate`) by the server; without one nobody is restricted.
+#[async_trait::async_trait]
+pub trait AccountRestrictions: Send + Sync {
+    async fn restricted_from_posting(&self, user_id: i64) -> bool;
+}
+
+/// The extension holding the restriction check.
+pub struct RestrictionGate(pub std::sync::Arc<dyn AccountRestrictions>);
+
 /// An authenticated caller.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Principal {
@@ -96,8 +106,29 @@ impl FromRequestParts<AppState> for Principal {
     ) -> Result<Self, Self::Rejection> {
         let p = Principal::resolve(parts, state).await?;
         gate(state, parts, &p)?;
+        restrict(state, parts, &p).await?;
         Ok(p)
     }
+}
+
+/// A timeout or a case freeze stops a person posting (MOD-GRD-001); bots are not people and are not restricted.
+async fn restrict(state: &AppState, parts: &Parts, p: &Principal) -> Result<(), HttpError> {
+    if matches!(p.kind, AuthKind::Bot { .. }) {
+        return Ok(());
+    }
+    let Some(matched) = parts.extensions.get::<axum::extract::MatchedPath>() else {
+        return Ok(());
+    };
+    if !super::policy::posting_route(&parts.method, matched.as_str()) {
+        return Ok(());
+    }
+    let Some(gate) = state.extension::<RestrictionGate>() else {
+        return Ok(());
+    };
+    if gate.0.restricted_from_posting(p.user_id).await {
+        return Err(ErrorCode::SrAccountRestricted.into());
+    }
+    Ok(())
 }
 
 impl Principal {
@@ -257,6 +288,7 @@ impl FromRequestParts<AppState> for UserOnly {
             return Err(ErrorCode::BotsCannotUseThisEndpoint.into());
         }
         gate(state, parts, &p)?;
+        restrict(state, parts, &p).await?;
         Ok(Self(p))
     }
 }

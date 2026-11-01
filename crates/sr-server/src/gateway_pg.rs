@@ -779,6 +779,31 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn account_restricted(&self, user: UserId) -> bool {
+        // MOD-GRD-001: a timeout or a case freeze in force. A failed lookup does not lock anybody out.
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM member_restrictions WHERE account_id = $1 AND state = 'active'              AND ends_at > now() AND kind IN ('timeout', 'case_freeze'))",
+        )
+        .bind(user.get() as i64)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or(false)
+    }
+
+    async fn voice_session_ended(&self, user: UserId, seconds: i64) {
+        // D-392 counts voice seconds; a failure here only means the total is short.
+        if let Err(e) = sqlx::query(
+            "INSERT INTO account_activity (account_id, voice_seconds) VALUES ($1, $2)              ON CONFLICT (account_id) DO UPDATE SET voice_seconds = account_activity.voice_seconds + EXCLUDED.voice_seconds,              updated_at = now()",
+        )
+        .bind(user.get() as i64)
+        .bind(seconds)
+        .execute(&self.pool)
+        .await
+        {
+            tracing::warn!(error = %e, "could not record voice seconds");
+        }
+    }
+
     async fn age_confirmed(&self, user: UserId) -> bool {
         match sqlx::query_scalar::<_, bool>(
             "SELECT age_confirmed_at IS NOT NULL FROM accounts WHERE id = $1",
