@@ -26,7 +26,9 @@ export const INGAME_VOICE = 'ingame_voice';
 /** Can this member share a guest link for the instance? Needs a voice-channel lobby (the data lane) and the flag. */
 export function canShare(instance: ActivityInstance): boolean {
   const caps = instance.capabilities ?? [];
-  return instance.channel_type === 'voice' && caps.includes(GUEST_PLAY) && !caps.includes(INGAME_VOICE);
+  return (
+    instance.channel_type === 'voice' && caps.includes(GUEST_PLAY) && !caps.includes(INGAME_VOICE)
+  );
 }
 
 function seat(instance: ActivityInstance, link: StoredLink) {
@@ -118,25 +120,25 @@ export function ShareLinkDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title={t('guestShare.title')}
-      description={t('guestShare.intro')}
-      footer={<Button onClick={onClose}>{t('guestShare.close')}</Button>}
+      title={t('guestshare.title')}
+      description={t('guestshare.intro')}
+      footer={<Button onClick={onClose}>{t('guestshare.close')}</Button>}
     >
       <div className="act-share">
         {!link && (
           <Button loading={busy === 'create'} onClick={() => void create()}>
-            {busy === 'create' ? t('guestShare.creating') : t('guestShare.create')}
+            {busy === 'create' ? t('guestshare.creating') : t('guestshare.create')}
           </Button>
         )}
         {link && (
           <>
             <label className="act-share-field">
-              <span>{t('guestShare.link.label')}</span>
+              <span>{t('guestshare.link.label')}</span>
               <input ref={field} readOnly value={href} onFocus={(e) => e.currentTarget.select()} />
             </label>
             <div className="act-share-row">
               <Button size="sm" onClick={() => void copy()}>
-                {copied ? t('guestShare.copied') : t('guestShare.copy')}
+                {copied ? t('guestshare.copied') : t('guestshare.copy')}
               </Button>
               <Button
                 size="sm"
@@ -144,21 +146,21 @@ export function ShareLinkDialog({
                 loading={busy === 'revoke'}
                 onClick={() => void revoke()}
               >
-                {busy === 'revoke' ? t('guestShare.revoking') : t('guestShare.revoke')}
+                {busy === 'revoke' ? t('guestshare.revoking') : t('guestshare.revoke')}
               </Button>
             </div>
             <div className="act-share-qr">
-              <QRCode value={href} label={t('guestShare.qr.label')} size={176} />
-              <p className="act-muted">{t('guestShare.qr.hint')}</p>
+              <QRCode value={href} label={t('guestshare.qr.label')} size={176} />
+              <p className="act-muted">{t('guestshare.qr.hint')}</p>
             </div>
             <p className="act-muted">
-              {t('guestShare.expires', { when: new Date(link.expiresAt).toLocaleString() })}
+              {t('guestshare.expires', { when: new Date(link.expiresAt).toLocaleString() })}
             </p>
-            <p className="act-muted">{t('guestShare.key.note')}</p>
+            <p className="act-muted">{t('guestshare.key.note')}</p>
           </>
         )}
-        {revoked && <p role="status">{t('guestShare.revoked')}</p>}
-        {error && <p role="alert">{t(`guestShare.error.${error}`)}</p>}
+        {revoked && <p role="status">{t('guestshare.revoked')}</p>}
+        {error && <p role="alert">{t(`guestshare.error.${error}`)}</p>}
       </div>
     </Modal>
   );

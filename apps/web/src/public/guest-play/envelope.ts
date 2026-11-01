@@ -43,9 +43,7 @@ export const encodeSys = (sys: { host: string }): Uint8Array => {
 };
 
 export type Decoded =
-  | { kind: 'data'; from: string; bytes: Uint8Array }
-  | { kind: 'sys'; host: string }
-  | null;
+  { kind: 'data'; from: string; bytes: Uint8Array } | { kind: 'sys'; host: string } | null;
 
 /**
  * Reads an opened payload published by `seat`, whose role the relay reported. Guests are `g<seat>`; a member seat's

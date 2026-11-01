@@ -457,7 +457,11 @@ function guestFixture(mutate) {
       'entrance/assets/guest-play-gggggggg.js',
       'import{r as a}from"./vendor-vvvvvvvv.js";fetch("/api/v1/play/"+a+"/join",{method:"POST"});',
     );
-    put(root, 'apps/web/src/public/guest-play/ALLOWED.ts', "export default ['public/guest-play/'];\n");
+    put(
+      root,
+      'apps/web/src/public/guest-play/ALLOWED.ts',
+      "export default ['public/guest-play/'];\n",
+    );
     put(
       dist,
       'entrance/.vite/manifest.json',
@@ -489,7 +493,11 @@ test('guest-play: a clean runner passes', () => {
 
 test('guest-play: its entry may not be an app module, whatever ALLOWED.ts says', () => {
   const r = guestFixture((root, dist) => {
-    put(root, 'apps/web/src/public/guest-play/ALLOWED.ts', "export default ['public/guest-play/', 'lounge/'];\n");
+    put(
+      root,
+      'apps/web/src/public/guest-play/ALLOWED.ts',
+      "export default ['public/guest-play/', 'lounge/'];\n",
+    );
     const m = JSON.parse(readFileSync(join(dist, 'entrance/.vite/manifest.json'), 'utf8'));
     m['src/public/guest-play/main.tsx'].src = 'src/lounge/LoungeShell.tsx';
     put(dist, 'entrance/.vite/manifest.json', JSON.stringify(m));
@@ -512,17 +520,21 @@ test('guest-play: any REST call but the join route fails', () => {
 
 test('guest-play: the app words are still denied there, and its own strings are denied elsewhere', () => {
   const inGuest = guestFixture((root, dist) =>
-    put(dist, 'entrance/assets/guest-play-gggggggg.js', 'import{r as a}from"./vendor-vvvvvvvv.js";go("LoungeRoot");'),
+    put(
+      dist,
+      'entrance/assets/guest-play-gggggggg.js',
+      'import{r as a}from"./vendor-vvvvvvvv.js";go("LoungeRoot");',
+    ),
   ).run();
   assert.equal(inGuest.ok, false);
-  // the landing bundle carrying a guestPlay.* key fails (prefix is non-core)
+  // the landing bundle carrying a guestplay.* key fails (prefix is non-core)
   const bad = guestFixture((root, dist) => {
     put(
       root,
       'apps/web/src/i18n/messages/en/p43-guest-runner-2.ts',
-      "export default {\n  'guestPlay.page.title': 'Join the game',\n};\n",
+      "export default {\n  'guestplay.page.title': 'Join the game',\n};\n",
     );
-    put(dist, 'entrance/assets/vendor-vvvvvvvv.js', 'export const r=1;t("guestPlay.page.title");');
+    put(dist, 'entrance/assets/vendor-vvvvvvvv.js', 'export const r=1;t("guestplay.page.title");');
   }).run();
-  assert.ok(bad.failures.some((f) => f.token === 'guestPlay.'));
+  assert.ok(bad.failures.some((f) => f.token === 'guestplay.'));
 });

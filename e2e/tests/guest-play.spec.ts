@@ -1,5 +1,11 @@
 import { webcrypto } from 'node:crypto';
-import { test as base, expect, type BrowserContext, type Page, type WebSocketRoute } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  type BrowserContext,
+  type Page,
+  type WebSocketRoute,
+} from '@playwright/test';
 import { apiPost, test, loginApi, registerUser } from '../support/fixtures';
 import { builtInActivityBundle, zip } from '../support/activityBundle';
 import { startActivityForTwo } from '../support/activities';
@@ -46,7 +52,11 @@ async function seal(keyB64Url: string, token: string, plain: Uint8Array): Promis
   return Buffer.concat([nonce, ct]);
 }
 
-async function open(keyB64Url: string, token: string, sealed: Uint8Array): Promise<Uint8Array | null> {
+async function open(
+  keyB64Url: string,
+  token: string,
+  sealed: Uint8Array,
+): Promise<Uint8Array | null> {
   const subtle = webcrypto.subtle;
   const raw = Buffer.from(keyB64Url.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
   const key = await subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -125,7 +135,8 @@ async function mockStack(ctx: BrowserContext, o: MockOptions) {
   const relay: Relay = { frames: [], say: () => undefined, drop: () => undefined, sockets: 0 };
   ctx.on('request', (r) => requests.push(r.url()));
   await ctx.route('**/api/v1/play/*/join', async (route) => {
-    if (o.joinStatus && o.joinStatus !== 200) return route.fulfill({ status: o.joinStatus, body: '' });
+    if (o.joinStatus && o.joinStatus !== 200)
+      return route.fulfill({ status: o.joinStatus, body: '' });
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -165,9 +176,11 @@ async function mockStack(ctx: BrowserContext, o: MockOptions) {
           }),
         );
         // The member bridge names the game's host right after the seat opens.
-        void seal(o.key, TOKEN, Uint8Array.from([2, ...Buffer.from(JSON.stringify({ host: '555' }))])).then(
-          (s) => ws.send(JSON.stringify({ op: 'data', from: 1, data: b64(s) })),
-        );
+        void seal(
+          o.key,
+          TOKEN,
+          Uint8Array.from([2, ...Buffer.from(JSON.stringify({ host: '555' }))]),
+        ).then((s) => ws.send(JSON.stringify({ op: 'data', from: 1, data: b64(s) })));
       }
       if (f.op === 'subscribe') ws.send(JSON.stringify({ op: 'subscribed', topic: f.topic }));
     });
@@ -198,31 +211,34 @@ const newKey = () => b64url(webcrypto.getRandomValues(new Uint8Array(32)));
 base.describe('guest runner, relay mocked (ARC-GST-002)', () => {
   base.use({ storageState: { cookies: [], origins: [] } });
 
-  base('the key stays in the fragment, the page is noindex, and no app code is loaded', async ({ browser }) => {
-    const ctx = await browser.newContext();
-    const key = newKey();
-    const { requests } = await mockStack(ctx, { key });
-    const page = await guestPage(ctx, key);
-    await expect(page.getByRole('button', { name: 'Join the game' })).toBeVisible();
-    await expect(page.locator('meta[name="robots"][content="noindex"]')).toHaveCount(1);
-    await page.getByRole('button', { name: 'Join the game' }).click();
-    await expect(page.locator('iframe[title="Game: Land.io"]')).toBeVisible();
+  base(
+    'the key stays in the fragment, the page is noindex, and no app code is loaded',
+    async ({ browser }) => {
+      const ctx = await browser.newContext();
+      const key = newKey();
+      const { requests } = await mockStack(ctx, { key });
+      const page = await guestPage(ctx, key);
+      await expect(page.getByRole('button', { name: 'Join the game' })).toBeVisible();
+      await expect(page.locator('meta[name="robots"][content="noindex"]')).toHaveCount(1);
+      await page.getByRole('button', { name: 'Join the game' }).click();
+      await expect(page.locator('iframe[title="Game: Land.io"]')).toBeVisible();
 
-    // Nothing sent anywhere carries the key; the join is the only API call; no app route, no app bundle.
-    expect(requests.filter((u) => u.includes(key))).toEqual([]);
-    const paths = requests.map((u) => new URL(u).pathname);
-    expect(paths.filter((p) => p.startsWith('/api/'))).toEqual([`/api/v1/play/${TOKEN}/join`]);
-    expect(paths.filter((p) => /^\/app(\/|\.html$)|\.wasm$/.test(p))).toEqual([]);
-    expect(
-      paths.filter((p) =>
-        /^\/src\/(lounge|activities|arcade|settings|library|cinema|admin|voice|store|gateway|moderation|player|music|profilepage|developers)\//.test(
-          p,
+      // Nothing sent anywhere carries the key; the join is the only API call; no app route, no app bundle.
+      expect(requests.filter((u) => u.includes(key))).toEqual([]);
+      const paths = requests.map((u) => new URL(u).pathname);
+      expect(paths.filter((p) => p.startsWith('/api/'))).toEqual([`/api/v1/play/${TOKEN}/join`]);
+      expect(paths.filter((p) => /^\/app(\/|\.html$)|\.wasm$/.test(p))).toEqual([]);
+      expect(
+        paths.filter((p) =>
+          /^\/src\/(lounge|activities|arcade|settings|library|cinema|admin|voice|store|gateway|moderation|player|music|profilepage|developers)\//.test(
+            p,
+          ),
         ),
-      ),
-    ).toEqual([]);
-    expect(await ctx.cookies()).toEqual([]);
-    await ctx.close();
-  });
+      ).toEqual([]);
+      expect(await ctx.cookies()).toEqual([]);
+      await ctx.close();
+    },
+  );
 
   base('a link without a valid key says so and calls nothing', async ({ browser }) => {
     const ctx = await browser.newContext();
@@ -288,78 +304,91 @@ base.describe('guest runner, relay mocked (ARC-GST-002)', () => {
     await ctx.close();
   });
 
-  base('lobby data is sealed with the game key both ways, and the relay stamps who sent it', async ({ browser }) => {
-    const ctx = await browser.newContext();
-    const key = newKey();
-    const { relay } = await mockStack(ctx, { key });
-    const page = await guestPage(ctx, key);
-    await page.getByRole('button', { name: 'Join the game' }).click();
-    await expect.poll(async () => (await probeLog(page)).some((m) => m.probes)).toBe(true);
-
-    // The relay only ever sees the one topic, and ciphertext.
-    const topics = new Set(relay.frames.map((f) => f.topic).filter(Boolean));
-    expect([...topics]).toEqual([`game:${TOKEN}`]);
-    const pub = relay.frames.find((f) => f.op === 'publish')!;
-    const sealed = Buffer.from(pub.data as string, 'base64');
-    expect(sealed.length).toBe(12 + 1 + 3 + 16);
-    const plain = await open(key, TOKEN, sealed);
-    expect(Array.from(plain!)).toEqual([0, 1, 2, 3]);
-    expect(await open(newKey(), TOKEN, sealed)).toBeNull();
-
-    // A message from the member's seat, sealed with the key, reaches the game under the room member's id.
-    relay.say({
-      op: 'data',
-      from: 1,
-      data: b64(await seal(key, TOKEN, relayed('4242', [9, 8]))),
-    });
-    // One sealed under another key is dropped before the game sees it.
-    relay.say({ op: 'data', from: 1, data: b64(await seal(newKey(), TOKEN, relayed('4242', [7]))) });
-    await expect
-      .poll(async () => (await probeLog(page)).filter((m) => m.event === 'DATA_MESSAGE').length)
-      .toBe(1);
-    const ev = (await probeLog(page)).find((m) => m.event === 'DATA_MESSAGE')!;
-    expect(ev.data).toEqual({ from: '4242', b: Buffer.from([9, 8]).toString('base64') });
-    await ctx.close();
-  });
-
-  base('a game that declares ingame_voice is refused before any socket opens', async ({ browser }) => {
-    const ctx = await browser.newContext();
-    const key = newKey();
-    const { relay } = await mockStack(ctx, {
-      key,
-      capabilities: ['datachannel', 'guest_play', 'ingame_voice'],
-    });
-    const page = await guestPage(ctx, key);
-    await page.getByRole('button', { name: 'Join the game' }).click();
-    await expect(page.locator('main [role="alert"]')).toContainText('in-game voice');
-    await expect(page.locator('iframe')).toHaveCount(0);
-    expect(relay.sockets).toBe(0);
-    await ctx.close();
-  });
-
-  base('an expired link, a rate limit and a relay drop each end in a clear message', async ({ browser }) => {
-    for (const [status, text] of [
-      [410, 'expired'],
-      [429, 'Too many tries'],
-    ] as const) {
+  base(
+    'lobby data is sealed with the game key both ways, and the relay stamps who sent it',
+    async ({ browser }) => {
       const ctx = await browser.newContext();
       const key = newKey();
-      await mockStack(ctx, { key, joinStatus: status });
+      const { relay } = await mockStack(ctx, { key });
       const page = await guestPage(ctx, key);
       await page.getByRole('button', { name: 'Join the game' }).click();
-      await expect(page.locator('main [role="alert"]')).toContainText(text);
+      await expect.poll(async () => (await probeLog(page)).some((m) => m.probes)).toBe(true);
+
+      // The relay only ever sees the one topic, and ciphertext.
+      const topics = new Set(relay.frames.map((f) => f.topic).filter(Boolean));
+      expect([...topics]).toEqual([`game:${TOKEN}`]);
+      const pub = relay.frames.find((f) => f.op === 'publish')!;
+      const sealed = Buffer.from(pub.data as string, 'base64');
+      expect(sealed.length).toBe(12 + 1 + 3 + 16);
+      const plain = await open(key, TOKEN, sealed);
+      expect(Array.from(plain!)).toEqual([0, 1, 2, 3]);
+      expect(await open(newKey(), TOKEN, sealed)).toBeNull();
+
+      // A message from the member's seat, sealed with the key, reaches the game under the room member's id.
+      relay.say({
+        op: 'data',
+        from: 1,
+        data: b64(await seal(key, TOKEN, relayed('4242', [9, 8]))),
+      });
+      // One sealed under another key is dropped before the game sees it.
+      relay.say({
+        op: 'data',
+        from: 1,
+        data: b64(await seal(newKey(), TOKEN, relayed('4242', [7]))),
+      });
+      await expect
+        .poll(async () => (await probeLog(page)).filter((m) => m.event === 'DATA_MESSAGE').length)
+        .toBe(1);
+      const ev = (await probeLog(page)).find((m) => m.event === 'DATA_MESSAGE')!;
+      expect(ev.data).toEqual({ from: '4242', b: Buffer.from([9, 8]).toString('base64') });
       await ctx.close();
-    }
-    const ctx = await browser.newContext();
-    const key = newKey();
-    const { relay } = await mockStack(ctx, { key });
-    const page = await guestPage(ctx, key);
-    await page.getByRole('button', { name: 'Join the game' }).click();
-    await expect(page.locator('iframe[title="Game: Land.io"]')).toBeVisible();
-    relay.drop(4410);
-    await expect(page.locator('main [role="alert"]')).toContainText('connection ended');
-    await ctx.close();
-  });
+    },
+  );
+
+  base(
+    'a game that declares ingame_voice is refused before any socket opens',
+    async ({ browser }) => {
+      const ctx = await browser.newContext();
+      const key = newKey();
+      const { relay } = await mockStack(ctx, {
+        key,
+        capabilities: ['datachannel', 'guest_play', 'ingame_voice'],
+      });
+      const page = await guestPage(ctx, key);
+      await page.getByRole('button', { name: 'Join the game' }).click();
+      await expect(page.locator('main [role="alert"]')).toContainText('in-game voice');
+      await expect(page.locator('iframe')).toHaveCount(0);
+      expect(relay.sockets).toBe(0);
+      await ctx.close();
+    },
+  );
+
+  base(
+    'an expired link, a rate limit and a relay drop each end in a clear message',
+    async ({ browser }) => {
+      for (const [status, text] of [
+        [410, 'expired'],
+        [429, 'Too many tries'],
+      ] as const) {
+        const ctx = await browser.newContext();
+        const key = newKey();
+        await mockStack(ctx, { key, joinStatus: status });
+        const page = await guestPage(ctx, key);
+        await page.getByRole('button', { name: 'Join the game' }).click();
+        await expect(page.locator('main [role="alert"]')).toContainText(text);
+        await ctx.close();
+      }
+      const ctx = await browser.newContext();
+      const key = newKey();
+      const { relay } = await mockStack(ctx, { key });
+      const page = await guestPage(ctx, key);
+      await page.getByRole('button', { name: 'Join the game' }).click();
+      await expect(page.locator('iframe[title="Game: Land.io"]')).toBeVisible();
+      relay.drop(4410);
+      await expect(page.locator('main [role="alert"]')).toContainText('connection ended');
+      await ctx.close();
+    },
+  );
 });
 
 // ---- part 2: the wave 43 gate proof against the real stack ---------------------------------------------------------------
@@ -379,7 +408,10 @@ test.describe('wave 43 gate proof (real stack)', () => {
     owner,
     playwright,
   }) => {
-    test.skip(browserName !== 'chromium', 'Chromium resolves *.localhost activity hosts by itself.');
+    test.skip(
+      browserName !== 'chromium',
+      'Chromium resolves *.localhost activity hosts by itself.',
+    );
     const base = process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173';
     const session = await startActivityForTwo(
       { browser, browserName, owner, playwright },
@@ -443,7 +475,8 @@ test.describe('wave 43 gate proof (real stack)', () => {
           new Promise<number>((resolve) => {
             const ws = new WebSocket(`ws://${location.host}/gateway/guest?v=1`);
             ws.onclose = (e) => resolve(e.code);
-            ws.onopen = () => ws.send(JSON.stringify({ op: 'hello', guest_token: 'srg_' + '0'.repeat(64) }));
+            ws.onopen = () =>
+              ws.send(JSON.stringify({ op: 'hello', guest_token: 'srg_' + '0'.repeat(64) }));
             setTimeout(() => resolve(-1), 8000);
           }),
       );
@@ -454,9 +487,9 @@ test.describe('wave 43 gate proof (real stack)', () => {
       const joinReq = guestRequests.find((u) => /\/api\/v1\/play\/.+\/join$/.test(u))!;
       expect(joinReq).toBeTruthy();
       const req = await playwright.request.newContext({ baseURL: base });
-      const joined = await (
-        await req.post(new URL(joinReq).pathname)
-      ).json() as { guest_token: string };
+      const joined = (await (await req.post(new URL(joinReq).pathname)).json()) as {
+        guest_token: string;
+      };
       const bearer = { Authorization: `Bearer ${joined.guest_token}` };
       for (const path of [
         '/api/v1/users/@me',

@@ -199,7 +199,8 @@ const REPORTING = 'header Reporting-Endpoints "csp-endpoint=\\"/internal/csp-rep
 
 /** The text between the markers (markers included), one tab deep, without a trailing newline. */
 export function renderSurfacesBlock(table: SurfaceTable, publicCsp: string = PUBLIC_CSP): string {
-  const policyOf = (s: { csp?: string }) => (s.csp === 'guest-play' ? GUEST_PLAY_CSP_CADDY : publicCsp);
+  const policyOf = (s: { csp?: string }) =>
+    s.csp === 'guest-play' ? GUEST_PLAY_CSP_CADDY : publicCsp;
   const lines: string[] = [`${T}${SURFACES_BEGIN}`];
   for (const s of table.surfaces) {
     if (s.kind !== 'bundle' || s.reserved || !s.shell) continue;

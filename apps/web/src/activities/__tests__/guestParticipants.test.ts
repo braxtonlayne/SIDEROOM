@@ -70,7 +70,9 @@ describe('guests in the participant list', () => {
     const r = rig();
     await r.hello();
     const res = await r.call('getInstanceConnectedParticipants');
-    expect((res.ok ? (res.data as { participants: Participant[] }) : null)!.participants).toHaveLength(1);
+    expect(
+      (res.ok ? (res.data as { participants: Participant[] }) : null)!.participants,
+    ).toHaveLength(1);
   });
 
   it('tells a subscribed game when the roster changes', async () => {

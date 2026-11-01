@@ -4,13 +4,7 @@ import { encodeDirect, encodeRelayed, encodeSys } from '../envelope';
 import { guestLane } from '../lane';
 import { generateGameKey } from '../link';
 import { importGameKey, open, seal } from '../seal';
-import {
-  guestSocketUrl,
-  joinLobby,
-  JoinError,
-  openLobby,
-  type SocketLike,
-} from '../session';
+import { guestSocketUrl, joinLobby, JoinError, openLobby, type SocketLike } from '../session';
 
 const TOKEN = 'cd34'.repeat(16);
 
@@ -74,23 +68,32 @@ const settle = () => new Promise((r) => setTimeout(r, 20));
 
 describe('joinLobby', () => {
   const answer = (status: number, body?: unknown) =>
-    (async () => new Response(body === undefined ? null : JSON.stringify(body), { status })) as unknown as typeof fetch;
+    (async () =>
+      new Response(body === undefined ? null : JSON.stringify(body), {
+        status,
+      })) as unknown as typeof fetch;
 
   it('posts with no body, no cookie and no referrer to the token path', async () => {
-    const f = vi.fn(answer(200, {
-      guest_token: 'srg_x',
-      callsign: 'Amber Otter 42',
-      expires_at: 'e',
-      topic: topicOf(TOKEN),
-      socket_path: '/gateway/guest',
-      application_id: '7',
-      application_name: 'Land.io',
-    }));
+    const f = vi.fn(
+      answer(200, {
+        guest_token: 'srg_x',
+        callsign: 'Amber Otter 42',
+        expires_at: 'e',
+        topic: topicOf(TOKEN),
+        socket_path: '/gateway/guest',
+        application_id: '7',
+        application_name: 'Land.io',
+      }),
+    );
     const j = await joinLobby(TOKEN, f as unknown as typeof fetch);
     expect(j.callsign).toBe('Amber Otter 42');
     const [url, init] = f.mock.calls[0]!;
     expect(url).toBe(`/api/v1/play/${TOKEN}/join`);
-    expect(init).toMatchObject({ method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    expect(init).toMatchObject({
+      method: 'POST',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+    });
     expect(init).not.toHaveProperty('body');
   });
 
@@ -110,7 +113,9 @@ describe('joinLobby', () => {
         throw new TypeError('offline');
       }) as unknown as typeof fetch),
     ).rejects.toBeInstanceOf(JoinError);
-    await expect(joinLobby(TOKEN, answer(200, { nope: 1 }))).rejects.toMatchObject({ reason: 'refused' });
+    await expect(joinLobby(TOKEN, answer(200, { nope: 1 }))).rejects.toMatchObject({
+      reason: 'refused',
+    });
   });
 });
 
@@ -168,10 +173,24 @@ describe('the lobby socket', () => {
     const { ws, lobby } = await rig();
     ws.say(ready());
     await lobby.seated;
-    ws.say({ op: 'peer', event: 'join', peer: { seat: 3, role: 'guest', callsign: 'Brisk Crane 11' } });
-    expect(lobby.peers().map((p) => p.seat).sort()).toEqual([1, 2, 3]);
+    ws.say({
+      op: 'peer',
+      event: 'join',
+      peer: { seat: 3, role: 'guest', callsign: 'Brisk Crane 11' },
+    });
+    expect(
+      lobby
+        .peers()
+        .map((p) => p.seat)
+        .sort(),
+    ).toEqual([1, 2, 3]);
     ws.say({ op: 'peer', event: 'leave', seat: 3 });
-    expect(lobby.peers().map((p) => p.seat).sort()).toEqual([1, 2]);
+    expect(
+      lobby
+        .peers()
+        .map((p) => p.seat)
+        .sort(),
+    ).toEqual([1, 2]);
   });
 
   it('reports the relay dropping it (4403 for a forged topic, 4410 for a revoked link) once', async () => {
@@ -207,12 +226,24 @@ describe('the guest lane', () => {
     const { ws, lobby, key } = await rig();
     ws.say(ready());
     await lobby.seated;
-    ws.say({ op: 'peer', event: 'join', peer: { seat: 3, role: 'guest', callsign: 'Brisk Crane 11' } });
+    ws.say({
+      op: 'peer',
+      event: 'join',
+      peer: { seat: 3, role: 'guest', callsign: 'Brisk Crane 11' },
+    });
     const kit = guestLane(lobby);
     const got: [string, number[]][] = [];
     kit.lane.onMessage((from, b) => got.push([from, Array.from(b)]));
-    ws.say({ op: 'data', from: 1, data: b64(await seal(key, TOKEN, encodeRelayed('5550001', new Uint8Array([1])))) });
-    ws.say({ op: 'data', from: 3, data: b64(await seal(key, TOKEN, encodeDirect(new Uint8Array([2])))) });
+    ws.say({
+      op: 'data',
+      from: 1,
+      data: b64(await seal(key, TOKEN, encodeRelayed('5550001', new Uint8Array([1])))),
+    });
+    ws.say({
+      op: 'data',
+      from: 3,
+      data: b64(await seal(key, TOKEN, encodeDirect(new Uint8Array([2])))),
+    });
     await settle();
     expect(got).toEqual([
       ['5550001', [1]],
@@ -228,7 +259,11 @@ describe('the guest lane', () => {
     expect(kit.hostId()).toBe('m1');
     expect(await kit.hostKnown(10)).toBe(false);
     const known = kit.hostKnown(500);
-    ws.say({ op: 'data', from: 1, data: b64(await seal(key, TOKEN, encodeSys({ host: '5550001' }))) });
+    ws.say({
+      op: 'data',
+      from: 1,
+      data: b64(await seal(key, TOKEN, encodeSys({ host: '5550001' }))),
+    });
     expect(await known).toBe(true);
     expect(kit.hostId()).toBe('5550001');
   });
@@ -240,7 +275,11 @@ describe('the guest lane', () => {
     const kit = guestLane(lobby);
     await kit.lane.send(new Uint8Array([4, 5]));
     const pub = ws.sent.find((f) => f.op === 'publish')!;
-    const plain = await open(key, TOKEN, Uint8Array.from(atob(pub.data as string), (c) => c.charCodeAt(0)));
+    const plain = await open(
+      key,
+      TOKEN,
+      Uint8Array.from(atob(pub.data as string), (c) => c.charCodeAt(0)),
+    );
     expect(Array.from(plain!)).toEqual([0, 4, 5]);
   });
 

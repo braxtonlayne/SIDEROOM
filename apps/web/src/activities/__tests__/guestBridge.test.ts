@@ -31,7 +31,11 @@ function fakeRoom() {
       return () => listeners.delete(cb);
     },
   };
-  return { room, sent, deliver: (i: string, s: string, b: Uint8Array) => listeners.forEach((l) => l(i, s, b)) };
+  return {
+    room,
+    sent,
+    deliver: (i: string, s: string, b: Uint8Array) => listeners.forEach((l) => l(i, s, b)),
+  };
 }
 
 function fakeLobby() {

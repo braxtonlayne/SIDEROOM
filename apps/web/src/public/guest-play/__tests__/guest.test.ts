@@ -206,7 +206,8 @@ describe('the guest bridge', () => {
     await r.handshake();
     let limited = false;
     for (let i = 0; i < 4100 && !limited; i++) {
-      limited = errCode(await r.call('getInstanceConnectedParticipants')) === RPC_ERRORS.rateLimited;
+      limited =
+        errCode(await r.call('getInstanceConnectedParticipants')) === RPC_ERRORS.rateLimited;
     }
     expect(limited).toBe(true);
   });

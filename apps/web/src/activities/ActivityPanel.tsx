@@ -95,7 +95,7 @@ export function ActivityPanel({
           <>
             {canShare(instance) && (
               <Button size="sm" variant="ghost" onClick={() => setSharing(true)}>
-                {t('guestShare.button')}
+                {t('guestshare.button')}
               </Button>
             )}
             <Button

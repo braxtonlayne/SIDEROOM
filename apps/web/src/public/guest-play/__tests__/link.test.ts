@@ -32,7 +32,9 @@ describe('the Share link', () => {
 
   it('refuses a token or key of the wrong shape', () => {
     expect(() => buildGuestLink('https://x.test', 'short', generateGameKey())).toThrow();
-    expect(() => buildGuestLink('https://x.test', TOKEN.toUpperCase(), generateGameKey())).toThrow();
+    expect(() =>
+      buildGuestLink('https://x.test', TOKEN.toUpperCase(), generateGameKey()),
+    ).toThrow();
     expect(() => buildGuestLink('https://x.test', TOKEN, 'nope')).toThrow();
   });
 
@@ -92,7 +94,10 @@ describe('the lobby envelope', () => {
   });
 
   it('reads the host a member seat names, and drops malformed control and empty payloads', () => {
-    expect(decodeLobby(1, 'member', encodeSys({ host: '55' }))).toEqual({ kind: 'sys', host: '55' });
+    expect(decodeLobby(1, 'member', encodeSys({ host: '55' }))).toEqual({
+      kind: 'sys',
+      host: '55',
+    });
     expect(decodeLobby(1, 'member', new Uint8Array([2, 1, 2, 3]))).toBeNull();
     expect(decodeLobby(1, 'member', new Uint8Array([1, 9, 1]))).toBeNull();
     expect(decodeLobby(1, 'member', new Uint8Array([9, 9]))).toBeNull();

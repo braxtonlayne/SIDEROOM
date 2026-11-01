@@ -45,7 +45,13 @@ const api = (over: Partial<GuestLinkApi> = {}): GuestLinkApi => ({
 const show = (a: GuestLinkApi, i = inst()) =>
   render(
     <ThemeProvider section="lounge">
-      <ShareLinkDialog instance={i} open onClose={() => undefined} api={a} origin="https://chat.example.org" />
+      <ShareLinkDialog
+        instance={i}
+        open
+        onClose={() => undefined}
+        api={a}
+        origin="https://chat.example.org"
+      />
     </ThemeProvider>,
   );
 
@@ -75,7 +81,9 @@ describe('the Share link dialog', () => {
     show(a);
     await userEvent.click(screen.getByRole('button', { name: 'Create link' }));
     const field = (await screen.findByLabelText('Guest link')) as HTMLInputElement;
-    const m = /^https:\/\/chat\.example\.org\/play\/([0-9a-f]{64})#key=([A-Za-z0-9_-]{43})$/.exec(field.value);
+    const m = /^https:\/\/chat\.example\.org\/play\/([0-9a-f]{64})#key=([A-Za-z0-9_-]{43})$/.exec(
+      field.value,
+    );
     expect(m).not.toBeNull();
     expect(m![1]).toBe(TOKEN);
     expect(m![2]).toMatch(GAME_KEY);
@@ -154,7 +162,11 @@ describe('the Share link dialog', () => {
   it('forgets an expired stored link', () => {
     sessionStorage.setItem(
       'sr.guestlink.9',
-      JSON.stringify({ lobbyToken: TOKEN, gameKey: 'k'.repeat(43), expiresAt: '2020-01-01T00:00:00Z' }),
+      JSON.stringify({
+        lobbyToken: TOKEN,
+        gameKey: 'k'.repeat(43),
+        expiresAt: '2020-01-01T00:00:00Z',
+      }),
     );
     expect(loadLink('9')).toBeNull();
     expect(sessionStorage.getItem('sr.guestlink.9')).toBeNull();

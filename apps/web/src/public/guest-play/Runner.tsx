@@ -12,7 +12,14 @@ import { createGuestHost } from './guestHost';
 import { guestLane, type GuestLaneKit } from './lane';
 import { parseGuestLocation } from './link';
 import { importGameKey } from './seal';
-import { guestSocketUrl, joinLobby, JoinError, openLobby, type JoinFailure, type Lobby } from './session';
+import {
+  guestSocketUrl,
+  joinLobby,
+  JoinError,
+  openLobby,
+  type JoinFailure,
+  type Lobby,
+} from './session';
 import './guest.css';
 
 /** Same string as `ACTIVITY_SANDBOX` of the member frame; `guest.test.tsx` pins them together. */
@@ -47,12 +54,24 @@ export interface RunnerDeps {
   hostWaitMs?: number;
 }
 
-export function Runner({ loc, join = joinLobby, open = openLobby, hostWaitMs = 1500 }: RunnerDeps = {}) {
+export function Runner({
+  loc,
+  join = joinLobby,
+  open = openLobby,
+  hostWaitMs = 1500,
+}: RunnerDeps = {}) {
   const t = useT();
   const where = loc ?? window.location;
-  const link = useMemo(() => parseGuestLocation(where.pathname, where.hash), [where.pathname, where.hash]);
+  const link = useMemo(
+    () => parseGuestLocation(where.pathname, where.hash),
+    [where.pathname, where.hash],
+  );
   const [phase, setPhase] = useState<Phase>(() =>
-    !link ? { k: 'failed', why: 'invalid' } : !link.key ? { k: 'failed', why: 'nokey' } : { k: 'ask' },
+    !link
+      ? { k: 'failed', why: 'invalid' }
+      : !link.key
+        ? { k: 'failed', why: 'nokey' }
+        : { k: 'ask' },
   );
   const lobbyRef = useRef<Lobby | null>(null);
   const [players, setPlayers] = useState(0);
@@ -108,20 +127,20 @@ export function Runner({ loc, join = joinLobby, open = openLobby, hostWaitMs = 1
       <main className="gp-main" aria-live="polite">
         {phase.k === 'ask' && (
           <form className="gp-card" onSubmit={(e) => void start(e)}>
-            <h1>{t('guestPlay.page.title')}</h1>
-            <p>{t('guestPlay.page.intro')}</p>
+            <h1>{t('guestplay.page.title')}</h1>
+            <p>{t('guestplay.page.intro')}</p>
             <button type="submit" className="gp-btn">
-              {t('guestPlay.join')}
+              {t('guestplay.join')}
             </button>
           </form>
         )}
-        {phase.k === 'joining' && <p className="gp-card">{t('guestPlay.joining')}</p>}
+        {phase.k === 'joining' && <p className="gp-card">{t('guestplay.joining')}</p>}
         {phase.k === 'failed' && (
           <div className="gp-card" role="alert">
-            <p>{t(`guestPlay.error.${phase.why === 'rate_limited' ? 'rate' : phase.why}`)}</p>
+            <p>{t(`guestplay.error.${phase.why === 'rate_limited' ? 'rate' : phase.why}`)}</p>
             {phase.why !== 'invalid' && phase.why !== 'nokey' && phase.why !== 'gone' && (
               <button type="button" className="gp-btn" onClick={() => setPhase({ k: 'ask' })}>
-                {t('guestPlay.retry')}
+                {t('guestplay.retry')}
               </button>
             )}
           </div>
@@ -130,17 +149,17 @@ export function Runner({ loc, join = joinLobby, open = openLobby, hostWaitMs = 1
           <div className="gp-card" role="alert">
             <p>
               {phase.why === 'ingame_voice'
-                ? t('guestPlay.refused.voice')
-                : t('guestPlay.refused.notGuest')}
+                ? t('guestplay.refused.voice')
+                : t('guestplay.refused.notGuest')}
             </p>
           </div>
         )}
         {phase.k === 'ended' && (
           <div className="gp-card" role="alert">
-            <h1>{t('guestPlay.ended.title')}</h1>
-            <p>{t('guestPlay.ended.body')}</p>
+            <h1>{t('guestplay.ended.title')}</h1>
+            <p>{t('guestplay.ended.body')}</p>
             <button type="button" className="gp-btn" onClick={() => setPhase({ k: 'ask' })}>
-              {t('guestPlay.retry')}
+              {t('guestplay.retry')}
             </button>
           </div>
         )}
@@ -213,14 +232,14 @@ function Playing({
       <header className="gp-bar">
         <strong>{join.application_name}</strong>
         <span className="gp-muted">
-          {t('guestPlay.playing.as', { name: join.callsign })}
-          {players > 0 ? ` · ${t('guestPlay.playing.players', { n: players })}` : ''}
+          {t('guestplay.playing.as', { name: join.callsign })}
+          {players > 0 ? ` · ${t('guestplay.playing.players', { n: players })}` : ''}
         </span>
       </header>
       <iframe
         ref={frame}
         className="gp-frame"
-        title={t('guestPlay.frame.title', { name: join.application_name })}
+        title={t('guestplay.frame.title', { name: join.application_name })}
         src={src}
         sandbox={GUEST_SANDBOX}
         allow="fullscreen"

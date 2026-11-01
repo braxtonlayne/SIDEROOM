@@ -33,7 +33,13 @@ export default defineConfig({
   plugins: [
     neutralTheme(),
     react(),
-    surfaceGuard(root, { landing: LANDING, auth: AUTH, invite: INVITE, profile: PROFILE, 'guest-play': GUEST_PLAY }),
+    surfaceGuard(root, {
+      landing: LANDING,
+      auth: AUTH,
+      invite: INVITE,
+      profile: PROFILE,
+      'guest-play': GUEST_PLAY,
+    }),
     pwaPlugin(),
     pseudoLocalePlugin(),
   ],

@@ -68,8 +68,8 @@
     },
     {
       "surface": "guest-play",
-      "token": "guestPlay.",
-      "reason": "ARC-GST-002: the runner page strings (guestPlay.* in p43-guest-runner-2), registered by this surface alone. No other surface carries them (the check still fails them there)."
+      "token": "guestplay.",
+      "reason": "ARC-GST-002: the runner page strings (guestplay.* in p43-guest-runner-2), registered by this surface alone. No other surface carries them (the check still fails them there)."
     },
     {
       "surface": "guest-play",

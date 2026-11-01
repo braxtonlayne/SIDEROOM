@@ -10,7 +10,12 @@ import type { Lobby } from '../session';
 
 const TOKEN = 'ef56'.repeat(16);
 const KEY = generateGameKey();
-const where = { pathname: `/play/${TOKEN}`, hash: `#key=${KEY}`, protocol: 'https:', host: 'chat.example.org' };
+const where = {
+  pathname: `/play/${TOKEN}`,
+  hash: `#key=${KEY}`,
+  protocol: 'https:',
+  host: 'chat.example.org',
+};
 
 const joined = (over: Partial<GuestJoined> = {}): GuestJoined => ({
   guest_token: 'srg_' + 'b'.repeat(64),
@@ -92,7 +97,9 @@ describe('the guest runner page', () => {
 
   it('refuses a game that declares ingame_voice before it opens any socket', async () => {
     const open = vi.fn();
-    const join = vi.fn(async () => joined({ capabilities: ['guest_play', 'datachannel', 'ingame_voice'] }));
+    const join = vi.fn(async () =>
+      joined({ capabilities: ['guest_play', 'datachannel', 'ingame_voice'] }),
+    );
     render(<Runner loc={where} join={join} open={open} />);
     await userEvent.click(screen.getByRole('button', { name: 'Join the game' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('in-game voice');
@@ -141,13 +148,19 @@ describe('the guest runner page', () => {
 describe('the surface route', () => {
   it('serves /play/<token> on the guest-play surface and shows the join screen', async () => {
     const path = `/play/${TOKEN}#key=${KEY}`;
-    const router = createPublicRouter(`/play/${TOKEN}`, createMemoryHistory({ initialEntries: [path] }));
+    const router = createPublicRouter(
+      `/play/${TOKEN}`,
+      createMemoryHistory({ initialEntries: [path] }),
+    );
     render(<RouterProvider router={router} />);
     expect(await screen.findByRole('button', { name: 'Join the game' })).toBeInTheDocument();
   });
 
   it('marks the page noindex', async () => {
-    const router = createPublicRouter(`/play/${TOKEN}`, createMemoryHistory({ initialEntries: [`/play/${TOKEN}#key=${KEY}`] }));
+    const router = createPublicRouter(
+      `/play/${TOKEN}`,
+      createMemoryHistory({ initialEntries: [`/play/${TOKEN}#key=${KEY}`] }),
+    );
     render(<RouterProvider router={router} />);
     await screen.findByRole('button', { name: 'Join the game' });
     await waitFor(() =>
@@ -156,7 +169,10 @@ describe('the surface route', () => {
   });
 
   it('shows the invalid-link page for a short token and nothing of the app', async () => {
-    const router = createPublicRouter('/play/x', createMemoryHistory({ initialEntries: ['/play/x'] }));
+    const router = createPublicRouter(
+      '/play/x',
+      createMemoryHistory({ initialEntries: ['/play/x'] }),
+    );
     render(<RouterProvider router={router} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('not valid');
     expect(document.body.textContent).not.toMatch(/lounge|cinema|library|channel/i);

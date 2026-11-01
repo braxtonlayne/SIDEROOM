@@ -71,10 +71,7 @@ export function forgetLink(instanceId: string): void {
 }
 
 /** Make the key in this browser, ask the server for the token, and remember both in this tab. */
-export async function createGuestLink(
-  api: GuestLinkApi,
-  instanceId: string,
-): Promise<StoredLink> {
+export async function createGuestLink(api: GuestLinkApi, instanceId: string): Promise<StoredLink> {
   const gameKey = generateGameKey();
   const made = await api.create(instanceId);
   const link: StoredLink = { lobbyToken: made.lobby_token, gameKey, expiresAt: made.expires_at };
