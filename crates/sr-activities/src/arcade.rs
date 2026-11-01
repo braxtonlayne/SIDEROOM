@@ -894,7 +894,7 @@ impl ArcadeService {
         check_flags(Some(input.tier), &caps).map_err(|m| invalid("capabilities", m))?;
         let tips = tips_of(&input.tip_links)?;
         let mut tx = self.pool.begin().await?;
-        sqlx::query("SELECT pg_advisory_xact_lock(hashtext('arcade_cartridges'), $1::int)")
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtext('arcade_cartridges')::bigint # $1)")
             .bind(guild)
             .execute(&mut *tx)
             .await?;
