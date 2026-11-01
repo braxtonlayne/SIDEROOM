@@ -8,6 +8,21 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 45 - 2026-11-01
+
+- **If a screen breaks, you get a plain page with a Reload button** instead of a blank window. Behind it, the app
+  sends the team a short crash note: which screen (by its name, never its address), where in the code, which browser
+  features were present and the last few game or Activity button presses as codes. It never includes your messages,
+  files, links, keys or anything you typed, and nothing is sent before you sign in.
+- **For staff:** crash notes arrive in a new staff-only `#crash-triage` channel in the Staff Server, one card per
+  distinct crash with a running count. A developer (or a coding agent working for one) can reproduce the bug from it
+  and propose a fix; **nothing is ever deployed from a card**, every fix goes through a normal review.
+- **Preview a lived-in SIDE ROOM (test deployments).** When the operator turns on the "Showroom" switch (off by
+  default), members get a "Preview populated state" button in the rooms bar and the Arcade: ten sample servers in the
+  rail, friends' and servers' shelves in The Study, and an Arcade split into "Playable now" and "Preview / in
+  development". Everything in it is made up, a "Preview" banner stays on screen, and nothing you click in it is saved
+  or sent. Turn it off with the same button or from the banner.
+
 ## Phase 44 - 2026-11-01
 
 - **Moderation is now a set of proportionate tools.** Staff can warn, time out, pause someone's invites for a chosen

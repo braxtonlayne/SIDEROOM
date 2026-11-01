@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 44)
+### 4b. Decisions of the feature phase (waves 27 to 45)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -140,6 +140,15 @@ Graduated moderation and profile vouches (wave 44, [handoff](handoff/integration
 - [ ] **Vouch limits** (D-425): at most 20 new vouches a day, 500 outstanding, and the voucher's account at least 3 days old. **Default:** those numbers.
 - [ ] **The voucher notice names the category, never the banned member** (D-428). **Default:** stands. **Option:** name the member (the voucher already knew whom they vouched for).
 - [ ] **Vouching needs a visible profile** (D-429 with the wave-34 privacy rule). A page is private until its owner opens it, so nobody can vouch for (or see the vouch panel of) a member whose page is private. **Default:** stands; it follows the profile privacy the member chose.
+
+Crash telemetry and the Showroom (wave 45, [handoff](handoff/integration-phase45.md)):
+
+- [ ] **Crash reports: opt-out and Global Privacy Control** (D-432). **Default:** every signed-in browser reports, with no opt-out, because a report holds no personal data (no account id, address, user agent or message text; only the allow-listed card) and nothing is sent before sign-in. **Option:** a member setting to switch reports off, and/or honour the browser's GPC signal.
+- [ ] **Audit reading the crash list** (D-433). **Default:** opening one replay (`GET /admin/crash-reports/{id}`) writes the `crash.report.read` audit entry; reading the list does not. **Option:** audit list reads too.
+- [ ] **Crash limits as platform settings** (D-432). **Default:** constants in code: 6 reports per account per 10 minutes, 600 per hour for the platform, 60 new crash groups per hour, 32 KiB per report, 5 per page load. **Option:** make them editable under Admin > Limits.
+- [ ] **Who sees `#crash-triage`** (D-433). **Default:** staff roles that carry a platform permission; a staff role without one (a cosmetic role) does not. Any appointed staff member can read the two JSON routes. **Option:** every staff role sees the channel.
+- [ ] **The Showroom switch in production builds** (D-435). **Default:** the preview's code ships in every build (lazy chunk, loaded only when a signed-in member turns it on) and the operator's switch `platform.showroom`, OFF by default, decides. **Option:** a build flag so production images do not carry the toggle at all.
+- [ ] **The Showroom over the Lounge** (D-436). **Default:** the preview replaces the servers rail (ten sample servers), The Study and The Arcade; the Lounge channel list, messages, the Cinema and the Library stay real. **Option:** a store-level overlay with a bigger fixture set so the Lounge itself looks populated.
 
 Dependencies:
 
