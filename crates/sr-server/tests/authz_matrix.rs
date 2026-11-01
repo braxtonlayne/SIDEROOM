@@ -9295,7 +9295,13 @@ async fn guest_links_hold_over_http() {
         srv.call(&owner, "DELETE", &one, None).await,
         204
     );
-    let told = g1.json().await;
+    // (The seats that came and went in step 4 were announced to it first.)
+    let told = loop {
+        let f = g1.json().await;
+        if f["op"] != "peer" {
+            break f;
+        }
+    };
     if told != json!({"op": "closed", "reason": "revoked"}) {
         failures.push(format!("the guest is told why: {told}"));
     }
