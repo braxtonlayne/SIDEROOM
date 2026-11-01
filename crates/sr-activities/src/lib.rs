@@ -13,6 +13,7 @@
 pub mod arcade;
 pub mod bundle;
 pub mod error;
+pub mod guest;
 pub mod model;
 pub mod ports;
 pub mod rules;
