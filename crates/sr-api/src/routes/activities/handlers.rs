@@ -738,6 +738,9 @@ pub async fn guest_join(
         connect.as_ref().map(|c| &c.0.0),
         state.settings().trust_forwarded_for,
     );
+    if deps.guest_join_limit.len() > 10_000 {
+        deps.guest_join_limit.retain_recent();
+    }
     if deps.guest_join_limit.check_key(&who).is_err() {
         return Err(ApiError::new(ErrorCode::TooManyRequests).into());
     }

@@ -380,3 +380,18 @@ async fn a_full_lobby_refuses_the_next_seat_and_an_over_budget_sender_only_loses
     assert!(pong, "the flooding seat is not disconnected");
     assert!(gg.hub().stats().dropped_budget > 0);
 }
+
+/// The MLS voice stream is reachable only with a join token signed for a member of the channel: a guest token or a
+/// lobby token is not one, and the lobby sub-room has no way to mint one (it holds no signer).
+#[test]
+fn a_guest_or_lobby_token_is_not_a_voice_join_token() {
+    let signer = sr_voice_proto::token::TokenSigner::new(b"voice-secret".to_vec());
+    for t in [
+        format!("srg_{}", "0f".repeat(32)),
+        lobby_token(7),
+        format!("game:{}", lobby_token(7)),
+        String::new(),
+    ] {
+        assert!(signer.verify(&t, 0).is_err(), "{t}");
+    }
+}

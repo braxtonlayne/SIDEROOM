@@ -63,8 +63,8 @@ relay -> client
 `guest_play` and `lobby_channel` are now `FlagStatus::Active` in `arcade::FLAGS` (a running instance lists them in
 `capabilities`; a development build runs with every active flag). `ingame_voice` stays `Reserved`: the validator accepts it, a
 running instance never lists it, the runner must refuse it. `guest_play` still requires `TIER_1_ORIGINAL` (unchanged).
-A guest link needs `guest_play` on the instance; `lobby_channel` is declared for games that want the lobby for members only
-(the member seat works without a guest link existing is NOT built: a seat needs a live link, see open).
+A guest link needs `guest_play` on the instance. `lobby_channel` is active and is the flag a game declares for the lobby
+sub-room; today a seat exists only while the lobby has a live guest link (see open).
 
 ## Done
 

@@ -62,6 +62,12 @@ impl ActivityService {
                 "This game does not allow guests.".to_owned(),
             ));
         }
+        // Old dead links (and, by cascade, their sessions) are swept as links are minted.
+        sqlx::query(
+            "DELETE FROM activity_guest_links              WHERE expires_at < now() - interval '1 day' OR revoked_at < now() - interval '1 day'",
+        )
+        .execute(self.pool())
+        .await?;
         let live: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM activity_guest_links l JOIN activity_instances i ON i.id = l.instance_id \
              WHERE l.instance_id = $1 AND l.revoked_at IS NULL AND l.expires_at > now() AND i.ended_at IS NULL",
