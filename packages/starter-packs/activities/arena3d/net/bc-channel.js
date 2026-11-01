@@ -37,12 +37,24 @@ export async function createBroadcastChannel(opt) {
     if (m.k === 'presence') {
       const known = peers.has(m.from);
       peers.set(m.from, { host: !!m.host });
-      if (m.host) hostId = m.from;
+      if (m.host && !(isHost && self.id < m.from)) {
+        // Two tabs that elected themselves at once: the lower id keeps hosting.
+        hostId = m.from;
+        isHost = false;
+      }
       if (!known) {
         presence();
         if (isHost) for (const [key, bytes] of doc) post({ k: 'state', key, bytes, to: m.from });
       }
-    } else if (m.k === 'bye') peers.delete(m.from);
+    } else if (m.k === 'bye') {
+      peers.delete(m.from);
+      // The host left: the remaining tab with the lowest id takes over (a dev stand-in; state restarts there).
+      if (m.from === hostId && [...peers.keys()].every((id) => self.id < id)) {
+        isHost = true;
+        hostId = self.id;
+        presence();
+      }
+    }
     else if (m.k === 'in' && isHost && m.to === self.id) inputCbs.forEach((cb) => cb(m.from, new Uint8Array(m.bytes)));
     else if (m.k === 'reply' && m.to === self.id) replyCbs.forEach((cb) => cb(new Uint8Array(m.bytes)));
     else if (m.k === 'state' && (m.to === undefined || m.to === self.id) && m.from === hostId)

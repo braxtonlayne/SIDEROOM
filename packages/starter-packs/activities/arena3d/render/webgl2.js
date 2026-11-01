@@ -81,7 +81,8 @@ export function createWebGL2Renderer(canvas) {
       const tex = gl.createTexture();
       if (!tex) throw new Error('out of GL objects');
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, /** @type {any} */ (image));
+      // Base-colour images are sRGB; SRGB8_ALPHA8 decodes them to linear on sampling (the shader encodes once).
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, /** @type {any} */ (image));
       gl.generateMipmap(gl.TEXTURE_2D);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);

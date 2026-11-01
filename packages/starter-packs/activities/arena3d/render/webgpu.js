@@ -26,16 +26,17 @@ export async function createWebGPURenderer(canvas, gpu, onLost) {
   const adapter = await gpu.requestAdapter();
   if (!adapter) return null;
   const device = await adapter.requestDevice();
-  const ctx = /** @type {any} */ (canvas.getContext(/** @type {any} */ ('webgpu')));
-  if (!ctx) return null;
   const G = /** @type {any} */ (globalThis);
   const BU = G.GPUBufferUsage;
   const TU = G.GPUTextureUsage;
   const SS = G.GPUShaderStage;
   const format = gpu.getPreferredCanvasFormat();
-  ctx.configure({ device, format, alphaMode: 'opaque' });
+  device.onuncapturederror = (/** @type {any} */ e) => console.error('WebGPU error:', e?.error?.message ?? e);
   device.lost?.then((/** @type {any} */ info) => onLost?.(String(info?.message ?? 'device lost')));
 
+  // Shader and pipeline errors arrive asynchronously; catch them here and give up (the caller falls back to WebGL2)
+  // before the canvas is claimed by a 'webgpu' context, which would make getContext('webgl2') return null.
+  device.pushErrorScope('validation');
   const module = device.createShaderModule({ code: WGSL });
   const frameBuf = device.createBuffer({ size: 256, usage: BU.UNIFORM | BU.COPY_DST });
   const drawBuf = device.createBuffer({ size: DRAW_STRIDE * MAX_DRAWS, usage: BU.UNIFORM | BU.COPY_DST });
@@ -79,6 +80,18 @@ export async function createWebGPURenderer(canvas, gpu, onLost) {
       { binding: 1, resource: { buffer: drawBuf, size: DRAW_BYTES } },
     ],
   });
+  const invalid = await device.popErrorScope();
+  if (invalid) {
+    console.warn('WebGPU pipeline refused, falling back:', invalid.message);
+    device.destroy();
+    return null;
+  }
+  const ctx = /** @type {any} */ (canvas.getContext(/** @type {any} */ ('webgpu')));
+  if (!ctx) {
+    device.destroy();
+    return null;
+  }
+  ctx.configure({ device, format, alphaMode: 'opaque' });
   const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'repeat', addressModeV: 'repeat' });
 
   /** @type {Map<number, { vb: any, ib: any, count: number }>} */
@@ -115,7 +128,8 @@ export async function createWebGPURenderer(canvas, gpu, onLost) {
     texture(image) {
       const width = image.width;
       const height = image.height;
-      const tex = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: TU.TEXTURE_BINDING | TU.COPY_DST | TU.RENDER_ATTACHMENT });
+      // Base-colour images are sRGB; the -srgb format decodes them to linear on sampling (the shader encodes once).
+      const tex = device.createTexture({ size: [width, height], format: 'rgba8unorm-srgb', usage: TU.TEXTURE_BINDING | TU.COPY_DST | TU.RENDER_ATTACHMENT });
       device.queue.copyExternalImageToTexture({ source: image }, { texture: tex }, [width, height]);
       const id = nextId++;
       textures.set(id, { tex, bg: textureBindGroup(tex) });

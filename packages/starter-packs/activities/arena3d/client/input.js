@@ -16,7 +16,8 @@ const KEYS = {
   KeyA: BTN.LEFT, ArrowLeft: BTN.LEFT,
   KeyD: BTN.RIGHT, ArrowRight: BTN.RIGHT,
   Space: BTN.JUMP,
-  KeyC: BTN.CROUCH, ShiftLeft: BTN.CROUCH, ControlLeft: BTN.CROUCH,
+  // Not Ctrl: Ctrl+W (crouch while walking) closes the tab, and preventDefault cannot stop it.
+  KeyC: BTN.CROUCH, ShiftLeft: BTN.CROUCH,
 };
 
 /** Yaw units per mouse pixel per sensitivity step (sensitivity 5 is about 0.15 degrees per pixel). */
@@ -59,6 +60,8 @@ export class InputState {
       if (!this.locked) this.buttons = 0;
       this.lockListeners.forEach((cb) => cb(this.locked));
     };
+    // Firefox and Safari report a refused lock with this event, not a rejected promise.
+    this.onLockError = () => this.lockListeners.forEach((cb) => cb(false));
     this.onBlur = () => {
       this.buttons = 0;
     };
@@ -67,6 +70,7 @@ export class InputState {
     win.addEventListener('blur', this.onBlur);
     doc.addEventListener('mousemove', this.onMove);
     doc.addEventListener('pointerlockchange', this.onLockChange);
+    doc.addEventListener('pointerlockerror', this.onLockError);
   }
 
   /** Ask for pointer lock (call from a click). Resolves false when the browser refuses (too soon after Esc). */
@@ -108,5 +112,6 @@ export class InputState {
     this.win.removeEventListener('blur', this.onBlur);
     doc.removeEventListener('mousemove', this.onMove);
     doc.removeEventListener('pointerlockchange', this.onLockChange);
+    doc.removeEventListener('pointerlockerror', this.onLockError);
   }
 }

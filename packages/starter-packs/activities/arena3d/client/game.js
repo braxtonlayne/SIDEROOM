@@ -46,6 +46,8 @@ export class Game {
     this.wasGrounded = true;
     /** @type {number} */
     this.raf = 0;
+    /** @type {ReturnType<typeof setInterval> | null} the hidden-tab ticker */
+    this.timer = null;
   }
 
   /** The local player's slot (-1 until a peer is welcomed). */
@@ -64,10 +66,22 @@ export class Game {
       this.frame(now);
     };
     this.raf = requestAnimationFrame(frame);
+    // requestAnimationFrame stops in a hidden tab (or a display:none iframe), which would freeze the match for
+    // everyone when it is the host's. While hidden, tick from a timer instead (browsers throttle background
+    // timers, often to 1 Hz, so a hidden host still lags; the frame loop catches up to MAX_TICKS_PER_FRAME).
+    this.onVisibility = () => {
+      if (document.hidden && !this.timer) this.timer = setInterval(() => this.frame(performance.now(), false), 50);
+      else if (!document.hidden && this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+      }
+    };
+    document.addEventListener('visibilitychange', this.onVisibility);
+    this.onVisibility();
   }
 
-  /** @param {number} now */
-  frame(now) {
+  /** @param {number} now @param {boolean} [draw] false: simulate only (hidden tab) */
+  frame(now, draw = true) {
     if (this.last < 0) this.last = now;
     this.acc += Math.min(250, now - this.last);
     this.last = now;
@@ -78,6 +92,7 @@ export class Game {
       n++;
     }
     if (n === MAX_TICKS_PER_FRAME) this.acc = 0;
+    if (!draw) return;
     this.client?.frame();
     this.render(this.acc / TICK_MS);
     this.frames++;
@@ -183,6 +198,8 @@ export class Game {
   stop() {
     this.running = false;
     cancelAnimationFrame(this.raf);
+    if (this.timer) clearInterval(this.timer);
+    if (this.onVisibility) document.removeEventListener('visibilitychange', this.onVisibility);
     this.client?.leave();
     this.host?.close();
   }

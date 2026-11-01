@@ -33,7 +33,8 @@ async function boot() {
   const platform = getPlatform(window);
   status.textContent = platform.kind === 'sideroom' ? 'Connecting to SIDE ROOM…' : 'Looking for other tabs…';
   // Physics loads while the handshake runs; the menu is already on screen.
-  const jolt = new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))).then(() => loadJolt());
+  // (setTimeout, not requestAnimationFrame: rAF never fires in a background tab.)
+  const jolt = new Promise((r) => setTimeout(r, 0)).then(() => loadJolt());
   await platform.ready();
   let settings = loadSettings(platform.storage);
   const sfx = new Sfx();
@@ -90,33 +91,33 @@ async function boot() {
   const resume = $('resume');
   const hudEl = $('hud');
   let playing = false;
+  // The match starts now, behind the menu: a host must answer peers' HELLOs even before its own player
+  // presses Play (its player just stands still until then).
+  game = new Game({ J, platform, renderer, canvas, input: keys, settings, hud, sfx, voice: spatialVoiceFor([]) });
+  game.start();
+  // The game's own crash-report half (brief §3, wave 45): the state hash and the input log, for devtools,
+  // a crash reporter or a bug replay (the log uses replay/script.js's event format).
+  const g = game;
+  Object.defineProperty(window, 'arena3d', {
+    configurable: true,
+    value: Object.freeze({
+      tick: () => g.world.tick,
+      stateHash: () => g.world.stateHash(),
+      inputLog: () => (g.host ?? g.client)?.inputLog.snapshot() ?? [],
+      role: () => (g.host ? 'host' : 'peer'),
+    }),
+  });
+  // The sample glTF model (optional: it needs connect-src 'self', see assets/source.js).
+  new BundledAssetSource()
+    .json('models/beacon.json')
+    .then((json) => loadGltf(json))
+    .then((model) => {
+      const pad = game?.world.level.pad;
+      if (game && pad) game.scene.setBeacon(model, [(pad.min[0] + pad.max[0]) / 2, 0.02, (pad.min[1] + pad.max[1]) / 2]);
+    })
+    .catch((e) => console.warn('beacon model not loaded:', e));
   play.addEventListener('click', async () => {
     sfx.unlock();
-    if (!game) {
-      game = new Game({ J, platform, renderer, canvas, input: keys, settings, hud, sfx, voice: spatialVoiceFor([]) });
-      game.start();
-      // The game's own crash-report half (brief §3, wave 45): the state hash and the input log, for devtools,
-      // a crash reporter or a bug replay (the log uses replay/script.js's event format).
-      const g = game;
-      Object.defineProperty(window, 'arena3d', {
-        configurable: true,
-        value: Object.freeze({
-          tick: () => g.world.tick,
-          stateHash: () => g.world.stateHash(),
-          inputLog: () => (g.host ?? g.client)?.inputLog.snapshot() ?? [],
-          role: () => (g.host ? 'host' : 'peer'),
-        }),
-      });
-      // The sample glTF model (optional: it needs connect-src 'self', see assets/source.js).
-      new BundledAssetSource()
-        .json('models/beacon.json')
-        .then((json) => loadGltf(json))
-        .then((model) => {
-          const pad = game?.world.level.pad;
-          if (game && pad) game.scene.setBeacon(model, [(pad.min[0] + pad.max[0]) / 2, 0.02, (pad.min[1] + pad.max[1]) / 2]);
-        })
-        .catch((e) => console.warn('beacon model not loaded:', e));
-    }
     playing = true;
     menu.hidden = true;
     hudEl.hidden = false;

@@ -136,6 +136,7 @@ test('the WebGPU backend builds its pipeline and draws with dynamic offsets', as
   const device = recorder(calls, {
     setBindGroup: (/** @type {number} */ g, /** @type {any} */ _bg, /** @type {any[]} */ off) => (g === 0 ? offsets.push(off) : undefined, undefined),
     lost: new Promise(() => {}),
+    popErrorScope: async () => null,
   });
   const gpu = {
     requestAdapter: async () => ({ requestDevice: async () => device }),
@@ -145,6 +146,7 @@ test('the WebGPU backend builds its pipeline and draws with dynamic offsets', as
   const canvas = /** @type {any} */ ({ width: 640, height: 360, getContext: (/** @type {string} */ k) => (k === 'webgpu' ? ctx : null) });
   const r = await createRenderer(canvas, { nav: { gpu } });
   assert.equal(r.kind, 'webgpu');
+  assert.ok(calls.indexOf('pushErrorScope') < calls.indexOf('configure'), 'the pipeline is validated before the canvas is claimed');
   const cube = r.upload(boxMesh());
   const cap = r.upload(capsuleMesh(0.35, 0.55));
   r.frame(frameParams(), [
