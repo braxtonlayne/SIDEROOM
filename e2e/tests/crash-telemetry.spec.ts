@@ -40,7 +40,7 @@ interface Message {
   id: string;
   content: string;
   embeds: { title?: string; description?: string }[];
-  components?: unknown;
+  components: unknown;
 }
 
 async function triageMessages(staff: APIRequestContext): Promise<Message[]> {
@@ -181,7 +181,20 @@ test.describe('crash telemetry @gate', () => {
     // ---- #crash-triage ---------------------------------------------------------------------------------------------------
     const messages = await triageMessages(staff.context.request);
     expect(messages, 'one card per distinct crash').toHaveLength(before + 2);
-    const everything = JSON.stringify(messages);
+    // The card is the content and the embeds. Its one button is a link to the stored record on this very server, the
+    // only URL a card carries, and acts on nothing.
+    const everything = JSON.stringify(
+      messages.map((m) => ({ content: m.content, embeds: m.embeds })),
+    );
+    for (const m of messages) {
+      const links = (
+        m.components as { components: { url?: string; custom_id?: string }[] }[]
+      ).flatMap((row) => row.components);
+      expect(links).toHaveLength(1);
+      expect(links[0]!.custom_id).toBeUndefined();
+      expect(new URL(links[0]!.url!).pathname).toMatch(/^\/api\/v1\/admin\/crash-reports\/\d+$/);
+      expect(new URL(links[0]!.url!).origin).toBe(new URL(PUBLIC_URL).origin);
+    }
     for (const needle of fixture.needles) {
       expect(everything, `#crash-triage shows ${needle}`).not.toContain(needle);
     }
@@ -223,7 +236,10 @@ test.describe('crash telemetry @gate', () => {
     ).json()) as { count: number; replay: { input: string }[] };
     expect(detail.count).toBe(2);
     expect(detail.replay.map((t) => t.input)).toEqual(['jump', 'other', 'bridge_data_send']);
-    expect(findLeaks(JSON.stringify(detail))).toEqual([]);
+    // The record's fingerprint is a SHA-256 of the build and top frames (64 hex characters): a hash, not a secret.
+    const { fingerprint, ...record } = detail as typeof detail & { fingerprint: string };
+    expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(findLeaks(JSON.stringify(record))).toEqual([]);
     for (const path of ['/admin/crash-reports', `/admin/crash-reports/${first.id}`]) {
       const res = await member.context.request.get(`/api/v1${path}`);
       expect([401, 403], `member GET ${path}`).toContain(res.status());
