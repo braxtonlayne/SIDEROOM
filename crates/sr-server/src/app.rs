@@ -942,6 +942,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             crate::activities::SafeActivityFetcher::production(),
         )),
     ));
+    // The Arcade room (ARC-ROOM-001): Featured, Coming Soon and a server's cartridges.
+    let arcade_deps = Arc::new(routes::arcade::ArcadeDeps {
+        service: sr_activities::arcade::ArcadeService::new(pool.clone(), id_src.clone()),
+    });
     // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
     let packages_deps = Arc::new(routes::packages::PackagesDeps {
         service: sr_packages::service::PackageService::new(pool.clone(), id_src.clone())
@@ -1662,6 +1666,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(cinema_social_deps)
         .extension(watchparty_deps)
         .extension(activities_deps.clone())
+        .extension(arcade_deps)
         .extension(packages_deps.clone())
         .extension(user_feature_deps)
         .extension(tool_room_deps)

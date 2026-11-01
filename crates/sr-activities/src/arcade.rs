@@ -40,6 +40,7 @@ pub const MAX_CARTRIDGES: i64 = 50;
 
 /// The two content tiers of a game manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeTier)]
 pub enum Tier {
     #[serde(rename = "TIER_1_ORIGINAL")]
     Original,
@@ -49,6 +50,7 @@ pub enum Tier {
 
 /// Where a tier may be played or shown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeEligibility)]
 pub struct Eligibility {
     /// Plays in the browser, in a call.
     pub browser_play: bool,
@@ -102,6 +104,7 @@ impl Tier {
 /// Whether a flag is enforced today.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
+#[schema(as = ArcadeFlagStatus)]
 pub enum FlagStatus {
     Active,
     Reserved,
@@ -269,6 +272,7 @@ pub fn parse_manifest(data: &[u8]) -> Result<Manifest, BundleError> {
 
 /// One tip link as the API shows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeTip)]
 pub struct TipView {
     /// `btc`, `lightning`, `kofi` or `patreon`.
     pub kind: String,
@@ -287,6 +291,7 @@ impl From<&TipLink> for TipView {
 
 /// A capability flag in the catalogue.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeFlag)]
 pub struct FlagView {
     pub name: String,
     pub status: FlagStatus,
@@ -307,6 +312,7 @@ pub fn flag_views() -> Vec<FlagView> {
 
 /// A game on the Front Page. The Operator chose it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeFeaturedCard)]
 pub struct FeaturedCard {
     pub application_id: String,
     pub name: String,
@@ -326,6 +332,7 @@ pub struct FeaturedCard {
 
 /// A game being built, in the Coming Soon showcase.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeComingSoonCard)]
 pub struct ComingSoonCard {
     pub id: String,
     pub title: String,
@@ -348,6 +355,7 @@ pub struct ArcadeFront {
 
 /// A released Activity the Operator could feature.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeCandidate)]
 pub struct CandidateView {
     pub application_id: String,
     pub name: String,
@@ -358,6 +366,7 @@ pub struct CandidateView {
 
 /// What the Operator sets when featuring.
 #[derive(Debug, Clone, PartialEq, Default, Deserialize, ToSchema)]
+#[schema(as = ArcadeFeatureInput)]
 pub struct FeatureInput {
     /// Lower first. Default 0.
     pub position: Option<i32>,
@@ -367,6 +376,7 @@ pub struct FeatureInput {
 
 /// A Coming Soon entry to add.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
+#[schema(as = ArcadeComingSoonInput)]
 pub struct ComingSoonInput {
     pub title: String,
     pub summary: String,
@@ -376,6 +386,7 @@ pub struct ComingSoonInput {
 
 /// A cartridge a server lists from its shelf.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[schema(as = ArcadeCartridge)]
 pub struct CartridgeView {
     pub id: String,
     pub guild_id: String,
@@ -395,6 +406,7 @@ pub struct CartridgeView {
 
 /// A cartridge to list.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
+#[schema(as = ArcadeCartridgeInput)]
 pub struct CartridgeInput {
     pub title: String,
     #[serde(default)]
@@ -411,6 +423,7 @@ pub struct CartridgeInput {
 
 /// A tip link in a request.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
+#[schema(as = ArcadeTipInput)]
 pub struct TipInput {
     pub kind: String,
     pub url: String,

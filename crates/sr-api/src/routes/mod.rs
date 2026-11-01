@@ -42,6 +42,7 @@ use std::{any::type_name, sync::Arc};
 
 pub mod activities;
 pub mod admin;
+pub mod arcade;
 pub mod auth;
 pub mod cdn;
 pub mod cinema;
@@ -138,6 +139,7 @@ pub fn all() -> Router<AppState> {
         .merge(tv::router())
         .merge(watchparty::router())
         .merge(activities::router())
+        .merge(arcade::router())
         .merge(packages::router())
         .merge(developer::router())
         .merge(directory::router())
@@ -186,6 +188,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(tv::openapi());
     doc.merge(watchparty::openapi());
     doc.merge(activities::openapi());
+    doc.merge(arcade::openapi());
     doc.merge(packages::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
