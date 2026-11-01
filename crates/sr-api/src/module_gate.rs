@@ -296,8 +296,14 @@ mod tests {
             ("/admin/review/queue", INGEST_QUEUES_ID),
             ("/admin/ingest-sources/{source_id}/scan", INGEST_QUEUES_ID),
             ("/submissions", INGEST_QUEUES_ID),
-            ("/submissions/{submission_id}/cinema/draft", INGEST_QUEUES_ID),
-            ("/library/submissions/{submission_id}/cover", INGEST_QUEUES_ID),
+            (
+                "/submissions/{submission_id}/cinema/draft",
+                INGEST_QUEUES_ID,
+            ),
+            (
+                "/library/submissions/{submission_id}/cover",
+                INGEST_QUEUES_ID,
+            ),
         ] {
             let r = rule_for(t).unwrap_or_else(|| panic!("{t}"));
             assert_eq!(r.all, vec![id], "{t}");
