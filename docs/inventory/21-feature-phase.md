@@ -329,3 +329,30 @@ tree (scratch databases, Chromium only for Playwright, no Garage locally).
   shelf grant schemas were renamed). Not built: a web UI for grants and delisting, the sandbox CSP allow-list for
   `byos_read`, refusing write-capable keys (D-401 keeps them). The real-bucket, two-browser-profile Playwright run
   needs Garage (the CI live job)_
+
+## Wave 42 — The Arcade, the hardened sandbox, two tiers (roadmap P28)
+
+Integration: [dev/handoff/integration-phase42.md](../dev/handoff/integration-phase42.md). Decisions: D-405 to D-411
+(integrator defaults). Ticked where the item's own proofs ran on the merged tree (scratch databases, Chromium only for
+Playwright, in-memory object storage, no Garage locally).
+
+### ARC — The Arcade
+- [x] **ARC-ROOM-001** [BE][FE] The Arcade room (`/games`): Operator-curated Featured, Guild Cartridges (now on wave-41
+  shelf objects, D-410), Coming Soon with "Notify me"; the manifest's two tiers (`TIER_1_ORIGINAL`,
+  `TIER_2_REIMPLEMENTATION`; a third value is refused by the validator and by the database), capability flags as one
+  catalogue (`arcade::FLAGS`, D-399), zero-cut tip links on manifests and `/~handle` profiles _Merged tree:
+  `sr-activities` lib (43) and Postgres `arcade` (7, incl. `the_database_holds_only_the_two_tiers` and
+  `a_cartridge_names_a_shelf_object_and_a_delisting_hides_it`), `sr-core` tips (3), `sr-packages`, `route_matrix` (6),
+  `openapi_names` (2), `authz_matrix` (9), Vitest `src/arcade` (17), Playwright `arcade-room.spec.ts` and the Arcade in
+  `i18n-pseudo.spec.ts` (en-XA, desktop and phone). Not built: Notify-me delivery, a Bitcoin/Lightning QR on profiles,
+  Bitcoin checksums, a shelf picker in the cartridge form_
+- [ ] **ARC-SBX-001** [BE][FE][CLI] Hardened sandbox (opaque origin, server-enforced `sandbox` CSP, `connect-src 'none'`
+  unless the reviewed manifest or URL mappings say otherwise), the validated bridge (`storage`, `saveFile`), operator
+  code signing (`sr-cli arcade sign-code`), hash-pinned vouches with the UNVERIFIED UPDATE flip, URL-mapping writes with
+  the instance's proxy token (D-408) _Merged tree: `sr-activities` Postgres `trust_db` (10) and `db` (10, incl.
+  `proxy_tokens_belong_to_a_participant_of_a_running_instance`), `sr-cli arcade` (3, Postgres), `sr-api` lib (811, incl.
+  `a_game_with_a_url_mapping_posts_through_it_with_its_proxy_token`), `immutable_rules` (14 and 23 with ignored),
+  Vitest bridge and SDK tests, Playwright `activities-live.spec.ts` (5) and steps 1 to 3 of `arcade-sandbox.spec.ts`
+  (opaque origin, no fetch leaves including its own host, CSP violation reported, no cookies, no parent page, storage
+  through the bridge). Unticked: the gate spec's signing and vouch-flip steps need object storage shared by sr-server and
+  sr-cli (CI's Garage, live job); the `byos_read` sandbox path is not built_

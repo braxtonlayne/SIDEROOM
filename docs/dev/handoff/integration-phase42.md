@@ -60,7 +60,34 @@ Decisions: D-405 to D-411 (integrator defaults; the owner may change any).
 
 ## Gates on the merged tree
 
-GATES_TABLE
+| Gate | Result |
+|---|---|
+| cargo fmt --check (sr-core, sr-activities, sr-api, sr-server, sr-cli, sr-db, sr-packages, sr-storage, sr-features, sr-moderation, sr-theme) | ok |
+| cargo clippy --all-targets -D warnings (same crates) | ok |
+| sr-db secret_columns / migration_versions / shelf_access | 2 / 1 / 4 pass |
+| sr-activities lib + Postgres (arcade, db, trust_db) | 43 + 7 + 10 + 9 pass |
+| sr-cli arcade (Postgres) | 3 pass |
+| sr-api lib (--include-ignored, incl. the proxy-token Postgres test) / route_matrix / openapi_names | 811 / 6 / 2 pass |
+| sr-server lib (--include-ignored) / web_gate / feature_registry | 245 / 21 / 7 pass |
+| sr-server immutable_rules (plain / --include-ignored, all states) | 14 / 23 pass |
+| sr-server authz_matrix (full, --include-ignored) | 9 pass; no ceiling, WRITE_OBSERVED entry or length changed |
+| sr-storage, sr-features, sr-moderation, sr-packages, sr-theme, sr-core (--include-ignored) | 601 pass |
+| OpenAPI, api-client, MSW handlers regenerated; `mocks:check` | up to date (1170 operations) |
+| pnpm typecheck (11 packages incl. e2e) / lint (eslint + prettier --check .) | ok / ok |
+| Vitest apps/web full (--maxWorkers=2, wasm built) | 430 files, 3910 tests pass |
+| Activity packs: whiteboard / holdem / tabletop / landio | 71 / 62 / 86 / 299 (+1 skipped) pass; Land.io's timing test did not flake |
+| embedded-app-sdk / profile-blocks / api-client | 29 / 7 / 6 pass |
+| scripts/*.test.mjs (incl. threat-model, ops files) | 96 pass (threat model fixed: T40 named a test the check could not find) |
+| i18n-audit / check-css-tokens | 0 / 69 files clean |
+| build-web / bundle budget / entrance isolation | ok / ok / every public surface clean |
+| Playwright Chromium: arcade-room, emulator, exit-gate, lounge-shell, i18n-pseudo (+ the Arcade at desktop and phone, en-XA) | 28 pass, 1 skipped (emulator ROM test: the FCEUmm core is not installed locally, a download) |
+| Playwright Chromium: activities-live (voice + Activities on) | 5 pass (after the `self.origin` fix) |
+| Playwright Chromium: arcade-sandbox (gate proof) | steps 1-3 pass (opaque origin, nothing leaves, CSP violation, no cookie, no parent, storage bridge); step 4 stops at `sr-cli arcade sign-code`: local storage is in memory, so the CLI cannot read the bundle. CI's live job now runs this spec with Garage and a shared `server.secret_key` |
+
+Gate proof, roadmap wave 42: Land.io launches in a voice call from the sandbox origin and cannot reach a
+non-allow-listed origin (Playwright, above); the signed-code badge and the vouch flip on a hash change (Postgres:
+`sr-cli arcade` sign-code tests, `trust_db`; the browser step on CI); the validator rejects a third tier (`sr-activities`
+arcade lib tests and `the_database_holds_only_the_two_tiers`).
 
 ## Not done (with reasons)
 
@@ -81,5 +108,23 @@ BTC checksum.
 
 ## Housekeeping
 
-Scratch databases `sr_p42_integ` and `sr_p42_e2e`; `sr_p42_arcade_room` (the arcade-room agent's) still exists:
+Scratch databases `sr_p42_integ` and `sr_p42_e2e` were dropped at the end; `sr_p42_arcade_room` (the arcade-room agent's) still exists:
 dropping it was refused by the session's permission check, so the owner drops it (`DROP DATABASE sr_p42_arcade_room;`).
+
+## Other fixes on the way
+
+- `e2e/tests/activities-live.spec.ts` and `arcade-sandbox.spec.ts` (first runs ever) read `location.origin`, which is the
+  URL's origin even in an opaque-origin document; they now read `self.origin`. The sandbox spec waits a moment for the
+  CSP violation report, which is queued as its own task.
+- `.github/workflows/e2e.yml`: the live job runs `arcade-sandbox.spec.ts`, with a random `SR_SERVER__SECRET_KEY` for that
+  step so `sr-cli arcade sign-code` can open the sealed signing seed (it refuses an empty key).
+- `e2e/tests/i18n-pseudo.spec.ts` covers the Arcade (`/games`) and its own section bar at desktop and phone width.
+- Note for local runs: `crates/sr-db` has no build script, so a new migration file is picked up only after
+  `crates/sr-db/src` is touched (sqlx's `migrate!` is not re-run otherwise).
+
+## Resume here
+
+Everything is committed on `integration/phase42`; nothing is pushed. Next: the owner opens the PR
+"ARC-ROOM-001 / ARC-SBX-001: wave 42, the Arcade, the hardened sandbox, two tiers" after PR #72 (wave 41) merges, then
+merges `origin/main` again if it moved, and checks that CI's live job passes `arcade-sandbox.spec.ts`. Ports 8080, 5173 and
+8081 are free.
