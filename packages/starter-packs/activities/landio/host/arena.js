@@ -467,7 +467,7 @@ export class Arena {
       this.restartedAt = performance.now();
       // Everyone who was playing (or asked to) is in the new round.
       for (const seat2 of this.seats.values()) if (seat2.pid) seat2.queued = true;
-      startRound(s);
+      startRound(s, { fresh: true });
       s.events.push({ k: 'settings', name: seat.name, mode, map });
       this.log('settings', { by: seat.name, mode, map, size, bots, skill, roundMin, cards, shield: shield / hz, restart: true });
       this.newRound();
@@ -493,7 +493,7 @@ export class Arena {
       if (wait > 0) return { ok: false, error: 'too-soon', wait };
       this.restartedAt = performance.now();
       for (const seat2 of this.seats.values()) if (seat2.pid) seat2.queued = true;
-      startRound(s);
+      startRound(s, { fresh: true });
       s.events.push({ k: 'host', name: seat.name, phase: 'restart' });
       this.newRound();
     } else if (body.action === 'end') {

@@ -36,6 +36,11 @@ import draft from './draft.js';
  * @property {(s: GameState) => boolean} [roundOver]  end the round early (say, one player left)
  * @property {(s: GameState, victim: Player, killer: Player | null, cause: string) => void} [onKill]  after a death
  * @property {(s: GameState, p: Player) => void} [onSpawn]  a player (human or bot) was just placed
+ * @property {(s: GameState, p: Player, card: string, offer: import('../types.js').Offer) => void} [onPick]  `p` took
+ *   `card` from `offer` (picked, or the timer picked)
+ * @property {(s: GameState, result: import('../types.js').RoundResult) => void} [onRoundOver]  the round just ended
+ *   with `result` (the mode may add to it)
+ * @property {string[]} [carry]          mode data keys (s.md) kept from one round to the next (a restart clears them)
  * @property {(s: GameState, p: Player) => {x: number, y: number} | null} [botGoal]  a spot bot `p` should grow its
  *   land towards (bots then pick loop directions that close in on it); null for none
  * @property {(s: GameState, a: Player, b: Player) => number} [rank]  orders the results (negative: a first);

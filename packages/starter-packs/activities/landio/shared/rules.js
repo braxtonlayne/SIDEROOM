@@ -95,16 +95,18 @@ export function endRound(s) {
   if (s.round.phase === 'over') return;
   s.round.phase = 'over';
   s.round.result = results(s);
+  modeOf(s).onRoundOver?.(s, s.round.result);
   s.round.next = s.tick + RESULTS_TICKS;
   s.events.push({ k: 'round', phase: 'over', n: s.round.n });
 }
 
 /**
  * Start a new round: a freshly built map (from the seed and the round number), nobody's land, every human who
- * was in the arena placed again (alive), the bots refilled, then the mode's setup.
- * @param {GameState} s
+ * was in the arena placed again (alive), the bots refilled, then the mode's setup. The mode's `carry` keys of
+ * its data survive, unless `fresh` (a restart or a new mode: everything starts over).
+ * @param {GameState} s @param {{fresh?: boolean}} [opt]
  */
-export function startRound(s) {
+export function startRound(s, opt = {}) {
   const { w, h } = s.cfg;
   const n = s.round.n + 1;
   // The host may have changed the arena's size: the tile layers are made anew.
@@ -120,7 +122,10 @@ export function startRound(s) {
   s.dirtyMark.fill(0);
   s.dirty = [];
   s.objects = [];
-  s.md = {};
+  /** @type {GameState['md']} */
+  const kept = {};
+  if (!opt.fresh) for (const k of modeOf(s).carry ?? []) if (s.md[k] !== undefined) kept[k] = s.md[k];
+  s.md = kept;
   const humans = s.players.filter((p) => p.kind === 'human');
   s.players = [];
   s.round = { n, phase: 'play', start: s.tick, end: roundLength(s) ? s.tick + roundLength(s) : 0, next: 0, result: null };
