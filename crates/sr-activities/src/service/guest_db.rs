@@ -71,7 +71,8 @@ impl ActivityService {
         .await?;
         if live >= MAX_LINKS_PER_INSTANCE {
             return Err(ActivityError::Conflict(
-                "This lobby already has the most guest links it can have. Revoke one first.".to_owned(),
+                "This lobby already has the most guest links it can have. Revoke one first."
+                    .to_owned(),
             ));
         }
         let token = self.random_hex().await?;
