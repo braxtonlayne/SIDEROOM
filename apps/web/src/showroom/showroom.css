@@ -2,8 +2,11 @@
 .srm-banner {
   position: fixed;
   inset-block-end: 12px;
-  inset-inline: 12px;
+  inset-inline-start: 12px;
+  max-inline-size: min(36rem, calc(100% - 24px));
   z-index: 2000;
+  /* It floats over the app: clicks pass through to whatever is underneath, except on its own button. */
+  pointer-events: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -24,6 +27,7 @@
 .srm-toggle,
 .srm-chip,
 .srm-banner-off {
+  pointer-events: auto;
   padding-block: 4px;
   padding-inline: 10px;
   border: 1px solid var(--ui-border);

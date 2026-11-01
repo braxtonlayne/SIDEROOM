@@ -42,7 +42,7 @@ async function setSwitch(enabled: boolean): Promise<void> {
   }
 }
 
-test.describe('Showroom (populated preview)', () => {
+test.describe('Showroom (populated preview) @showroom', () => {
   test.beforeAll(() => setSwitch(true));
   test.afterAll(() => setSwitch(false));
 
@@ -117,6 +117,8 @@ test.describe('Showroom (populated preview)', () => {
     expect(
       sent
         .filter((r) => !['GET', 'HEAD'].includes(r.method()))
+        // Firefox posts CSP reports about the Vite dev server's own scripts; they are browser telemetry, not app writes.
+        .filter((r) => !r.url().includes('/internal/csp-report'))
         .map((r) => `${r.method()} ${r.url()}`),
       'no write while the preview shows',
     ).toEqual([]);

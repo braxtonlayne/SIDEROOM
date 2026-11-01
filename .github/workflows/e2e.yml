@@ -45,14 +45,23 @@ jobs:
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
         # The two exit gates (tagged @gate) run in the next step on a server of their own: registration allows 20
         # accounts per address and day, counted in memory, and the gates register seven between them.
-        # UX-SHOW-001 (wave 45 gate proof, half B) runs in this step on every engine: tests/showroom.spec.ts switches
-        # platform.showroom on with the Owner's password session and off again, so it must not run after the @gate
-        # specs enrol a second factor on the Owner; it toggles the preview and proves no write and unchanged reads.
         run: |
           ./target/debug/sr-cli migrate
-          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert @gate
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert '@gate|@showroom'
         env:
           CI: "true"
+      - name: Showroom preview (UX-SHOW-001)
+        # Wave 45 gate proof, half B, on every engine: tests/showroom.spec.ts switches platform.showroom on with the
+        # Owner's password session and off again, toggles the preview and proves no write and unchanged reads. Its own
+        # server run, because the main step already uses the day's registration budget (run 41362204469 hit 429s), and
+        # before the @gate step, which enrols a second factor on the Owner.
+        if: ${{ !cancelled() }}
+        run: |
+          mv server.log server-main.log 2>/dev/null || true
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep @showroom --output=test-results-showroom
+        env:
+          CI: "true"
+          PLAYWRIGHT_HTML_REPORT: playwright-report-showroom
       - name: Exit gates of phase 6 and 7 (developer-gate, moderation-gate)
         # RDY-DEV-005: portal, OAuth2 install, a bot answers a slash command, a reviewed release installs on a second
         # server. RDY-MOD-001: report, case, ban, appeal, takedown and counter-notice, duplicate account, data request
@@ -69,7 +78,7 @@ jobs:
         # main step.
         if: ${{ !cancelled() }}
         run: |
-          mv server.log server-main.log 2>/dev/null || true
+          mv server.log server-showroom.log 2>/dev/null || true
           ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep @gate --output=test-results-gate
         env:
           CI: "true"
@@ -81,10 +90,13 @@ jobs:
           path: |
             e2e/playwright-report
             e2e/playwright-report-gate
+            e2e/playwright-report-showroom
             e2e/test-results
             e2e/test-results-gate
+            e2e/test-results-showroom
             server.log
             server-main.log
+            server-showroom.log
 
   # SEC-ENT-004 (D-385): the built bundle behind the real gate. sr-server serves apps/web/dist itself (SR_E2E_WEB=server:
   # SR_WEB__ROOT, SR_WEB__SERVE_PUBLIC=true), so the pages and the API share one origin on :8080, a visitor without a
