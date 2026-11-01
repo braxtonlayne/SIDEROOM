@@ -42,15 +42,14 @@ Scratch DB `sr_p44_mod_tools` (dropped at the end), `-j 2`, one cargo command at
   level (4-generation tree, one unactivated Gen-4 node, case, only unactivated frozen, Gen 1-2 invite, notice text),
   sterilization (approver rules, +12 months, appeal, expiry sweep), branch action, 30-day removal, transparency, drill.
 - `cargo test -p sr-api --test route_matrix --test openapi_names` (ok, rows reviewed, no `?`).
-- `cargo test -p sr-server --test authz_matrix graduated_moderation_holds_over_http -- --include-ignored`: see the
-  "Gate over HTTP" line below.
+- `cargo test -p sr-server --test authz_matrix graduated_moderation_holds_over_http -- --include-ignored` (ok): the gate proof over HTTP on the real wiring (4-generation tree, serious ban via the staff route, only the unactivated Gen-4 node frozen, Gen 1-2 `POST /sr/invites` 201, frozen node refused 900124, banner counts only, sterilization refused for the proposer and without the approver's step-up, ok with both, +12 months, branch-action refused for every roster actor incl. a staff member with every bit but Owner, ok for the Operator with the audit entry). Whole `every_route_enforces_its_authz_row` ok (new routes seeded; no ceiling changed). `immutable_rules` 25 ok. sr-db `secret_columns`, `migration_versions`, `invite_controls`, `member_invites` ok.
+- clippy `--all-targets -D warnings` on sr-admin, sr-moderation, sr-api, sr-gateway, sr-server, sr-cli, sr-db clean; `cargo fmt --all` applied. OpenAPI, api-client and MSW handlers regenerated (`mocks:check` ok).
 - Web: `vitest src/admin/__tests__/p44modTools.test.tsx` (8), plus `src/i18n`, moderation, suspicion and
   `src/settings/user` (307 ok); `tsc --noEmit` clean; eslint and prettier clean on touched files.
 
 ## Not done / open
 
-- Gate over HTTP, clippy `-D warnings`, `fmt --check`, `immutable_rules`, full authz matrix, OpenAPI/api-client
-  regeneration, bundle budget and the full vitest run: see "Resume here".
+- Not run: the full web vitest suite, `build-web` and `check-bundle-budget.mjs` (only the touched areas ran: see above), `sr-gateway`/`sr-api` lib suites, Playwright.
 - Operator's own 2FA in the CLI: `sr-cli` runs as the Operator on the host (like every sr-cli command) and does not ask
   for a TOTP code; the second approver's step-up is on the web. Owner question below.
 - The notice is written at case open and at branch action; it is not edited as staff act on nodes later.
@@ -66,9 +65,4 @@ Scratch DB `sr_p44_mod_tools` (dropped at the end), `-j 2`, one cargo command at
 
 ## Resume here
 
-Run the remaining gates in this order (one cargo at a time, `-j 2`): `cargo fmt --all --check`; clippy
-`-D warnings` on sr-admin, sr-moderation, sr-api, sr-gateway, sr-server, sr-cli, sr-db; `cargo test -p sr-db --test
-secret_columns --test migration_versions`; authz_matrix (whole file, `--include-ignored`) and `immutable_rules`;
-regenerate OpenAPI (`cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`, then the api-client
-`generate` and `mocks:generate`); `build-web` and `check-bundle-budget.mjs`; full vitest `--maxWorkers=2`. Then tick
-MOD-GRD-001 in `docs/inventory/21-feature-phase.md`.
+Run the full web gates (vitest `--maxWorkers=2`, `build-web.mjs`, `check-bundle-budget.mjs`, `check-css-tokens.mjs`) and the `sr-gateway` and `sr-api` lib suites on the merged tree; wire 44-B's `StrikeWeight` with `Moderation::with_strike_weight`; then tick MOD-GRD-001 in `docs/inventory/21-feature-phase.md`.
