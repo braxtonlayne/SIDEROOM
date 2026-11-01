@@ -14,11 +14,22 @@ Base `integration/phase42` (main 57b91ca9). Migration 2040. Cargo target `p42-ar
 
 ## Resume here
 
-DONE since first draft: route_matrix rows reviewed (admin rows staff+OPERATOR, cartridges membership, notify self, /arcade user) and route_matrix + openapi_names green; Links block server-side tip kind (sr-packages, sr-core path dep, test passes); web Arcade page, Admin > Arcade, trust seam, tips, profile-blocks tip render; web tsc clean; e2e tsc clean; Arcade Vitest 15 pass; Lounge bar always links the Arcade.
+All acceptance gates ran green on this branch. Nothing is blocked.
 
-Full web vitest (--maxWorkers=2) gave 11 failed files / 413 passed (log /tmp/vt.log, may be gone): channelPerms, p24ProfileCard, voice dataPort/e2ee/e2eeCall, p14profile, viewAs, tools.test, zones (file-level load failures, probably the missing wasm build: run pnpm --filter @sideroom/wasm build first), plus admin.test.tsx "shows everything to the Owner" (likely the new Arcade section changes the section list/count: update that test) and currency.test "loads each tool lazily". Re-run after the wasm build and fix what remains.
+| Gate | Result |
+|---|---|
+| sr-core tips, sr-activities lib, sr-activities Postgres (arcade 6, db 9), sr-packages profile_doc | ok |
+| route_matrix (6), openapi_names (2) | ok (rows: admin staff+OPERATOR, cartridges membership, notify self, /arcade user, bot deny) |
+| authz_matrix (all 8, seeds for entry, cartridges, released game added) | ok |
+| immutable_rules (22, ignored run) | ok |
+| sr-db secret_columns, migration_versions | ok |
+| OpenAPI, api-client generate, mocks:check (1157 ops) | regenerated, up to date |
+| cargo fmt --check, clippy -D warnings --all-targets (sr-core, sr-activities, sr-packages, sr-api, sr-server) | ok |
+| web tsc, eslint (touched dirs, profile-blocks), prettier --check ., Vitest apps/web 424 files / 3846 tests, profile-blocks 7 | ok |
+| build-web, check-entrance-isolation, check-bundle-budget | ok |
+| e2e tsc (arcade-room.spec.ts) | ok; Playwright NOT run (wave-41 integrator owns the ports) |
 
-STILL TO DO: (a) authz_matrix every_route_enforces_its_authz_row + immutable_rules + secret_columns + migration_versions on scratch DB sr_p42_arcade_room (not run); (b) regenerate OpenAPI (cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json, pnpm --filter @sideroom/api-client generate, mocks:generate/mocks:check); (c) web lint, prettier --check, build + check-bundle-budget, i18n catalog tests; (d) cargo fmt --check and clippy -D warnings on sr-core, sr-activities, sr-api, sr-server, sr-packages; (e) final handoff tick list.
+Not done / for later: Notify me delivery (ArcadeService::watchers), QR for profile tip links (rendered as payment link + text), guild cartridge launch from the shelf (needs wave 41 shelf API), Bitcoin checksum verification. The wasm build (pnpm --filter @sideroom/wasm build) is needed before the full web suite.
 
 ## Notes for the wave-42 integrator
 
