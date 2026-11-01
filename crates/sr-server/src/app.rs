@@ -1424,7 +1424,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // OPS-CRASH-001 (wave 45-A): crash cards are rebuilt from the allow-list and posted to #crash-triage of the Staff
     // Server by the system user. The channel is created (staff-only) on first use and once now, if a Staff Server exists.
     let crash_deps = Arc::new(routes::crash::CrashDeps::new(
-        sr_db::crash_reports::PgCrashReports::new(pool.clone()),
+        Arc::new(crate::crash_wiring::PgCrashStore(
+            sr_db::crash_reports::PgCrashReports::new(pool.clone()),
+        )),
         Some(staff_voice.clone() as Arc<dyn routes::crash::CrashSink>),
     ));
     {

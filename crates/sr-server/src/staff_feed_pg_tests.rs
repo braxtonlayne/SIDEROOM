@@ -1225,3 +1225,178 @@ async fn the_alert_test_posts_a_card_and_mails_the_owner_when_on() {
     assert!(sent[0].text.contains("box-1"));
     assert_eq!(messages_in(&f.pool, alerts).await.len(), 2);
 }
+
+// ---- OPS-CRASH-001 (wave 45-A): #crash-triage ---------------------------------------------------------------------
+
+const CRASH_FIXTURE: &str = include_str!("../../../e2e/fixtures/crash-hostile.json");
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn crash_triage_is_created_once_staff_only_and_receives_allow_listed_cards() {
+    use sr_api::routes::crash::{CrashSink, CrashStore, CrashView, allow_list::sanitize};
+
+    let f = fx().await;
+    let fixture: Value = serde_json::from_str(CRASH_FIXTURE).unwrap();
+    // A staff role (it carries a platform permission) and a role that does not.
+    let staff_role = f.owner + 5000;
+    let plain_role = f.owner + 5001;
+    for (id, name, bits) in [(staff_role, "Support", 1_i64), (plain_role, "Cosmetic", 0)] {
+        sqlx::query("INSERT INTO roles (id, guild_id, name, platform_permissions, position) VALUES ($1, $2, $3, $4, 1)")
+            .bind(id)
+            .bind(f.guild.get() as i64)
+            .bind(name)
+            .bind(bits)
+            .execute(&f.pool)
+            .await
+            .unwrap();
+    }
+
+    // Created once, however often it is asked for.
+    let first = f.voice.ensure_crash_channel().await.unwrap();
+    let again = f.voice.ensure_crash_channel().await.unwrap();
+    assert_eq!(first, again);
+    let n: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM channels WHERE guild_id = $1 AND name = 'crash-triage'",
+    )
+    .bind(f.guild.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(n, 1);
+
+    // Staff only: @everyone is denied the view, the staff role is allowed, the plain role has no entry, the system
+    // user may post. Running it again does not duplicate rows.
+    let rows: Vec<(i64, String, i64, i64)> = sqlx::query_as(
+        "SELECT target_id, target_type::text, allow, deny FROM permission_overwrites WHERE channel_id = $1 ORDER BY target_id",
+    )
+    .bind(first.get() as i64)
+    .fetch_all(&f.pool)
+    .await
+    .unwrap();
+    let view = sr_core::Permissions::VIEW_CHANNEL.bits() as i64;
+    let guild = f.guild.get() as i64;
+    let find = |id: i64| rows.iter().find(|r| r.0 == id);
+    assert_eq!(find(guild).unwrap().3 & view, view, "@everyone is denied");
+    assert_eq!(find(guild).unwrap().2, 0);
+    assert_eq!(find(staff_role).unwrap().2 & view, view, "staff may view");
+    assert!(
+        find(plain_role).is_none(),
+        "a role without platform bits is not listed"
+    );
+    let sys = find(SYSTEM_USER_ID).unwrap();
+    assert_eq!(sys.1, "member");
+    assert_ne!(
+        sys.2 & (sr_core::Permissions::SEND_MESSAGES.bits() as i64),
+        0
+    );
+    // The channel sits under the Text Channels category, not at the top.
+    let parent: Option<i64> = sqlx::query_scalar("SELECT parent_id FROM channels WHERE id = $1")
+        .bind(first.get() as i64)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert!(parent.is_some());
+
+    // The hostile payload goes through the sanitizer and the store like the route does; the card is posted.
+    let s = sanitize(&fixture["payload"], 1_800_000_000_000).unwrap();
+    let store = crate::crash_wiring::PgCrashStore(sr_db::crash_reports::PgCrashReports::new(
+        f.pool.clone(),
+    ));
+    let (card, replay) = (s.card_json(), s.replay_json());
+    let rec = store
+        .record(
+            &s.fingerprint,
+            &s.card.commit,
+            s.card.kind,
+            &s.card.route,
+            &card,
+            &replay,
+        )
+        .await
+        .unwrap();
+    assert!(rec.is_new && rec.count == 1);
+    let view1 = CrashView {
+        id: rec.id,
+        count: rec.count,
+        card: card.clone(),
+        replay: replay.clone(),
+    };
+    let (channel, message) = CrashSink::post(&*f.voice, &view1).await.unwrap();
+    assert_eq!(channel, first.get() as i64);
+    store.set_message(rec.id, channel, message).await.unwrap();
+
+    let rows = messages_in(&f.pool, first).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].get::<i64, _>("author_id"), SYSTEM_USER_ID);
+    let embeds: Value = rows[0].get("embeds");
+    let everything = format!(
+        "{}{}{}",
+        rows[0].get::<String, _>("content"),
+        embeds,
+        rows[0].get::<Value, _>("components")
+    );
+    // Zero sensitive tokens in what arrived.
+    for needle in fixture["needles"].as_array().unwrap() {
+        let n = needle.as_str().unwrap();
+        assert!(
+            !everything.contains(n),
+            "#crash-triage shows {n:?}: {everything}"
+        );
+    }
+    // It is structured JSON an agent can read: the card, the count and the replay inputs.
+    let description = embeds[0]["description"].as_str().unwrap();
+    let json_text = description
+        .strip_prefix("```json\n")
+        .and_then(|d| d.strip_suffix("\n```"))
+        .expect("a JSON code block");
+    let posted: Value = serde_json::from_str(json_text).unwrap();
+    assert_eq!(posted["commit"], "0123abc4567");
+    assert_eq!(posted["kind"], "wasm_panic");
+    assert_eq!(posted["frames"][0]["file"], "assets/index-Bx3k9Qa1.js");
+    assert_eq!(
+        posted["replay"],
+        serde_json::json!(["jump", "other", "bridge_data_send"])
+    );
+    assert_eq!(posted["count"], 1);
+    // No button deploys or merges anything: one link to the record.
+    let buttons = rows[0].get::<Value, _>("components")[0]["components"].clone();
+    assert_eq!(buttons.as_array().unwrap().len(), 1);
+    assert!(
+        buttons[0]["url"]
+            .as_str()
+            .unwrap()
+            .contains("/api/v1/admin/crash-reports/")
+    );
+
+    // A repeat of the same crash is one row with a count, and the card is refreshed in place.
+    let again = store
+        .record(
+            &s.fingerprint,
+            &s.card.commit,
+            s.card.kind,
+            &s.card.route,
+            &card,
+            &replay,
+        )
+        .await
+        .unwrap();
+    assert!(!again.is_new);
+    assert_eq!(again.count, 2);
+    assert_eq!(
+        (again.channel_id, again.message_id),
+        (Some(channel), Some(message))
+    );
+    let view2 = CrashView { count: 2, ..view1 };
+    assert!(f.voice.refresh(channel, message, &view2).await);
+    let rows = messages_in(&f.pool, first).await;
+    assert_eq!(rows.len(), 1, "the card is rewritten, not repeated");
+    let embeds: Value = rows[0].get("embeds");
+    assert!(embeds[0]["title"].as_str().unwrap().starts_with("Crash x2"));
+
+    // The staff read returns the stored replay buffer.
+    let got = store.get(rec.id).await.unwrap().unwrap();
+    assert_eq!(got.count, 2);
+    assert_eq!(got.replay.as_array().unwrap().len(), 3);
+    assert_eq!(store.list(10).await.unwrap().len(), 1);
+    f.db.cleanup().await.unwrap();
+}

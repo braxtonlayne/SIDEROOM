@@ -14,6 +14,7 @@ pub mod bridge_wiring;
 pub mod cards_jobs;
 pub mod cinema_catalog;
 pub mod cinema_jobs;
+pub mod crash_wiring;
 pub mod csp_reports;
 pub mod datachannel_gate;
 pub mod endpoint_client;

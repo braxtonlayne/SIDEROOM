@@ -30,7 +30,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sr_core::{ApiError, ErrorCode};
-use sr_db::crash_reports::{CrashRow, PgCrashReports};
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
@@ -48,6 +47,48 @@ pub fn router() -> axum::Router<AppState> {
         )
         .route("/admin/crash-reports", get(list))
         .route("/admin/crash-reports/{report_id}", get(detail))
+}
+
+/// What the store did with a report (see `sr_db::crash_reports::Recorded`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrashRecorded {
+    pub id: i64,
+    pub count: i32,
+    pub is_new: bool,
+    pub channel_id: Option<i64>,
+    pub message_id: Option<i64>,
+}
+
+/// One stored crash (see `sr_db::crash_reports::CrashRow`); `card` and `replay` are empty in a list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CrashRow {
+    pub id: i64,
+    pub fingerprint: String,
+    pub commit_sha: String,
+    pub kind: String,
+    pub route: String,
+    pub count: i32,
+    pub first_seen_ms: i64,
+    pub last_seen_ms: i64,
+    pub card: Value,
+    pub replay: Value,
+}
+
+/// Where crashes are kept (implemented in `sr-server` over `sr_db::crash_reports::PgCrashReports`).
+#[async_trait::async_trait]
+pub trait CrashStore: Send + Sync {
+    async fn record(
+        &self,
+        fingerprint: &str,
+        commit_sha: &str,
+        kind: &str,
+        route: &str,
+        card: &Value,
+        replay: &Value,
+    ) -> Result<CrashRecorded, String>;
+    async fn set_message(&self, id: i64, channel: i64, message: i64) -> Result<(), String>;
+    async fn list(&self, limit: i64) -> Result<Vec<CrashRow>, String>;
+    async fn get(&self, id: i64) -> Result<Option<CrashRow>, String>;
 }
 
 /// A crash as the Staff Server card poster sees it.
@@ -164,13 +205,13 @@ impl CrashLimiter {
 
 /// Collaborators of the crash routes.
 pub struct CrashDeps {
-    pub repo: PgCrashReports,
+    pub repo: Arc<dyn CrashStore>,
     pub sink: Option<Arc<dyn CrashSink>>,
     pub limiter: CrashLimiter,
 }
 
 impl CrashDeps {
-    pub fn new(repo: PgCrashReports, sink: Option<Arc<dyn CrashSink>>) -> Self {
+    pub fn new(repo: Arc<dyn CrashStore>, sink: Option<Arc<dyn CrashSink>>) -> Self {
         Self {
             repo,
             sink,
