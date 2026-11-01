@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arena 3D replay</title>
+    <link rel="stylesheet" href="replay.css" />
+    <script type="module" src="replay-page.js"></script>
+  </head>
+  <body>
+    <h1>Arena 3D determinism replay</h1>
+    <p>Runs <code>replay/script.js</code> through the simulation in this browser and prints the state hash. Every
+      browser must print the same hash as <code>node replay/run-node.mjs</code> (and as each other).</p>
+    <dl>
+      <dt>Final hash</dt>
+      <dd><output id="hash" data-state="running">running…</output></dd>
+      <dt>Exact (float32) hash</dt>
+      <dd><output id="exact">…</output></dd>
+      <dt>Ticks</dt>
+      <dd><output id="ticks">…</output></dd>
+      <dt>Time</dt>
+      <dd><output id="ms">…</output></dd>
+      <dt>Browser</dt>
+      <dd><output id="ua"></output></dd>
+    </dl>
+    <h2>Every 60th tick</h2>
+    <pre id="checkpoints"></pre>
+  </body>
+</html>

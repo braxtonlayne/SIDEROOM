@@ -20,8 +20,8 @@ import { BTN, idleInput, sanitiseInput } from './input.js';
 import { Rng } from './rng.js';
 import { sinCos } from './dmath.js';
 
-/** @typedef {typeof import('jolt-physics/wasm-compat').default} JoltFactory */
-/** @typedef {Awaited<ReturnType<JoltFactory>>} JoltModule */
+/** @typedef {ArenaJoltFactory} JoltFactory  (types/jolt.d.ts) */
+/** @typedef {ArenaJoltModule} JoltModule */
 /** @typedef {import('./input.js').PlayerInput} PlayerInput */
 /** @typedef {import('./level.js').Level} Level */
 /** @typedef {import('./level.js').Block} Block */

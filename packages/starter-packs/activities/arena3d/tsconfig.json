@@ -18,6 +18,7 @@
     "assets/**/*.js",
     "client/**/*.js",
     "platform/**/*.js",
-    "replay/**/*.js"
+    "replay/**/*.js",
+    "types/**/*.d.ts"
   ]
 }
