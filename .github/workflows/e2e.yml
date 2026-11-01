@@ -162,6 +162,17 @@ jobs:
           cp server.log server-e2ee-chromium.log || true
         env:
           CI: "true"
+      # ARC-GST-001/002 (wave 43 gate proof, D-385, D-397): Land.io in a call, a guest in a second (incognito) context
+      # through /play/<token>, sync both ways, guest 403s, the relay's 4403 on a forged topic, the runner refusing
+      # ingame_voice. Its own server run: it registers 4 accounts, and the registration cap is counted per run.
+      - name: Guest links (Chromium)
+        if: always()
+        run: |
+          ./deploy/compose/e2e-run.sh --project=chromium tests/guest-play.spec.ts
+          cp server.log server-guest-play.log || true
+        env:
+          CI: "true"
+          SR_E2E_GUEST: "1"
       # Required since run 39224043323 passed it 5 of 5 (--repeat-each=5 --retries=0), which turned the E2EE defaults
       # on (D-249, VOX-E2E-003).
       - name: Voice E2EE (Firefox)
@@ -370,6 +381,7 @@ jobs:
             server-live.log
             server-voice-bot.log
             server-e2ee-chromium.log
+            server-guest-play.log
             server-e2ee-firefox.log
             server-relay.log
             server-cinema.log

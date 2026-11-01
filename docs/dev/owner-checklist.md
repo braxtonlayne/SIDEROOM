@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 42)
+### 4b. Decisions of the feature phase (waves 27 to 43)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -87,6 +87,15 @@ The Arcade and the sandbox (wave 42, [handoff](handoff/integration-phase42.md)):
 - [ ] **Profile tip links: no Bitcoin/Lightning QR code.** They show as a payment link and the text. **Default:** stands (no QR library is a dependency). **Option:** approve a QR encoder or write one.
 - [ ] **Bitcoin addresses are not checksum-verified** on the server (only shape and prefix). **Default:** stands. **Option:** verify base58check/bech32 checksums.
 - [ ] **Drop the scratch database `sr_p42_arcade_room`** on the development machine: the integrator's session was not allowed to drop it.
+
+Guest links (wave 43, [handoff](handoff/integration-phase43.md)):
+
+- [ ] **Guest names** (D-412): random callsigns only. **Default:** stands. **Option:** a nickname the guest types and the host approves (needs an approval flow on both sides).
+- [ ] **Who bridges the guests** (D-413): only the member who made the link; closing that tab cuts guests off from the room. **Default:** stands. **Option:** any member of the instance can hold the bridge (token and key passed over the room's E2EE channel).
+- [ ] **Guest links from text-channel games** (D-414): not offered (no encrypted room data lane there). **Default:** voice channels only. **Option:** a lane for text-channel instances.
+- [ ] **A members-only lobby** (D-419): a `lobby_channel` game without a guest link has no lobby. **Default:** none. **Option:** a lobby per instance.
+- [ ] **Rekey on revoke** (D-416): revoking closes guests and announces an epoch but keeps the key. **Default:** stands. **Option:** the host rotates `#key=` and the lobby rekeys.
+- [ ] **Limits and the single-node relay** (D-415, D-417, D-418): 6 h links, 2 h visits, 5 links, 16 guests, 32 seats; one process; the game served from the existing activity origin. **Default:** all stand.
 
 The emulator (wave 37, [handoff](handoff/integration-phase37.md)):
 

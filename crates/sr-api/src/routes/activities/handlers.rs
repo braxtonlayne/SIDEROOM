@@ -19,6 +19,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use sr_activities::guest::{GuestJoined, GuestLinkCreated};
 use sr_activities::model::{
     BundleDetail, ConfigInput, ConfigView, InstanceView, PendingView, ShelfItem,
 };
@@ -642,5 +643,108 @@ pub async fn delete_vouch(
     let app = id(&app, ErrorCode::SrNotFound)?;
     Ok(Json(
         deps.service.unvouch(app, p.user_id).await.map_err(act)?,
+    ))
+}
+
+// ------------------------------------------------------------------------------------------------ guest links
+
+/// Mint a guest link for a running Activity (ARC-GST-001, D-385, D-397, D-399). The game must declare
+/// `guest_play`. The lobby token is shown once; the page is `/play/<lobby_token>#key=<key>` and the client makes
+/// the key, which never reaches the server.
+#[utoipa::path(
+    post, path = "/activity-instances/{instance_id}/guest-links", tag = "activities",
+    params(("instance_id" = String, Path, description = INSTANCE)),
+    responses((status = 201, body = GuestLinkCreated), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn create_guest_link(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(instance): Path<String>,
+) -> MsgResult<(StatusCode, Json<GuestLinkCreated>)> {
+    deps.require_enabled()?;
+    let instance = id(&instance, sr_not_found())?;
+    let link = deps
+        .service
+        .create_guest_link(p.user_id, instance)
+        .await
+        .map_err(act)?;
+    Ok((StatusCode::CREATED, Json(link)))
+}
+
+/// Revoke a guest link: the lobby host (the Activity's starter) or the member who minted it. Guests holding the
+/// link are disconnected from the lobby within seconds.
+#[utoipa::path(
+    delete, path = "/activity-instances/{instance_id}/guest-links/{lobby_token}", tag = "activities",
+    params(("instance_id" = String, Path, description = INSTANCE),
+           ("lobby_token" = String, Path, description = "The lobby token of the link")),
+    responses((status = 204), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn revoke_guest_link(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path((instance, lobby_token)): Path<(String, String)>,
+) -> MsgResult<StatusCode> {
+    deps.require_enabled()?;
+    let instance = id(&instance, sr_not_found())?;
+    deps.service
+        .revoke_guest_link(p.user_id, instance, &lobby_token)
+        .await
+        .map_err(act)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The address a request comes from, for the guest join limiter: the last `X-Forwarded-For` entry behind a
+/// trusted proxy, otherwise the socket peer.
+fn peer_ip(
+    headers: &axum::http::HeaderMap,
+    connect: Option<&std::net::SocketAddr>,
+    trust_forwarded_for: bool,
+) -> String {
+    if trust_forwarded_for
+        && let Some(ip) = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.rsplit(',').next())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+    {
+        return ip.to_owned();
+    }
+    connect.map_or_else(|| "unknown".to_owned(), |a| a.ip().to_string())
+}
+
+/// Join a lobby with a guest link (ARC-GST-001, D-385, D-397): no account, no cookie. Returns a short-lived guest
+/// session with a random callsign. The guest token is accepted by the guest socket only; every other route
+/// answers it with 403. Rate limited per address; a dead link (unknown, expired, revoked, ended) is one 404.
+#[utoipa::path(
+    post, path = "/play/{lobby_token}/join", tag = "activities",
+    params(("lobby_token" = String, Path, description = "The lobby token from the shared link")),
+    responses((status = 200, body = GuestJoined), (status = 404, body = ErrorBody),
+              (status = 409, body = ErrorBody), (status = 429, body = ErrorBody))
+)]
+pub async fn guest_join(
+    axum::extract::State(state): axum::extract::State<crate::state::AppState>,
+    Ext(deps): Ext<ActivitiesDeps>,
+    headers: axum::http::HeaderMap,
+    connect: Option<axum::Extension<axum::extract::ConnectInfo<std::net::SocketAddr>>>,
+    Path(lobby_token): Path<String>,
+) -> MsgResult<Json<GuestJoined>> {
+    deps.require_enabled()?;
+    let who = peer_ip(
+        &headers,
+        connect.as_ref().map(|c| &c.0.0),
+        state.settings().trust_forwarded_for,
+    );
+    if deps.guest_join_limit.len() > 10_000 {
+        deps.guest_join_limit.retain_recent();
+    }
+    if deps.guest_join_limit.check_key(&who).is_err() {
+        return Err(ApiError::new(ErrorCode::TooManyRequests).into());
+    }
+    Ok(Json(
+        deps.service.guest_join(&lobby_token).await.map_err(act)?,
     ))
 }

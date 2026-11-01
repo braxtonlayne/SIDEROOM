@@ -325,6 +325,122 @@
         ]
       }
     },
+    "/activity-instances/{instance_id}/guest-links": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Mint a guest link for a running Activity (ARC-GST-001, D-385, D-397, D-399). The game must declare\n`guest_play`. The lobby token is shown once; the page is `/play/<lobby_token>#key=<key>` and the client makes\nthe key, which never reaches the server.",
+        "operationId": "create_guest_link",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeGuestLinkCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/activity-instances/{instance_id}/guest-links/{lobby_token}": {
+      "delete": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Revoke a guest link: the lobby host (the Activity's starter) or the member who minted it. Guests holding the\nlink are disconnected from the lobby within seconds.",
+        "operationId": "revoke_guest_link",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Activity instance snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lobby_token",
+            "in": "path",
+            "description": "The lobby token of the link",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/activity-instances/{instance_id}/join": {
       "post": {
         "tags": [
@@ -62707,6 +62823,68 @@
         ]
       }
     },
+    "/play/{lobby_token}/join": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Join a lobby with a guest link (ARC-GST-001, D-385, D-397): no account, no cookie. Returns a short-lived guest\nsession with a random callsign. The guest token is accepted by the guest socket only; every other route\nanswers it with 403. Rate limited per address; a dead link (unknown, expired, revoked, ended) is one 404.",
+        "operationId": "guest_join",
+        "parameters": [
+          {
+            "name": "lobby_token",
+            "in": "path",
+            "description": "The lobby token from the shared link",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeGuestJoined"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/profile-pages/{username}": {
       "get": {
         "tags": [
@@ -82437,6 +82615,75 @@
             "items": {
               "$ref": "#/components/schemas/ArcadeFlag"
             }
+          }
+        }
+      },
+      "ArcadeGuestJoined": {
+        "type": "object",
+        "description": "A response to a guest joining.",
+        "required": [
+          "guest_token",
+          "callsign",
+          "expires_at",
+          "topic",
+          "socket_path",
+          "application_id",
+          "application_name",
+          "capabilities"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string",
+            "description": "The game the lobby runs, so the runner loads its bundle (and nothing else of the server)."
+          },
+          "application_name": {
+            "type": "string",
+            "description": "The game's name."
+          },
+          "callsign": {
+            "type": "string",
+            "description": "The random callsign the lobby shows for this guest."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can\nrefuse a capability that has not shipped. Flag names only; nothing else of the manifest."
+          },
+          "expires_at": {
+            "type": "string",
+            "description": "When the guest session ends (RFC 3339, UTC); never later than the link."
+          },
+          "guest_token": {
+            "type": "string",
+            "description": "`srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it."
+          },
+          "socket_path": {
+            "type": "string",
+            "description": "The guest socket's path on the same origin."
+          },
+          "topic": {
+            "type": "string",
+            "description": "The one topic the guest socket may hold: `game:<lobby_token>`."
+          }
+        }
+      },
+      "ArcadeGuestLinkCreated": {
+        "type": "object",
+        "description": "A response to creating a guest link.",
+        "required": [
+          "lobby_token",
+          "expires_at"
+        ],
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "description": "When the link stops working (RFC 3339, UTC); earlier if the host revokes it or the lobby ends."
+          },
+          "lobby_token": {
+            "type": "string",
+            "description": "64 hex digits, shown once. The page is `/play/<lobby_token>#key=<key>`; the client adds the key."
           }
         }
       },

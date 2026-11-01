@@ -145,11 +145,28 @@ fn gate(state: &AppState, parts: &Parts, p: &Principal) -> Result<(), HttpError>
     }
 }
 
+/// A guest session (ARC-GST-001, D-397) is a credential for the guest socket and nothing else. Presented to any
+/// route that wants a signed-in caller, in any header or cookie, it is answered 403 (not 401: the credential is
+/// understood and refused, and signing in again would not help). The check is on the token's shape alone, before
+/// any lookup, so no REST route can start accepting one by mistake.
+fn guest_refused() -> HttpError {
+    ApiError::with_message(
+        ErrorCode::MissingAccess,
+        "A guest link session cannot use this endpoint.",
+    )
+    .into()
+}
+
 async fn authenticate(parts: &Parts, state: &AppState) -> Result<Principal, HttpError> {
     if let Some(h) = parts.headers.get(header::AUTHORIZATION) {
         let h = h.to_str().map_err(|_| invalid())?;
         let (scheme, token) = h.split_once(' ').ok_or_else(invalid)?;
         let token = token.trim();
+        if scheme.eq_ignore_ascii_case("guest")
+            || token.starts_with(sr_activities::guest::GUEST_TOKEN_PREFIX)
+        {
+            return Err(guest_refused());
+        }
         return if scheme.eq_ignore_ascii_case("bot") {
             let id = state
                 .bots()
@@ -184,6 +201,9 @@ async fn authenticate(parts: &Parts, state: &AppState) -> Result<Principal, Http
 
     let raw = parse_cookie(&parts.headers, SESSION_COOKIE)
         .ok_or_else(|| HttpError::from(ErrorCode::Unauthorized))?;
+    if raw.starts_with(sr_activities::guest::GUEST_TOKEN_PREFIX) {
+        return Err(guest_refused());
+    }
     let token = SessionToken::parse(raw).ok_or_else(invalid)?;
     let rec = state
         .sessions()

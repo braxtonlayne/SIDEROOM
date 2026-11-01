@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import {
   NO_SCRIPT_CSP,
   PUBLIC_CSP,
+  GUEST_PLAY_CSP,
+  GUEST_PLAY_CSP_CADDY,
   renderSurfacesBlock,
   buildCsp,
   cspOptionsFromConfig,
@@ -45,13 +47,38 @@ describe('CSP', () => {
     expect(caddy).toContain(renderSurfacesBlock(table));
     // One public policy on every bundle surface's shell; the app policy is not in the Caddyfile.
     const shells = table.surfaces.filter(
-      (s: { kind: string; reserved?: boolean }) => s.kind === 'bundle' && !s.reserved,
+      (s: { kind: string; reserved?: boolean; csp?: string }) =>
+        s.kind === 'bundle' && !s.reserved && !s.csp,
     );
     expect(caddy.split(`header Content-Security-Policy "${PUBLIC_CSP}"`)).toHaveLength(
       shells.length + 1,
     );
     expect(caddy).not.toContain('wasm-unsafe-eval');
     expect(caddy).toContain(`Permissions-Policy "${PERMISSIONS_POLICY}"`);
+  });
+
+  it('gives the guest-play shell its own policy: the plain one plus its game frame and socket (ARC-GST-002)', () => {
+    const guest = table.surfaces.filter((s: { csp?: string }) => s.csp === 'guest-play');
+    expect(guest).toHaveLength(1);
+    expect(guest[0].paths).toEqual(['/play/*']);
+    expect(caddy).toContain(`header Content-Security-Policy "${GUEST_PLAY_CSP_CADDY}"`);
+    // The same policy as the plain one except connect-src and frame-src.
+    const strip = (p: string) =>
+      p
+        .split('; ')
+        .filter((d) => !/^(connect-src|frame-src) /.test(d))
+        .join('; ');
+    expect(strip(GUEST_PLAY_CSP)).toBe(strip(PUBLIC_CSP));
+    expect(GUEST_PLAY_CSP).not.toMatch(/wasm-unsafe-eval|blob:|media-src|script-src[^;]*unsafe/);
+    expect(GUEST_PLAY_CSP_CADDY).toContain(
+      'frame-src https://*.activities.{http.request.hostport};',
+    );
+    // Only the activity origin of THIS host may be framed: no bare wildcard.
+    expect(GUEST_PLAY_CSP).not.toMatch(/frame-src (?:https?:\/\/)?\*[ ;]/);
+  });
+
+  it('keeps the guest-play policy equal to the one sr-server sends (web.rs)', () => {
+    expect(rustConst('GUEST_PLAY_CSP')).toBe(GUEST_PLAY_CSP);
   });
 
   it('keeps the public policy equal to the one sr-server sends (web.rs)', () => {

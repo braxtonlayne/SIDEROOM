@@ -2,7 +2,7 @@
 // SEC-ENT-004: the isolation check against a synthetic dist, clean and with deliberate leaks. The real build is
 // checked by the Web job (node scripts/check-entrance-isolation.mjs); these cases pin the rules themselves.
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -433,4 +433,108 @@ test('helpers: chunk names, prefixes, dynamic imports, tokens, modules', () => {
     "export default {\n  'lounge.a.b': 'x',\n  'entrance.zzz': 'y',\n  'help.x': 'z',\n};\n",
   );
   assert.deepEqual(nonCorePrefixes(join(dir, 'm')), ['help', 'lounge']);
+});
+
+// ARC-GST-002 (wave 43): the guest-play surface, `/play/<token>`.
+function guestFixture(mutate) {
+  return fixture((root, dist) => {
+    const table = JSON.parse(JSON.stringify(SURFACES));
+    table.surfaces.splice(1, 0, {
+      surface: 'guest-play',
+      kind: 'bundle',
+      shell: 'guest-play.html',
+      paths: ['/play/*'],
+      budgetGzipKB: 120,
+    });
+    put(dist, 'surfaces.json', JSON.stringify(table));
+    put(
+      dist,
+      'guest-play.html',
+      '<!doctype html><html><head><title>SIDE ROOM</title></head><body><div id="root"></div><script type="module" src="/entrance/assets/guest-play-gggggggg.js"></script></body></html>',
+    );
+    put(
+      dist,
+      'entrance/assets/guest-play-gggggggg.js',
+      'import{r as a}from"./vendor-vvvvvvvv.js";fetch("/api/v1/play/"+a+"/join",{method:"POST"});',
+    );
+    put(
+      root,
+      'apps/web/src/public/guest-play/ALLOWED.ts',
+      "export default ['public/guest-play/'];\n",
+    );
+    put(
+      dist,
+      'entrance/.vite/manifest.json',
+      JSON.stringify({
+        'src/public/landing/main.tsx': {
+          file: 'assets/landing-llllllll.js',
+          src: 'src/public/landing/main.tsx',
+          isEntry: true,
+          imports: ['_vendor-vvvvvvvv.js'],
+        },
+        'src/public/guest-play/main.tsx': {
+          file: 'assets/guest-play-gggggggg.js',
+          src: 'src/public/guest-play/main.tsx',
+          isEntry: true,
+          imports: ['_vendor-vvvvvvvv.js'],
+        },
+        '_vendor-vvvvvvvv.js': { file: 'assets/vendor-vvvvvvvv.js' },
+      }),
+    );
+    mutate?.(root, dist);
+  });
+}
+
+test('guest-play: a clean runner passes', () => {
+  const r = guestFixture().run();
+  assert.deepEqual(rules(r), []);
+  assert.match(r.lines.join('\n'), /ok\s+guest-play/);
+});
+
+test('guest-play: its entry may not be an app module, whatever ALLOWED.ts says', () => {
+  const r = guestFixture((root, dist) => {
+    put(
+      root,
+      'apps/web/src/public/guest-play/ALLOWED.ts',
+      "export default ['public/guest-play/', 'lounge/'];\n",
+    );
+    const m = JSON.parse(readFileSync(join(dist, 'entrance/.vite/manifest.json'), 'utf8'));
+    m['src/public/guest-play/main.tsx'].src = 'src/lounge/LoungeShell.tsx';
+    put(dist, 'entrance/.vite/manifest.json', JSON.stringify(m));
+  }).run();
+  assert.equal(r.ok, false);
+  assert.ok(r.failures.some((f) => f.surface === 'guest-play' && /not an app module/.test(f.rule)));
+});
+
+test('guest-play: any REST call but the join route fails', () => {
+  const r = guestFixture((root, dist) =>
+    put(
+      dist,
+      'entrance/assets/guest-play-gggggggg.js',
+      'import{r as a}from"./vendor-vvvvvvvv.js";fetch("/api/v1/users/@me");fetch("/api/v1/play/x/join");',
+    ),
+  ).run();
+  assert.equal(r.ok, false);
+  assert.ok(r.failures.some((f) => /may call \/api\/v1\/play/.test(f.rule)));
+});
+
+test('guest-play: the app words are still denied there, and its own strings are denied elsewhere', () => {
+  const inGuest = guestFixture((root, dist) =>
+    put(
+      dist,
+      'entrance/assets/guest-play-gggggggg.js',
+      'import{r as a}from"./vendor-vvvvvvvv.js";go("LoungeRoot");',
+    ),
+  ).run();
+  assert.equal(inGuest.ok, false);
+  // the landing bundle carrying a guestplay.* key fails (prefix is non-core)
+  const bad = guestFixture((root, dist) => {
+    put(
+      root,
+      'apps/web/src/i18n/messages/en/p43-guest-runner-2.ts',
+      "export default {\n  'guestplay.page.title': 'Join the game',\n};\n",
+    );
+    put(dist, 'entrance/assets/vendor-vvvvvvvv.js', 'export const r=1;t("guestplay.page.title");');
+  }).run();
+  assert.ok(bad.failures.some((f) => f.token === 'guestplay.'));
 });

@@ -356,3 +356,30 @@ Playwright, in-memory object storage, no Garage locally).
   (opaque origin, no fetch leaves including its own host, CSP violation reported, no cookies, no parent page, storage
   through the bridge). Unticked: the gate spec's signing and vouch-flip steps need object storage shared by sr-server and
   sr-cli (CI's Garage, live job); the `byos_read` sandbox path is not built_
+
+## Wave 43 — Guest links (roadmap P28)
+
+Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST-002). Threat-model rows T41 (relay) and T42 (runner).
+
+### ARC — Guest links
+- [x] **ARC-GST-001** [BE] Guest relay: guest-link routes (`POST/DELETE /activity-instances/{id}/guest-links`, unauthenticated rate-limited `POST /play/{lobby_token}/join`), lobby tokens and guest sessions stored as digests, expiring with the lobby and revocable by its host (migration 2080), the per-lobby sub-room in `sr-voice` (data leg, per-lobby keys, no MLS membership; media leg designed in `docs/dev/design/ingame-voice.md`), the gateway guest socket with exactly one topic `game:<lobby_token>` enforced at the relay, `guest_play` and `lobby_channel` active and `ingame_voice` reserved in `arcade::FLAGS` (D-385, D-397, D-399). See [handoff](../dev/handoff/feat-p43-guest-relay.md) _Proved on the merged tree (integration/phase43): sr-activities lib/db/arcade/trust_db, sr-voice and sr-gateway lib, sr-api lib (--include-ignored), route_matrix, openapi_names, sr-server immutable_rules (all states) and authz_matrix incl. `guest_links_hold_over_http`; Playwright Chromium `guest-play.spec.ts` real stack (guest 403 on chat/member/profile/shelf routes as bearer and cookie, forged second topic closed 4403, sync both ways). Open: nickname approval, members-only lobby, rekey on revoke, multi-node (D-412 to D-419)_
+- [x] **ARC-GST-002** [FE] Link generation and the guest runner: "Share link" in a running Arcade lobby (a member of a
+  voice-channel instance whose game declares `guest_play`), `/play/<lobby_token>#key=<game key>` with the key made in the
+  sharer's browser and never sent to a server, a QR code from the existing `@sideroom/ui` encoder, the noindex
+  `/play/<token>` page as the `guest-play` public surface (isolated runner bundle, own whitelist and one-REST-call rule in
+  `check-entrance-isolation.mjs`, own CSP with `frame-src` for this host's activity origin), the reduced `guest` bridge
+  as an allow-list (4 commands, 2 events), the runner refusing `ingame_voice`, the member-side bridge between the room's
+  data channel and the lobby (AES-GCM under the game key), guests in the game's participant list by callsign, Land.io
+  declaring `TIER_1_ORIGINAL` + `guest_play` + `lobby_channel` _Tests that ran: Vitest `src/public/guest-play` (65),
+  `src/activities` (guestBridge, shareLink, guestParticipants; 78 in the directory), `src/security/csp.test.ts` (22),
+  `scripts/check-entrance-isolation.test.mjs` (19), `scripts/threat-model.test.mjs` (5), `sr-server` `web_gate` (22, incl.
+  `the_guest_play_shell_is_public_with_its_own_policy`) and lib `web::` (11), the Land.io pack bundle test (23);
+  Playwright Chromium `guest-play.spec.ts` "guest runner, relay mocked" (6, against the Vite dev server and against the
+  built dist behind `sr-server`), `entrance-isolation.spec.ts` incl. the new guest-play surface (32 with the signed-in
+  steps), `noindex.spec.ts` for `/play/`. Unticked: the real-stack gate proof (Land.io in a call, incognito guest, sync
+  both ways, 403/Drop at the relay) is written in `guest-play.spec.ts` but needs 43-A's relay in the server under test
+  (`SR_E2E_GUEST=1 SR_E2E_ACTIVITIES=1 SR_E2E_VOICE=1`); not built: a lobby-approved nickname (the relay assigns the
+  callsign; guests never choose a name), link sharing from a text-channel instance. Integration (wave 43): the real-stack
+  gate proof ran and passes in Chromium (Land.io in a call, incognito guest, sync both ways, 403s, 4403 on a forged topic,
+  `ingame_voice` refused by the runner against the relay's `capabilities`, guest bundle isolation, Share dialog at 375 px),
+  `/play` in `i18n-pseudo.spec.ts` at phone and desktop; CI's live job runs it_

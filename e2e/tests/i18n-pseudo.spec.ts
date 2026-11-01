@@ -44,6 +44,8 @@ interface Row {
   auth: boolean;
   /** Session storage the page needs before it loads (the register page wants an invitation in hand). */
   session?: Record<string, string>;
+  /** A fragment after the query (the guest link's `#key=`, which never reaches a server). */
+  hash?: string;
 }
 
 const ROWS: Row[] = [
@@ -69,6 +71,15 @@ const ROWS: Row[] = [
   { name: 'admin home', path: () => '/admin', auth: true },
   // ARC-ROOM-001: the Arcade and its own section bar (Featured, Guild Cartridges, Coming Soon).
   { name: 'arcade', path: () => '/games', auth: true },
+  // ARC-GST-002 (D-385): the guest-play surface, signed out. With a key the runner asks before it joins (a link
+  // preview never takes a seat); without one it explains the link is incomplete. Neither calls the server.
+  {
+    name: 'guest play',
+    path: () => `/play/${'a'.repeat(64)}`,
+    auth: false,
+    hash: `#key=${'A'.repeat(43)}`,
+  },
+  { name: 'guest play without key', path: () => `/play/${'a'.repeat(64)}`, auth: false },
 ];
 
 export interface Clip {
@@ -172,7 +183,7 @@ for (const vp of WIDTHS) {
               for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v);
             }, row.session);
           }
-          await page.goto(`${row.path(world)}?lang=en-XA`);
+          await page.goto(`${row.path(world)}?lang=en-XA${row.hash ?? ''}`);
           await expect(page.getByRole('main').or(page.getByRole('log')).first()).toBeVisible({
             timeout: 20_000,
           });

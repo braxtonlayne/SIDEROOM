@@ -162,6 +162,8 @@ export interface SurfaceTable {
     shell?: string;
     paths: string[];
     reserved?: boolean;
+    /** A policy other than the plain public one (ARC-GST-002: `"guest-play"`). */
+    csp?: string;
   }[];
   publicFiles: string[];
 }
@@ -169,6 +171,22 @@ export interface SurfaceTable {
 /** Public shells: scripts from this origin only; no wasm, no blob, no frames, no voice or activity origins. */
 export const PUBLIC_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
+
+/**
+ * ARC-GST-002 (wave 43, D-385): the guest-play shell (`/play/<token>`) is the only public document that frames
+ * anything: PUBLIC_CSP plus `frame-src` for the game's own sandboxed origin (`<application-id>.activities.<host>`) and
+ * the guest socket on this host. `{h}` host (with port), `{s}` http or https, `{w}` ws or wss. sr-server fills them
+ * from the request's Host header (`web.rs::guest_play_csp`, the other copy); the Caddyfile fills `{h}` with Caddy's
+ * `{http.request.hostport}` and is always https.
+ */
+export const GUEST_PLAY_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' {w}://{h}; frame-src {s}://*.activities.{h}; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint";
+
+/** The guest-play policy for a host, as the Caddyfile writes it (https only; the host is Caddy's placeholder). */
+export const GUEST_PLAY_CSP_CADDY = GUEST_PLAY_CSP.split('{h}')
+  .join('{http.request.hostport}')
+  .replace('{s}', 'https')
+  .replace('{w}', 'wss');
 
 /** The legal and error pages: plain HTML, no script, no fetch. */
 export const NO_SCRIPT_CSP =
@@ -181,6 +199,8 @@ const REPORTING = 'header Reporting-Endpoints "csp-endpoint=\\"/internal/csp-rep
 
 /** The text between the markers (markers included), one tab deep, without a trailing newline. */
 export function renderSurfacesBlock(table: SurfaceTable, publicCsp: string = PUBLIC_CSP): string {
+  const policyOf = (s: { csp?: string }) =>
+    s.csp === 'guest-play' ? GUEST_PLAY_CSP_CADDY : publicCsp;
   const lines: string[] = [`${T}${SURFACES_BEGIN}`];
   for (const s of table.surfaces) {
     if (s.kind !== 'bundle' || s.reserved || !s.shell) continue;
@@ -189,7 +209,7 @@ export function renderSurfacesBlock(table: SurfaceTable, publicCsp: string = PUB
       `${T}handle @${s.surface} {`,
       `${T}${T}root * ${ROOT}`,
       `${T}${T}rewrite * /${s.shell}`,
-      `${T}${T}header Content-Security-Policy "${publicCsp}"`,
+      `${T}${T}header Content-Security-Policy "${policyOf(s)}"`,
       `${T}${T}${REPORTING}`,
       `${T}${T}header Cache-Control "no-cache"`,
       `${T}${T}file_server`,

@@ -121,8 +121,9 @@ pub struct Flag {
 /// The capability flags a manifest may declare (roadmap rule 5, D-399): the one catalogue, which the validator,
 /// the runner and the immutable-rules name check all read. Active: `datachannel` (the SFU data channel,
 /// ACT-CH-001), `storage` (the host-kept key-value store of the sandboxed frame, ARC-SBX-001) and `byos_read`
-/// (scoped read of a shelf, STU-ZK-001). Reserved: the rest; the validator accepts them and nothing hands them to
-/// an instance yet.
+/// (scoped read of a shelf, STU-ZK-001), `guest_play` and `lobby_channel` (guest links and the lobby sub-room,
+/// ARC-GST-001). Reserved: the rest, among them `ingame_voice` (the lobby media leg, designed in
+/// `docs/dev/design/ingame-voice.md`); the validator accepts them and nothing hands them to an instance yet.
 pub const FLAGS: &[Flag] = &[
     Flag {
         name: bundle::DATACHANNEL,
@@ -145,19 +146,19 @@ pub const FLAGS: &[Flag] = &[
         summary: "Save to the developer's own bucket.",
     },
     Flag {
-        name: "guest_play",
-        status: FlagStatus::Reserved,
-        summary: "Playable by guests on a /play link (TIER_1_ORIGINAL only).",
+        name: bundle::GUEST_PLAY,
+        status: FlagStatus::Active,
+        summary: "Playable by guests on a /play link, scoped to the game session (TIER_1_ORIGINAL only).",
     },
     Flag {
-        name: "lobby_channel",
-        status: FlagStatus::Reserved,
-        summary: "A lobby room for the game session, with its own keys.",
+        name: bundle::LOBBY_CHANNEL,
+        status: FlagStatus::Active,
+        summary: "A lobby room for the game session (data now), with its own keys and no access to the call.",
     },
     Flag {
-        name: "ingame_voice",
+        name: bundle::INGAME_VOICE,
         status: FlagStatus::Reserved,
-        summary: "Voice between the players of one game session.",
+        summary: "Voice between the players of one game session (reserved: accepted, refused at runtime until it ships; see docs/dev/design/ingame-voice.md).",
     },
     Flag {
         name: "external_launch",
@@ -197,7 +198,7 @@ pub fn active_flags() -> impl Iterator<Item = &'static str> {
 /// The rules that tie flags to tiers. `Err` is the text for the developer.
 pub fn check_flags(tier: Option<Tier>, capabilities: &[String]) -> Result<(), String> {
     let has = |n: &str| capabilities.iter().any(|c| c == n);
-    if has("guest_play") && tier != Some(Tier::Original) {
+    if has(bundle::GUEST_PLAY) && tier != Some(Tier::Original) {
         return Err(format!(
             "declares guest_play, which needs \"tier\": \"{TIER_1}\" (guest links are for original games only)"
         ));
@@ -1156,9 +1157,9 @@ mod tests {
         .unwrap();
         assert_eq!(m.capabilities.len(), 7);
         assert!(is_active("datachannel") && is_active("byos_read"));
+        // ARC-GST-001: guest links and the lobby sub-room are enforced; in-game voice validates and is refused.
+        assert!(is_active("guest_play") && is_active("lobby_channel"));
         for n in [
-            "guest_play",
-            "lobby_channel",
             "ingame_voice",
             "byos_write",
             "external_launch",

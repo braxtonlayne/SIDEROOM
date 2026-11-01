@@ -931,3 +931,329 @@ async fn proxy_tokens_belong_to_a_participant_of_a_running_instance() {
         ActivityError::NotFound("activity")
     ));
 }
+
+/// A released application whose reviewed bundle declares `capabilities` (and is TIER_1_ORIGINAL).
+async fn app_with_caps(r: &Rig, name: &str, caps: &str) -> i64 {
+    let owner = account(r.db.pool()).await;
+    let app = application(r.db.pool(), owner, name).await;
+    r.svc.save_config(app, input(None)).await.unwrap();
+    let manifest = format!(r#"{{"tier":"TIER_1_ORIGINAL","capabilities":[{caps}]}}"#);
+    let zip = zip_of(&[
+        ("index.html", b"<h1>game</h1>"),
+        ("sideroom.json", manifest.as_bytes()),
+    ]);
+    let up = r.svc.upload_bundle(app, owner, zip).await.unwrap();
+    let id: i64 = up.bundle.id.parse().unwrap();
+    r.svc.submit(app, id).await.unwrap();
+    r.svc.decide(app, 1, id, true, None).await.unwrap();
+    set_state(r, app, "released").await;
+    app
+}
+
+/// ARC-GST-001 (D-385, D-397, D-399): a guest link is a lobby token for a running instance. It needs a member of the
+/// instance and a game that declares `guest_play`; only its digest is stored; it stops working when revoked (by
+/// the lobby host or the member who minted it), when it expires and when the instance ends; a guest session never
+/// outlives its link; a dead link is one answer.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn guest_links_are_digest_only_expiring_revocable_and_end_with_the_lobby() {
+    use sr_activities::guest;
+    let r = rig().await;
+    let plain = approved_app(&r, "NoGuests").await;
+    let game = app_with_caps(
+        &r,
+        "Guests",
+        r#""datachannel","guest_play","lobby_channel","ingame_voice""#,
+    )
+    .await;
+    let host = account(r.db.pool()).await;
+    let other = account(r.db.pool()).await;
+    let stranger = account(r.db.pool()).await;
+
+    // A game that does not declare guest_play gives no link (409), a stranger gets 404.
+    let p = r.svc.launch(host, plain, 5).await.unwrap();
+    assert!(matches!(
+        r.svc
+            .create_guest_link(host, p.id.parse().unwrap())
+            .await
+            .unwrap_err(),
+        ActivityError::Conflict(_)
+    ));
+    r.svc.end(host, p.id.parse().unwrap()).await.unwrap();
+
+    let inst = r.svc.launch(host, game, 1).await.unwrap();
+    // guest_play and lobby_channel run; ingame_voice validates in the manifest but is never handed out.
+    assert_eq!(
+        inst.capabilities,
+        vec!["datachannel", "guest_play", "lobby_channel"]
+    );
+    let id: i64 = inst.id.parse().unwrap();
+    assert!(matches!(
+        r.svc.create_guest_link(stranger, id).await.unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+    assert!(matches!(
+        r.svc.create_guest_link(host, 404).await.unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+
+    let link = r.svc.create_guest_link(host, id).await.unwrap();
+    assert!(guest::is_lobby_token(&link.lobby_token));
+    assert!(link.expires_at.ends_with('Z') && link.expires_at.contains('T'));
+    // Only the digest is stored.
+    let raw: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM activity_guest_links WHERE encode(lobby_sha256, 'hex') = $1",
+    )
+    .bind(&link.lobby_token)
+    .fetch_one(r.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(raw, 0);
+    let ttl: f64 = sqlx::query_scalar(
+        "SELECT EXTRACT(EPOCH FROM expires_at - created_at)::float8 FROM activity_guest_links",
+    )
+    .fetch_one(r.db.pool())
+    .await
+    .unwrap();
+    assert!((ttl - guest::LINK_TTL_SECS as f64).abs() < 5.0, "{ttl}");
+
+    // Joining: garbage and unknown tokens are the same 404; a good one gets a callsign and a topic.
+    for bad in ["", "abc", &"0".repeat(64), &"Z".repeat(64)] {
+        assert!(matches!(
+            r.svc.guest_join(bad).await.unwrap_err(),
+            ActivityError::NotFound("guest link")
+        ));
+    }
+    let joined = r.svc.guest_join(&link.lobby_token).await.unwrap();
+    assert!(guest::is_guest_token(&joined.guest_token));
+    assert_eq!(joined.topic, format!("game:{}", link.lobby_token));
+    assert_eq!(joined.socket_path, "/gateway/guest");
+    assert_eq!(joined.application_name, "Guests");
+    // The runner sees the manifest's flags, the reserved `ingame_voice` included, so it can refuse it.
+    assert_eq!(
+        joined.capabilities,
+        vec!["datachannel", "guest_play", "ingame_voice", "lobby_channel"]
+    );
+    assert_eq!(joined.callsign.split(' ').count(), 3);
+    assert!(joined.expires_at <= link.expires_at);
+    let stored_raw: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM activity_guest_sessions WHERE encode(token_sha256, 'hex') = $1",
+    )
+    .bind(&joined.guest_token[4..])
+    .fetch_one(r.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(stored_raw, 0);
+
+    // The seats: the guest's, and the members' (Host for the starter, Player for another participant).
+    let seat = r
+        .svc
+        .guest_seating(&joined.guest_token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!seat.member);
+    assert_eq!(seat.callsign, joined.callsign);
+    assert_eq!(seat.lobby, guest::lobby_id(&link.lobby_token));
+    assert!(r.svc.guest_seating("srg_nope").await.unwrap().is_none());
+    assert!(
+        r.svc
+            .guest_seating(&link.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let m = r
+        .svc
+        .member_seating(host, &link.lobby_token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(m.member && m.callsign == "Host" && m.lobby == seat.lobby);
+    assert!(
+        r.svc
+            .member_seating(other, &link.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    r.svc.join(other, id).await.unwrap();
+    let m2 = r
+        .svc
+        .member_seating(other, &link.lobby_token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(m2.callsign, "Player");
+    assert!(
+        r.svc
+            .member_seating(stranger, &link.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // Revoking: a participant who is neither the host nor the minter is refused; a stranger sees nothing.
+    let second = r.svc.create_guest_link(other, id).await.unwrap();
+    assert!(matches!(
+        r.svc
+            .revoke_guest_link(other, id, &link.lobby_token)
+            .await
+            .unwrap_err(),
+        ActivityError::Forbidden
+    ));
+    assert!(matches!(
+        r.svc
+            .revoke_guest_link(stranger, id, &link.lobby_token)
+            .await
+            .unwrap_err(),
+        ActivityError::NotFound("activity")
+    ));
+    assert!(matches!(
+        r.svc
+            .revoke_guest_link(host, id, &"1".repeat(64))
+            .await
+            .unwrap_err(),
+        ActivityError::NotFound("guest link")
+    ));
+    // The host revokes a link another member minted; the minter revokes their own.
+    let guest2 = r.svc.guest_join(&second.lobby_token).await.unwrap();
+    r.svc
+        .revoke_guest_link(host, id, &second.lobby_token)
+        .await
+        .unwrap();
+    assert!(
+        r.svc
+            .guest_seating(&guest2.guest_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(matches!(
+        r.svc.guest_join(&second.lobby_token).await.unwrap_err(),
+        ActivityError::NotFound("guest link")
+    ));
+    assert!(
+        r.svc
+            .member_seating(other, &second.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let third = r.svc.create_guest_link(other, id).await.unwrap();
+    r.svc
+        .revoke_guest_link(other, id, &third.lobby_token)
+        .await
+        .unwrap();
+    // The first link is untouched by the others' revocations.
+    assert!(
+        r.svc
+            .guest_seating(&joined.guest_token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+
+    // Expiry: an expired session is dead on its own; an expired link kills its sessions and joins.
+    sqlx::query(
+        "UPDATE activity_guest_sessions SET expires_at = now() - interval '1 second' WHERE token_sha256 = $1",
+    )
+    .bind(guest::digest(&joined.guest_token))
+    .execute(r.db.pool())
+    .await
+    .unwrap();
+    assert!(
+        r.svc
+            .guest_seating(&joined.guest_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let again = r.svc.guest_join(&link.lobby_token).await.unwrap();
+    sqlx::query(
+        "UPDATE activity_guest_links SET expires_at = now() - interval '1 second' WHERE lobby_sha256 = $1",
+    )
+    .bind(guest::digest(&link.lobby_token))
+    .execute(r.db.pool())
+    .await
+    .unwrap();
+    assert!(
+        r.svc
+            .guest_seating(&again.guest_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(matches!(
+        r.svc.guest_join(&link.lobby_token).await.unwrap_err(),
+        ActivityError::NotFound("guest link")
+    ));
+    assert!(
+        r.svc
+            .member_seating(host, &link.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // The lobby's end ends the links: a fresh link dies with the instance and does not come back with a new one.
+    let live = r.svc.create_guest_link(host, id).await.unwrap();
+    let g = r.svc.guest_join(&live.lobby_token).await.unwrap();
+    r.svc.end(host, id).await.unwrap();
+    assert!(r.svc.guest_seating(&g.guest_token).await.unwrap().is_none());
+    assert!(matches!(
+        r.svc.guest_join(&live.lobby_token).await.unwrap_err(),
+        ActivityError::NotFound("guest link")
+    ));
+    assert!(
+        r.svc
+            .member_seating(host, &live.lobby_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let next = r.svc.launch(host, game, 1).await.unwrap();
+    assert!(r.svc.guest_seating(&g.guest_token).await.unwrap().is_none());
+    assert!(matches!(
+        r.svc
+            .revoke_guest_link(host, next.id.parse().unwrap(), &live.lobby_token)
+            .await
+            .unwrap_err(),
+        ActivityError::NotFound("guest link")
+    ));
+    r.db.cleanup().await.unwrap();
+}
+
+/// The caps on a lobby: five working links per instance and sixteen guests per link.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_lobby_caps_its_links_and_its_guests() {
+    use sr_activities::guest;
+    let r = rig().await;
+    let game = app_with_caps(&r, "Caps", r#""guest_play""#).await;
+    let host = account(r.db.pool()).await;
+    let inst = r.svc.launch(host, game, 1).await.unwrap();
+    let id: i64 = inst.id.parse().unwrap();
+    let mut links = Vec::new();
+    for _ in 0..guest::MAX_LINKS_PER_INSTANCE {
+        links.push(r.svc.create_guest_link(host, id).await.unwrap());
+    }
+    assert!(matches!(
+        r.svc.create_guest_link(host, id).await.unwrap_err(),
+        ActivityError::Conflict(_)
+    ));
+    // Revoking one frees a place.
+    r.svc
+        .revoke_guest_link(host, id, &links[0].lobby_token)
+        .await
+        .unwrap();
+    assert!(r.svc.create_guest_link(host, id).await.is_ok());
+    for _ in 0..guest::MAX_GUESTS_PER_LOBBY {
+        r.svc.guest_join(&links[1].lobby_token).await.unwrap();
+    }
+    assert!(matches!(
+        r.svc.guest_join(&links[1].lobby_token).await.unwrap_err(),
+        ActivityError::Conflict(_)
+    ));
+    r.db.cleanup().await.unwrap();
+}

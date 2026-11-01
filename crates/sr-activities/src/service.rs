@@ -21,6 +21,7 @@ use crate::ports::{
 use crate::rules;
 use crate::sandbox;
 
+mod guest_db;
 mod trust_db;
 pub use trust_db::{BuildRef, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY};
 

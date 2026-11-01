@@ -41,6 +41,12 @@ pub const BYOS_WRITE: &str = "byos_write";
 /// The storage capability (ARC-SBX-001): the host keeps a small key-value store for the Activity and sends it
 /// in `ready`, because the sandboxed frame has no `localStorage`.
 pub const STORAGE: &str = "storage";
+/// Playable by guests on a `/play/<token>` link (ARC-GST-001).
+pub const GUEST_PLAY: &str = "guest_play";
+/// A lobby room for the game session, with its own keys (ARC-GST-001).
+pub const LOBBY_CHANNEL: &str = "lobby_channel";
+/// Voice between the players of one game session; reserved (ARC-GST-001, docs/dev/design/ingame-voice.md).
+pub const INGAME_VOICE: &str = "ingame_voice";
 /// Largest manifest.
 pub const MAX_MANIFEST_BYTES: usize = 8 * 1024;
 

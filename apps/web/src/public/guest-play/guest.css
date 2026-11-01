@@ -1,0 +1,100 @@
+/* ARC-GST-002: the guest runner page. Tokens and logical properties only (a repo test guards both). */
+.gp-root {
+  min-block-size: 100vh;
+  min-block-size: 100dvh;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--sr-font-body);
+  background: var(--sr-bg-1);
+  color: var(--sr-text);
+}
+.gp-main {
+  box-sizing: border-box;
+  flex: 1;
+  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.gp-card {
+  box-sizing: border-box;
+  inline-size: min(100%, 460px);
+  min-inline-size: 0;
+  /* A long word (a callsign, a pseudo-locale string) wraps instead of pushing a phone page sideways. */
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  background: var(--sr-bg-2);
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+}
+.gp-card h1 {
+  margin: 0;
+  font-family: var(--sr-font-display);
+  font-size: 28px;
+  font-weight: 500;
+}
+.gp-card p {
+  margin: 0;
+}
+.gp-muted {
+  color: var(--sr-text-2);
+  font-size: 14px;
+}
+.gp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gp-field input {
+  padding-block: 10px;
+  padding-inline: 12px;
+  font: inherit;
+  color: var(--sr-text);
+  background: var(--sr-bg-0);
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+}
+.gp-field input:focus-visible,
+.gp-btn:focus-visible {
+  outline: 2px solid var(--sr-gold);
+  outline-offset: 2px;
+}
+.gp-btn {
+  align-self: flex-start;
+  padding-block: 10px;
+  padding-inline: 18px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--sr-bg-0);
+  background: var(--sr-gold);
+  border: 0;
+  border-radius: var(--sr-radius);
+  cursor: pointer;
+}
+.gp-play {
+  flex: 1;
+  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.gp-bar {
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.gp-frame {
+  flex: 1;
+  inline-size: 100%;
+  min-block-size: 60vh;
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+  background: var(--sr-bg-0);
+}

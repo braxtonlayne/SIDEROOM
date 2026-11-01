@@ -117,3 +117,40 @@
     inline-size: min(320px, calc(100vw - 24px));
   }
 }
+
+/* ARC-GST-002: the Share link dialog. */
+.act-share {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.act-share-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.act-share-field input {
+  inline-size: 100%;
+  padding-block: 8px;
+  padding-inline: 10px;
+  font: inherit;
+  color: inherit;
+  background: var(--sr-bg-0);
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+}
+.act-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.act-share-qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.act-share-qr p {
+  margin: 0;
+  flex: 1 1 12em;
+}
