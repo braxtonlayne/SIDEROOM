@@ -8,6 +8,19 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 43 - 2026-11-01
+
+- **Invite someone to play without an account.** In a voice call, a member playing a game that allows guests can press
+  "Share link" and send `/play/...` (or show its QR code). The person who opens it gets the game and nothing else: no
+  chat, no member list, no profiles, no shelves and no part of the call. They play under a random name such as "Amber
+  Otter 42".
+- **The game's messages stay private.** The secret part of the link (after the `#`) is made in the sharer's browser
+  and never reaches the server; the game's traffic between guests and the call is sealed with it.
+- **Links run out.** A link works for 6 hours, a guest's visit for 2, and the sharer can revoke it at any moment;
+  guests are disconnected within seconds. At most 5 links per game and 16 guests per link.
+- **For game makers:** `guest_play` and `lobby_channel` are now manifest capabilities. `ingame_voice` is accepted in
+  a manifest but guests are told it is not available yet.
+
 ## Phase 42 - 2026-11-01
 
 - **The Arcade is a room of its own.** `/games` opens on the Operator's Featured games, your servers' Guild
