@@ -243,6 +243,22 @@ describe('Guild cartridges', () => {
     ]);
   });
 
+  it('offers the shelf file only for a cartridge on a shelf object (wave 41)', async () => {
+    const onShelf = {
+      ...cart,
+      id: '9',
+      title: 'Snake',
+      shelf_id: '5',
+      object_hash: 'c'.repeat(64),
+    };
+    const a = api({ cartridges: vi.fn(() => Promise.resolve([cart, onShelf])) });
+    render(<CartridgesSection guilds={[{ id: '1', name: 'Friends' }]} flags={flags} api={a} />);
+    expect(
+      await screen.findByRole('button', { name: 'Get Snake from the shelf' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Get Pong from the shelf' })).toBeNull();
+  });
+
   it('lists and unlists a cartridge', async () => {
     const user = userEvent.setup();
     const a = api();
