@@ -338,8 +338,12 @@ pub struct FeaturedCard {
     /// What the reviewed build declares.
     pub capabilities: Vec<String>,
     pub tip_links: Vec<TipView>,
-    /// SHA-256 of the reviewed bundle; the key the trust badges (code signing, vouches) attach to.
+    /// SHA-256 of the reviewed bundle (the whole zip, assets included).
     pub bundle_sha256: String,
+    /// The hash of the reviewed build's executable code only (ARC-SBX-001, `sandbox::code_sha256`): the key the
+    /// trust badges attach to, because the operator's signature and the members' vouches are pinned to it.
+    /// `None` until it is computed for a bundle from before code hashes (the trust route computes it).
+    pub code_sha256: Option<String>,
     pub position: i32,
     pub featured_at_ms: i64,
 }
@@ -412,6 +416,10 @@ pub struct CartridgeView {
     pub eligibility: Eligibility,
     /// Where on the server's shelf the cartridge lives (an opaque locator the shelf code resolves).
     pub source_ref: String,
+    /// The shelf (wave 41) of the catalog object the cartridge names; with `object_hash`, the client fetches it
+    /// through `GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the member's grant.
+    pub shelf_id: Option<String>,
+    pub object_hash: Option<String>,
     pub capabilities: Vec<String>,
     pub tip_links: Vec<TipView>,
     pub added_by: String,
@@ -428,7 +436,16 @@ pub struct CartridgeInput {
     /// `game` or `mod`.
     pub kind: String,
     pub tier: Tier,
+    /// A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes
+    /// `shelf:<shelf_id>/<object_hash>`.
+    #[serde(default)]
     pub source_ref: String,
+    /// A catalog object of a shelf (wave 41, `shelf_objects`): both or neither. It must be in the catalog and not
+    /// delisted.
+    #[serde(default)]
+    pub shelf_id: Option<String>,
+    #[serde(default)]
+    pub object_hash: Option<String>,
     #[serde(default)]
     pub capabilities: Vec<String>,
     #[serde(default)]
@@ -574,7 +591,7 @@ impl ArcadeService {
     pub async fn featured(&self) -> ActivityResult<Vec<FeaturedCard>> {
         let sql = format!(
             "SELECT f.application_id, f.position, f.blurb, {} AS featured_ms, a.name, a.description, \
-                    b.sha256, b.tier, b.capabilities, b.tip_links \
+                    b.sha256, b.code_sha256, b.tier, b.capabilities, b.tip_links \
              FROM arcade_featured f \
              JOIN applications a ON a.id = f.application_id \
              JOIN application_activities c ON c.application_id = a.id \
@@ -599,6 +616,7 @@ impl ArcadeService {
                     capabilities: r.try_get("capabilities")?,
                     tip_links: tips_from_json(r.try_get("tip_links")?),
                     bundle_sha256: r.try_get("sha256")?,
+                    code_sha256: r.try_get("code_sha256")?,
                     position: r.try_get("position")?,
                     featured_at_ms: r.try_get("featured_ms")?,
                 })
@@ -853,6 +871,10 @@ impl ArcadeService {
             tier,
             eligibility: tier.eligibility(),
             source_ref: r.try_get("source_ref")?,
+            shelf_id: r
+                .try_get::<Option<i64>, _>("shelf_id")?
+                .map(|v| v.to_string()),
+            object_hash: r.try_get("object_hash")?,
             capabilities: r.try_get("capabilities")?,
             tip_links: tips_from_json(r.try_get("tip_links")?),
             added_by: r.try_get::<i64, _>("added_by")?.to_string(),
@@ -862,15 +884,19 @@ impl ArcadeService {
 
     fn cartridge_columns() -> String {
         format!(
-            "id, guild_id, title, description, kind, tier, source_ref, capabilities, tip_links, added_by, {} AS added_ms",
+            "id, guild_id, title, description, kind, tier, source_ref, shelf_id, object_hash, capabilities, \
+             tip_links, added_by, {} AS added_ms",
             ms("added_at")
         )
     }
 
-    /// The cartridges a server lists, newest first. Never part of the Front Page: they are unlisted.
+    /// The cartridges a server lists, newest first. Never part of the Front Page: they are unlisted. A cartridge
+    /// whose shelf object is delisted is left out, like from every catalog response (P28-LEG-1).
     pub async fn cartridges(&self, guild: i64) -> ActivityResult<Vec<CartridgeView>> {
         let sql = format!(
-            "SELECT {} FROM arcade_guild_cartridges WHERE guild_id = $1 \
+            "SELECT {} FROM arcade_guild_cartridges c WHERE guild_id = $1 \
+             AND NOT EXISTS (SELECT 1 FROM shelf_objects o WHERE o.shelf_id = c.shelf_id \
+                 AND o.object_hash = c.object_hash AND o.delisted_at IS NOT NULL) \
              ORDER BY added_at DESC, id DESC LIMIT {MAX_CARTRIDGES}",
             Self::cartridge_columns()
         );
@@ -901,7 +927,59 @@ impl ArcadeService {
         if !matches!(input.kind.as_str(), "game" | "mod") {
             return Err(invalid("kind", "must be game or mod."));
         }
-        let source = source_ref(&input.source_ref)?;
+        let object = match (input.shelf_id.as_deref(), input.object_hash.as_deref()) {
+            (None, None) => None,
+            (Some(s), Some(h)) => {
+                let shelf = s
+                    .trim()
+                    .parse::<i64>()
+                    .ok()
+                    .filter(|v| *v > 0)
+                    .ok_or_else(|| invalid("shelf_id", "must be a shelf id."))?;
+                let hash = h.trim().to_owned();
+                if hash.len() != 64
+                    || !hash
+                        .bytes()
+                        .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+                {
+                    return Err(invalid("object_hash", "must be 64 lowercase hex digits."));
+                }
+                // Only an object in the catalog that is not delisted, on a shelf the lister owns, the server owns,
+                // or that is shared with one of this server's roles. Access is checked again for every member
+                // when the per-object URL is minted.
+                let listed: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (SELECT 1 FROM shelf_objects o JOIN storage_mounts m ON m.id = o.shelf_id \
+                     WHERE o.shelf_id = $1 AND o.object_hash = $2 AND o.delisted_at IS NULL AND o.listed \
+                     AND ((m.owner_kind = 'user' AND m.owner_id = $3) \
+                          OR (m.owner_kind = 'guild' AND m.owner_id = $4) \
+                          OR EXISTS (SELECT 1 FROM shelf_grants g WHERE g.shelf_id = o.shelf_id \
+                                     AND g.grantee_kind = 'guild_role' AND g.guild_id = $4 \
+                                     AND g.revoked_at IS NULL)))",
+                )
+                .bind(shelf)
+                .bind(&hash)
+                .bind(user)
+                .bind(guild)
+                .fetch_one(&self.pool)
+                .await?;
+                if !listed {
+                    return Err(invalid(
+                        "object_hash",
+                        "is not a file on that shelf (or it was taken down).",
+                    ));
+                }
+                Some((shelf, hash))
+            }
+            _ => {
+                return Err(invalid("shelf_id", "shelf_id and object_hash go together."));
+            }
+        };
+        let source = match &object {
+            Some((shelf, hash)) if input.source_ref.trim().is_empty() => {
+                format!("shelf:{shelf}/{hash}")
+            }
+            _ => source_ref(&input.source_ref)?,
+        };
         let mut caps: Vec<String> = Vec::new();
         for c in &input.capabilities {
             if !accepts(c) {
@@ -940,8 +1018,9 @@ impl ArcadeService {
             serde_json::to_value(&tips).map_err(|e| ActivityError::Storage(e.to_string()))?;
         sqlx::query(
             "INSERT INTO arcade_guild_cartridges \
-             (id, guild_id, title, description, kind, tier, source_ref, capabilities, tip_links, added_by) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+             (id, guild_id, title, description, kind, tier, source_ref, capabilities, tip_links, added_by, \
+              shelf_id, object_hash) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
         )
         .bind(id)
         .bind(guild)
@@ -953,6 +1032,8 @@ impl ArcadeService {
         .bind(&caps)
         .bind(tips_json)
         .bind(user)
+        .bind(object.as_ref().map(|(s, _)| *s))
+        .bind(object.as_ref().map(|(_, h)| h.clone()))
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;

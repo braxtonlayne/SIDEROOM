@@ -464,6 +464,8 @@ async fn guild_cartridges_are_per_server_and_follow_the_manifest_rules() {
         kind: "game".into(),
         tier,
         source_ref: "shelf-1/games/pong.zip".into(),
+        shelf_id: None,
+        object_hash: None,
         capabilities: caps.iter().map(|c| (*c).to_owned()).collect(),
         tip_links: tips,
     };
@@ -524,5 +526,132 @@ async fn guild_cartridges_are_per_server_and_follow_the_manifest_rules() {
     assert!(!r.arcade.remove_cartridge(g2, id).await.unwrap());
     assert!(r.arcade.remove_cartridge(g1, id).await.unwrap());
     assert!(r.arcade.cartridges(g1).await.unwrap().is_empty());
+    r.db.cleanup().await.unwrap();
+}
+
+/// Wave 42 integration: a cartridge names a catalog object of a wave-41 shelf (`shelf_id`, `object_hash`). Only an
+/// object on a shelf the lister owns, the server owns or that is shared with one of the server's roles, not
+/// delisted; a delisting later takes it out of the listing (P28-LEG-1).
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
+    let r = rig().await;
+    let pool = r.db.pool();
+    let user = account(pool).await;
+    let stranger = account(pool).await;
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Guild', $2)")
+        .bind(guild)
+        .bind(user)
+        .execute(pool)
+        .await
+        .unwrap();
+    let (mine, theirs) = (uid(), uid());
+    for (id, owner) in [(mine, user), (theirs, stranger)] {
+        sqlx::query(
+            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc) \
+             VALUES ($1, 'user', $2, 'm', 'garage', 'http://127.0.0.1:3900', 'b', 'AK', $3)",
+        )
+        .bind(id)
+        .bind(owner)
+        .bind(vec![0u8])
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+    let hash = "c".repeat(64);
+    for shelf in [mine, theirs] {
+        sqlx::query(
+            "INSERT INTO shelf_objects (shelf_id, object_hash, path, kind) VALUES ($1, $2, 'games/pong.zip', 'games')",
+        )
+        .bind(shelf)
+        .bind(&hash)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+    let cart = |shelf: Option<i64>, h: Option<&str>| CartridgeInput {
+        title: "Pong".into(),
+        description: String::new(),
+        kind: "game".into(),
+        tier: Tier::Original,
+        source_ref: String::new(),
+        shelf_id: shelf.map(|s| s.to_string()),
+        object_hash: h.map(str::to_owned),
+        capabilities: vec![],
+        tip_links: vec![],
+    };
+    let v = r
+        .arcade
+        .add_cartridge(guild, user, cart(Some(mine), Some(&hash)))
+        .await
+        .unwrap();
+    assert_eq!(v.shelf_id.as_deref(), Some(mine.to_string().as_str()));
+    assert_eq!(v.object_hash.as_deref(), Some(hash.as_str()));
+    assert_eq!(v.source_ref, format!("shelf:{mine}/{hash}"));
+
+    // Someone else's shelf that is not shared with this server, a missing object, half a pair, a bad hash.
+    for bad in [
+        cart(Some(theirs), Some(&hash)),
+        cart(Some(mine), Some(&"d".repeat(64))),
+        cart(Some(mine), None),
+        cart(Some(mine), Some("ABC")),
+    ] {
+        assert!(matches!(
+            r.arcade.add_cartridge(guild, user, bad).await,
+            Err(ActivityError::Invalid(..))
+        ));
+    }
+    // Shared with a role of this server: accepted.
+    sqlx::query(
+        "INSERT INTO shelf_grants (id, shelf_id, grantee_kind, grantee_id, guild_id, granted_by) \
+         VALUES ($1, $2, 'guild_role', $3, $3, $4)",
+    )
+    .bind(uid())
+    .bind(theirs)
+    .bind(guild)
+    .bind(stranger)
+    .execute(pool)
+    .await
+    .unwrap();
+    r.arcade
+        .add_cartridge(guild, user, cart(Some(theirs), Some(&hash)))
+        .await
+        .unwrap();
+    assert_eq!(r.arcade.cartridges(guild).await.unwrap().len(), 2);
+
+    // Staff delist the object on my shelf: its cartridge leaves the listing, and it cannot be listed again.
+    let strike = uid();
+    sqlx::query(
+        "INSERT INTO shelf_delist_strikes (id, shelf_id, object_hash, path, subject_account, reason, delisted_by) \
+         VALUES ($1, $2, $3, 'games/pong.zip', $4, 'test', $4)",
+    )
+    .bind(strike)
+    .bind(mine)
+    .bind(&hash)
+    .bind(user)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE shelf_objects SET delisted_at = now(), delist_strike_id = $2 WHERE shelf_id = $1",
+    )
+    .bind(mine)
+    .bind(strike)
+    .execute(pool)
+    .await
+    .unwrap();
+    let left = r.arcade.cartridges(guild).await.unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(
+        left[0].shelf_id.as_deref(),
+        Some(theirs.to_string().as_str())
+    );
+    assert!(
+        r.arcade
+            .add_cartridge(guild, user, cart(Some(mine), Some(&hash)))
+            .await
+            .is_err()
+    );
     r.db.cleanup().await.unwrap();
 }
