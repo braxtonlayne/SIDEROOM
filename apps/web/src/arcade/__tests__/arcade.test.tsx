@@ -86,7 +86,9 @@ describe('Featured', () => {
   });
 
   it('shows the badges and actions the trust provider supplies for a build hash', () => {
-    const badges = vi.fn(() => [{ id: 'sig', label: 'SWARM-SAFETY-SIGNED', tone: 'good' as const }]);
+    const badges = vi.fn(() => [
+      { id: 'sig', label: 'SWARM-SAFETY-SIGNED', tone: 'good' as const },
+    ]);
     render(
       <TrustProvider source={{ badges, actions: (c) => <button>Vouch {c.name}</button> }}>
         <FeaturedSection featured={[featured()]} flags={flags} emulatorOn={false} />

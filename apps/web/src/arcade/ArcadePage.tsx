@@ -43,11 +43,7 @@ export function ArcadePage({ api = httpArcadeApi }: { api?: ArcadeApi }) {
       {!front && !failed && <Spinner label={t('arcade.page.loading')} />}
       {front && (
         <>
-          <FeaturedSection
-            featured={front.featured}
-            flags={front.flags}
-            emulatorOn={emulatorOn}
-          />
+          <FeaturedSection featured={front.featured} flags={front.flags} emulatorOn={emulatorOn} />
           <CartridgesSection guilds={guilds} flags={front.flags} api={api} />
           <ComingSoonSection entries={front.coming_soon} api={api} />
         </>

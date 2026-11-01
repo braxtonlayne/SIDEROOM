@@ -42,7 +42,8 @@ export default {
   'arcade.cartridges.kind': 'Kind',
   'arcade.cartridges.tier': 'Content tier',
   'arcade.cartridges.source': 'Shelf path',
-  'arcade.cartridges.sourceHint': 'Where the cartridge sits on the server shelf, such as games/pong.zip.',
+  'arcade.cartridges.sourceHint':
+    'Where the cartridge sits on the server shelf, such as games/pong.zip.',
   'arcade.cartridges.add': 'List cartridge',
   'arcade.cartridges.addFailed': 'The cartridge could not be listed: {reason}',
   'arcade.cartridges.ipRule':

@@ -210,7 +210,9 @@ export function CartridgesSection({
                 key={c.id}
                 title={c.title}
                 description={c.description}
-                badge={t(c.kind === 'mod' ? 'arcade.cartridges.kindMod' : 'arcade.cartridges.kindGame')}
+                badge={t(
+                  c.kind === 'mod' ? 'arcade.cartridges.kindMod' : 'arcade.cartridges.kindGame',
+                )}
                 tier={c.tier}
                 eligibility={c.eligibility}
                 capabilities={c.capabilities}
@@ -263,7 +265,10 @@ export function CartridgesSection({
               onChange={(e) => setSource(e.target.value)}
             />
             {error && (
-              <Notice variant="danger" title={t('arcade.cartridges.addFailed', { reason: error })} />
+              <Notice
+                variant="danger"
+                title={t('arcade.cartridges.addFailed', { reason: error })}
+              />
             )}
             <Button type="submit" disabled={!title.trim() || !source.trim()}>
               {t('arcade.cartridges.add')}
