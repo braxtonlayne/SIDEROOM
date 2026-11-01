@@ -22,6 +22,8 @@ import draft from './draft.js';
  * @property {string} name                shown to players
  * @property {string} blurb               one line for the mode picker
  * @property {number} roundTicks          how long a round lasts (0 = endless: no rounds, no results screen)
+ * @property {number} [minHeads]         fewest heads (people and bots) the mode plays well with; with cfg.backfill
+ *   bots fill up to it whatever the host's bot count (shared/backfill.js)
  * @property {boolean} respawn            whether the dead may play again during a round (else: the next round)
  * @property {number} [teams]             number of teams (2-4); 0 or absent = every player for themselves
  * @property {'kills' | 'start' | 'off'} [cards]  where cards come from: drafts on kills (default), three

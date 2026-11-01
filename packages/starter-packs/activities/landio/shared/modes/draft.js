@@ -30,6 +30,7 @@ export default {
   blurb: 'Pick three cards at the start. No cards from kills.',
   roundTicks: 5 * 60 * 7,
   respawn: true,
+  minHeads: 4,
   cards: 'start',
   // p.fx is wiped on every placement and death, so `fx.drafted` counts the drafts offered this life.
   onSpawn(s, p) {

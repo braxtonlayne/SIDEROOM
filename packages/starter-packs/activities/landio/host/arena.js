@@ -56,8 +56,9 @@ export class Arena {
   constructor(id, cfg, seed, now) {
     this.id = id;
     /** @type {GameState} */
-    // Real arenas protect a fresh spawn for 3 s (D-45); the rules default (tests) is off.
-    this.state = createState({ spawnShieldTicks: 21, ...cfg }, seed, { fill: true });
+    // Real arenas protect a fresh spawn for 3 s (D-45) and backfill bots up to the mode's minimum
+    // (shared/backfill.js); the rules defaults (tests) are off.
+    this.state = createState({ spawnShieldTicks: 21, backfill: true, ...cfg }, seed, { fill: true });
     takeDirty(this.state);
     takeEvents(this.state);
     /** @type {Map<string, Seat>} by token */

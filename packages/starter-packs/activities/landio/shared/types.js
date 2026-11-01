@@ -21,6 +21,7 @@
  * @property {string} mode           mode id (shared/modes): how rounds run and are won
  * @property {'easy'|'normal'|'hard'} botSkill  how well bots play
  * @property {number} roundTicks     round length set by the host (0 = the mode's own); only for modes with rounds
+ * @property {boolean} [backfill]    bots fill up to the mode's minimum heads (ModeDef.minHeads) even past targetHeads
  */
 
 /**

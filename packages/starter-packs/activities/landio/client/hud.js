@@ -442,11 +442,14 @@ export class Hud {
         sw.style.background = lookColor(info?.look ?? id);
         const nm = document.createElement('span');
         nm.className = 'nm';
-        nm.textContent = info?.name ?? '?';
+        // Bot names end in "bot" (Lumen bot, Tofu bot 2): that part is styled as the bot badge.
+        const full = info?.name ?? '?';
+        const cut = info?.bot ? full.search(/ bot( \d+)?$/) : -1;
+        nm.textContent = cut > 0 ? full.slice(0, cut) : full;
         if (info?.bot) {
           const b = document.createElement('span');
           b.className = 'bot';
-          b.textContent = ' bot';
+          b.textContent = cut > 0 ? full.slice(cut) : ' bot';
           nm.append(b);
         }
         const pc = document.createElement('span');
@@ -632,7 +635,7 @@ export class Hud {
         ...top.map((p, k) => {
           const li = document.createElement('li');
           li.className = (k === 0 && !res.teams.length ? 'first ' : '') + (p.id === me ? 'me' : '');
-          li.append(span('rk', String(k + 1)), swatch(lookColor(p.look)), span('nm', p.name + (p.bot ? ' (bot)' : '')), span('pc', show(p.score)));
+          li.append(span('rk', String(k + 1)), swatch(lookColor(p.look)), span('nm', p.name + (p.bot && !/ bot( \d+)?$/.test(p.name) ? ' (bot)' : '')), span('pc', show(p.score)));
           return li;
         }),
       );
