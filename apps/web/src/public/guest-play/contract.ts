@@ -1,8 +1,8 @@
 // ARC-GST-002 (wave 43, D-385, D-397): the wire contract between the guest runner / the Share link dialog and the
 // guest relay that 43-A (`ARC-GST-001`) built. The Rust side is `sr_activities::guest` (types, routes) and
-// `sr_gateway::guest` (the socket frames), read from branch feat/p43-guest-relay at 898d4de6 / f2eaddbb. One
-// module, so the integrator reconciles one file. Everything here is plain data and constants; nothing imports
-// the app. "ASSUMED" marks what 43-A's contract does not carry yet (see the handoff).
+// `sr_gateway::guest` (the socket frames); reconciled against both on the integration branch (wave 43). One
+// module, so a contract change touches one file. Everything here is plain data and constants; nothing imports
+// the app.
 
 /** `POST /api/v1/activity-instances/{id}/guest-links` (a member of the running instance), 201. No body. */
 export interface GuestLinkCreated {
@@ -26,11 +26,10 @@ export interface GuestJoined {
   application_id: string;
   application_name: string;
   /**
-   * ASSUMED (not in 43-A's `GuestJoined` yet): what the game's reviewed manifest declares, so the runner can refuse
-   * `ingame_voice`. Absent: the runner treats the game as `guest_play` (the server only issues links for such
-   * games) and the `ingame_voice` refusal cannot fire client-side. The integrator asks 43-A to add it.
+   * The flags the game's reviewed manifest declares, sorted, reserved ones included (`ingame_voice`), so the runner
+   * can refuse what has not shipped. A join answer without it is refused (`joinLobby`).
    */
-  capabilities?: string[];
+  capabilities: string[];
 }
 
 /** The only topic a guest socket has (D-397): `game:<lobby_token>`. */

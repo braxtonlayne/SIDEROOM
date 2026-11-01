@@ -46,7 +46,8 @@ export async function joinLobby(token: string, f: typeof fetch = fetch): Promise
     !j ||
     typeof j.guest_token !== 'string' ||
     typeof j.callsign !== 'string' ||
-    typeof j.application_id !== 'string'
+    typeof j.application_id !== 'string' ||
+    !Array.isArray(j.capabilities)
   ) {
     throw new JoinError('refused');
   }
@@ -58,9 +59,7 @@ export async function joinLobby(token: string, f: typeof fetch = fetch): Promise
     socket_path: GUEST_SOCKET_PATH,
     application_id: j.application_id,
     application_name: typeof j.application_name === 'string' ? j.application_name : '',
-    ...(Array.isArray(j.capabilities)
-      ? { capabilities: j.capabilities.filter((c): c is string => typeof c === 'string') }
-      : {}),
+    capabilities: j.capabilities.filter((c): c is string => typeof c === 'string'),
   };
 }
 

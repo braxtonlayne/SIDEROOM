@@ -83,10 +83,13 @@ describe('joinLobby', () => {
         socket_path: '/gateway/guest',
         application_id: '7',
         application_name: 'Land.io',
+        capabilities: ['datachannel', 'guest_play', 'ingame_voice'],
       }),
     );
     const j = await joinLobby(TOKEN, f as unknown as typeof fetch);
     expect(j.callsign).toBe('Amber Otter 42');
+    // The relay's answer carries the manifest flags, reserved ones included, so the runner can refuse them.
+    expect(j.capabilities).toEqual(['datachannel', 'guest_play', 'ingame_voice']);
     const [url, init] = f.mock.calls[0]!;
     expect(url).toBe(`/api/v1/play/${TOKEN}/join`);
     expect(init).toMatchObject({
@@ -116,6 +119,10 @@ describe('joinLobby', () => {
     await expect(joinLobby(TOKEN, answer(200, { nope: 1 }))).rejects.toMatchObject({
       reason: 'refused',
     });
+    // An answer without the manifest flags cannot be checked for `ingame_voice`: refused, never assumed.
+    await expect(
+      joinLobby(TOKEN, answer(200, { guest_token: 'srg_x', callsign: 'c', application_id: '7' })),
+    ).rejects.toMatchObject({ reason: 'refused' });
   });
 });
 

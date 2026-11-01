@@ -25,6 +25,7 @@ const joined = (over: Partial<GuestJoined> = {}): GuestJoined => ({
   socket_path: '/gateway/guest',
   application_id: '777',
   application_name: 'Land.io',
+  capabilities: ['datachannel', 'guest_play', 'lobby_channel'],
   ...over,
 });
 

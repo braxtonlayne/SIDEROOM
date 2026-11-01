@@ -6,7 +6,7 @@ import { ThemeProvider } from '@sideroom/ui';
 import type { Frame } from '@sideroom/embedded-app-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../i18n/react';
-import { runnerRefusal, GUEST_PLAY_FLAG } from './capabilities';
+import { runnerRefusal } from './capabilities';
 import type { GuestJoined } from './contract';
 import { createGuestHost } from './guestHost';
 import { guestLane, type GuestLaneKit } from './lane';
@@ -86,7 +86,7 @@ export function Runner({
         const key = await importGameKey(link.key);
         const joined = await join(link.token);
         // The runner refuses what a guest must not run before it opens the lobby's socket (D-397, D-399).
-        const refusal = runnerRefusal(joined.capabilities ?? [GUEST_PLAY_FLAG]);
+        const refusal = runnerRefusal(joined.capabilities);
         if (refusal) {
           setPhase({ k: 'refused', why: refusal });
           return;
@@ -201,7 +201,7 @@ function Playing({
     () =>
       createGuestHost({
         applicationId: join.application_id,
-        declared: join.capabilities ?? [GUEST_PLAY_FLAG, 'datachannel'],
+        declared: join.capabilities,
         self: () => ({ id: `g${seat}`, callsign: join.callsign }),
         roster: kit.roster,
         hostId: kit.hostId,
