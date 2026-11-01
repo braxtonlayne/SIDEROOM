@@ -29,7 +29,9 @@ test.skip(
 const OUT = '.state/i18n-pseudo';
 const WORLD_FILE = `${OUT}/world.json`;
 const OWNER_STATE = `${OUT}/owner.json`;
-const loadWorld = (): World => JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as World;
+/** The fixture world plus the Owner's handle (the profile row). */
+type PseudoWorld = World & { ownerHandle?: string };
+const loadWorld = (): PseudoWorld => JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as PseudoWorld;
 const slug = (n: string) => n.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 
 const WIDTHS = [
@@ -39,7 +41,7 @@ const WIDTHS = [
 
 interface Row {
   name: string;
-  path: (w: World) => string;
+  path: (w: PseudoWorld) => string;
   /** Needs the signed-in Owner; the entrance rows run without a session. */
   auth: boolean;
   /** Session storage the page needs before it loads (the register page wants an invitation in hand). */
@@ -69,6 +71,10 @@ const ROWS: Row[] = [
   { name: 'library home', path: () => '/library', auth: true },
   { name: 'cinema title', path: (w) => `/cinema/t/${w.titleId}`, auth: true },
   { name: 'admin home', path: () => '/admin', auth: true },
+  // MOD-GRD-001: the staff subtree-case list (Admin > Moderation > Subtree cases).
+  { name: 'admin subtree cases', path: () => '/admin/moderation?tab=subtree', auth: true },
+  // MOD-VCH-001: the Owner's own profile page with its vouch panel (count, tier badge, tooltip).
+  { name: 'profile vouch panel', path: (w) => `/u/${w.ownerHandle ?? ''}`, auth: true },
   // ARC-ROOM-001: the Arcade and its own section bar (Featured, Guild Cartridges, Coming Soon).
   { name: 'arcade', path: () => '/games', auth: true },
   // ARC-GST-002 (D-385): the guest-play surface, signed out. With a key the runner asks before it joins (a link
@@ -162,7 +168,7 @@ test('build the fixture world', async ({ owner, signedIn }) => {
   const s = await soloServer(signedIn, owner, 'Pseudo');
   const world = await buildWorld(s);
   mkdirSync(OUT, { recursive: true });
-  writeFileSync(WORLD_FILE, JSON.stringify(world));
+  writeFileSync(WORLD_FILE, JSON.stringify({ ...world, ownerHandle: owner.username }));
   await s.a.context.storageState({ path: OWNER_STATE });
 });
 
@@ -177,13 +183,14 @@ for (const vp of WIDTHS) {
           storageState: row.auth ? OWNER_STATE : { cookies: [], origins: [] },
         });
         test(`${row.name}`, async ({ page }) => {
-          const world = row.auth ? loadWorld() : ({} as World);
+          const world = row.auth ? loadWorld() : ({} as PseudoWorld);
           if (row.session) {
             await page.addInitScript((items) => {
               for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v);
             }, row.session);
           }
-          await page.goto(`${row.path(world)}?lang=en-XA${row.hash ?? ''}`);
+          const path = row.path(world);
+          await page.goto(`${path}${path.includes('?') ? '&' : '?'}lang=en-XA${row.hash ?? ''}`);
           await expect(page.getByRole('main').or(page.getByRole('log')).first()).toBeVisible({
             timeout: 20_000,
           });
