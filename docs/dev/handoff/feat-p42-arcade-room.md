@@ -14,12 +14,11 @@ Base `integration/phase42` (main 57b91ca9). Migration 2040. Cargo target `p42-ar
 
 ## Resume here
 
-1. `SR_UPDATE_ROUTE_MATRIX=1 cargo test -j 2 -p sr-api --test route_matrix` (slow compile, run in background), review rows: GET /arcade `user`; notify `user`... (use `self`/`user`); guild cartridges `membership`; `/admin/arcade/*` `staff` with PLATFORM `OPERATOR`; BOT `deny`. Then `openapi_names` test (types use `schema(as = Arcade...)`).
-2. Run `authz_matrix` (`every_route_enforces_its_authz_row`, ignored, scratch DB) and fix any seed ids / body overrides for the new routes (`application_id`, `entry_id`, `cartridge_id`).
-3. Regenerate OpenAPI + api-client (`cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json`, `pnpm --filter @sideroom/api-client generate`, mocks).
-4. Web UI not written yet: `TipBadges.tsx` (QRCode from `@sideroom/ui`, catch RangeError, ecc L), trust badge seam context for arcade-sandbox (`badges(card)` + `actions(card)`), `GameCard`, `ArcadePage` (Featured with static Emulator card, Guild Cartridges, Coming Soon with Notify), route: `/games` becomes the Arcade and the emulator moves to `/games/emulator` (update `emu/routes.tsx`, `cspProbe.ts`, `EmuPage.tsx` reload, `help/Handbook.tsx`, `emu/__tests__/emuPage.test.tsx`, `e2e/tests/emulator.spec.ts`), Admin section "Arcade" (OPERATOR) for curation, profile Linktree `tip` kind (server `profile_doc.rs` LinktreeCfg + web Inspector/renderer), i18n fragment `apps/web/src/i18n/messages/en/p42-arcade-room-1.ts`, css with logical properties.
-5. Vitest: Arcade sections, tier validator (third value rejected, mirror of `TIERS`), tip host validation (`tips.ts`). Playwright spec `e2e/tests/arcade.spec.ts` written and typechecked, NOT run.
-6. Gates: cargo fmt/clippy `-D warnings` on sr-core, sr-activities, sr-api, sr-server; `cargo test -p sr-db --test secret_columns --test migration_versions`; web typecheck/lint/prettier/vitest (`--maxWorkers=2`)/build + bundle budget.
+DONE since first draft: route_matrix rows reviewed (admin rows staff+OPERATOR, cartridges membership, notify self, /arcade user) and route_matrix + openapi_names green; Links block server-side tip kind (sr-packages, sr-core path dep, test passes); web Arcade page, Admin > Arcade, trust seam, tips, profile-blocks tip render; web tsc clean; e2e tsc clean; Arcade Vitest 15 pass; Lounge bar always links the Arcade.
+
+Full web vitest (--maxWorkers=2) gave 11 failed files / 413 passed (log /tmp/vt.log, may be gone): channelPerms, p24ProfileCard, voice dataPort/e2ee/e2eeCall, p14profile, viewAs, tools.test, zones (file-level load failures, probably the missing wasm build: run pnpm --filter @sideroom/wasm build first), plus admin.test.tsx "shows everything to the Owner" (likely the new Arcade section changes the section list/count: update that test) and currency.test "loads each tool lazily". Re-run after the wasm build and fix what remains.
+
+STILL TO DO: (a) authz_matrix every_route_enforces_its_authz_row + immutable_rules + secret_columns + migration_versions on scratch DB sr_p42_arcade_room (not run); (b) regenerate OpenAPI (cargo run -q -p sr-server -- openapi > packages/api-client/openapi.json, pnpm --filter @sideroom/api-client generate, mocks:generate/mocks:check); (c) web lint, prettier --check, build + check-bundle-budget, i18n catalog tests; (d) cargo fmt --check and clippy -D warnings on sr-core, sr-activities, sr-api, sr-server, sr-packages; (e) final handoff tick list.
 
 ## Notes for the wave-42 integrator
 
