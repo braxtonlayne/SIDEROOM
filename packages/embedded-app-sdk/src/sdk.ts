@@ -14,6 +14,8 @@ import {
   type ReadyConfig,
   type RpcErrorBody,
   type SubscribeArgs,
+  STORAGE_LIMITS,
+  STORAGE_CAPABILITY,
 } from './protocol';
 import {
   ActivityData,
@@ -93,6 +95,7 @@ export class SideRoomSDK {
   private readonly listeners = new Map<string, Set<Listener>>();
   private seq = 0;
   private readyWaiter: { resolve: (c: ReadyConfig) => void } | null = null;
+  private readonly kv = new Map<string, string>();
   private readonly onMessage = (e: MessageEvent) => this.receive(e);
   /** The data layer behind `state`, `input` and `on` (public for activities that need `version`, `snapshot`). */
   readonly data = new ActivityData();
@@ -157,6 +160,55 @@ export class SideRoomSDK {
     return this.data.isHost;
   }
 
+  /**
+   * A small per-member key-value store that survives reloads (ARC-SBX-001). The sandbox has no `localStorage`
+   * (its origin is opaque), so the host keeps the values and sends them in `ready`; reads are local and
+   * writes go to the host. Needs the `storage` capability in `sideroom.json`; without it writes throw.
+   * `install()` makes `window.localStorage` this store, for code that already uses `localStorage`.
+   */
+  get storage() {
+    const kv = this.kv;
+    const can = () => !!this.config?.capabilities?.includes(STORAGE_CAPABILITY);
+    const api = {
+      get length(): number {
+        return kv.size;
+      },
+      key: (i: number): string | null => [...kv.keys()][i] ?? null,
+      getItem: (key: string): string | null => kv.get(String(key)) ?? null,
+      setItem: (key: string, value: string): void => {
+        const k = String(key);
+        const v = String(value);
+        if (!can()) throw new SdkError({ code: 'NOT_AUTHORIZED', message: 'Declare the storage capability.' });
+        let total = v.length;
+        for (const [ek, ev] of kv) if (ek !== k) total += ev.length;
+        if (
+          k.length === 0 ||
+          k.length > STORAGE_LIMITS.keyChars ||
+          v.length > STORAGE_LIMITS.valueChars ||
+          total > STORAGE_LIMITS.totalChars ||
+          (!kv.has(k) && kv.size >= STORAGE_LIMITS.keys)
+        ) {
+          throw new SdkError({ code: 'QUOTA_EXCEEDED', message: 'The storage quota is used up.' });
+        }
+        kv.set(k, v);
+        void this.call('storageSet', { key: k, value: v }).catch(() => undefined);
+      },
+      removeItem: (key: string): void => {
+        const k = String(key);
+        if (!kv.delete(k)) return;
+        void this.call('storageRemove', { key: k }).catch(() => undefined);
+      },
+      clear: (): void => {
+        for (const k of [...kv.keys()]) api.removeItem(k);
+      },
+      /** Replace `target.localStorage` (default: this window) with this store. */
+      install: (target: object = globalThis): void => {
+        Object.defineProperty(target, 'localStorage', { configurable: true, value: api });
+      },
+    };
+    return api;
+  }
+
   /** Stop listening. Pending commands fail. */
   close(): void {
     this.env.removeEventListener('message', this.onMessage);
@@ -206,6 +258,13 @@ export class SideRoomSDK {
      */
     setActivity: (args: { activity: ActivityInput | null }) =>
       this.call<ActivityInput | null>('setActivity', args),
+    /** Offer the person a file to save (png, jpeg, webp, json or text, at most 8 MiB). Resolves `{ saved }`. */
+    saveFile: (args: { name: string; mime: string; bytes: Uint8Array }) =>
+      this.call<{ saved: boolean }>('saveFile', {
+        name: args.name,
+        mime: args.mime,
+        b: b64(args.bytes),
+      }),
   };
 
   /**
@@ -289,6 +348,10 @@ export class SideRoomSDK {
     if (!f) return;
     if (f.kind === 'ready' && this.readyWaiter) {
       this.config = f.config;
+      this.kv.clear();
+      for (const [k, v] of Object.entries(f.config.storage ?? {})) {
+        if (typeof v === 'string') this.kv.set(k, v);
+      }
       this.attachHostTransport(f.config);
       this.readyWaiter.resolve(f.config);
       this.readyWaiter = null;
