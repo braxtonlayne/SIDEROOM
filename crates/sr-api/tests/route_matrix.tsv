@@ -220,6 +220,11 @@ GET	/admin/library/uploads/{upload_id}	authenticated	staff	deny	-	PUBLISH_READIN
 GET	/admin/library/uploads/{upload_id}/inspect	authenticated	staff	deny	-	PUBLISH_READING
 GET	/admin/library/uploads/{upload_id}/parts	authenticated	staff	deny	-	PUBLISH_READING
 GET	/admin/me	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/moderation/members/{account_id}/actions	authenticated	staff	deny	-	MANAGE_CASES
+GET	/admin/moderation/requests	authenticated	staff	deny	-	MANAGE_CASES
+GET	/admin/moderation/restriction-appeals	authenticated	staff	deny	-	MANAGE_CASES
+GET	/admin/moderation/subtree-cases	authenticated	staff	deny	-	MANAGE_CASES
+GET	/admin/moderation/subtree-cases/{case_id}	authenticated	staff	deny	-	MANAGE_CASES
 GET	/admin/persons/{person_id}	authenticated	staff	deny	-	MANAGE_ACCOUNTS
 GET	/admin/persons/{person_id}/suspicion-log	authenticated	staff	deny	-	MANAGE_INVITES
 GET	/admin/private/accounts/{account_id}/dms	authenticated	staff	deny	-	READ_PRIVATE_CONTENT
@@ -492,6 +497,7 @@ GET	/moderation/rings/{ring_id}/media	authenticated	staff	deny	-	MANAGE_CASES
 GET	/moderation/takedowns	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/export	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/moderation/takedowns/{notice_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
+GET	/moderation/transparency	authenticated	user	deny	-	-
 GET	/music/library	authenticated	self	deny	-	-
 GET	/music/playlists/{playlist_id}	authenticated	membership	deny	-	-
 GET	/music/tracks/{track_id}	authenticated	storage_scope	deny	-	-
@@ -529,6 +535,7 @@ GET	/sr/entrance/copy	public	none	deny	-	-
 GET	/sr/entrance/hero	public	none	deny	-	-
 GET	/sr/features/flags	authenticated	user	deny	-	-
 GET	/sr/invites	authenticated	self	deny	-	-
+GET	/sr/moderation/restrictions	authenticated	self	deny	-	-
 GET	/sr/profile-catalog	authenticated	user	deny	-	-
 GET	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
 GET	/sr/voice/turn	authenticated	user	allow	-	-
@@ -780,6 +787,21 @@ POST	/admin/library/series/{series_id}/merge	authenticated	staff	deny	-	PUBLISH_
 POST	/admin/library/series/{series_id}/publish	authenticated	staff	deny	-	PUBLISH_READING
 POST	/admin/library/series/{series_id}/unpublish	authenticated	staff	deny	-	PUBLISH_READING|DELETE_CONTENT
 POST	/admin/library/uploads/{upload_id}/complete	authenticated	staff	deny	-	PUBLISH_READING
+POST	/admin/moderation/branch-action	authenticated	staff	deny	-	OWNER
+POST	/admin/moderation/members/{account_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
+POST	/admin/moderation/members/{account_id}/invite-freeze	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/moderation/members/{account_id}/revoke-invites	authenticated	staff	deny	-	MANAGE_INVITES
+POST	/admin/moderation/members/{account_id}/timeout	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/members/{account_id}/warn	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/requests/{request_id}/approve	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/requests/{request_id}/reject	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/restrictions/{restriction_id}/appeal-decision	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/restrictions/{restriction_id}/lift	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/subtree-cases/{case_id}/close	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban	authenticated	staff	deny	-	MANAGE_CASES+PLATFORM_BAN
+POST	/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/clear	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/freeze	authenticated	staff	deny	-	MANAGE_CASES
+POST	/admin/moderation/subtree-cases/{case_id}/requests	authenticated	staff	deny	-	MANAGE_CASES
 POST	/admin/persons/{person_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
 POST	/admin/persons/{person_id}/clear-suspicion	authenticated	staff	deny	-	MANAGE_INVITES
 POST	/admin/persons/{person_id}/identities/{identity_id}/move	authenticated	staff	deny	-	MANAGE_ACCOUNTS
@@ -995,6 +1017,7 @@ POST	/sr/auth/passkeys/verify/begin	authenticated	self	deny	-	-
 POST	/sr/auth/password	authenticated	self	deny	-	-
 POST	/sr/auth/reauth	authenticated	self	deny	-	-
 POST	/sr/invites	authenticated	self	deny	-	-
+POST	/sr/moderation/restrictions/{restriction_id}/appeal	authenticated	self	deny	-	-
 POST	/sr/users/@me/messages/delete-all	authenticated	self	deny	-	-
 POST	/staff/offers/{offer_id}/respond	authenticated	self	deny	-	-
 POST	/stage-instances	authenticated	membership	allow	-	-

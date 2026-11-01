@@ -383,3 +383,11 @@ Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST
   gate proof ran and passes in Chromium (Land.io in a call, incognito guest, sync both ways, 403s, 4403 on a forged topic,
   `ingame_voice` refused by the runner against the relay's `capabilities`, guest bundle isolation, Share dialog at 375 px),
   `/play` in `i18n-pseudo.spec.ts` at phone and desktop; CI's live job runs it_
+
+
+## Wave 44 — Graduated moderation and profile vouches (roadmap P28)
+
+Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-420 to D-424), `feat/p44-heavy-crown` (MOD-VCH-001, T44; D-425 to D-429, adds its own item to this section).
+
+### MOD — Graduated moderation
+- [ ] **MOD-GRD-001** [BE] [FE] Graduated moderation toolset and subtree cases (D-395): per-member staff acts (warn, timeout, timed invite freeze, revoke unused invite codes, ban with a required reason category) over `member_restrictions` with appeals; a serious ban opens a subtree case on the invite tree (`SeriousBanObserver`, the seam 44-B subscribes to) that freezes only D-392-unactivated descendants and lists everyone else, with a 30-day removal unless cleared; inviter sterilization (`can_invite = false`, 12 months, written reason, second approver, 2FA step-up for both, appealable, no profile mark); the Operator-only branch action (`POST /admin/moderation/branch-action`, `sr-cli moderation branch-action`) with a hash-chained entry naming case, approver and node count; the anonymised notice (banner with category and counts only) and the monthly transparency page; `sr-cli moderation drill --synthetic` (Owner/host, rolled back, posted to the Staff Server only); the `strike_weight_multiplier` seam (default 1.0). Staff UI in Admin > Moderation > Subtree cases, member cards in Settings > Privacy. See [handoff](../dev/handoff/feat-p44-mod-tools.md) _Proof: see the handoff's "Tests run"; unticked until the integrator re-runs the gates on the merged tree_

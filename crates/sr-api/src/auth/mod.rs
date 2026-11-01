@@ -16,6 +16,6 @@ pub use backend::{
     BackendError, BearerBackend, BearerIdentity, BotBackend, BotIdentity, SessionBackend,
 };
 pub use extract::{
-    AuthKind, BotOnly, Principal, SESSION_COOKIE, SessionOnly, UserOnly, parse_cookie,
-    session_cookie,
+    AccountRestrictions, AuthKind, BotOnly, Principal, RestrictionGate, SESSION_COOKIE,
+    SessionOnly, UserOnly, parse_cookie, session_cookie,
 };

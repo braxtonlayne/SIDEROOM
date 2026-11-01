@@ -163,6 +163,15 @@ pub trait GuildDirectory: Send + Sync {
         false
     }
 
+    /// MOD-GRD-001: a timeout or a case freeze is in force on `user`, so they may not join voice (they can still
+    /// sign in and appeal). Default: no restriction.
+    async fn account_restricted(&self, _user: UserId) -> bool {
+        false
+    }
+
+    /// MOD-GRD-001: a voice session of `user` ended after `seconds` (D-392 reads the total). Default: ignore.
+    async fn voice_session_ended(&self, _user: UserId, _seconds: i64) {}
+
     /// The sensitive-media settings and the friends of `user` (D-230, H-33), cached per session
     /// until `SR_USER_UPDATE` or a `RELATIONSHIP_*` dispatch. `None` (the default, and for bots)
     /// leaves message attachments as they are.
