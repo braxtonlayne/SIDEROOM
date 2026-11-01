@@ -34,6 +34,7 @@ import { HelpSkeleton } from './help/HelpSkeleton';
 import { AppServerInvite } from './app/AppServerInvite';
 import { AppServerTemplate } from './app/AppServerTemplate';
 import { AppDoor } from './app/AppDoor';
+import { reportRenderError } from './crash/report';
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
 const WhatsNewPage = lazy(() => import('./help/WhatsNew').then((m) => ({ default: m.WhatsNew })));
@@ -146,6 +147,10 @@ export const createAppRouter = (history?: RouterHistory) =>
     history,
     pathParamsAllowedCharacters: ['@'],
     defaultNotFoundComponent: NotFoundPage,
+    // OPS-CRASH-001: a route component that throws is caught by the router's own boundary; it is a crash card too.
+    defaultOnCatch: (error) => {
+      void reportRenderError(error);
+    },
     parseSearch: parseSearchWith(parseSearchValue),
     stringifySearch: stringifySearchWith(stringifySearchValue, parseSearchValue),
   });

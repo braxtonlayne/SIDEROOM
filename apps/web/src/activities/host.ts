@@ -21,6 +21,7 @@ import {
   type SpeakingUpdate,
   type VoiceStateUpdate,
 } from '@sideroom/embedded-app-sdk';
+import { bridgeInput, recordTick } from '../crash/ringBuffer';
 import type { OAuthApi } from './api';
 import type { ActivityInstance } from './types';
 
@@ -385,6 +386,8 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   };
 
   const run = async (cmd: string, args: unknown): Promise<unknown> => {
+    // OPS-CRASH-001: the command, as an opaque enum, goes into the crash ring buffer; its arguments never do.
+    recordTick('activity', bridgeInput(cmd));
     switch (cmd) {
       case 'authorize': {
         const scopes = obj(args).scope;
