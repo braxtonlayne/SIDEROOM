@@ -66,8 +66,11 @@ export interface GuestHostEnv {
   /** What the lobby's reviewed manifest declares. */
   declared: readonly string[];
   /** This guest's id in the lobby, and the name they play under. */
-  self: { id: string; callsign: string };
+  /** Read when the game says hello, because the seat is only known once the relay answered. */
+  self: () => { id: string; callsign: string };
   roster: () => GuestMember[];
+  /** The id the game's host sends under (the member bridge told the lobby); absent: the roster's member seat. */
+  hostId?: () => string | null;
   lane: GuestLane;
   post: (frame: Frame) => void;
   /** Origin that frame messages carry. Default [`OPAQUE_ORIGIN`]. */
@@ -181,7 +184,7 @@ export function createGuestHost(env: GuestHostEnv): GuestHost {
         if (!off && hasData) {
           off = env.lane.onMessage((from, bytes) => emit('DATA_MESSAGE', { from, b: b64(bytes) }));
         }
-        const hostId = env.roster().find((m) => m.host)?.id ?? env.self.id;
+        const hostId = env.hostId?.() ?? env.roster().find((m) => m.host)?.id ?? env.self().id;
         env.post({
           sr: PROTOCOL_VERSION,
           kind: 'ready',
@@ -191,11 +194,11 @@ export function createGuestHost(env: GuestHostEnv): GuestHost {
             instance_id: 'lobby',
             channel_id: '0',
             guild_id: '0',
-            user_id: env.self.id,
+            user_id: env.self().id,
             host_id: hostId,
             capabilities: caps,
             guest: true,
-            callsign: env.self.callsign,
+            callsign: env.self().callsign,
           },
         });
         return;

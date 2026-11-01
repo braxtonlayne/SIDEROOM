@@ -1,9 +1,16 @@
-import { cleanNickname, randomCallsign } from '../callsign';
 import { GAME_KEY } from '../contract';
+import {
+  decodeLobby,
+  encodeDirect,
+  encodeRelayed,
+  encodeSys,
+  unwrapFromRoom,
+  wrapForRoom,
+} from '../envelope';
 import { buildGuestLink, generateGameKey, parseGuestLocation } from '../link';
 import { importGameKey, open, seal } from '../seal';
 
-const TOKEN = 'Tk3-aB_9xQ0pLmN7vR2sYw';
+const TOKEN = 'ab12'.repeat(16);
 
 describe('the Share link', () => {
   it('makes a 32-byte url-safe key in the browser, a new one each time', () => {
@@ -25,6 +32,7 @@ describe('the Share link', () => {
 
   it('refuses a token or key of the wrong shape', () => {
     expect(() => buildGuestLink('https://x.test', 'short', generateGameKey())).toThrow();
+    expect(() => buildGuestLink('https://x.test', TOKEN.toUpperCase(), generateGameKey())).toThrow();
     expect(() => buildGuestLink('https://x.test', TOKEN, 'nope')).toThrow();
   });
 
@@ -63,17 +71,39 @@ describe('sealing with the game key', () => {
   });
 });
 
-describe('callsigns and nicknames', () => {
-  it('draws an adjective, a noun and a number', () => {
-    expect(randomCallsign(() => 7)).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ \d\d$/);
-    expect(randomCallsign()).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ \d\d$/);
+describe('the lobby envelope', () => {
+  const payload = new Uint8Array([7, 8, 9]);
+  const list = (b: Uint8Array) => Array.from(b);
+
+  it('a guest seat is g<seat>; a member seat relays under the room member id', () => {
+    const g = decodeLobby(4, 'guest', encodeDirect(payload));
+    expect(g).toMatchObject({ kind: 'data', from: 'g4' });
+    expect(g && g.kind === 'data' ? list(g.bytes) : null).toEqual([7, 8, 9]);
+    const m = decodeLobby(1, 'member', encodeRelayed('123456789', payload));
+    expect(m).toMatchObject({ kind: 'data', from: '123456789' });
+    expect(m && m.kind === 'data' ? list(m.bytes) : null).toEqual([7, 8, 9]);
   });
 
-  it('cleans a nickname and refuses markup, control characters and long text', () => {
-    expect(cleanNickname('  Mo   Money ')).toBe('Mo Money');
-    expect(cleanNickname('')).toBeNull();
-    expect(cleanNickname('<b>x</b>')).toBeNull();
-    expect(cleanNickname('a'.repeat(25))).toBeNull();
-    expect(cleanNickname('Zoë_9')).toBe('Zoë_9');
+  it('a guest cannot pass as a member: a forged relayed or control payload is data from itself', () => {
+    const forged = decodeLobby(4, 'guest', encodeRelayed('123456789', payload));
+    expect(forged).toMatchObject({ kind: 'data', from: 'g4' });
+    const sys = decodeLobby(4, 'guest', encodeSys({ host: '1' }));
+    expect(sys?.kind).toBe('data');
+  });
+
+  it('reads the host a member seat names, and drops malformed control and empty payloads', () => {
+    expect(decodeLobby(1, 'member', encodeSys({ host: '55' }))).toEqual({ kind: 'sys', host: '55' });
+    expect(decodeLobby(1, 'member', new Uint8Array([2, 1, 2, 3]))).toBeNull();
+    expect(decodeLobby(1, 'member', new Uint8Array([1, 9, 1]))).toBeNull();
+    expect(decodeLobby(1, 'member', new Uint8Array([9, 9]))).toBeNull();
+    expect(decodeLobby(1, 'member', new Uint8Array(0))).toBeNull();
+  });
+
+  it('wraps a guest message for the other members of the room and unwraps only that', () => {
+    const w = wrapForRoom('g4', payload);
+    expect(unwrapFromRoom(w)).toMatchObject({ from: 'g4' });
+    expect(list(unwrapFromRoom(w)!.bytes)).toEqual([7, 8, 9]);
+    expect(unwrapFromRoom(new TextEncoder().encode('{"t":"state"}'))).toBeNull();
+    expect(unwrapFromRoom(new Uint8Array([0xff, 0x53, 0x52, 0x47, 9, 1]))).toBeNull();
   });
 });

@@ -5,10 +5,6 @@ export default {
   'guestPlay.page.title': 'Join the game',
   'guestPlay.page.intro':
     'You were invited to play in a browser. You only see the game: no chat, no members, no call.',
-  'guestPlay.nickname.label': 'Nickname (optional)',
-  'guestPlay.nickname.hint':
-    'Leave it empty to play as {callsign}. The host can turn a nickname down; you keep your callsign then.',
-  'guestPlay.nickname.invalid': 'Use up to 24 letters, digits, spaces, dots, dashes or underscores.',
   'guestPlay.join': 'Join the game',
   'guestPlay.joining': 'Joining…',
   'guestPlay.playing.as': 'Playing as {name}',

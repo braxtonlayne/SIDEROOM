@@ -38,7 +38,7 @@ function rig(declared: string[] = ['guest_play', 'lobby_channel', 'datachannel',
   const host = createGuestHost({
     applicationId: APP,
     declared,
-    self: { id: '10', callsign: 'Mellow Otter 42' },
+    self: () => ({ id: '10', callsign: 'Mellow Otter 42' }),
     roster: () => roster,
     lane,
     post: (f) => posted.push(f),
