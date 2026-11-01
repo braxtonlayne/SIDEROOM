@@ -9,7 +9,7 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
 
 - **Decision numbers.** D-386 was already taken (the wave-35b whole-server bridge proposal). The owner's six defaults are renumbered to the next free numbers with their content unchanged: owner D-386 → **D-387** (mid-call Activity launch without reload), D-387 → **D-388** (deterministic host migration), D-388 → **D-389** (Activities read scoped BYOS), D-389 → **D-390** (emulator ROMs and BIOS), D-390 → **D-391** (bridge held channels and the `discord-bridge` audit actor), D-391 → **D-392** (unactivated invite). The review added **D-393–D-398**. Section 0 below uses the new numbers.
 - **Migrations.** Blocks of 40 from 2000, one per wave: 41 → 2000–2039, 42 → 2040–2079, 43 → 2080–2119, 44 → 2120–2159, 45 → 2160–2199, 46 → 2200–2239, 47 → 2240–2279, 48 → 2280–2319. Inside a wave: worktree A takes the first ten, B the next ten, C the next ten, the integrator the last ten (41-A 2000–2009, 41-B 2010–2019, 41-C 2020–2029, integrator 2030–2039). The highest on the baseline is 1890.
-- **Downloads (approved by the owner 2026-10-31, D-398).** Waves 41–45 add no dependencies. Wave 48 adds `tauri` **2.12.5** (Apache-2.0 OR MIT), the matching `@tauri-apps/cli` 2.x and `tauri-plugin-global-shortcut` 2.x (same licence). Wave 47 adds `jolt-physics` **1.1.1** (MIT; the official WebAssembly build of Jolt Physics, replacing the earlier `@dimforge/rapier3d-compat` 0.21.0 at the owner's request, change 11). Any other new crate or package still needs the owner's yes before the wave starts.
+- **Downloads (approved by the owner 2026-10-31, D-398).** Waves 41–45 add no dependencies. Wave 48 adds `tauri` **2.12.5** (Apache-2.0 OR MIT), the matching `@tauri-apps/cli` 2.x and `tauri-plugin-global-shortcut` 2.x (same licence). Wave 46 adds `jolt-physics` **1.1.1** (MIT; the official WebAssembly build of Jolt Physics, replacing the earlier `@dimforge/rapier3d-compat` 0.21.0 at the owner's request, change 11). Any other new crate or package still needs the owner's yes before the wave starts.
 - **D-385 and Guest Links.** Wave 43's `/play/<token>` is the first page a person without a login can load beyond the entrance. It extends D-385 deliberately: only the isolated Arcade runner bundle, checked by `check-entrance-isolation.mjs` with a new surface. The guest relay it needs in `sr-voice`/`sr-gateway` is why it is its own wave.
 
 ### Changes after review (2026-10-31)
@@ -25,7 +25,8 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
 8. **46 (Tauri)**: `Esc` cannot be overridden (re-acquire on click); the install-folder check is a hint; "Minecraft" stays out of SIDE ROOM product names.
 9. Wave numbers, migration ranges, route-matrix actors and gate proofs updated to match.
 10. **Reorder (owner, 2026-11-01): the Tauri desktop shell goes last.** Old 47 (Sketch & Slander) is now **46**, old 48 (WebGPU starter + `Land.io`) is now **47**, old 46 (Tauri desktop shell + launcher) is now **48**. Migration blocks follow the new numbers (46 → 2200–2239, 47 → 2240–2279, 48 → 2280–2319) and the approved downloads move with their work (the physics engine in 47, `tauri` in 48). Items 4 and 8 above keep the numbers they had at review.
-11. **Physics engine: Jolt (owner, 2026-11-01).** Wave 47 uses [Jolt Physics](https://github.com/jrouwe/JoltPhysics) through its official WebAssembly build, `jolt-physics` 1.1.1 (MIT), instead of `@dimforge/rapier3d-compat`. Use the single-threaded `wasm-compat` flavour: the multithreaded flavours need `SharedArrayBuffer` and cross-origin isolation, which the sandboxed Activity iframe does not have. The npm build is compiled without Jolt's `CROSS_PLATFORM_DETERMINISTIC` option, so the wave 47 gate proof (two clients, same inputs, same physics state hash) is what proves determinism across Chromium, Firefox and WebKit; if it fails, the agent stops and reports rather than switching engines (the fix would be a self-built Jolt WASM with that option, which needs the Emscripten toolchain and the owner's yes).
+11. **Physics engine: Jolt (owner, 2026-11-01).** Wave 46 (was 47 when this was written) uses [Jolt Physics](https://github.com/jrouwe/JoltPhysics) through its official WebAssembly build, `jolt-physics` 1.1.1 (MIT), instead of `@dimforge/rapier3d-compat`. Use the single-threaded `wasm-compat` flavour: the multithreaded flavours need `SharedArrayBuffer` and cross-origin isolation, which the sandboxed Activity iframe does not have. The npm build is compiled without Jolt's `CROSS_PLATFORM_DETERMINISTIC` option, so the wave 46 gate proof (two clients, same inputs, same physics state hash) is what proves determinism across Chromium, Firefox and WebKit; if it fails, the agent stops and reports rather than switching engines (the fix would be a self-built Jolt WASM with that option, which needs the Emscripten toolchain and the owner's yes).
+12. **3D starter first (owner, 2026-11-01).** The WebGPU 3D starter and the `Land.io` polish move up to **46**, built by an outside agent from the self-contained brief `docs/dev/handoff/wave46-external-brief.md`; Sketch & Slander is **47**; the Tauri shell stays **48**. The starter lives at `packages/starter-packs/activities/arena3d` next to the other built-in Activities instead of `packages/activity-starter-webgpu-3d`. Migration blocks follow the numbers (46 → 2200–2239, 47 → 2240–2279); wave 46 needs none, because it touches only the two game folders.
 
 ## 0. Global Invariants & Rules for All Agents (READ FIRST)
 1. **Do NOT break the Immutable Rule (`P28-OPS-1`):** Mandatory MLS E2EE on `sr-voice`, the cross-tenant authorization matrix (`route_matrix.tsv`), and the hash-chained staff audit/access logs must remain green across all feature-switch permutations. Every new route added in Waves 41–48 **must** have a corresponding row in `route_matrix.tsv` and pass the 10-actor read/write matrix.
@@ -43,7 +44,7 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
    - **D-395:** Moderation is a graduated toolset. The one branch-wide action is **Operator-only**, needs a second staff approver and a 2FA step-up, carries appeal and a 12-month expiry, and its public notice is anonymised (category and counts only).
    - **D-396:** **Receipt Roulette ("Who Said This?") is cut.** No game uses members' real messages or the Scrapbook. The party suite ships Sketch & Slander only.
    - **D-397:** **Guests see and hear only what their own game session produces**: state, scoreboard, and (later) optional in-game voice scoped to that `lobby_token`. Nothing from the server, channel or call: no messages, member lists, profiles, shelves, or the voice channel's MLS audio. In-game voice is a later capability with its own design; wave 43 must leave room for it. Every guest-facing game follows this (extends `P28-ARC-1`).
-   - **D-398:** Downloads approved: `tauri` 2.12.5 (wave 48) and `jolt-physics` 1.1.1 (wave 47; replaces `@dimforge/rapier3d-compat`, change 11), as listed in the commander notes.
+   - **D-398:** Downloads approved: `tauri` 2.12.5 (wave 48) and `jolt-physics` 1.1.1 (wave 46; replaces `@dimforge/rapier3d-compat`, change 11), as listed in the commander notes.
    - **D-399:** **Developer freedom by default.** The Arcade/Activity SDK lets game and app developers build most things (in-game voice and video, custom networking patterns, persistent saves to their own BYOS, leaderboards, mod loading, and so on) through **capability flags declared in the manifest and enforced by the platform**. The only limits are the security rules: the Immutable Rule, guests isolated to their game session (D-397), D-385, and no access to server data a member has not granted.
 5. **Build capabilities, not features (D-399):** every new surface in these waves is designed as a general capability with a reserved manifest flag, not a single-purpose feature, so new kinds of games need no platform rework. Where a wave builds something narrow, its text names the general capability it should expose, and the manifest validator reserves the flag even if the capability ships later.
 
@@ -134,7 +135,7 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
 ### Worktree 43-B: Link Generation & Guest Runner (`web`)
 - **Capability Link Generation:** Any member inside an active Arcade lobby can generate a `noindex` shareable link (`/play/<lobby_token>#key=<ephemeral_game_key>`). Mobile QR rendering so phones can act as controllers or drawing pads.
 - **Strict Guest Isolation (Extending `D-385`):** Unauthenticated guests opening `/play/<token>` load **only** the minimal isolated Arcade runner bundle, checked by `check-entrance-isolation.mjs` with a new `guest-play` surface. Guests are assigned a randomized callsign (or lobby-approved nickname).
-- **Guest-Link Security Rule (`P28-ARC-1`, extended by D-397):** A guest **sees and hears only what their own game session produces**: state, scoreboard, and (once the capability exists) in-game voice scoped to that `lobby_token`. Nothing from the server, channel or call: never the voice channel's MLS audio/video keys, hearing or speaking in VC, messages of any kind, member lists, `/~handle` profiles, shelves, lobby lists or other lobbies. The Activity SDK bridge exposes a reduced `guest` capability set that lacks these calls, so a game cannot leak them even if it tries. Every guest-facing game (Sketch & Slander in 46, `Land.io` in 47) is built against this reduced set and tested for it.
+- **Guest-Link Security Rule (`P28-ARC-1`, extended by D-397):** A guest **sees and hears only what their own game session produces**: state, scoreboard, and (once the capability exists) in-game voice scoped to that `lobby_token`. Nothing from the server, channel or call: never the voice channel's MLS audio/video keys, hearing or speaking in VC, messages of any kind, member lists, `/~handle` profiles, shelves, lobby lists or other lobbies. The Activity SDK bridge exposes a reduced `guest` capability set that lacks these calls, so a game cannot leak them even if it tries. Every guest-facing game (`Land.io` in 46, Sketch & Slander in 47) is built against this reduced set and tested for it.
 - **General capability (D-399):** the guest link is the `guest_play` manifest capability; the lobby sub-room is the `lobby_channel` capability (data now, media later via `ingame_voice`). Both are flags a developer declares, not features wired to one game.
 
 **Wave 43 Gate Proof:** Playwright E2E test launches `Land.io` inside a voice call, opens the generated `/play/<token>` link in an incognito browser context, verifies bidirectional gameplay sync between the member and the guest, proves the guest receives `403/Drop` on the MLS voice stream, REST chat, member, profile and shelf routes **at the relay** (a guest socket that forges a second subscription is dropped before the SDK sees it), that a manifest declaring `ingame_voice` validates but is refused by the runner, and that the guest bundle contains no non-Arcade module (isolation check).
@@ -187,28 +188,28 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
 
 ---
 
-## Wave 46: Arcade Launch Suite — "Sketch & Slander" Party Game
+## Wave 46: WebGPU 3D Arena Starter & `Land.io` Roguelike Polish
+**Goal:** Finish `Land.io` for guests and ship a reusable WebGPU 3D multiplayer starter template for the flagship.
+
+### Worktree 46-A: `Land.io` Roguelike Polish (`web`)
+- Finalize `Land.io` roguelike card-drafting mode with full `/play/<token>` guest link support under D-397, bot backfilling (`Lumen bot`, `Tofu bot`), and deterministic host migration (D-388).
+
+### Worktree 46-B: WebGPU 3D Arena Starter (`packages/starter-packs/activities/arena3d`)
+- Create a turn-key 3D multiplayer starter pack: WebGPU + Jolt Physics (`jolt-physics` 1.1.1, `wasm-compat` flavour, lazy-loaded) + client-side prediction + S3 `.glb`/`.ktx2` streaming (per-object URLs) + E2EE spatial voice coordinate hooks, ready for building the flagship low-poly FPS / Magnum Opus. Ships with the 45-A deterministic tick recorder wired in and a manifest that declares `lobby_channel`, `guest_play` and `byos_read`, with `ingame_voice` and `byos_write` shown commented out, so it doubles as the reference for D-399.
+
+**Wave 46 Gate Proof:** The starter builds and runs a two-client deterministic replay in CI (same inputs, same physics state hash); `Land.io` guest E2E from wave 43 passes unchanged against the finished build.
+
+---
+
+## Wave 47: Arcade Launch Suite — "Sketch & Slander" Party Game
 **Goal:** Ship the first post-pivot social party game, playable from the voice channel and from phones through wave 43 guest links.
 
-### Worktree 46-A: "Sketch & Slander" (`web`, `sr-server`)
+### Worktree 47-A: "Sketch & Slander" (`web`, `sr-server`)
 - Drawing and prompt-guessing game on the main VC canvas with phones as drawing pads via **QR Code `/play/<token>` Guest Links**. Custom, unhinged Guild Prompt Packs are loaded from the Guild's BYOS bucket through the 41-C per-object URLs (D-389).
 - **No member data in the game (D-396):** prompts come from packs and the built-in set only. The game never reads chat history, the Scrapbook or profiles. Receipt Roulette is cut and is not to be rebuilt under another name.
 - **Guests (D-397):** guests draw, guess and see the scoreboard. They see no member handles beyond lobby nicknames, no messages, no guild name beyond the lobby title the host chose. Built against the reduced `guest` SDK capability set of 43-B.
 
-**Wave 46 Gate Proof:** Playwright runs a round with one member and one guest phone context; the guest's bundle and network trace contain no chat, member, profile or shelf route; the prompt pack loads only through a presigned per-object URL.
-
----
-
-## Wave 47: WebGPU 3D Arena Starter & `Land.io` Roguelike Polish
-**Goal:** Finish `Land.io` for guests and ship a reusable WebGPU 3D multiplayer starter template for the flagship.
-
-### Worktree 47-A: `Land.io` Roguelike Polish (`web`)
-- Finalize `Land.io` roguelike card-drafting mode with full `/play/<token>` guest link support under D-397, bot backfilling (`Lumen bot`, `Tofu bot`), and deterministic host migration (D-388).
-
-### Worktree 47-B: WebGPU 3D Arena Starter (`packages/activity-starter-webgpu-3d`)
-- Create a turn-key 3D multiplayer starter pack: WebGPU + Jolt Physics (`jolt-physics` 1.1.1, `wasm-compat` flavour, lazy-loaded) + client-side prediction + S3 `.glb`/`.ktx2` streaming (per-object URLs) + E2EE spatial voice coordinate hooks, ready for building the flagship low-poly FPS / Magnum Opus. Ships with the 45-A deterministic tick recorder wired in and a manifest that declares `lobby_channel`, `guest_play` and `byos_read`, with `ingame_voice` and `byos_write` shown commented out, so it doubles as the reference for D-399.
-
-**Wave 47 Gate Proof:** The starter builds and runs a two-client deterministic replay in CI (same inputs, same physics state hash); `Land.io` guest E2E from wave 43 passes unchanged against the finished build.
+**Wave 47 Gate Proof:** Playwright runs a round with one member and one guest phone context; the guest's bundle and network trace contain no chat, member, profile or shelf route; the prompt pack loads only through a presigned per-object URL.
 
 ---
 
