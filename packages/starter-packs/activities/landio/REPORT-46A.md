@@ -50,7 +50,11 @@ All commands were run from the repo root unless noted.
 
 - `npm_config_manage_package_manager_versions=false npx pnpm@10.12.1 --filter @sideroom/activity-landio test`
   - The run after the Draft Night commit was fully green: 37 files, 317 passed, 1 skipped.
-  - The last full run gave 38 files, 325 passed, 1 skipped and **1 failed**: `test/modes/draft.test.js > timing: tick stays cheap at 200x200 with 30 bots` (draft 2.04 ms against classic 0.61 ms per tick).
+  - The final full run gave 38 files, 324 passed, 1 skipped and **2 failed**, both timing tests:
+    - `test/modes/draft.test.js > timing: tick stays cheap…` (draft 1.57 ms against classic 0.53 ms per tick)
+    - `test/modes/shrink.test.js > timing: the mode costs under 0.3 ms…` (0.75 ms extra). I did not touch Shrink beyond adding `minHeads`.
+
+    The run before it failed only the draft one.
 - **That timing failure is environmental, not a regression:**
   1. The unmodified base commit `1734666e`, extracted to a scratch folder and run with the same Vitest, fails the same test (draft 2.15 against 0.72 ms) and the `shrink` timing test (0.51 ms extra), under the same machine load. Another agent was running at the same time.
   2. Outside Vitest, the same measurement gives classic 0.25 ms and draft 0.26–0.29 ms per tick.
