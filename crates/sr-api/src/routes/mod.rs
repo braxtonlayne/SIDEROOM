@@ -75,6 +75,7 @@ pub mod userfeat;
 pub mod userset;
 pub mod voice;
 pub mod voice_live;
+pub mod vouch;
 pub mod watchparty;
 
 /// Extractor for a service registered on [`AppState`]. A missing service is a
@@ -141,6 +142,7 @@ pub fn all() -> Router<AppState> {
         .merge(activities::router())
         .merge(arcade::router())
         .merge(packages::router())
+        .merge(vouch::router())
         .merge(developer::router())
         .merge(directory::router())
         .merge(donations::router())
@@ -190,6 +192,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(activities::openapi());
     doc.merge(arcade::openapi());
     doc.merge(packages::openapi());
+    doc.merge(vouch::openapi());
     doc.merge(developer::openapi());
     doc.merge(donations::openapi());
     doc.merge(userset::openapi());

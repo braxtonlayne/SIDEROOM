@@ -1291,6 +1291,14 @@ impl sr_moderation::SubjectNotifier for StaffVoice {
     }
 }
 
+/// The private notice a voucher reads when a member they vouched for gets a serious ban (MOD-VCH-001).
+#[async_trait]
+impl sr_vouch::VouchNotifier for StaffVoice {
+    async fn notify(&self, to: i64, text: &str) -> bool {
+        StaffNotifier::system_dm(self, to, text).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

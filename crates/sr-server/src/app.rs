@@ -601,6 +601,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         member_joiner.clone(),
         std::time::Duration::from_secs(60),
     ));
+    // MOD-VCH-001: profile vouches; the accountability multiplier scales AutoMod timeouts (wave 44-B).
+    let vouches = sr_vouch::Vouches::new(pool.clone());
     let settings_deps = Arc::new(
         SettingsDeps::new(
             Arc::new(PgSettingsRepo::new(pool.clone())),
@@ -615,9 +617,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_events(Arc::new(BusSettingsEvents::new(bus.clone())))
         .with_joiner(member_joiner.clone())
         .with_presence(gateway_presence.clone())
-        .with_timeouter(Arc::new(routes::settings::AdminMemberTimeouter::new(
-            Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
-            bus.clone(),
+        .with_timeouter(Arc::new(routes::vouch::WeightedMemberTimeouter::new(
+            Arc::new(routes::settings::AdminMemberTimeouter::new(
+                Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
+                bus.clone(),
+            )),
+            Arc::new(vouches.clone()),
         )))
         .with_audit_observer(routes::settings::audit::bus_audit_observer(bus.clone())),
     );
@@ -963,6 +968,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             .with_events(Arc::new(routes::packages::BusPackageEvents::new(
                 bus.clone(),
             ))),
+    });
+    let vouch_deps = Arc::new(routes::vouch::VouchDeps {
+        vouches: vouches.clone(),
+        packages: packages_deps.service.clone(),
     });
 
     // J-16: participants follow the voice call (a leave from the channel removes them from the Activity).
@@ -1687,6 +1696,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(activities_deps.clone())
         .extension(arcade_deps)
         .extension(packages_deps.clone())
+        .extension(vouch_deps)
         .extension(user_feature_deps)
         .extension(tool_room_deps)
         .extension(fx_deps)

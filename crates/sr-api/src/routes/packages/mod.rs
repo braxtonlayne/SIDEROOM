@@ -18,6 +18,8 @@ mod appearance;
 mod handlers;
 mod profiles;
 
+pub(crate) use profiles::public_possible;
+
 use crate::{routes::messages::error::MsgError, state::AppState};
 use axum::{
     Router,
