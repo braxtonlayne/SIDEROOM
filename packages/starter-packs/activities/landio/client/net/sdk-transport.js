@@ -10,7 +10,13 @@
 // The page above (main.js) cannot tell the difference: replies have the shape of http-poll's `PollReply`.
 
 import { LandioHost } from '../../host/engine.js';
+import { resumeEngine, snapshotEngine, successorFromSnapshot } from '../../host/handoff.js';
 import { TICK_KEY } from './channel.js';
+
+/** The key under which the host publishes its handoff snapshot (host/handoff.js), when snapshots are on. */
+export const SNAP_KEY = 'snap';
+/** With handoff on, a guest whose host left waits this long for the platform to name a new host before giving up. */
+export const HANDOFF_GRACE_MS = 5000;
 
 /** @typedef {import('./transport.js').Transport} Transport */
 /** @typedef {import('./transport.js').PollReply} PollReply */
@@ -56,8 +62,11 @@ export function frameToReply(f, uid, you) {
 }
 
 /**
- * @param {{ channel: Channel, now?: () => number, engine?: Partial<import('../../host/engine.js').EngineOptions> }} opt
- * @returns {Transport & { engine: LandioHost | null }}
+ * @param {{ channel: Channel, now?: () => number, engine?: Partial<import('../../host/engine.js').EngineOptions>,
+ *   snapshotEveryTicks?: number }} opt
+ *   snapshotEveryTicks: the host publishes a handoff snapshot this often (0, the default, = never: the platform cannot
+ *   move the host role yet, so the bytes would buy nothing; see host/handoff.js)
+ * @returns {Transport & { engine: LandioHost | null, handoff: import('../../host/handoff.js').HostHandoff }}
  */
 export function createSdkTransport(opt) {
   const ch = opt.channel;
@@ -89,6 +98,40 @@ export function createSdkTransport(opt) {
   /** The welcome (or error) a pending join waits for. @type {((m: any) => void) | null} */
   let helloWaiter = null;
   let wired = false;
+  /** The newest handoff snapshot heard from the host. @type {import('../../host/handoff.js').HandoffSnapshot | null} */
+  let lastSnap = null;
+  const snapEvery = Math.max(0, opt.snapshotEveryTicks ?? 0);
+  let sinceSnap = 0;
+  /** My name, from the join, for a hello after a handoff. */
+  let myName = self.name;
+  /** A pending "the host left" while a handoff may still come. @type {ReturnType<typeof setTimeout> | null} */
+  let hostGone = null;
+
+  /** Run `eng` in this page: members reach it through the channel; this page talks to it directly. @param {LandioHost} eng */
+  function wireHost(eng) {
+    unsubs.push(ch.onInput((from, msg) => eng.handle(from, ch.members().find((m) => m.id === from)?.name ?? '', msg)));
+    unsubs.push(ch.onMembers((list) => eng.setMembers(list)));
+    eng.setMembers(ch.members());
+    eng.start();
+  }
+
+  /** The engine's options in this page (the same for a launch and a handoff). */
+  function engineOptions() {
+    return {
+      instance: opt.engine?.instance ?? ch.hostId,
+      hostId: self.id,
+      now: clock,
+      send: (/** @type {string} */ to, /** @type {Record<string, unknown>} */ msg) => (to === self.id ? queueMicrotask(() => fromHost(msg)) : ch.sendTo(to, msg)),
+      publish: (/** @type {Record<string, unknown>} */ frame) => {
+        ch.publish(TICK_KEY, frame);
+        onFrame(frame, 0);
+        if (snapEvery && engine && ++sinceSnap >= snapEvery) {
+          sinceSnap = 0;
+          ch.publish(SNAP_KEY, snapshotEngine(engine));
+        }
+      },
+    };
+  }
 
   /** @param {object} msg a message from this page to the host */
   function toHost(msg) {
@@ -173,39 +216,35 @@ export function createSdkTransport(opt) {
 
     async join(who) {
       const sent = clock();
+      myName = who.name;
       if (wired) {
         // A rejoin (the host dropped our seat): the same wiring, a new hello.
       } else if (ch.isHost) {
         wired = true;
         // The game runs here. Members reach it through the channel; this page talks to it directly.
-        engine = new LandioHost({
-          instance: opt.engine?.instance ?? ch.hostId,
-          hostId: self.id,
-          now: clock,
-          send: (to, msg) => (to === self.id ? queueMicrotask(() => fromHost(msg)) : ch.sendTo(to, msg)),
-          publish: (frame) => {
-            ch.publish(TICK_KEY, frame);
-            onFrame(frame, 0);
-          },
-          ...opt.engine,
-        });
-        const eng = engine;
-        unsubs.push(ch.onInput((from, msg) => eng.handle(from, ch.members().find((m) => m.id === from)?.name ?? '', msg)));
-        unsubs.push(ch.onMembers((list) => eng.setMembers(list)));
-        eng.setMembers(ch.members());
-        eng.start();
+        engine = new LandioHost({ ...engineOptions(), ...opt.engine });
+        wireHost(engine);
       } else {
         wired = true;
         unsubs.push(ch.onReply(fromHost));
         unsubs.push(
           ch.onState((key, value) => {
             if (key === TICK_KEY) onFrame(value, JSON.stringify(value).length);
+            else if (key === SNAP_KEY && value && typeof value === 'object') lastSnap = value;
           }),
         );
-        // The host going away ends the game: there is nobody left to run it.
+        // The host going away ends the game: there is nobody left to run it. With handoff snapshots, the platform
+        // may name a new host (hostChanged below): wait a little for it first.
         unsubs.push(
           ch.onMembers((list) => {
-            if (!list.some((m) => m.id === ch.hostId) && running && onReply) onReply(/** @type {any} */ ({ ok: false, error: 'host-left' }), clock());
+            if (list.some((m) => m.id === ch.hostId) || !running || !onReply || hostGone) return;
+            const end = () => {
+              hostGone = null;
+              if (engine || list.some((m) => m.id === ch.hostId)) return;
+              onReply?.(/** @type {any} */ ({ ok: false, error: 'host-left' }), clock());
+            };
+            if (snapEvery && lastSnap) hostGone = setTimeout(end, HANDOFF_GRACE_MS);
+            else end();
           }),
         );
       }
@@ -265,6 +304,8 @@ export function createSdkTransport(opt) {
 
     async leave() {
       this.stop();
+      if (hostGone) clearTimeout(hostGone);
+      hostGone = null;
       if (!engine) toHost({ t: 'bye' });
       for (const u of unsubs.splice(0)) u();
       wired = false;
@@ -276,5 +317,34 @@ export function createSdkTransport(opt) {
     },
 
     stats: () => ({ bytesIn, polls: frames, rttMs: Math.round(rtt), inFlight: 0 }),
+
+    /** Host migration (D-388): what the platform calls when it moves the host role. See host/handoff.js. */
+    handoff: {
+      snapshot: () => (engine ? snapshotEngine(engine) : lastSnap),
+      successor: (members) => successorFromSnapshot(engine ? snapshotEngine(engine) : lastSnap, members),
+      async hostChanged(newHostId, leftId) {
+        if (hostGone) clearTimeout(hostGone);
+        hostGone = null;
+        if (newHostId !== self.id) {
+          if (engine) return { ok: false, role: 'host', error: 'still-host' };
+          // Say hello to the new host: it resumed from the snapshot and gives this page its seat back. A hello
+          // counts inputs from 1 again (host/arena.js join), so this page does too.
+          seq = 0;
+          recent.length = 0;
+          toHost({ t: 'hello', name: myName });
+          return { ok: true, role: 'guest' };
+        }
+        if (engine) return { ok: true, role: 'host' };
+        if (!lastSnap) return { ok: false, role: 'guest', error: 'no-snapshot' };
+        // This page hosts now: the guest wiring goes, the engine resumes from the newest snapshot.
+        for (const u of unsubs.splice(0)) u();
+        engine = resumeEngine(lastSnap, { ...engineOptions(), ...opt.engine, hostId: self.id, leaving: leftId });
+        wireHost(engine);
+        seq = 0;
+        recent.length = 0;
+        engine.handle(self.id, myName, { t: 'hello' });
+        return { ok: true, role: 'host' };
+      },
+    },
   };
 }
