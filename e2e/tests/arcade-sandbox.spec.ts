@@ -130,13 +130,14 @@ test.describe('Arcade sandbox (real browser)', () => {
       expect((await trustOf()).headline).toBe('swarm_safety_signed');
 
       // 5. The Owner vouches, pinned to the hash. Vouching needs an account at least 3 days old (D-405) and CI
-      // creates the owner minutes earlier, so age it first.
+      // creates the owner minutes earlier, so age it first. (The `owner` fixture carries no id; ask the server.)
+      const me = (await (await staff.get('/api/v1/users/@me')).json()) as { id: string };
       execFileSync('psql', [
         DATABASE_URL,
         '-X',
         '-q',
         '-c',
-        `UPDATE accounts SET created_at = now() - interval '30 days' WHERE id = ${BigInt(owner.id)}`,
+        `UPDATE accounts SET created_at = now() - interval '30 days' WHERE id = ${BigInt(me.id)}`,
       ]);
       const vouched = await apiPut<Trust>(staff, `/activities/${appId}/vouch`, {
         code_sha256: hash,
