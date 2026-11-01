@@ -269,6 +269,10 @@ impl Moderation {
             nodes += 1;
             match status {
                 "auto_frozen" => {
+                    // The automatic freeze is an automated penalty: its strike weight carries the accountability
+                    // multiplier (MOD-VCH-001, D-427). Its length is not scaled: the 30 days end in the account's
+                    // removal, so a longer freeze would be the lighter outcome, not the heavier one.
+                    let weight = self.strike_weight_multiplier(id).await;
                     insert_restriction(
                         conn,
                         self.next_id(),
@@ -278,7 +282,7 @@ impl Moderation {
                         Some(case_id),
                         SYSTEM_ACTOR,
                         None,
-                        1.0,
+                        weight,
                         Span::days(gr::FROZEN_REMOVAL_DAYS),
                         true,
                     )
@@ -1117,6 +1121,8 @@ impl Moderation {
                 .bind(c.user_id)
                 .execute(&mut *tx)
                 .await?;
+                // Strike weight as for a per-node freeze (the multiplier, D-427); the 12-month length is D-395's.
+                let weight = self.strike_weight_multiplier(*account).await;
                 insert_restriction(
                     &mut tx,
                     self.next_id(),
@@ -1126,7 +1132,7 @@ impl Moderation {
                     Some(req.case_id),
                     c.user_id,
                     Some(approver),
-                    1.0,
+                    weight,
                     Span::months(gr::LONG_RESTRICTION_MONTHS),
                     false,
                 )

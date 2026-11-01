@@ -1198,3 +1198,49 @@ async fn drill_runs_the_pipeline_and_rolls_everything_back() {
     assert_eq!(before, after);
     assert_eq!(log_count(pool, "moderation.drill").await, 1);
 }
+
+/// Integrator (wave 44, MOD-VCH-001 x MOD-GRD-001): the automatic freeze of an unactivated descendant is an
+/// automated penalty, so its strike weight carries the accountability multiplier (D-427). Its 30-day length is not
+/// scaled: the freeze ends in the account's removal, so a longer one would be the lighter outcome.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_automatic_case_freeze_weighs_by_the_multiplier() {
+    struct Pillar;
+    #[async_trait]
+    impl StrikeWeight for Pillar {
+        async fn strike_weight_multiplier(&self, _account: i64) -> f32 {
+            1.5
+        }
+    }
+    let w = world().await;
+    let pool = w.pool();
+    let m = w.m.clone().with_strike_weight(Arc::new(Pillar));
+    let repo = sr_db::admin_repo::PgAdminRepo::new(pool.clone(), Arc::new(uid));
+    let admin = AdminService::new(Arc::new(repo));
+    admin.subscribe_serious_ban(Arc::new(m.clone()));
+    let t = tree(&w).await;
+    let mod_acct = acct(pool, "moderator", 100).await;
+    let op = staff(mod_acct.account, P::PLATFORM_BAN | P::MANAGE_CASES);
+    admin
+        .ban_person_with_reason(
+            &op,
+            t.g3.person,
+            Some(t.g3.account),
+            BanCategory::Serious,
+            Some("fraud"),
+            Some("chargeback ring"),
+        )
+        .await
+        .unwrap();
+    for frozen in [t.g4_idle, t.g5] {
+        let (weight, days): (f32, i32) = sqlx::query_as(
+            "SELECT weight, round(extract(epoch FROM ends_at - starts_at) / 86400)::int FROM member_restrictions \
+             WHERE account_id = $1 AND kind = 'case_freeze'",
+        )
+        .bind(frozen.account)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        assert_eq!((weight, days), (1.5, 30));
+    }
+}
