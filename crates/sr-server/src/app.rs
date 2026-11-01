@@ -1484,6 +1484,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         )));
     // Serious bans that push an inviter over a threshold open a case for senior staff (MOD-SUS-002).
     admin_service.set_suspicion_observer(Arc::new(moderation.clone()));
+    // A serious ban opens a subtree case (MOD-GRD-001); the notice refreshes every client's banners.
+    let moderation = moderation.with_notice_sink(Arc::new(crate::graduated_mod::AdminNoticeSink(
+        admin_service.clone(),
+    )));
+    admin_service.subscribe_serious_ban(Arc::new(moderation.clone()));
     let moderation_deps = Arc::new(
         routes::moderation::ModerationDeps::new(moderation.clone()).with_features(features.clone()),
     );
@@ -1632,6 +1637,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(auth_service)
         .extension(Arc::new(admin))
         .extension(moderation_deps)
+        .extension(crate::graduated_mod::gate(pool.clone()))
         .sessions(Arc::new(auth_repo))
         .bots(apps_auth.clone())
         .bearers(apps_auth)
@@ -1821,6 +1827,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::search_jobs::register(runner, &pool, indexer);
     let runner = crate::fx_jobs::register(runner, &pool, fx_fetcher);
     let runner = crate::invites_jobs::register(runner, &pool);
+    let runner = crate::graduated_mod::register(runner, moderation.clone());
     let runner = crate::admin_jobs::register(runner, &pool, id_src.clone(), bus.clone());
     let runner =
         crate::admin_jobs::register_storage_measure(runner, &pool, id_src.clone(), storage.clone());
@@ -1931,6 +1938,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::payments_jobs::schedule(&pool).await?;
     crate::fx_jobs::schedule(&pool).await?;
     crate::invites_jobs::schedule(&pool).await?;
+    crate::graduated_mod::schedule(&pool).await?;
     let jobs_task = tokio::spawn(runner.run(job_rx));
 
     // REST: every feature module, feature-owned routes, and the guild backend.

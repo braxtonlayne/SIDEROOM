@@ -203,6 +203,13 @@ impl AdminService {
         }
     }
 
+    /// MOD-GRD-001: tell every session that the banner list changed because the moderation engine published an
+    /// anonymised notice (clients re-read `GET /announcements/active`).
+    pub async fn banners_changed(&self) {
+        self.broadcast("SR_ANNOUNCEMENT_UPDATE", json!({ "change": "notice" }))
+            .await;
+    }
+
     pub(crate) fn entry(
         &self,
         c: &Caller,

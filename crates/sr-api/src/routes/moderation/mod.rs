@@ -15,6 +15,7 @@
 mod age;
 mod cases;
 mod dashboard;
+mod graduated;
 mod holds;
 mod reports;
 mod suspicion;
@@ -336,6 +337,93 @@ pub fn router() -> Router<AppState> {
             "/moderation/appeals/{appeal_id}/decision",
             post(holds::decide_appeal),
         )
+        // MOD-GRD-001: the graduated toolset (D-395).
+        .route("/moderation/transparency", get(graduated::transparency))
+        .route(
+            "/sr/moderation/restrictions",
+            get(graduated::my_restrictions),
+        )
+        .route(
+            "/sr/moderation/restrictions/{restriction_id}/appeal",
+            post(graduated::appeal_restriction),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/warn",
+            post(graduated::warn),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/timeout",
+            post(graduated::timeout),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/invite-freeze",
+            post(graduated::invite_freeze),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/revoke-invites",
+            post(graduated::revoke_invites),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/ban",
+            post(graduated::ban),
+        )
+        .route(
+            "/admin/moderation/members/{account_id}/actions",
+            get(graduated::member_actions),
+        )
+        .route(
+            "/admin/moderation/restrictions/{restriction_id}/lift",
+            post(graduated::lift),
+        )
+        .route(
+            "/admin/moderation/restriction-appeals",
+            get(graduated::restriction_appeals),
+        )
+        .route(
+            "/admin/moderation/restrictions/{restriction_id}/appeal-decision",
+            post(graduated::decide_restriction_appeal),
+        )
+        .route(
+            "/admin/moderation/subtree-cases",
+            get(graduated::list_cases),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}",
+            get(graduated::get_case),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}/close",
+            post(graduated::close_case),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/clear",
+            post(graduated::clear_node),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/freeze",
+            post(graduated::freeze_node),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban",
+            post(graduated::ban_node),
+        )
+        .route(
+            "/admin/moderation/subtree-cases/{case_id}/requests",
+            post(graduated::new_request),
+        )
+        .route("/admin/moderation/requests", get(graduated::list_requests))
+        .route(
+            "/admin/moderation/requests/{request_id}/approve",
+            post(graduated::approve_request),
+        )
+        .route(
+            "/admin/moderation/requests/{request_id}/reject",
+            post(graduated::reject_request),
+        )
+        .route(
+            "/admin/moderation/branch-action",
+            post(graduated::branch_action),
+        )
 }
 
 /// OpenAPI fragment for the moderation endpoints.
@@ -393,6 +481,29 @@ pub fn router() -> Router<AppState> {
         suspicion::review,
         suspicion::link_case,
         suspicion::count,
+        graduated::transparency,
+        graduated::my_restrictions,
+        graduated::appeal_restriction,
+        graduated::warn,
+        graduated::timeout,
+        graduated::invite_freeze,
+        graduated::revoke_invites,
+        graduated::ban,
+        graduated::member_actions,
+        graduated::lift,
+        graduated::restriction_appeals,
+        graduated::decide_restriction_appeal,
+        graduated::list_cases,
+        graduated::get_case,
+        graduated::close_case,
+        graduated::clear_node,
+        graduated::freeze_node,
+        graduated::ban_node,
+        graduated::new_request,
+        graduated::list_requests,
+        graduated::approve_request,
+        graduated::reject_request,
+        graduated::branch_action,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
@@ -489,6 +600,28 @@ pub fn router() -> Router<AppState> {
         sr_moderation::model::ScanOutcome,
         sr_moderation::model::SignalKind,
         sr_moderation::model::SignalState,
+        graduated::MemberReasonBody,
+        graduated::MemberTimeoutBody,
+        graduated::MemberInviteFreezeBody,
+        graduated::MemberBanBody,
+        graduated::RestrictionAppealBody,
+        graduated::RestrictionAppealDecisionBody,
+        graduated::NodeBanBody,
+        graduated::SubtreeRequestBody,
+        graduated::BranchActionBody,
+        sr_moderation::graduated_model::RestrictionView,
+        sr_moderation::graduated_model::MyRestriction,
+        sr_moderation::graduated_model::RevokedInvites,
+        sr_moderation::graduated_model::SubtreeCaseSummary,
+        sr_moderation::graduated_model::SubtreeNode,
+        sr_moderation::graduated_model::SubtreeCaseDetail,
+        sr_moderation::graduated_model::ModRequest,
+        sr_moderation::graduated_model::BranchOutcome,
+        sr_moderation::graduated_model::NoticeView,
+        sr_moderation::graduated_model::TransparencyMonth,
+        sr_moderation::graduated_model::CategoryCount,
+        sr_moderation::graduated_model::Transparency,
+        sr_moderation::graduated_model::DrillReport,
         Delivered,
         ErrorBody,
     ))

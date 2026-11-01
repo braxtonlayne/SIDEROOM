@@ -28,6 +28,7 @@ pub mod healthcheck;
 pub mod inbox_pg;
 pub mod instance_mount;
 pub mod integration_policy;
+pub mod graduated_mod;
 pub mod invites_jobs;
 pub mod jobs;
 pub mod jukebox;
