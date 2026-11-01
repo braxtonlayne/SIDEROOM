@@ -7,6 +7,7 @@ import { LoopbackHub, SideRoomSDK, MAX_DATA_BYTES } from '../../../../embedded-a
 import { channelFromSdk } from '../client/net/sdk-channel.js';
 import { createSdkTransport } from '../client/net/sdk-transport.js';
 import { World } from '../client/world.js';
+import { GUEST_COMMANDS, GUEST_EVENTS, createSideRoomPlatform } from '../client/platform/sideroom-platform.js';
 
 const TICK_MS = 1000 / 7;
 const flush = async () => {
@@ -142,4 +143,113 @@ test('over the SDK: members leaving the call free their seat; the host leaving e
   await flush();
   assert.ok(g2.replies.some((r) => r.error === 'host-left'));
   await s.host.t.leave();
+});
+
+// ---- Guests on a /play/<token> link (ARC-GST-002, D-397; ACT-LND-002) -----------------------------------------
+
+/**
+ * A guest's SDK as the guest bridge allows it: the handshake (`ready`, with `guest: true` and a callsign), the data
+ * channel and storage. Every other command throws, `authorize`/`authenticate`/`getChannel` first among them, and
+ * subscribing to anything but the data channel's own event throws too. Each attempt is recorded.
+ * @param {LoopbackHub} hub @param {string} id @param {string} hostId @param {string[]} log
+ */
+function guestBridgeSdk(hub, id, hostId, log) {
+  const inner = new SideRoomSDK('app', { env: stubEnv(), transport: hub.connect(id) });
+  const commands = new Proxy(
+    {},
+    {
+      get(_t, name) {
+        return () => {
+          log.push(`command:${String(name)}`);
+          throw new Error(`${String(name)} is member-only: refused on the guest bridge`);
+        };
+      },
+    },
+  );
+  class GuestSDK {
+    constructor() {
+      this.commands = commands;
+      this.state = inner.state;
+      this.input = inner.input;
+      this.storage = {
+        install(/** @type {any} */ w) {
+          log.push('storage:install');
+          const m = new Map();
+          w.localStorage = { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+        },
+      };
+    }
+    get self() {
+      return inner.self;
+    }
+    get hostId() {
+      return inner.hostId;
+    }
+    get isHost() {
+      return inner.isHost;
+    }
+    async ready() {
+      log.push('ready');
+      return { application_id: 'app', instance_id: 'inst-1', channel_id: '0', guild_id: '0', user_id: id, host_id: hostId, guest: true, callsign: 'Swift Otter', capabilities: ['datachannel', 'storage', 'guest_play', 'lobby_channel'] };
+    }
+    on(/** @type {any} */ e, /** @type {any} */ cb) {
+      return inner.on(e, cb);
+    }
+    subscribe(/** @type {string} */ event) {
+      log.push(`subscribe:${event}`);
+      if (!GUEST_EVENTS.includes(event)) throw new Error(`${event} is member-only: refused on the guest bridge`);
+      return () => {};
+    }
+  }
+  return { SideRoomSDK: GuestSDK };
+}
+
+test('a guest plays through the SIDE ROOM platform with only the data channel, storage and ready', async () => {
+  const s = await setup();
+  const hp = await s.page(s.host, 'Alice');
+  /** @type {string[]} */
+  const log = [];
+  const win = /** @type {any} */ ({ location: { hostname: 'app.activities.example.test' }, parent: {} });
+  const platform = createSideRoomPlatform(win, { loadSdk: async () => guestBridgeSdk(s.hub, 'gst-1', 'h1', log) });
+  await platform.ready();
+  assert.equal(platform.guest, true);
+  assert.deepEqual(platform.identity(), { id: 'gst-1', name: 'Swift Otter' }, 'the callsign, not a member profile');
+  assert.deepEqual(await platform.participants(), [{ id: 'gst-1', name: 'Swift Otter' }]);
+  assert.ok(win.localStorage, 'settings live in the storage capability');
+  platform.setActivity('12% land');
+  const t = createSdkTransport({ channel: /** @type {any} */ (platform.channel), now: () => s.clock.t });
+  const world = new World();
+  const joined = await t.join({ uid: 'gst-1', name: platform.identity().name });
+  assert.ok(joined.ok, String(joined.error));
+  world.ingest(joined, s.clock.t);
+  t.start((r, at) => world.ingest(r, at), () => world.cursor());
+  const pg = await t.play();
+  assert.equal(pg.ok, true);
+  await s.run(4);
+  t.input({ turns: [1] });
+  await s.run(3);
+  assert.equal(s.host.t.engine.state.players.find((p) => p.id === pg.pid).dir, 1, 'the guest steers its own head');
+  assert.ok(s.host.t.engine.arena.gameInfo().people.includes('Swift Otter'));
+  assert.equal(world.roster.get(pg.pid)?.name, 'Swift Otter');
+  // Every bridge call the guest made is on the guest list; none of the member-only commands was even tried.
+  for (const entry of log) {
+    const [kind, name] = entry.split(':');
+    if (kind === 'command') assert.fail(`the guest path sent ${name}`);
+    if (kind === 'subscribe') assert.ok(GUEST_EVENTS.includes(name), entry);
+    else assert.ok(GUEST_COMMANDS.includes(kind) || kind === 'storage', entry);
+  }
+  assert.ok(!log.some((e) => /authorize|authenticate|getChannel/.test(e)));
+  await t.leave();
+  await hp.t.leave();
+});
+
+test('the fake guest bridge really refuses member-only commands (the test above would catch a call)', async () => {
+  /** @type {string[]} */
+  const log = [];
+  const hub = new LoopbackHub('h1');
+  const { SideRoomSDK: G } = guestBridgeSdk(hub, 'gst-2', 'h1', log);
+  const sdk = /** @type {any} */ (new G());
+  for (const cmd of ['authorize', 'authenticate', 'getChannel', 'getInstanceConnectedParticipants', 'setActivity']) assert.throws(() => sdk.commands[cmd]({}), /member-only/);
+  assert.throws(() => sdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE'), /member-only/);
+  assert.deepEqual(log.filter((e) => e.startsWith('command:')).length, 5);
 });

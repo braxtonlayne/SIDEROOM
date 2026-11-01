@@ -9,6 +9,7 @@ export default {
   chip(world) {
     const md = /** @type {any} */ (world.round?.md);
     if (!md || typeof md.leg !== 'number' || world.round?.phase !== 'play') return '';
-    return `Run ${md.runN ?? 1} · round ${md.leg}/${RUN_ROUNDS}`;
+    // Short: it shares a phone-wide chip with the mode name and the clock.
+    return (md.runN > 1 ? `Run ${md.runN} · ` : '') + `Round ${md.leg}/${RUN_ROUNDS}`;
   },
 };

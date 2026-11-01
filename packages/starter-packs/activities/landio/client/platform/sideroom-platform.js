@@ -24,8 +24,22 @@ export function memberIds(sdk) {
   return { self: sdk.self ? String(sdk.self) : '', host: sdk.hostId ? String(sdk.hostId) : '' };
 }
 
-/** @param {Window} win @returns {Platform} */
-export function createSideRoomPlatform(win) {
+/**
+ * The bridge commands a guest page may send (ARC-GST-002, D-397): a guest on a `/play/<token>` link has no channel,
+ * server or member data, so its bridge answers only the handshake, the data channel and storage. Everything else
+ * (authorize, authenticate, getChannel, the participant list, Rich Presence) is a member's and is never sent on
+ * the guest path. test/host-guest-sdk.test.js holds the page to this list.
+ */
+export const GUEST_COMMANDS = Object.freeze(['ready', 'dataSend', 'subscribe', 'unsubscribe', 'storageSet', 'storageRemove']);
+/** The only event a guest page subscribes to: the data channel's own (the SDK does it when it attaches). */
+export const GUEST_EVENTS = Object.freeze(['DATA_MESSAGE']);
+
+/**
+ * @param {Window} win
+ * @param {{ loadSdk?: () => Promise<any> }} [opt]   loadSdk: where the SDK comes from (tests pass a fake bridge)
+ * @returns {Platform}
+ */
+export function createSideRoomPlatform(win, opt = {}) {
   const applicationId = win.location.hostname.split('.')[0];
   /** @type {any} */
   let sdk = null;
@@ -38,6 +52,8 @@ export function createSideRoomPlatform(win) {
   /** @type {Identity[]} */
   let people = [];
   let lastActivity = '';
+  /** A guest on a `/play/<token>` link: only the commands in GUEST_COMMANDS. */
+  let guest = false;
   let lastActivityAt = -Infinity;
 
   /** @param {any} data */
@@ -45,13 +61,16 @@ export function createSideRoomPlatform(win) {
 
   return {
     kind: 'sideroom',
+    get guest() {
+      return guest;
+    },
     get channel() {
       return channel;
     },
     async ready() {
       // The SDK is vendored next to the page by tools/bundle.mjs (it is not in the source tree).
       // @ts-ignore
-      const mod = await import('../sdk/index.js');
+      const mod = await (opt.loadSdk ? opt.loadSdk() : import('../sdk/index.js'));
       sdk = new mod.SideRoomSDK(applicationId);
       config = await sdk.ready();
       // The sandboxed frame has no localStorage of its own (ARC-SBX-001): settings, key bindings and seen tips
@@ -59,17 +78,27 @@ export function createSideRoomPlatform(win) {
       if (config.capabilities?.includes('storage')) sdk.storage.install(win);
       const ids = memberIds(sdk);
       if (!ids.self) throw new Error('This SIDE ROOM client does not tell activities who they are yet (needs the data channel).');
-      people = humans(await sdk.commands.getInstanceConnectedParticipants().catch(() => ({ participants: [] })));
-      me = people.find((p) => p.id === ids.self) ?? { id: ids.self, name: 'Player' };
+      guest = config.guest === true;
+      if (guest) {
+        // A guest plays under the callsign the lobby gave it and never asks who else is here: the host's frames
+        // carry the roster (names of the people playing), which is all a guest may see.
+        me = { id: ids.self, name: String(config.callsign || 'Guest').replace(/[\p{C}<>]/gu, '').trim().slice(0, 24) || 'Guest' };
+        people = [me];
+      } else {
+        people = humans(await sdk.commands.getInstanceConnectedParticipants().catch(() => ({ participants: [] })));
+        me = people.find((p) => p.id === ids.self) ?? { id: ids.self, name: 'Player' };
+      }
       channel = await channelFromSdk(sdk, {
         self: me,
         hostId: ids.host || (sdk.isHost ? ids.self : ''),
         participants: async () => people,
-        onParticipants: (cb) =>
-          sdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', (/** @type {any} */ data) => {
-            people = humans(data);
-            cb(people);
-          }),
+        onParticipants: guest
+          ? () => () => {}
+          : (cb) =>
+              sdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', (/** @type {any} */ data) => {
+                people = humans(data);
+                cb(people);
+              }),
       });
     },
     identity: () => me,
@@ -78,7 +107,8 @@ export function createSideRoomPlatform(win) {
     onParticipantsChange: (cb) => channel?.onMembers(cb) ?? (() => {}),
     instanceId: () => String(config?.instance_id ?? 'sideroom').replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 128),
     setActivity(text) {
-      if (!sdk || text === lastActivity) return;
+      // Rich Presence is a member's: a guest has none.
+      if (!sdk || guest || text === lastActivity) return;
       // At most every 15 s: the line follows the land share, which changes all the time.
       if (performance.now() - lastActivityAt < 15_000) return;
       lastActivityAt = performance.now();

@@ -299,6 +299,7 @@ export class Hud {
     this.setSig = sig;
     const el = $('sets');
     el.hidden = !counts.length;
+    if (counts.length) this.tip('sets', `Cards come in families. Draft ${SET_AT[0]} of one family in a life to switch on its set bonus.`);
     el.replaceChildren(
       ...counts.map(([f, n]) => {
         const info = FAMILY_INFO[f];
@@ -479,19 +480,22 @@ export class Hud {
         const info = world.roster.get(id);
         const li = document.createElement('li');
         if (id === me) li.className = 'me';
+        else if (info?.bot) li.className = 'botrow';
         const sw = document.createElement('span');
         sw.className = 'sw';
         sw.style.background = lookColor(info?.look ?? id);
         const nm = document.createElement('span');
         nm.className = 'nm';
-        // Bot names end in "bot" (Lumen bot, Tofu bot 2): that part is styled as the bot badge.
+        // Bot names (Lumen bot, Tofu bot 2) show short in the narrow list, "Tofu 2" and the bot badge, so a
+        // phone's leaderboard still tells them apart.
         const full = info?.name ?? '?';
-        const cut = info?.bot ? full.search(/ bot( \d+)?$/) : -1;
-        nm.textContent = cut > 0 ? full.slice(0, cut) : full;
+        const m = info?.bot ? / bot( \d+)?$/.exec(full) : null;
+        nm.textContent = m ? full.slice(0, m.index) + (m[1] ?? '') : full;
+        nm.title = full;
         if (info?.bot) {
           const b = document.createElement('span');
           b.className = 'bot';
-          b.textContent = cut > 0 ? full.slice(cut) : ' bot';
+          b.textContent = ' bot';
           nm.append(b);
         }
         const pc = document.createElement('span');
@@ -721,7 +725,7 @@ export class Hud {
         const who = document.createElement('span');
         who.className = 'who';
         who.append(nm, sub);
-        li.append(span('rk', String(k + 1)), who, span('pc', `${l.pts} pts${l.gain ? ` (+${l.gain})` : ''}`));
+        li.append(span('rk', String(k + 1)), who, span('pc', `${l.pts} ${l.pts === 1 ? 'pt' : 'pts'}${l.gain ? ` (+${l.gain})` : ''}`));
         return li;
       }),
     );
