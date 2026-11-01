@@ -87,6 +87,7 @@ pub struct Moderation {
     pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
     pub(crate) item_index_sink: Option<Arc<dyn crate::age::ItemIndexSink>>,
     pub(crate) strike_weight: Option<Arc<dyn sr_admin::StrikeWeight>>,
+    pub(crate) notice_sink: Option<Arc<dyn crate::subtree::NoticeSink>>,
 }
 
 impl Moderation {
@@ -103,6 +104,7 @@ impl Moderation {
             channel_sink: None,
             item_index_sink: None,
             strike_weight: None,
+            notice_sink: None,
         }
     }
 
@@ -120,6 +122,12 @@ impl Moderation {
             Some(w) => w.strike_weight_multiplier(account).await.max(1.0),
             None => 1.0,
         }
+    }
+
+    /// Told when an anonymised notice was published (the server re-reads banners on every client).
+    pub fn with_notice_sink(mut self, s: Arc<dyn crate::subtree::NoticeSink>) -> Self {
+        self.notice_sink = Some(s);
+        self
     }
 
     /// The system user's voice for warnings and notices.

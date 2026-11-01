@@ -16,6 +16,10 @@ pub mod age;
 mod appeals;
 pub mod blocklist;
 mod cases;
+mod graduated;
+pub mod graduated_model;
+pub mod graduated_rules;
+mod subtree;
 pub mod dashboard;
 pub mod error;
 pub mod holds;
@@ -35,6 +39,8 @@ pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
 pub use age::{
     AgeBand, AgeChange, AgeTargetKind, ChannelSink, ItemIndexSink, UNDER18_DM, UnderageOutcome,
 };
+pub use graduated::{Blocked, SYSTEM_ACTOR};
+pub use subtree::{NodeBanner, NoticeSink, OpenedCase};
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
