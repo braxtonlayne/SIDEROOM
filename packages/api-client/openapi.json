@@ -14459,7 +14459,7 @@
         "tags": [
           "graduated"
         ],
-        "summary": "The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant\nof the case at once. Owner only, behind a 2FA step-up, with a written reason and a second staff approver\nalready recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit\nentry names the case, the approver and the node count, and an anonymised notice is emitted.",
+        "summary": "The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant\nof the case at once. The platform Operator only (the Owner, or a holder of the Owner-only `OPERATOR` bit),\nbehind a 2FA step-up, with a written reason and a second staff approver\nalready recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit\nentry names the case, the approver and the node count, and an anonymised notice is emitted.",
         "operationId": "branch_action",
         "requestBody": {
           "content": {

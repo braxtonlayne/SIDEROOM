@@ -2890,7 +2890,8 @@ export interface paths {
         put?: never;
         /**
          * The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant
-         *     of the case at once. Owner only, behind a 2FA step-up, with a written reason and a second staff approver
+         *     of the case at once. The platform Operator only (the Owner, or a holder of the Owner-only `OPERATOR` bit),
+         *     behind a 2FA step-up, with a written reason and a second staff approver
          *     already recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit
          *     entry names the case, the approver and the node count, and an anonymised notice is emitted.
          */
