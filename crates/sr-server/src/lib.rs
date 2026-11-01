@@ -23,6 +23,7 @@ pub mod feature_actions;
 pub mod features_store;
 pub mod fx_jobs;
 pub mod gateway_pg;
+pub mod guest_relay;
 pub mod healthcheck;
 pub mod inbox_pg;
 pub mod instance_mount;
