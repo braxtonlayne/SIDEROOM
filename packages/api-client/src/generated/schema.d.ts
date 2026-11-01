@@ -17276,6 +17276,11 @@ export interface components {
             application_name: string;
             /** @description The random callsign the lobby shows for this guest. */
             callsign: string;
+            /**
+             * @description The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can
+             *     refuse a capability that has not shipped. Flag names only; nothing else of the manifest.
+             */
+            capabilities: string[];
             /** @description When the guest session ends (RFC 3339, UTC); never later than the link. */
             expires_at: string;
             /** @description `srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it. */

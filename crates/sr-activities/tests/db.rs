@@ -1029,6 +1029,11 @@ async fn guest_links_are_digest_only_expiring_revocable_and_end_with_the_lobby()
     assert_eq!(joined.topic, format!("game:{}", link.lobby_token));
     assert_eq!(joined.socket_path, "/gateway/guest");
     assert_eq!(joined.application_name, "Guests");
+    // The runner sees the manifest's flags, the reserved `ingame_voice` included, so it can refuse it.
+    assert_eq!(
+        joined.capabilities,
+        vec!["datachannel", "guest_play", "ingame_voice", "lobby_channel"]
+    );
     assert_eq!(joined.callsign.split(' ').count(), 3);
     assert!(joined.expires_at <= link.expires_at);
     let stored_raw: i64 = sqlx::query_scalar(

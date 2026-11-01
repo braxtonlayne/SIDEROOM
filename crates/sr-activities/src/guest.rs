@@ -70,6 +70,9 @@ pub struct GuestJoined {
     pub application_id: String,
     /// The game's name.
     pub application_name: String,
+    /// The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can
+    /// refuse a capability that has not shipped. Flag names only; nothing else of the manifest.
+    pub capabilities: Vec<String>,
 }
 
 /// What the guest socket learns about a guest session or a member seat when it checks a credential.

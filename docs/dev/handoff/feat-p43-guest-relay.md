@@ -14,13 +14,18 @@ Rust types and constants: `crates/sr-activities/src/guest.rs` (commit `898d4de6`
 |---|---|---|
 | `POST /activity-instances/{instance_id}/guest-links` | a current participant of the running instance (session) | `201 {lobby_token, expires_at}`; 404 not a participant / no such instance, 409 game does not declare `guest_play` or 5 working links already |
 | `DELETE /activity-instances/{instance_id}/guest-links/{lobby_token}` | the instance starter (lobby host) or the member who minted the link | `204`; 403 another participant, 404 stranger / unknown link |
-| `POST /play/{lobby_token}/join` | nobody (no credentials, no cookie, no CSRF) | `200 {guest_token, callsign, expires_at, topic, socket_path, application_id, application_name}`; 404 for every dead link (unknown, malformed, expired, revoked, lobby ended); 409 lobby full (16 guests); 429 rate limit (20 joins/minute per address) |
+| `POST /play/{lobby_token}/join` | nobody (no credentials, no cookie, no CSRF) | `200 {guest_token, callsign, expires_at, topic, socket_path, application_id, application_name, capabilities}`; 404 for every dead link (unknown, malformed, expired, revoked, lobby ended); 409 lobby full (16 guests); 429 rate limit (20 joins/minute per address) |
 
 * `lobby_token`: 64 lowercase hex digits, shown once, link lifetime 6 hours (`expires_at`, RFC 3339 UTC) or until the
   lobby host revokes it or the Activity ends. The client builds `/play/<lobby_token>#key=<ephemeral_game_key>`; the key
   never reaches the server.
 * `guest_token`: `srg_` + 64 hex, session lifetime 2 hours (never past the link). **Every REST route answers it 403** (bearer
   or `sr_session` cookie). The only thing that takes it is the guest socket.
+* `capabilities` (added at the commander's request after 43-B): the game's manifest flag names, sorted, **reserved ones
+  included** (so `ingame_voice` appears when declared and the runner can refuse it). Flag names only.
+* **Seat ids:** the relay stamps plain numbers (`seat`, `from`) plus `role`; it does not send `g<seat>`/`m<seat>` ids.
+  43-B's runner builds `g<seat>` (role `guest`) and `m<seat>` (role `member`) itself from those two fields, as its
+  `contract.ts` does. A seat number is unique per lobby and never reused while the lobby is open.
 * `callsign`: e.g. `Amber Otter 42`, random, not chosen by the guest ("lobby-approved nickname" is not built; see open).
 * `application_id` / `application_name` tell the runner which game bundle to load. **Serving that bundle to a person with no
   session is 43-B's** (the activity proxy host `<id>.activities.<host>` is what serves bundles today; check that it
@@ -88,7 +93,18 @@ sub-room; today a seat exists only while the lobby has a live guest link (see op
 
 ## Tests run (all on scratch DB `sr_p43_guest_relay`, dropped at the end)
 
-See "Gates" at the bottom (filled at hand-off).
+| Gate | Result |
+|---|---|
+| cargo fmt --check, clippy --all-targets -D warnings (sr-activities, sr-voice, sr-gateway, sr-api, sr-server) | ok |
+| sr-activities lib / Postgres db (12, incl. 2 guest tests) / arcade (7) / trust_db (9) | 47 / 12 / 7 / 9 pass |
+| sr-voice lib (incl. 7 lobby tests) / sr-gateway lib (206, incl. 9 guest socket tests) | 50 / 206 pass |
+| sr-db secret_columns, migration_versions; sr-api openapi_names, route_matrix | pass (route_matrix 6) |
+| sr-api lib --include-ignored / sr-server lib --include-ignored | 811 / 245 pass |
+| sr-server immutable_rules --include-ignored (embeds the whole authz matrix, read and write phases, normal and killed states, and `guest_links_hold_over_http`) | 24 pass (with SR_TEST_VOICE_PORT_BASE=53800: another agent held 52000..) |
+| `authz_matrix::guest_links_hold_over_http` | pass: guest token 403 on every authenticated route as bearer and cookie (about 2300 calls) and the named chat/member/profile/shelf cases; real WebSocket: opaque frames both ways, 5 forged second topics closed 4403, member gateway refuses the token, revoke closes the guest 4410, join after revoke 404, join rate limited 429 |
+| OpenAPI, api-client, MSW handlers regenerated; mocks:check | up to date (1173 operations) |
+| scripts/threat-model.test.mjs, prettier on the docs | pass |
+
 
 ## Open / not done (with reasons)
 

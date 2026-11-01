@@ -82628,7 +82628,8 @@
           "topic",
           "socket_path",
           "application_id",
-          "application_name"
+          "application_name",
+          "capabilities"
         ],
         "properties": {
           "application_id": {
@@ -82642,6 +82643,13 @@
           "callsign": {
             "type": "string",
             "description": "The random callsign the lobby shows for this guest."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can\nrefuse a capability that has not shipped. Flag names only; nothing else of the manifest."
           },
           "expires_at": {
             "type": "string",

@@ -178,6 +178,8 @@ impl ActivityService {
         let instance: i64 = link.try_get("instance_id")?;
         let row = self.running_by_id(instance).await?.ok_or_else(gone)?;
         let view = self.view(&row).await?;
+        let mut manifest_flags = Self::capabilities(&row)?;
+        manifest_flags.sort();
         if !view.capabilities.iter().any(|c| c == "guest_play") {
             return Err(gone());
         }
@@ -224,6 +226,7 @@ impl ActivityService {
             socket_path: guest::SOCKET_PATH.to_owned(),
             application_id: view.application_id,
             application_name: view.application_name,
+            capabilities: manifest_flags,
         })
     }
 
