@@ -3,7 +3,7 @@
 // itself (crates/sr-features), so a new module needs no screen here. Temporary roles also get a small panel
 // to grant and end roles, because they are actions as well as settings.
 import { Button, Notice, Switch, TextInput } from '@sideroom/ui';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   SchemaForm,
   overridesOf,
@@ -46,13 +46,14 @@ export function useFeaturePickers(guildId: string): PickerChoices {
 export function FeaturesSection({ guildId, viewer }: SectionProps) {
   const t = useT();
   const setBridgeModule = useBridgeModule((s) => s.set);
-  const res = useResource(`features-${guildId}`, async () => {
-    const list = await api.listFeatures(guildId);
-    // The Discord bridge's nav entry follows what this screen just read (BRG-UI-001).
-    const bridge = list.find((f) => f.id === BRIDGE_MODULE_ID);
-    if (bridge) setBridgeModule(guildId, bridge.enabled && !bridge.platform_disabled);
-    return list;
-  });
+  const res = useResource(`features-${guildId}`, () => api.listFeatures(guildId));
+  // The Discord bridge's nav entry follows the list this screen shows (BRG-UI-001), never a read that a switch
+  // already superseded: a stale read used to put the entry back to "off" right after the owner switched it on.
+  const bridge = res.data?.find((f) => f.id === BRIDGE_MODULE_ID);
+  const bridgeOn = bridge ? bridge.enabled && !bridge.platform_disabled : undefined;
+  useEffect(() => {
+    if (bridgeOn !== undefined) setBridgeModule(guildId, bridgeOn);
+  }, [bridgeOn, guildId, setBridgeModule]);
   const [query, setQuery] = useState('');
   const pickers = useFeaturePickers(guildId);
 

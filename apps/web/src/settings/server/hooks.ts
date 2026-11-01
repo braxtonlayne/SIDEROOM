@@ -36,6 +36,9 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>): Resource
   fetchRef.current = fetcher;
   const keyRef = useRef(key);
   keyRef.current = key;
+  // Bumped by every load and every local `set`: a load that finishes after a newer one, or after a change the screen
+  // already applied (a switch flipped while the first read was in flight), is dropped instead of undoing it.
+  const gen = useRef(0);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -46,15 +49,16 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>): Resource
 
   const reload = useCallback(async () => {
     const forKey = keyRef.current;
+    const mine = ++gen.current;
+    const current = () => alive.current && keyRef.current === forKey && gen.current === mine;
     try {
       const next = await fetchRef.current();
-      if (alive.current && keyRef.current === forKey) {
+      if (current()) {
         setData(next);
         setError(null);
       }
     } catch (e) {
-      if (alive.current && keyRef.current === forKey)
-        setError(api.errorText(e, 'Could not load this.'));
+      if (current()) setError(api.errorText(e, 'Could not load this.'));
     } finally {
       if (alive.current && keyRef.current === forKey) setLoading(false);
     }
@@ -67,7 +71,11 @@ export function useResource<T>(key: string, fetcher: () => Promise<T>): Resource
     void reload();
   }, [key, reload]);
 
+  const loaded = useRef(false);
+  loaded.current = data !== undefined;
   const set = useCallback((next: T | ((cur: T | undefined) => T)) => {
+    // Only a change to data already on screen supersedes a load in flight; before the first load lands it still lands.
+    if (loaded.current) gen.current += 1;
     setData((cur) => (typeof next === 'function' ? (next as (c: T | undefined) => T)(cur) : next));
   }, []);
 
