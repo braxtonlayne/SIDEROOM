@@ -497,6 +497,37 @@ pub async fn join(
     ))
 }
 
+/// The proxy token of the caller in a running Activity (ARC-SBX-001, D-399).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ProxyTokenResponse {
+    /// 64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as
+    /// `X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid
+    /// while the instance runs and the caller has not left it; minting again replaces the previous one.
+    pub token: String,
+}
+
+/// Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399).
+#[utoipa::path(
+    post, path = "/activity-instances/{instance_id}/proxy-token", tag = "activities",
+    params(("instance_id" = String, Path, description = INSTANCE)),
+    responses((status = 200, body = ProxyTokenResponse), (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn proxy_token(
+    UserOnly(p): UserOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+    Path(instance): Path<String>,
+) -> MsgResult<Json<ProxyTokenResponse>> {
+    deps.require_enabled()?;
+    let instance = id(&instance, sr_not_found())?;
+    let token = deps
+        .service
+        .mint_proxy_token(p.user_id, instance)
+        .await
+        .map_err(act)?;
+    Ok(Json(ProxyTokenResponse { token }))
+}
+
 /// Leave an Activity; the last one out ends it.
 #[utoipa::path(
     post, path = "/activity-instances/{instance_id}/leave", tag = "activities",

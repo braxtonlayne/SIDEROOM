@@ -24,6 +24,15 @@ use crate::sandbox;
 mod trust_db;
 pub use trust_db::{BuildRef, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY};
 
+/// Length of a proxy token (64 lowercase hex digits).
+pub const PROXY_TOKEN_LEN: usize = 64;
+
+/// The stored form of a proxy token.
+fn proxy_token_digest(token: &str) -> Vec<u8> {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(token.as_bytes()).to_vec()
+}
+
 /// Source of snowflake ids.
 pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 
@@ -1111,6 +1120,12 @@ impl ActivityService {
         .bind(user)
         .execute(self.pool())
         .await?;
+        // A member who leaves loses their proxy token; a rejoin mints a new one.
+        sqlx::query("DELETE FROM activity_proxy_tokens WHERE instance_id = $1 AND user_id = $2")
+            .bind(instance)
+            .bind(user)
+            .execute(self.pool())
+            .await?;
         let left: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM activity_participants WHERE instance_id = $1 AND left_at IS NULL",
         )
@@ -1136,6 +1151,59 @@ impl ActivityService {
             self.announce(channel, Some(&view)).await;
         }
         Ok(())
+    }
+
+    /// Mint the proxy token of `user` in `instance` (ARC-SBX-001, D-399): the credential a sandboxed game sends
+    /// (`X-SR-Activity-Token`) so the activity proxy accepts its URL-mapping writes, which arrive with
+    /// `Origin: null`. Only a current participant of a running instance gets one; minting again replaces the
+    /// previous one, and leaving the instance (or its end) drops it. Only the SHA-256 digest is stored.
+    pub async fn mint_proxy_token(&self, user: i64, instance: i64) -> ActivityResult<String> {
+        let joined: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM activity_participants p \
+             JOIN activity_instances i ON i.id = p.instance_id \
+             WHERE p.instance_id = $1 AND p.user_id = $2 AND p.left_at IS NULL AND i.ended_at IS NULL)",
+        )
+        .bind(instance)
+        .bind(user)
+        .fetch_one(self.pool())
+        .await?;
+        if !joined {
+            return Err(ActivityError::NotFound("activity"));
+        }
+        // Two version-4 UUIDs from the database's strong random source: 244 random bits as 64 hex digits.
+        let token: String = sqlx::query_scalar(
+            "SELECT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '')",
+        )
+        .fetch_one(self.pool())
+        .await?;
+        sqlx::query(
+            "INSERT INTO activity_proxy_tokens (instance_id, user_id, token_sha256) VALUES ($1, $2, $3) \
+             ON CONFLICT (instance_id, user_id) \
+             DO UPDATE SET token_sha256 = EXCLUDED.token_sha256, created_at = now()",
+        )
+        .bind(instance)
+        .bind(user)
+        .bind(proxy_token_digest(&token))
+        .execute(self.pool())
+        .await?;
+        Ok(token)
+    }
+
+    /// Whether `token` is the proxy token of a current participant of a running instance of `app`.
+    pub async fn proxy_token_valid(&self, app: i64, token: &str) -> ActivityResult<bool> {
+        if token.len() != PROXY_TOKEN_LEN || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Ok(false);
+        }
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM activity_proxy_tokens t \
+             JOIN activity_instances i ON i.id = t.instance_id \
+             JOIN activity_participants p ON p.instance_id = t.instance_id AND p.user_id = t.user_id \
+             WHERE t.token_sha256 = $1 AND i.application_id = $2 AND i.ended_at IS NULL AND p.left_at IS NULL)",
+        )
+        .bind(proxy_token_digest(token))
+        .bind(app)
+        .fetch_one(self.pool())
+        .await?)
     }
 
     /// Leave an activity. The last participant leaving ends it.

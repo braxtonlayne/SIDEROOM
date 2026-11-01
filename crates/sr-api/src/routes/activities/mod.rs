@@ -185,6 +185,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/activity-instances/{instance_id}/join", post(h::join))
         .route("/activity-instances/{instance_id}/leave", post(h::leave))
+        .route(
+            "/activity-instances/{instance_id}/proxy-token",
+            post(h::proxy_token),
+        )
 }
 
 /// OpenAPI fragment for the Activities endpoints.
@@ -208,6 +212,7 @@ pub fn router() -> Router<AppState> {
         handlers::get_instance,
         handlers::join,
         handlers::leave,
+        handlers::proxy_token,
         handlers::end,
     ),
     components(schemas(
@@ -229,6 +234,7 @@ pub fn router() -> Router<AppState> {
         handlers::LaunchBody,
         handlers::ShelfResponse,
         handlers::VouchBody,
+        handlers::ProxyTokenResponse,
         sr_activities::trust::TrustView,
         sr_activities::trust::BadgeKind,
         sr_activities::trust::PreviousBuild,

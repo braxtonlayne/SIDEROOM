@@ -707,6 +707,7 @@ PATCH	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 PATCH	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
 POST	/activity-instances/{instance_id}/join	authenticated	membership	allow	-	-
 POST	/activity-instances/{instance_id}/leave	authenticated	membership	allow	-	-
+POST	/activity-instances/{instance_id}/proxy-token	authenticated	membership	allow	-	-
 POST	/admin/accounts/{account_id}/badges	authenticated	staff	deny	-	MANAGE_ACCOUNTS
 POST	/admin/accounts/{account_id}/ban	authenticated	staff	deny	-	PLATFORM_BAN
 POST	/admin/accounts/{account_id}/change-email	authenticated	staff	deny	-	MANAGE_ACCOUNTS

@@ -432,10 +432,12 @@ pub struct CspInput<'a> {
     pub connect: &'a [String],
 }
 
-/// The `connect-src` value: `'none'` unless the reviewed manifest named hosts. `"self"` means the sandbox
-/// host's own static files and is only honoured when the application has no URL mappings, because a mapping
-/// turns the host into a pipe to the developer's server (any GET under it could carry data out). A
-/// development build keeps `'self'` so its owner can work against mapped endpoints.
+/// The `connect-src` value: `'none'` unless the reviewed manifest named hosts or the application has URL
+/// mappings. `"self"` means the sandbox host's own files. Reviewed URL mappings admit `'self'` as well (D-399,
+/// developer freedom, wave 42 integration): a mapping is a pipe to the developer's own server that staff
+/// approved like a `connect` host (changing the mappings pauses the application until it is reviewed again), and
+/// the game reaches it through the proxy, whose writes need the instance's proxy token. A development build
+/// keeps `'self'` so its owner can work against mapped endpoints.
 pub fn connect_src(i: &CspInput<'_>) -> String {
     let mut tokens: Vec<String> = Vec::new();
     if i.development {
@@ -443,12 +445,15 @@ pub fn connect_src(i: &CspInput<'_>) -> String {
     }
     for c in i.connect {
         if c == "self" {
-            if !i.has_mappings && !i.development {
+            if !i.development {
                 tokens.push("'self'".to_owned());
             }
         } else {
             tokens.push(c.clone());
         }
+    }
+    if i.has_mappings && !tokens.iter().any(|t| t == "'self'") {
+        tokens.push("'self'".to_owned());
     }
     if tokens.is_empty() {
         "'none'".to_owned()
@@ -656,20 +661,29 @@ mod tests {
     }
 
     #[test]
-    fn connect_src_is_none_unless_the_reviewed_manifest_named_hosts() {
+    fn connect_src_is_none_unless_the_reviewed_manifest_named_hosts_or_mappings() {
         assert_eq!(connect_src(&input(false, false, &[])), "'none'");
-        assert_eq!(connect_src(&input(false, true, &[])), "'none'");
         let hosts = vec!["https://a.example.com".to_owned(), "self".to_owned()];
         assert_eq!(
             connect_src(&input(false, false, &hosts)),
             "https://a.example.com 'self'"
         );
-        // A mapping turns 'self' into a pipe to the developer's server: it is not honoured.
+        // D-399: reviewed URL mappings are the game's pipe to its developer's server, reached through 'self'.
+        assert_eq!(connect_src(&input(false, true, &[])), "'self'");
         assert_eq!(
             connect_src(&input(false, true, &hosts)),
-            "https://a.example.com"
+            "https://a.example.com 'self'"
+        );
+        let host = vec!["https://a.example.com".to_owned()];
+        assert_eq!(
+            connect_src(&input(false, true, &host)),
+            "https://a.example.com 'self'"
         );
         assert_eq!(connect_src(&input(true, true, &[])), "'self'");
+        assert_eq!(
+            connect_src(&input(true, false, &hosts)),
+            "'self' https://a.example.com"
+        );
     }
 
     #[test]

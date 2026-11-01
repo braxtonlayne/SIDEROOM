@@ -2903,6 +2903,30 @@ async fn seed(
             a.insert("code_sha256", code_hash);
         }
     }
+    // ARC-SBX-001 (D-399): a running instance of that game in server A that owner A takes part in, so the
+    // proxy-token route has a real instance (its own channel id: no other activity route is touched).
+    {
+        let instance = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO activity_instances (id, application_id, guild_id, channel_id, channel_type, started_by) \
+             VALUES ($1, $2::text::bigint, $3, $4, 'text', $5)",
+        )
+        .bind(instance)
+        .bind(aid.to_string())
+        .bind(ga)
+        .bind(ids.generate().get() as i64)
+        .bind(u("ownera"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO activity_participants (instance_id, user_id) VALUES ($1, $2)")
+            .bind(instance)
+            .bind(u("ownera"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        a.insert("proxy_instance_id", instance.to_string());
+    }
     let zipped = tiny_zip("2;");
     let r = srv
         .call_bytes(
@@ -5379,6 +5403,12 @@ fn ctx_for(
 /// their own `{asset_id}`, `{comment_id}`, `{list_id}` ..., and the submission chapter is not the
 /// published one. The write phase (and every other pass) fills them from the family's own seeded key.
 const OVERLAYS: &[(&[&str], &str, &str)] = &[
+    // ARC-SBX-001 (D-399): the proxy token is minted on the seeded running instance owner A takes part in.
+    (
+        &["/activity-instances/{instance_id}/proxy-token"],
+        "instance_id",
+        "proxy_instance_id",
+    ),
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
     // ARC-ROOM-001: the Arcade routes act on the seeded entry, cartridge and released game.
     (

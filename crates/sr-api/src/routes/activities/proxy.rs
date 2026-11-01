@@ -9,7 +9,8 @@
 //!   application in `development`, marked by `X-SR-Activity-Mode: development`.
 //! * `GET` and `HEAD` for everything. `POST`, `PUT`, `PATCH` and `DELETE` only under a declared URL-mapping
 //!   prefix (never for the shell or the bundle), body at most [`MAX_WRITE_BODY`], from the Activity's own
-//!   origin only. A path under a mapping prefix is fetched from the mapping's target.
+//!   origin only (for the sandboxed game: `Origin: null` with its proxy token, below). A path under a mapping
+//!   prefix is fetched from the mapping's target.
 //! * Fetches go through the SSRF-safe client; the application's cookies and headers never reach the browser
 //!   and the browser's never reach the application (only the content type and the body travel).
 //! * Every response carries a strict `Content-Security-Policy` (`frame-ancestors` is the app shell only),
@@ -17,9 +18,16 @@
 //! * ARC-SBX-001, the hardened sandbox: the policy starts with `sandbox allow-scripts allow-pointer-lock`, so the
 //!   page has an opaque origin even when it is opened directly or framed with a weaker `sandbox` attribute, and
 //!   `connect-src` is `'none'` unless the reviewed manifest named hosts ([`sr_activities::sandbox::csp`]; CSP
-//!   is per host, not per URL). An opaque origin sends `Origin: null`, which is never the activity's origin, so
-//!   no write under a URL mapping can come from a game any more; static bundle files answer
-//!   `Access-Control-Allow-Origin: *` because a module script or font of an opaque-origin page is a CORS fetch.
+//!   is per host, not per URL; an application's reviewed URL mappings admit `'self'`). Static bundle files and
+//!   mapped `GET`s answer `Access-Control-Allow-Origin: *` because every fetch of an opaque-origin page is a
+//!   CORS fetch (they carry no credentials, and anyone can already fetch them through the proxy).
+//! * D-399, developer freedom: an opaque origin sends `Origin: null`, which any sandboxed page anywhere can send
+//!   too. A write under a URL mapping with `Origin: null` is accepted only with the instance's own credential,
+//!   the proxy token (`X-SR-Activity-Token`, minted for a participant by
+//!   `POST /activity-instances/{instance_id}/proxy-token` and checked against a running instance of this
+//!   application by `ActivityService::proxy_token_valid`), never by allowing any origin. The CORS preflight
+//!   under a mapping admits that header, and only the answer to a write that passed the check carries
+//!   `Access-Control-Allow-Origin: null`.
 
 use super::{ActivitiesDeps, MAX_PROXIED_BYTES};
 use axum::{
@@ -38,6 +46,12 @@ pub const MAX_WRITE_BODY: usize = 1024 * 1024;
 
 /// Response header telling the shell the Activity runs live from a development URL.
 pub const MODE_HEADER: &str = "x-sr-activity-mode";
+
+/// Request header carrying the proxy token of a write from the sandboxed (opaque-origin) game (D-399).
+pub const TOKEN_HEADER: &str = "x-sr-activity-token";
+
+/// `Origin` of an opaque-origin page (the sandboxed game).
+const OPAQUE_ORIGIN: &[u8] = b"null";
 
 /// Put the proxy in front of `app`: requests whose `Host` is under `.activities.<host>` are answered here,
 /// everything else goes on to the app.
@@ -78,7 +92,14 @@ pub async fn activity_host_layer(
     else {
         return page(&d, StatusCode::NOT_FOUND, "There is no activity here.");
     };
-    if !read_method(req.method()) && !write_method(req.method()) {
+    // A CORS preflight is answered only for the sandboxed game (`Origin: null`); any other OPTIONS is refused
+    // before the lookup like every method that is never forwarded.
+    let preflight = req.method() == Method::OPTIONS
+        && req
+            .headers()
+            .get(header::ORIGIN)
+            .is_some_and(|o| o.as_bytes() == OPAQUE_ORIGIN);
+    if !preflight && !read_method(req.method()) && !write_method(req.method()) {
         return not_allowed(&d);
     }
     let spec = match d.service.lookup(app).await {
@@ -107,6 +128,9 @@ pub async fn activity_host_layer(
         .path_and_query()
         .map_or("/", |p| p.as_str())
         .to_owned();
+    if preflight {
+        return preflight_answer(&d, &spec, req.headers(), &path_and_query);
+    }
     if read_method(req.method()) {
         let head = req.method() == Method::HEAD;
         let mut resp = serve(&d, app, &spec, &path_and_query).await;
@@ -128,8 +152,12 @@ pub async fn activity_host_layer(
     .await
 }
 
-/// Replace the default policy with the one this application's reviewed manifest earns it.
+/// Replace the default policy with the one this application's reviewed manifest earns it. Error answers keep
+/// the strictest policy.
 fn apply_csp(d: &ActivitiesDeps, spec: &ServeSpec, resp: &mut Response) {
+    if resp.status().is_client_error() || resp.status().is_server_error() {
+        return;
+    }
     let policy = sandbox::csp(&sandbox::CspInput {
         app_origin: &d.app_origin,
         development: matches!(spec.serving, Serving::Dev { .. }),
@@ -163,7 +191,15 @@ pub(crate) async fn serve(
         return page(d, StatusCode::BAD_REQUEST, "That path is not allowed.");
     };
     let mut resp = match (mapped, &spec.serving) {
-        (Some(target), _) => fetch(d, app, target.as_str()).await,
+        (Some(target), _) => {
+            let mut r = fetch(d, app, target.as_str()).await;
+            // The sandboxed game's GET of its own mapping is a CORS fetch; it carries no credentials.
+            r.headers_mut().insert(
+                header::ACCESS_CONTROL_ALLOW_ORIGIN,
+                HeaderValue::from_static("*"),
+            );
+            r
+        }
         (None, Serving::Dev { url }) => match rules::target_for(url, &[], path_and_query) {
             Ok(target) => fetch(d, app, target.as_str()).await,
             Err(rules::Refusal::BadPath) => {
@@ -281,15 +317,43 @@ pub(crate) async fn forward_write(
         Err(_) => return page(d, StatusCode::BAD_REQUEST, "That path is not allowed."),
     };
     // Only the Activity's own page may write: a browser names the page's origin on every cross-origin write.
-    if headers
-        .get(header::ORIGIN)
-        .is_some_and(|o| o.as_bytes() != d.activity_origin(app).as_bytes())
-    {
-        return page(
-            d,
-            StatusCode::FORBIDDEN,
-            "Requests must come from the activity itself.",
-        );
+    // The sandboxed game's origin is opaque (`null`), which any sandboxed page can claim, so then the request
+    // must also carry the proxy token of a participant of a running instance of this application (D-399).
+    let opaque = match headers.get(header::ORIGIN) {
+        None => false,
+        Some(o) if o.as_bytes() == OPAQUE_ORIGIN => true,
+        Some(o) if o.as_bytes() == d.activity_origin(app).as_bytes() => false,
+        Some(_) => {
+            return page(
+                d,
+                StatusCode::FORBIDDEN,
+                "Requests must come from the activity itself.",
+            );
+        }
+    };
+    if opaque {
+        let token = headers
+            .get(TOKEN_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default();
+        match d.service.proxy_token_valid(app, token).await {
+            Ok(true) => {}
+            Ok(false) => {
+                return page(
+                    d,
+                    StatusCode::FORBIDDEN,
+                    "Requests must come from the activity itself.",
+                );
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "activity proxy token check failed");
+                return page(
+                    d,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Something went wrong.",
+                );
+            }
+        }
     }
     if headers
         .get(header::CONTENT_LENGTH)
@@ -359,7 +423,59 @@ pub(crate) async fn forward_write(
     };
     dev_mark(spec, &mut resp);
     apply_csp(d, spec, &mut resp);
+    if opaque {
+        // The token was checked: the game may read the answer.
+        resp.headers_mut().insert(
+            header::ACCESS_CONTROL_ALLOW_ORIGIN,
+            HeaderValue::from_static("null"),
+        );
+        resp.headers_mut()
+            .insert(header::VARY, HeaderValue::from_static("origin"));
+    }
     resp
+}
+
+/// The CORS preflight of a write from the sandboxed game: only under a URL mapping and only for `Origin: null`
+/// (the activity's own origin never needs one). It admits the proxy token header; the write itself is checked
+/// in [`forward_write`]. Anything else is the usual 405.
+pub(crate) fn preflight_answer(
+    d: &ActivitiesDeps,
+    spec: &ServeSpec,
+    headers: &HeaderMap,
+    path_and_query: &str,
+) -> Response {
+    let mapped = matches!(
+        rules::mapping_target(&spec.url_mappings, path_and_query),
+        Ok(Some(_))
+    );
+    let opaque = headers
+        .get(header::ORIGIN)
+        .is_some_and(|o| o.as_bytes() == OPAQUE_ORIGIN);
+    if !mapped || !opaque {
+        return not_allowed(d);
+    }
+    let mut r = Response::new(Body::empty());
+    *r.status_mut() = StatusCode::NO_CONTENT;
+    harden(d, r.headers_mut());
+    let h = r.headers_mut();
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        HeaderValue::from_static("null"),
+    );
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_METHODS,
+        HeaderValue::from_static("POST, PUT, PATCH, DELETE"),
+    );
+    h.insert(
+        header::ACCESS_CONTROL_ALLOW_HEADERS,
+        HeaderValue::from_static("content-type, x-sr-activity-token"),
+    );
+    h.insert(
+        header::ACCESS_CONTROL_MAX_AGE,
+        HeaderValue::from_static("600"),
+    );
+    h.insert(header::VARY, HeaderValue::from_static("origin"));
+    r
 }
 
 fn not_allowed(d: &ActivitiesDeps) -> Response {
