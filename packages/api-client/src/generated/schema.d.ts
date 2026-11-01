@@ -2879,6 +2879,379 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/moderation/branch-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * The Operator's branch action (D-395): apply the approved request's action (freeze or ban) to every descendant
+         *     of the case at once. Owner only, behind a 2FA step-up, with a written reason and a second staff approver
+         *     already recorded. Every affected account keeps its own appeal; freezes last 12 months. One hash-chained audit
+         *     entry names the case, the approver and the node count, and an anonymised notice is emitted.
+         */
+        post: operations["branch_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every warning and restriction on an account, newest first (`MANAGE_CASES`; the read is logged). */
+        get: operations["member_actions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban a member's Person with a required reason category (`PLATFORM_BAN`). A serious ban opens a subtree case on
+         *     the invite tree. The ban can be appealed through the existing appeal routes.
+         */
+        post: operations["ban"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/invite-freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze a member's invite creation for a chosen number of days (`MANAGE_INVITES`, reason required). Lift it
+         *     early with `POST /admin/moderation/restrictions/{restriction_id}/lift`.
+         */
+        post: operations["invite_freeze"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/revoke-invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke every unused invite code the member holds (`MANAGE_INVITES`, reason required). Redeemed invites and the
+         *     invite graph are not touched.
+         */
+        post: operations["revoke_invites"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/timeout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Time a member out of posting and voice (`MANAGE_CASES`, reason required). They can still sign in and appeal. */
+        post: operations["timeout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/members/{account_id}/warn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Warn a member: a warning on their record for 180 days, with the strike weight of the moment (`MANAGE_CASES`,
+         *     reason required). The member gets a system DM.
+         */
+        post: operations["warn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Requests waiting for a second staff member or the Operator, then the recent ones (`MANAGE_CASES`). */
+        get: operations["list_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/requests/{request_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve a request as the second staff member (`MANAGE_CASES`; never the proposer). Needs a fresh 2FA step-up.
+         *     A sterilization takes effect now; a branch action becomes executable by the Operator.
+         */
+        post: operations["approve_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/requests/{request_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a waiting request (`MANAGE_CASES`, reason required); the proposer withdrawing their own cancels it. */
+        post: operations["reject_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/restriction-appeals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Appeals of restrictions waiting for a decision, oldest first (`MANAGE_CASES`). */
+        get: operations["restriction_appeals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/restrictions/{restriction_id}/appeal-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide the appeal of a restriction (`MANAGE_CASES`): a staff member other than the one who imposed it, or the
+         *     Owner when nobody else can. `overturned` ends the restriction.
+         */
+        post: operations["decide_restriction_appeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/restrictions/{restriction_id}/lift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Lift a restriction early (`MANAGE_CASES`; reason required). */
+        post: operations["lift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subtree cases, open first (`MANAGE_CASES`). */
+        get: operations["list_cases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One case with every node (activity stats, lineage, status) and the requests on it (`MANAGE_CASES`; logged). */
+        get: operations["get_case"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close a case (`MANAGE_CASES`, reason required). Restrictions already imposed stand until they end or are lifted. */
+        post: operations["close_case"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban a node of a case on its own evidence (`MANAGE_CASES` and `PLATFORM_BAN`). The ban is standard severity, so
+         *     it never opens another case; the person can appeal it like any ban.
+         */
+        post: operations["ban_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear a node of a case: lift its freeze and mark it cleared (`MANAGE_CASES`, reason required). Clearing an
+         *     automatically frozen account stops its 30-day removal.
+         */
+        post: operations["clear_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze a node on staff's own evidence: 12 months, no automatic removal, appealable (`MANAGE_CASES`). */
+        post: operations["freeze_node"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/moderation/subtree-cases/{case_id}/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a sterilization of one node (`can_invite = false` for 12 months, `MANAGE_CASES`) or the Operator's branch
+         *     action on the whole subtree (Owner only). Needs a fresh 2FA step-up; nothing takes effect until a second staff
+         *     member approves.
+         */
+        post: operations["new_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/persons/{person_id}": {
         parameters: {
             query?: never;
@@ -11949,6 +12322,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/transparency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The monthly transparency counts: notices, accounts actioned and frozen, sterilizations and appeals, by offense
+         *     category. Counts only, never handles or tree shape. Any signed-in member may read it.
+         */
+        get: operations["transparency"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/music/library": {
         parameters: {
             query?: never;
@@ -13314,6 +13707,40 @@ export interface paths {
          *     yours (a redemption in flight wins).
          */
         delete: operations["revoke"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/moderation/restrictions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The restrictions in force on the caller's own account, in plain words: no case, no staff member, no tree. */
+        get: operations["my_restrictions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/moderation/restrictions/{restriction_id}/appeal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Appeal a restriction on the caller's own account (once per restriction). A frozen account can do this. */
+        post: operations["appeal_restriction"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -17823,6 +18250,23 @@ export interface components {
             id: string;
             username?: string | null;
         };
+        BranchActionBody: {
+            /** @description The approved branch-action request. */
+            request_id: string;
+        };
+        /** @description What a branch action did. */
+        BranchOutcome: {
+            /** @description `freeze` or `ban`. */
+            action: string;
+            /** Format: int64 */
+            already_banned_or_gone: number;
+            case_id: string;
+            /** Format: int64 */
+            nodes_actioned: number;
+            /** @description The anonymised notice it emitted (counts and category only). */
+            notice: components["schemas"]["NoticeView"];
+            request_id: string;
+        };
         /** @description The bridge state of a channel: which way its messages flow. */
         BridgeChannelState: {
             /** @description `both`, `to_discord` or `from_discord`. */
@@ -18299,6 +18743,11 @@ export interface components {
             next_cursor?: string | null;
             /** @description Objects the caller may open, ordered by hash. */
             objects: components["schemas"]["CatalogObject"][];
+        };
+        CategoryCount: {
+            category: string;
+            /** Format: int64 */
+            notices: number;
         };
         /** @description Result of verifying the whole chain. */
         ChainReport: {
@@ -20568,6 +21017,24 @@ export interface components {
         DownloadState: "queued" | "preparing" | "ready" | "failed";
         DrainBody: {
             drain: boolean;
+        };
+        /** @description What `sr-cli moderation drill --synthetic` reports. */
+        DrillReport: {
+            /** Format: int64 */
+            auto_frozen: number;
+            notice: components["schemas"]["NoticeView"];
+            /**
+             * Format: int64
+             * @description Rows of the real tables the drill left behind (always 0: it ran in a transaction that was rolled back).
+             */
+            rows_left_behind: number;
+            /**
+             * Format: int64
+             * @description Accounts in the synthetic tree (all rolled back with it).
+             */
+            tree_size: number;
+            /** Format: int64 */
+            waiting_review: number;
         };
         /**
          * @description What a reviewer decided about a possible duplicate.
@@ -22849,6 +23316,19 @@ export interface components {
             part_number: number;
             url: string;
         };
+        MemberBanBody: {
+            reason?: string | null;
+            /**
+             * @description Required: `spam`, `harassment`, `illegal_content`, `child_safety`, `ban_evasion`, `fraud`,
+             *     `platform_abuse`, `nsfw_policy` or `other`.
+             */
+            reason_category: string;
+            /**
+             * @description `serious` or `standard`; the category's default when absent (spam, fraud, ban evasion, child safety,
+             *     illegal content and platform abuse are serious).
+             */
+            severity?: string | null;
+        };
         /** @description Body of `POST /sr/invites`. */
         MemberCreateInviteBody: {
             /** @description Private note ("for Sam"), at most 100 characters. */
@@ -22867,6 +23347,14 @@ export interface components {
             /** Format: int64 */
             redeemed_at_ms?: number | null;
             redeemed_by?: null | components["schemas"]["RedeemedBy"];
+        };
+        MemberInviteFreezeBody: {
+            /**
+             * Format: int64
+             * @description 1 to 365.
+             */
+            days: number;
+            reason?: string | null;
         };
         /** @description The Invites section of User Settings. */
         MemberInvitesObject: {
@@ -22918,6 +23406,18 @@ export interface components {
             /** @description Per-server profile theme, `[primary, accent]` as 0xRRGGBB. */
             theme_colors?: number[] | null;
             user: components["schemas"]["GuildUserRef"];
+        };
+        /** @description A body that is only a reason (also read from the `X-Audit-Log-Reason` header by the staff routes). */
+        MemberReasonBody: {
+            reason?: string | null;
+        };
+        MemberTimeoutBody: {
+            /**
+             * Format: int64
+             * @description 1 to 40320 (four weeks).
+             */
+            minutes: number;
+            reason?: string | null;
         };
         /** @description What a new member sees before they may talk (`GET /guilds/{id}/member-verification`). */
         MemberVerificationObject: {
@@ -23154,6 +23654,25 @@ export interface components {
             /** @description `selective` or `whole_guild`. */
             mode: string;
             roles: components["schemas"]["MirrorRoleObject"][];
+        };
+        /** @description A sterilization or branch-action request (the two-person step). */
+        ModRequest: {
+            /** @description `freeze` or `ban` (branch action only). */
+            action?: string | null;
+            approved_by?: string | null;
+            case_id: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            id: string;
+            /** @description `sterilize` or `branch_action`. */
+            kind: string;
+            /** Format: int32 */
+            nodes_actioned?: number | null;
+            proposed_by: string;
+            reason: string;
+            /** @description `pending`, `approved`, `executed`, `rejected` or `cancelled`. */
+            state: string;
+            target_account_id?: string | null;
         };
         /** @description Body of `PUT /channels/{id}/jukebox`. */
         ModeBody: {
@@ -23553,6 +24072,27 @@ export interface components {
             target_id: string;
             target_kind: components["schemas"]["TargetKind"];
         };
+        /** @description What a member sees of a restriction on their own account: no case, no staff member, no tree. */
+        MyRestriction: {
+            appeal_state?: string | null;
+            can_appeal: boolean;
+            /** @description What the member is told it covers, in words. */
+            effect: string;
+            /** Format: int64 */
+            ends_at_ms: number;
+            id: string;
+            /**
+             * @description `warn`, `timeout`, `invite_freeze`, `case_freeze` (shown as a freeze) or `sterilization` (shown as
+             *     "you cannot invite right now").
+             */
+            kind: string;
+            /**
+             * @description The reason staff wrote for the warning or timeout; case freezes and sterilizations say only that the
+             *     account is under review.
+             */
+            reason: string;
+            state: string;
+        };
         /** @description The caller's own seat. */
         MySeatObject: {
             /** @description The caller asked for reminders. */
@@ -23633,6 +24173,11 @@ export interface components {
             /** @description Empty or null clears the nickname (max 32 characters). */
             nickname?: string | null;
         };
+        NodeBanBody: {
+            reason?: string | null;
+            /** @description A `ban_reason_category` value (required). */
+            reason_category: string;
+        };
         NotMirroredObject: {
             /** @description `managed_role`, `dm`, `e2ee`, `staff_guild` or `degraded_type`. */
             code: string;
@@ -23703,6 +24248,20 @@ export interface components {
             triage_due_at_ms: number;
             /** @description Received or in triage and past the one-business-day target. */
             triage_overdue: boolean;
+        };
+        /** @description The anonymised notice: a category and counts, by construction nothing else. */
+        NoticeView: {
+            /** Format: int64 */
+            accounts_actioned: number;
+            /** Format: int64 */
+            accounts_frozen: number;
+            body: string;
+            category: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description `serious_ban` or `branch_action`. */
+            kind: string;
+            title: string;
         };
         /** @description The caller's own default notification level. */
         NotificationDefaultsObject: {
@@ -25858,6 +26417,13 @@ export interface components {
             /** @description `true` to accept (and join the staff), `false` to decline. */
             accept: boolean;
         };
+        RestrictionAppealBody: {
+            message: string;
+        };
+        RestrictionAppealDecisionBody: {
+            decision: components["schemas"]["AppealDecision"];
+            reason?: string | null;
+        };
         /** @description Body of `POST /moderation/age/restrictions`. */
         RestrictionBody: {
             /** @description The case this belongs to; its timeline gets the entry and a case being worked moves to `actioned`. */
@@ -25869,6 +26435,33 @@ export interface components {
             reason?: string | null;
             /** @description `true` marks it age-restricted, `false` removes the mark. */
             restricted: boolean;
+        };
+        /** @description One per-member restriction or warning (what staff see; the member sees [`MyRestriction`]). */
+        RestrictionView: {
+            account_id: string;
+            appeal_message?: string | null;
+            /** @description `open`, `upheld` or `overturned`. */
+            appeal_state?: string | null;
+            approved_by?: string | null;
+            case_id?: string | null;
+            /** Format: int64 */
+            ends_at_ms: number;
+            id: string;
+            imposed_by: string;
+            /** @description `warn`, `timeout`, `invite_freeze`, `case_freeze` or `sterilization`. */
+            kind: string;
+            reason: string;
+            /** @description The freeze ends in the account's removal unless cleared. */
+            removes_account: boolean;
+            /** Format: int64 */
+            starts_at_ms: number;
+            /** @description `active`, `lifted`, `overturned`, `expired` or `removed`. */
+            state: string;
+            /**
+             * Format: float
+             * @description 1.0 times the account's accountability multiplier when the act was recorded.
+             */
+            weight: number;
         };
         /** @description One record kept after an erasure, with the reason (G-66, D-124, D-295). */
         RetainedRecord: {
@@ -25922,6 +26515,11 @@ export interface components {
         RevokedCredits: {
             /** Format: int64 */
             revoked: number;
+        };
+        /** @description Result of an act that names no row (revoking unused codes). */
+        RevokedInvites: {
+            /** Format: int64 */
+            codes_revoked: number;
         };
         /** @description A ring as a viewer sees it. */
         Ring: {
@@ -27453,6 +28051,67 @@ export interface components {
         SubmitVersionBody: {
             note?: string | null;
         };
+        SubtreeCaseDetail: {
+            case: components["schemas"]["SubtreeCaseSummary"];
+            nodes: components["schemas"]["SubtreeNode"][];
+            nodes_truncated: boolean;
+            opened_by: string;
+            /** @description Requests waiting for a second staff member, or approved and waiting for the Operator. */
+            requests: components["schemas"]["ModRequest"][];
+        };
+        /** @description A subtree case in the list. */
+        SubtreeCaseSummary: {
+            /** Format: int64 */
+            auto_frozen: number;
+            category: string;
+            id: string;
+            /** Format: int64 */
+            nodes: number;
+            /** Format: int64 */
+            opened_at_ms: number;
+            root_account_id: string;
+            root_username: string;
+            /** @description `open` or `closed`. */
+            state: string;
+            /** Format: int64 */
+            waiting_review: number;
+        };
+        /** @description One node of a case with its activity stats and lineage. */
+        SubtreeNode: {
+            account_id: string;
+            /**
+             * Format: int32
+             * @description 0 root, 1.. below it, -1 and -2 the inviters.
+             */
+            depth: number;
+            /** Format: int64 */
+            messages: number;
+            note: string;
+            /** @description The account that issued the invite this one redeemed. */
+            parent_account_id?: string | null;
+            /** Format: int64 */
+            registered_at_ms: number;
+            /** @description Frozen or sterilized right now. */
+            restricted: boolean;
+            /** @description `root`, `descendant`, `inviter` or `inviter2`. */
+            role: string;
+            /** @description `auto_frozen`, `review`, `frozen`, `banned`, `sterilized`, `cleared`, `removed` or `not_active`. */
+            status: string;
+            /** @description D-392 when the case opened. */
+            unactivated: boolean;
+            username: string;
+            /** Format: int64 */
+            voice_seconds: number;
+        };
+        SubtreeRequestBody: {
+            account_id?: string | null;
+            /** @description `freeze` or `ban` (branch action). */
+            action?: string | null;
+            /** @description `sterilize` (needs `account_id`) or `branch_action` (needs `action`; Owner only). */
+            kind: string;
+            /** @description Why, in at least 20 characters. */
+            reason: string;
+        };
         Suggestion: {
             author_id: string;
             channel_id: string;
@@ -28205,6 +28864,31 @@ export interface components {
             /** @description A current member of the server. */
             new_owner_id: string;
             reason?: string | null;
+        };
+        Transparency: {
+            /** @description Newest month first, at most 24. */
+            months: components["schemas"]["TransparencyMonth"][];
+        };
+        /** @description One month of the transparency page: counts only. */
+        TransparencyMonth: {
+            /** Format: int64 */
+            accounts_actioned: number;
+            /** Format: int64 */
+            accounts_frozen: number;
+            /** Format: int64 */
+            appeals_filed: number;
+            /** Format: int64 */
+            appeals_overturned: number;
+            /** Format: int64 */
+            branch_actions: number;
+            /** @description By offense category: `(category label, notices)`. */
+            by_category: components["schemas"]["CategoryCount"][];
+            /** @description `YYYY-MM`. */
+            month: string;
+            /** Format: int64 */
+            serious_bans: number;
+            /** Format: int64 */
+            sterilizations: number;
         };
         TriggerMetadata: {
             allow_list?: string[];
@@ -39231,6 +39915,1152 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    branch_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BranchActionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BranchOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    member_actions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ban: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberBanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    invite_freeze: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberInviteFreezeBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_invites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedInvites"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    timeout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberTimeoutBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    warn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_requests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModRequest"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    approve_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModRequest"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    reject_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Request snowflake */
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restriction_appeals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    decide_restriction_appeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restriction snowflake */
+                restriction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestrictionAppealDecisionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restriction snowflake */
+                restriction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestrictionView"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_cases: {
+        parameters: {
+            query?: {
+                /** @description Only open cases. */
+                open?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtreeCaseSummary"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtreeCaseDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    close_case: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            /** @description Closed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    ban_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NodeBanBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BanOutcome"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    clear_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            /** @description Cleared */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    freeze_node: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+                /** @description Account snowflake */
+                account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberReasonBody"];
+            };
+        };
+        responses: {
+            /** @description Frozen */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    new_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Subtree case snowflake */
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubtreeRequestBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModRequest"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -68965,6 +70795,33 @@ export interface operations {
             };
         };
     };
+    transparency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transparency"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: {
@@ -72298,6 +74155,91 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    my_restrictions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyRestriction"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    appeal_restriction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Restriction snowflake */
+                restriction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestrictionAppealBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyRestriction"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

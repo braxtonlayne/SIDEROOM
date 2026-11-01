@@ -2979,7 +2979,7 @@ async fn seed(
             .await
             .unwrap();
         }
-        let mut new_id = || ids.generate().get() as i64;
+        let new_id = || ids.generate().get() as i64;
         let (r_staff, r_member, q_ster, q_branch) = (new_id(), new_id(), new_id(), new_id());
         for (id, acct, appeal) in [(r_staff, node, true), (r_member, member, false)] {
             sqlx::query(
