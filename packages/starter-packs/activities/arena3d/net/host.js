@@ -10,6 +10,7 @@
 
 import { MAX_PLAYERS } from '../sim/world.js';
 import { sanitiseInput } from '../sim/input.js';
+import { InputLog } from '../sim/input-log.js';
 import { MSG, decode, encodeFull, encodeRoster, encodeSnapshot, encodeWelcome } from './codec.js';
 
 /** @typedef {import('../sim/world.js').World} World */
@@ -44,6 +45,8 @@ export class HostSession {
     /** @type {Map<string, Peer>} */
     this.peers = new Map();
     this.stats = { inputsReceived: 0, inputsDropped: 0, starved: 0, snapshots: 0, bytesOut: 0 };
+    /** Every applied input change, in the replay script's format (for crash reports and bug replays). */
+    this.inputLog = new InputLog();
     this.world.addPlayer(this.selfSlot);
     this.off = this.channel.onInput((from, bytes) => this.receive(from, bytes));
     this.publishRoster();
@@ -105,17 +108,20 @@ export class HostSession {
     if (!peer) return;
     this.peers.delete(id);
     this.world.removePlayer(peer.slot);
+    this.inputLog.forget(peer.slot);
     this.publishRoster();
   }
 
   /** One fixed tick. @param {PlayerInput} localInput the host player's own input */
   tick(localInput) {
     this.world.setInput(this.selfSlot, localInput);
+    this.inputLog.record(this.world.tick, this.selfSlot, sanitiseInput(localInput));
     const peers = [...this.peers.values()].sort((a, b) => a.slot - b.slot);
     for (const peer of peers) {
       const next = peer.queue.shift();
       if (next) {
         this.world.setInput(peer.slot, next.input);
+        this.inputLog.record(this.world.tick, peer.slot, next.input);
         peer.ack = next.seq;
       } else this.stats.starved++;
     }

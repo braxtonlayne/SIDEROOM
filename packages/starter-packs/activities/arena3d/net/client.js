@@ -14,6 +14,7 @@
 import { MSG, decode, encodeBye, encodeHello, encodeInput } from './codec.js';
 import { Interpolator } from './interp.js';
 import { sanitiseInput } from '../sim/input.js';
+import { InputLog } from '../sim/input-log.js';
 
 /** @typedef {import('../sim/world.js').World} World */
 /** @typedef {import('../sim/world.js').Snapshot} Snapshot */
@@ -51,6 +52,8 @@ export class PredictedClient {
     /** @type {RosterEntry[]} */
     this.roster = [];
     this.interp = new Interpolator({ delayTicks: opt.interpDelayTicks ?? 6 });
+    /** My own predicted inputs, in the replay script's format, by local predicted tick. */
+    this.inputLog = new InputLog();
     this.stats = { snapshots: 0, corrections: 0, maxCorrection: 0, lastCorrection: 0, resimTicks: 0, inputsSent: 0 };
     /** @type {(() => void)[]} */
     this.offs = [
@@ -134,6 +137,7 @@ export class PredictedClient {
     this.pending.push({ seq: this.seq, input: clean });
     if (this.pending.length > 120) this.pending.shift(); // the host is gone or far behind; keep memory bounded
     this.world.setInput(this.slot, clean);
+    this.inputLog.record(this.world.tick, this.slot, clean);
     this.world.step();
     if (this.seq % this.sendEvery === 0) {
       this.channel.toHost(encodeInput(this.pending));

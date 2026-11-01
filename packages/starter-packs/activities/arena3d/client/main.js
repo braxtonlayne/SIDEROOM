@@ -95,6 +95,18 @@ async function boot() {
     if (!game) {
       game = new Game({ J, platform, renderer, canvas, input: keys, settings, hud, sfx, voice: spatialVoiceFor([]) });
       game.start();
+      // The game's own crash-report half (brief §3, wave 45): the state hash and the input log, for devtools,
+      // a crash reporter or a bug replay (the log uses replay/script.js's event format).
+      const g = game;
+      Object.defineProperty(window, 'arena3d', {
+        configurable: true,
+        value: Object.freeze({
+          tick: () => g.world.tick,
+          stateHash: () => g.world.stateHash(),
+          inputLog: () => (g.host ?? g.client)?.inputLog.snapshot() ?? [],
+          role: () => (g.host ? 'host' : 'peer'),
+        }),
+      });
       // The sample glTF model (optional: it needs connect-src 'self', see assets/source.js).
       new BundledAssetSource()
         .json('models/beacon.json')
