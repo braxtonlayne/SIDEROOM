@@ -84473,7 +84473,7 @@
           },
           "needs_base_game_hint": {
             "type": "boolean",
-            "description": "Needs the local base-game hint of the desktop launcher (46-B)."
+            "description": "Needs the local base-game hint of the desktop launcher (48-B)."
           }
         }
       },
