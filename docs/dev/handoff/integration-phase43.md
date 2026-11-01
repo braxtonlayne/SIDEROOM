@@ -1,7 +1,7 @@
 # Integration of wave 43 (ARC-GST-001, ARC-GST-002): guest links
 
-Branch `integration/phase43`, base `origin/integration/phase42` (defe9413; PR #73 still in CI, no new commits on it
-when this integration ran, and it had not merged into `main`). Then `feat/p43-guest-relay` (eaf4dc1c, ARC-GST-001) and
+Branch `integration/phase43`, base `origin/integration/phase42` (defe9413), then `origin/main` 05d3011f merged once PR #73
+(wave 42) landed (no content change: main was phase42 plus the merge commit). Then `feat/p43-guest-relay` (eaf4dc1c, ARC-GST-001) and
 `feat/p43-guest-runner` (1ef5b152, ARC-GST-002), both `--no-ff`. Not pushed; no PR opened.
 
 Handoffs: [feat-p43-guest-relay](feat-p43-guest-relay.md), [feat-p43-guest-runner](feat-p43-guest-runner.md).
@@ -55,11 +55,36 @@ Decisions: D-412 to D-419 (integrator defaults; the owner may change any). Threa
    words (`overflow-wrap: anywhere`). The Share dialog cannot be a row of that spec (it needs the voice and Activities
    stack); its phone check is in `guest-play.spec.ts` (English only, see Not done).
 
+7. **`apps/web/src/public/guest-play/ALLOWED.ts`** lists `@sideroom/ui` and `@sideroom/embedded-app-sdk`
+   (`scripts/entrance-allowed.test.mjs` failed: the runner imported workspace packages its list did not name).
+8. **Inventory:** ARC-GST-001 and ARC-GST-002 ticked with the proofs above.
+
 ## Gates on the merged tree
 
 | Gate | Result |
 |---|---|
-GATES_TABLE
+| cargo fmt --check; clippy --all-targets -D warnings (sr-activities, sr-voice, sr-gateway, sr-api, sr-server, sr-db) | ok |
+| sr-db secret_columns / migration_versions | 1 / 2 pass |
+| sr-activities lib / db / arcade / trust_db (Postgres, scratch `sr_p43_integ`) | 47 / 12 / 7 / 9 pass |
+| sr-voice lib / sr-gateway lib | 50 / 206 pass |
+| sr-api lib (--include-ignored) / route_matrix / openapi_names | 811 / 6 / 2 pass |
+| sr-server lib (--include-ignored) / web_gate / feature_registry | 247 / 22 / 7 pass |
+| sr-server immutable_rules (--include-ignored, all states; `SR_TEST_VOICE_PORT_BASE=53800`) | 24 pass |
+| sr-server authz_matrix (--include-ignored, incl. `guest_links_hold_over_http`) | 10 pass; no ceiling, `WRITE_OBSERVED` entry or length changed |
+| OpenAPI, api-client, MSW handlers regenerated once; mocks:check | unchanged, 1173 operations, up to date |
+| pnpm typecheck (all packages incl. e2e) / eslint / prettier | clean (prettier only flags the untracked local `e2e/.state`) |
+| Vitest apps/web, full, --maxWorkers=2 (wasm built) | 437 files, 4000 tests pass |
+| Activity packs (holdem, whiteboard, tabletop, Land.io incl. bundle test) | 62 / 71 / 86 / 299 (+1 skipped) pass |
+| scripts/*.test.mjs (14 files) | all pass after the guest-play `ALLOWED.ts` fix (it imported two workspace packages it did not list) |
+| i18n-audit / check-css-tokens | 0 / 69 files clean |
+| build-web, check-entrance-isolation, bundle budget | ok; every surface clean, guest-play 114.0/120 KB gzip |
+| js-yaml parse of `.github/workflows/e2e.yml` | ok |
+| Playwright Chromium, dev server + sr-server (voice, Activities on): guest-play.spec (6 mocked + 2 real stack), activities-live | 13 pass |
+| Playwright Chromium, built dist behind sr-server: entrance-isolation.spec + guest-play.spec mocked part | 38 pass |
+| Playwright Chromium: arcade-room, lounge-shell, exit-gate | 6 pass, 1 skipped (exit-gate one-time link: the Owner already existed in the scratch DB) |
+| Playwright Chromium: arcade-sandbox | steps 1-3 pass; step 4 stops at `sr-cli arcade sign-code` (local storage is in memory and the CLI needs the server's secret key; CI's live job runs it with Garage), as in wave 42 |
+| Playwright Chromium: i18n-pseudo (all rows + the two new /play rows, desktop and phone) | all pass after the guest.css fix |
+| Playwright noindex.spec | skipped: it runs only through Caddy (`SR_E2E_NOINDEX=1`, prod-smoke); the `/play` noindex meta is checked by guest-play.spec |
 
 ## Not done
 
@@ -78,5 +103,6 @@ guests, text-channel links, a members-only lobby, rekey on revoke, the limits an
 
 ## Resume here
 
-Nothing is half-done. If PR #73 (wave 42) gets more spec fixes, merge `origin/integration/phase42` again; if it merges,
-merge `origin/main`. The next CI run's live job is the first CI run of the guest-links step.
+Nothing is half-done. PR #73 is merged and in this branch. The next CI run's live job is the first CI run of the
+guest-links step (its own server run, 4 registrations, 8 with a retry; the cap is 20 per run). Scratch DBs
+`sr_p43_integ` and `sr_p43_e2e` were dropped; ports 8080/5173/8081 are free.

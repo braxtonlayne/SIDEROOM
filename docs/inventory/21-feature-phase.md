@@ -362,8 +362,8 @@ Playwright, in-memory object storage, no Garage locally).
 Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST-002). Threat-model rows T41 (relay) and T42 (runner).
 
 ### ARC — Guest links
-- [ ] **ARC-GST-001** [BE] Guest relay: guest-link routes (`POST/DELETE /activity-instances/{id}/guest-links`, unauthenticated rate-limited `POST /play/{lobby_token}/join`), lobby tokens and guest sessions stored as digests, expiring with the lobby and revocable by its host (migration 2080), the per-lobby sub-room in `sr-voice` (data leg, per-lobby keys, no MLS membership; media leg designed in `docs/dev/design/ingame-voice.md`), the gateway guest socket with exactly one topic `game:<lobby_token>` enforced at the relay, `guest_play` and `lobby_channel` active and `ingame_voice` reserved in `arcade::FLAGS` (D-385, D-397, D-399). See [handoff](../dev/handoff/feat-p43-guest-relay.md)
-- [ ] **ARC-GST-002** [FE] Link generation and the guest runner: "Share link" in a running Arcade lobby (a member of a
+- [x] **ARC-GST-001** [BE] Guest relay: guest-link routes (`POST/DELETE /activity-instances/{id}/guest-links`, unauthenticated rate-limited `POST /play/{lobby_token}/join`), lobby tokens and guest sessions stored as digests, expiring with the lobby and revocable by its host (migration 2080), the per-lobby sub-room in `sr-voice` (data leg, per-lobby keys, no MLS membership; media leg designed in `docs/dev/design/ingame-voice.md`), the gateway guest socket with exactly one topic `game:<lobby_token>` enforced at the relay, `guest_play` and `lobby_channel` active and `ingame_voice` reserved in `arcade::FLAGS` (D-385, D-397, D-399). See [handoff](../dev/handoff/feat-p43-guest-relay.md) _Proved on the merged tree (integration/phase43): sr-activities lib/db/arcade/trust_db, sr-voice and sr-gateway lib, sr-api lib (--include-ignored), route_matrix, openapi_names, sr-server immutable_rules (all states) and authz_matrix incl. `guest_links_hold_over_http`; Playwright Chromium `guest-play.spec.ts` real stack (guest 403 on chat/member/profile/shelf routes as bearer and cookie, forged second topic closed 4403, sync both ways). Open: nickname approval, members-only lobby, rekey on revoke, multi-node (D-412 to D-419)_
+- [x] **ARC-GST-002** [FE] Link generation and the guest runner: "Share link" in a running Arcade lobby (a member of a
   voice-channel instance whose game declares `guest_play`), `/play/<lobby_token>#key=<game key>` with the key made in the
   sharer's browser and never sent to a server, a QR code from the existing `@sideroom/ui` encoder, the noindex
   `/play/<token>` page as the `guest-play` public surface (isolated runner bundle, own whitelist and one-REST-call rule in
@@ -379,5 +379,7 @@ Branches: `feat/p43-guest-relay` (ARC-GST-001), `feat/p43-guest-runner` (ARC-GST
   steps), `noindex.spec.ts` for `/play/`. Unticked: the real-stack gate proof (Land.io in a call, incognito guest, sync
   both ways, 403/Drop at the relay) is written in `guest-play.spec.ts` but needs 43-A's relay in the server under test
   (`SR_E2E_GUEST=1 SR_E2E_ACTIVITIES=1 SR_E2E_VOICE=1`); not built: a lobby-approved nickname (the relay assigns the
-  callsign; guests never choose a name), the join answer's `capabilities` field (assumed), link sharing from a text-channel
-  instance_
+  callsign; guests never choose a name), link sharing from a text-channel instance. Integration (wave 43): the real-stack
+  gate proof ran and passes in Chromium (Land.io in a call, incognito guest, sync both ways, 403s, 4403 on a forged topic,
+  `ingame_voice` refused by the runner against the relay's `capabilities`, guest bundle isolation, Share dialog at 375 px),
+  `/play` in `i18n-pseudo.spec.ts` at phone and desktop; CI's live job runs it_
