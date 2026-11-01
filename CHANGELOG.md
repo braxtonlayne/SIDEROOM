@@ -8,6 +8,29 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 41 - 2026-11-01
+
+- **Three rooms.** After the Entrance the main rail is now The Lounge, The Arcade and The Study. The Study opens on
+  your shelves (`/study`), with Media (the Cinema) and Reading (the Library) next to them.
+- **Shelves by source, not by genre.** The Study's sidebar lists My Files, one entry per friend who shares a shelf with
+  you, and one per server whose shelves your role can see. Every card says whose bucket it is (`@handle's bucket` or
+  `Guild: <name>`). Filter by Video, Audio, Reading, Game & Mod Packs, Images or Other. Covers come from the files
+  themselves (album art, the first page of a comic or book, a frame of a video), never from an outside service.
+- **Your words on your files.** The owner of a shelf (and a manager on a server's shelf) can give any file a title, a
+  cover image from the same bucket and a note. Continue Watching, Continue Reading and Pinned Folders stay in your
+  browser; Recently Added shows the newest files on the shelves you can see.
+- **Sharing a shelf follows your account.** A friend or a server role you grant can open your shelf on any device. They
+  never get your bucket keys: each file opens through its own link that works for that one file for ten minutes.
+  The shelf's grant list shows who can see it, with the history. Staff can delist a single file after a valid notice;
+  it disappears for everyone.
+- **The Screening Room.** In a voice channel, Watch Together, a link to the shelves and the Live TV guide now sit
+  together in one panel.
+- **Storefront surfaces are off.** Movies, Series and Anime categories, trending lists, the Requests board, uploads
+  for review and the staff review queue are switched off by default (they are hidden, not deleted), and nothing looks
+  titles up on outside metadata services. Operators can switch each back on in Admin > Features.
+- **A new default look for the Lounge.** The Editorial theme (warm charcoal, cream, muted gold, serif headings) is the
+  Lounge's default; every other theme is still in Settings.
+
 ## Phase 40 - 2026-10-31
 
 - **Help covers everything that is new.** The Help page now has a section each for your own storage, the player and
