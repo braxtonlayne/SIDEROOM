@@ -57,6 +57,11 @@ jobs:
         # Activities); staff reauth stays ON (the gate enrols a second factor). A failure in the main step above must not
         # hide these, and the other way round, so each step reports on its own.
         #
+        # OPS-CRASH-001 (wave 45 gate proof, half A) rides here too: tests/crash-telemetry.spec.ts is tagged @gate. A synthetic
+        # WASM panic in a signed-in browser must reach #crash-triage allow-listed and deduplicated, with none of the fixture's
+        # secrets and none of scripts/crash-secret-patterns.json in the card. It runs first (file order), before the gates enrol
+        # a second factor on the Owner, and registers two accounts, within the budget of the gates' server run.
+        #
         # The report, the traces and the server log go to files of their own, so this run does not overwrite those of the
         # main step.
         if: ${{ !cancelled() }}

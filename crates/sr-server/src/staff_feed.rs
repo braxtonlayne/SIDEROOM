@@ -192,6 +192,66 @@ pub fn feed_card(
     }
 }
 
+/// Name of the Staff Server channel crash cards go to (OPS-CRASH-001).
+pub const CRASH_CHANNEL: &str = "crash-triage";
+
+/// The structured JSON of a crash card: the allow-listed card, the count and the replay buffer. Frames are trimmed
+/// (never the replay) until it fits an embed description.
+pub fn crash_card_json(view: &sr_api::routes::crash::CrashView, max_chars: usize) -> String {
+    let inputs: Vec<&str> = view
+        .replay
+        .as_array()
+        .map(|a| a.iter().filter_map(|t| t["input"].as_str()).collect())
+        .unwrap_or_default();
+    let all_frames = view.card["frames"].as_array().cloned().unwrap_or_default();
+    let mut keep = all_frames.len();
+    loop {
+        let mut card = view.card.clone();
+        if let Some(o) = card.as_object_mut() {
+            o.insert(
+                "frames".into(),
+                serde_json::Value::Array(all_frames.iter().take(keep).cloned().collect()),
+            );
+            o.insert("id".into(), json!(view.id.to_string()));
+            o.insert("count".into(), json!(view.count));
+            o.insert("replay".into(), json!(inputs));
+            o.insert("replay_ticks".into(), json!(inputs.len()));
+        }
+        let s = card.to_string();
+        if s.chars().count() <= max_chars || keep <= 4 {
+            return s;
+        }
+        keep -= 2;
+    }
+}
+
+/// The card of a crash in `#crash-triage`: the structured JSON an agent reproduces the bug from, and a way to the full
+/// record. There is no button that deploys or merges anything: an agent proposes, a human merges (T45).
+pub fn crash_card(view: &sr_api::routes::crash::CrashView, base_url: &str) -> Card {
+    let kind = view.card["kind"].as_str().unwrap_or("error");
+    let route = view.card["route"].as_str().unwrap_or("unknown");
+    let commit = view.card["commit"].as_str().unwrap_or("");
+    let short: String = commit.chars().take(8).collect();
+    let body = crash_card_json(view, 3400);
+    Card {
+        content: String::new(),
+        embed: Some(Embed {
+            title: Some(clip(
+                &format!("Crash x{}: {kind} on {route} ({short})", view.count),
+                200,
+            )),
+            kind: Some("rich".into()),
+            description: Some(format!("```json\n{body}\n```")),
+            color: RED,
+            ..Embed::default()
+        }),
+        buttons: vec![link_button(
+            "Open replay",
+            format!("{base_url}/api/v1/admin/crash-reports/{}", view.id),
+        )],
+    }
+}
+
 /// The system DM that offers an appointment (doc 07 section 4).
 pub fn offer_card(offer: &StaffOffer) -> Card {
     let roles = offer.role_names.join(", ");
@@ -490,14 +550,18 @@ impl StaffVoice {
         id.and_then(|i| u64::try_from(i).ok()).map(ChannelId::new)
     }
 
-    /// The system user must be a member of the Staff Server to post there. Done once.
+    /// The system user must be a member of the Staff Server to post there. Done once, but only once there is a Staff
+    /// Server: a server that started before the Owner was bootstrapped must not use up the one attempt on nothing
+    /// (found by the crash telemetry gate, OPS-CRASH-001).
     async fn ensure_member(&self) {
-        self.member
-            .get_or_init(|| async {
+        let _ = self
+            .member
+            .get_or_try_init(|| async {
+                if self.staff_guild().await.is_none() {
+                    return Err(());
+                }
                 let r = sqlx::query(
-                    "INSERT INTO guild_members (guild_id, user_id) \
-                     SELECT id, $1 FROM guilds WHERE is_staff_guild \
-                     ON CONFLICT (guild_id, user_id) DO NOTHING",
+                    "INSERT INTO guild_members (guild_id, user_id)                      SELECT id, $1 FROM guilds WHERE is_staff_guild                      ON CONFLICT (guild_id, user_id) DO NOTHING",
                 )
                 .bind(SYSTEM_USER_ID)
                 .execute(&self.pool)
@@ -505,6 +569,7 @@ impl StaffVoice {
                 if let Err(e) = r {
                     tracing::warn!(error = %e, "could not add the system user to the Staff Server");
                 }
+                Ok(())
             })
             .await;
     }
@@ -771,6 +836,131 @@ impl StaffVoice {
         .await
         .ok()
         .flatten()
+    }
+}
+
+impl StaffVoice {
+    /// `#crash-triage` of the Staff Server (OPS-CRASH-001): created when missing, and its permission overwrites are made
+    /// current every time, so the channel is staff-only whatever happened to it: `@everyone` cannot see it, the roles that
+    /// carry a platform permission can read it, and the system user can post. Idempotent. `None` when the installation has
+    /// no Staff Server. A channel created here reaches clients' channel lists on their next reload.
+    pub async fn ensure_crash_channel(&self) -> Option<ChannelId> {
+        use sr_chat::{
+            domain::{Channel, ChannelType},
+            repo::ChannelRepository,
+        };
+        self.ensure_member().await;
+        let guild = self.staff_guild().await?;
+        let existing = self.channel(CRASH_CHANNEL).await;
+        let channel = match existing {
+            Some(c) => c,
+            None => {
+                let g = u64::try_from(guild).ok()?;
+                let category: Option<i64> = sqlx::query_scalar(
+                    "SELECT id FROM channels WHERE guild_id = $1 AND type = 4 AND name = 'Text Channels' ORDER BY id LIMIT 1",
+                )
+                .bind(guild)
+                .fetch_optional(&self.pool)
+                .await
+                .ok()
+                .flatten();
+                let position: i32 = sqlx::query_scalar(
+                    "SELECT COALESCE(MAX(position), 0) + 1 FROM channels WHERE guild_id = $1 AND type = 0",
+                )
+                .bind(guild)
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(10);
+                let id = ChannelId::new(self.messages.next_id().get());
+                let mut ch = Channel::new(id, Some(sr_core::GuildId::new(g)), ChannelType::Text);
+                ch.name = Some(CRASH_CHANNEL.to_owned());
+                ch.topic = Some(
+                    "Crash cards from signed-in browsers: allow-listed, deduplicated. An agent proposes, staff review and merge."
+                        .to_owned(),
+                );
+                ch.position = position;
+                ch.parent_id = category
+                    .and_then(|c| u64::try_from(c).ok())
+                    .map(ChannelId::new);
+                let repo = sr_db::chat_repo::PgChatRepo::new(self.pool.clone());
+                if let Err(e) = repo.insert_channel(&ch, &[]).await {
+                    // A second server racing us may have created it: look again before giving up.
+                    tracing::warn!(error = ?e, "could not create #crash-triage");
+                    return self.channel(CRASH_CHANNEL).await;
+                }
+                id
+            }
+        };
+        let ch = i64::try_from(channel.get()).ok()?;
+        let view = sr_core::Permissions::VIEW_CHANNEL | sr_core::Permissions::READ_MESSAGE_HISTORY;
+        let post = view | sr_core::Permissions::SEND_MESSAGES | sr_core::Permissions::EMBED_LINKS;
+        let synced = async {
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM permission_overwrites WHERE channel_id = $1")
+                .bind(ch)
+                .execute(&mut *tx)
+                .await?;
+            // @everyone (the role whose id is the guild's) may not see it.
+            sqlx::query(
+                "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) \
+                 VALUES ($1, $2, 'role', 0, $3)",
+            )
+            .bind(ch)
+            .bind(guild)
+            .bind(sr_core::Permissions::VIEW_CHANNEL.bits() as i64)
+            .execute(&mut *tx)
+            .await?;
+            // Every role that carries a platform permission reads it.
+            sqlx::query(
+                "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) \
+                 SELECT $1, id, 'role'::overwrite_target, $3, 0 FROM roles \
+                 WHERE guild_id = $2 AND platform_permissions <> 0 AND id <> $2",
+            )
+            .bind(ch)
+            .bind(guild)
+            .bind(view.bits() as i64)
+            .execute(&mut *tx)
+            .await?;
+            // The system user posts the cards.
+            sqlx::query(
+                "INSERT INTO permission_overwrites (channel_id, target_id, target_type, allow, deny) \
+                 VALUES ($1, $2, 'member', $3, 0)",
+            )
+            .bind(ch)
+            .bind(SYSTEM_USER_ID)
+            .bind(post.bits() as i64)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await
+        }
+        .await;
+        if let Err(e) = synced {
+            tracing::warn!(error = %e, "could not set the permissions of #crash-triage");
+            return None;
+        }
+        Some(channel)
+    }
+}
+
+/// Crash cards (OPS-CRASH-001) go to `#crash-triage` as the system user, with no buttons that act.
+#[async_trait]
+impl sr_api::routes::crash::CrashSink for StaffVoice {
+    async fn post(&self, view: &sr_api::routes::crash::CrashView) -> Option<(i64, i64)> {
+        let channel = self.ensure_crash_channel().await?;
+        let message = self
+            .deliver(channel, crash_card(view, &self.base_url))
+            .await?;
+        Some((i64::try_from(channel.get()).ok()?, message))
+    }
+
+    async fn refresh(
+        &self,
+        channel: i64,
+        message: i64,
+        view: &sr_api::routes::crash::CrashView,
+    ) -> bool {
+        self.rewrite(channel, message, crash_card(view, &self.base_url))
+            .await
     }
 }
 
