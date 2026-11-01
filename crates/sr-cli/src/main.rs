@@ -1,6 +1,7 @@
 //! sr-cli: operator tool. See docs/12-deployment-and-operations.md and
 //! docs/06-identity-accounts-invites.md section 8.
 
+mod arcade;
 mod commands;
 mod emu;
 mod guilds;
@@ -66,6 +67,9 @@ pub enum Command {
     /// Emulator cores (ACT-EMU-003): fetch the pinned files and verify their SHA-256 (needs curl; no server or database).
     #[command(subcommand)]
     Emu(EmuCmd),
+    /// The Arcade's code signing (ARC-SBX-001).
+    #[command(subcommand)]
+    Arcade(ArcadeCmd),
     /// Theme packages: check one locally before submitting it (needs no server or database).
     #[command(subcommand)]
     Package(PackageCmd),
@@ -171,6 +175,38 @@ pub enum TvCmd {
         #[arg(long)]
         remove: bool,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ArcadeCmd {
+    /// Sign the executable code of a game build after an automated static audit. Reads only the bundle's
+    /// .js/.mjs/.wasm files from the platform's storage (never the developer's asset bucket). A blocked audit
+    /// signs nothing and exits 1. The first run makes the operator signing key.
+    SignCode {
+        /// The code hash (64 lowercase hex) shown by the developer portal or `arcade backfill-hashes`.
+        #[arg(long)]
+        hash: String,
+        /// The application, when several carry the same code.
+        #[arg(long)]
+        application: Option<i64>,
+        /// Who is signing, recorded with the signature.
+        #[arg(long, default_value = "operator")]
+        signed_by: String,
+        /// Audit and print, sign nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Withdraw the signature of a build: its badge goes at once.
+    RevokeCode {
+        #[arg(long)]
+        hash: String,
+        #[arg(long)]
+        application: i64,
+        #[arg(long)]
+        reason: String,
+    },
+    /// Compute the code hash of stored bundles uploaded before hashes existed.
+    BackfillHashes,
 }
 
 #[derive(Debug, Subcommand)]
@@ -312,6 +348,17 @@ mod tests {
     #[test]
     fn cli_definition_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn parses_arcade_sign_code() {
+        let c = Cli::try_parse_from(["sr-cli", "arcade", "sign-code", "--hash", "ab"]).unwrap();
+        assert!(matches!(
+            c.command,
+            Command::Arcade(ArcadeCmd::SignCode { dry_run: false, application: None, .. })
+        ));
+        assert!(Cli::try_parse_from(["sr-cli", "arcade", "sign-code"]).is_err());
+        assert!(Cli::try_parse_from(["sr-cli", "arcade", "revoke-code", "--hash", "a", "--application", "1"]).is_err());
     }
 
     #[test]

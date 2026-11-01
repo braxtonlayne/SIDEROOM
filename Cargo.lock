@@ -6129,12 +6129,14 @@ name = "sr-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
  "image",
  "rpassword",
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
+ "sr-activities",
  "sr-admin",
  "sr-api",
  "sr-apps",
@@ -6153,6 +6155,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
+ "zip",
 ]
 
 [[package]]
