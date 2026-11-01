@@ -34,7 +34,7 @@ import { HelpSkeleton } from './help/HelpSkeleton';
 import { AppServerInvite } from './app/AppServerInvite';
 import { AppServerTemplate } from './app/AppServerTemplate';
 import { AppDoor } from './app/AppDoor';
-import { reportRenderError } from './crash/report';
+import { reportRenderError } from './crash/install';
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
 const WhatsNewPage = lazy(() => import('./help/WhatsNew').then((m) => ({ default: m.WhatsNew })));

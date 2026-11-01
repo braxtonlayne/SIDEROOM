@@ -1,4 +1,4 @@
-import { asTickInput, MAX_TICKS, TICK_SOURCES, type CrashTick, type TickSource } from './allowList';
+import { asTickInput, MAX_TICKS, TICK_SOURCES, type CrashTick, type TickSource } from './enums';
 
 /**
  * The in-memory ring buffer of the last 60 deterministic ticks (OPS-CRASH-001). A tick is a time offset, a source

@@ -11,8 +11,17 @@
  */
 
 export const MAX_FRAMES = 24;
-/** The ring buffer holds the last 60 ticks. */
-export const MAX_TICKS = 60;
+import {
+  MAX_TICKS,
+  TICK_INPUTS,
+  TICK_SOURCES,
+  asTickInput,
+  type CrashTick,
+  type TickInput,
+  type TickSource,
+} from './enums';
+export { MAX_TICKS, TICK_INPUTS, TICK_SOURCES, asTickInput };
+export type { CrashTick, TickInput, TickSource };
 
 export const KINDS = [
   'error',
@@ -22,51 +31,6 @@ export const KINDS = [
   'webgpu_panic',
 ] as const;
 export type CrashKind = (typeof KINDS)[number];
-
-export const TICK_SOURCES = ['activity', 'game', 'emulator'] as const;
-export type TickSource = (typeof TICK_SOURCES)[number];
-
-/** Opaque tick inputs. An Activity bridge command is named by the command only, never by its arguments. */
-export const TICK_INPUTS = [
-  'none',
-  'up',
-  'down',
-  'left',
-  'right',
-  'a',
-  'b',
-  'x',
-  'y',
-  'start',
-  'select',
-  'primary',
-  'secondary',
-  'jump',
-  'fire',
-  'interact',
-  'pause',
-  'resume',
-  'join',
-  'leave',
-  'state_sync',
-  'host_change',
-  'bridge_authorize',
-  'bridge_authenticate',
-  'bridge_get_channel',
-  'bridge_get_participants',
-  'bridge_open_link',
-  'bridge_set_activity',
-  'bridge_data_send',
-  'bridge_storage_set',
-  'bridge_storage_remove',
-  'bridge_save_file',
-  'bridge_subscribe',
-  'bridge_unsubscribe',
-  'bridge_other',
-  'tick',
-  'other',
-] as const;
-export type TickInput = (typeof TICK_INPUTS)[number];
 
 export const CAPS = [
   'webgpu',
@@ -95,13 +59,6 @@ export interface CrashFrame {
   fn?: string;
 }
 
-export interface CrashTick {
-  t: number;
-  src: TickSource;
-  input: TickInput;
-}
-
-/** The report the browser sends (and the shape of the card the server stores, without its replay buffer). */
 export interface CrashReport {
   v: 1;
   commit: string;
@@ -221,9 +178,6 @@ function cleanCaps(v: unknown): { caps: Partial<Record<CapName, boolean>>; engin
   }
   return { caps, engine };
 }
-
-/** An input as the closed enum; anything else is `other` and its text is never copied. */
-export const asTickInput = (v: unknown): TickInput => TICK_INPUTS.find((i) => i === v) ?? 'other';
 
 function cleanTicks(v: unknown): CrashTick[] {
   if (!Array.isArray(v)) return [];

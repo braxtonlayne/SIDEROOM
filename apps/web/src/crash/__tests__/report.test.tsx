@@ -5,14 +5,13 @@ import type { CrashReport } from '../allowList';
 import { parseStack } from '../frames';
 import {
   MAX_REPORTS_PER_PAGE,
-  TICK_EVENT,
   classify,
-  installCrashTelemetry,
   reportCrash,
   reportFor,
   resetCrashState,
   setCrashSender,
 } from '../report';
+import { TICK_EVENT, installCrashTelemetry } from '../install';
 import { TickRing, bridgeInput, ticks } from '../ringBuffer';
 import { routeNameOf } from '../routeName';
 

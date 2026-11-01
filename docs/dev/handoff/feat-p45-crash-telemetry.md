@@ -39,7 +39,14 @@ See the inventory item for the list; the commands are in "Resume here". Proofs t
 - `node --test scripts/check-crash-card.test.mjs scripts/secret-scan.test.mjs` (18).
 - Playwright Chromium `tests/crash-telemetry.spec.ts` against the Vite dev server and `sr-server` (storage `memory:`), twice in a row against the same database (the run uses a fresh commit and function name each time): 2 passed.
 
-GATES_PLACEHOLDER
+### Final gates (all run on this branch, one process at a time)
+
+- `cargo test -p sr-server --test authz_matrix -- --ignored --test-threads=1`: 9 passed. `--test immutable_rules -- --include-ignored --test-threads=1`: 25 passed.
+- `cargo fmt --check` clean; `cargo clippy -j 2 -p sr-api -p sr-db -p sr-admin -p sr-server --all-targets -- -D warnings` clean (it asked for two let-chain/`?` fixes, made).
+- Full vitest `--maxWorkers=2`: 442 files, 4036 tests passed. tsc, eslint, prettier clean.
+- `pnpm build` (web), `scripts/check-bundle-budget.mjs` passes. The first build was 0.1 KB over the app-chunk limit; the report builder (`crash/report.ts`, allow-list, capabilities, frames) is now a lazy chunk loaded on the first crash, only `crash/install.ts`, `crash/enums.ts` and the ring stay eager. `scripts/check-entrance-isolation.mjs`: every public surface clean.
+- Playwright Chromium `crash-telemetry.spec.ts` re-run after the split on a fresh database with the server started before the Owner bootstrap (as in CI): 2 passed.
+- `node --test scripts/threat-model.test.mjs scripts/check-crash-card.test.mjs scripts/secret-scan.test.mjs` (23 passed), `scripts/secret-scan.mjs` clean, `scripts/i18n-audit.mjs` 0 missing.
 
 ## Still open (with reasons)
 

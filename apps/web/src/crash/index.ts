@@ -7,5 +7,5 @@ export {
   reportRenderError,
   reportWasmPanic,
   reportWebGpuPanic,
-} from './report';
+} from './install';
 export { bridgeInput, recordTick } from './ringBuffer';

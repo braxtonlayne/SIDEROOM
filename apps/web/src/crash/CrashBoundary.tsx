@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { useT } from '../i18n';
-import { reportRenderError } from './report';
+import { reportRenderError } from './install';
 
 function Fallback() {
   const t = useT();
