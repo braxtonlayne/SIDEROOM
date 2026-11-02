@@ -1,4 +1,4 @@
-export { BlocksEnv } from './context';
+export { BlocksEnv, type TipQr } from './context';
 export { BlockView, Face, Out, nameOf, type BlockSlots } from './blocks';
 export {
   GRID_COLUMNS,

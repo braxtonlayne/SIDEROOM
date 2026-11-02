@@ -1,6 +1,7 @@
 // The profile page renderer in the app (EXT-PRF-002, EXT-PRF-006). The renderer itself is the shared package
 // @sideroom/profile-blocks (the public profile surface uses the same one, D-385); this wrapper gives it the app's
-// translator, image addresses and the stateful blocks (guestbook form, presence).
+// translator, image addresses, the QR drawer for Bitcoin and Lightning tip links (FU-18; not in the compact popout)
+// and the stateful blocks (guestbook form, presence).
 import {
   BlocksEnv,
   ProfileRenderer as Renderer,
@@ -9,6 +10,7 @@ import {
 } from '@sideroom/profile-blocks';
 import { useT } from '../i18n';
 import { cdnUrl } from '../store/cdn';
+import { QrBox } from '../tips/QrBox';
 import { appSlots } from './blocks';
 import type { ProfileDoc, ProfileMedia, ProfilePage } from './types';
 
@@ -42,7 +44,7 @@ export function ProfileRenderer({
 }) {
   const t = useT();
   return (
-    <BlocksEnv t={t} cdn={cdn}>
+    <BlocksEnv t={t} cdn={cdn} tipQr={compact ? undefined : QrBox}>
       <Renderer
         page={page}
         doc={doc}
