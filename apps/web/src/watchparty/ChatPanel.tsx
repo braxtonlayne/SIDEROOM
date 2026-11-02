@@ -66,7 +66,7 @@ export function ChatPanel() {
           onChange={(e) => setText(e.target.value)}
           placeholder={tr('watchparty.chat.placeholder')}
         />
-        <Button type="submit" size="sm" disabled={!text.trim()}>
+        <Button type="submit" disabled={!text.trim()}>
           {tr('watchparty.chat.send')}
         </Button>
       </form>

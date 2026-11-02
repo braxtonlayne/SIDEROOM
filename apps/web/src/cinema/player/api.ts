@@ -53,6 +53,8 @@ const secondsToMs = (s: number) => s * 1000;
 export class VideoNotReadyError extends Error {
   constructor() {
     super('video not ready');
+    // Read by name where importing this module would be too heavy (the watch party controller).
+    this.name = 'VideoNotReadyError';
   }
 }
 

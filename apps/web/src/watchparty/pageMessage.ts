@@ -30,10 +30,10 @@ export function partyMessage(
     status === 'ended'
       ? error?.message
       : error?.kind === 'age'
-      ? t('watchparty.page.ageDescription')
-      : error?.kind === 'gone'
-        ? t('watchparty.page.goneDescription')
-        : (error?.message ?? t('watchparty.page.checkConnection'));
+        ? t('watchparty.page.ageDescription')
+        : error?.kind === 'gone'
+          ? t('watchparty.page.goneDescription')
+          : (error?.message ?? t('watchparty.page.checkConnection'));
   const norm = (s: string) =>
     s
       .trim()

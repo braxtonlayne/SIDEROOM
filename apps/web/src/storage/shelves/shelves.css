@@ -146,3 +146,34 @@
   gap: 16px;
   justify-content: center;
 }
+
+/* An item's header: the lines sit 12px apart (the paragraphs' default margins made 60px gaps), aligned to the top. */
+.shv-item-head {
+  align-content: start;
+  gap: 12px;
+}
+.shv-item-head > p,
+.shv-item-head > h1 {
+  margin: 0;
+}
+.shv-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* No poster: the title's first letter, like the cards. */
+.shv-poster-empty {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--ui-border);
+  box-sizing: border-box;
+  font-family: var(--sr-font-display, serif);
+  font-size: 3.5rem;
+  color: var(--ui-text-muted);
+}
+@media (max-width: 40rem) {
+  /* On phones the poster does not take a full screen before the title. */
+  .shv-detail .shv-poster {
+    inline-size: 8rem;
+  }
+}

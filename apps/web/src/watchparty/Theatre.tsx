@@ -9,7 +9,7 @@ import { httpPartyApi } from './api';
 import { ChatPanel } from './ChatPanel';
 import { ControlBar } from './ControlBar';
 import { ExternalStage } from './ExternalStage';
-import { GestureButton, ReactionsOverlay, ReadyCheck, WaitingBanner } from './Overlays';
+import { GestureButton, MediaError, ReactionsOverlay, ReadyCheck, WaitingBanner } from './Overlays';
 import { PeoplePanel } from './PeoplePanel';
 import { PickMedia } from './PickMedia';
 import { QueuePanel } from './QueuePanel';
@@ -117,6 +117,7 @@ export function Theatre({ onExit }: { onExit: () => void }) {
             </div>
           )}
           {!media && <PickMedia />}
+          {media && <MediaError />}
           <WebcamBubbles />
           <ReactionsOverlay />
           <WaitingBanner />

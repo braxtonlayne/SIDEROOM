@@ -557,3 +557,26 @@
   font-size: 0.875rem;
   color: var(--sr-muted, #b9b2a3);
 }
+
+/* The party's video could not be loaded (XC-VIS-002): a message in the middle of the stage. */
+.wp-media-error {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+.wp-media-error-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--sr-text, var(--ui-text));
+}
+.wp-media-error-body {
+  margin: 0;
+  max-inline-size: 28rem;
+  color: var(--sr-text-2, var(--ui-text-muted));
+}

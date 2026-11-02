@@ -10,4 +10,8 @@ export default {
   'storage.browser.back': 'Back',
   // The Study: a shelf folder could not be read.
   'study.retry': 'Try again',
+  // Watch party: the party is running but its video could not be loaded for this viewer.
+  'watchparty.overlays.mediaFailed': 'The video could not be loaded',
+  'watchparty.overlays.mediaFailedBody':
+    'The party is still on. Try leaving and joining again in a moment.',
 } satisfies Record<string, string>;

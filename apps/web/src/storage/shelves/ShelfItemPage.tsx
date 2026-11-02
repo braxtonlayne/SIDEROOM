@@ -132,10 +132,12 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
           {item.poster_url ? (
             <img className="shv-poster" src={item.poster_url} alt="" />
           ) : (
-            <div className="shv-poster" aria-hidden="true" />
+            <div className="shv-poster shv-poster-empty" aria-hidden="true">
+              {Array.from(item.title.trim())[0]?.toUpperCase() ?? ''}
+            </div>
           )}
         </div>
-        <div className="shv-head">
+        <div className="shv-head shv-item-head">
           <h1 id="shv-item-h">{item.title}</h1>
           <p className="shv-muted">
             {[t(`shelves.kind.${item.kind}` as 'shelves.kind.movie'), item.year, item.subtitle]
@@ -146,7 +148,7 @@ export function ShelfItemPage({ section, id }: { section: ShelfSection; id: stri
             <ShelfChip source={item.source} />
           </p>
           {item.genres.length + item.tags.length > 0 && (
-            <p>
+            <p className="shv-tags">
               {[...item.genres, ...item.tags].map((g) => (
                 <Tag key={g}>{g}</Tag>
               ))}

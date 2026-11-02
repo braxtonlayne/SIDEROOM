@@ -106,6 +106,30 @@ test('submit a title draft', async ({ browser }) => {
   await context.close();
 });
 
+test('start a watch party from a title, then end it', async ({ browser }) => {
+  for (const phone of [false, true]) {
+    const { context, page, errors } = await open(browser, phone);
+    const v = phone ? 'phone' : 'desktop';
+    await page.goto(`/cinema/t/${world().titleId}`);
+    await page.getByRole('button', { name: 'Watch together' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Start party' }).click();
+    await expect(page).toHaveURL(/\/cinema\/party\//, { timeout: 15_000 });
+    await page.waitForTimeout(2000);
+    await shot(page, `party-${v}`);
+    const end = page.getByRole('button', { name: 'End party' });
+    if (await end.count()) {
+      await end.first().click();
+      const confirm = page.getByRole('dialog').getByRole('button', { name: 'End party' });
+      if (await confirm.count()) await confirm.first().click();
+      await page.waitForTimeout(1500);
+      await shot(page, `party-ended-${v}`);
+    }
+    expect(errors).toEqual([]);
+    await context.close();
+  }
+});
+
 test('TV guide and live channel, desktop and phone', async ({ browser }) => {
   for (const phone of [false, true]) {
     const { context, page, errors } = await open(browser, phone);

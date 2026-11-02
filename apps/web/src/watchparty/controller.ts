@@ -62,7 +62,8 @@ export interface ControllerDeps {
   hold?(): () => void;
 }
 
-export type PartyErrorKind = 'age' | 'gone' | 'removed' | 'ended' | 'other';
+/** `media`: the party is fine but its title's video could not be loaded (`notReady`: the file is missing). */
+export type PartyErrorKind = 'age' | 'gone' | 'removed' | 'ended' | 'media' | 'notReady' | 'other';
 
 export interface Reaction {
   id: number;
@@ -436,11 +437,22 @@ export class PartyController {
     try {
       await this.deps.load(media, startMs, autoplay);
     } catch (e) {
-      this.set({ error: classify(e) });
+      // The party itself answered; only its picture failed. Say so on the stage instead of leaving it black.
+      const err = classify(e);
+      this.set({
+        error:
+          e instanceof Error && e.name === 'VideoNotReadyError'
+            ? { kind: 'notReady', message: err.message }
+            : err.kind === 'other' || err.kind === 'gone'
+              ? { kind: 'media', message: err.message }
+              : err,
+      });
       return;
     } finally {
       this.loading = false;
     }
+    const k = this.state.error?.kind;
+    if (k === 'media' || k === 'notReady') this.set({ error: null });
     if (first) this.set({ needsGesture: false });
     await this.apply();
   }

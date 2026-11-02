@@ -16,7 +16,11 @@ describe('partyMessage (XC-VIS-001)', () => {
   });
 
   it('drops a description that only repeats the title', () => {
-    const m = partyMessage('error', { kind: 'x', message: 'We could not open this watch party.' }, t);
+    const m = partyMessage(
+      'error',
+      { kind: 'x', message: 'We could not open this watch party.' },
+      t,
+    );
     expect(m.description).toBeUndefined();
   });
 

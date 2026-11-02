@@ -54,6 +54,27 @@ export function WaitingBanner() {
   );
 }
 
+/** The party is on but its video could not be loaded: say so on the stage instead of leaving it black. */
+export function MediaError() {
+  const t = useT();
+  const kind = useParty((s) => s.error?.kind);
+  if (kind !== 'media' && kind !== 'notReady') return null;
+  return (
+    <div className="wp-media-error" role="status">
+      <p className="wp-media-error-title">
+        {kind === 'notReady'
+          ? t('cinema.watch.notReadyTitle')
+          : t('watchparty.overlays.mediaFailed')}
+      </p>
+      <p className="wp-media-error-body">
+        {kind === 'notReady'
+          ? t('cinema.watch.notReadyBody')
+          : t('watchparty.overlays.mediaFailedBody')}
+      </p>
+    </div>
+  );
+}
+
 /** The browser wants a click before it plays sound; one button joins the playback in sync. */
 export function GestureButton() {
   const t = useT();
