@@ -66,3 +66,7 @@
   color: var(--ui-text);
   text-decoration: underline;
 }
+/* Breadcrumbs read as text with an underline: the accent colour was faint on Lounge Light. */
+.sto-crumbs a {
+  color: var(--ui-text);
+}
