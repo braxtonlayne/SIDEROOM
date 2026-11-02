@@ -56,6 +56,17 @@ describe('tabletop UI', () => {
     expect(a.querySelectorAll('.tokrow')).toHaveLength(1);
     expect(b.querySelector('[data-testid=add-mine]')).toBeNull(); // one token each
   });
+  it('the host adds their own token once, and an empty list says so', async () => {
+    const { a, room } = seats();
+    expect(a.querySelector('[data-section=tokens]').textContent).not.toMatch(/null/);
+    expect(a.querySelector('[data-section=initiative]')?.textContent ?? '').not.toMatch(/null/);
+    click(a, '[data-testid=add-mine]');
+    await new Promise((r) => setTimeout(r, 20));
+    const toks = Object.entries(room.doc).filter(([k]) => k.startsWith('host:tok:'));
+    expect(toks).toHaveLength(1);
+    expect(toks[0][1].owner).toBe('host');
+    expect(a.querySelector('[data-testid=add-mine]')).toBeNull();
+  });
   it('rolls dice from the tray; both seats show the total, the seed and a passing check', () => {
     const { a, b } = seats();
     const expr = b.querySelector('[data-testid=dice-expr]');

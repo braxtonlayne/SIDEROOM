@@ -25,6 +25,9 @@ export function h(tag, props = {}, ...kids) {
   return el;
 }
 
+/** replaceChildren that skips null / false kids like h() does (replaceChildren would print "null"). */
+const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter((k) => k !== null && k !== undefined && k !== false));
+
 const field = (label, input) => h('label', { class: 'field' }, h('span', {}, label), input);
 const tokenIdFor = (uid) => 'm' + String(uid).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
 
@@ -77,7 +80,7 @@ export function startApp(root, transport, opts = {}) {
   const toolbar = h('div', { class: 'toolbar', role: 'toolbar', 'aria-label': t('tools') });
   const stage = h('div', { class: 'stage' }, canvas, emptyEl);
   const side = h('div', { class: 'side' });
-  root.replaceChildren(
+  fill(root,
     h(
       'header',
       { class: 'top' },
@@ -99,7 +102,7 @@ export function startApp(root, transport, opts = {}) {
       ['measure', t('toolMeasure')],
       ...(isHost ? [['hide', t('toolHide')], ['reveal', t('toolReveal')]] : []),
     ];
-    toolbar.replaceChildren(
+    fill(toolbar,
       ...[
       ...tools.map(([id, label]) =>
         h('button', {
@@ -380,7 +383,7 @@ export function startApp(root, transport, opts = {}) {
     () => JSON.stringify([v.map, !!v.fog, isHost]),
     (body) => {
       if (!isHost) {
-        body.replaceChildren(h('p', {}, v.map ? v.map.name || t('mapSection') : t('noMap')));
+        fill(body, h('p', {}, v.map ? v.map.name || t('mapSection') : t('noMap')));
         return;
       }
       if (v.map) Object.assign(mapForm, { kind: v.map.kind, size: v.map.size, ox: v.map.ox, oy: v.map.oy, unit: v.map.unit, unitName: v.map.unitName, diagonal: v.map.diagonal });
@@ -392,7 +395,7 @@ export function startApp(root, transport, opts = {}) {
         );
       const num = (key, min = 0) =>
         h('input', { type: 'number', min, value: mapForm[key], onchange: (e) => (mapForm[key] = Number(e.target.value)) });
-      body.replaceChildren(
+      fill(body,
         field(
           t('mapImage'),
           h('input', {
@@ -482,8 +485,8 @@ export function startApp(root, transport, opts = {}) {
           (isHost || k.owner === me) && h('button', { type: 'button', textContent: t('remove'), onclick: () => act({ t: 'token-del', id: k.id }) }),
         ),
       );
-      body.replaceChildren(
-        h('ul', { class: 'list' }, rows),
+      fill(body,
+        rows.length ? h('ul', { class: 'list' }, rows) : h('p', { class: 'hint' }, t('tokensEmpty')),
         v.map && !mine
           ? h(
               'div',
@@ -518,7 +521,7 @@ export function startApp(root, transport, opts = {}) {
     let img = '';
     if (file instanceof File) img = await thumbFromFile(file).catch(() => '');
     else img = await thumbFromAvatar(transport.me.avatarUrl);
-    act({ t: 'token-add', token: { id: tokenIdFor(me), name: transport.me.name, img, ...freeCell() } });
+    act({ t: 'token-add', token: { id: tokenIdFor(me), name: transport.me.name, img, owner: me, ...freeCell() } });
   }
   async function addProp() {
     if (!v.map) return;
@@ -559,7 +562,7 @@ export function startApp(root, transport, opts = {}) {
         ),
       );
       const addName = h('input', { type: 'text', maxLength: 48, 'aria-label': t('tokenName') });
-      body.replaceChildren(
+      fill(body,
         tr.round > 0 ? h('p', { class: 'round', dataset: { testid: 'round' } }, t('initRound', { n: tr.round }), ' - ', t('turnOf', { name: tr.entries.find((e) => e.id === tr.turn)?.name ?? '' })) : null,
         order.length ? h('ul', { class: 'list' }, rows) : h('p', { class: 'hint' }, t('initEmpty')),
         isHost
@@ -612,7 +615,7 @@ export function startApp(root, transport, opts = {}) {
   }
   exprInput.addEventListener('keydown', (e) => e.key === 'Enter' && doRoll());
   section('dice', t('diceSection'), () => 'static', (body) => {
-    body.replaceChildren(
+    fill(body,
       h('div', { class: 'row wrap' }, [4, 6, 8, 10, 12, 20, 100].map((n) => h('button', { type: 'button', class: 'die', textContent: `d${n}`, dataset: { die: n }, onclick: () => addDie(n) }))),
       field(t('diceExpr'), exprInput),
       field(t('diceLabel'), labelInput),
@@ -644,8 +647,8 @@ export function startApp(root, transport, opts = {}) {
     const sig = JSON.stringify(v.rolls.map((r) => r.seq));
     if (sig === lastRolls) return;
     lastRolls = sig;
-    if (!v.rolls.length) return logEl.replaceChildren(h('li', { class: 'hint' }, t('rollsEmpty')));
-    logEl.replaceChildren(
+    if (!v.rolls.length) return fill(logEl, h('li', { class: 'hint' }, t('rollsEmpty')));
+    fill(logEl,
       ...[...v.rolls].reverse().map((r) => {
         const ok = verifyRecord(r);
         return h(
