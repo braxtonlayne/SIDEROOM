@@ -50,7 +50,12 @@ export function LoginLink() {
     >
       <FormHead
         eyebrow={t('entrance.loginLink.formEyebrow')}
-        title={t('entrance.loginLink.title')}
+        title={
+          // A failed link says so in the headline (S3); "unreachable" may still work on a retry.
+          state.kind === 'missing' || state.kind === 'expired'
+            ? t('entrance.linkOutcome.failedTitle')
+            : t('entrance.loginLink.title')
+        }
       />
       {state.kind === 'signing-in' && (
         <p role="status" className="ent-sub">

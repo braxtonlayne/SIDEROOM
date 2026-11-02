@@ -164,6 +164,14 @@ export default {
     'This link is invalid, has expired, or was already used. Links work once and last an hour. Run the bootstrap command again for a new one.',
   'entrance.loginLink.usePassword': 'Use your password instead',
 
+  // Link outcomes (XC-VIS-003 S3): a failed or finished link says so in its headline, which a screen reader
+  // announces first. Core catalog: /login/link, /verify-email and /email-change/cancel paint before the rest.
+  'entrance.linkOutcome.failedTitle': "This sign-in link didn't work",
+  'entrance.linkOutcome.brokenTitle': "This link didn't work",
+  'entrance.linkOutcome.expiredTitle': 'This link has expired',
+  'entrance.linkOutcome.verifiedTitle': 'Address confirmed',
+  'entrance.linkOutcome.cancelledTitle': 'Change cancelled',
+
   // "This wasn't me" email-change link
   'entrance.emailCancel.eyebrow': "Wasn't you?",
   'entrance.emailCancel.heading': 'Consider it',
