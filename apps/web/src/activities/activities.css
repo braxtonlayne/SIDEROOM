@@ -6,17 +6,19 @@
   margin-block-start: 8px;
   margin-inline: 16px;
   padding: 8px 12px;
-  border: 1px solid var(--sr-gold, #c9a24d);
-  border-radius: var(--sr-radius, 4px);
-  background: var(--sr-bg-1, #14120f);
+  border: 1px solid var(--ui-border, var(--sr-line, #2a2b24));
+  border-radius: var(--ui-radius, var(--sr-radius, 4px));
+  background: var(--ui-bg-raised, var(--sr-bg-1, #14120f));
 }
 .act-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
 }
+/* On a phone the name takes its own line and the Share / Leave / End buttons wrap under it. */
 .act-bar-text {
-  flex: 1;
+  flex: 1 1 14rem;
   min-inline-size: 0;
 }
 .act-frame {
@@ -24,11 +26,11 @@
   block-size: min(60vh, 520px);
   min-block-size: 240px;
   border: 0;
-  border-radius: var(--sr-radius, 4px);
+  border-radius: var(--ui-radius, var(--sr-radius, 4px));
   background: #000;
 }
 .act-muted {
-  color: var(--sr-text-muted, #a79f8f);
+  color: var(--ui-text-muted, var(--sr-text-2, #a79f8f));
 }
 .act-shelf {
   display: grid;
@@ -44,14 +46,23 @@
 .act-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding-block: 10px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border, var(--sr-line, #2a2b24));
+  border-radius: var(--ui-radius, var(--sr-radius, 4px));
+}
+.act-item-text .act-muted {
+  display: block;
+  margin-block-start: 2px;
+  font-size: 0.875rem;
 }
 .act-item-text {
   flex: 1;
   min-inline-size: 0;
 }
 :where(.act-panel, .act-shelf) :focus-visible {
-  outline: 2px solid var(--sr-focus, #c9a24d);
+  outline: 2px solid var(--ui-focus, var(--sr-gold, #c9a24d));
   outline-offset: 2px;
 }
 
@@ -64,10 +75,11 @@
 .act-badge {
   margin-inline-start: 8px;
   padding: 1px 6px;
-  border: 1px solid var(--sr-gold, #c9a24d);
+  border: 1px solid var(--ui-accent, var(--sr-gold, #c9a24d));
   border-radius: 999px;
   font-size: 0.75em;
-  color: var(--sr-gold, #c9a24d);
+  white-space: nowrap;
+  color: var(--ui-accent, var(--sr-gold, #c9a24d));
 }
 /* One window for the Activity you are in: over the slot, or docked while you are elsewhere. */
 .act-window {
@@ -77,7 +89,7 @@
   flex-direction: column;
   min-inline-size: 0;
   background: #000;
-  border-radius: var(--sr-radius, 4px);
+  border-radius: var(--ui-radius, var(--sr-radius, 4px));
   overflow: hidden;
 }
 .act-window .act-frame {
@@ -89,7 +101,7 @@
 .act-window[data-mode='docked'] {
   inline-size: 320px;
   block-size: 220px;
-  border: 1px solid var(--sr-gold, #c9a24d);
+  border: 1px solid var(--ui-accent, var(--sr-gold, #c9a24d));
   box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
 }
 .act-window-bar {
@@ -97,13 +109,16 @@
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  background: var(--sr-bg-1, #14120f);
+  background: var(--ui-bg-raised, var(--sr-bg-1, #14120f));
   cursor: grab;
   touch-action: none;
   user-select: none;
 }
 .act-window-bar[hidden] {
   display: none;
+}
+.act-window-bar {
+  color: var(--ui-text, var(--sr-text, #ece6d6));
 }
 .act-window-title {
   flex: 1;
@@ -135,9 +150,9 @@
   padding-inline: 10px;
   font: inherit;
   color: inherit;
-  background: var(--sr-bg-0);
-  border: 1px solid var(--sr-line);
-  border-radius: var(--sr-radius);
+  background: var(--ui-bg-raised, var(--sr-bg-0));
+  border: 1px solid var(--ui-border, var(--sr-line));
+  border-radius: var(--ui-radius, var(--sr-radius));
 }
 .act-share-row {
   display: flex;
