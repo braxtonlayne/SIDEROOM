@@ -136,12 +136,12 @@ test('the real Arena 3D bundle passes every rule and carries the game, the repla
   assert.ok(sdk.includes("from './data.js'") && !sdk.includes(': string'), 'the SDK is transpiled');
 });
 
-test('the manifest: tier 1, the five capabilities, connect self, the reserved example, under 8 KiB', () => {
+test('the manifest: tier 1, the six capabilities, connect self, the reserved example, under 8 KiB', () => {
   const raw = readFileSync(join(ROOT, 'sideroom.json'));
   assert.ok(raw.length <= 8192);
   const m = JSON.parse(raw.toString('utf8'));
   assert.equal(m.tier, 'TIER_1_ORIGINAL');
-  assert.deepEqual(m.capabilities, ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'byos_read']);
+  assert.deepEqual(m.capabilities, ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'byos_read', 'host_handoff']);
   assert.deepEqual(m.connect, ['self']);
   assert.deepEqual(m._reserved_capabilities_example, ['ingame_voice', 'byos_write']);
   assert.ok(m.min_participants >= 1 && m.max_participants === 8);

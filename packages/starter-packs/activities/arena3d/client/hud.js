@@ -11,6 +11,7 @@ import { SLOT_COLORS } from './scene.js';
  * @property {number} score
  * @property {{ slot: number, name: string, bot: boolean }[]} roster
  * @property {number} mySlot
+ * @property {number} hostSlot
  * @property {string} renderer
  * @property {number} fps
  * @property {Record<string, number> | null} net
@@ -42,7 +43,7 @@ export class Hud {
       dot.className = 'dot';
       const [cr, cg, cb] = SLOT_COLORS[r.slot % SLOT_COLORS.length].map((v) => Math.round(Math.pow(v, 1 / 2.2) * 255));
       dot.style.background = `rgb(${cr}, ${cg}, ${cb})`;
-      li.append(dot, `${r.name}${r.slot === s.mySlot ? ' (you)' : ''}${r.slot === 0 ? ' · host' : ''}`);
+      li.append(dot, `${r.name}${r.slot === s.mySlot ? ' (you)' : ''}${r.slot === s.hostSlot ? ' · host' : ''}`);
       return li;
     });
     this.players.replaceChildren(...items);

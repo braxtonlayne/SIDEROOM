@@ -10,6 +10,7 @@ import { BundledAssetSource } from '../assets/source.js';
 import { loadGltf } from '../assets/gltf.js';
 import { loadSettings, saveSettings, normaliseSettings } from './settings.js';
 import { InputState } from './input.js';
+import { mountTouch } from './touch.js';
 import { Hud } from './hud.js';
 import { Sfx } from './sfx.js';
 import { Game } from './game.js';
@@ -41,6 +42,8 @@ async function boot() {
   sfx.setVolume(settings.volume);
   const keys = new InputState(window, canvas, settings);
   const hud = new Hud(doc);
+  // Phones and tablets: an on-screen stick, a drag-to-look surface and jump/crouch buttons (client/touch.js).
+  const touch = mountTouch(doc, window, keys, { onMenu: () => toMenu() });
   /** @type {Game | null} */
   let game = null;
 
@@ -80,7 +83,38 @@ async function boot() {
   status.textContent = 'Loading physics…';
   const J = await jolt;
   status.textContent = 'Starting the renderer…';
-  const renderer = await createRenderer(canvas, { prefer: settings.renderer, onLost: (why) => (status.textContent = `The GPU was lost (${why}). Reload to continue.`) });
+  // Losing the GPU (a driver reset, a crashed GPU process) is recovered by the renderer itself: it rebuilds, or falls
+  // back from WebGPU to WebGL2 on a fresh canvas element, and the notice below says what happened.
+  const notice = $('gpu-notice');
+  let noticeTimer = 0;
+  /** @param {string} text @param {number} [forMs] 0: until replaced */
+  const say = (text, forMs = 0) => {
+    clearTimeout(noticeTimer);
+    notice.textContent = text;
+    notice.hidden = !text;
+    if (text && forMs) noticeTimer = window.setTimeout(() => say(''), forMs);
+  };
+  const renderer = await createRenderer(canvas, {
+    prefer: settings.renderer,
+    onLost: () => say('Graphics were reset. Restoring…'),
+    onRecovered: (kind, was) => say(kind === was ? 'Graphics restored.' : 'Graphics restored on WebGL2 (WebGPU was lost).', 4000),
+    onFailed: (why) => {
+      console.error('GPU recovery failed:', why);
+      say('The GPU was lost and could not be restored. Reload to continue.');
+      status.textContent = 'The GPU was lost. Reload to continue.';
+    },
+    replaceCanvas: () => {
+      // A canvas that has had a 'webgpu' context cannot give a 'webgl2' one: swap in a new element, same id and place.
+      const old = renderer?.canvas ?? canvas;
+      const next = doc.createElement('canvas');
+      next.id = old.id;
+      next.className = old.className;
+      const label = old.getAttribute('aria-label');
+      if (label) next.setAttribute('aria-label', label);
+      old.replaceWith(next);
+      return next;
+    },
+  });
 
   const ch = platform.channel;
   status.textContent = `${renderer.kind === 'webgpu' ? 'WebGPU' : 'WebGL2'} · ${ch?.isHost ? 'you are hosting' : 'joining the host'}${platform.guest ? ' · guest' : ''}`;
@@ -121,28 +155,41 @@ async function boot() {
     playing = true;
     menu.hidden = true;
     hudEl.hidden = false;
-    if (!(await keys.requestLock())) resume.hidden = false;
+    if (touch.enabled) {
+      // No pointer lock on a phone: the controls are on screen and there is nothing to pause.
+      keys.setTouch(true);
+      touch.setActive(true);
+      resume.hidden = true;
+    } else if (!(await keys.requestLock())) resume.hidden = false;
     platform.setActivity('In the arena');
   });
   keys.onLock((locked) => {
-    if (!playing) return;
+    if (!playing || keys.touchOn) return;
     resume.hidden = locked;
   });
   // A click anywhere on the paused screen (or the canvas) takes the mouse again.
   const relock = async (/** @type {Event} */ e) => {
-    if (!playing || keys.locked || (e.target instanceof HTMLElement && e.target.id === 'btn-menu')) return;
+    if (!playing || keys.touchOn || keys.locked || (e.target instanceof HTMLElement && e.target.id === 'btn-menu')) return;
     await keys.requestLock();
   };
   resume.addEventListener('click', relock);
   canvas.addEventListener('click', relock);
-  $('btn-menu').addEventListener('click', () => {
+  // After a GPU recovery on a fresh canvas element: it takes the pointer lock and the clicks now.
+  renderer.onCanvasChange?.((next) => {
+    keys.setTarget(next);
+    next.addEventListener('click', relock);
+  });
+  function toMenu() {
     playing = false;
+    keys.setTouch(false);
+    touch.setActive(false);
     resume.hidden = true;
     hudEl.hidden = true;
     menu.hidden = false;
     show('screen-main');
     play.textContent = 'Back to the arena';
-  });
+  }
+  $('btn-menu').addEventListener('click', toMenu);
 }
 
 boot().catch((e) => {

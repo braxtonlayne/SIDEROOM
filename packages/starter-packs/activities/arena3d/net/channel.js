@@ -18,8 +18,9 @@
 /**
  * @typedef {object} Channel
  * @property {Member} self
- * @property {string} hostId                                       who runs the authoritative simulation
- * @property {boolean} isHost
+ * @property {string} hostId                                       who runs the authoritative simulation (live: it moves on a handoff)
+ * @property {boolean} isHost                                      live too
+ * @property {(cb: (host: string, previous: string) => void) => () => void} [onHostChange]  D-388: the platform moved the host
  * @property {(bytes: Uint8Array) => void} toHost                  peer -> host
  * @property {(cb: (from: string, bytes: Uint8Array) => void) => () => void} onInput   host: what peers sent
  * @property {(key: string, bytes: Uint8Array) => void} publish   host: shared state, last value wins

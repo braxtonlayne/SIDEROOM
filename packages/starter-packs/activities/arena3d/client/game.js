@@ -4,19 +4,20 @@
 // everyone else PredictedClient (prediction + reconciliation). Rendering, the HUD, sound and the spatial voice
 // hooks read from whichever it is.
 
-import { World, TICK_RATE } from '../sim/world.js';
+import { World } from '../sim/world.js';
 import { seedFromString } from '../sim/rng.js';
 import { HostSession } from '../net/host.js';
 import { PredictedClient } from '../net/client.js';
 import { mat4, unitsToRad } from '../render/math.js';
+import { handoffRole } from '../net/handoff.js';
 import { createScene } from './scene.js';
+import { TickPacer } from './pacer.js';
 
 /** @typedef {import('../sim/world.js').JoltModule} JoltModule */
 /** @typedef {import('./scene.js').PlayerView} PlayerView */
 
-const TICK_MS = 1000 / TICK_RATE;
-/** Never run more than this many ticks in one frame (a background tab must not spiral when it comes back). */
-const MAX_TICKS_PER_FRAME = 8;
+/** More ticks than this in one burst (a hidden host catching up): publish one snapshot at the end, not one per 3 ticks. */
+const QUIET_BURST = 4;
 
 export class Game {
   /**
@@ -35,8 +36,9 @@ export class Game {
     /** @type {PredictedClient | null} */
     this.client = channel.isHost ? null : new PredictedClient({ channel, world: this.world, name });
     this.scene = createScene(opt.renderer, this.world.level);
-    this.acc = 0;
-    this.last = -1;
+    this.pacer = new TickPacer();
+    /** performance.now() of the last drawn frame (see stalled()). */
+    this.lastFrameAt = 0;
     this.running = false;
     this.frames = 0;
     this.fpsAt = 0;
@@ -48,6 +50,8 @@ export class Game {
     this.raf = 0;
     /** @type {ReturnType<typeof setInterval> | null} the hidden-tab ticker */
     this.timer = null;
+    /** @type {(() => void)[]} */
+    this.offs = [];
   }
 
   /** The local player's slot (-1 until a peer is welcomed). */
@@ -66,35 +70,57 @@ export class Game {
       this.frame(now);
     };
     this.raf = requestAnimationFrame(frame);
-    // requestAnimationFrame stops in a hidden tab (or a display:none iframe), which would freeze the match for
-    // everyone when it is the host's. While hidden, tick from a timer instead (browsers throttle background
-    // timers, often to 1 Hz, so a hidden host still lags; the frame loop catches up to MAX_TICKS_PER_FRAME).
+    // requestAnimationFrame stops in a hidden tab, a display:none iframe or an occluded window, which would freeze
+    // the match for everyone when it is the host's. So a watchdog timer ticks whenever no animation frame has run
+    // for 100 ms (it does nothing while frames come). Browsers throttle background timers (to 1 Hz, later to once a
+    // minute), so a stalled HOST keeps the simulation on time three ways:
+    //   1. every call counts the real elapsed time and runs that many fixed ticks in one burst (TickPacer
+    //      catch-up, capped at 5 s / 300 ticks), publishing one snapshot at the end of a long burst;
+    //   2. every message a peer sends the host also runs the loop (messages are not throttled like timers, and a
+    //      match with peers gets about 30 a second from each);
+    //   3. when the tab comes back, one more burst runs before the first drawn frame.
+    this.timer = setInterval(() => this.stalled() && this.frame(performance.now(), false), 50);
     this.onVisibility = () => {
-      if (document.hidden && !this.timer) this.timer = setInterval(() => this.frame(performance.now(), false), 50);
-      else if (!document.hidden && this.timer) {
-        clearInterval(this.timer);
-        this.timer = null;
-      }
+      if (!document.hidden) this.frame(performance.now(), false);
     };
     document.addEventListener('visibilitychange', this.onVisibility);
-    this.onVisibility();
+    const ch = this.opt.platform.channel;
+    if (ch) {
+      this.offs.push(ch.onInput(() => this.host && this.stalled() && this.frame(performance.now(), false)));
+      const off = ch.onHostChange?.(() => this.handoff());
+      if (off) this.offs.push(off);
+    }
   }
 
-  /** @param {number} now @param {boolean} [draw] false: simulate only (hidden tab) */
+  /** No animation frame for 100 ms: the tab is hidden or occluded, or the page is stalled. */
+  stalled() {
+    return performance.now() - this.lastFrameAt > 100;
+  }
+
+  /**
+   * D-388 (host_handoff): the platform moved the host. A peer that is the new host becomes the host from the last
+   * snapshot it heard; a peer that is not says hello to the new one; a host that no longer is the host steps down.
+   */
+  handoff() {
+    const channel = this.opt.platform.channel;
+    if (!channel) return;
+    const name = this.opt.settings.name || this.opt.platform.identity().name;
+    const next = handoffRole({ channel, world: this.world, name, host: this.host, client: this.client });
+    this.host = next.host;
+    this.client = next.client;
+    if (this.host) this.lastRoster = this.host.roster().length;
+  }
+
+  /** @param {number} now @param {boolean} [draw] false: simulate only (hidden tab, or catching up) */
   frame(now, draw = true) {
-    if (this.last < 0) this.last = now;
-    this.acc += Math.min(250, now - this.last);
-    this.last = now;
-    let n = 0;
-    while (this.acc >= TICK_MS && n < MAX_TICKS_PER_FRAME) {
-      this.tick();
-      this.acc -= TICK_MS;
-      n++;
-    }
-    if (n === MAX_TICKS_PER_FRAME) this.acc = 0;
+    // Only a host must stay on time; a hidden peer just predicts (and the next snapshot corrects it).
+    const n = this.pacer.due(now, !draw && !!this.host);
+    for (let i = 0; i < n; i++) this.tick(n <= QUIET_BURST);
+    if (n > QUIET_BURST) this.host?.publishSnapshot();
     if (!draw) return;
+    this.lastFrameAt = now;
     this.client?.frame();
-    this.render(this.acc / TICK_MS);
+    this.render(this.pacer.alpha);
     this.frames++;
     if (now - this.fpsAt > 1000) {
       this.fps = (this.frames * 1000) / (now - this.fpsAt);
@@ -103,9 +129,10 @@ export class Game {
     }
   }
 
-  tick() {
+  /** @param {boolean} [publish] false: inside a long burst; the caller publishes once at the end */
+  tick(publish = true) {
     const input = this.opt.input.sample();
-    if (this.host) this.host.tick(input);
+    if (this.host) this.host.tick(input, publish);
     else this.client?.tick(input);
     this.sounds();
   }
@@ -129,7 +156,8 @@ export class Game {
 
   /** @param {number} alpha fraction of a tick since the last step (for interpolation) */
   render(alpha) {
-    const { renderer, canvas, settings, hud, voice } = this.opt;
+    const { renderer, settings, hud, voice } = this.opt;
+    const canvas = renderer.canvas ?? this.opt.canvas;
     const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     const w = Math.floor(canvas.clientWidth * dpr);
     const h = Math.floor(canvas.clientHeight * dpr);
@@ -184,6 +212,7 @@ export class Game {
       score: this.world.score,
       roster: this.host ? this.host.roster() : (this.client?.roster ?? []),
       mySlot: this.slot,
+      hostSlot: this.host ? this.host.selfSlot : (this.client?.hostSlot() ?? 0),
       renderer: renderer.kind,
       fps: this.fps,
       net: this.client
@@ -199,6 +228,7 @@ export class Game {
     this.running = false;
     cancelAnimationFrame(this.raf);
     if (this.timer) clearInterval(this.timer);
+    for (const off of this.offs.splice(0)) off();
     if (this.onVisibility) document.removeEventListener('visibilitychange', this.onVisibility);
     this.client?.leave();
     this.host?.close();

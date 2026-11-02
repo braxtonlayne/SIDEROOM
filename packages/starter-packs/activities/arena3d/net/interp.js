@@ -21,6 +21,11 @@ export class Interpolator {
     this.tracks = new Map();
   }
 
+  /** Forget every track (the host changed and its tick count restarts from an older snapshot). */
+  clear() {
+    this.tracks.clear();
+  }
+
   /** @param {import('../sim/world.js').Snapshot} snap */
   push(snap) {
     const present = new Set();

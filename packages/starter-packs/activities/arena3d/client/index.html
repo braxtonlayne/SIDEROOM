@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Arena 3D</title>
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="main.js"></script>
@@ -17,6 +17,19 @@
       <div id="hud-info" class="hud-box"></div>
       <div id="hud-net" class="hud-box" hidden></div>
     </div>
+
+    <div id="touch" hidden>
+      <div id="touch-look"></div>
+      <div id="touch-stick-zone" aria-label="Move stick">
+        <div id="touch-base" hidden><div id="touch-knob"></div></div>
+        <span class="touch-hint" aria-hidden="true">Move</span>
+      </div>
+      <button id="touch-jump" type="button" aria-label="Jump">Jump</button>
+      <button id="touch-crouch" type="button" aria-label="Crouch" aria-pressed="false">Crouch</button>
+      <button id="touch-menu" type="button" aria-label="Menu">Menu</button>
+    </div>
+
+    <div id="gpu-notice" role="status" hidden></div>
 
     <div id="resume" class="overlay" hidden>
       <div class="card">
@@ -34,8 +47,8 @@
         <button id="btn-settings" type="button">Settings</button>
         <button id="btn-howto" type="button">Make your own game from this</button>
         <p id="status" class="small" role="status">Starting…</p>
-        <p class="small touch-note">This demo needs a keyboard and mouse: there are no touch controls yet.</p>
         <p class="small keys">WASD or arrows to move · mouse to look · Space to jump · C or Shift to crouch · Esc to pause</p>
+        <p class="small touch-keys">Touch: drag on the left to move · drag anywhere else to look · Jump and Crouch buttons (Crouch stays on until you tap it again) · Menu pauses</p>
       </section>
 
       <section id="screen-settings" class="card" hidden>
