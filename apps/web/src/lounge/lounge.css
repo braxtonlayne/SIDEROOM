@@ -477,6 +477,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* XC-VIS-002: a long name squeezed the channel icon to a dot ("#" half size next to the others). */
+.lng-channel > svg {
+  flex: none;
+}
 .lng-voice-limit {
   margin-inline-start: auto;
   font-size: 12px;
@@ -659,9 +663,15 @@
 .lng-user-panel {
   display: flex;
   align-items: center;
-  gap: 2px;
+  /* XC-VIS-002: tighter, so the name shows more than three letters next to the five controls. */
+  gap: 0;
   height: 52px;
-  padding: 0 8px;
+  padding-block: 0;
+  padding-inline: 4px;
+}
+.lng-user-panel .lng-device-arrow {
+  inline-size: 14px;
+  min-inline-size: 14px;
 }
 .lng-user-id {
   display: flex;
@@ -917,6 +927,10 @@
   font-size: 10px;
   color: var(--text-muted);
 }
+/* XC-VIS-002: "(edited)" follows the last line of the text (Discord), not a line of its own under it. */
+.lng-msg-content > .sr-md:has(+ .lng-edited) {
+  display: inline;
+}
 .lng-msg[data-pending] {
   opacity: 0.6;
 }
@@ -929,16 +943,27 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  max-width: 100%;
-  margin: 0 0 2px var(--lounge-message-gutter, 72px);
+  /* XC-VIS-002: logical margin; the line never wraps (the name stayed whole and broke over two lines on phones). */
+  max-inline-size: calc(100% - var(--lounge-message-gutter, 72px));
+  margin-block: 0 2px;
+  margin-inline: var(--lounge-message-gutter, 72px) 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
+}
+.lng-reply > svg,
+.lng-reply > .lng-reply-avatar {
+  flex: none;
 }
 .lng-reply-name {
+  flex: none;
+  max-inline-size: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
 }
 .lng-reply-text {
@@ -1450,6 +1475,7 @@
   padding-inline-start: 12px;
 }
 .lng-root[data-mobile] .lng-reply {
+  max-inline-size: calc(100% - 56px);
   margin-inline-start: 56px;
 }
 .lng-root[data-mobile] .lng-composer-wrap {
