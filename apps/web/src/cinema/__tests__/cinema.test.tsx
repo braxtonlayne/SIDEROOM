@@ -351,7 +351,11 @@ describe('Movies / Series / Anime', () => {
     server.use(
       http.get('*/api/v1/cinema/titles', () => HttpResponse.json({ items: [], total: 0 })),
     );
+    // An empty room says so plainly; "No titles match" is for a list something narrows.
     renderAt('/cinema/series');
+    expect(await screen.findByText('Nothing here yet')).toBeInTheDocument();
+    expect(screen.queryByText('No titles match')).toBeNull();
+    renderAt('/cinema/anime?genres=Drama');
     expect(await screen.findByText('No titles match')).toBeInTheDocument();
   });
 });
