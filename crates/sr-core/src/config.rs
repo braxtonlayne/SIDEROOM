@@ -511,6 +511,31 @@ pub struct BridgeConfig {
 #[serde(default)]
 pub struct ActivitiesConfig {
     pub enabled: bool,
+    /// Where activity bundles are served from (`SR_ACTIVITIES__ORIGIN_MODE`, OPS-TDEP-001, D-450). Config and
+    /// environment only: no admin screen or API can change it.
+    pub origin_mode: ActivityOriginMode,
+}
+
+/// `[activities] origin_mode` (OPS-TDEP-001, D-450, threat model T49).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActivityOriginMode {
+    /// Every Activity on its own origin, `https://<application-id>.activities.<host>` (the default and the only
+    /// production mode).
+    #[default]
+    Subdomain,
+    /// TEST DEPLOYMENTS ONLY (a quick tunnel with one host name and no wildcard): bundles are served from
+    /// `/_activity/<application-id>/` on the main host with the same sandboxing CSP, so each game still runs in an
+    /// opaque origin, but the games share the main host's origin namespace. The server warns at startup and the
+    /// app shows a "Test deployment" notice while it is on.
+    SameHostSandboxed,
+}
+
+impl ActivitiesConfig {
+    /// Whether activities are served from a path on the main host (the test-only mode).
+    pub fn same_host(&self) -> bool {
+        self.origin_mode == ActivityOriginMode::SameHostSandboxed
+    }
 }
 
 /// `[discord]`: OAuth sign-in and registration (open question 79). An empty
@@ -852,6 +877,34 @@ announce_ips = []
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn activity_origin_mode_defaults_to_subdomain_and_reads_the_test_mode() {
+        assert_eq!(
+            Config::default().activities.origin_mode,
+            ActivityOriginMode::Subdomain
+        );
+        assert!(!Config::default().activities.same_host());
+        let load = |toml: &str| {
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(toml)),
+            )
+        };
+        let c = load("[activities]\norigin_mode = \"same_host_sandboxed\"\n").unwrap();
+        assert!(c.activities.same_host());
+        let c = load("[activities]\norigin_mode = \"subdomain\"\n").unwrap();
+        assert!(!c.activities.same_host());
+        assert!(load("[activities]\norigin_mode = \"same_origin\"\n").is_err());
+        // The shape the environment gives it (`SR_ACTIVITIES__ORIGIN_MODE=same_host_sandboxed`): a plain string.
+        let c = Config::from_figment(
+            &Figment::from(Serialized::defaults(Config::default())).merge(Serialized::default(
+                "activities.origin_mode",
+                "same_host_sandboxed",
+            )),
+        )
+        .unwrap();
+        assert!(c.activities.same_host());
     }
 
     #[test]

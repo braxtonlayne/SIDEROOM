@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { apiFetch } from '../api/client';
 import { useT } from '../i18n';
 import { onDispatch } from '../store/events';
+import { noteClientFlags } from '../testdeploy/flag';
 
 /** The feature id registered in sr-features (`ModerationReportsFeature`). */
 export const REPORTS_FLAG = 'moderation.reports';
@@ -45,6 +46,7 @@ export const useClientFlags = create<{ flags: Record<string, boolean> }>(() => (
 /** Replace the whole flag map (boot read, or `SR_FEATURE_UPDATE`, G-81) and derive what depends on it. */
 export function setClientFlags(flags: Record<string, boolean>): void {
   useClientFlags.setState({ flags });
+  noteClientFlags(flags);
   setReportsEnabled(flags[REPORTS_FLAG] === true);
 }
 

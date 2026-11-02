@@ -59,6 +59,7 @@ pub mod staff_feed;
 pub mod storage_jobs;
 pub mod suspicion_jobs;
 pub mod takedown_jobs;
+pub mod test_deploy;
 pub mod tool_rooms_jobs;
 pub mod tv_catalog;
 pub mod upload_jobs;

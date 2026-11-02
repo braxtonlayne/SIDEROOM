@@ -10,7 +10,7 @@ import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
 import {
-  activityOrigin,
+  activityBase,
   httpAssetsApi,
   httpOAuthApi,
   mintProxyToken,
@@ -24,6 +24,7 @@ import { bridgeFor, guestAwareData, guestParticipants, onGuestRoster } from './g
 import { restoreGuestBridge } from './ShareLinkDialog';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
+import { useTestDeployment } from '../testdeploy/flag';
 
 type Ask = Parameters<HostEnv['confirm']>[0];
 
@@ -41,7 +42,12 @@ export function ActivityFrame({
   const users = useUsers();
   const frame = useRef<HTMLIFrameElement | null>(null);
   const [ask, setAsk] = useState<{ ask: Ask; answer: (ok: boolean) => void } | null>(null);
-  const origin = useMemo(() => activityOrigin(instance.application_id), [instance.application_id]);
+  // OPS-TDEP-001: a test deployment serves the Activity from a path on this host (same sandbox, opaque origin).
+  const sameHost = useTestDeployment((s) => s.on);
+  const origin = useMemo(
+    () => activityBase(instance.application_id, window.location, sameHost),
+    [instance.application_id, sameHost],
+  );
 
   // The host reads the latest instance and users through refs, so one host serves the frame's whole life.
   const latest = useRef({ instance, users, channelName });

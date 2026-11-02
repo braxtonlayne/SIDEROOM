@@ -30,6 +30,11 @@ export interface GuestJoined {
    * can refuse what has not shipped. A join answer without it is refused (`joinLobby`).
    */
   capabilities: string[];
+  /**
+   * OPS-TDEP-001, test deployments only: `/_activity/<application_id>/` when the server serves the game from a path on
+   * its own host. Absent normally (the frame is `<application_id>.activities.<host>`).
+   */
+  frame_path?: string;
 }
 
 /** The only topic a guest socket has (D-397): `game:<lobby_token>`. */

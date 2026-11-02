@@ -1,7 +1,7 @@
 // Entry point. Inside SIDE ROOM the SDK's data channel carries the table; opened on its own (the vite dev
 // server) three players share the page over an in-memory hub so the whole game can be tried alone.
 
-import { SideRoomSDK } from '@sideroom/embedded-app-sdk';
+import { SideRoomSDK, applicationIdFromLocation } from '@sideroom/embedded-app-sdk';
 import { PlayerClient } from './client';
 import { HostController } from './host';
 import { S } from './strings';
@@ -43,9 +43,8 @@ function startDev(root: HTMLElement, params: URLSearchParams): void {
 }
 
 async function startInRoom(root: HTMLElement, params: URLSearchParams): Promise<void> {
-  const sdk = new SideRoomSDK(
-    params.get('application_id') ?? location.hostname.split('.')[0] ?? '',
-  );
+  // `<id>.activities.<host>`, or `/_activity/<id>/` on a test deployment (OPS-TDEP-001).
+  const sdk = new SideRoomSDK(params.get('application_id') ?? applicationIdFromLocation(location));
   await sdk.ready();
   // Who this member is and who launched the instance: the SDK's data channel says (ACT-CH-001).
   const me = sdk.self ?? '';

@@ -10,6 +10,7 @@ import { registerServiceWorker } from '../pwa/register';
 import { ReportDialog } from '../moderation/ReportDialog';
 import { ReportsFlagSync } from '../moderation/reports';
 import { ShowroomBanner } from '../showroom/ShowroomBanner';
+import { TestDeploymentNotice } from '../testdeploy/TestDeploymentNotice';
 import { MiniPlayerMount } from '../cinema/player/MiniPlayerMount';
 import { IncomingCallOverlay } from '../lounge/voice/IncomingCall';
 import { VoiceBridge } from '../lounge/voice/VoiceBridge';
@@ -58,6 +59,7 @@ void initLocale().finally(() => {
           <CatalogGate>
             <ReportDialog />
             <ShowroomBanner />
+            <TestDeploymentNotice />
             {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
             <VoiceBridge />
             <IncomingCallOverlay />

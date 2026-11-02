@@ -54,6 +54,16 @@ pub const GUEST_PLAY_CSP: &str = "default-src 'self'; script-src 'self'; style-s
 /// host name (letters, digits, dots, dashes, an optional port): a hostile `Host` can never put a source into the
 /// policy. A local development host also admits `http`/`ws`.
 pub fn guest_play_csp(host: &str) -> Option<String> {
+    guest_play_csp_for(host, false)
+}
+
+/// The `frame-src` of the guest-play policy in the test-only `same_host_sandboxed` mode (OPS-TDEP-001, D-450): the
+/// game is framed from `/_activity/<id>/` on this host, so `'self'` replaces the wildcard activity hosts.
+pub const GUEST_PLAY_SAME_HOST_FRAME_SRC: &str = "frame-src 'self';";
+
+/// [`guest_play_csp`], or with `same_host` the policy of the `same_host_sandboxed` mode: identical except that
+/// `frame-src` is `'self'` (the game's frame sits on this host and carries the sandboxing policy itself).
+pub fn guest_play_csp_for(host: &str, same_host: bool) -> Option<String> {
     let (name, port) = match host.rsplit_once(':') {
         Some((n, p)) if !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) => (n, Some(p)),
         _ => (host, None),
@@ -73,8 +83,16 @@ pub fn guest_play_csp(host: &str) -> Option<String> {
     } else {
         ("https", "wss")
     };
+    let template = if same_host {
+        GUEST_PLAY_CSP.replace(
+            "frame-src {s}://*.activities.{h};",
+            GUEST_PLAY_SAME_HOST_FRAME_SRC,
+        )
+    } else {
+        GUEST_PLAY_CSP.to_owned()
+    };
     Some(
-        GUEST_PLAY_CSP
+        template
             .replace("{h}", host)
             .replace("{s}", s)
             .replace("{w}", w),
@@ -179,6 +197,8 @@ pub struct WebGate {
     table: SurfaceTable,
     operator: Arc<dyn OperatorInfo>,
     trust_forwarded_for: bool,
+    /// `[activities] origin_mode = "same_host_sandboxed"` (OPS-TDEP-001): the guest-play page frames `'self'`.
+    same_host_activities: bool,
     bucket: Mutex<HashMap<IpAddr, (Instant, u32)>>,
 }
 
@@ -198,10 +218,11 @@ impl WebGate {
         let Some(root) = cfg.web.root_path() else {
             return Ok(None);
         };
-        Self::open(
+        Self::open_with(
             Path::new(root),
             cfg.web.serve_public,
             cfg.server.trust_forwarded_for,
+            cfg.activities.same_host(),
             operator,
         )
         .map(Some)
@@ -212,6 +233,17 @@ impl WebGate {
         root: &Path,
         serve_public: bool,
         trust_forwarded_for: bool,
+        operator: Arc<dyn OperatorInfo>,
+    ) -> Result<Arc<Self>, WebError> {
+        Self::open_with(root, serve_public, trust_forwarded_for, false, operator)
+    }
+
+    /// [`Self::open`] with the activity origin mode (`same_host_activities`: the test-only same-host mode).
+    pub fn open_with(
+        root: &Path,
+        serve_public: bool,
+        trust_forwarded_for: bool,
+        same_host_activities: bool,
         operator: Arc<dyn OperatorInfo>,
     ) -> Result<Arc<Self>, WebError> {
         if !root.is_dir() {
@@ -265,6 +297,7 @@ impl WebGate {
             table,
             operator,
             trust_forwarded_for,
+            same_host_activities,
             bucket: Mutex::new(HashMap::new()),
         }))
     }
@@ -618,7 +651,7 @@ async fn serve_public_path(
         // is not a plain host name (the page then cannot frame anything).
         let guest = (gate.surface_csp(path) == Some("guest-play"))
             .then(|| {
-                host.and_then(guest_play_csp)
+                host.and_then(|h| guest_play_csp_for(h, gate.same_host_activities))
                     .unwrap_or_else(|| NO_SCRIPT_CSP.to_owned())
             })
             .and_then(|v| HeaderValue::from_str(&v).ok());
@@ -1056,6 +1089,20 @@ mod tests {
         );
         let local = guest_play_csp("localhost:5173").unwrap();
         assert!(local.contains("frame-src http://*.activities.localhost:5173;"));
+        // OPS-TDEP-001: the same-host test mode frames only this host; nothing else of the policy changes.
+        let same = guest_play_csp_for("abc.trycloudflare.com", true).unwrap();
+        let sub = guest_play_csp_for("abc.trycloudflare.com", false).unwrap();
+        assert!(same.contains("frame-src 'self';"), "{same}");
+        assert!(!same.contains(".activities."), "{same}");
+        assert!(same.contains("connect-src 'self' wss://abc.trycloudflare.com;"));
+        assert_eq!(
+            sub.replace(
+                "frame-src https://*.activities.abc.trycloudflare.com;",
+                "frame-src 'self';"
+            ),
+            same
+        );
+        assert!(guest_play_csp_for("evil.example;script-src *", true).is_none());
         assert!(local.contains("connect-src 'self' ws://localhost:5173;"));
         // Everything else the public policy says is unchanged.
         for part in [

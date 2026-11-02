@@ -14,7 +14,16 @@ import { memoryStore } from './platform.js';
 /** @typedef {import('./platform.js').Platform} Platform */
 
 /** Whether this page runs as a SIDE ROOM Activity. @param {Window} win */
-export const isSideRoom = (win) => win.parent !== win && /^[^.]+\.activities\./.test(win.location.hostname);
+export const isSideRoom = (win) =>
+  win.parent !== win &&
+  (/^[^.]+\.activities\./.test(win.location.hostname) || ACTIVITY_PATH.test(win.location.pathname ?? ''));
+
+/** OPS-TDEP-001: a test deployment serves the Activity from `/_activity/<application id>/` on the main host. */
+const ACTIVITY_PATH = /^\/_activity\/(\d{1,20})\//;
+
+/** The application id: `<id>` of `/_activity/<id>/` (a test deployment) or of `<id>.activities.<host>`. @param {Window} win */
+export const applicationIdOf = (win) =>
+  ACTIVITY_PATH.exec(win.location.pathname ?? '')?.[1] ?? win.location.hostname.split('.')[0];
 
 /** Commands a guest's bridge may refuse; never sent on the guest path. */
 export const MEMBER_ONLY_COMMANDS = Object.freeze(['authorize', 'authenticate', 'getChannel', 'getInstanceConnectedParticipants', 'setActivity', 'openExternalLink']);
@@ -25,7 +34,7 @@ export const MEMBER_ONLY_COMMANDS = Object.freeze(['authorize', 'authenticate', 
  * @returns {Platform}
  */
 export function createSideRoomPlatform(win, opt = {}) {
-  const applicationId = win.location.hostname.split('.')[0];
+  const applicationId = applicationIdOf(win);
   /** @type {any} */
   let sdk = null;
   /** @type {any} */

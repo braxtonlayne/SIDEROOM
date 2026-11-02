@@ -946,20 +946,25 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
 
     // Activities (DEV-ACT): settings and review, instances tied to voice channels, and the proxy for
     // `<app-id>.activities.<host>`. Everything but the owner's settings is off unless `[activities] enabled`.
-    let activities_deps = Arc::new(routes::activities::ActivitiesDeps::new(
-        sr_activities::ActivityService::new(pool.clone(), id_src.clone())
-            .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
-                PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
-                clock.clone(),
-            )))
-            .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
-            .with_storage(storage.clone()),
-        cfg.activities.enabled,
-        &cfg.server.public_url,
-        Some(Arc::new(
-            crate::activities::SafeActivityFetcher::production(),
-        )),
-    ));
+    // OPS-TDEP-001: a test deployment serves them from `/_activity/<id>/` instead, and says so loudly.
+    crate::test_deploy::log_startup_warnings(&cfg);
+    let activities_deps = Arc::new(
+        routes::activities::ActivitiesDeps::new(
+            sr_activities::ActivityService::new(pool.clone(), id_src.clone())
+                .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
+                    PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
+                    clock.clone(),
+                )))
+                .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
+                .with_storage(storage.clone()),
+            cfg.activities.enabled,
+            &cfg.server.public_url,
+            Some(Arc::new(
+                crate::activities::SafeActivityFetcher::production(),
+            )),
+        )
+        .with_same_host(cfg.activities.same_host()),
+    );
     // The Arcade room (ARC-ROOM-001): Featured, Coming Soon and a server's cartridges.
     let arcade_deps = Arc::new(routes::arcade::ArcadeDeps {
         service: sr_activities::arcade::ArcadeService::new(pool.clone(), id_src.clone()),

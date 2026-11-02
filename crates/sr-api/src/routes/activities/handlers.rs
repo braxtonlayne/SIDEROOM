@@ -744,7 +744,14 @@ pub async fn guest_join(
     if deps.guest_join_limit.check_key(&who).is_err() {
         return Err(ApiError::new(ErrorCode::TooManyRequests).into());
     }
-    Ok(Json(
-        deps.service.guest_join(&lobby_token).await.map_err(act)?,
-    ))
+    let mut joined = deps.service.guest_join(&lobby_token).await.map_err(act)?;
+    // OPS-TDEP-001: the runner frames the game where this server serves it.
+    if deps.same_host {
+        joined.frame_path = joined
+            .application_id
+            .parse::<i64>()
+            .ok()
+            .map(sr_activities::rules::activity_path);
+    }
+    Ok(Json(joined))
 }

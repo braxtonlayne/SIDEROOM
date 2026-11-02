@@ -28,14 +28,25 @@ export const GUEST_SANDBOX = 'allow-scripts allow-pointer-lock';
 /** An application id is a number; anything else could smuggle a host into the frame's address. */
 const APP_ID = /^\d{1,20}$/;
 
-/** `https://<application-id>.activities.<host>/`, the origin the game's bundle is served from. */
+/** The only path a test deployment may name for the game's frame (OPS-TDEP-001): `/_activity/<application-id>/`. */
+const FRAME_PATH = /^\/_activity\/(\d{1,20})\/$/;
+
+/**
+ * `https://<application-id>.activities.<host>/`, the origin the game's bundle is served from. On a test deployment
+ * the join answer names `framePath` (`/_activity/<application-id>/` on this host, OPS-TDEP-001); anything else in it,
+ * or another application's path, gives no frame at all.
+ */
 export function gameFrameUrl(
   applicationId: string,
   loc: Pick<Location, 'protocol' | 'host'> = window.location,
+  framePath?: string | null,
 ): string | null {
-  return APP_ID.test(applicationId)
-    ? `${loc.protocol}//${applicationId}.activities.${loc.host}/`
-    : null;
+  if (!APP_ID.test(applicationId)) return null;
+  if (framePath != null) {
+    const m = FRAME_PATH.exec(framePath);
+    return m && m[1] === applicationId ? `${loc.protocol}//${loc.host}${framePath}` : null;
+  }
+  return `${loc.protocol}//${applicationId}.activities.${loc.host}/`;
 }
 
 type Phase =
@@ -195,7 +206,7 @@ function Playing({
 }) {
   const t = useT();
   const frame = useRef<HTMLIFrameElement | null>(null);
-  const src = gameFrameUrl(join.application_id, loc);
+  const src = gameFrameUrl(join.application_id, loc, join.frame_path);
 
   const host = useMemo(
     () =>

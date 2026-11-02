@@ -84868,6 +84868,13 @@
             "type": "string",
             "description": "When the guest session ends (RFC 3339, UTC); never later than the link."
           },
+          "frame_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "OPS-TDEP-001 (D-450), test deployments only: `/_activity/<application_id>/` when the server serves Activities\nfrom a path on its own host (`[activities] origin_mode = \"same_host_sandboxed\"`). Absent in the default mode,\nwhere the game's frame is `<application_id>.activities.<host>`."
+          },
           "guest_token": {
             "type": "string",
             "description": "`srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it."

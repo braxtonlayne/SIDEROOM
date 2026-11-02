@@ -1,6 +1,6 @@
 // Entry point: pick a state transport, build the board, start the interface.
 
-import { SideRoomSDK } from '@sideroom/embedded-app-sdk';
+import { SideRoomSDK, applicationIdFromLocation } from '@sideroom/embedded-app-sdk';
 import { startApp } from './app';
 import { setHostSave } from './export';
 import { broadcastAdapter } from './loopback';
@@ -25,8 +25,8 @@ async function boot(): Promise<void> {
   }
 
   if (status) status.textContent = S.connecting;
-  const hostName = location.hostname.split('.')[0] ?? '';
-  const sdk = new SideRoomSDK(params.get('application_id') ?? hostName);
+  // `<id>.activities.<host>`, or `/_activity/<id>/` on a test deployment (OPS-TDEP-001).
+  const sdk = new SideRoomSDK(params.get('application_id') ?? applicationIdFromLocation(location));
   await sdk.ready();
   setHostSave((name, bytes) => sdk.commands.saveFile({ name, mime: 'image/png', bytes }));
   const board = new Board({
