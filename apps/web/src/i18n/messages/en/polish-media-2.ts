@@ -8,4 +8,6 @@ export default {
   'shelves.clearFilters': 'Clear filters',
   // The storage browser (a page without app chrome): back to where it was opened, usually Settings > Storage.
   'storage.browser.back': 'Back',
+  // The Study: a shelf folder could not be read.
+  'study.retry': 'Try again',
 } satisfies Record<string, string>;
