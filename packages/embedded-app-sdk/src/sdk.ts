@@ -153,12 +153,15 @@ export class SideRoomSDK {
     return this.data.self;
   }
 
-  /** The member who launched the instance: the only writer of `host:*` keys. */
+  /**
+   * The instance's host: the only writer of `host:*` keys. The launcher, until the platform moves the host
+   * (D-388, `HOST_CHANGED`, `host_handoff` games); listen with `sdk.on('host', ...)`.
+   */
   get hostId(): string | null {
     return this.data.host;
   }
 
-  /** True when this participant launched the instance. */
+  /** True when this participant is the host now. */
   get isHost(): boolean {
     return this.data.isHost;
   }
@@ -334,6 +337,13 @@ export class SideRoomSDK {
         return;
       }
       for (const s of subs) s(m.from, bytes);
+    });
+    // D-388: the platform moved the host (a `host_handoff` game whose host left). The data layer follows it.
+    this.subscribe('HOST_CHANGED', (d) => {
+      const m = d as { host_id?: unknown };
+      if (typeof m.host_id !== 'string') return;
+      if (this.config) this.config = { ...this.config, host_id: m.host_id };
+      this.data.changeHost(m.host_id);
     });
     this.data.attach({
       self: cfg.user_id,

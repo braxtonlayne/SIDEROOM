@@ -64,8 +64,8 @@ export function frameToReply(f, uid, you) {
 /**
  * @param {{ channel: Channel, now?: () => number, engine?: Partial<import('../../host/engine.js').EngineOptions>,
  *   snapshotEveryTicks?: number }} opt
- *   snapshotEveryTicks: the host publishes a handoff snapshot this often (0, the default, = never: the platform cannot
- *   move the host role yet, so the bytes would buy nothing; see host/handoff.js)
+ *   snapshotEveryTicks: the host publishes a handoff snapshot this often (0, the default, = never). In SIDE ROOM
+ *   transport.js turns it on (HANDOFF_SNAPSHOT_TICKS), because the platform moves the host (D-388, host_handoff)
  * @returns {Transport & { engine: LandioHost | null, handoff: import('../../host/handoff.js').HostHandoff }}
  */
 export function createSdkTransport(opt) {

@@ -57,7 +57,7 @@ function rig(declared: string[] = ['guest_play', 'lobby_channel', 'datachannel',
 const errCode = (r: Response) => (r.ok ? null : r.error.code);
 
 describe('the guest capability set is an allow-list', () => {
-  it('names exactly four commands and two events', () => {
+  it('names exactly four commands and three events', () => {
     expect([...GUEST_COMMANDS].sort()).toEqual([
       'dataSend',
       'getInstanceConnectedParticipants',
@@ -67,6 +67,7 @@ describe('the guest capability set is an allow-list', () => {
     expect([...GUEST_EVENTS].sort()).toEqual([
       'ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE',
       'DATA_MESSAGE',
+      'HOST_CHANGED',
     ]);
   });
 
@@ -241,5 +242,47 @@ describe('what the runner will start', () => {
       'datachannel',
     ]);
     expect(PROTOCOL_VERSION).toBe(1);
+  });
+});
+
+describe('HOST_CHANGED for a guest game (D-388)', () => {
+  it('forwards a new host the member bridge named, to a game that subscribed', async () => {
+    const posted: Frame[] = [];
+    let move: ((h: string, p: string | null) => void) | null = null;
+    const host = createGuestHost({
+      applicationId: APP,
+      declared: ['guest_play', 'lobby_channel', 'datachannel', 'host_handoff'],
+      self: () => ({ id: 'g2', callsign: 'Mellow Otter 42' }),
+      roster: () => roster,
+      hostId: () => '5550001',
+      onHostChange: (cb) => {
+        move = cb;
+        return () => (move = null);
+      },
+      lane: { send: async () => true, onMessage: () => () => undefined },
+      post: (f) => posted.push(f),
+    });
+    await host.handle({ sr: 1, kind: 'handshake', application_id: APP }, OPAQUE_ORIGIN);
+    const ready = posted[0] as Extract<Frame, { kind: 'ready' }>;
+    expect(ready.config.host_id).toBe('5550001');
+    // host_handoff is not in the guest manifest set: a guest game is never told it may host.
+    expect(ready.config.capabilities).toEqual(['datachannel']);
+    await host.handle(
+      { sr: 1, kind: 'request', nonce: 'n1', cmd: 'subscribe', args: { event: 'HOST_CHANGED' } },
+      OPAQUE_ORIGIN,
+    );
+    move!('5550002', '5550001');
+    move!('5550002', '5550001');
+    const ev = posted.filter((f) => f.kind === 'event');
+    expect(ev).toEqual([
+      {
+        sr: 1,
+        kind: 'event',
+        event: 'HOST_CHANGED',
+        data: { host_id: '5550002', previous: '5550001' },
+      },
+    ]);
+    host.dispose();
+    expect(move).toBeNull();
   });
 });

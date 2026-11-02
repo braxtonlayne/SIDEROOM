@@ -15,6 +15,8 @@ export interface ActivityInstance {
   /** A development build (live entry URL), only for the owner and testers. */
   development: boolean;
   started_by: string;
+  /** The host now (D-388): the starter, or the longest-connected member after the starter left a `host_handoff` game. */
+  host_id?: string;
   created_at_ms: number;
   participants: ActivityParticipant[];
   /** What the reviewed bundle may use (`sideroom.json`); `datachannel` enables `sdk.state` / `sdk.input`. */
@@ -45,3 +47,6 @@ export interface InstanceUpdateEvent {
   channel_id: string;
   instance: ActivityInstance | null;
 }
+
+/** The instance's host now (D-388): `host_id`, or the starter for a server that does not send it. */
+export const hostOf = (inst: ActivityInstance): string => inst.host_id ?? inst.started_by;

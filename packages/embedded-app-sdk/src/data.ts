@@ -23,8 +23,11 @@ export const HOST_KEY_PREFIX = 'host:';
 export interface DataTransport {
   /** The member id of this participant. */
   readonly self: string;
-  /** The member who launched the instance; the only writer of `host:*` keys. */
-  readonly host: string;
+  /**
+   * The instance's host when the transport was made: the only writer of `host:*` keys. The host can change after
+   * attach (D-388, `HOST_CHANGED`): `ActivityData.changeHost` moves it, and every check reads `ActivityData.host`.
+   */
+  host: string;
   /** Send opaque bytes to every other participant of the instance. */
   send(bytes: Uint8Array): void;
   /** Bytes from another participant; `from` is the authenticated sender, never taken from the payload. */
@@ -61,7 +64,15 @@ export interface InputEvent {
   reply: boolean;
 }
 
-export type DataEventMap = { state: StateEvent; input: InputEvent };
+/** D-388: the host moved (the SDK calls `changeHost` on `HOST_CHANGED`). */
+export interface HostEvent {
+  host: string;
+  previous: string;
+  /** True when this participant is the new host. */
+  self: boolean;
+}
+
+export type DataEventMap = { state: StateEvent; input: InputEvent; host: HostEvent };
 export type DataEventName = keyof DataEventMap;
 
 export class DataError extends Error {
@@ -106,8 +117,11 @@ export class ActivityData {
   private readonly listeners: { [K in DataEventName]: Set<Listener<K>> } = {
     state: new Set(),
     input: new Set(),
+    host: new Set(),
   };
   private transport: DataTransport | null = null;
+  /** The current host (from the transport at attach, then from `changeHost`). */
+  private hostId: string | null = null;
   private off: (() => void) | null = null;
   /** Highest version of any tombstone already dropped: the document version never goes below it. */
   private floor = 0;
@@ -123,24 +137,26 @@ export class ActivityData {
   attach(transport: DataTransport): void {
     this.detach();
     this.transport = transport;
+    this.hostId = transport.host;
     this.off = transport.onMessage((from, bytes) => this.receive(from, bytes));
-    if (transport.self !== transport.host) this.sendEnvelope({ v: 1, t: 'sync' });
+    if (transport.self !== this.hostId) this.sendEnvelope({ v: 1, t: 'sync' });
   }
 
   detach(): void {
     this.off?.();
     this.off = null;
     this.transport = null;
+    this.hostId = null;
   }
 
   get self(): string | null {
     return this.transport?.self ?? null;
   }
   get host(): string | null {
-    return this.transport?.host ?? null;
+    return this.transport ? this.hostId : null;
   }
   get isHost(): boolean {
-    return !!this.transport && this.transport.self === this.transport.host;
+    return !!this.transport && this.transport.self === this.hostId;
   }
 
   // ---- state ----
@@ -178,7 +194,7 @@ export class ActivityData {
     const t = this.requireTransport();
     if (items.length === 0) return;
     for (const { k } of items) {
-      if (k.startsWith(HOST_KEY_PREFIX) && t.self !== t.host) {
+      if (k.startsWith(HOST_KEY_PREFIX) && t.self !== this.hostId) {
         throw new DataError('FORBIDDEN', `Only the host may write "${k}".`);
       }
     }
@@ -203,17 +219,17 @@ export class ActivityData {
   /** Guest to host. A host sending to itself gets the event locally. */
   sendInput(data: Uint8Array): void {
     const t = this.requireTransport();
-    if (t.self === t.host) {
+    if (t.self === this.hostId) {
       this.emit('input', { from: t.self, data: data.slice(), reply: false });
       return;
     }
-    this.sendEnvelope({ v: 1, t: 'input', to: t.host, b: b64(data) });
+    this.sendEnvelope({ v: 1, t: 'input', to: this.hostId, b: b64(data) });
   }
 
   /** Host to one member (e.g. a player's hole cards). Only the host may reply. */
   reply(member: string, data: Uint8Array): void {
     const t = this.requireTransport();
-    if (t.self !== t.host) throw new DataError('FORBIDDEN', 'Only the host may reply to a member.');
+    if (t.self !== this.hostId) throw new DataError('FORBIDDEN', 'Only the host may reply to a member.');
     if (member === t.self) {
       this.emit('input', { from: t.self, data: data.slice(), reply: true });
       return;
@@ -221,6 +237,38 @@ export class ActivityData {
     this.sendEnvelope({ v: 1, t: 'reply', to: member, b: b64(data) });
   }
 
+
+  // ---- host handoff (D-388) ----
+
+  /**
+   * The platform moved the host (`HOST_CHANGED`). From now on only `next` may write `host:*` keys, receives inputs
+   * and answers `sync`. The new host takes over the host keys it already holds (the shared document is replicated,
+   * so it has the last values the old host wrote): it writes them again under its own name, so peers and later
+   * joiners accept them, and it broadcasts a snapshot. Everybody else asks the new host for the document, which
+   * covers a change they saw before or after the host did. A repeat of the current host does nothing.
+   */
+  changeHost(next: string): void {
+    const t = this.transport;
+    if (!t || typeof next !== 'string' || next.length === 0 || next === this.hostId) return;
+    const previous = this.hostId ?? '';
+    this.hostId = next;
+    if (t.self === next) {
+      const own = [...this.entries.values()].filter(
+        (e) => e.k.startsWith(HOST_KEY_PREFIX) && 'd' in e && e.by !== t.self,
+      );
+      if (own.length) {
+        const base = this.version;
+        this.applyOps(
+          own.map((e) => ({ k: e.k, d: e.d, ver: base + 1, by: t.self })),
+          true,
+        );
+      }
+      for (const env of this.snapshotEnvelopes(undefined)) this.sendEnvelope(env);
+    } else {
+      this.sendEnvelope({ v: 1, t: 'sync' });
+    }
+    this.emit('host', { host: next, previous, self: t.self === next });
+  }
   // ---- events ----
 
   on<K extends DataEventName>(event: K, cb: Listener<K>): () => void {
@@ -291,7 +339,7 @@ export class ActivityData {
   }
 
   /** The live entries as snapshot envelopes, each under the size limit (late join of a big document). */
-  private snapshotEnvelopes(to: string): Record<string, unknown>[] {
+  private snapshotEnvelopes(to: string | undefined): Record<string, unknown>[] {
     this.compact();
     const limit = MAX_DATA_BYTES - 256;
     const out: Record<string, unknown>[] = [];
@@ -326,26 +374,26 @@ export class ActivityData {
       case 'state':
       case 'snap': {
         if (!forMe) return;
-        if (env.t === 'snap' && from === t.host && typeof env.floor === 'number') {
+        if (env.t === 'snap' && from === this.hostId && typeof env.floor === 'number') {
           if (Number.isFinite(env.floor)) this.floor = Math.max(this.floor, env.floor);
         }
-        this.applyOps(this.cleanOps(env.ops, from, t, env.t === 'snap'), false);
+        this.applyOps(this.cleanOps(env.ops, from, env.t === 'snap'), false);
         return;
       }
       case 'sync':
-        if (t.self === t.host) {
+        if (t.self === this.hostId) {
           for (const env of this.snapshotEnvelopes(from)) this.sendEnvelope(env);
         }
         return;
       case 'input':
         // Only the host consumes inputs.
-        if (t.self === t.host && forMe && typeof env.b === 'string') {
+        if (t.self === this.hostId && forMe && typeof env.b === 'string') {
           this.emit('input', { from, data: unb64(env.b), reply: false });
         }
         return;
       case 'reply':
         // A reply is honoured only from the host.
-        if (from === t.host && forMe && typeof env.b === 'string') {
+        if (from === this.hostId && forMe && typeof env.b === 'string') {
           this.emit('input', { from, data: unb64(env.b), reply: true });
         }
         return;
@@ -357,8 +405,8 @@ export class ActivityData {
    * a snapshot is accepted only from the host and keeps each op's author. `host:*` keys are accepted only
    * when the original author is the host.
    */
-  private cleanOps(raw: unknown, from: string, t: DataTransport, snapshot: boolean): StateOp[] {
-    if (!Array.isArray(raw) || (snapshot && from !== t.host)) return [];
+  private cleanOps(raw: unknown, from: string, snapshot: boolean): StateOp[] {
+    if (!Array.isArray(raw) || (snapshot && from !== this.hostId)) return [];
     const out: StateOp[] = [];
     for (const o of raw as Record<string, unknown>[]) {
       if (typeof o !== 'object' || o === null) continue;
@@ -366,7 +414,7 @@ export class ActivityData {
       if (typeof k !== 'string' || typeof ver !== 'number' || !Number.isFinite(ver)) continue;
       if (typeof by !== 'string') continue;
       if (!snapshot && by !== from) continue;
-      if (k.startsWith(HOST_KEY_PREFIX) && by !== t.host) continue;
+      if (k.startsWith(HOST_KEY_PREFIX) && by !== this.hostId) continue;
       out.push('d' in o ? { k, d: o.d, ver, by } : { k, ver, by });
     }
     return out;

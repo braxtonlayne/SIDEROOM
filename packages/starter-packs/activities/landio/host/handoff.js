@@ -1,8 +1,9 @@
 // @ts-check
 // Host migration, the game half (D-388, ACT-LND-002). Land.io runs in the browser of the member who launched it.
-// When that member leaves, someone else has to carry on the same game. The platform does not do its part yet:
-// `hostId` is fixed at launch and only the host may write `host:*` state (follow-up in REPORT-46A.md). This file
-// is everything the game needs once it does:
+// When that member leaves, someone else has to carry on the same game. The platform does its part from wave 46 for a
+// bundle that declares `host_handoff`: the server names the successor with the same rule as `successor()` below, the
+// client sends HOST_CHANGED, the SDK moves `host:*` writes to the new host, and client/net/transport.js calls
+// `HostHandoff.hostChanged` (snapshots on, HANDOFF_SNAPSHOT_TICKS). This file is the game half:
 //
 //   successor(candidates, leaving)  who hosts next: the longest-connected member, ties broken by member id. Every
 //                                   member computes the same answer from the same published seat order.

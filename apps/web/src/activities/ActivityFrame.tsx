@@ -10,11 +10,17 @@ import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
 import { activityOrigin, httpAssetsApi, httpOAuthApi, mintProxyToken } from './api';
-import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } from './host';
+import {
+  createActivityHost,
+  hostOf,
+  OPAQUE_ORIGIN,
+  type HostEnv,
+  type VoicePerson,
+} from './host';
 import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
 import { activityDataPort } from '../voice/dataPort';
-import { guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
+import { bridgeFor, guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
 import { restoreGuestBridge } from './ShareLinkDialog';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
@@ -133,6 +139,14 @@ export function ActivityFrame({
       })),
     );
   }, [host, voice, instance.channel_type]);
+
+  // D-388: the host moved (a `host_handoff` game whose host left). Tell the Activity, and the guests through this
+  // tab's guest bridge when it has one, so everybody sends inputs to the new host.
+  const currentHost = hostOf(instance);
+  useEffect(() => {
+    host.hostChanged();
+    bridgeFor(instance.id)?.setHost(currentHost);
+  }, [host, instance.id, currentHost]);
 
   // Tell the Activity when people join or leave.
   const roster = instance.participants.map((p) => p.user_id).join(',');

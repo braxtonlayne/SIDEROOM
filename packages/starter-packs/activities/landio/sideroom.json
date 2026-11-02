@@ -4,7 +4,13 @@
   "version": "1.0.0",
   "description": "Draw a trail out of your land, come home to claim what you enclosed, and cut other players off. Hosted in the browser of the member who starts it.",
   "tier": "TIER_1_ORIGINAL",
-  "capabilities": ["datachannel", "storage", "guest_play", "lobby_channel"],
+  "capabilities": [
+    "datachannel",
+    "storage",
+    "guest_play",
+    "lobby_channel",
+    "host_handoff"
+  ],
   "min_participants": 1,
   "max_participants": 24
 }

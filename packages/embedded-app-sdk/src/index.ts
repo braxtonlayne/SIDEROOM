@@ -12,6 +12,7 @@ export {
   type DataTransport,
   type DataEventMap,
   type DataEventName,
+  type HostEvent,
   type InputEvent,
   type StateChange,
   type StateEvent,

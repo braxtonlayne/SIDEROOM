@@ -17,7 +17,7 @@ import {
   type GuestLinkApi,
   type StoredLink,
 } from './guestLinks';
-import type { ActivityInstance } from './types';
+import { hostOf, type ActivityInstance } from './types';
 
 /** The manifest capability a bundle declares to be openable by a guest (D-399). */
 export const GUEST_PLAY = 'guest_play';
@@ -36,7 +36,7 @@ function seat(instance: ActivityInstance, link: StoredLink) {
     instanceId: instance.id,
     lobbyToken: link.lobbyToken,
     gameKey: link.gameKey,
-    hostId: instance.started_by,
+    hostId: hostOf(instance),
     selfId: useStore.getState().currentUserId ?? '',
     room: activityDataPort,
   });

@@ -41,6 +41,9 @@
 //   SPEAKING_START / SPEAKING_STOP { channel_id, user_id }
 //   DATA_MESSAGE { from, b }          ACT-CH-001: bytes (base64) another member of the instance sent; `from` is
 //     authenticated by the room's key, never claimed by the sender
+//   HOST_CHANGED { host_id, previous }   D-388 (wave 46): the instance's host left and the platform made
+//     `host_id` (the longest-connected member; never a guest) the host. Needs the `host_handoff` capability; without
+//     it the instance ends with its host. The SDK subscribes for the data channel itself and moves `sdk.hostId`.
 // Voice events exist only for an Activity in a voice channel and only for that channel.
 
 export const PROTOCOL_VERSION = 1;
@@ -69,6 +72,7 @@ export const EVENTS = [
   'SPEAKING_START',
   'SPEAKING_STOP',
   'DATA_MESSAGE',
+  'HOST_CHANGED',
 ] as const;
 export type EventName = (typeof EVENTS)[number];
 
@@ -80,7 +84,7 @@ export interface ReadyConfig {
   guild_id: string;
   /** The signed-in member (ACT-CH-001). */
   user_id?: string;
-  /** The member who launched the instance: the only writer of `host:*` keys. */
+  /** The instance's host: the only writer of `host:*` keys (the launcher, or the successor after HOST_CHANGED). */
   host_id?: string;
   /** What the reviewed bundle declared in `sideroom.json` (`datachannel`, `storage`). */
   capabilities?: string[];
@@ -238,3 +242,12 @@ export interface SpeakingUpdate {
   channel_id: string;
   user_id: string;
 }
+
+/** `HOST_CHANGED` data (D-388): the new host and the one who left. */
+export interface HostChanged {
+  host_id: string;
+  previous: string;
+}
+
+/** The capability a bundle declares to keep running when its host leaves (D-388). */
+export const HOST_HANDOFF_CAPABILITY = 'host_handoff';

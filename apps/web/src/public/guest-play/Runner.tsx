@@ -205,6 +205,7 @@ function Playing({
         self: () => ({ id: `g${seat}`, callsign: join.callsign }),
         roster: kit.roster,
         hostId: kit.hostId,
+        onHostChange: kit.onHost,
         lane: kit.lane,
         // An opaque-origin frame cannot be named as a target origin: the window itself is the address.
         post: (f: Frame) => frame.current?.contentWindow?.postMessage(f, '*'),

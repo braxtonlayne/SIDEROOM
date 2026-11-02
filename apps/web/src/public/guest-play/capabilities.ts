@@ -15,7 +15,12 @@ export const GUEST_COMMANDS = [
 export type GuestCommand = (typeof GUEST_COMMANDS)[number];
 
 /** Events a guest's game may subscribe to. No voice state, no speaking: those belong to the call (D-397). */
-export const GUEST_EVENTS = ['ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', 'DATA_MESSAGE'] as const;
+// HOST_CHANGED (D-388): which lobby id is the game's host, which the member bridge already tells the lobby.
+export const GUEST_EVENTS = [
+  'ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE',
+  'DATA_MESSAGE',
+  'HOST_CHANGED',
+] as const;
 export type GuestEvent = (typeof GUEST_EVENTS)[number];
 
 /** Manifest capabilities that reach a guest's game (`ready.config.capabilities` is the game's list cut to these). */

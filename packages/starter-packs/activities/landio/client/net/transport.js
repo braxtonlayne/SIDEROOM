@@ -67,15 +67,38 @@ import { createSdkTransport } from './sdk-transport.js';
  */
 
 /**
+ * D-388: how often the host publishes a handoff snapshot when the platform can move the host (a channel with
+ * `onHostChange`, i.e. SIDE ROOM; Land.io declares `host_handoff`): every 5 s at 7 ticks a second. A 100x100 snapshot
+ * is under 40 KB, about 4-8 KB/s per member; host/handoff.js has the numbers.
+ */
+export const HANDOFF_SNAPSHOT_TICKS = 35;
+
+/**
+ * The SDK transport for `channel`. When the platform can move the host, snapshots are on and a host change is handed
+ * to the transport's `handoff.hostChanged` (the successor resumes from the newest snapshot, everyone else says hello
+ * to it).
+ * @param {import('./channel.js').Channel} channel
+ * @param {Omit<Parameters<typeof createSdkTransport>[0], 'channel'>} [extra]   tests: the clock and engine options
+ */
+export function sdkTransportFor(channel, extra = {}) {
+  const handoff = typeof channel.onHostChange === 'function';
+  const t = createSdkTransport({ snapshotEveryTicks: handoff ? HANDOFF_SNAPSHOT_TICKS : 0, ...extra, channel });
+  channel.onHostChange?.((host, previous) => {
+    void t.handoff.hostChanged(host, previous).catch(() => undefined);
+  });
+  return t;
+}
+
+/**
  * @param {{ base?: string, intervalMs?: number, channel?: import('./channel.js').Channel }} [opt]
  * @returns {Transport & { attach(channel: import('./channel.js').Channel): void, impl(): Transport }}
  */
 export function createTransport(opt = {}) {
   /** @type {Transport} */
-  let current = opt.channel ? createSdkTransport({ channel: opt.channel }) : createHttpPoll(opt);
+  let current = opt.channel ? sdkTransportFor(opt.channel) : createHttpPoll(opt);
   return {
     attach(channel) {
-      current = createSdkTransport({ channel });
+      current = sdkTransportFor(channel);
     },
     impl: () => current,
     join: (who) => current.join(who),
