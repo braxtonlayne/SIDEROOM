@@ -2,6 +2,7 @@ import { apiFetch } from '../api/client';
 import { buildCrashCard, type CrashKind, type CrashReport } from './allowList';
 import { detectCapabilities, detectEngine } from './capabilities';
 import { parseStack } from './frames';
+import { dequeueCrash, enqueueCrash, fingerprintOf, isRetryable, readQueue } from './queue';
 import { ticks } from './ringBuffer';
 
 /** Most reports one page load sends: a crash loop must not become a request loop. */
@@ -18,6 +19,8 @@ let routeName: RouteName = () => 'unknown';
 let sent = 0;
 let sending = false;
 const seen = new Set<string>();
+/** Fingerprints this page load already delivered: a queued card for the same crash is dropped, never sent twice. */
+const delivered = new Set<string>();
 
 const GPU_ERRORS = /^(GPU\w*Error|GPUPipelineError|GPUDeviceLostInfo)$/;
 
@@ -103,13 +106,66 @@ export async function reportCrash(error: unknown, kind: CrashKind): Promise<bool
     seen.add(key);
     sending = true;
     sent += 1;
-    await sender(report);
+    try {
+      await sender(report);
+    } catch (e) {
+      // Offline or a 5xx: keep the (already allow-listed) card for the next online or visible event.
+      if (isRetryable(e)) enqueueCrash(report);
+      return false;
+    }
+    const fp = fingerprintOf(report);
+    delivered.add(fp);
+    dequeueCrash(fp);
     return true;
   } catch {
     return false;
   } finally {
     sending = false;
   }
+}
+
+let flushing = false;
+
+/**
+ * Send the cards the offline queue holds (OPS-CRASH-002), oldest first, one at a time. The page's rate limit still
+ * applies (a flush attempt counts like a report, at most `MAX_REPORTS_PER_PAGE` per page load); a card whose
+ * fingerprint was already delivered is dropped; the first retryable failure stops the flush and keeps the rest.
+ * Returns how many were delivered. Never throws.
+ */
+export async function flushCrashQueue(): Promise<number> {
+  if (flushing || sending) return 0;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
+  flushing = true;
+  let count = 0;
+  try {
+    for (const entry of readQueue()) {
+      if (delivered.has(entry.fp)) {
+        dequeueCrash(entry.fp);
+        continue;
+      }
+      if (sent >= MAX_REPORTS_PER_PAGE) break;
+      sending = true;
+      sent += 1;
+      try {
+        await sender(entry.report);
+        delivered.add(entry.fp);
+        dequeueCrash(entry.fp);
+        count += 1;
+      } catch (e) {
+        // A 4xx will never be accepted; anything else may be, later.
+        if (!isRetryable(e)) dequeueCrash(entry.fp);
+        else break;
+      } finally {
+        sending = false;
+      }
+    }
+  } catch {
+    /* never throws */
+  } finally {
+    flushing = false;
+    sending = false;
+  }
+  return count;
 }
 
 /** Where the page is, as a route NAME (set by the installer). */
@@ -122,6 +178,8 @@ export function resetCrashState(): void {
   sent = 0;
   sending = false;
   seen.clear();
+  delivered.clear();
+  flushing = false;
   sender = defaultSender;
   routeName = () => 'unknown';
 }

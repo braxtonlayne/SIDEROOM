@@ -2,6 +2,7 @@ export { CrashBoundary } from './CrashBoundary';
 export { currentRouteName, routeNameOf } from './routeName';
 export {
   TICK_EVENT,
+  flushCrashQueue,
   installCrashTelemetry,
   reportCrash,
   reportRenderError,

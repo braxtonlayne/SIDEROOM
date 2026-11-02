@@ -1,6 +1,9 @@
 // The closed enums of the crash ring buffer (OPS-CRASH-001). Kept apart from allowList.ts so the small, eager part of the
 // app (the tick ring fed by the Activity bridge) does not pull in the report builder, which loads on the first crash.
 
+/** The localStorage key of the offline crash queue (OPS-CRASH-002); install.ts only checks that it exists. */
+export const CRASH_QUEUE_KEY = 'sr.crash.queue.v1';
+
 /** The ring buffer holds the last 60 ticks. */
 export const MAX_TICKS = 60;
 export const TICK_SOURCES = ['activity', 'game', 'emulator'] as const;

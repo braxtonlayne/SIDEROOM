@@ -1,4 +1,5 @@
 import type { CrashKind } from './allowList';
+import { CRASH_QUEUE_KEY } from './enums';
 import { recordTick } from './ringBuffer';
 
 /**
@@ -19,6 +20,21 @@ export async function reportCrash(error: unknown, kind: CrashKind): Promise<bool
     return await m.reportCrash(error, kind);
   } catch {
     return false;
+  }
+}
+
+/**
+ * Send the cards the offline queue holds (OPS-CRASH-002). Reads nothing but the existence of the queue key before it
+ * loads the report chunk, so a browser with no queued crash never fetches that chunk for this. Never throws.
+ */
+export async function flushCrashQueue(): Promise<void> {
+  try {
+    if (!localStorage.getItem(CRASH_QUEUE_KEY)) return;
+    const m = await import('./report');
+    m.setRouteName(routeName);
+    await m.flushCrashQueue();
+  } catch {
+    /* storage off or chunk unavailable: nothing to flush */
   }
 }
 
@@ -51,10 +67,20 @@ export function installCrashTelemetry(options: { routeName: () => string }): () 
     if (d && (d.src === 'game' || d.src === 'emulator' || d.src === 'activity'))
       recordTick(d.src, d.input);
   };
+  const onOnline = () => void flushCrashQueue();
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') void flushCrashQueue();
+  };
+  window.addEventListener('online', onOnline);
+  document.addEventListener('visibilitychange', onVisible);
+  // Cards queued by an earlier page load go out as soon as the app is up.
+  void flushCrashQueue();
   window.addEventListener('error', onError);
   window.addEventListener('unhandledrejection', onRejection);
   window.addEventListener(TICK_EVENT, onTick);
   return () => {
+    window.removeEventListener('online', onOnline);
+    document.removeEventListener('visibilitychange', onVisible);
     window.removeEventListener('error', onError);
     window.removeEventListener('unhandledrejection', onRejection);
     window.removeEventListener(TICK_EVENT, onTick);
