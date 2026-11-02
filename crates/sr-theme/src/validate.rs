@@ -508,6 +508,16 @@ mod tests {
     }
 
     #[test]
+    fn a_custom_theme_may_set_text_link() {
+        let p = pkg(r##"{"--text-link":"#00a8fc","--ui-bg":"#000"}"##);
+        assert!(validate(&p).is_valid());
+        let css = compile_css(&p).expect("compiles");
+        assert!(css.contains("--text-link: #00a8fc;"), "{css}");
+        let bad = pkg(r##"{"--text-link":"url(x)"}"##);
+        assert_eq!(codes(&validate(&bad)), vec!["invalid-value"]);
+    }
+
+    #[test]
     fn low_contrast_is_a_warning_only() {
         let p = pkg(r##"{"--ui-text":"#222","--ui-bg":"#111"}"##);
         let r = validate(&p);
