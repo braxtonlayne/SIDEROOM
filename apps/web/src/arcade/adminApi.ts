@@ -43,7 +43,7 @@ export const httpArcadeAdminApi: ArcadeAdminApi = {
       apiFetch(`/admin/arcade/coming-soon/${enc(id)}`, { method: 'DELETE', ...NO_RETRY }),
     );
   },
-  releaseComingSoon: (id, input = {}) =>
+  releaseComingSoon: (id, input) =>
     withReauth(() =>
       apiFetch(`/admin/arcade/coming-soon/${enc(id)}/release`, {
         method: 'POST',

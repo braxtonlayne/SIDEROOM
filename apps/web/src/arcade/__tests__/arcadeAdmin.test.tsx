@@ -1,5 +1,5 @@
 // FU-3 (FU-ARC-4): the Operator's Release button tells the watchers; Remove stays silent.
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArcadeAdminApi } from '../adminApi';
@@ -19,7 +19,15 @@ const entry: ComingSoonCard = {
 
 function rig() {
   const admin = {
-    candidates: vi.fn().mockResolvedValue([]),
+    candidates: vi.fn().mockResolvedValue([
+      {
+        application_id: '42',
+        name: 'OpenMW Web',
+        tier: 'TIER_2_REIMPLEMENTATION',
+        bundle_sha256: 'ab',
+        featured: false,
+      },
+    ]),
     feature: vi.fn(),
     unfeature: vi.fn(),
     addComingSoon: vi.fn(),
@@ -38,10 +46,21 @@ describe('Arcade admin: Coming Soon release', () => {
     render(<ArcadeAdminSection admin={admin} api={api} />);
     await userEvent.click(await screen.findByRole('button', { name: 'Release OpenMW' }));
     expect(admin.releaseComingSoon).toHaveBeenCalledWith('7');
+    expect(vi.mocked(admin.releaseComingSoon).mock.calls[0]).toHaveLength(1);
     expect(admin.removeComingSoon).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(screen.getByText('OpenMW is released. 2 of 3 watchers were told.')).toBeTruthy(),
     );
+  });
+
+  it('releases as the chosen Activity so the message names it', async () => {
+    const { admin, api } = rig();
+    render(<ArcadeAdminSection admin={admin} api={api} />);
+    const pick = await screen.findByRole('combobox', { name: 'Released as' });
+    await waitFor(() => expect(within(pick).getAllByRole('option').length).toBeGreaterThan(1));
+    await userEvent.selectOptions(pick, '42');
+    await userEvent.click(screen.getByRole('button', { name: 'Release OpenMW' }));
+    expect(admin.releaseComingSoon).toHaveBeenCalledWith('7', { application_id: '42' });
   });
 
   it('keeps Remove as the silent removal', async () => {

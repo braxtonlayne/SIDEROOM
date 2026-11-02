@@ -466,14 +466,11 @@ pub async fn release_coming_soon(
     let Some((title, watchers)) = d.service.release_coming_soon(entry).await.map_err(arc)? else {
         return Err(ErrorCode::SrNotFound.into());
     };
-    let name = app.as_ref().map_or(title.as_str(), |(_, n)| n.as_str());
+    let released_as = app.as_ref().map(|(_, n)| n.as_str());
     let mut notified = 0u32;
     if let Some(dm) = d.dm.get() {
         let card = SystemCard {
-            content: format!(
-                "{name} is out. You asked to hear when it shipped: find it in the Arcade, {}/games",
-                d.public_url
-            ),
+            content: release_text(&title, released_as, &d.public_url),
             ..SystemCard::default()
         };
         notified = send_release_notices(dm.as_ref(), d.gate.as_ref(), &watchers, &card).await;
@@ -499,6 +496,17 @@ pub async fn release_coming_soon(
         watchers: watched,
         notified,
     }))
+}
+
+/// The release DM (FU-20): the entry's title is the name the watcher recognises; the Activity's name is added
+/// only when the Operator released it under another one. The link comes last.
+fn release_text(title: &str, released_as: Option<&str>, public_url: &str) -> String {
+    let head =
+        format!("{title} is out. You asked to be told when it was ready: it is in the Arcade now");
+    match released_as.map(str::trim) {
+        Some(name) if name != title.trim() => format!("{head} as {name}. {public_url}/games"),
+        _ => format!("{head}. {public_url}/games"),
+    }
 }
 
 /// Send the release notice to each watcher whose DM settings allow it (FU-20); returns how many were
@@ -528,6 +536,26 @@ async fn send_release_notices(
 #[cfg(test)]
 mod release_tests {
     use super::*;
+
+    #[test]
+    fn the_release_text_names_the_activity_only_when_it_differs() {
+        let url = "https://s.example";
+        let base =
+            "Moon Quest is out. You asked to be told when it was ready: it is in the Arcade now";
+        assert_eq!(
+            release_text("Moon Quest", None, url),
+            format!("{base}. https://s.example/games")
+        );
+        assert_eq!(
+            release_text("Moon Quest", Some("Moon Quest"), url),
+            format!("{base}. https://s.example/games")
+        );
+        assert_eq!(
+            release_text("Moon Quest", Some("Moon Quest DX"), url),
+            format!("{base} as Moon Quest DX. https://s.example/games")
+        );
+    }
+
     use sr_chat::cards::reminders::Skip;
     use std::sync::Mutex;
 

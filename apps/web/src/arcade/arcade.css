@@ -187,3 +187,14 @@
   outline: 2px solid var(--ui-focus);
   outline-offset: 1px;
 }
+/* Admin > Arcade: the "Released as" picker and the two buttons of a Coming Soon entry on one row. */
+.arc-release {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-block-start: 6px;
+}
+.arc-release .arc-field {
+  flex: 1 1 14rem;
+}

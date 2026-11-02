@@ -26,6 +26,8 @@ export function ArcadeAdminSection({
   const [summary, setSummary] = useState('');
   const [tier, setTier] = useState<Tier>('TIER_1_ORIGINAL');
   const [repo, setRepo] = useState('');
+  // Per Coming Soon entry: the released Activity chosen in "Released as" ('' = none, keep the card's title).
+  const [releaseAs, setReleaseAs] = useState<Record<string, string>>({});
 
   const fail = (e: unknown) => setError(errorText(e, ''));
   const load = useCallback(() => {
@@ -43,7 +45,7 @@ export function ArcadeAdminSection({
 
   const release = (s: ComingSoonCard) =>
     admin
-      .releaseComingSoon(s.id)
+      .releaseComingSoon(s.id, ...(releaseAs[s.id] ? [{ application_id: releaseAs[s.id] }] : []))
       .then((r) => {
         setReleased(
           t('arcade.admin.soonReleased', {
@@ -99,17 +101,40 @@ export function ArcadeAdminSection({
       <ul className="arc-admin-list">
         {soon.map((s) => (
           <li key={s.id}>
-            <strong>{s.title}</strong>{' '}
-            <Button size="sm" onClick={() => void release(s)}>
-              {t('arcade.admin.soonRelease', { title: s.title })}
-            </Button>{' '}
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => void admin.removeComingSoon(s.id).then(load).catch(fail)}
+            <strong>{s.title}</strong>
+            <form
+              className="arc-release"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void release(s);
+              }}
             >
-              {t('arcade.admin.soonRemove', { title: s.title })}
-            </Button>
+              <label className="arc-field">
+                <span>{t('arcade.admin.soonReleaseAs')}</span>
+                <select
+                  value={releaseAs[s.id] ?? ''}
+                  onChange={(e) => setReleaseAs({ ...releaseAs, [s.id]: e.target.value })}
+                >
+                  <option value="">{t('arcade.admin.soonReleaseAsNone')}</option>
+                  {(cands ?? []).map((c) => (
+                    <option key={c.application_id} value={c.application_id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button size="sm" type="submit">
+                {t('arcade.admin.soonRelease', { title: s.title })}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                type="button"
+                onClick={() => void admin.removeComingSoon(s.id).then(load).catch(fail)}
+              >
+                {t('arcade.admin.soonRemove', { title: s.title })}
+              </Button>
+            </form>
           </li>
         ))}
       </ul>
