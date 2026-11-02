@@ -1,0 +1,17 @@
+/* Admin > Crash reports (OPS-CRASH-002). Existing --ui-* tokens only; logical properties only. */
+.adm-crash-toolbar {
+  align-items: end;
+  flex-wrap: wrap;
+}
+.adm-crash-table td:last-child {
+  text-align: end;
+  white-space: nowrap;
+}
+.adm-crash-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

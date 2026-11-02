@@ -53,6 +53,7 @@ describe('admin shell', () => {
     await screen.findByRole('heading', { name: 'Dashboard' });
     expect(navNames()).toEqual([
       'Dashboard',
+      'Crash reports',
       'Accounts',
       'Moderation',
       'Invites',
@@ -90,6 +91,7 @@ describe('admin shell', () => {
     expect(await screen.findByText('Online now')).toBeInTheDocument();
     expect(navNames()).toEqual([
       'Dashboard',
+      'Crash reports',
       'Accounts',
       'Platform bans',
       'Moderation',

@@ -2,7 +2,15 @@ import { apiFetch } from '../api/client';
 import { buildCrashCard, type CrashKind, type CrashReport } from './allowList';
 import { detectCapabilities, detectEngine } from './capabilities';
 import { parseStack } from './frames';
-import { dequeueCrash, enqueueCrash, fingerprintOf, isRetryable, readQueue } from './queue';
+import {
+  clearQueue,
+  dequeueCrash,
+  gpcOn,
+  enqueueCrash,
+  fingerprintOf,
+  isRetryable,
+  readQueue,
+} from './queue';
 import { ticks } from './ringBuffer';
 
 /** Most reports one page load sends: a crash loop must not become a request loop. */
@@ -97,6 +105,8 @@ export function setCrashSender(s: Sender | null): void {
  * `MAX_REPORTS_PER_PAGE` times per page load. Never throws and never reports its own failure.
  */
 export async function reportCrash(error: unknown, kind: CrashKind): Promise<boolean> {
+  // Global Privacy Control: nothing leaves the tab and nothing is kept (the local error page still shows).
+  if (gpcOn()) return false;
   if (sending || sent >= MAX_REPORTS_PER_PAGE) return false;
   try {
     const report = reportFor(error, kind);
@@ -133,6 +143,10 @@ let flushing = false;
  * Returns how many were delivered. Never throws.
  */
 export async function flushCrashQueue(): Promise<number> {
+  if (gpcOn()) {
+    clearQueue();
+    return 0;
+  }
   if (flushing || sending) return 0;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
   flushing = true;

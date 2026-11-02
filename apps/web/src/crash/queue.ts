@@ -14,6 +14,15 @@ import { CRASH_QUEUE_KEY } from './enums';
 export const QUEUE_MAX = 10;
 export const QUEUE_MAX_AGE_MS = 7 * 864e5;
 
+/** The browser's Global Privacy Control signal (FU-CRS-1, D-432): when set, no report is sent and none is stored. */
+export function gpcOn(): boolean {
+  try {
+    return (navigator as { globalPrivacyControl?: unknown }).globalPrivacyControl === true;
+  } catch {
+    return false;
+  }
+}
+
 export interface QueuedCrash {
   /** Local fingerprint (commit and the top five frames, or kind and route without frames). */
   fp: string;
@@ -78,6 +87,7 @@ function write(entries: QueuedCrash[]): void {
 
 /** Keep a card that could not be sent. A card already queued is not queued again; the oldest falls out past 10. */
 export function enqueueCrash(report: CrashReport, now: number = Date.now()): boolean {
+  if (gpcOn()) return false;
   const fp = fingerprintOf(report);
   const entries = readQueue(now);
   if (entries.some((e) => e.fp === fp)) return false;

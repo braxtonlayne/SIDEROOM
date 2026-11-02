@@ -253,6 +253,44 @@ describe('reporting while offline', () => {
   });
 });
 
+describe('Global Privacy Control', () => {
+  const stack = (n: number) =>
+    'Error: x' + String.fromCharCode(10) + '    at f' + n + ' (/assets/a' + n + '.js:1:2)';
+  const gpc = (v: boolean | undefined) =>
+    Object.defineProperty(navigator, 'globalPrivacyControl', { value: v, configurable: true });
+  afterEach(() => gpc(undefined));
+
+  it('sends nothing and stores nothing', async () => {
+    const send = vi.fn(async () => undefined);
+    setCrashSender(send);
+    gpc(true);
+    expect(await reportCrash(errorWithStack(stack(9)), 'error')).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+    expect(enqueueCrash(card(1))).toBe(false);
+    expect(localStorage.getItem(CRASH_QUEUE_KEY)).toBeNull();
+  });
+
+  it('a failed send is not queued, and an old queue is dropped unsent', async () => {
+    enqueueCrash(card(1));
+    const send = vi.fn(async () => {
+      throw new TypeError('offline');
+    });
+    setCrashSender(send);
+    gpc(true);
+    expect(await flushCrashQueue()).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    expect(readQueue()).toHaveLength(0);
+  });
+
+  it('reports normally when the signal is absent or false', async () => {
+    const send = vi.fn(async () => undefined);
+    setCrashSender(send);
+    gpc(false);
+    expect(await reportCrash(errorWithStack(stack(9)), 'error')).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the page hooks', () => {
   it('flush on online and on becoming visible, and stop after uninstall', async () => {
     const send = vi.fn(async () => undefined);
