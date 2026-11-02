@@ -710,10 +710,20 @@ mod tests {
         let manifest =
             include_bytes!("../../../packages/starter-packs/activities/arena3d/sideroom.json");
         let m = crate::arcade::parse_manifest(manifest).expect("arena3d manifest validates");
-        for c in ["datachannel", "storage", "guest_play", "lobby_channel", "byos_read"] {
+        for c in [
+            "datachannel",
+            "storage",
+            "guest_play",
+            "lobby_channel",
+            "byos_read",
+        ] {
             assert!(m.capabilities.iter().any(|x| x == c), "{c}");
         }
-        assert!(!m.capabilities.iter().any(|x| x == "ingame_voice" || x == "byos_write"));
+        assert!(
+            !m.capabilities
+                .iter()
+                .any(|x| x == "ingame_voice" || x == "byos_write")
+        );
         let connect = parse_connect(manifest).expect("connect parses");
         assert_eq!(connect, vec!["self".to_owned()]);
         assert_eq!(connect_src(&input(false, false, &connect)), "'self'");

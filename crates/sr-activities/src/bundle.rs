@@ -45,6 +45,9 @@ pub const STORAGE: &str = "storage";
 pub const GUEST_PLAY: &str = "guest_play";
 /// A lobby room for the game session, with its own keys (ARC-GST-001).
 pub const LOBBY_CHANNEL: &str = "lobby_channel";
+/// D-388 (wave 46, ACT-LND-002): when the host leaves, the instance keeps running and the longest-connected member
+/// becomes the host (`HOST_CHANGED`). Without it the instance ends with its host, as before (P36-ACT-1).
+pub const HOST_HANDOFF: &str = "host_handoff";
 /// Voice between the players of one game session; reserved (ARC-GST-001, docs/dev/design/ingame-voice.md).
 pub const INGAME_VOICE: &str = "ingame_voice";
 /// Largest manifest.

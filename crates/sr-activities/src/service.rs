@@ -922,6 +922,7 @@ impl ActivityService {
             channel_type: r.try_get("channel_type")?,
             development,
             started_by: r.try_get::<i64, _>("started_by")?.to_string(),
+            host_id: r.try_get::<i64, _>("host")?.to_string(),
             created_at_ms: r.try_get("created_ms")?,
             participants: self.participants(id).await?,
             capabilities,
@@ -931,7 +932,8 @@ impl ActivityService {
     fn instance_select() -> String {
         format!(
             "SELECT i.id, i.application_id, a.name, i.guild_id, i.channel_id, i.channel_type, \
-             i.started_by, (a.release_state::text = 'development') AS dev, \
+             i.started_by, COALESCE(i.host_id, i.started_by) AS host, \
+             (a.release_state::text = 'development') AS dev, \
              (SELECT b.capabilities FROM application_activities c \
               JOIN application_activity_bundles b ON b.id = c.reviewed_bundle_id \
               WHERE c.application_id = i.application_id) AS caps, \
@@ -1103,9 +1105,10 @@ impl ActivityService {
 
     /// Mark `user` as gone from `instance`; the last one out ends it. Announces the change.
     ///
-    /// An instance that uses the data channel is host-authoritative: the member who launched it is the only
-    /// writer of `host:*` keys and the only receiver of inputs, and there is no host handover in v1 (P36-ACT-1).
-    /// So when its starter leaves (or leaves the call), the instance ends for everybody.
+    /// An instance that uses the data channel is host-authoritative: its host (the member who launched it, or the
+    /// successor D-388 picked) is the only writer of `host:*` keys and the only receiver of inputs. When the host
+    /// leaves (or leaves the call), a game that declares `host_handoff` gets a new host; any other one ends for
+    /// everybody (P36-ACT-1).
     async fn remove_participant(
         &self,
         row: &PgRow,
@@ -1133,12 +1136,36 @@ impl ActivityService {
         .bind(instance)
         .fetch_one(self.pool())
         .await?;
-        let starter: i64 = row.try_get("started_by")?;
+        let host: i64 = row.try_get("host")?;
+        let caps = Self::capabilities(row)?;
         let host_left = gone.rows_affected() > 0
-            && user == starter
-            && Self::capabilities(row)?
-                .iter()
-                .any(|c| c == bundle::DATACHANNEL);
+            && user == host
+            && caps.iter().any(|c| c == bundle::DATACHANNEL);
+        // D-388 (wave 46): a game that declares `host_handoff` keeps running; the longest-connected member left
+        // (earliest `joined_at`, ties by user id, the rule of Land.io's `host/handoff.js`) becomes the host. Guests
+        // are never participants, so never chosen. The host column moves only if `user` is still the host, so two
+        // leaves at once cannot both pick a successor.
+        if host_left && left > 0 && caps.iter().any(|c| c == bundle::HOST_HANDOFF) {
+            let moved: Option<i64> = sqlx::query_scalar(
+                "UPDATE activity_instances SET host_id = ( \
+                   SELECT user_id FROM activity_participants \
+                   WHERE instance_id = $1 AND left_at IS NULL ORDER BY joined_at, user_id LIMIT 1) \
+                 WHERE id = $1 AND ended_at IS NULL AND COALESCE(host_id, started_by) = $2 \
+                 RETURNING host_id",
+            )
+            .bind(instance)
+            .bind(user)
+            .fetch_optional(self.pool())
+            .await?
+            .flatten();
+            if moved.is_some() {
+                if let Some(fresh) = self.running_by_id(instance).await? {
+                    let view = self.view(&fresh).await?;
+                    self.announce(channel, Some(&view)).await;
+                }
+                return Ok(());
+            }
+        }
         if left == 0 || host_left {
             sqlx::query(
                 "UPDATE activity_instances SET ended_at = now() WHERE id = $1 AND ended_at IS NULL",

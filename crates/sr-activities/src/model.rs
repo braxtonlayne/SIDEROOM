@@ -189,6 +189,10 @@ pub struct InstanceView {
     /// Running a development build (live entry URL).
     pub development: bool,
     pub started_by: String,
+    /// The instance's host now: the only writer of `host:*` keys and the receiver of inputs. The starter until
+    /// the starter leaves a game that declares `host_handoff`; then the longest-connected member (D-388).
+    #[serde(default)]
+    pub host_id: String,
     pub created_at_ms: i64,
     pub participants: Vec<ParticipantView>,
     /// What the instance's Activity may use: the capabilities of its reviewed bundle (a development build has

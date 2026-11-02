@@ -267,7 +267,7 @@ impl ActivityService {
             return Ok(None);
         }
         let sql = format!(
-            "SELECT l.lobby_sha256, (i.started_by = $2) AS host FROM activity_guest_links l \
+            "SELECT l.lobby_sha256, (COALESCE(i.host_id, i.started_by) = $2) AS host FROM activity_guest_links l \
              JOIN activity_instances i ON i.id = l.instance_id \
              JOIN activity_participants p ON p.instance_id = i.id AND p.user_id = $2 AND p.left_at IS NULL \
              WHERE l.lobby_sha256 = $1 AND {LINK_LIVE}"

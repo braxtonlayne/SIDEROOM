@@ -833,6 +833,86 @@ async fn an_instance_carries_the_capabilities_of_its_reviewed_bundle() {
     r.db.cleanup().await.unwrap();
 }
 
+/// D-388 (wave 46, ACT-LND-002): a data-channel game that declares `host_handoff` keeps running when its host
+/// leaves; the longest-connected member left becomes the host (earliest join, ties by user id), and the next host
+/// leaving moves it again. The last one out still ends it. A rejoin counts from the rejoin.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_host_handoff_game_moves_its_host_to_the_longest_connected_member() {
+    let r = rig().await;
+    let owner = account(r.db.pool()).await;
+    let app = application(r.db.pool(), owner, "Relay").await;
+    r.svc.save_config(app, input(None)).await.unwrap();
+    let zip = zip_of(&[
+        ("index.html", b"<h1>relay</h1>"),
+        (
+            "sideroom.json",
+            br#"{"capabilities":["datachannel","host_handoff"]}"#,
+        ),
+    ]);
+    let up = r.svc.upload_bundle(app, owner, zip).await.unwrap();
+    let bid: i64 = up.bundle.id.parse().unwrap();
+    r.svc.submit(app, bid).await.unwrap();
+    r.svc.decide(app, 1, bid, true, None).await.unwrap();
+    set_state(&r, app, "released").await;
+
+    let host = account(r.db.pool()).await;
+    let first = account(r.db.pool()).await;
+    let second = account(r.db.pool()).await;
+    let inst = r.svc.launch(host, app, 1).await.unwrap();
+    assert_eq!(inst.host_id, host.to_string());
+    assert_eq!(inst.started_by, host.to_string());
+    assert!(inst.capabilities.iter().any(|c| c == "host_handoff"));
+    let id: i64 = inst.id.parse().unwrap();
+    r.svc.join(first, id).await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    r.svc.join(second, id).await.unwrap();
+
+    // A non-host leaving changes nothing about the host.
+    r.svc.leave(second, id).await.unwrap();
+    assert_eq!(
+        r.svc.get(first, id).await.unwrap().host_id,
+        host.to_string()
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    r.svc.join(second, id).await.unwrap();
+
+    // The host leaves: `first` joined before `second` (who rejoined later), so `first` hosts now. The announced
+    // instance carries the new host; the starter is still the starter.
+    r.svc.leave(host, id).await.unwrap();
+    let now = r.svc.get(first, id).await.unwrap();
+    assert_eq!(now.host_id, first.to_string());
+    assert_eq!(now.started_by, host.to_string());
+    let ev = r.events.0.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(ev.1["instance"]["host_id"], first.to_string());
+
+    // The old host comes back as a player; the new host leaves the call: `second` joined before the old host's
+    // rejoin, so `second` is next.
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    r.svc.join(host, id).await.unwrap();
+    r.svc.voice_left(first, 1).await.unwrap();
+    assert_eq!(
+        r.svc.get(second, id).await.unwrap().host_id,
+        second.to_string()
+    );
+
+    // Ties on the join time go to the smaller user id.
+    r.svc.join(first, id).await.unwrap();
+    sqlx::query("UPDATE activity_participants SET joined_at = '2026-01-01' WHERE instance_id = $1")
+        .bind(id)
+        .execute(r.db.pool())
+        .await
+        .unwrap();
+    r.svc.leave(second, id).await.unwrap();
+    let tie = host.min(first);
+    assert_eq!(r.svc.get(host, id).await.unwrap().host_id, tie.to_string());
+
+    // The last one out ends it.
+    r.svc.leave(tie, id).await.unwrap();
+    r.svc.leave(host.max(first), id).await.unwrap();
+    assert!(r.svc.in_channel(first, 1).await.unwrap().is_none());
+    r.db.cleanup().await.unwrap();
+}
 /// OPS-FLG-001 `platform.activities_datachannel`: while the switch is off an instance runs without the
 /// `datachannel` capability (its host then never asks the call for a data channel); switched on, it has it again.
 #[tokio::test]
