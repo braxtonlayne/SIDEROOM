@@ -149,6 +149,8 @@ const ADMIN = [
   'donation-entitlements',
   'donation-pricing',
   'features',
+  'arcade',
+  'entrance',
 ];
 const APP_TABS = ['general', 'oauth2', 'bot', 'installation', 'commands', 'review'];
 
@@ -729,6 +731,62 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
     await step('assign role', () =>
       apiPut(o, `/guilds/${s.guildId}/members/${meMember}/roles/${role.id}`),
     );
+  // FU-3: a Coming Soon entry the member asked to hear about, so Admin > Arcade shows the Release button.
+  await step('coming soon entry', async () => {
+    const entry = await apiPost<{ id: string }>(o, '/admin/arcade/coming-soon', {
+      title: 'Lantern Keep',
+      summary: 'A co-op dungeon crawler for four.',
+      tier: 'TIER_1_ORIGINAL',
+      repo_url: 'https://github.com/example/lantern-keep',
+    });
+    await apiPut(m, `/arcade/coming-soon/${entry.id}/notify`, { notify: true });
+  });
+  // FU-18: the member's page carries tip links, so the signed-in profile view draws them as QR codes.
+  await step('tip links on the member page', () =>
+    apiPut(m, '/users/@me/profile-doc', {
+      version: 1,
+      style: {
+        palette: { background: '#1e1f22', panel: '#2b2d31', text: '#f2f3f5', accent: '#5865f2' },
+        pattern: 'none',
+        banner_background: false,
+        font: 'inter',
+        cursor: 'default',
+        overlay: 'none',
+        border: 'none',
+      },
+      blocks: [
+        {
+          id: 'about',
+          type: 'about',
+          x: 0,
+          y: 0,
+          w: 6,
+          h: 4,
+          config: { text: 'Plays late. Tips go to the coffee fund.' },
+        },
+        {
+          id: 'tips',
+          type: 'linktree',
+          x: 6,
+          y: 0,
+          w: 6,
+          h: 6,
+          config: {
+            title: 'Support me',
+            links: [
+              {
+                label: 'Bitcoin',
+                url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+                tip: 'btc',
+              },
+              { label: 'Ko-fi', url: 'https://ko-fi.com/sweepmate', tip: 'kofi' },
+              { label: 'Blog', url: 'https://example.com/blog' },
+            ],
+          },
+        },
+      ],
+    }),
+  );
   const voice = await step('voice channel', () =>
     apiPost<{ id: string }>(o, `/guilds/${s.guildId}/channels`, { name: 'Hangout', type: 2 }),
   );
