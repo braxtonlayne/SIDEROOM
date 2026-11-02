@@ -12,11 +12,22 @@ import { MAX_PLAYERS } from '../sim/world.js';
 import { sanitiseInput } from '../sim/input.js';
 import { InputLog } from '../sim/input-log.js';
 import { MSG, decode, encodeFull, encodeRoster, encodeSnapshot, encodeWelcome } from './codec.js';
+import { encodeSeats } from './seats.js';
 
 /** @typedef {import('../sim/world.js').World} World */
 /** @typedef {import('../sim/input.js').PlayerInput} PlayerInput */
 /** @typedef {import('./channel.js').Channel} Channel */
 /** @typedef {import('./codec.js').RosterEntry} RosterEntry */
+/** @typedef {import('./seats.js').Seat} Seat */
+
+/**
+ * D-388: what a peer that becomes the host carries over from the old one (PredictedClient.takeover()).
+ * @typedef {object} Resume
+ * @property {number} selfSlot                       the slot this member already plays in
+ * @property {import('../sim/world.js').Snapshot} [snap]   the newest `host:snap` it heard: the world rewinds to it
+ * @property {Map<number, number>} [acks]            that snapshot's per-slot acknowledged input seq
+ * @property {Seat[]} [seats]                        the other players, with their member ids
+ */
 
 /**
  * @typedef {object} Peer
@@ -32,7 +43,9 @@ import { MSG, decode, encodeFull, encodeRoster, encodeSnapshot, encodeWelcome } 
 export class HostSession {
   /**
    * @param {{ channel: Channel, world: World, name: string, snapshotEvery?: number, maxQueue?: number,
-   *   timeoutTicks?: number }} opt
+   *   timeoutTicks?: number, resume?: Resume }} opt
+   *   resume: this member takes over a running match (host handoff): the world rewinds to `resume.snap`, the old
+   *   host's player goes, and every seat is kept for its member, who says hello again
    */
   constructor(opt) {
     this.channel = opt.channel;
@@ -40,17 +53,34 @@ export class HostSession {
     this.snapshotEvery = opt.snapshotEvery ?? 3;
     this.maxQueue = opt.maxQueue ?? 8;
     this.timeoutTicks = opt.timeoutTicks ?? 600;
-    this.selfSlot = 0;
+    this.selfSlot = opt.resume?.selfSlot ?? 0;
     this.selfName = opt.name;
     /** @type {Map<string, Peer>} */
     this.peers = new Map();
     this.stats = { inputsReceived: 0, inputsDropped: 0, starved: 0, snapshots: 0, bytesOut: 0 };
     /** Every applied input change, in the replay script's format (for crash reports and bug replays). */
     this.inputLog = new InputLog();
+    if (opt.resume) this.resume(opt.resume);
     this.world.addPlayer(this.selfSlot);
     this.off = this.channel.onInput((from, bytes) => this.receive(from, bytes));
     this.publishRoster();
     this.publishSnapshot();
+  }
+
+  /** @param {Resume} r */
+  resume(r) {
+    if (r.snap) {
+      this.world.applySnapshot(r.snap);
+      const keep = new Set([this.selfSlot, ...(r.seats ?? []).map((s) => s.slot)]);
+      // The old host's player (and anyone nobody can name) is gone; the rest wait for their hello.
+      for (let slot = 0; slot < MAX_PLAYERS; slot++) if (this.world.players[slot] && !keep.has(slot)) this.world.removePlayer(slot);
+    }
+    for (const s of r.snap ? (r.seats ?? []) : []) {
+      if (!this.world.players[s.slot] || s.slot === this.selfSlot) continue;
+      const ack = r.acks?.get(s.slot) ?? 0;
+      // lastSeq = ack: the peer's unacknowledged frames are applied, the ones the old host applied are not repeated.
+      this.peers.set(s.id, { id: s.id, name: s.name, slot: s.slot, queue: [], lastSeq: ack, ack, heardAt: this.world.tick });
+    }
   }
 
   /** @returns {RosterEntry[]} */
@@ -62,6 +92,7 @@ export class HostSession {
 
   /** @param {string} from @param {Uint8Array} bytes */
   receive(from, bytes) {
+    if (from === this.channel.self.id) return; // a hello sent to the old host, delivered after this page became the host
     const m = decode(bytes);
     if (!m) return;
     const peer = this.peers.get(from);
@@ -112,8 +143,11 @@ export class HostSession {
     this.publishRoster();
   }
 
-  /** One fixed tick. @param {PlayerInput} localInput the host player's own input */
-  tick(localInput) {
+  /**
+   * One fixed tick. @param {PlayerInput} localInput the host player's own input
+   * @param {boolean} [publish] false: skip the periodic snapshot (a long catch-up burst; the caller publishes once)
+   */
+  tick(localInput, publish = true) {
     this.world.setInput(this.selfSlot, localInput);
     this.inputLog.record(this.world.tick, this.selfSlot, sanitiseInput(localInput));
     const peers = [...this.peers.values()].sort((a, b) => a.slot - b.slot);
@@ -127,7 +161,7 @@ export class HostSession {
     }
     this.world.step();
     for (const peer of peers) if (this.world.tick - peer.heardAt > this.timeoutTicks) this.removePeer(peer.id);
-    if (this.world.tick % this.snapshotEvery === 0) this.publishSnapshot();
+    if (publish && this.world.tick % this.snapshotEvery === 0) this.publishSnapshot();
   }
 
   publishSnapshot() {
@@ -142,6 +176,8 @@ export class HostSession {
 
   publishRoster() {
     this.channel.publish('roster', encodeRoster(this.roster()));
+    // D-388: who holds which slot, for the peer that hosts next.
+    this.channel.publish('seats', encodeSeats({ host: this.selfSlot, seats: [...this.peers.values()].map((p) => ({ id: p.id, slot: p.slot, name: p.name })) }));
   }
 
   close() {

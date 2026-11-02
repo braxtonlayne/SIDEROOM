@@ -15,6 +15,7 @@ import { MSG, decode, encodeBye, encodeHello, encodeInput } from './codec.js';
 import { Interpolator } from './interp.js';
 import { sanitiseInput } from '../sim/input.js';
 import { InputLog } from '../sim/input-log.js';
+import { decodeSeats } from './seats.js';
 
 /** @typedef {import('../sim/world.js').World} World */
 /** @typedef {import('../sim/world.js').Snapshot} Snapshot */
@@ -43,6 +44,12 @@ export class PredictedClient {
     /** @type {{ seq: number, input: PlayerInput }[]} */
     this.pending = [];
     this.lastSnapTick = -1;
+    /** D-388: the newest snapshot and its acks (a successor resumes the world from them). @type {{ snap: Snapshot, acks: Map<number, number> } | null} */
+    this.lastSnap = null;
+    /** D-388: the host's seat table (member ids to slots), the newest heard. @type {import('./seats.js').SeatTable | null} */
+    this.seatTable = null;
+    /** True from a host change until the new host welcomes this peer again. */
+    this.rejoining = false;
     this.haveBaseline = false;
     /** The newest host tick heard, advanced by one per local tick in between: the clock for interpolation. */
     this.hostTick = 0;
@@ -60,6 +67,7 @@ export class PredictedClient {
       this.channel.onReply((bytes) => this.receive(bytes)),
       this.channel.onState((key, bytes) => {
         if (key === 'snap' || key === 'roster') this.receive(bytes);
+        else if (key === 'seats') this.seatTable = decodeSeats(bytes) ?? this.seatTable;
       }),
     ];
     this.channel.toHost(encodeHello(this.name));
@@ -71,9 +79,20 @@ export class PredictedClient {
     if (!m) return;
     if (m.type === MSG.WELCOME) {
       if (this.slot < 0) this.slot = m.slot;
+      else if (this.rejoining && m.slot !== this.slot) {
+        // The new host did not know this member (its hello came after the last seat table): a new seat, so the
+        // inputs queued for the old one mean nothing.
+        this.slot = m.slot;
+        this.pending = [];
+        this.haveBaseline = false;
+      }
+      this.rejoining = false;
       if (this.status === 'joining') this.status = 'playing';
     } else if (m.type === MSG.FULL) {
-      if (this.slot < 0) this.status = 'full';
+      if (this.slot < 0 || this.rejoining) {
+        this.status = 'full';
+        this.rejoining = false;
+      }
     } else if (m.type === MSG.ROSTER) {
       this.roster = m.roster;
     } else if (m.type === MSG.SNAPSHOT) {
@@ -85,6 +104,7 @@ export class PredictedClient {
   onSnapshot(snap, acks) {
     if (snap.tick <= this.lastSnapTick) return; // late or duplicate
     this.lastSnapTick = snap.tick;
+    this.lastSnap = { snap, acks };
     this.stats.snapshots++;
     this.hostTick = Math.max(this.hostTick, snap.tick);
     this.interp.push(snap);
@@ -130,7 +150,7 @@ export class PredictedClient {
   tick(input) {
     this.localTicks++;
     this.hostTick++;
-    if (this.status === 'joining' && this.localTicks % this.helloEvery === 0) this.channel.toHost(encodeHello(this.name));
+    if ((this.status === 'joining' || this.rejoining) && this.localTicks % this.helloEvery === 0) this.channel.toHost(encodeHello(this.name));
     if (this.status !== 'playing' || !this.haveBaseline || !this.world.players[this.slot]) return;
     const clean = sanitiseInput(input);
     this.seq++;
@@ -153,6 +173,11 @@ export class PredictedClient {
     this.offset[2] *= k;
   }
 
+  /** The host's slot, from its seat table (0 until one arrives). */
+  hostSlot() {
+    return this.seatTable?.host ?? 0;
+  }
+
   /** My eye for the camera: predicted position plus the decaying correction offset. */
   myEye() {
     const e = this.world.eye(this.slot);
@@ -163,6 +188,39 @@ export class PredictedClient {
   /** A remote player as drawn (interpolated). @param {number} slot @param {number} [alpha] fraction of a tick */
   remote(slot, alpha = 0) {
     return this.interp.sample(slot, this.hostTick + alpha);
+  }
+
+  /**
+   * D-388: the platform moved the host to someone else. Forget the old host's timeline (the new one resumes from a
+   * snapshot that can be older than the newest this peer heard) and say hello to it: it gives this member its seat
+   * back. Prediction carries on meanwhile; unacknowledged inputs are sent again and the new host takes the ones it
+   * has not applied.
+   */
+  hostChanged() {
+    if (this.status === 'full') return;
+    this.rejoining = true;
+    this.lastSnapTick = -1;
+    this.lastSnap = null;
+    this.hostTick = 0;
+    this.interp.clear();
+    this.channel.toHost(encodeHello(this.name));
+  }
+
+  /**
+   * D-388: this peer is the next host. Stops listening as a peer (without a BYE: nobody to say it to) and returns
+   * what the HostSession resumes from; `snap` is absent when no snapshot was ever heard (a fresh match then).
+   * @returns {import('./host.js').Resume}
+   */
+  takeover() {
+    for (const off of this.offs.splice(0)) off();
+    const have = this.lastSnap && this.slot >= 0 && this.haveBaseline;
+    return {
+      selfSlot: have ? this.slot : 0,
+      snap: have && this.lastSnap ? this.lastSnap.snap : undefined,
+      acks: have && this.lastSnap ? this.lastSnap.acks : undefined,
+      // The seat table lists the peers by member id; this member's own seat is its slot, not a peer.
+      seats: have ? (this.seatTable?.seats ?? []).filter((s) => s.id !== this.channel.self.id) : [],
+    };
   }
 
   leave() {

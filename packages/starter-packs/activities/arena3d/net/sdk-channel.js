@@ -20,7 +20,7 @@ const HOST_PREFIX = 'host:';
  * @property {string | null} hostId
  * @property {{ all(): Record<string, unknown>, set(patch: Record<string, unknown>): void }} state
  * @property {{ send(bytes: Uint8Array): void, reply(member: string, bytes: Uint8Array): void }} input
- * @property {(event: 'state' | 'input', cb: (e: any) => void) => () => void} on
+ * @property {(event: 'state' | 'input' | 'host', cb: (e: any) => void) => () => void} on
  */
 
 /**
@@ -32,10 +32,30 @@ export function channelFromSdk(sdk, opt) {
   const self = { id: String(sdk.self ?? ''), name: opt.name };
   /** @type {(() => void)[]} */
   const offs = [];
+  // D-388: the platform can move the host (HOST_CHANGED); the SDK follows it and says so with a 'host' event.
+  let hostId = String(sdk.hostId ?? '');
+  /** @type {Set<(host: string, previous: string) => void>} */
+  const hostCbs = new Set();
+  offs.push(
+    sdk.on('host', (e) => {
+      if (!e || typeof e.host !== 'string' || e.host === hostId) return;
+      const previous = hostId;
+      hostId = e.host;
+      hostCbs.forEach((cb) => cb(e.host, previous));
+    }),
+  );
   return {
     self,
-    hostId: String(sdk.hostId ?? ''),
-    isHost: sdk.isHost,
+    get hostId() {
+      return hostId;
+    },
+    get isHost() {
+      return sdk.isHost;
+    },
+    onHostChange(cb) {
+      hostCbs.add(cb);
+      return () => hostCbs.delete(cb);
+    },
     toHost: (bytes) => sdk.input.send(bytes),
     onInput(cb) {
       const off = sdk.on('input', (e) => {

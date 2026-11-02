@@ -16,6 +16,9 @@ import { Rng } from '../sim/rng.js';
  */
 export function createLoopbackHub(opt) {
   const rng = new Rng(opt.seed ?? 1);
+  let hostId = opt.hostId;
+  /** @type {Map<string, Set<(host: string, previous: string) => void>>} */
+  const hostWatchers = new Map();
   const latency = opt.latencyMs ?? 0;
   const jitter = opt.jitterMs ?? 0;
   let now = 0;
@@ -45,16 +48,28 @@ export function createLoopbackHub(opt) {
     peers.set(id, mine);
     return {
       self: { id, name },
-      hostId: opt.hostId,
-      isHost: id === opt.hostId,
+      get hostId() {
+        return hostId;
+      },
+      get isHost() {
+        return id === hostId;
+      },
+      onHostChange(cb) {
+        let set = hostWatchers.get(id);
+        if (!set) hostWatchers.set(id, (set = new Set()));
+        const mineSet = set;
+        mineSet.add(cb);
+        return () => mineSet.delete(cb);
+      },
       toHost(bytes) {
         const copy = bytes.slice();
         stats.bytes.input += copy.length;
-        send('input', () => peers.get(opt.hostId)?.input.forEach((cb) => cb(id, copy)));
+        // Delivered to whoever hosts when it arrives (a message in flight during a handoff reaches the new host).
+        send('input', () => (hostId === id ? undefined : peers.get(hostId)?.input.forEach((cb) => cb(id, copy))));
       },
       onInput: (cb) => (mine.input.add(cb), () => mine.input.delete(cb)),
       publish(key, bytes) {
-        if (id !== opt.hostId) throw new Error('only the host writes host:* state');
+        if (id !== hostId) throw new Error('only the host writes host:* state');
         const copy = bytes.slice();
         doc.set(key, copy);
         for (const [pid, p] of peers) {
@@ -92,5 +107,23 @@ export function createLoopbackHub(opt) {
     }
   }
 
-  return { join, pump, stats, now: () => now };
+  /**
+   * D-388: the platform moves the host (the old one left). The `host:*` document stays; every member still in the
+   * hub hears it at once (the SDK follows HOST_CHANGED without network delay).
+   * @param {string} next
+   */
+  function changeHost(next) {
+    if (next === hostId) return;
+    const previous = hostId;
+    hostId = next;
+    for (const [pid, cbs] of hostWatchers) if (peers.has(pid)) cbs.forEach((cb) => cb(next, previous));
+  }
+
+  /** A member drops off the network (its page closed): it hears and sends nothing more. @param {string} id */
+  function disconnect(id) {
+    peers.delete(id);
+    hostWatchers.delete(id);
+  }
+
+  return { join, pump, stats, now: () => now, changeHost, disconnect };
 }
