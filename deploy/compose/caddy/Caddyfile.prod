@@ -129,6 +129,24 @@
 		file_server
 	}
 
+	@profile-member {
+		path /~*
+		header Cookie *sr_session=*
+	}
+	handle @profile-member {
+		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080} {
+			@profile-gone status 404
+			handle_response @profile-gone {
+				root * {$SR_WEB_ROOT:/srv/web}
+				rewrite * /profile.html
+				header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+				header Reporting-Endpoints "csp-endpoint=\"/internal/csp-report\""
+				header Cache-Control "no-cache"
+				file_server
+			}
+		}
+	}
+
 	@profile path /~*
 	handle @profile {
 		root * {$SR_WEB_ROOT:/srv/web}

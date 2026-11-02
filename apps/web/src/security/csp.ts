@@ -164,6 +164,11 @@ export interface SurfaceTable {
     reserved?: boolean;
     /** A policy other than the plain public one (ARC-GST-002: `"guest-play"`). */
     csp?: string;
+    /**
+     * FU-BETA-1: a request carrying a session cookie goes to `sr-server` first, which answers a member with the app
+     * (the full profile); anyone else, or a `404` from the server, gets the static public shell.
+     */
+    memberProxy?: boolean;
   }[];
   publicFiles: string[];
 }
@@ -204,6 +209,28 @@ export function renderSurfacesBlock(table: SurfaceTable, publicCsp: string = PUB
   const lines: string[] = [`${T}${SURFACES_BEGIN}`];
   for (const s of table.surfaces) {
     if (s.kind !== 'bundle' || s.reserved || !s.shell) continue;
+    if (s.memberProxy) {
+      lines.push(
+        `${T}@${s.surface}-member {`,
+        `${T}${T}path ${s.paths.join(' ')}`,
+        `${T}${T}header Cookie *sr_session=*`,
+        `${T}}`,
+        `${T}handle @${s.surface}-member {`,
+        `${T}${T}reverse_proxy ${UPSTREAM} {`,
+        `${T}${T}${T}@${s.surface}-gone status 404`,
+        `${T}${T}${T}handle_response @${s.surface}-gone {`,
+        `${T}${T}${T}${T}root * ${ROOT}`,
+        `${T}${T}${T}${T}rewrite * /${s.shell}`,
+        `${T}${T}${T}${T}header Content-Security-Policy "${policyOf(s)}"`,
+        `${T}${T}${T}${T}${REPORTING}`,
+        `${T}${T}${T}${T}header Cache-Control "no-cache"`,
+        `${T}${T}${T}${T}file_server`,
+        `${T}${T}${T}}`,
+        `${T}${T}}`,
+        `${T}}`,
+        '',
+      );
+    }
     lines.push(
       `${T}@${s.surface} path ${s.paths.join(' ')}`,
       `${T}handle @${s.surface} {`,

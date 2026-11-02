@@ -58,7 +58,8 @@
       "entry": "src/public/profile/main.tsx",
       "paths": ["/~*"],
       "samples": ["/~sample"],
-      "budgetGzipKB": 150
+      "budgetGzipKB": 150,
+      "memberProxy": true
     },
     {
       "surface": "guest-play",
