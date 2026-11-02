@@ -2135,6 +2135,22 @@ async fn seed(
         a.insert("arcade_entry_id", n.to_owned());
         b.insert("arcade_entry_id", n.to_owned());
     }
+    // FU-3: `.../release` consumes its entry, so it gets one of its own (OVERLAYS) and the DELETE keeps its.
+    if let Some(v) = create(
+        &srv,
+        &staff,
+        "POST",
+        "/admin/arcade/coming-soon",
+        "/admin/arcade/coming-soon",
+        infos,
+        Some(json!({"title": "Authz release", "summary": "authz matrix", "tier": "TIER_1_ORIGINAL", "repo_url": "https://github.com/example/authz-release"})),
+    )
+    .await
+        && let Some(n) = v["id"].as_str()
+    {
+        a.insert("arcade_release_entry_id", n.to_owned());
+        b.insert("arcade_release_entry_id", n.to_owned());
+    }
     for (cred, guild, map) in [(&oa, ga, &mut a), (&ob, gb, &mut b)] {
         let path = format!("/guilds/{guild}/arcade/cartridges");
         if let Some(v) = create(
@@ -5580,6 +5596,11 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         &["/arcade/coming-soon/", "/admin/arcade/coming-soon/"],
         "entry_id",
         "arcade_entry_id",
+    ),
+    (
+        &["/admin/arcade/coming-soon/{entry_id}/release"],
+        "entry_id",
+        "arcade_release_entry_id",
     ),
     (
         &["/guilds/{guild_id}/arcade/"],
