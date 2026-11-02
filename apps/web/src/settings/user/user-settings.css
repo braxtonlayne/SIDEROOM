@@ -555,3 +555,7 @@
   font-size: 0.875rem;
   font-weight: 500;
 }
+/* A section's intro line under its title ran straight into the first card (Appearance, Keybinds, Modules). */
+.us-title + .us-muted {
+  margin: -12px 0 16px;
+}
