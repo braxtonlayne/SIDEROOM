@@ -10,7 +10,16 @@ import { channelFromSdk } from '../net/sdk-channel.js';
 /** @typedef {import('./platform.js').Identity} Identity */
 
 /** Whether this page runs as a SIDE ROOM Activity. @param {Window} win */
-export const isSideRoom = (win) => win.parent !== win && /^[^.]+\.activities\./.test(win.location.hostname);
+export const isSideRoom = (win) =>
+  win.parent !== win &&
+  (/^[^.]+\.activities\./.test(win.location.hostname) || ACTIVITY_PATH.test(win.location.pathname ?? ''));
+
+/** OPS-TDEP-001: a test deployment serves the Activity from `/_activity/<application id>/` on the main host. */
+const ACTIVITY_PATH = /^\/_activity\/(\d{1,20})\//;
+
+/** The application id: `<id>` of `/_activity/<id>/` (a test deployment) or of `<id>.activities.<host>`. @param {Window} win */
+export const applicationIdOf = (win) =>
+  ACTIVITY_PATH.exec(win.location.pathname ?? '')?.[1] ?? win.location.hostname.split('.')[0];
 
 /** @param {any} u @returns {Identity} */
 const person = (u) => ({ id: String(u.id), name: String(u.global_name || u.username || 'Player').slice(0, 24) });
@@ -40,7 +49,7 @@ export const GUEST_EVENTS = Object.freeze(['DATA_MESSAGE']);
  * @returns {Platform}
  */
 export function createSideRoomPlatform(win, opt = {}) {
-  const applicationId = win.location.hostname.split('.')[0];
+  const applicationId = applicationIdOf(win);
   /** @type {any} */
   let sdk = null;
   /** @type {any} */

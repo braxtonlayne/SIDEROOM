@@ -64,6 +64,18 @@ describe('the guest runner page', () => {
     expect(gameFrameUrl('', where)).toBeNull();
   });
 
+  it('frames a test deployment’s same-host path only for this game (OPS-TDEP-001)', () => {
+    expect(gameFrameUrl('777', where, '/_activity/777/')).toBe(
+      'https://chat.example.org/_activity/777/',
+    );
+    expect(gameFrameUrl('777', where, '/_activity/778/')).toBeNull();
+    expect(gameFrameUrl('777', where, '/app/')).toBeNull();
+    expect(gameFrameUrl('777', where, '//evil.test/_activity/777/')).toBeNull();
+    expect(gameFrameUrl('777', where, '/_activity/777/../../api/')).toBeNull();
+    expect(gameFrameUrl('777', where, '')).toBeNull();
+    expect(gameFrameUrl('777', where, null)).toBe('https://777.activities.chat.example.org/');
+  });
+
   it('says so, and calls nothing, for a link with no valid token', () => {
     const join = vi.fn();
     render(<Runner loc={{ ...where, pathname: '/play/short' }} join={join} />);

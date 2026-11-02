@@ -80,6 +80,9 @@ describe('service worker policy', () => {
       'bypass',
     );
     expect(sw.classify(req('/cdn/a/b.png', { mode: 'navigate' }), ORIGIN)).toBe('bypass');
+    // OPS-TDEP-001: a test deployment's same-host game frames and their files are never a shell or cached.
+    expect(sw.classify(req('/_activity/42/', { mode: 'navigate' }), ORIGIN)).toBe('bypass');
+    expect(sw.classify(req('/_activity/42/main.js'), ORIGIN)).toBe('bypass');
   });
 
   it('matches a public path against its surface pattern', () => {

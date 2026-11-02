@@ -60,6 +60,8 @@ export async function joinLobby(token: string, f: typeof fetch = fetch): Promise
     application_id: j.application_id,
     application_name: typeof j.application_name === 'string' ? j.application_name : '',
     capabilities: j.capabilities.filter((c): c is string => typeof c === 'string'),
+    // OPS-TDEP-001: only on a test deployment; `gameFrameUrl` accepts nothing but this game's `/_activity/<id>/`.
+    ...(typeof j.frame_path === 'string' ? { frame_path: j.frame_path } : {}),
   };
 }
 

@@ -17804,6 +17804,12 @@ export interface components {
             capabilities: string[];
             /** @description When the guest session ends (RFC 3339, UTC); never later than the link. */
             expires_at: string;
+            /**
+             * @description OPS-TDEP-001 (D-450), test deployments only: `/_activity/<application_id>/` when the server serves Activities
+             *     from a path on its own host (`[activities] origin_mode = "same_host_sandboxed"`). Absent in the default mode,
+             *     where the game's frame is `<application_id>.activities.<host>`.
+             */
+            frame_path?: string | null;
             /** @description `srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it. */
             guest_token: string;
             /** @description The guest socket's path on the same origin. */

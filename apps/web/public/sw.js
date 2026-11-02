@@ -23,6 +23,7 @@ const STATIC_CACHE = 'sr-static-' + BUILD;
 const APP_CACHE = 'sr-app-' + BUILD;
 const APP_SHELL = '/app.html';
 const APP_FILES = '/app/';
+const ACTIVITY_PATH = '/_activity/';
 const OFFLINE = '/offline.html';
 const PLAIN_PAGES = [OFFLINE, '/404.html', '/50x.html'];
 // What a shell contains and no other page of this origin does: the element the page mounts into.
@@ -73,6 +74,8 @@ function classify(request, origin) {
   if (url.origin !== origin) return 'bypass';
   const p = url.pathname;
   if (request.headers.get('authorization') || request.headers.has('range')) return 'bypass';
+  // OPS-TDEP-001: a test deployment serves sandboxed game frames from this path: never a shell, never cached.
+  if (p.startsWith(ACTIVITY_PATH)) return 'bypass';
   if (p.startsWith(APP_FILES) && request.mode !== 'navigate') return 'app-file';
   if (request.mode === 'navigate') {
     // The plain pages are static files: opening one must neither count as a shell (it would be stored in the

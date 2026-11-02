@@ -201,6 +201,68 @@ pub fn is_activity_host(host: &str, base: &str) -> bool {
         .ends_with(&format!(".activities.{}", base.to_ascii_lowercase()))
 }
 
+/// The path prefix of the test-only `same_host_sandboxed` origin mode (OPS-TDEP-001, D-450): an Activity is served
+/// from `/_activity/<application-id>/` on the main host. No route of the app, the API (`/api`), the gateway, the
+/// guest-play page (`/play`), `/sr` or `/internal` starts with `/_`.
+pub const PATH_PREFIX: &str = "/_activity/";
+
+/// What a request path means in the `same_host_sandboxed` mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActivityPath {
+    /// Not under [`PATH_PREFIX`]: the app's.
+    NotActivity,
+    /// Under the prefix, but no valid application id.
+    Unknown,
+    /// `/_activity/<id>` without the slash: relative URLs of the bundle need it, so redirect to `location`.
+    NeedsSlash { app: i64, location: String },
+    /// `/_activity/<id>/<rest>`: `rest` is the path (and query) inside the Activity, starting with `/`.
+    App { app: i64, rest: String },
+}
+
+/// The application id and the in-Activity path of a request path (with its query, if any) in the
+/// `same_host_sandboxed` mode. The id follows the rules of [`app_of_host`] (1 to 19 ASCII digits, positive).
+pub fn app_of_path(path_and_query: &str) -> ActivityPath {
+    let (path, query) = match path_and_query.split_once('?') {
+        Some((p, q)) => (p, Some(q)),
+        None => (path_and_query, None),
+    };
+    let Some(after) = path.strip_prefix(PATH_PREFIX) else {
+        return if path == PATH_PREFIX.trim_end_matches('/') {
+            ActivityPath::Unknown
+        } else {
+            ActivityPath::NotActivity
+        };
+    };
+    let (id, tail) = match after.split_once('/') {
+        Some((id, tail)) => (id, Some(tail)),
+        None => (after, None),
+    };
+    let app = if id.is_empty() || id.len() > 19 || !id.bytes().all(|b| b.is_ascii_digit()) {
+        None
+    } else {
+        id.parse::<i64>().ok().filter(|v| *v > 0)
+    };
+    let Some(app) = app else {
+        return ActivityPath::Unknown;
+    };
+    let q = query.map(|q| format!("?{q}")).unwrap_or_default();
+    match tail {
+        None => ActivityPath::NeedsSlash {
+            app,
+            location: format!("{PATH_PREFIX}{app}/{q}"),
+        },
+        Some(tail) => ActivityPath::App {
+            app,
+            rest: format!("/{tail}{q}"),
+        },
+    }
+}
+
+/// `/_activity/<application-id>/`: where the `same_host_sandboxed` mode serves an Activity.
+pub fn activity_path(app: i64) -> String {
+    format!("{PATH_PREFIX}{app}/")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +375,65 @@ mod tests {
         assert_eq!(app_of_host("0.activities.chat.example.org", base), None);
         assert!(is_activity_host("x.activities.chat.example.org", base));
         assert!(!is_activity_host("chat.example.org", base));
+    }
+
+    #[test]
+    fn paths_of_the_same_host_mode() {
+        use ActivityPath::*;
+        let app = |app: i64, rest: &str| App {
+            app,
+            rest: rest.to_owned(),
+        };
+        assert_eq!(app_of_path("/_activity/123/"), app(123, "/"));
+        assert_eq!(
+            app_of_path("/_activity/123/assets/a.js?v=2"),
+            app(123, "/assets/a.js?v=2")
+        );
+        assert_eq!(
+            app_of_path("/_activity/123"),
+            NeedsSlash {
+                app: 123,
+                location: "/_activity/123/".into()
+            }
+        );
+        assert_eq!(
+            app_of_path("/_activity/123?x=1"),
+            NeedsSlash {
+                app: 123,
+                location: "/_activity/123/?x=1".into()
+            }
+        );
+        for bad in [
+            "/_activity",
+            "/_activity/",
+            "/_activity//",
+            "/_activity/0/",
+            "/_activity/-1/",
+            "/_activity/abc/",
+            "/_activity/%31/",
+            "/_activity/12345678901234567890/",
+            "/_activity/1.2/",
+        ] {
+            assert_eq!(app_of_path(bad), Unknown, "{bad}");
+        }
+        for other in [
+            "/",
+            "/app",
+            "/api/v1/users/@me",
+            "/play/abc",
+            "/_activityx/1/",
+            "/_Activity/1/",
+            "/sr/x",
+            "/internal/metrics",
+        ] {
+            assert_eq!(app_of_path(other), NotActivity, "{other}");
+        }
+        assert_eq!(activity_path(42), "/_activity/42/");
+        // What the proxy hands on is checked by the bundle path rules, so a climb out is refused there.
+        assert_eq!(
+            app_of_path("/_activity/7/../../api/v1"),
+            app(7, "/../../api/v1")
+        );
+        assert!(crate::bundle::request_to_path("/../../api/v1").is_none());
     }
 }
