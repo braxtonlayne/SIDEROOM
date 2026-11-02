@@ -38,6 +38,22 @@ describe('tip links', () => {
     expect(tipProblem('btc', BC1)).toBeNull();
     expect(tipProblem('btc', `${BC1}?amount=0.001&label=Thanks`)).toBeNull();
     expect(tipProblem('btc', 'bitcoin:nope')).toBe('malformed');
+    // FU-5: BIP 173 and BIP 350 vectors pass; a mistyped or truncated address does not.
+    for (const ok of [
+      'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+      'bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3',
+      'bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0',
+    ]) {
+      expect(tipProblem('btc', `bitcoin:${ok}`)).toBeNull();
+    }
+    for (const bad of [
+      'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5',
+      'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t',
+      'bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj1',
+      'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+    ]) {
+      expect(tipProblem('btc', `bitcoin:${bad}`)).toBe('malformed');
+    }
     expect(tipProblem('btc', `${BC1}?req-x=1`)).toBe('malformed');
     expect(tipProblem('btc', 'https://example.com')).toBe('malformed');
     expect(tipProblem('lightning', `lightning:lnbc1pvjluezsp5${'q'.repeat(60)}`)).toBeNull();

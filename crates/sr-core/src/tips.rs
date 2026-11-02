@@ -6,7 +6,9 @@
 //! * `kofi` and `patreon` are `https://` links on an allow-listed host ([`TIP_HOSTS`]), no user info, no port,
 //!   no fragment, path segments of plain characters;
 //! * `btc` is a `bitcoin:` URI with a base58 or bech32 (`bc1`) address and only the `amount`, `label` and
-//!   `message` parameters (the address checksum is not verified here; the wallet that scans the QR does);
+//!   `message` parameters; the checksum of a `bc1` address is verified (bech32 for version 0, bech32m for 1 to 16,
+//!   FU-5), a legacy base58 address is checked for shape only (its checksum needs SHA-256, and `sha2` is not a
+//! workspace dependency of `sr-core`: the wallet that scans the QR still verifies it);
 //! * `lightning` is a `lightning:` URI carrying a BOLT11 invoice, an LNURL or a BOLT12 offer.
 //!
 //! The web client mirrors these rules in `apps/web/src/arcade/tips.ts`; the server is the authority.
@@ -93,6 +95,75 @@ fn all_in(s: &str, set: &str) -> bool {
     s.chars().all(|c| set.contains(c))
 }
 
+/// BIP 173 / BIP 350 checksum constants: version 0 uses bech32, versions 1 to 16 use bech32m.
+const BECH32_CONST: u32 = 1;
+const BECH32M_CONST: u32 = 0x2bc8_30a3;
+
+fn bech32_polymod(values: impl IntoIterator<Item = u8>) -> u32 {
+    const GEN: [u32; 5] = [
+        0x3b6a_57b2,
+        0x2650_8e6d,
+        0x1ea1_19fa,
+        0x3d42_33dd,
+        0x2a14_62b3,
+    ];
+    let mut chk: u32 = 1;
+    for v in values {
+        let top = chk >> 25;
+        chk = ((chk & 0x01ff_ffff) << 5) ^ u32::from(v);
+        for (i, g) in GEN.iter().enumerate() {
+            if (top >> i) & 1 == 1 {
+                chk ^= g;
+            }
+        }
+    }
+    chk
+}
+
+/// FU-5: whether `data` (the part of a `bc1` address after the separator, already known to be lower-case
+/// bech32 characters) is a valid segwit address: the checksum of its version (bech32 for 0, bech32m for 1 to 16),
+/// a witness program of 2 to 40 bytes (20 or 32 for version 0) and clean padding.
+fn segwit_data_ok(data: &str) -> bool {
+    let Some(values) = data
+        .chars()
+        .map(|c| BECH32.find(c).and_then(|i| u8::try_from(i).ok()))
+        .collect::<Option<Vec<u8>>>()
+    else {
+        return false;
+    };
+    // The human-readable part is "bc": its high bits, a zero, then its low bits.
+    let expanded = [3u8, 3, 0, 2, 3].into_iter().chain(values.iter().copied());
+    let want = match values.first() {
+        Some(0) => BECH32_CONST,
+        Some(1..=16) => BECH32M_CONST,
+        _ => return false,
+    };
+    if values.len() < 7 || bech32_polymod(expanded) != want {
+        return false;
+    }
+    // The program: the 5-bit groups between the version and the checksum, regrouped to bytes.
+    let program = &values[1..values.len() - 6];
+    let (mut acc, mut bits, mut len) = (0u32, 0u32, 0usize);
+    for &v in program {
+        acc = (acc << 5) | u32::from(v);
+        bits += 5;
+        if bits >= 8 {
+            bits -= 8;
+            acc &= (1 << bits) - 1;
+            len += 1;
+        }
+    }
+    // Leftover bits are padding: fewer than 5 and all zero.
+    if bits >= 5 || acc != 0 {
+        return false;
+    }
+    if values[0] == 0 {
+        len == 20 || len == 32
+    } else {
+        (2..=40).contains(&len)
+    }
+}
+
 fn bitcoin_ok(v: &str) -> bool {
     let Some(rest) = v.strip_prefix("bitcoin:") else {
         return false;
@@ -106,7 +177,7 @@ fn bitcoin_ok(v: &str) -> bool {
         && all_in(addr, BASE58);
     let bech = addr
         .strip_prefix("bc1")
-        .is_some_and(|d| (11..=71).contains(&d.len()) && all_in(d, BECH32));
+        .is_some_and(|d| (11..=71).contains(&d.len()) && all_in(d, BECH32) && segwit_data_ok(d));
     if !(base58 || bech) {
         return false;
     }
@@ -297,6 +368,39 @@ mod tests {
             ("paypal", "https://paypal.me/x", TipError::UnknownKind),
         ] {
             assert_eq!(validate_tip(k, u), Err(e), "{k} {u}");
+        }
+    }
+
+    #[test]
+    fn bech32_checksums_are_verified() {
+        // BIP 173 (bech32, version 0; 20 and 32 byte programs) and BIP 350 (bech32m, version 1).
+        for ok in [
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+            "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3",
+            "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+            "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+        ] {
+            assert!(
+                validate_tip("btc", &format!("bitcoin:{ok}")).is_ok(),
+                "{ok}"
+            );
+        }
+        for bad in [
+            // One character changed (a mistyped address).
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t5",
+            "bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdp",
+            // Last character dropped.
+            "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t",
+            // A bech32m address with its last character changed.
+            "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj1",
+            // Version 1 carrying the bech32 checksum of the version 0 address (BIP 350 forbids the mix).
+            "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+        ] {
+            assert_eq!(
+                validate_tip("btc", &format!("bitcoin:{bad}")),
+                Err(TipError::Malformed),
+                "{bad}"
+            );
         }
     }
 

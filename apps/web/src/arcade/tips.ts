@@ -28,12 +28,53 @@ export type TipProblem = 'kind' | 'long' | 'malformed' | 'host' | 'many' | 'dupl
 
 const isKind = (k: string): k is TipKind => (TIP_KINDS as readonly string[]).includes(k);
 
+const BECH32_CHARS = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+const BECH32_GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+
+function bech32Polymod(values: number[]): number {
+  let chk = 1;
+  for (const v of values) {
+    const top = chk >>> 25;
+    chk = (((chk & 0x1ffffff) << 5) ^ v) >>> 0;
+    for (let i = 0; i < 5; i++) if ((top >>> i) & 1) chk = (chk ^ BECH32_GEN[i]!) >>> 0;
+  }
+  return chk;
+}
+
+/**
+ * FU-5: a `bc1` address must carry a valid checksum (bech32 for witness version 0, bech32m for 1 to 16), a
+ * witness program of 2 to 40 bytes (20 or 32 for version 0) and clean padding; the same as `segwit_data_ok` in
+ * `crates/sr-core/src/tips.rs`. A legacy base58 address is checked for shape only (its checksum needs SHA-256).
+ */
+function segwitOk(addr: string): boolean {
+  const values = [...addr.slice(3)].map((c) => BECH32_CHARS.indexOf(c));
+  if (values.length < 7 || values.includes(-1)) return false;
+  const version = values[0]!;
+  if (version > 16) return false;
+  const want = version === 0 ? 1 : 0x2bc830a3;
+  if (bech32Polymod([3, 3, 0, 2, 3, ...values]) !== want) return false;
+  let acc = 0;
+  let bits = 0;
+  let len = 0;
+  for (const v of values.slice(1, -6)) {
+    acc = (acc << 5) | v;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      acc &= (1 << bits) - 1;
+      len++;
+    }
+  }
+  if (bits >= 5 || acc !== 0) return false;
+  return version === 0 ? len === 20 || len === 32 : len >= 2 && len <= 40;
+}
+
 function bitcoinOk(v: string): boolean {
   if (!v.startsWith('bitcoin:')) return false;
   const rest = v.slice('bitcoin:'.length);
   const q = rest.indexOf('?');
   const addr = q < 0 ? rest : rest.slice(0, q);
-  if (!BASE58.test(addr) && !BECH32.test(addr)) return false;
+  if (!BASE58.test(addr) && !(BECH32.test(addr) && segwitOk(addr))) return false;
   if (q < 0) return true;
   const query = rest.slice(q + 1);
   if (!query) return false;
