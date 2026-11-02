@@ -603,7 +603,9 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&M
                     }
                     match &l.tip {
                         Some(kind) => {
-                            if sr_core::tips::validate_tip(kind, &l.url).is_err() {
+                            if sr_core::tips::validate_tip_with(kind, &l.url, Some(&sha256))
+                                .is_err()
+                            {
                                 problem(
                                     out,
                                     p("links"),
@@ -912,6 +914,12 @@ pub fn top_friend_ids(doc: &ProfileDoc) -> Vec<i64> {
         .collect()
 }
 
+/// SHA-256 for the base58check of a legacy Bitcoin tip address (FU-23): `sr-core` takes the hash from its callers.
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(bytes).into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -996,6 +1004,27 @@ mod tests {
             ]),
         ] {
             assert!(parse_doc(&tree(bad.clone()), false).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_legacy_tip_address_must_pass_base58check() {
+        let tree = |url: &str| {
+            json!({"blocks": [block("l", "linktree", 0, 0, 6, 4,
+                json!({"links": [{"label": "Tip", "url": url, "tip": "btc"}]}))]})
+        };
+        for ok in [
+            "bitcoin:1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+            "bitcoin:3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+            "bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+        ] {
+            assert!(parse_doc(&tree(ok), false).is_ok(), "{ok}");
+        }
+        for bad in [
+            "bitcoin:1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN3",
+            "bitcoin:3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLz",
+        ] {
+            assert!(parse_doc(&tree(bad), false).is_err(), "{bad}");
         }
     }
 

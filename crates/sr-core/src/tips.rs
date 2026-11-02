@@ -7,8 +7,9 @@
 //!   no fragment, path segments of plain characters;
 //! * `btc` is a `bitcoin:` URI with a base58 or bech32 (`bc1`) address and only the `amount`, `label` and
 //!   `message` parameters; the checksum of a `bc1` address is verified (bech32 for version 0, bech32m for 1 to 16,
-//!   FU-5), a legacy base58 address is checked for shape only (its checksum needs SHA-256, and `sha2` is not a
-//!   workspace dependency of `sr-core`: the wallet that scans the QR still verifies it);
+//!   FU-5); a legacy base58 address (`1...`, `3...`) has its base58check checksum verified when the caller hands in
+//!   a SHA-256 ([`validate_tip_with`], FU-23: `sr-activities` and `sr-packages` pass the `sha2` they already pin, so
+//!   this crate, which also builds to wasm, takes no hash dependency) and is checked for shape only otherwise;
 //! * `lightning` is a `lightning:` URI carrying a BOLT11 invoice, an LNURL or a BOLT12 offer.
 //!
 //! The web client mirrors these rules in `apps/web/src/arcade/tips.ts`; the server is the authority.
@@ -164,7 +165,43 @@ fn segwit_data_ok(data: &str) -> bool {
     }
 }
 
-fn bitcoin_ok(v: &str) -> bool {
+/// A SHA-256 supplied by the caller (this crate has no hash dependency).
+pub type Sha256Fn<'a> = &'a dyn Fn(&[u8]) -> [u8; 32];
+
+/// Decode a base58 string (leading `1`s are zero bytes).
+fn base58_decode(s: &str) -> Option<Vec<u8>> {
+    let mut bytes: Vec<u8> = Vec::new(); // little endian
+    for c in s.chars() {
+        let mut carry = BASE58.find(c)? as u32;
+        for b in &mut bytes {
+            carry += u32::from(*b) * 58;
+            *b = (carry & 0xff) as u8;
+            carry >>= 8;
+        }
+        while carry > 0 {
+            bytes.push((carry & 0xff) as u8);
+            carry >>= 8;
+        }
+    }
+    bytes.extend(s.chars().take_while(|c| *c == '1').map(|_| 0));
+    bytes.reverse();
+    Some(bytes)
+}
+
+/// Base58check of a legacy address: 25 bytes, version `0x00` (`1...`) or `0x05` (`3...`), and the first four
+/// bytes of the double SHA-256 of the first 21 are the last four.
+fn base58check_ok(addr: &str, sha256: Sha256Fn<'_>) -> bool {
+    let Some(bytes) = base58_decode(addr) else {
+        return false;
+    };
+    if bytes.len() != 25 || !matches!(bytes[0], 0x00 | 0x05) {
+        return false;
+    }
+    let version_ok = (bytes[0] == 0x00) == addr.starts_with('1');
+    version_ok && sha256(&sha256(&bytes[..21]))[..4] == bytes[21..]
+}
+
+fn bitcoin_ok(v: &str, sha256: Option<Sha256Fn<'_>>) -> bool {
     let Some(rest) = v.strip_prefix("bitcoin:") else {
         return false;
     };
@@ -174,7 +211,8 @@ fn bitcoin_ok(v: &str) -> bool {
     };
     let base58 = (26..=35).contains(&addr.len())
         && (addr.starts_with('1') || addr.starts_with('3'))
-        && all_in(addr, BASE58);
+        && all_in(addr, BASE58)
+        && sha256.is_none_or(|h| base58check_ok(addr, h));
     let bech = addr
         .strip_prefix("bc1")
         .is_some_and(|d| (11..=71).contains(&d.len()) && all_in(d, BECH32) && segwit_data_ok(d));
@@ -278,8 +316,17 @@ fn web_ok(kind: TipKind, v: &str) -> Result<(), TipError> {
     Ok(())
 }
 
-/// Check one link of a named kind.
+/// Check one link of a named kind, shape only for a legacy Bitcoin address (no hash available).
 pub fn validate_tip(kind: &str, value: &str) -> Result<TipKind, TipError> {
+    validate_tip_with(kind, value, None)
+}
+
+/// Check one link of a named kind; with a SHA-256 a legacy Bitcoin address must also pass base58check (FU-23).
+pub fn validate_tip_with(
+    kind: &str,
+    value: &str,
+    sha256: Option<Sha256Fn<'_>>,
+) -> Result<TipKind, TipError> {
     let kind = TipKind::parse(kind).ok_or(TipError::UnknownKind)?;
     let max = if kind == TipKind::Lightning {
         MAX_LIGHTNING_URL
@@ -290,7 +337,9 @@ pub fn validate_tip(kind: &str, value: &str) -> Result<TipKind, TipError> {
         return Err(TipError::TooLong);
     }
     match kind {
-        TipKind::Btc => bitcoin_ok(value).then_some(kind).ok_or(TipError::Malformed),
+        TipKind::Btc => bitcoin_ok(value, sha256)
+            .then_some(kind)
+            .ok_or(TipError::Malformed),
         TipKind::Lightning => lightning_ok(value)
             .then_some(kind)
             .ok_or(TipError::Malformed),
@@ -308,11 +357,16 @@ pub struct TipLink {
 
 /// Check a list: at most [`MAX_TIP_LINKS`], one per kind, each valid.
 pub fn validate_tips(links: &[TipLink]) -> Result<(), TipError> {
+    validate_tips_with(links, None)
+}
+
+/// [`validate_tips`] with a SHA-256 for legacy Bitcoin addresses (see [`validate_tip_with`]).
+pub fn validate_tips_with(links: &[TipLink], sha256: Option<Sha256Fn<'_>>) -> Result<(), TipError> {
     if links.len() > MAX_TIP_LINKS {
         return Err(TipError::TooMany);
     }
     for (i, l) in links.iter().enumerate() {
-        validate_tip(l.kind.as_str(), &l.url)?;
+        validate_tip_with(l.kind.as_str(), &l.url, sha256)?;
         if links[..i].iter().any(|o| o.kind == l.kind) {
             return Err(TipError::Duplicate);
         }
@@ -442,6 +496,24 @@ mod tests {
         }
         let long = format!("lightning:lnbc{}", "q".repeat(MAX_LIGHTNING_URL));
         assert_eq!(validate_tip("lightning", &long), Err(TipError::TooLong));
+    }
+
+    #[test]
+    fn legacy_addresses_are_shape_only_without_a_hash_and_checked_with_one() {
+        assert!(validate_tip_with("btc", LEGACY, None).is_ok());
+        // A hash that is all zeros cannot produce the checksum, so the same address is refused.
+        let zeros = |_: &[u8]| [0u8; 32];
+        assert_eq!(
+            validate_tip_with("btc", LEGACY, Some(&zeros)),
+            Err(TipError::Malformed)
+        );
+        // bech32 is untouched by the hash.
+        assert!(validate_tip_with("btc", BC1, Some(&zeros)).is_ok());
+        // Decoding: `1` is a zero byte, `2` is one.
+        assert_eq!(base58_decode("1"), Some(vec![0]));
+        assert_eq!(base58_decode("2"), Some(vec![1]));
+        assert_eq!(base58_decode("z"), Some(vec![57]));
+        assert_eq!(base58_decode("0"), None);
     }
 
     #[test]
