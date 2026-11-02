@@ -9,7 +9,10 @@
   color: var(--text-normal);
   font-size: 16px;
 }
-.lng-root button {
+/* XC-VIS-002: zero specificity. As `.lng-root button` (0,1,1) this beat every UI kit button's own colour
+   (0,1,0): primary buttons showed body text on the accent (pale on tan in the dark themes, about 1.6:1) and
+   danger buttons dark text on red. */
+:where(.lng-root) :where(button) {
   font: inherit;
   color: inherit;
 }

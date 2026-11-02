@@ -40,6 +40,10 @@
 .lng-sys-name {
   color: var(--text-normal);
 }
+/* XC-VIS-002: "Today at 2:56 AM" never breaks between its words in a narrow column (thread open). */
+.lng-system .lng-msg-time {
+  white-space: nowrap;
+}
 .lng-msg[data-pending] {
   opacity: 0.6;
 }
