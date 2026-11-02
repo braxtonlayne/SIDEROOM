@@ -47,7 +47,7 @@ impl Renderer {
 
     fn flush_quote(&mut self) {
         if !self.quote.is_empty() {
-            let text = self.quote.drain(..).collect::<Vec<_>>().join(" ");
+            let text = std::mem::take(&mut self.quote).join(" ");
             self.out.push_str(&format!(
                 "<blockquote><p>{}</p></blockquote>\n",
                 inline(&text)
