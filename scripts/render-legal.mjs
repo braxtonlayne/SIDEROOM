@@ -58,7 +58,7 @@ nav a{text-decoration:none;letter-spacing:.14em;font-size:.8rem;text-transform:u
 footer{padding:24px;border-top:1px solid var(--line);color:var(--text-2);font-size:.85rem;text-align:center}
 /* An operator value the install never set leaves its sentence out ("This server is run from ."). */
 p:has(.op:empty){display:none}
-/* The staff copy at the top (FU-22): restricted markdown, styled from the tokens above, nothing loaded. */
+/* The operator's copy at the top (FU-22): restricted markdown, styled from the tokens above, nothing loaded. */
 .notes-copy h2,.notes-copy h3,.notes-copy h4{font-family:Newsreader,Georgia,serif;font-weight:400}
 .notes-copy h3{font-size:1.25rem;margin:1.6em 0 .4em;border-top:0;padding-top:0}
 .notes-copy h4{font-size:1.05rem;margin:1.4em 0 .3em}
