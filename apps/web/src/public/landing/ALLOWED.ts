@@ -13,6 +13,8 @@ export const ALLOWED: AllowList = [
   'components/Door',
   'components/EntranceShell',
   'components/SkipLink',
+  // The translated words @sideroom/ui primitives speak on their own (mounted by public/surface).
+  'components/AppUiStrings',
   'components/icons',
   'components/entrance.css',
   'api/client',
