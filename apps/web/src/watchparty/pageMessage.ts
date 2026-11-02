@@ -25,14 +25,19 @@ export function partyMessage(
         : error?.kind === 'gone'
           ? t('watchparty.page.gone')
           : t('watchparty.page.couldNotOpen');
+  // A party that ended (or that removed the viewer) is not a connection problem: no connection hint there.
   const description =
-    error?.kind === 'age'
+    status === 'ended'
+      ? error?.message
+      : error?.kind === 'age'
       ? t('watchparty.page.ageDescription')
-      : (error?.message ?? t('watchparty.page.checkConnection'));
+      : error?.kind === 'gone'
+        ? t('watchparty.page.goneDescription')
+        : (error?.message ?? t('watchparty.page.checkConnection'));
   const norm = (s: string) =>
     s
       .trim()
       .replace(/[.!]+$/, '')
       .toLowerCase();
-  return norm(description) === norm(title) ? { title } : { title, description };
+  return !description || norm(description) === norm(title) ? { title } : { title, description };
 }

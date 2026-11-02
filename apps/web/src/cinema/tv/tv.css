@@ -384,12 +384,21 @@
   height: 100%;
   box-sizing: border-box;
   display: grid;
-  place-items: center;
+  /* The label sits at the slot start, where its time is (the "now" line lines up with it). */
+  place-items: center start;
   border-inline-start: 1px solid var(--sr-line);
   font-family: var(--sr-teletext-font);
   font-size: 14px;
   letter-spacing: 0.06em;
   color: var(--sr-text-2);
+}
+/* The guide opens scrolled to now, so the first visible slot usually starts under the sticky channel column. Its
+   label slides along with the scroll instead of being cut at the start (":00 AM"). */
+.tv-slot-label {
+  position: sticky;
+  inset-inline-start: calc(var(--tv-chan) + 8px);
+  padding-inline: 8px;
+  white-space: nowrap;
 }
 .tv-cell-wrap {
   position: absolute;

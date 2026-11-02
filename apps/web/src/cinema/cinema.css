@@ -881,3 +881,33 @@
   line-height: 1.6;
   white-space: pre-wrap;
 }
+
+/* Submit a video: the title on one side, the state filter and "New submission" together on the other. The shared
+   Select is full width by default, which stacked the button under it. */
+.cin-submit > .rv-head {
+  justify-content: space-between;
+}
+.cin-submit > .rv-head .cin-h1 {
+  margin: 0;
+}
+.cin-submit > .rv-head > .rv-row {
+  flex-wrap: nowrap;
+}
+.cin-submit > .rv-head > .rv-row > :first-child {
+  inline-size: 11rem;
+  flex: none;
+}
+.cin-submit > .rv-head > .rv-row > button {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 30rem) {
+  .cin-submit > .rv-head > .rv-row {
+    inline-size: 100%;
+  }
+  .cin-submit > .rv-head > .rv-row > :first-child {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+}

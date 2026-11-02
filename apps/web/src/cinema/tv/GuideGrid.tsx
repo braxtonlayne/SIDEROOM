@@ -174,7 +174,7 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
                 className="tv-slot-head"
                 style={{ left: i * slotPx, width: slotPx }}
               >
-                {timeLabel(slot)}
+                <span className="tv-slot-label">{timeLabel(slot)}</span>
               </div>
             ))}
           </div>

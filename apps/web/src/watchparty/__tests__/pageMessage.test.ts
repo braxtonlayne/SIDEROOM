@@ -3,13 +3,20 @@ import { t } from '../../i18n';
 import { partyMessage } from '../pageMessage';
 
 describe('partyMessage (XC-VIS-001)', () => {
-  it('drops a description that only repeats the title', () => {
+  it('explains a party that is gone instead of repeating the title (XC-VIS-002)', () => {
     const m = partyMessage(
       'error',
       { kind: 'gone', message: 'This watch party is not available.' },
       t,
     );
     expect(m.title).toBe('This watch party is not available');
+    expect(m.description).toBe(
+      'It may have ended, or the link may be wrong. Ask the host for a new invite.',
+    );
+  });
+
+  it('drops a description that only repeats the title', () => {
+    const m = partyMessage('error', { kind: 'x', message: 'We could not open this watch party.' }, t);
     expect(m.description).toBeUndefined();
   });
 
@@ -26,7 +33,6 @@ describe('partyMessage (XC-VIS-001)', () => {
     );
     expect(partyMessage('ended', { kind: 'removed' }, t)).toEqual({
       title: 'You are not in this party any more',
-      description: 'Check your connection and try again.',
     });
   });
 });
