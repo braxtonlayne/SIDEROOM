@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { getMe } from '../../api/entrance';
 import { useT } from '../../i18n/react';
 import { enterApp } from '../../lib/enterApp';
+import { Logo } from '../../components/EntranceShell';
+import { DoorIcon } from '../../components/icons';
 import '../../components/entrance.css';
 
 /**
@@ -28,11 +30,15 @@ export function ServerTemplate({ code }: { code: string }) {
 
   return (
     <ThemeProvider section="entrance" platformDefault="sideroom" className="ent-invite-page">
+      <Logo />
       <main className="ent-invite-card" aria-busy={state === 'loading'}>
         {state === 'loading' ? (
           <p role="status">{t('entrance.template.loading')}</p>
         ) : (
           <>
+            <div className="ent-invite-icon" aria-hidden="true">
+              <DoorIcon width={36} height={36} />
+            </div>
             <h1>{t('entrance.template.loginTitle')}</h1>
             <a
               href={`/login?next=${encodeURIComponent(`/template/${code}`)}`}

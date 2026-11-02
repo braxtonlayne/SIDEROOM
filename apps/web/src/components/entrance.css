@@ -536,8 +536,15 @@
   min-height: 100vh;
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 32px;
   padding: 24px;
   background: var(--ui-bg);
+}
+/* XC-VIS-002: the public invite and template cards floated alone on a black page; the wordmark and a door
+   mark in the card say where the link leads. */
+.ent-invite-page > .ent-logo {
+  color: var(--sr-text, var(--ui-text));
 }
 .ent-invite-card {
   box-sizing: border-box;
