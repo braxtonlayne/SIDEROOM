@@ -455,6 +455,8 @@ const CHECKS = () => {
     if (r.width === 0 || r.height === 0) continue;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) === 0) continue;
+    // An inert subtree (an off-screen phone pane) is out of the tab order and the accessibility tree.
+    if (el.closest('[inert]')) continue;
     // Inside a horizontal scroller is fine (tab strips, carousels).
     let p: HTMLElement | null = el.parentElement;
     let scroller = false;
