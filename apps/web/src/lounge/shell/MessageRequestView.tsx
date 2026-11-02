@@ -117,7 +117,7 @@ export function MessageRequestView({
             {t('lounge.messageRequests.ignore')}
           </Button>
           <Button
-            variant="danger"
+            variant="secondary"
             aria-label={t('lounge.messageRequests.spamLabel', { name })}
             onClick={() => void leave('spam')}
           >
