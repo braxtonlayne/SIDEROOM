@@ -1,7 +1,7 @@
 // `/u/:username` (EXT-PRF-002): a person's customised profile page, drawn by the renderer in a scoped
 // container. A person who has not customised their page gets a plain card, not an empty grid.
-import { EmptyState, Spinner, ThemeProvider } from '@sideroom/ui';
-import { Link } from '@tanstack/react-router';
+import { Button, EmptyState, Spinner, ThemeProvider } from '@sideroom/ui';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useT } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { cdnUrl } from '../store/cdn';
@@ -17,6 +17,7 @@ export function ProfilePageView({ username }: { username: string }) {
   const theme = useAppliedTheme();
   const res = useLoad<ProfilePage>(`page:${username}`, () => getPageByName(username));
   const page = res.data;
+  const navigate = useNavigate();
   return (
     <ThemeProvider
       section="lounge"
@@ -69,6 +70,13 @@ export function ProfilePageView({ username }: { username: string }) {
                 page.is_owner
                   ? t('lounge.profilePage.plainOwner')
                   : t('lounge.profilePage.plainViewer')
+              }
+              action={
+                page.is_owner ? (
+                  <Button onClick={() => void navigate({ to: '/profile-page/edit' })}>
+                    {t('lounge.profilePage.edit')}
+                  </Button>
+                ) : undefined
               }
             />
           </div>

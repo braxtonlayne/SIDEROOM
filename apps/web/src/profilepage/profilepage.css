@@ -148,3 +148,13 @@
   align-items: center;
   justify-content: space-between;
 }
+/* XC-VIS-002: the header links were the pale accent on the page background (hard to read in Lounge Light). */
+.pp-bar .us-link {
+  color: var(--ui-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pp-bar .us-link:hover,
+.pp-bar .us-link:focus-visible {
+  color: var(--ui-text);
+}
