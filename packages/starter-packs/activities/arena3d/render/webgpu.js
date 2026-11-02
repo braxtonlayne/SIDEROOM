@@ -18,7 +18,7 @@ const DRAW_BYTES = 96;
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {any} gpu navigator.gpu
- * @param {(why: string) => void} [onLost]
+ * @param {(why: string, reason?: string) => void} [onLost]   the device was lost (not when this renderer destroys it)
  * @returns {Promise<Renderer | null>}
  */
 export async function createWebGPURenderer(canvas, gpu, onLost) {
@@ -32,7 +32,11 @@ export async function createWebGPURenderer(canvas, gpu, onLost) {
   const SS = G.GPUShaderStage;
   const format = gpu.getPreferredCanvasFormat();
   device.onuncapturederror = (/** @type {any} */ e) => console.error('WebGPU error:', e?.error?.message ?? e);
-  device.lost?.then((/** @type {any} */ info) => onLost?.(String(info?.message ?? 'device lost')));
+  device.lost?.then((/** @type {any} */ info) => {
+    // destroy() (ours: a refused pipeline, a rebuild) also resolves `lost`, with reason 'destroyed': not a loss.
+    if (info?.reason === 'destroyed') return;
+    onLost?.(String(info?.message || 'device lost'), info?.reason);
+  });
 
   // Shader and pipeline errors arrive asynchronously; catch them here and give up (the caller falls back to WebGL2)
   // before the canvas is claimed by a 'webgpu' context, which would make getContext('webgl2') return null.
