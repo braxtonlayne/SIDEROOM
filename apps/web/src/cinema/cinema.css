@@ -949,3 +949,17 @@
     font-size: 0.875rem;
   }
 }
+
+/* Submission page: the details card is as wide as the cards below it (it stopped at 560px, half the width of
+   Artwork and Episodes); its fields keep the readable width. The two artwork pickers sit side by side. */
+.cin-submit .rv-panel.rv-form {
+  max-width: none;
+}
+.cin-submit .rv-panel.rv-form > * {
+  max-width: 560px;
+}
+.cin-submit .rv-panel[aria-labelledby='cs-art-h'] > .rv-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}

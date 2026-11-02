@@ -134,7 +134,8 @@ test('TV guide and live channel, desktop and phone', async ({ browser }) => {
   for (const phone of [false, true]) {
     const { context, page, errors } = await open(browser, phone);
     await page.goto('/cinema/tv');
-    await page.waitForTimeout(1200);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(800);
     await shot(page, `tv-${phone ? 'phone' : 'desktop'}`);
     const now = page.getByRole('button', { name: 'Now', exact: true });
     if (await now.count()) await now.first().click();
