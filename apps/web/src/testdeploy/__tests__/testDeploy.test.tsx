@@ -3,7 +3,12 @@ import { act } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activityBase } from '../../activities/api';
 import { setClientFlags } from '../../moderation/reports';
-import { TEST_DEPLOYMENT_FLAG, isTestDeployment, noteClientFlags, useTestDeployment } from '../flag';
+import {
+  TEST_DEPLOYMENT_FLAG,
+  isTestDeployment,
+  noteClientFlags,
+  useTestDeployment,
+} from '../flag';
 import { TestDeploymentNotice } from '../TestDeploymentNotice';
 
 const where = { protocol: 'https:', host: 'abc.trycloudflare.com' };

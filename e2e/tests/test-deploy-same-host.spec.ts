@@ -1,5 +1,13 @@
 import type { APIRequestContext, Page, Request } from '@playwright/test';
-import { expect, test, apiPatch, apiPost, apiPostBytes, loginApi, registerUser } from '../support/fixtures';
+import {
+  expect,
+  test,
+  apiPatch,
+  apiPost,
+  apiPostBytes,
+  loginApi,
+  registerUser,
+} from '../support/fixtures';
 import { builtInActivityBundle, sdkModules, zip } from '../support/activityBundle';
 import { PUBLIC_URL } from '../support/cli';
 
@@ -101,16 +109,24 @@ async function installActivity(
   label: string,
 ): Promise<{ appId: string; name: string }> {
   const name = `E2E ${label} ${Date.now().toString(36)}`;
-  const { application: app } = await apiPost<{ application: { id: string } }>(dev, '/applications', {
-    name,
-    description: `Same-host test (${label})`,
-  });
+  const { application: app } = await apiPost<{ application: { id: string } }>(
+    dev,
+    '/applications',
+    {
+      name,
+      description: `Same-host test (${label})`,
+    },
+  );
   await apiPatch(dev, `/applications/${app.id}`, {
     privacy_policy_url: 'https://example.test/privacy',
     terms_of_service_url: 'https://example.test/terms',
   });
-  const version = await apiPost<{ id: string }>(dev, `/applications/${app.id}/versions`, { note: 'e2e' });
-  await apiPost(staff, `/admin/developers/versions/${version.id}/decision`, { decision: 'approve' });
+  const version = await apiPost<{ id: string }>(dev, `/applications/${app.id}/versions`, {
+    note: 'e2e',
+  });
+  await apiPost(staff, `/admin/developers/versions/${version.id}/decision`, {
+    decision: 'approve',
+  });
   const up = await apiPostBytes<{ bundle: { id: string } }>(
     dev,
     `/applications/${app.id}/activity/bundles`,
@@ -127,9 +143,13 @@ async function installActivity(
 
 /** A new server owned by `req`'s account; returns its id and the text channel. */
 async function textServer(req: APIRequestContext): Promise<{ guildId: string; channelId: string }> {
-  const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(req, '/guilds', {
-    name: `Same host ${Date.now().toString(36)}`,
-  });
+  const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    req,
+    '/guilds',
+    {
+      name: `Same host ${Date.now().toString(36)}`,
+    },
+  );
   const text = guild.channels.find((c) => c.type === 0);
   if (!text) throw new Error('new server has no text channel');
   return { guildId: guild.id, channelId: text.id };
@@ -139,7 +159,10 @@ const step = (page: Page, name: string, s: string) =>
   page.frameLocator(`iframe[title="${name} (Activity)"]`).locator(`li[data-step="${s}"]`);
 
 test.describe('Test deployment: same-host Activities (real browser)', () => {
-  test.skip(!ON, 'Needs sr-server with SR_ACTIVITIES__ORIGIN_MODE=same_host_sandboxed; set SR_E2E_SAME_HOST=1.');
+  test.skip(
+    !ON,
+    'Needs sr-server with SR_ACTIVITIES__ORIGIN_MODE=same_host_sandboxed; set SR_E2E_SAME_HOST=1.',
+  );
 
   test('a sandboxed Activity runs from /_activity/<id>/ with the activity policy and no cookie', async ({
     browser,
@@ -266,9 +289,13 @@ test.describe('Test deployment: same-host Activities (real browser)', () => {
         'whiteboard',
       );
       const { guildId, channelId } = await textServer(context.request);
-      const instance = await apiPost<{ id: string }>(context.request, `/channels/${channelId}/activity`, {
-        application_id: appId,
-      });
+      const instance = await apiPost<{ id: string }>(
+        context.request,
+        `/channels/${channelId}/activity`,
+        {
+          application_id: appId,
+        },
+      );
       // The host answers a handshake only when the game names this application; then it mints the proxy token.
       const handshake = page.waitForResponse(
         (r) =>
