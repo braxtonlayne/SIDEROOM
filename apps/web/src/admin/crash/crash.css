@@ -18,6 +18,18 @@
   overflow-wrap: normal;
   white-space: nowrap;
 }
+/* FU-13: the top frames sit in a row of their own under the crash, so a long path never pushes the table wide. */
+.adm-crash-table tr.adm-crash-frames-row td {
+  padding-block-start: 0;
+  text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+.adm-crash-table tr:has(+ .adm-crash-frames-row) td {
+  border-block-end: 0;
+}
 .adm-crash-table td:last-child {
   text-align: end;
   white-space: nowrap;

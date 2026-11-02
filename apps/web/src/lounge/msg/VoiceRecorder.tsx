@@ -57,6 +57,8 @@ export function VoiceRecorder({
   }, [stop, stopRef]);
 
   useEffect(() => {
+    // A remount (React StrictMode in development) must not inherit the cancel of the first mount.
+    cancelled.current = false;
     const mime = voiceMimeType();
     if (!mime || !navigator.mediaDevices?.getUserMedia) {
       setError('lounge.voiceRecorder.unsupported');

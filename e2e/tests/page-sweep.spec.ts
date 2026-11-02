@@ -741,9 +741,9 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
     });
     await apiPut(m, `/arcade/coming-soon/${entry.id}/notify`, { notify: true });
   });
-  // FU-18: the member's page carries tip links, so the signed-in profile view draws them as QR codes.
-  await step('tip links on the member page', () =>
-    apiPut(m, '/users/@me/profile-doc', {
+  // FU-18: the Owner's page carries tip links, so the signed-in profile view (/u/owner) draws them as QR codes.
+  await step('tip links on the owner page', () =>
+    apiPut(o, '/users/@me/profile-doc', {
       version: 1,
       style: {
         palette: { background: '#1e1f22', panel: '#2b2d31', text: '#f2f3f5', accent: '#5865f2' },
@@ -779,7 +779,7 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
                 url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
                 tip: 'btc',
               },
-              { label: 'Ko-fi', url: 'https://ko-fi.com/sweepmate', tip: 'kofi' },
+              { label: 'Ko-fi', url: 'https://ko-fi.com/rowan', tip: 'kofi' },
               { label: 'Blog', url: 'https://example.com/blog' },
             ],
           },
