@@ -609,4 +609,16 @@ describe('playback errors', () => {
     await ctx.user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(ctx.engine.load).toHaveBeenCalledTimes(2));
   });
+
+  it('says the video is not ready when the title answers but its video does not', async () => {
+    useCinemaApi();
+    server.use(
+      http.get('*/api/v1/cinema/assets/:id/playback', () =>
+        HttpResponse.json({ code: 900009, message: 'Unknown asset' }, { status: 404 }),
+      ),
+    );
+    renderApp('/cinema/watch/t1');
+    expect(await screen.findByText('This video is not ready yet')).toBeInTheDocument();
+    expect(screen.queryByText('This title is not available')).toBeNull();
+  });
 });

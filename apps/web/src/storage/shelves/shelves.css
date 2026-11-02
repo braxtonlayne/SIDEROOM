@@ -22,6 +22,10 @@
   align-items: flex-end;
   gap: 12px;
 }
+/* The search field was as narrow as its label; give it room for a title. */
+.shv-tools > * {
+  inline-size: min(100%, 24rem);
+}
 .shv-grid {
   margin: 0;
   padding: 0;
