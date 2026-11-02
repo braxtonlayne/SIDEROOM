@@ -911,3 +911,10 @@
     min-inline-size: 0;
   }
 }
+
+/* Phones swipe the poster rows; the scroll arrows only pushed each row title onto two lines. */
+@media (max-width: 30rem) {
+  .cin-row > :first-child button {
+    display: none;
+  }
+}

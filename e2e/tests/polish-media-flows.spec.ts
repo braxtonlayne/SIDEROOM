@@ -131,3 +131,69 @@ test('library: browse, filter by format, shelves', async ({ browser }) => {
   expect(errors).toEqual([]);
   await context.close();
 });
+
+test('cinema shelves: list, filter, item details (faked shelf)', async ({ browser }) => {
+  for (const phone of [false, true]) {
+    const { context, page, errors } = await open(browser, phone);
+    const src = { mount_id: '9501', label: 'Paper Boat Cinema', scope: 'guild' };
+    const item = (id: string, kind: string, title: string, parts: number) => ({
+      id,
+      section: 'cinema',
+      kind,
+      title,
+      subtitle: kind === 'movie' ? '' : `${parts} episodes`,
+      year: 1999,
+      source: src,
+      tags: [],
+      genres: ['Drama'],
+      synopsis: 'A quiet story about a lighthouse keeper and the town that forgot him.',
+      external_ids: {},
+      overridden: [],
+      parts,
+      object_key: kind === 'movie' ? `Movies/${title}.mkv` : undefined,
+      container: 'mkv',
+      web_native: false,
+    });
+    const items = [
+      item('s1', 'movie', 'The Quiet Lighthouse', 0),
+      item('s2', 'series', 'Harbor Lights', 3),
+      item('s3', 'anime', 'Paper Moons', 2),
+    ];
+    await page.route(/\/api\/v1\/shelves\/cinema(\?.*)?$/, (r) => {
+      const kind = new URL(r.request().url()).searchParams.get('kind');
+      const list = items.filter((i) => !kind || i.kind === kind);
+      return r.fulfill({ json: { items: list, total: list.length, sources: [src] } });
+    });
+    await page.route(/\/api\/v1\/shelves\/cinema\/s2$/, (r) =>
+      r.fulfill({
+        json: {
+          item: items[1],
+          can_edit: true,
+          parts: [1, 2, 3].map((n) => ({
+            id: `p${n}`,
+            season: 1,
+            number: n,
+            title: `Episode ${n}`,
+            object_key: `Series/Harbor Lights/S01E0${n}.mkv`,
+            container: 'mkv',
+            web_native: n !== 3,
+            size: 734_003_200,
+          })),
+        },
+      }),
+    );
+    const v = phone ? 'phone' : 'desktop';
+    await page.goto('/cinema/shelves');
+    await expect(page.getByText('Harbor Lights').first()).toBeVisible();
+    await shot(page, `shelves-list-${v}`);
+    await page.getByRole('button', { name: 'Series', exact: true }).last().click();
+    await page.waitForTimeout(500);
+    await shot(page, `shelves-series-${v}`);
+    await page.getByRole('link', { name: 'Harbor Lights' }).first().click();
+    await expect(page).toHaveURL(/\/shelves\/s2/);
+    await page.waitForTimeout(800);
+    await shot(page, `shelves-item-${v}`);
+    expect(errors).toEqual([]);
+    await context.close();
+  }
+});
