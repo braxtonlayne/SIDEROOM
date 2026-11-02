@@ -389,6 +389,9 @@ pub struct CrashSummary {
     pub count: i32,
     pub first_seen_ms: i64,
     pub last_seen_ms: i64,
+    /// FU-13: the first three frames of the stored card as `fn file:line` (`file:line` when the frame has no
+    /// function), so the triage list shows where a crash is. Reading them is not the audited replay read.
+    pub top_frames: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -403,6 +406,32 @@ pub struct CrashDetail {
     pub replay: Value,
 }
 
+/// How many frames the list shows per crash.
+const TOP_FRAMES: usize = 3;
+
+/// The first [`TOP_FRAMES`] frames of a stored card, each as `fn file:line`.
+fn top_frames(card: &Value) -> Vec<String> {
+    card["frames"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .take(TOP_FRAMES)
+                .filter_map(|f| {
+                    let file = f["file"].as_str()?;
+                    let at = match f["line"].as_u64() {
+                        Some(l) => format!("{file}:{l}"),
+                        None => file.to_owned(),
+                    };
+                    Some(match f["fn"].as_str().filter(|n| !n.is_empty()) {
+                        Some(name) => format!("{name} {at}"),
+                        None => at,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn summary(r: &CrashRow) -> CrashSummary {
     CrashSummary {
         id: r.id.to_string(),
@@ -413,6 +442,7 @@ fn summary(r: &CrashRow) -> CrashSummary {
         count: r.count,
         first_seen_ms: r.first_seen_ms,
         last_seen_ms: r.last_seen_ms,
+        top_frames: top_frames(&r.card),
     }
 }
 
@@ -536,5 +566,21 @@ mod tests {
         assert!(!l.allow_report(3));
         assert!(l.allow_new_group());
         assert!(!l.allow_new_group());
+    }
+
+    #[test]
+    fn the_list_shows_the_first_three_frames_as_fn_file_line() {
+        let card = serde_json::json!({"frames": [
+            {"file": "src/a.ts", "line": 10, "col": 2, "fn": "boom"},
+            {"file": "src/b.ts", "line": 5, "col": 1},
+            {"file": "src/c.ts", "line": 1, "col": 1, "fn": "three"},
+            {"file": "src/d.ts", "line": 9, "col": 1, "fn": "four"},
+        ]});
+        assert_eq!(
+            top_frames(&card),
+            ["boom src/a.ts:10", "src/b.ts:5", "three src/c.ts:1"]
+        );
+        assert!(top_frames(&serde_json::json!({})).is_empty());
+        assert!(top_frames(&serde_json::json!({"frames": []})).is_empty());
     }
 }
