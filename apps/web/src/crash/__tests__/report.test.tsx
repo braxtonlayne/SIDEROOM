@@ -18,6 +18,7 @@ import { routeNameOf } from '../routeName';
 const sent: CrashReport[] = [];
 
 beforeEach(() => {
+  localStorage.clear();
   sent.length = 0;
   resetCrashState();
   ticks.clear();
@@ -26,6 +27,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  localStorage.clear();
   resetCrashState();
 });
 

@@ -70,6 +70,18 @@ function RunbookRoute() {
   );
 }
 
+// OPS-CRASH-002: the crash reports page is its own chunk, loaded when a staff member opens it.
+const CrashReportsLazy = lazy(() =>
+  import('./crash/CrashReportsSection').then((m) => ({ default: m.CrashReportsSection })),
+);
+function CrashReportsRoute() {
+  return (
+    <Suspense fallback={<Loading label={translate('admin.crash.loading')} />}>
+      <CrashReportsLazy />
+    </Suspense>
+  );
+}
+
 interface SectionDef {
   id: string;
   label: string;
@@ -85,6 +97,14 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.overview',
     visible: (v) => v.can('STAFF_BASIC'),
     component: DashboardSection,
+  },
+  {
+    // OPS-CRASH-002: any appointed staff member, exactly like GET /admin/crash-reports.
+    id: 'crash-reports',
+    label: 'admin.adminApp.section.crashReports',
+    group: 'admin.adminApp.group.overview',
+    visible: (v) => v.can('STAFF_BASIC'),
+    component: CrashReportsRoute,
   },
   {
     id: 'accounts',
