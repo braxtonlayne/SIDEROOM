@@ -85,7 +85,7 @@ test('the Arcade shows Featured, tips and Coming Soon, and the emulator moved to
 
   const land = page.getByRole('article').filter({ hasText: 'Land.io' });
   await expect(land.getByText('Original')).toBeVisible();
-  await expect(land.getByText('guest_play')).toBeVisible();
+  await expect(land.getByRole('listitem').filter({ hasText: 'Guest play' })).toBeVisible();
   await expect(land.getByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
     'href',
     'https://ko-fi.com/landio',
