@@ -78,11 +78,11 @@ test.describe('settings polish flows', () => {
     await dialog.getByRole('textbox', { name: 'Channel name' }).fill(ch);
     await dialog.getByRole('button', { name: 'Create Channel' }).click();
     await expect(dialog).toHaveCount(0);
-    // Settings keeps the owner in place when the dialog supports it; older builds open the new channel.
-    if (!page.url().includes('/settings/')) await page.goto(url);
+    // The owner stays in Settings and the new channel opens in the editor.
+    await expect(page).toHaveURL(/\/settings\/server\/.+\/channels/);
     const row = page.getByRole('button', { name: `# ${ch}` });
     await expect(row).toBeVisible();
-    await row.click();
+    await expect(page.getByRole('textbox', { name: 'Channel name' })).toHaveValue(ch);
     await page.getByRole('button', { name: 'Delete channel' }).click();
     await page
       .getByRole('dialog', { name: /^Delete / })
