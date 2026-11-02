@@ -36,13 +36,19 @@ test("arena3d's package manifest declares connect self and the capabilities the 
 test('a built manifest that lost the connect list is refused', () => {
   const source = { capabilities: ['datachannel'], connect: ['self'] };
   const problems = checkTree(tree({ capabilities: ['datachannel'] }), source);
-  assert.ok(problems.some((p) => p.includes('connect')), problems.join('; '));
+  assert.ok(
+    problems.some((p) => p.includes('connect')),
+    problems.join('; '),
+  );
 });
 
 test('a built manifest that changed the capabilities is refused', () => {
   const source = { capabilities: ['datachannel', 'storage'] };
   const problems = checkTree(tree({ capabilities: ['datachannel'] }), source);
-  assert.ok(problems.some((p) => p.includes('capabilities')), problems.join('; '));
+  assert.ok(
+    problems.some((p) => p.includes('capabilities')),
+    problems.join('; '),
+  );
 });
 
 test('without a source manifest only the shape is checked (the old behaviour)', () => {

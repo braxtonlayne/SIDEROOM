@@ -149,7 +149,9 @@ function main(argv) {
       });
     const files = readTree(join(dir, 'dist'));
     const sourcePath = join(dir, 'sideroom.json');
-    const source = existsSync(sourcePath) ? JSON.parse(readFileSync(sourcePath, 'utf8')) : undefined;
+    const source = existsSync(sourcePath)
+      ? JSON.parse(readFileSync(sourcePath, 'utf8'))
+      : undefined;
     const problems = checkTree(files, source);
     if (problems.length) {
       for (const p of problems) console.error(`${name}: ${p}`);
