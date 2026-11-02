@@ -41,12 +41,6 @@ function ErrorNotice({ error }: { error: GameError }) {
       return <Notice variant="warning" title={t('games.error.webgl2')} />;
     case 'platform':
       return <Notice variant="warning" title={t('games.error.platform')} />;
-    case 'bios':
-      return (
-        <Notice variant="warning" title={t('games.error.biosTitle')}>
-          {t('games.error.bios')}
-        </Notice>
-      );
     case 'rom':
       return <Notice variant="danger" title={t('games.error.rom')} />;
     default:
@@ -138,7 +132,7 @@ export function EmuPage() {
     () => (roms ?? []).filter((r) => r.title.toLowerCase().includes(filter.trim().toLowerCase())),
     [roms, filter],
   );
-  const hasPs1 = (roms ?? []).some((r) => romPlatform(r) === 'ps1') || game.needsBios;
+  const hasPs1 = (roms ?? []).some((r) => romPlatform(r) === 'ps1') || game.usesBios;
   const playing = game.status.phase !== 'idle' && selected !== null;
 
   return (
@@ -235,6 +229,11 @@ export function EmuPage() {
           </p>
         )}
         {game.status.phase === 'error' && <ErrorNotice error={game.status.error} />}
+        {game.hle && (game.status.phase === 'running' || game.status.phase === 'paused') && (
+          <Notice variant="info" title={t('games.hle.title')} data-testid="emu-hle">
+            {t('games.hle.body')}
+          </Notice>
+        )}
         <div className="emu-saves">
           {STATE_SLOTS.map((s) => (
             <span key={s} className="emu-slot">

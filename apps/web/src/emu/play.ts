@@ -9,7 +9,7 @@ import { getSave, saveKey } from './saves';
 
 export class PlayError extends Error {
   constructor(
-    readonly kind: 'platform' | 'bios' | 'rom',
+    readonly kind: 'platform' | 'rom',
     detail?: string,
   ) {
     super(detail ?? kind);

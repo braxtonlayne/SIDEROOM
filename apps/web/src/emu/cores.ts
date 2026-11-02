@@ -19,8 +19,21 @@ export interface CoreInfo {
    * (emu-ops handoff section 1.2). `legacy` cores run everywhere; the others need WebGL 2.
    */
   variant: 'legacy' | 'webgl2';
-  /** The core cannot start without a BIOS the member supplies from their own mount. */
-  needsBios: boolean;
+  /**
+   * `'optional'`: the core can use a BIOS the member supplies from their own mount, and without one it runs on its
+   * own open-source HLE BIOS (D-390, FU-STU-5). `'none'`: the core takes no BIOS.
+   */
+  bios: 'none' | 'optional';
+}
+
+/**
+ * What a start does about the BIOS: `'none'` (the core takes none), `'file'` (the member's checked BIOS is written into
+ * the core's in-memory file system) or `'hle'` (no BIOS mounted: the core falls back to its built-in HLE BIOS; nothing
+ * is written).
+ */
+export function biosMode(core: CoreInfo, haveBios: boolean): 'none' | 'file' | 'hle' {
+  if (core.bios === 'none') return 'none';
+  return haveBios ? 'file' : 'hle';
 }
 
 export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
@@ -31,7 +44,7 @@ export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
     platforms: ['nes'],
     source: 'https://github.com/EmulatorJS/libretro-fceumm',
     variant: 'legacy',
-    needsBios: false,
+    bios: 'none',
   },
   supafaust: {
     id: 'supafaust',
@@ -40,7 +53,7 @@ export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
     platforms: ['snes'],
     source: 'https://github.com/libretro/beetle-supafaust',
     variant: 'legacy',
-    needsBios: false,
+    bios: 'none',
   },
   mgba: {
     id: 'mgba',
@@ -49,7 +62,7 @@ export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
     platforms: ['gba', 'gb', 'gbc'],
     source: 'https://github.com/EmulatorJS/mgba',
     variant: 'legacy',
-    needsBios: false,
+    bios: 'none',
   },
   blastem: {
     id: 'blastem',
@@ -58,7 +71,7 @@ export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
     platforms: ['genesis'],
     source: 'https://github.com/libretro/blastem',
     variant: 'legacy',
-    needsBios: false,
+    bios: 'none',
   },
   pcsx_rearmed: {
     id: 'pcsx_rearmed',
@@ -67,7 +80,7 @@ export const CORES: Readonly<Record<CoreId, CoreInfo>> = {
     platforms: ['ps1'],
     source: 'https://github.com/EmulatorJS/pcsx_rearmed',
     variant: 'webgl2',
-    needsBios: true,
+    bios: 'optional',
   },
 };
 
