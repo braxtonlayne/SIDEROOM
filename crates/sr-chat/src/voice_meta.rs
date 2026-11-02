@@ -1,6 +1,7 @@
 //! LNG-MSG-019: duration and waveform of a voice message, computed server-side.
 //!
-//! A voice message is one `audio/ogg` file carrying Opus. symphonia has no Opus decoder, so
+//! A voice message is one `audio/ogg` file carrying Opus, or (FU-7) one `audio/webm` file with a
+//! single Opus track, which is what Chromium's `MediaRecorder` writes. symphonia has no Opus decoder, so
 //! nothing is decoded: the Ogg container is walked in pure Rust (pages, then packets by
 //! lacing). The duration is the last page's granule position minus the `OpusHead` pre-skip,
 //! at the fixed 48 kHz Opus clock (RFC 7845). The waveform is an envelope taken from the
@@ -108,6 +109,156 @@ pub fn analyze_ogg_opus(bytes: &[u8]) -> Option<VoiceMeta> {
         return None;
     }
     let duration_ms = u32::try_from(samples * 1000 / OPUS_RATE).ok()?;
+    Some(VoiceMeta {
+        duration_ms,
+        waveform: envelope(&sizes),
+    })
+}
+
+/// Matroska ids the WebM walk reads. Master elements it enters are listed in [`is_master`].
+mod mkv {
+    pub const EBML: u32 = 0x1A45_DFA3;
+    pub const SEGMENT: u32 = 0x1853_8067;
+    pub const TRACKS: u32 = 0x1654_AE6B;
+    pub const TRACK_ENTRY: u32 = 0xAE;
+    pub const TRACK_NUMBER: u32 = 0xD7;
+    pub const TRACK_TYPE: u32 = 0x83;
+    pub const CODEC_ID: u32 = 0x86;
+    pub const CLUSTER: u32 = 0x1F43_B675;
+    pub const BLOCK_GROUP: u32 = 0xA0;
+    pub const BLOCK: u32 = 0xA1;
+    pub const SIMPLE_BLOCK: u32 = 0xA3;
+    pub const CONTENT_ENCODINGS: u32 = 0x6D80;
+}
+
+fn is_master(id: u32) -> bool {
+    matches!(
+        id,
+        mkv::SEGMENT | mkv::TRACKS | mkv::TRACK_ENTRY | mkv::CLUSTER | mkv::BLOCK_GROUP
+    )
+}
+
+/// An EBML variable-length integer at `at`: (value, length, all value bits set). The id keeps its
+/// marker bits (as Matroska ids are written); a size drops them.
+fn vint(bytes: &[u8], at: usize, keep_marker: bool) -> Option<(u64, usize, bool)> {
+    let first = *bytes.get(at)?;
+    let len = first.leading_zeros() as usize + 1;
+    if len > 8 {
+        return None;
+    }
+    let raw = bytes.get(at..at + len)?;
+    let mut v = if keep_marker {
+        u64::from(first)
+    } else {
+        u64::from(first) & ((1u64 << (8 - len)) - 1)
+    };
+    let mut all_ones = (u64::from(first) & ((1u64 << (8 - len)) - 1)) == (1u64 << (8 - len)) - 1;
+    for &b in &raw[1..] {
+        v = (v << 8) | u64::from(b);
+        all_ones &= b == 0xFF;
+    }
+    Some((v, len, all_ones))
+}
+
+/// Microseconds of audio in one Opus packet, from its table-of-contents byte (RFC 6716 section 3.1).
+fn opus_packet_micros(pkt: &[u8]) -> Option<u64> {
+    let toc = *pkt.first()?;
+    let config = toc >> 3;
+    let frame_us: u64 = match config {
+        0..=11 => [10_000, 20_000, 40_000, 60_000][usize::from(config % 4)],
+        12..=15 => [10_000, 20_000][usize::from(config % 2)],
+        _ => [2_500, 5_000, 10_000, 20_000][usize::from(config % 4)],
+    };
+    let frames = match toc & 3 {
+        0 => 1,
+        1 | 2 => 2,
+        _ => u64::from(*pkt.get(1)? & 0x3F),
+    };
+    if frames == 0 {
+        return None;
+    }
+    Some(frame_us * frames)
+}
+
+/// Analyze a WebM file as a voice message: exactly one track, an audio track coded `A_OPUS`, no
+/// encryption or compression, no lacing. Chromium's `MediaRecorder` writes such files live, with
+/// unknown segment and cluster sizes and no stored duration, so the duration is the sum of the
+/// Opus packets' own lengths and the envelope comes from the packet sizes, as for Ogg. `None` when
+/// the file is anything else (the caller then leaves it as `video/webm`).
+#[must_use]
+pub fn analyze_webm_opus(bytes: &[u8]) -> Option<VoiceMeta> {
+    const MAX_TRACKS: usize = 1;
+    let mut pos = 0usize;
+    let mut seen_ebml = false;
+    let mut seen_segment = false;
+    let mut tracks = 0usize;
+    let mut track_no: Option<u64> = None;
+    let mut audio = false;
+    let mut opus = false;
+    let mut sizes: Vec<u32> = Vec::new();
+    let mut micros: u64 = 0;
+    while pos < bytes.len() {
+        let (id, id_len, _) = vint(bytes, pos, true)?;
+        let id = u32::try_from(id).ok()?;
+        let (size, size_len, unknown) = vint(bytes, pos + id_len, false)?;
+        let body = pos + id_len + size_len;
+        if !seen_ebml {
+            if id != mkv::EBML || unknown {
+                return None;
+            }
+            seen_ebml = true;
+        } else if !seen_segment && id == mkv::SEGMENT {
+            seen_segment = true;
+            pos = body;
+            continue;
+        }
+        if is_master(id) {
+            if id == mkv::TRACK_ENTRY {
+                tracks += 1;
+                if tracks > MAX_TRACKS {
+                    return None;
+                }
+            }
+            if id != mkv::SEGMENT && !seen_segment {
+                return None;
+            }
+            pos = body; // enter it: its children follow
+            continue;
+        }
+        let size = if unknown {
+            return None;
+        } else {
+            usize::try_from(size).ok()?
+        };
+        let data = bytes.get(body..body.checked_add(size)?)?;
+        match id {
+            mkv::TRACK_NUMBER => {
+                track_no = Some(data.iter().fold(0, |a, &b| (a << 8) | u64::from(b)))
+            }
+            mkv::TRACK_TYPE => audio = data == [2],
+            mkv::CODEC_ID => opus = data == b"A_OPUS",
+            mkv::CONTENT_ENCODINGS => return None,
+            mkv::SIMPLE_BLOCK | mkv::BLOCK => {
+                let (tn, tn_len, _) = vint(data, 0, false)?;
+                if Some(tn) != track_no {
+                    return None;
+                }
+                let flags = *data.get(tn_len + 2)?;
+                if flags & 0x06 != 0 {
+                    return None; // laced blocks hold several packets: not what a recorder writes
+                }
+                let pkt = data.get(tn_len + 3..)?;
+                micros = micros.checked_add(opus_packet_micros(pkt)?)?;
+                sizes.push(u32::try_from(pkt.len()).ok()?);
+            }
+            _ => {}
+        }
+        pos = body + size;
+    }
+    if !seen_segment || tracks != 1 || !audio || !opus || sizes.is_empty() {
+        return None;
+    }
+    let duration_ms = u32::try_from(micros / 1000).ok().filter(|&ms| ms > 0)?;
     Some(VoiceMeta {
         duration_ms,
         waveform: envelope(&sizes),
@@ -228,6 +379,76 @@ mod tests {
         let mut headers = page(7, 0, &[head(0)]);
         headers.extend(page(7, 0, &[b"OpusTags".to_vec()]));
         assert!(analyze_ogg_opus(&headers).is_none());
+    }
+
+    fn el(id: &[u8], body: &[u8]) -> Vec<u8> {
+        let mut o = id.to_vec();
+        o.extend_from_slice(&(0x1000_0000u32 | u32::try_from(body.len()).unwrap()).to_be_bytes());
+        o.extend_from_slice(body);
+        o
+    }
+
+    /// A MediaRecorder-style WebM: unknown-size segment and cluster, packets of 20 ms.
+    fn webm(
+        codec: &[u8],
+        track_type: u8,
+        sizes: &[usize],
+        extra_track: bool,
+        flags: u8,
+    ) -> Vec<u8> {
+        let mut f = el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"webm"));
+        f.extend_from_slice(&[
+            0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]);
+        let mut entry = el(&[0xD7], &[1]);
+        entry.extend(el(&[0x83], &[track_type]));
+        entry.extend(el(&[0x86], codec));
+        let mut tracks = el(&[0xAE], &entry);
+        if extra_track {
+            tracks.extend(el(&[0xAE], &entry));
+        }
+        f.extend(el(&[0x16, 0x54, 0xAE, 0x6B], &tracks));
+        f.extend_from_slice(&[
+            0x1F, 0x43, 0xB6, 0x75, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]);
+        f.extend(el(&[0xE7], &[0]));
+        for (i, &n) in sizes.iter().enumerate() {
+            // Track 1, relative time, flags, then a CELT 20 ms packet (TOC 0xF8 = config 31, code 0).
+            let mut b = vec![0x81, 0, u8::try_from(i % 200).unwrap(), flags, 0xF8];
+            b.extend(vec![1u8; n - 1]);
+            f.extend(el(&[0xA3], &b));
+        }
+        f
+    }
+
+    #[test]
+    fn webm_opus_duration_is_the_sum_of_packets_and_envelope_follows_sizes() {
+        let m = analyze_webm_opus(&webm(
+            b"A_OPUS",
+            2,
+            &[10, 60, 110, 10, 60, 110],
+            false,
+            0x80,
+        ))
+        .unwrap();
+        assert_eq!(m.duration_ms, 120);
+        assert_eq!(m.waveform, vec![0, 127, 255, 0, 127, 255]);
+    }
+
+    #[test]
+    fn webm_that_is_not_one_opus_audio_track_is_rejected() {
+        assert!(analyze_webm_opus(&webm(b"A_VORBIS", 2, &[10, 20], false, 0x80)).is_none());
+        assert!(analyze_webm_opus(&webm(b"V_VP8", 1, &[10, 20], false, 0x80)).is_none());
+        assert!(analyze_webm_opus(&webm(b"A_OPUS", 2, &[10, 20], true, 0x80)).is_none());
+        // Laced blocks, no packets, garbage, a cut file and an Ogg file.
+        assert!(analyze_webm_opus(&webm(b"A_OPUS", 2, &[10, 20], false, 0x82)).is_none());
+        assert!(analyze_webm_opus(&webm(b"A_OPUS", 2, &[], false, 0x80)).is_none());
+        assert!(analyze_webm_opus(b"").is_none());
+        assert!(analyze_webm_opus(b"\x1a\x45\xdf\xa3 not a webm").is_none());
+        assert!(analyze_webm_opus(&file(&[10, 20], 48_312)).is_none());
+        let mut cut = webm(b"A_OPUS", 2, &[10, 20], false, 0x80);
+        cut.truncate(cut.len() - 3);
+        assert!(analyze_webm_opus(&cut).is_none());
     }
 
     #[test]

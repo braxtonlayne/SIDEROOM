@@ -42,6 +42,7 @@ pub fn from_mime(mime: &str) -> Presentation {
         "text/vtt" => media("text/vtt"),
         "audio/mpeg" => media("audio/mpeg"),
         "audio/ogg" => media("audio/ogg"),
+        "audio/webm" => media("audio/webm"),
         "audio/flac" => media("audio/flac"),
         "audio/wav" => media("audio/wav"),
         "audio/mp4" => media("audio/mp4"),

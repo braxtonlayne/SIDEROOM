@@ -177,9 +177,9 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
         });
         name = `${baseName}-trimmed.wav`;
       } else {
-        const ogg = limits?.format === 'ogg';
-        const mime = opusMimeType(ogg);
-        if (!mime || (ogg && !mime.startsWith('audio/ogg'))) {
+        // Voice messages take Ogg Opus or (FU-7) WebM Opus; Ogg is preferred where the browser has it.
+        const mime = opusMimeType(limits?.format === 'ogg');
+        if (!mime) {
           setError(t('tools.audio.opusUnsupported'));
           return;
         }
