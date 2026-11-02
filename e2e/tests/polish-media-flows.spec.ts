@@ -95,7 +95,9 @@ test('submit a title draft', async ({ browser }) => {
   const del = page.getByRole('button', { name: /Delete|Discard|Withdraw/ }).first();
   if (await del.count()) {
     await del.click();
-    const confirm = page.getByRole('dialog').getByRole('button', { name: /Delete|Discard|Withdraw/ });
+    const confirm = page
+      .getByRole('dialog')
+      .getByRole('button', { name: /Delete|Discard|Withdraw/ });
     if (await confirm.count()) await confirm.first().click();
     await page.waitForTimeout(800);
     await shot(page, 'submit-after-delete');
