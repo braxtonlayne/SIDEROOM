@@ -4,8 +4,8 @@
 //! * `PUT /arcade/coming-soon/{entry_id}/notify`: my "Notify me" choice for one Coming Soon entry.
 //! * `GET|POST /guilds/{guild_id}/arcade/cartridges`, `DELETE .../{cartridge_id}`: a server's unlisted cartridges.
 //!   Members read; `MANAGE_GUILD` lists and unlists.
-//! * `/admin/arcade/*` (`OPERATOR`, audited): the candidates, feature and unfeature, add and remove a Coming Soon
-//!   entry. Featuring is the Operator's alone; no server setting or flag changes who may do it.
+//! * `/admin/arcade/*` (`OPERATOR`, audited): the candidates, feature and unfeature, add, release and remove a
+//!   Coming Soon entry. Featuring is the Operator's alone; no server setting or flag changes who may do it.
 //!
 //! Every route needs a signed-in session (D-385: nothing here is served before sign-in).
 
@@ -14,6 +14,7 @@ use crate::error::{ApiResult, HttpError};
 use crate::openapi::ErrorBody;
 use crate::routes::Ext;
 use crate::routes::admin::{StaffCtx, map_err};
+use crate::routes::developer::SystemCard;
 use crate::routes::messages::error::ApiJson;
 use crate::routes::settings::deps::SettingsDeps;
 use crate::routes::storage::uid;
@@ -33,6 +34,11 @@ use utoipa::{OpenApi, ToSchema};
 /// Collaborators of the Arcade routes.
 pub struct ArcadeDeps {
     pub service: ArcadeService,
+    /// Sender of the system DMs (FU-3: the release notice), filled by the composition root once the
+    /// Staff Server voice exists.
+    pub dm: crate::routes::review::DmSlot,
+    /// The site origin, for the link in a notice.
+    pub public_url: String,
 }
 
 fn arc(e: ActivityError) -> HttpError {
@@ -91,6 +97,10 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/admin/arcade/coming-soon/{entry_id}",
             delete(remove_coming_soon),
+        )
+        .route(
+            "/admin/arcade/coming-soon/{entry_id}/release",
+            post(release_coming_soon),
         )
 }
 
@@ -382,6 +392,115 @@ pub async fn remove_coming_soon(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Body of `POST /admin/arcade/coming-soon/{entry_id}/release` (every field optional).
+#[derive(Debug, Default, Deserialize, ToSchema)]
+#[schema(as = ArcadeReleaseBody)]
+pub struct ReleaseBody {
+    /// The released game in the Arcade, when it already is one: the notice then names it. It must
+    /// be an application the Operator could feature.
+    pub application_id: Option<String>,
+}
+
+/// What a release did.
+#[derive(Debug, serde::Serialize, ToSchema)]
+#[schema(as = ArcadeReleaseResult)]
+pub struct ReleaseResult {
+    /// Members who asked to be told.
+    pub watchers: u32,
+    /// Notices delivered (a member who cannot be reached is skipped).
+    pub notified: u32,
+}
+
+/// Release a Coming Soon entry (`OPERATOR`, audited): the entry goes and everyone who asked to be
+/// told gets one system DM with a link to the Arcade (FU-3). `DELETE` stays the silent removal.
+#[utoipa::path(
+    post, path = "/admin/arcade/coming-soon/{entry_id}/release", tag = "arcade",
+    params(("entry_id" = String, Path, description = "Coming Soon entry snowflake")),
+    request_body(content = ReleaseBody, description = "Optional"),
+    responses((status = 200, body = ReleaseResult), (status = 400, body = ErrorBody),
+              (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn release_coming_soon(
+    ctx: StaffCtx,
+    Ext(d): Ext<ArcadeDeps>,
+    Path(entry): Path<String>,
+    raw: axum::body::Bytes,
+) -> ApiResult<Json<ReleaseResult>> {
+    ctx.svc()
+        .authorize(&ctx.caller, P::OPERATOR, "arcade.coming_soon_release")
+        .await
+        .map_err(map_err)?;
+    let entry = snowflake(&entry, ErrorCode::SrNotFound)?;
+    let body: ReleaseBody = if raw.is_empty() {
+        ReleaseBody::default()
+    } else {
+        serde_json::from_slice(&raw).map_err(|_| {
+            HttpError::from(ApiError::invalid_form().field(
+                "body",
+                "BASE_TYPE_BAD_FORMAT",
+                "Not a valid release body.",
+            ))
+        })?
+    };
+    let app = match body.application_id.as_deref() {
+        None => None,
+        Some(raw) => {
+            let id = snowflake(raw, ErrorCode::SrNotFound)?;
+            let name = d
+                .service
+                .candidates()
+                .await
+                .map_err(arc)?
+                .into_iter()
+                .find(|c| c.application_id == id.to_string())
+                .map(|c| c.name)
+                .ok_or(ErrorCode::SrNotFound)?;
+            Some((id, name))
+        }
+    };
+    let Some((title, watchers)) = d.service.release_coming_soon(entry).await.map_err(arc)? else {
+        return Err(ErrorCode::SrNotFound.into());
+    };
+    let name = app.as_ref().map_or(title.as_str(), |(_, n)| n.as_str());
+    let mut notified = 0u32;
+    if let Some(dm) = d.dm.get() {
+        let card = SystemCard {
+            content: format!(
+                "{name} is out. You asked to hear when it shipped: find it in the Arcade, {}/games",
+                d.public_url
+            ),
+            ..SystemCard::default()
+        };
+        for w in &watchers {
+            if dm.dm(*w, card.clone()).await {
+                notified += 1;
+            }
+        }
+    } else {
+        tracing::debug!("no system DM sender wired; Coming Soon release notices skipped");
+    }
+    let watched = u32::try_from(watchers.len()).unwrap_or(u32::MAX);
+    ctx.svc()
+        .record_action(
+            &ctx.caller,
+            "arcade.coming_soon_release",
+            Some(("arcade_coming_soon", entry)),
+            json!({
+                "watchers": watched,
+                "notified": notified,
+                "application_id": app.map(|(id, _)| id.to_string()),
+            }),
+        )
+        .await
+        .map_err(map_err)?;
+    Ok(Json(ReleaseResult {
+        watchers: watched,
+        notified,
+    }))
+}
+
 /// OpenAPI fragment for the Arcade endpoints.
 #[derive(OpenApi)]
 #[openapi(
@@ -396,6 +515,7 @@ pub async fn remove_coming_soon(
         unfeature,
         add_coming_soon,
         remove_coming_soon,
+        release_coming_soon,
     ),
     components(schemas(
         sr_activities::arcade::Tier,
@@ -413,6 +533,8 @@ pub async fn remove_coming_soon(
         sr_activities::arcade::CartridgeView,
         sr_activities::arcade::CartridgeInput,
         NotifyBody,
+        ReleaseBody,
+        ReleaseResult,
     ))
 )]
 pub struct ArcadeApiDoc;

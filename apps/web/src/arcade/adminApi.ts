@@ -16,6 +16,11 @@ export interface ArcadeAdminApi {
   unfeature(applicationId: string): Promise<void>;
   addComingSoon(input: ComingSoonInput): Promise<ComingSoonCard>;
   removeComingSoon(entryId: string): Promise<void>;
+  /** FU-3: remove the entry and tell the members who asked to be notified. */
+  releaseComingSoon(
+    entryId: string,
+    input?: { application_id?: string },
+  ): Promise<{ watchers: number; notified: number }>;
 }
 
 export const httpArcadeAdminApi: ArcadeAdminApi = {
@@ -38,4 +43,12 @@ export const httpArcadeAdminApi: ArcadeAdminApi = {
       apiFetch(`/admin/arcade/coming-soon/${enc(id)}`, { method: 'DELETE', ...NO_RETRY }),
     );
   },
+  releaseComingSoon: (id, input = {}) =>
+    withReauth(() =>
+      apiFetch(`/admin/arcade/coming-soon/${enc(id)}/release`, {
+        method: 'POST',
+        json: input,
+        ...NO_RETRY,
+      }),
+    ),
 };

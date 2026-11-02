@@ -4850,6 +4850,7 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/admin/arcade/coming-soon") => {
             r#"{"title":"Authz soon two","summary":"authz","tier":"TIER_2_REIMPLEMENTATION","repo_url":"https://github.com/example/two"}"#
         }
+        ("POST", "/admin/arcade/coming-soon/{entry_id}/release") => r#"{}"#,
         ("POST", "/guilds/{guild_id}/arcade/cartridges") => {
             r#"{"title":"Authz cart two","kind":"mod","tier":"TIER_1_ORIGINAL","source_ref":"games/two.zip"}"#
         }

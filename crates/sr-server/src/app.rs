@@ -966,8 +966,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_same_host(cfg.activities.same_host()),
     );
     // The Arcade room (ARC-ROOM-001): Featured, Coming Soon and a server's cartridges.
+    let arcade_dm = routes::review::DmSlot::default();
     let arcade_deps = Arc::new(routes::arcade::ArcadeDeps {
         service: sr_activities::arcade::ArcadeService::new(pool.clone(), id_src.clone()),
+        dm: arcade_dm.clone(),
+        public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
     });
     // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
     let packages_deps = Arc::new(routes::packages::PackagesDeps {
@@ -1426,6 +1429,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let self_delete_voice: Arc<dyn sr_admin::StaffNotifier> = staff_voice.clone();
     // Review decisions reach the submitter as a system DM too (REV-CORE-007).
     let _ = review_dm.set(staff_voice.clone());
+    let _ = arcade_dm.set(staff_voice.clone());
     // OPS-CRASH-001 (wave 45-A): crash cards are rebuilt from the allow-list and posted to #crash-triage of the Staff
     // Server by the system user. The channel is created (staff-only) on first use and once now, if a Staff Server exists.
     let crash_deps = Arc::new(routes::crash::CrashDeps::new(

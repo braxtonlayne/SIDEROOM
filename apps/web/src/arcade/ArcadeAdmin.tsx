@@ -21,6 +21,7 @@ export function ArcadeAdminSection({
   const [cands, setCands] = useState<Candidate[] | null>(null);
   const [soon, setSoon] = useState<ComingSoonCard[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [released, setReleased] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [tier, setTier] = useState<Tier>('TIER_1_ORIGINAL');
@@ -40,6 +41,20 @@ export function ArcadeAdminSection({
   }, [admin, api]);
   useEffect(load, [load]);
 
+  const release = (s: ComingSoonCard) =>
+    admin
+      .releaseComingSoon(s.id)
+      .then((r) => {
+        setReleased(
+          t('arcade.admin.soonReleased', {
+            title: s.title,
+            told: String(r.notified),
+            watchers: String(r.watchers),
+          }),
+        );
+        load();
+      })
+      .catch(fail);
   const flip = (c: Candidate) =>
     (c.featured ? admin.unfeature(c.application_id) : admin.feature(c.application_id, {}))
       .then(load)
@@ -79,10 +94,15 @@ export function ArcadeAdminSection({
         ))}
       </ul>
       <h3>{t('arcade.admin.soonHeading')}</h3>
+      <p className="arc-dim">{t('arcade.admin.soonReleaseHint')}</p>
+      {released !== null && <Notice variant="success" title={released} />}
       <ul className="arc-admin-list">
         {soon.map((s) => (
           <li key={s.id}>
             <strong>{s.title}</strong>{' '}
+            <Button size="sm" onClick={() => void release(s)}>
+              {t('arcade.admin.soonRelease', { title: s.title })}
+            </Button>{' '}
             <Button
               size="sm"
               variant="secondary"

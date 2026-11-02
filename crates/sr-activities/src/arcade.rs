@@ -823,6 +823,33 @@ impl ArcadeService {
         Ok(r.rows_affected() > 0)
     }
 
+    /// Release a Coming Soon entry (FU-3): it is removed, and the title and the members who asked to
+    /// be told come back for the notice. Entry and watchers go in one transaction, so a watcher who
+    /// signs up a moment later is not told about an entry that is already gone. `None` when unknown.
+    pub async fn release_coming_soon(&self, id: i64) -> ActivityResult<Option<(String, Vec<i64>)>> {
+        let mut tx = self.pool.begin().await?;
+        let title: Option<String> =
+            sqlx::query_scalar("SELECT title FROM arcade_coming_soon WHERE id = $1 FOR UPDATE")
+                .bind(id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let Some(title) = title else {
+            return Ok(None);
+        };
+        let watchers: Vec<i64> = sqlx::query_scalar(
+            "SELECT user_id FROM arcade_coming_soon_notify WHERE coming_soon_id = $1 ORDER BY user_id",
+        )
+        .bind(id)
+        .fetch_all(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM arcade_coming_soon WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(Some((title, watchers)))
+    }
+
     /// Turn "Notify me" on or off for `user`. Idempotent. `NotFound` for an unknown entry.
     pub async fn set_notify(&self, user: i64, id: i64, on: bool) -> ActivityResult<()> {
         let exists: bool =

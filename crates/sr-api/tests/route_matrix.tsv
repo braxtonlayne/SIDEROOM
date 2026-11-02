@@ -738,6 +738,7 @@ POST	/admin/accounts/{account_id}/unsuspend	authenticated	staff	deny	-	MANAGE_AC
 POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
 POST	/admin/arcade/coming-soon	authenticated	staff	deny	-	OPERATOR
+POST	/admin/arcade/coming-soon/{entry_id}/release	authenticated	staff	deny	-	OPERATOR
 POST	/admin/card-actions	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-	PUBLISH_MEDIA
