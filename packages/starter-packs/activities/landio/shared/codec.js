@@ -86,7 +86,7 @@ export function encodeHand(p) {
     items: p.cards.items.map((c) => [c.id, c.level]),
     active: p.cards.active ? [p.cards.active.id, p.cards.active.level, p.cards.active.ready] : null,
     passives: p.cards.passives.map((c) => [c.id, c.level]),
-    offers: p.offers.map((o) => ({ cards: o.cards, until: o.until })),
+    offers: p.offers.map((o) => (o.keep ? { cards: o.cards, until: o.until, keep: true } : { cards: o.cards, until: o.until })),
     fx: { ...p.fx },
   };
 }

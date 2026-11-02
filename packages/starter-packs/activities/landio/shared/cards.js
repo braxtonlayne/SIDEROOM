@@ -8,6 +8,7 @@
 
 import { rand } from './rng.js';
 import { addObject } from './cards/util.js';
+import { modeOf } from './modes/index.js';
 
 import grenade from './cards/grenade.js';
 import dash from './cards/dash.js';
@@ -169,6 +170,8 @@ export function choose(s, p, i) {
   if (!o || i < 0 || i >= o.cards.length) return;
   p.offers.shift();
   grant(s, p, o.cards[i]);
+  // The mode hears about the pick (Draft Night keeps a keeper pick for the rest of the run).
+  modeOf(s).onPick?.(s, p, o.cards[i], o);
 }
 
 /**

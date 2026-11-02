@@ -9,6 +9,7 @@ import { firstKey, hintText } from './input.js';
 import { MODE_BY_ID, TEAMS } from '../shared/modes/index.js';
 import { MAP_BY_ID } from '../shared/maps/index.js';
 import { MODE_VIEWS } from './modes/index.js';
+import { FAMILY_INFO, SET_AT, familyOf, tierOf } from '../shared/modes/draft.js';
 
 /** @typedef {import('./world.js').World} World */
 
@@ -121,6 +122,7 @@ export class Hud {
     this.mmVer = -1;
     this.offerSig = '';
     this.invSig = '';
+    this.setSig = '';
     /** The last world and tick rate from update(), for kill names and colours and the ability timer. @type {World | null} */
     this.world = null;
     this.hz = 7;
@@ -152,9 +154,16 @@ export class Hud {
     const offer = hand?.offers[0] ?? null;
     const draft = $('draft');
     const offerSig = offer ? offer.cards.join(',') + '@' + offer.until : '';
+    const drafting = this.world?.round?.mode === 'draft';
     if (offerSig !== this.offerSig) {
       this.offerSig = offerSig;
       draft.hidden = !offer;
+      // Draft Night: a keeper pick stays for the whole run; say so, it is the pick that matters most.
+      $('draft-head').textContent = offer?.keep ? 'Keeper pick' : 'Pick a card';
+      const note = $('draft-note');
+      note.hidden = !offer?.keep;
+      note.textContent = offer?.keep ? 'You keep this card for the rest of the run, every life.' : '';
+      draft.classList.toggle('keeper', !!offer?.keep);
       const box = $('draft-cards');
       box.replaceChildren(
         ...(offer?.cards ?? []).map((id, i) => {
@@ -179,7 +188,8 @@ export class Hud {
           name.textContent = c?.name ?? id;
           const rar = document.createElement('div');
           rar.className = 'rar';
-          rar.textContent = c?.rarity ?? '';
+          const fam = drafting ? FAMILY_INFO[/** @type {keyof typeof FAMILY_INFO} */ (familyOf(id))]?.name : '';
+          rar.textContent = (c?.rarity ?? '') + (fam ? ` · ${fam}` : '');
           const text = document.createElement('div');
           text.className = 'text';
           text.textContent = c?.text ?? '';
@@ -268,6 +278,39 @@ export class Hud {
       const want = charging ? secs(ticksLeft / this.hz) : '';
       if (text.textContent !== want) text.textContent = want;
     } else this.abState = null;
+    this.sets(drafting ? hand : null);
+  }
+
+  /**
+   * Draft Night's set bonuses: per family drafted this life, "Runner 2/3", and the bonus once it is on.
+   * @param {NonNullable<import('./net/transport.js').PollReply['you']>['hand'] | null} hand
+   */
+  sets(hand) {
+    const fx = hand?.fx ?? {};
+    /** @type {[keyof typeof FAMILY_INFO, number][]} */
+    const all = [
+      ['runner', fx.famRunner ?? 0],
+      ['trickster', fx.famTrick ?? 0],
+      ['builder', fx.famBuild ?? 0],
+    ];
+    const counts = all.filter(([, n]) => n > 0);
+    const sig = JSON.stringify(counts);
+    if (sig === this.setSig) return;
+    this.setSig = sig;
+    const el = $('sets');
+    el.hidden = !counts.length;
+    if (counts.length) this.tip('sets', `Cards come in families. Draft ${SET_AT[0]} of one family in a life to switch on its set bonus.`);
+    el.replaceChildren(
+      ...counts.map(([f, n]) => {
+        const info = FAMILY_INFO[f];
+        const tier = tierOf(n);
+        const chip = document.createElement('span');
+        chip.className = `set-chip${tier ? ' on' : ''}`;
+        chip.textContent = tier ? `${info.name}${tier > 1 ? ' II' : ''}: ${info.bonus[tier - 1]}` : `${info.name} ${n}/${SET_AT[0]}`;
+        chip.title = `${info.name} set. ${SET_AT[0]} cards in a life: ${info.bonus[0]}. ${SET_AT[1]}: ${info.bonus[1]}.`;
+        return chip;
+      }),
+    );
   }
 
   /** Land gained (or lost, negative) by the local player just now, in tiles. @param {number} n @param {number} tiles total tiles */
@@ -437,12 +480,18 @@ export class Hud {
         const info = world.roster.get(id);
         const li = document.createElement('li');
         if (id === me) li.className = 'me';
+        else if (info?.bot) li.className = 'botrow';
         const sw = document.createElement('span');
         sw.className = 'sw';
         sw.style.background = lookColor(info?.look ?? id);
         const nm = document.createElement('span');
         nm.className = 'nm';
-        nm.textContent = info?.name ?? '?';
+        // Bot names (Lumen bot, Tofu bot 2) show short in the narrow list, "Tofu 2" and the bot badge, so a
+        // phone's leaderboard still tells them apart.
+        const full = info?.name ?? '?';
+        const m = info?.bot ? / bot( \d+)?$/.exec(full) : null;
+        nm.textContent = m ? full.slice(0, m.index) + (m[1] ?? '') : full;
+        nm.title = full;
         if (info?.bot) {
           const b = document.createElement('span');
           b.className = 'bot';
@@ -632,12 +681,13 @@ export class Hud {
         ...top.map((p, k) => {
           const li = document.createElement('li');
           li.className = (k === 0 && !res.teams.length ? 'first ' : '') + (p.id === me ? 'me' : '');
-          li.append(span('rk', String(k + 1)), swatch(lookColor(p.look)), span('nm', p.name + (p.bot ? ' (bot)' : '')), span('pc', show(p.score)));
+          li.append(span('rk', String(k + 1)), swatch(lookColor(p.look)), span('nm', p.name + (p.bot && !/ bot( \d+)?$/.test(p.name) ? ' (bot)' : '')), span('pc', show(p.score)));
           return li;
         }),
       );
       const mineAt = res.players.findIndex((p) => p.id === me);
       $('res-you').textContent = mineAt >= 0 ? `You placed #${mineAt + 1} of ${res.players.length} with ${show(res.players[mineAt].score)}.` : '';
+      this.runSummary(res, mineAt >= 0 ? res.players[mineAt].name : '');
       $('start').hidden = true;
       $('summary').hidden = true;
       $('results').hidden = false;
@@ -645,6 +695,40 @@ export class Hud {
     const left = Math.max(0, Math.ceil((r.next - tick) / hz));
     const next = `Next round in ${left} s`;
     if ($('res-next').textContent !== next) $('res-next').textContent = next;
+  }
+
+  /**
+   * Draft Night: the run standings under the round's results; after the last round, the end-of-run summary
+   * (the champion in the title, everyone's points and keepers). @param {import('../shared/types.js').RoundResult} res
+   * @param {string} myName
+   */
+  runSummary(res, myName) {
+    const run = res.run;
+    const box = $('res-run');
+    const kicker = /** @type {HTMLElement} */ (document.querySelector('#results .res-kicker'));
+    box.hidden = !run;
+    if (!run) {
+      kicker.textContent = 'Round over';
+      return;
+    }
+    kicker.textContent = run.final ? `Run ${run.n} over · ${run.of} rounds` : `Run ${run.n} · round ${run.leg} of ${run.of}`;
+    if (run.final && run.champion) $('res-title').textContent = run.champion === myName ? 'You win the run!' : `${run.champion} wins the run`;
+    $('res-run-title').textContent = run.final ? 'Final standings' : 'Run standings';
+    $('res-run-list').replaceChildren(
+      ...run.lines.slice(0, 6).map((l, k) => {
+        const li = document.createElement('li');
+        li.className = (k === 0 ? 'first ' : '') + (l.name === myName ? 'me' : '');
+        const keep = l.keep.map((id) => CARDS[id]?.name ?? id).join(', ');
+        const nm = span('nm', l.name);
+        if (keep) nm.title = `Keepers: ${keep}`;
+        const sub = span('kp', keep ? `Keepers: ${keep}` : 'No keepers yet');
+        const who = document.createElement('span');
+        who.className = 'who';
+        who.append(nm, sub);
+        li.append(span('rk', String(k + 1)), who, span('pc', `${l.pts} ${l.pts === 1 ? 'pt' : 'pts'}${l.gain ? ` (+${l.gain})` : ''}`));
+        return li;
+      }),
+    );
   }
 
   hideResults() {

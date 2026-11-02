@@ -69,6 +69,7 @@ export default {
   blurb: 'Two teams. Teammates cannot cut each other; team land adds up.',
   roundTicks: 5 * 60 * 7,
   respawn: true,
+  minHeads: 4,
   teams: 4,
   pickTeam,
   botGoal(s, p) {

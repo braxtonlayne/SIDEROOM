@@ -33,6 +33,7 @@
   <div id="net" class="net" hidden>Reconnecting…</div>
   <div id="hint" class="hint">WASD / arrows to turn · Space to stop · Q / E items · Shift ability</div>
   <div id="inv" class="inv" aria-label="Your cards"></div>
+  <div id="sets" class="sets" aria-label="Set bonuses" hidden></div>
   <div id="watch" class="watch-bar" hidden>
     <button id="watch-prev" type="button" class="watch-arrow" aria-label="Watch the previous player">◀</button>
     <span class="watch-who">Watching <strong id="watch-name">…</strong></span>
@@ -40,7 +41,8 @@
     <button id="watch-play" type="button" class="btn">Play</button>
   </div>
   <section id="draft" class="draft" hidden aria-label="Pick a card">
-    <div class="draft-title">Pick a card <span class="muted">1 · 2 · 3</span></div>
+    <div class="draft-title"><span id="draft-head">Pick a card</span> <span class="muted">1 · 2 · 3</span></div>
+    <div id="draft-note" class="draft-note" hidden></div>
     <div id="draft-cards" class="draft-cards"></div>
     <div class="draft-timer"><span id="draft-bar"></span></div>
   </section>
@@ -87,6 +89,10 @@
     <ol id="res-teams" class="res-teams" hidden></ol>
     <ol id="res-list" class="res-list"></ol>
     <p id="res-you" class="muted"></p>
+    <section id="res-run" class="res-run" hidden aria-labelledby="res-run-title">
+      <h3 id="res-run-title">Run standings</h3>
+      <ol id="res-run-list" class="res-list run"></ol>
+    </section>
     <p id="res-next" class="res-next"></p>
     <p class="room-line"><span class="room-now"></span> <button type="button" class="link invite-btn">Invite</button></p>
     <p class="mode-line"><span class="mode-now"></span> <button type="button" class="link settings-btn">Change</button></p>

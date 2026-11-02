@@ -1,7 +1,8 @@
-// Land.io's tests (ported from the standalone game's node:test files, plus the host/guest tests). There is no
-// package.json here (the starter packs are not workspace packages), so run them with the Vitest of any
-// workspace package, rooted here:
-//   node ../../../embedded-app-sdk/node_modules/vitest/vitest.mjs run --root . --maxWorkers=2
+// Land.io's tests (ported from the standalone game's node:test files, plus the host/guest tests). Land.io is a
+// workspace package (@sideroom/activity-landio) with its own Vitest; from the repository root:
+//   pnpm --filter @sideroom/activity-landio test
+// or one file while iterating, from this folder:
+//   npx vitest run test/modes/draft.test.js --maxWorkers=2
 export default {
   test: {
     include: ['test/**/*.test.js'],

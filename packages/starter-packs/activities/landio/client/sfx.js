@@ -363,6 +363,28 @@ export const RECIPES = {
     return 0.1;
   },
 
+  /** The round is over and you won it: a rising major arpeggio. */
+  roundWin(ctx, out, t, opts) {
+    const d = opts.detune ?? 0;
+    [523, 659, 784, 1046].forEach((f, k) => {
+      const at = t + k * 0.1;
+      const g = shaped(ctx, out, at, 0.18, 0.005, 0.22);
+      tone(ctx, g, { type: 'triangle', freq: f, t: at, dur: 0.22, detune: d });
+    });
+    return 0.52;
+  },
+
+  /** The round is over and someone else won: two soft falling notes, not a punishment. */
+  roundEnd(ctx, out, t, opts) {
+    const d = opts.detune ?? 0;
+    [659, 494].forEach((f, k) => {
+      const at = t + k * 0.14;
+      const g = shaped(ctx, out, at, 0.14, 0.006, 0.24);
+      tone(ctx, g, { type: 'sine', freq: f, t: at, dur: 0.24, detune: d });
+    });
+    return 0.4;
+  },
+
   uiClick(ctx, out, t) {
     const dur = 0.015;
     const g = shaped(ctx, out, t, 0.15, 0.002, dur);
@@ -397,4 +419,6 @@ export const BUS = {
   mirage: 'sfx',
   claimflag: 'sfx',
   uiClick: 'ui',
+  roundWin: 'ui',
+  roundEnd: 'ui',
 };

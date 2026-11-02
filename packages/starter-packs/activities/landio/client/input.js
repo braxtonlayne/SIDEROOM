@@ -151,6 +151,12 @@ export function hintText() {
 
 loadBindings();
 
+/** Whether this device is driven by touch first (a phone or tablet): tips then talk about taps and swipes. */
+export function touchFirst() {
+  const mm = globalThis.matchMedia;
+  return typeof mm === 'function' && mm('(pointer: coarse)').matches && !mm('(any-pointer: fine)').matches;
+}
+
 const SWIPE_PX = 24;
 const TAP_MS = 250;
 
