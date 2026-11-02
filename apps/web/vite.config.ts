@@ -72,8 +72,8 @@ function commitSha(): string {
  * separate build, `vite.public.config.ts`; `scripts/build-web.mjs` runs both. `vite dev` and `vitest` use this
  * file, with the base at `/`.
  */
-// The API server the dev and preview servers forward to. SR_DEV_API_PORT lets several checkouts run side by side,
-// each with its own sr-server (default 8080, as in e2e and CI).
+// The API server the dev and preview servers (and their sign-in gate and Activity proxy) forward to. SR_DEV_API_PORT lets
+// several checkouts run side by side, each with its own sr-server (default 8080, as in e2e and CI).
 const apiPort = process.env.SR_DEV_API_PORT ?? '8080';
 const api = `http://localhost:${apiPort}`;
 const apiWs = `ws://localhost:${apiPort}`;
@@ -100,9 +100,9 @@ export default defineConfig(({ command }) => ({
     react(),
     appContractPlugin({ csp: buildCsp(extra) }),
     // SEC-ENT-004: the dev counterpart of sr-server's gate (shells by path, 302 to /login without a session).
-    publicDev(),
+    publicDev({ api: process.env.SR_DEV_API ?? `http://127.0.0.1:${apiPort}` }),
     pseudoLocalePlugin(),
-    ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
+    ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy(api)] : []),
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
   worker: { format: 'es' },
