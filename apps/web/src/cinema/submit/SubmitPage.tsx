@@ -55,7 +55,7 @@ export function CinemaSubmitPage({ startCreating = false }: { startCreating?: bo
       }),
   });
   return (
-    <div className="cin-submit">
+    <div className="cin-page cin-submit">
       <div className="rv-head">
         <h1 className="cin-h1">{t('cinema.submit.title')}</h1>
         <div className="rv-row">

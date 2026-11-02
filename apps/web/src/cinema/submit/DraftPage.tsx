@@ -204,7 +204,7 @@ export function CinemaDraftPage({ id }: { id: string }) {
   );
 
   return (
-    <div className="cin-submit">
+    <div className="cin-page cin-submit">
       <p style={{ margin: '0 0 12px' }}>
         <Link to="/cinema/submit" className="cin-link">
           {t('cinema.submit.all')}

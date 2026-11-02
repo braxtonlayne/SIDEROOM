@@ -1,9 +1,11 @@
 /* UX-SHOW-001: the Showroom (populated preview). Semantic tokens only (--ui-*); logical properties only. */
 .srm-banner {
   position: fixed;
+  /* XC-VIS-001: bottom inline-end, clear of the Lounge user panel and composer that sit bottom inline-start. */
   inset-block-end: 12px;
-  inset-inline-start: 12px;
+  inset-inline-end: 12px;
   max-inline-size: min(36rem, calc(100% - 24px));
+  box-sizing: border-box;
   z-index: 2000;
   /* It floats over the app: clicks pass through to whatever is underneath, except on its own button. */
   pointer-events: none;
@@ -13,11 +15,23 @@
   gap: 4px 12px;
   padding-block: 8px;
   padding-inline: 12px;
-  border: 2px dashed var(--ui-accent);
+  /* The banner is mounted outside every ThemeProvider, where the --ui-* tokens are not set: the global --sr-*
+     palette is the fallback, otherwise it had no background and its text ran over the page (XC-VIS-001). */
+  border: 2px dashed var(--ui-accent, var(--sr-gold));
   border-radius: var(--ui-radius-lg, 8px);
-  background: var(--ui-surface-2, var(--ui-bg));
-  color: var(--ui-text);
+  background: var(--ui-surface-2, var(--ui-bg, var(--sr-bg-2)));
+  color: var(--ui-text, var(--sr-text));
+  box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
   font-size: 0.875rem;
+}
+/* Phones: above the Lounge tab bar, full width. */
+@media (max-width: 720px) {
+  .srm-banner {
+    inset-block-end: 64px;
+    inset-inline: 8px;
+    max-inline-size: none;
+    font-size: 0.75rem;
+  }
 }
 .srm-hint {
   flex: 1 1 12rem;
@@ -30,7 +44,7 @@
   pointer-events: auto;
   padding-block: 4px;
   padding-inline: 10px;
-  border: 1px solid var(--ui-border);
+  border: 1px solid var(--ui-border, var(--sr-line));
   border-radius: 999px;
   background: transparent;
   color: inherit;

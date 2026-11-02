@@ -1,0 +1,22 @@
+/* XC-VIS-001: the app's not-found page. Tokens only, logical properties only. */
+.app-notfound-main {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding-inline: 16px;
+  box-sizing: border-box;
+}
+.app-notfound-link {
+  display: inline-block;
+  padding-block: 8px;
+  padding-inline: 16px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.app-notfound-link:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}

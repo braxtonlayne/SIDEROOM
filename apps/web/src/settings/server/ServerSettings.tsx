@@ -7,7 +7,6 @@ import {
   Button,
   EmptyState,
   SettingsLayout,
-  ThemeProvider,
   ToastProvider,
   type SettingsSection,
 } from '@sideroom/ui';
@@ -15,6 +14,7 @@ import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { LiveDataConnection, useEnsureGuild } from '../../lounge/live';
+import { LoungeThemeProvider } from '../user/LoungeThemeProvider';
 import { useGuild, useStore } from '../../store';
 import { FormContext, useViewer, type FormHandle, type Viewer } from './hooks';
 import { Loading } from './ui';
@@ -337,11 +337,11 @@ export function ServerSettingsPage() {
   };
   return (
     <LiveDataConnection>
-      <ThemeProvider section="lounge" className="ss-root">
+      <LoungeThemeProvider className="ss-root">
         <ToastProvider>
           {guildId ? <ServerSettings guildId={guildId} section={section} /> : null}
         </ToastProvider>
-      </ThemeProvider>
+      </LoungeThemeProvider>
     </LiveDataConnection>
   );
 }

@@ -15,6 +15,15 @@
   z-index: 6;
   width: auto;
 }
+/* XC-VIS-001: with the member list open as well, a 1280px window left the thread 300px wide: its title ran into
+   the header buttons and the composer placeholder broke after every few letters. While a thread is open on a window
+   narrower than 1600px the member list steps aside (it comes back when the thread closes). */
+@media (max-width: 1599px) {
+  .lng-root:not([data-mobile]) .lng-body:has(.lng-thread-pane) > .lng-right,
+  .lng-root:not([data-mobile]) .lng-body:has(.lng-thread-pane) > .lng-resize {
+    display: none;
+  }
+}
 .lng-thread-head {
   display: flex;
   align-items: center;

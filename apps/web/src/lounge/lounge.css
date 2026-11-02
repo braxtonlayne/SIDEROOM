@@ -878,6 +878,8 @@
   min-width: 0;
   flex: 1;
   line-height: 1.375;
+  /* XC-VIS-001: a long URL or an unbroken word wraps instead of running past the column. */
+  overflow-wrap: anywhere;
 }
 .lng-msg-head {
   display: flex;

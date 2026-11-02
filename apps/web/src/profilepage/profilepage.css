@@ -98,14 +98,40 @@
   flex-direction: column;
   gap: 8px;
 }
+/* One colour per row: two per row ran 76px past the 320px side column (XC-VIS-001). A fieldset is as wide as its
+   content unless told otherwise. */
 .pp-colors {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
 }
 .pp-color {
   display: flex;
   gap: 6px;
+  align-items: center;
+}
+.pp-color > span {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pp-color input[type='text'] {
+  inline-size: 7.5em;
+  padding: 4px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+}
+.pp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   align-items: center;
 }
 .pp-color input[type='color'] {

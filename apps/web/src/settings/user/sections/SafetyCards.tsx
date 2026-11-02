@@ -10,6 +10,7 @@ import {
   errorText,
   getAgeConfirmation,
   getPrivacy,
+  listGuilds,
   patchPrivacy,
   resetAgeConfirmation,
   useResource,
@@ -114,7 +115,11 @@ export function SensitiveMediaCard() {
 export function DmSafetyCard() {
   const t = useT();
   const { res, error, save } = usePrivacySave();
-  const guilds = useGuilds();
+  // Opened by a link or a reload, Settings has no live connection, so the store holds no servers yet: ask the API
+  // (XC-VIS-001; it said "You are not in any servers" to a member of three).
+  const live = useGuilds();
+  const listed = useResource(listGuilds);
+  const guilds = live.length > 0 ? live : (listed.data ?? []);
   return (
     <Card
       id="us-dm-filter"

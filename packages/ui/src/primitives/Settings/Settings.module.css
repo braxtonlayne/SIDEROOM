@@ -10,7 +10,8 @@
 .sidebar > * { width: min(100%, 220px); }
 .nav { display: block; }
 .navToggle { display: none; }
-.wide .content { max-width: none; }
+/* A wide page reaches the Close button: keep its header actions clear of it (XC-VIS-001). */
+.wide .content { max-width: none; padding-inline-end: 112px; }
 .group + .group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ui-border); }
 .groupName { margin: 0 0 6px 10px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
@@ -59,6 +60,9 @@
   .sidebar[data-open="false"] .nav { display: none; }
   .sidebar[data-open="true"] .nav { margin-top: 8px; }
   .sidebar > * { width: 100%; }
-  .content { padding: 24px 16px 96px; }
-  .topline { top: 4px; inset-inline-end: 8px; }
+  .content, .wide .content { padding: 8px 16px 96px; }
+  /* In the flow on phones: floating, it covered the section title and its description (XC-VIS-001). */
+  .topline { position: static; display: flex; justify-content: flex-end; padding-block-start: 8px; padding-inline: 8px; }
+  .close { flex-direction: row; gap: 6px; }
+  .closeX { width: 28px; height: 28px; font-size: 1rem; }
 }

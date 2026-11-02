@@ -530,7 +530,9 @@
 }
 
 /* Server invite (Lounge-styled) */
+/* border-box: with the padding on top of 100% the page was 8px wider than a phone (XC-VIS-001). */
 .ent-invite-page {
+  box-sizing: border-box;
   min-height: 100vh;
   display: grid;
   place-items: center;
@@ -538,6 +540,7 @@
   background: var(--ui-bg);
 }
 .ent-invite-card {
+  box-sizing: border-box;
   width: min(440px, 100%);
   padding: 32px;
   text-align: center;
@@ -633,6 +636,21 @@
   }
   .ent-split-right {
     padding: 48px var(--ent-pad);
+  }
+}
+
+/* Phones: the invitation code gets the whole row and the button goes under it. Side by side the field showed
+   five characters of an eleven-character code (XC-VIS-001). */
+@media (max-width: 520px) {
+  .ent-invite {
+    flex-wrap: wrap;
+    padding-inline-start: 16px;
+  }
+  .ent-invite input {
+    flex-basis: calc(100% - 48px);
+  }
+  .ent-invite > button {
+    flex: 1 1 100%;
   }
 }
 

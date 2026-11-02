@@ -59,6 +59,12 @@ describe("Avatar", () => {
     expect(initials("  mono ")).toBe("M");
     expect(initials("")).toBe("?");
   });
+  it("skips punctuation in initials (XC-VIS-001)", () => {
+    expect(initials("Rowan (owner)")).toBe("RO");
+    expect(initials('"Dee" Fox')).toBe("DF");
+    expect(initials("Juniper -")).toBe("J");
+    expect(initials("✨ ✨")).toBe("✨");
+  });
   it("falls back to initials when there is no image or it fails", () => {
     const { rerender } = render(<Avatar name="Ada Lovelace" />);
     // The initials are generated content (CSS ::before from data-initials), not text of the control.

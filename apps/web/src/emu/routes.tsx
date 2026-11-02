@@ -1,4 +1,4 @@
-import { ThemeProvider, ToastProvider } from '@sideroom/ui';
+import { ToastProvider } from '@sideroom/ui';
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
 import { lazyNamed } from '../lib/lazyRoute';
 import { EmulatorSwitchedOff, useEmulatorOn } from './SwitchedOff';
@@ -6,6 +6,11 @@ import { EmulatorSwitchedOff, useEmulatorOn } from './SwitchedOff';
 // The Arcade and the emulator are chunks of the signed-in app only: nothing here loads before sign-in (D-385).
 const EmuPage = lazyNamed(() => import('./EmuPage'), 'EmuPage');
 const ArcadePage = lazyNamed(() => import('../arcade/ArcadePage'), 'ArcadePage');
+// The viewer's saved theme, like the Lounge (XC-VIS-001); a chunk of its own, so the first paint does not grow.
+const LoungeThemeProvider = lazyNamed(
+  () => import('../settings/user/LoungeThemeProvider'),
+  'LoungeThemeProvider',
+);
 
 /** /games: the Arcade (ARC-ROOM-001); /games/emulator: the emulator (ACT-EMU-001). */
 export function createEmuRoutes(root: AnyRoute) {
@@ -14,11 +19,11 @@ export function createEmuRoutes(root: AnyRoute) {
     path: '/games',
     component: function GamesRoute() {
       return (
-        <ThemeProvider section="lounge">
+        <LoungeThemeProvider>
           <ToastProvider>
             <ArcadePage />
           </ToastProvider>
-        </ThemeProvider>
+        </LoungeThemeProvider>
       );
     },
   });
@@ -28,9 +33,9 @@ export function createEmuRoutes(root: AnyRoute) {
     component: function EmulatorRoute() {
       const on = useEmulatorOn();
       return (
-        <ThemeProvider section="lounge">
+        <LoungeThemeProvider>
           <ToastProvider>{on ? <EmuPage /> : <EmulatorSwitchedOff />}</ToastProvider>
-        </ThemeProvider>
+        </LoungeThemeProvider>
       );
     },
   });
