@@ -54,6 +54,8 @@ function speak(text: string) {
 }
 
 const NEAR_BOTTOM = 80;
+/** How long an opened channel keeps its newest message in view while rows are measured and media loads. */
+const SETTLE_MS = 2500;
 /** Scroll offset of channels the viewer left while reading history (restored when they come back). */
 const savedScroll = new Map<string, number>();
 const NEAR_TOP = 240;
@@ -245,6 +247,7 @@ export function MessageList({
   }, [v, rows.length]);
 
   // Opening a channel (or switching) jumps to the newest message.
+  const settleUntil = useRef(0);
   const mountedChannel = useRef<Snowflake | null>(null);
   useLayoutEffect(() => {
     if (mountedChannel.current === channelId) return;
@@ -258,8 +261,22 @@ export function MessageList({
     }
     atBottomRef.current = true;
     setAtBottom(true);
+    settleUntil.current = performance.now() + SETTLE_MS;
     scrollToEnd();
   }, [channelId, scrollToEnd, v, targetId]);
+
+  // XC-VIS-001: rows are measured, and pictures and embeds load, after that first jump. The list grew under the
+  // reader and a channel with attachments opened on "You're viewing older messages". While the opening settles
+  // (or while the reader is at the bottom) a change of the total height keeps the newest message in view; any
+  // wheel, touch or key from the reader ends the settling.
+  const totalSize = v.getTotalSize();
+  useLayoutEffect(() => {
+    if (targetId || !wasLatest.current) return;
+    if (atBottomRef.current || performance.now() < settleUntil.current) scrollToEnd();
+  }, [totalSize, scrollToEnd, targetId]);
+  const stopSettling = useCallback(() => {
+    settleUntil.current = 0;
+  }, []);
   useEffect(() => {
     const el = scroller.current;
     return () => {
@@ -573,6 +590,9 @@ export function MessageList({
         aria-live="polite"
         aria-relevant="additions"
         onScroll={onScroll}
+        onWheel={stopSettling}
+        onTouchStart={stopSettling}
+        onKeyDown={stopSettling}
       >
         <div className="lng-messages-sizer" style={{ height: v.getTotalSize() }}>
           {v.getVirtualItems().map((item) => {

@@ -1,8 +1,9 @@
 /* UX-SHOW-001: the Showroom (populated preview). Semantic tokens only (--ui-*); logical properties only. */
 .srm-banner {
   position: fixed;
-  /* XC-VIS-001: bottom inline-end, clear of the Lounge user panel and composer that sit bottom inline-start. */
-  inset-block-end: 12px;
+  /* XC-VIS-001: bottom inline-end and above the height of a message composer, clear of the Lounge user panel,
+     the composer and its send button. */
+  inset-block-end: 88px;
   inset-inline-end: 12px;
   max-inline-size: min(36rem, calc(100% - 24px));
   box-sizing: border-box;
@@ -24,13 +25,17 @@
   box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
   font-size: 0.875rem;
 }
-/* Phones: above the Lounge tab bar, full width. */
+/* Phones: a compact strip (title and the off switch) above the composer and the tab bar. */
 @media (max-width: 720px) {
   .srm-banner {
-    inset-block-end: 64px;
-    inset-inline: 8px;
-    max-inline-size: none;
+    inset-block-end: 116px;
+    inset-inline-end: 8px;
+    max-inline-size: calc(100% - 16px);
+    padding-block: 4px;
     font-size: 0.75rem;
+  }
+  .srm-banner > span:not(.srm-hint) {
+    display: none;
   }
 }
 .srm-hint {

@@ -697,3 +697,24 @@
   font-size: 11px;
   color: var(--sr-text-3);
 }
+
+/* XC-VIS-001: "My reminders" sat flush under the guide grid and its lead-time select was an unstyled native control
+   touching the sentence. */
+.tv-reminders {
+  margin-block: 32px 16px;
+}
+.tv-reminders-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.tv-reminders-lead select {
+  min-block-size: 36px;
+  padding-inline: 10px;
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+  background: var(--sr-bg-1);
+  color: var(--sr-text);
+  font: inherit;
+}
