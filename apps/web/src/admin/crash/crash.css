@@ -1,7 +1,22 @@
 /* Admin > Crash reports (OPS-CRASH-002). Existing --ui-* tokens only; logical properties only. */
 .adm-crash-toolbar {
-  align-items: end;
+  display: flex;
   flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
+}
+.adm-crash-toolbar .ss-search {
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}
+.adm-crash-toolbar > :not(.ss-search) {
+  flex: 0 1 12rem;
+  min-inline-size: 0;
+}
+.adm-crash-table .adm-mono {
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: nowrap;
 }
 .adm-crash-table td:last-child {
   text-align: end;
