@@ -21,7 +21,9 @@ export SR_STORAGE__SECRET_KEY="${SR_STORAGE__SECRET_KEY:-$GARAGE_SECRET_KEY}"
 
 ./target/debug/sr-server >server.log 2>&1 &
 server_pid=$!
-trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+# Wait for the server to exit as well: the next step's server needs its locks (the library search index refused
+# a second writer when steps ran back to back, CI run 41364114161).
+trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
 
 timeout 60 bash -c 'until curl -fs http://127.0.0.1:8080/readyz >/dev/null; do sleep 1; done' || {
   echo "sr-server did not become ready; server.log:" >&2
