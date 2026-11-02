@@ -875,3 +875,313 @@ async fn a_response_never_references_the_app_or_the_entrance() {
     }
     assert!(seen > 0);
 }
+
+// ---- OPS-TDEP-001 (D-450 to D-452, threat model T49): the test-only same-host origin mode. ----
+
+async fn same_host_rig(enabled: bool) -> Arc<ActivitiesDeps> {
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    Arc::new(
+        ActivitiesDeps::new(
+            lazy_service(storage),
+            enabled,
+            "https://abc.trycloudflare.com",
+            None,
+        )
+        .with_same_host(true),
+    )
+}
+
+async fn get_with(
+    app: &Router,
+    host: &str,
+    uri: &str,
+    headers: &[(&str, &str)],
+) -> axum::response::Response {
+    let mut req = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
+        .header(header::HOST, host);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    app.clone()
+        .oneshot(req.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn urls_and_origins_follow_the_mode() {
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let sub = ActivitiesDeps::new(
+        lazy_service(storage.clone()),
+        true,
+        "https://chat.example.org",
+        None,
+    );
+    assert!(!sub.same_host);
+    assert_eq!(
+        sub.activity_base(5),
+        "https://5.activities.chat.example.org"
+    );
+    assert_eq!(sub.connect_self(5), None);
+    let same = ActivitiesDeps::new(
+        lazy_service(storage),
+        true,
+        "https://abc.trycloudflare.com",
+        None,
+    )
+    .with_same_host(true);
+    assert_eq!(
+        same.activity_base(5),
+        "https://abc.trycloudflare.com/_activity/5"
+    );
+    assert_eq!(
+        same.connect_self(5).as_deref(),
+        Some("https://abc.trycloudflare.com/_activity/5/")
+    );
+    // The frame-ancestors source stays the app shell's origin.
+    assert_eq!(same.app_origin, "https://abc.trycloudflare.com");
+}
+
+#[tokio::test]
+async fn the_same_host_mode_serves_the_bundle_with_the_same_policy_and_self_narrowed() {
+    let (sub, _) = rig(true).await;
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    storage
+        .put(
+            &object_key(APP, SHA, "index.html"),
+            Bytes::from("<p>hi</p>"),
+        )
+        .await
+        .unwrap();
+    let same = ActivitiesDeps::new(
+        lazy_service(storage),
+        true,
+        "https://chat.example.org",
+        None,
+    )
+    .with_same_host(true);
+    let mut spec = bundle_spec();
+    spec.connect = vec!["self".to_owned()];
+    let (s, h, _) = text(proxy::serve(&same, APP, &spec, "/").await).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_hardened(&h);
+    let same_csp = csp_of(&h);
+    assert!(
+        same_csp.contains("connect-src https://chat.example.org/_activity/77/;"),
+        "{same_csp}"
+    );
+    assert!(!same_csp.contains("connect-src 'self'"), "{same_csp}");
+    let (_, h, _) = text(proxy::serve(&sub, APP, &spec, "/").await).await;
+    assert_eq!(
+        csp_of(&h).replace(
+            "connect-src 'self';",
+            "connect-src https://chat.example.org/_activity/77/;"
+        ),
+        same_csp,
+        "only connect-src's 'self' differs between the modes"
+    );
+}
+
+#[tokio::test]
+async fn the_same_host_layer_answers_its_paths_only() {
+    let app = app_with_layer(same_host_rig(true).await);
+    let host = "abc.trycloudflare.com";
+    // The app's own paths are untouched.
+    let r = get_with(&app, host, "/shell", &[]).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    // No per-application host in this mode.
+    let r = get_with(&app, "77.activities.abc.trycloudflare.com", "/", &[]).await;
+    assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    // Bad ids are 404 before any lookup; the bare id gets its slash.
+    for bad in [
+        "/_activity",
+        "/_activity/",
+        "/_activity/x/",
+        "/_activity/0/",
+    ] {
+        let (s, h, _) = text(get_with(&app, host, bad, &[]).await).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{bad}");
+        assert!(h.get(header::SET_COOKIE).is_none());
+        assert!(csp_of(&h).starts_with("sandbox allow-scripts allow-pointer-lock;"));
+    }
+    let r = get_with(&app, host, "/_activity/77?a=1", &[]).await;
+    assert_eq!(r.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(r.headers()[header::LOCATION], "/_activity/77/?a=1");
+    // D-452: the main origin may frame or open a game, never load its files as its own.
+    for dest in [
+        "script",
+        "style",
+        "worker",
+        "serviceworker",
+        "empty",
+        "image",
+    ] {
+        let (s, h, _) = text(
+            get_with(
+                &app,
+                host,
+                "/_activity/77/app.js",
+                &[("sec-fetch-site", "same-origin"), ("sec-fetch-dest", dest)],
+            )
+            .await,
+        )
+        .await;
+        assert_eq!(s, StatusCode::FORBIDDEN, "{dest}");
+        assert!(h.get(header::SET_COOKIE).is_none());
+    }
+    // Off: every activity path is a plain 404.
+    let off = app_with_layer(same_host_rig(false).await);
+    for p in ["/_activity/77/", "/_activity/77"] {
+        let r = get_with(&off, host, p, &[]).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND, "{p}");
+    }
+    // The default mode never answers the path: it is the app's (here: no route, 404 from the router).
+    let (sub, _) = rig(true).await;
+    let sub_app = app_with_layer(sub);
+    let r = get_with(&sub_app, "chat.example.org", "/_activity/77/", &[]).await;
+    assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    assert!(r.headers().get(header::CONTENT_SECURITY_POLICY).is_none());
+}
+
+/// The whole path in the same-host mode, over a real database: a released game's reviewed bundle is served from
+/// `/_activity/<id>/` with the activity policy (`sandbox` first, `frame-ancestors` the shell) and never a
+/// `Set-Cookie`, even when the browser sends the app's session cookie with the frame's navigation.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_same_host_path_serves_a_released_game_with_the_sandbox_policy_and_no_cookie() {
+    let db = sr_db::testing::TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let base = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|t| t.as_micros() as i64)
+        .unwrap_or(1);
+    let (owner, app, bundle) = (base * 1000 + 1, base * 1000 + 2, base * 1000 + 3);
+    let n = format!("tdep{owner}");
+    assert!(
+        sr_db::accounts::create_account(
+            &pool,
+            &sr_db::accounts::NewAccount {
+                id: owner,
+                person_id: base * 1000 + 4,
+                username: &n,
+                display_name: None,
+                email: &format!("{n}@example.test"),
+                password_hash: "x",
+                state: "active",
+                email_verified: true,
+                initial_credits: 0,
+                flags: 0,
+            },
+            base * 1000 + 5,
+        )
+        .await
+        .unwrap()
+    );
+    sqlx::query(
+        "INSERT INTO applications (id, owner_id, bot_user_id, name, release_state, client_secret_hash) \
+         VALUES ($1, $2, $2, 'Same host game', 'released', decode(repeat('ab', 32), 'hex'))",
+    )
+    .bind(app)
+    .bind(owner)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO application_activity_bundles (id, application_id, sha256, byte_size, entry_count, state, tier) \
+         VALUES ($1, $2, repeat('a', 64), 1, 1, 'approved', 'TIER_1_ORIGINAL')",
+    )
+    .bind(bundle)
+    .bind(app)
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO application_activities (application_id, review_state, reviewed_bundle_id) \
+         VALUES ($1, 'approved', $2)",
+    )
+    .bind(app)
+    .bind(bundle)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let sha = "a".repeat(64);
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    for (path, data) in [
+        (
+            "index.html",
+            "<!doctype html><script type=module src=\"main.js\"></script>",
+        ),
+        ("main.js", "console.log('game')"),
+    ] {
+        storage
+            .put(&object_key(app, &sha, path), Bytes::from(data))
+            .await
+            .unwrap();
+    }
+    let d = Arc::new(
+        ActivitiesDeps::new(
+            ActivityService::new(pool.clone(), Arc::new(|| 1)).with_storage(storage),
+            true,
+            "https://abc.trycloudflare.com",
+            None,
+        )
+        .with_same_host(true),
+    );
+    let router = app_with_layer(d);
+    let host = "abc.trycloudflare.com";
+    let cookie = ("cookie", "sr_session=secret-session-value");
+    let frame = format!("/_activity/{app}/");
+    let script = format!("/_activity/{app}/main.js");
+    let cases: [(&str, Vec<(&str, &str)>); 3] = [
+        // The shell frames the game: a same-origin navigation of an iframe, with the session cookie attached.
+        (
+            &frame,
+            vec![
+                ("sec-fetch-site", "same-origin"),
+                ("sec-fetch-dest", "iframe"),
+                cookie,
+            ],
+        ),
+        // The game's own module script, from its opaque origin.
+        (
+            &script,
+            vec![
+                ("sec-fetch-site", "cross-site"),
+                ("sec-fetch-dest", "script"),
+            ],
+        ),
+        // A browser without fetch metadata.
+        (&frame, vec![cookie]),
+    ];
+    for (path, headers) in cases {
+        let (s, h, body) = text(get_with(&router, host, path, &headers).await).await;
+        assert_eq!(s, StatusCode::OK, "{path} {headers:?}: {body}");
+        let csp = csp_of(&h);
+        assert!(
+            csp.starts_with("sandbox allow-scripts allow-pointer-lock;"),
+            "{csp}"
+        );
+        assert!(!csp.contains("allow-same-origin"));
+        assert!(
+            csp.ends_with("frame-ancestors https://abc.trycloudflare.com"),
+            "{csp}"
+        );
+        assert!(csp.contains("connect-src 'none';"), "{csp}");
+        assert!(h.get(header::SET_COOKIE).is_none(), "{path}");
+        assert!(!body.contains("secret-session-value"));
+    }
+    // The main origin cannot pull the game's script in as its own.
+    let r = get_with(
+        &router,
+        host,
+        &script,
+        &[
+            ("sec-fetch-site", "same-origin"),
+            ("sec-fetch-dest", "script"),
+        ],
+    )
+    .await;
+    assert_eq!(r.status(), StatusCode::FORBIDDEN);
+}

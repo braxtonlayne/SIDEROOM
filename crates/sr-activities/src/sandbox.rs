@@ -430,6 +430,10 @@ pub struct CspInput<'a> {
     pub has_mappings: bool,
     /// The reviewed bundle's `connect` list.
     pub connect: &'a [String],
+    /// What `'self'` in `connect-src` becomes. `None` keeps `'self'` (the Activity's own origin in the default
+    /// `subdomain` mode). In the test-only `same_host_sandboxed` mode (OPS-TDEP-001, D-451) it is the Activity's
+    /// path on the main host, `https://<host>/_activity/<id>/`, so "self" never reaches the API or another game.
+    pub self_source: Option<&'a str>,
 }
 
 /// The `connect-src` value: `'none'` unless the reviewed manifest named hosts or the application has URL
@@ -454,6 +458,13 @@ pub fn connect_src(i: &CspInput<'_>) -> String {
     }
     if i.has_mappings && !tokens.iter().any(|t| t == "'self'") {
         tokens.push("'self'".to_owned());
+    }
+    if let Some(own) = i.self_source {
+        for t in &mut tokens {
+            if t == "'self'" {
+                own.clone_into(t);
+            }
+        }
     }
     if tokens.is_empty() {
         "'none'".to_owned()
@@ -657,7 +668,59 @@ mod tests {
             development: dev,
             has_mappings: mappings,
             connect,
+            self_source: None,
         }
+    }
+
+    /// OPS-TDEP-001 (D-451): in the same-host test mode "self" is the Activity's own path, and only "self" changes:
+    /// the rest of the policy, `sandbox` and `frame-ancestors` included, is the default mode's to the byte.
+    #[test]
+    fn the_same_host_mode_narrows_self_to_the_activity_path_and_nothing_else() {
+        let own = "https://chat.example.org/_activity/42/";
+        let hosts = ["https://a.example.com".to_owned(), "self".to_owned()];
+        for (dev, mappings, connect) in [
+            (false, false, &[][..]),
+            (false, true, &[][..]),
+            (false, false, &hosts[..]),
+            (true, true, &hosts[..]),
+        ] {
+            let sub = csp(&input(dev, mappings, connect));
+            let same = csp(&CspInput {
+                self_source: Some(own),
+                ..input(dev, mappings, connect)
+            });
+            let others = |p: &str| -> Vec<String> {
+                p.split("; ")
+                    .filter(|d| !d.starts_with("connect-src "))
+                    .map(str::to_owned)
+                    .collect()
+            };
+            assert_eq!(others(&sub), others(&same));
+            let connect_of = |p: &str| -> String {
+                p.split("; ")
+                    .find_map(|d| d.strip_prefix("connect-src "))
+                    .unwrap_or_default()
+                    .to_owned()
+            };
+            assert_eq!(connect_of(&sub).replace("'self'", own), connect_of(&same));
+            assert!(same.starts_with("sandbox allow-scripts allow-pointer-lock;"));
+            assert!(same.ends_with("frame-ancestors https://chat.example.org"));
+            assert!(!connect_of(&same).contains("'self'"));
+        }
+        assert_eq!(
+            connect_src(&CspInput {
+                self_source: Some(own),
+                ..input(false, true, &[])
+            }),
+            own
+        );
+        assert_eq!(
+            connect_src(&CspInput {
+                self_source: Some(own),
+                ..input(false, false, &[])
+            }),
+            "'none'"
+        );
     }
 
     #[test]

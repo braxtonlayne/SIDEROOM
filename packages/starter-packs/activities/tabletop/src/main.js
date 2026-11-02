@@ -30,7 +30,9 @@ async function embedded() {
   // The SDK modules are vendored beside this file by build.mjs; the variable keeps dev servers from resolving it.
   const sdkUrl = './sdk/index.js';
   const { SideRoomSDK } = await import(/* @vite-ignore */ sdkUrl);
-  const appId = location.hostname.split('.')[0];
+  // `<id>.activities.<host>`, or `/_activity/<id>/` on a test deployment (OPS-TDEP-001).
+  const path = /^\/_activity\/(\d{1,20})\//.exec(location.pathname);
+  const appId = path ? path[1] : location.hostname.split('.')[0];
   const sdk = new SideRoomSDK(appId, { timeoutMs: 90_000 });
   page.replaceChildren(h('p', { class: 'loading' }, t('loading')));
   try {

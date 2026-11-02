@@ -227,6 +227,7 @@ impl ActivityService {
             application_id: view.application_id,
             application_name: view.application_name,
             capabilities: manifest_flags,
+            frame_path: None,
         })
     }
 

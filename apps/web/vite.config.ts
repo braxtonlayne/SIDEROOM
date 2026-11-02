@@ -120,6 +120,8 @@ export default defineConfig(({ command }) => ({
       // publicDev() passes `/cdn/` on (DEV_PASS); without this entry it fell to the SPA fallback and every
       // attachment URL answered index.html as text/html, so images never decoded in the dev e2e leg.
       '/cdn': 'http://localhost:8080',
+      // OPS-TDEP-001: a test deployment's same-host Activities (`[activities] origin_mode = "same_host_sandboxed"`).
+      '/_activity': 'http://localhost:8080',
     },
   },
   preview: {
@@ -132,6 +134,7 @@ export default defineConfig(({ command }) => ({
       // As in Caddyfile and Caddyfile.prod (`handle /voice/*`): the voice soak runs against the built bundle.
       '/voice': { target: 'ws://localhost:8080', ws: true },
       '/cdn': 'http://localhost:8080',
+      '/_activity': 'http://localhost:8080',
     },
   },
   test: {

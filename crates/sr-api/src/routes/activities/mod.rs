@@ -70,6 +70,9 @@ pub struct ActivitiesDeps {
     /// `chat.example.org` (with a port, if any): the activity hosts are `<id>.activities.<this>`.
     pub base_host: String,
     scheme: String,
+    /// `[activities] origin_mode = "same_host_sandboxed"` (OPS-TDEP-001, D-450, TEST DEPLOYMENTS ONLY): Activities
+    /// are served from `/_activity/<id>/` on the main host instead of their own origin. Set from config only.
+    pub same_host: bool,
     pub fetcher: Option<Arc<dyn ActivityFetcher>>,
     /// Guest joins per address (ARC-GST-001): the route is open to anybody, so it is rate limited by address.
     pub(crate) guest_join_limit: GuestJoinLimit,
@@ -112,14 +115,46 @@ impl ActivitiesDeps {
             app_origin: format!("{scheme}://{base_host}"),
             base_host,
             scheme,
+            same_host: false,
             fetcher,
             guest_join_limit: guest_join_limiter(),
         }
     }
 
-    /// `https://<application-id>.activities.<host>`.
+    /// Switch to the test-only `same_host_sandboxed` origin mode (from `[activities] origin_mode`).
+    #[must_use]
+    pub fn with_same_host(mut self, on: bool) -> Self {
+        self.same_host = on;
+        self
+    }
+
+    /// `https://<application-id>.activities.<host>`: the Activity's own origin in the default mode. In the
+    /// `same_host_sandboxed` mode there is no such origin (the game's document is opaque on the main host); see
+    /// [`Self::activity_base`].
     pub fn activity_origin(&self, app: i64) -> String {
         format!("{}://{app}.activities.{}", self.scheme, self.base_host)
+    }
+
+    /// Where the Activity's files are, without the final slash: its own origin by default,
+    /// `https://<host>/_activity/<id>` in the `same_host_sandboxed` mode. `<this>/` is the frame's address and the
+    /// Activity's implicit OAuth redirect URI.
+    pub fn activity_base(&self, app: i64) -> String {
+        if self.same_host {
+            format!(
+                "{}{}",
+                self.app_origin,
+                sr_activities::rules::activity_path(app).trim_end_matches('/')
+            )
+        } else {
+            self.activity_origin(app)
+        }
+    }
+
+    /// What `'self'` in the Activity's `connect-src` must become: `None` by default (its own origin), the
+    /// Activity's own path on the main host in the `same_host_sandboxed` mode (D-451).
+    pub fn connect_self(&self, app: i64) -> Option<String> {
+        self.same_host
+            .then(|| format!("{}/", self.activity_base(app)))
     }
 
     /// 404 for everything but the owner's settings when the operator has not turned Activities on.

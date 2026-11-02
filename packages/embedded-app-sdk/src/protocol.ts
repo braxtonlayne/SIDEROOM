@@ -284,3 +284,25 @@ export function isShelfObjectRef(r: unknown): r is ShelfObjectRef {
     /^[0-9a-f]{64}$/.test(o.object_hash)
   );
 }
+
+/**
+ * OPS-TDEP-001: a TEST deployment (one host name, e.g. a quick tunnel) serves an Activity from
+ * `/_activity/<application-id>/` on the main host instead of `<application-id>.activities.<host>`. The server sends the
+ * same sandboxing policy either way, so the page's origin is opaque in both.
+ */
+export const ACTIVITY_PATH_PREFIX = '/_activity/';
+
+/**
+ * The application id of the Activity this page belongs to, for `new SideRoomSDK(...)`: the `<id>` of
+ * `/_activity/<id>/...` (a test deployment) or else the first label of the host name (`<id>.activities.<host>`).
+ */
+export function applicationIdFromLocation(loc: { hostname: string; pathname: string }): string {
+  const m = /^\/_activity\/(\d{1,20})\//.exec(loc.pathname);
+  if (m) return m[1] ?? '';
+  return loc.hostname.split('.')[0] ?? '';
+}
+
+/** Whether this page is served as an Activity: `<id>.activities.<host>` or a test deployment's `/_activity/<id>/`. */
+export function isActivityLocation(loc: { hostname: string; pathname: string }): boolean {
+  return /^[^.]+\.activities\./.test(loc.hostname) || /^\/_activity\/\d{1,20}\//.test(loc.pathname);
+}

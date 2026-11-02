@@ -28,6 +28,12 @@
 //!   application by `ActivityService::proxy_token_valid`), never by allowing any origin. The CORS preflight
 //!   under a mapping admits that header, and only the answer to a write that passed the check carries
 //!   `Access-Control-Allow-Origin: null`.
+//! * OPS-TDEP-001 (D-450 to D-452, threat model T49), TEST DEPLOYMENTS ONLY: with `[activities] origin_mode =
+//!   "same_host_sandboxed"` the same answers are served from `/_activity/<application-id>/...` on the main host
+//!   (one host name, as a quick tunnel has) and the `.activities.` hosts answer 404. The policy is the same, its
+//!   `sandbox` directive included, so the game's document still has an opaque origin; only `'self'` in
+//!   `connect-src` becomes the Activity's own path. A request from the main origin itself (`Sec-Fetch-Site:
+//!   same-origin`) is answered only for a frame or a document, never as a script, style or worker of the app.
 
 use super::{ActivitiesDeps, MAX_PROXIED_BYTES};
 use axum::{
@@ -38,7 +44,7 @@ use axum::{
     middleware::{Next, from_fn_with_state},
     response::{IntoResponse, Response},
 };
-use sr_activities::{Lookup, ServeSpec, Serving, bundle, rules, sandbox};
+use sr_activities::{Lookup, ServeSpec, Serving, bundle, rules, rules::ActivityPath, sandbox};
 use std::sync::Arc;
 
 /// Largest request body forwarded through a URL mapping (J-17).
@@ -82,7 +88,36 @@ pub async fn activity_host_layer(
         .and_then(|h| h.to_str().ok())
         .map(str::to_owned)
         .unwrap_or_default();
-    if d.base_host.is_empty() || !rules::is_activity_host(&host, &d.base_host) {
+    let activity_host = !d.base_host.is_empty() && rules::is_activity_host(&host, &d.base_host);
+    let path_and_query = req
+        .uri()
+        .path_and_query()
+        .map_or("/", |p| p.as_str())
+        .to_owned();
+    if d.same_host {
+        // OPS-TDEP-001: one host; the per-application hosts are not served in this mode.
+        if activity_host {
+            return page(&d, StatusCode::NOT_FOUND, "There is no activity here.");
+        }
+        return match rules::app_of_path(&path_and_query) {
+            ActivityPath::NotActivity => next.run(req).await,
+            ActivityPath::App { app, rest } if d.enabled => {
+                if let Some(refused) = main_origin_refusal(&d, req.headers()) {
+                    return refused;
+                }
+                answer(&d, app, req, rest).await
+            }
+            ActivityPath::NeedsSlash { location, .. } if d.enabled => {
+                let mut r = page(&d, StatusCode::PERMANENT_REDIRECT, "Moved.");
+                if let Ok(v) = HeaderValue::from_str(&location) {
+                    r.headers_mut().insert(header::LOCATION, v);
+                }
+                r
+            }
+            _ => page(&d, StatusCode::NOT_FOUND, "There is no activity here."),
+        };
+    }
+    if !activity_host {
         return next.run(req).await;
     }
     let Some(app) = d
@@ -92,6 +127,34 @@ pub async fn activity_host_layer(
     else {
         return page(&d, StatusCode::NOT_FOUND, "There is no activity here.");
     };
+    answer(&d, app, req, path_and_query).await
+}
+
+/// D-452: in the same-host mode a request the main origin makes itself (`Sec-Fetch-Site: same-origin`) is answered
+/// only when it loads a frame or a document. The app shell (or anything injected into it) must never pull a
+/// game's file in as its own script, style, worker or fetch, where it would run with the app's origin. The game's
+/// own requests come from its opaque origin (`cross-site`), and a browser without fetch metadata is answered as
+/// before (the policy's `sandbox` still applies to any document).
+fn main_origin_refusal(d: &ActivitiesDeps, headers: &HeaderMap) -> Option<Response> {
+    let site = headers.get("sec-fetch-site")?;
+    if site.as_bytes() != b"same-origin" {
+        return None;
+    }
+    let dest = headers
+        .get("sec-fetch-dest")
+        .map_or(&b""[..], HeaderValue::as_bytes);
+    if matches!(dest, b"iframe" | b"frame" | b"document") {
+        return None;
+    }
+    Some(page(
+        d,
+        StatusCode::FORBIDDEN,
+        "Activity files are not served to the app itself.",
+    ))
+}
+
+/// One request for application `app`, `path_and_query` being the path inside the Activity (`/` is its root).
+async fn answer(d: &ActivitiesDeps, app: i64, req: Request, path_and_query: String) -> Response {
     // A CORS preflight is answered only for the sandboxed game (`Origin: null`); any other OPTIONS is refused
     // before the lookup like every method that is never forwarded.
     let preflight = req.method() == Method::OPTIONS
@@ -100,40 +163,35 @@ pub async fn activity_host_layer(
             .get(header::ORIGIN)
             .is_some_and(|o| o.as_bytes() == OPAQUE_ORIGIN);
     if !preflight && !read_method(req.method()) && !write_method(req.method()) {
-        return not_allowed(&d);
+        return not_allowed(d);
     }
     let spec = match d.service.lookup(app).await {
         Ok(Lookup::Ready(s)) => s,
         Ok(Lookup::Paused) => {
             return page(
-                &d,
+                d,
                 StatusCode::SERVICE_UNAVAILABLE,
                 "This activity is paused until it is reviewed again.",
             );
         }
         Ok(Lookup::Unknown) => {
-            return page(&d, StatusCode::NOT_FOUND, "This activity is not available.");
+            return page(d, StatusCode::NOT_FOUND, "This activity is not available.");
         }
         Err(e) => {
             tracing::error!(error = %e, "activity lookup failed");
             return page(
-                &d,
+                d,
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Something went wrong.",
             );
         }
     };
-    let path_and_query = req
-        .uri()
-        .path_and_query()
-        .map_or("/", |p| p.as_str())
-        .to_owned();
     if preflight {
-        return preflight_answer(&d, &spec, req.headers(), &path_and_query);
+        return preflight_answer(d, &spec, req.headers(), &path_and_query);
     }
     if read_method(req.method()) {
         let head = req.method() == Method::HEAD;
-        let mut resp = serve(&d, app, &spec, &path_and_query).await;
+        let mut resp = serve(d, app, &spec, &path_and_query).await;
         if head {
             *resp.body_mut() = Body::empty();
         }
@@ -141,7 +199,7 @@ pub async fn activity_host_layer(
     }
     let (parts, body) = req.into_parts();
     forward_write(
-        &d,
+        d,
         app,
         &spec,
         &parts.method,
@@ -154,15 +212,17 @@ pub async fn activity_host_layer(
 
 /// Replace the default policy with the one this application's reviewed manifest earns it. Error answers keep
 /// the strictest policy.
-fn apply_csp(d: &ActivitiesDeps, spec: &ServeSpec, resp: &mut Response) {
+fn apply_csp(d: &ActivitiesDeps, app: i64, spec: &ServeSpec, resp: &mut Response) {
     if resp.status().is_client_error() || resp.status().is_server_error() {
         return;
     }
+    let own = d.connect_self(app);
     let policy = sandbox::csp(&sandbox::CspInput {
         app_origin: &d.app_origin,
         development: matches!(spec.serving, Serving::Dev { .. }),
         has_mappings: !spec.url_mappings.is_empty(),
         connect: &spec.connect,
+        self_source: own.as_deref(),
     });
     if let Ok(v) = HeaderValue::from_str(&policy) {
         resp.headers_mut()
@@ -214,7 +274,7 @@ pub(crate) async fn serve(
         (None, Serving::Bundle { sha256 }) => from_bundle(d, app, sha256, path_and_query).await,
     };
     dev_mark(spec, &mut resp);
-    apply_csp(d, spec, &mut resp);
+    apply_csp(d, app, spec, &mut resp);
     resp
 }
 
@@ -322,7 +382,9 @@ pub(crate) async fn forward_write(
     let opaque = match headers.get(header::ORIGIN) {
         None => false,
         Some(o) if o.as_bytes() == OPAQUE_ORIGIN => true,
-        Some(o) if o.as_bytes() == d.activity_origin(app).as_bytes() => false,
+        // In the same-host mode no page of the Activity has an origin of its own (its policy sandboxes every
+        // document), so only the opaque one with the token may write (D-452).
+        Some(o) if !d.same_host && o.as_bytes() == d.activity_origin(app).as_bytes() => false,
         Some(_) => {
             return page(
                 d,
@@ -422,7 +484,7 @@ pub(crate) async fn forward_write(
         }
     };
     dev_mark(spec, &mut resp);
-    apply_csp(d, spec, &mut resp);
+    apply_csp(d, app, spec, &mut resp);
     if opaque {
         // The token was checked: the game may read the answer.
         resp.headers_mut().insert(
@@ -498,6 +560,7 @@ fn harden(d: &ActivitiesDeps, h: &mut HeaderMap) {
         development: false,
         has_mappings: false,
         connect: &[],
+        self_source: None,
     });
     let set = |h: &mut HeaderMap, name: header::HeaderName, v: &str| {
         if let Ok(v) = HeaderValue::from_str(v) {

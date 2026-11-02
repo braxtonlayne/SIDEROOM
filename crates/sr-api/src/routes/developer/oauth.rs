@@ -50,7 +50,8 @@ fn params_of(q: &AuthorizeQuery) -> AuthorizeParams {
     }
 }
 
-/// The redirect URI an Activity gets without registering it (J-13, D-248): `<activity origin>/` for an
+/// The redirect URI an Activity gets without registering it (J-13, D-248): `<activity origin>/` (in the test-only
+/// same-host mode `<host>/_activity/<id>/`, OPS-TDEP-001) for an
 /// application that has an Activity, while Activities are enabled on this server.
 async fn implicit_redirects(activities: Option<&ActivitiesDeps>, client_id: &str) -> Vec<String> {
     let (Some(a), Ok(app)) = (activities, client_id.parse::<i64>()) else {
@@ -60,7 +61,7 @@ async fn implicit_redirects(activities: Option<&ActivitiesDeps>, client_id: &str
         return Vec::new();
     }
     match a.service.has_activity(app).await {
-        Ok(true) => vec![format!("{}/", a.activity_origin(app))],
+        Ok(true) => vec![format!("{}/", a.activity_base(app))],
         _ => Vec::new(),
     }
 }

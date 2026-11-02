@@ -82,7 +82,9 @@ const log = (step, value) => {
   li.textContent = step + ': ' + value;
   document.getElementById('log').append(li);
 };
-const appId = location.hostname.split('.')[0];
+// <id>.activities.<host>, or /_activity/<id>/ on a test deployment (OPS-TDEP-001).
+const fromPath = /^\\/_activity\\/(\\d{1,20})\\//.exec(location.pathname);
+const appId = fromPath ? fromPath[1] : location.hostname.split('.')[0];
 const sdk = new SideRoomSDK(appId, { timeoutMs: 90000 });
 try {
   const cfg = await sdk.ready();

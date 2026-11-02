@@ -16,10 +16,10 @@
 //! every role it names must be one the manager is allowed to assign.
 
 use super::deps::{SettingsDeps, actor, ce, id, invalid};
-use crate::routes::Ext;
 use crate::routes::guilds::backend::GuildBackend;
 use crate::routes::guilds::safety::MfaGate;
 use crate::routes::messages::error::ApiJson;
+use crate::routes::{Ext, MaybeExt};
 use crate::{HttpError, Principal, error::ApiResult, openapi::ErrorBody, state::AppState};
 use async_trait::async_trait;
 use axum::{
@@ -112,6 +112,11 @@ pub struct ClientFlagsObject {
     pub flags: std::collections::BTreeMap<String, bool>,
 }
 
+/// The client flag that says this server runs as a test deployment (OPS-TDEP-001, D-450): Activities are served
+/// from a path on the main host. Present (`true`) only then; it comes from `[activities] origin_mode`, which no admin
+/// screen or route can change. The client builds its Activity frames on the path and shows a "Test deployment" notice.
+pub const TEST_DEPLOYMENT_FLAG: &str = "deploy.test_same_host";
+
 /// The platform flags clients read at boot, e.g. `moderation.reports` (any signed-in human; bots
 /// are refused).
 #[utoipa::path(
@@ -123,8 +128,12 @@ pub struct ClientFlagsObject {
 pub async fn client_flags(
     _p: crate::auth::UserOnly,
     Ext(gf): Ext<GuildFeatures>,
+    MaybeExt(activities): MaybeExt<crate::routes::activities::ActivitiesDeps>,
 ) -> ApiResult<Json<ClientFlagsObject>> {
-    let flags = gf.ctx.settings.client_flags().await.map_err(feature_err)?;
+    let mut flags = gf.ctx.settings.client_flags().await.map_err(feature_err)?;
+    if activities.is_some_and(|a| a.same_host) {
+        flags.insert(TEST_DEPLOYMENT_FLAG.to_owned(), true);
+    }
     Ok(Json(ClientFlagsObject { flags }))
 }
 

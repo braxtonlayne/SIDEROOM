@@ -73,6 +73,11 @@ pub struct GuestJoined {
     /// The manifest flags the game declares (sorted), reserved ones included (`ingame_voice`), so the runner can
     /// refuse a capability that has not shipped. Flag names only; nothing else of the manifest.
     pub capabilities: Vec<String>,
+    /// OPS-TDEP-001 (D-450), test deployments only: `/_activity/<application_id>/` when the server serves Activities
+    /// from a path on its own host (`[activities] origin_mode = "same_host_sandboxed"`). Absent in the default mode,
+    /// where the game's frame is `<application_id>.activities.<host>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_path: Option<String>,
 }
 
 /// What the guest socket learns about a guest session or a member seat when it checks a credential.

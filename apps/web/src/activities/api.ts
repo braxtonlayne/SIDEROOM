@@ -2,6 +2,7 @@
 import { apiFetch } from '../api/client';
 import type { AuthenticateResult } from '@sideroom/embedded-app-sdk';
 import type { ActivityInstance, ChannelActivity, Shelf } from './types';
+import { isTestDeployment } from '../testdeploy/flag';
 
 const enc = encodeURIComponent;
 const NO_RETRY = { retries: 0 } as const;
@@ -46,14 +47,20 @@ export async function mintProxyToken(instanceId: string): Promise<string | null>
 }
 
 /**
- * `https://<application-id>.activities.<host>`: each Activity runs on its own origin under the site's host,
- * so it can never read the client's cookies or storage (docs/11 section 3).
+ * Where an Activity is served from, without the final slash: `https://<application-id>.activities.<host>`, its own
+ * origin under the site's host, so it can never read the client's cookies or storage (docs/11 section 3). On a
+ * TEST deployment (OPS-TDEP-001, `sameHost`) it is `https://<host>/_activity/<application-id>`: the server sends the
+ * same sandboxing policy, so the frame's origin is still opaque. `<this>/` is the frame's address and the
+ * Activity's implicit OAuth redirect URI (the server builds the same one).
  */
-export function activityOrigin(
+export function activityBase(
   applicationId: string,
   loc: Pick<Location, 'protocol' | 'host'> = window.location,
+  sameHost: boolean = isTestDeployment(),
 ): string {
-  return `${loc.protocol}//${applicationId}.activities.${loc.host}`;
+  return sameHost
+    ? `${loc.protocol}//${loc.host}/_activity/${applicationId}`
+    : `${loc.protocol}//${applicationId}.activities.${loc.host}`;
 }
 
 /** The pieces of `POST /oauth2/authorize` and `GET /oauth2/@me` the host uses, behind a seam for tests. */
