@@ -430,14 +430,20 @@ export function LiveView({
             title={failed.title}
             description={failed.description}
             action={
-              <Button
-                onClick={() => {
-                  setReconnects(0);
-                  onRetune();
-                }}
-              >
-                {tr('cinema.liveView.tryAgain')}
-              </Button>
+              // Off the air or gone, trying again rarely helps: the guide is the way on.
+              <span className="ltv-failed-actions">
+                <Button
+                  onClick={() => {
+                    setReconnects(0);
+                    onRetune();
+                  }}
+                >
+                  {tr('cinema.liveView.tryAgain')}
+                </Button>
+                <Button variant="secondary" onClick={onExit}>
+                  {tr('cinema.liveView.backToGuide')}
+                </Button>
+              </span>
             }
           />
         </div>

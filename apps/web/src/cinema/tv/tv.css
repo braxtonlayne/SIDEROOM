@@ -398,6 +398,8 @@
   position: sticky;
   inset-inline-start: calc(var(--tv-chan) + 8px);
   padding-inline: 8px;
+  /* Sticky keeps the margin box inside the slot, so a sliding label stops short of the next one ("3:30 AM4:00 AM"). */
+  margin-inline-end: 32px;
   white-space: nowrap;
 }
 .tv-cell-wrap {

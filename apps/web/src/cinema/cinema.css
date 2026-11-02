@@ -931,3 +931,21 @@
     display: none;
   }
 }
+
+/* Title page tabs on phones: compact, and the row fades at the end so the cut-off tab reads as "scroll for more"
+   rather than a clipped word ("More lik"). */
+@media (max-width: 30rem) {
+  .cin-title-tabs > [role='tablist'] {
+    gap: 0;
+    padding-inline-end: 24px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+  .cin-title-tabs > [role='tablist']:dir(rtl) {
+    mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  }
+  .cin-title-tabs > [role='tablist'] > [role='tab'] {
+    padding-inline: 10px;
+    font-size: 0.875rem;
+  }
+}

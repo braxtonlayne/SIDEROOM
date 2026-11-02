@@ -369,3 +369,11 @@
 .ltv-slate-caption-body {
   font-size: clamp(13px, 1.8vw, 18px);
 }
+
+/* Try again and Back to the guide, side by side (wrapping on a narrow phone). */
+.ltv-failed-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
