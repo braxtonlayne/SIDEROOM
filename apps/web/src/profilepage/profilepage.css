@@ -158,3 +158,45 @@
 .pp-bar .us-link:focus-visible {
   color: var(--ui-text);
 }
+/* XC-VIS-002: the side column's sections read as one panel each, with headings that do not shout over the
+   page title, and every style choice says what it is. */
+.pp-side .us-card {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.pp-side .us-card-title {
+  margin-block: 0 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.pp-field {
+  display: grid;
+  gap: 4px;
+}
+.pp-field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+}
+.pp-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--ui-text-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.pp-colors legend {
+  padding-inline: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+}
+.pp-color > span {
+  font-size: 0.875rem;
+}

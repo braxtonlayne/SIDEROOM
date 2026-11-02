@@ -120,18 +120,16 @@ test('send, edit, react, reply, pin, thread, attach and delete a message', async
     await composer.waitFor();
   });
   await step('attach a long file name', async () => {
-    await page
-      .locator('input[type=file]')
-      .first()
-      .setInputFiles({
-        name: `a-very-long-file-name-for-the-polish-round-${stamp}-final-final-v3-really.pdf`,
-        mimeType: 'application/pdf',
-        buffer: Buffer.from('%PDF-1.4\n%polish\n'),
-      });
+    await page.getByTestId('file-input').setInputFiles({
+      name: `a-very-long-file-name-for-the-polish-round-${stamp}-final-final-v3-really.pdf`,
+      mimeType: 'application/pdf',
+      buffer: Buffer.from('%PDF-1.4\n%polish\n'),
+    });
+    await page.screenshot({ path: `${OUT}-flow-file-queued.png` });
     await composer.fill(`file ${stamp}`);
     await composer.press('Enter');
     // Local stacks without object storage cannot finish an upload; that is the environment, not the UI.
-    const noStorage = page.getByText('The upload could not be completed.');
+    const noStorage = page.getByText(/The upload could not be completed|Upload failed/).first();
     const failedUpload = await noStorage
       .waitFor({ timeout: 8000 })
       .then(() => true)

@@ -151,30 +151,40 @@ export function StylePanel({
           {t('lounge.profileEditor.lowContrast')}
         </p>
       )}
-      <Select
-        aria-label={t('lounge.profileEditor.backgroundKind')}
-        options={[
-          { value: 'pattern', label: t('lounge.profileEditor.backgroundPattern') },
-          { value: 'banner', label: t('lounge.profileEditor.backgroundBanner') },
-          ...(uploaded
-            ? [{ value: 'image', label: t('lounge.profileEditor.backgroundImage') }]
-            : []),
-        ]}
-        value={bg.kind === 'image' && !picture ? 'pattern' : bg.kind}
-        onValueChange={(v) => {
-          const pattern = bg.pattern ?? 'none';
-          if (v === 'image' && uploaded)
-            setBackground({ kind: 'image', pattern, image_id: uploaded.id });
-          else if (v === 'banner') setBackground({ kind: 'banner', pattern });
-          else setBackground({ kind: 'pattern', pattern });
-        }}
-      />
-      <Select
-        aria-label={t('lounge.profileEditor.pattern')}
-        options={choices(PATTERNS, PATTERN_LABEL)}
-        value={bg.pattern ?? 'none'}
-        onValueChange={(v) => setBackground({ ...bg, pattern: v })}
-      />
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.backgroundKind')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.backgroundKind')}
+          options={[
+            { value: 'pattern', label: t('lounge.profileEditor.backgroundPattern') },
+            { value: 'banner', label: t('lounge.profileEditor.backgroundBanner') },
+            ...(uploaded
+              ? [{ value: 'image', label: t('lounge.profileEditor.backgroundImage') }]
+              : []),
+          ]}
+          value={bg.kind === 'image' && !picture ? 'pattern' : bg.kind}
+          onValueChange={(v) => {
+            const pattern = bg.pattern ?? 'none';
+            if (v === 'image' && uploaded)
+              setBackground({ kind: 'image', pattern, image_id: uploaded.id });
+            else if (v === 'banner') setBackground({ kind: 'banner', pattern });
+            else setBackground({ kind: 'pattern', pattern });
+          }}
+        />
+      </div>
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.pattern')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.pattern')}
+          options={choices(PATTERNS, PATTERN_LABEL)}
+          value={bg.pattern ?? 'none'}
+          onValueChange={(v) => setBackground({ ...bg, pattern: v })}
+        />
+      </div>
       {onUploadBackground && (
         <>
           <input
@@ -214,30 +224,50 @@ export function StylePanel({
           {t('lounge.profileEditor.backgroundRemove')}
         </Button>
       )}
-      <Select
-        aria-label={t('lounge.profileEditor.font')}
-        options={choices(FONTS, FONT_LABEL)}
-        value={style.font}
-        onValueChange={(v) => set({ font: v })}
-      />
-      <Select
-        aria-label={t('lounge.profileEditor.cursor')}
-        options={choices(CURSORS, CURSOR_LABEL)}
-        value={style.cursor}
-        onValueChange={(v) => set({ cursor: v })}
-      />
-      <Select
-        aria-label={t('lounge.profileEditor.overlay')}
-        options={choices(OVERLAYS, OVERLAY_LABEL)}
-        value={style.overlay}
-        onValueChange={(v) => set({ overlay: v })}
-      />
-      <Select
-        aria-label={t('lounge.profileEditor.border')}
-        options={choices(BORDERS, BORDER_LABEL)}
-        value={style.border}
-        onValueChange={(v) => set({ border: v })}
-      />
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.font')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.font')}
+          options={choices(FONTS, FONT_LABEL)}
+          value={style.font}
+          onValueChange={(v) => set({ font: v })}
+        />
+      </div>
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.cursor')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.cursor')}
+          options={choices(CURSORS, CURSOR_LABEL)}
+          value={style.cursor}
+          onValueChange={(v) => set({ cursor: v })}
+        />
+      </div>
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.overlay')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.overlay')}
+          options={choices(OVERLAYS, OVERLAY_LABEL)}
+          value={style.overlay}
+          onValueChange={(v) => set({ overlay: v })}
+        />
+      </div>
+      <div className="pp-field">
+        <span className="pp-field-label" aria-hidden="true">
+          {t('lounge.profileEditor.border')}
+        </span>
+        <Select
+          aria-label={t('lounge.profileEditor.border')}
+          options={choices(BORDERS, BORDER_LABEL)}
+          value={style.border}
+          onValueChange={(v) => set({ border: v })}
+        />
+      </div>
     </div>
   );
 }
