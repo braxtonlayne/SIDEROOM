@@ -155,7 +155,7 @@ export function InboxButton({ iconSize = 20 }: { iconSize?: 16 | 20 }) {
       placement="bottom-end"
       trigger={
         <button type="button" className="lng-icon-btn" aria-label={t('lounge.inbox.title')}>
-          <Icon name="bell" size={iconSize} />
+          <Icon name="inbox" size={iconSize} />
         </button>
       }
     >

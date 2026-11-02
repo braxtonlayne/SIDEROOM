@@ -135,6 +135,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* XC-VIS-002: a long file name ellipsizes instead of widening the card past a phone screen. */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .lng-file-meta {
   display: flex;

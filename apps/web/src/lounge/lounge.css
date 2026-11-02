@@ -865,7 +865,9 @@
 .lng-msg-hover-time {
   visibility: hidden;
   display: block;
-  width: 40px;
+  /* XC-VIS-002: "12:22 AM" wrapped in 40px and doubled the height of every grouped row. */
+  padding-inline-end: 8px;
+  white-space: nowrap;
   text-align: end;
   font-size: 11px;
   line-height: 22px;
@@ -970,6 +972,8 @@
 }
 .lng-attach-file {
   display: inline-flex;
+  max-width: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
