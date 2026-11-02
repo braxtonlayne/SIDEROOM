@@ -1,4 +1,6 @@
 // The Activities shelf (DEV-ACT-004): the approved Activities a member can start in a voice channel.
+// With an Activity already running in the channel (`running`, or learnt from a 409 when two people start at once)
+// the shelf gives way to a Join for that one: a channel runs one Activity at a time (XC-VIS-003 G5).
 import { Button, Modal, Notice } from '@sideroom/ui';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
@@ -14,12 +16,15 @@ export function ActivityLauncher({
   onClose,
   channelId,
   onStarted,
+  running = null,
   api = httpActivityApi,
 }: {
   open: boolean;
   onClose: () => void;
   channelId: string;
   onStarted?: (i: ActivityInstance) => void;
+  /** The channel's running instance, if the opener knows it: offered to join in place of the shelf. */
+  running?: ActivityInstance | null;
   api?: ActivityApi;
 }) {
   const t = useT();
@@ -27,6 +32,7 @@ export function ActivityLauncher({
   const gameServersOn = useGameServersOn();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [current, setCurrent] = useState<ActivityInstance | null>(running);
 
   const start = async (applicationId: string) => {
     setBusy(applicationId);
@@ -37,9 +43,26 @@ export function ActivityLauncher({
       onClose();
     } catch (e) {
       if (e instanceof ApiError && e.status === 403) setError(t('activities.launcher.forbidden'));
-      else if (e instanceof ApiError && e.status === 409)
-        setError(t('activities.launcher.running'));
-      else setError(t('activities.launcher.failed'));
+      else if (e instanceof ApiError && e.status === 409) {
+        // Someone started one first: offer that one when the channel says which, else say so.
+        const now = await api.inChannel(channelId).catch(() => null);
+        if (now?.instance) setCurrent(now.instance);
+        else setError(t('activities.launcher.running'));
+      } else setError(t('activities.launcher.failed'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const join = async (inst: ActivityInstance) => {
+    setBusy(inst.id);
+    setError(null);
+    try {
+      const joined = await api.join(inst.id);
+      onStarted?.(joined);
+      onClose();
+    } catch {
+      setError(t('activities.launcher.failed'));
     } finally {
       setBusy(null);
     }
@@ -58,37 +81,56 @@ export function ActivityLauncher({
       }
     >
       <div className="act-shelf">
-        {failed && (
-          <Notice variant="danger" role="alert">
-            {t('activities.launcher.loadFailed')}
-          </Notice>
+        {current ? (
+          <div className="act-item">
+            <span className="act-item-text">
+              {t('activities.launcher.runningNamed', { name: current.application_name })}
+            </span>
+            <Button
+              size="sm"
+              loading={busy === current.id}
+              disabled={busy !== null}
+              onClick={() => void join(current)}
+              aria-label={t('activities.button.join', { name: current.application_name })}
+            >
+              {t('activities.launcher.join')}
+            </Button>
+          </div>
+        ) : (
+          <>
+            {failed && (
+              <Notice variant="danger" role="alert">
+                {t('activities.launcher.loadFailed')}
+              </Notice>
+            )}
+            {shelf && shelf.items.length === 0 && (
+              <p className="act-muted">{t('activities.launcher.empty')}</p>
+            )}
+            <ul className="act-list" aria-label={t('activities.launcher.listLabel')}>
+              {shelf?.items.map((a) => (
+                <li key={a.application_id} className="act-item">
+                  <span className="act-item-text">
+                    <strong>{a.name}</strong>
+                    {a.development && (
+                      <span className="act-badge">{t('activities.launcher.development')}</span>
+                    )}
+                    {a.description ? <span className="act-muted"> {a.description}</span> : null}
+                  </span>
+                  <Button
+                    size="sm"
+                    loading={busy === a.application_id}
+                    disabled={busy !== null}
+                    onClick={() => void start(a.application_id)}
+                    aria-label={t('activities.launcher.startLabel', { name: a.name })}
+                  >
+                    {t('activities.launcher.start')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            {gameServersOn && <GameServersTile />}
+          </>
         )}
-        {shelf && shelf.items.length === 0 && (
-          <p className="act-muted">{t('activities.launcher.empty')}</p>
-        )}
-        <ul className="act-list" aria-label={t('activities.launcher.listLabel')}>
-          {shelf?.items.map((a) => (
-            <li key={a.application_id} className="act-item">
-              <span className="act-item-text">
-                <strong>{a.name}</strong>
-                {a.development && (
-                  <span className="act-badge">{t('activities.launcher.development')}</span>
-                )}
-                {a.description ? <span className="act-muted"> {a.description}</span> : null}
-              </span>
-              <Button
-                size="sm"
-                loading={busy === a.application_id}
-                disabled={busy !== null}
-                onClick={() => void start(a.application_id)}
-                aria-label={t('activities.launcher.startLabel', { name: a.name })}
-              >
-                {t('activities.launcher.start')}
-              </Button>
-            </li>
-          ))}
-        </ul>
-        {gameServersOn && <GameServersTile />}
         {error && (
           <Notice variant="danger" role="alert">
             {error}

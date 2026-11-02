@@ -3,6 +3,7 @@ import { ThemeProvider } from '@sideroom/ui';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, vi } from 'vitest';
+import { ApiError } from '../../api/client';
 import { emitDispatch } from '../../store/events';
 import type { ActivityApi } from '../api';
 import { ActivityDock, ActivityWindow } from '../ActivityDock';
@@ -288,5 +289,40 @@ describe('ActivityLauncher', () => {
     const api = fakeApi({ shelf: vi.fn(async () => ({ enabled: true, items: [] })) });
     wrap(<ActivityLauncher open onClose={() => undefined} channelId="3" api={api} />);
     expect(await screen.findByText('No Activities are available yet.')).toBeInTheDocument();
+  });
+
+  it('offers to join the running Activity instead of the shelf (XC-VIS-003 G5)', async () => {
+    const api = fakeApi();
+    const onStarted = vi.fn();
+    const onClose = vi.fn();
+    wrap(
+      <ActivityLauncher
+        open
+        onClose={onClose}
+        channelId="3"
+        onStarted={onStarted}
+        running={inst()}
+        api={api}
+      />,
+    );
+    expect(await screen.findByText('Chess is running in this channel.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Start / })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Join Chess' }));
+    expect(api.join).toHaveBeenCalledWith('9');
+    expect(api.launch).not.toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ id: '9' }));
+  });
+
+  it('turns a lost race (409) into the Join offer', async () => {
+    const api = fakeApi({
+      launch: vi.fn(async () => {
+        throw new ApiError(409, 'running');
+      }),
+    });
+    wrap(<ActivityLauncher open onClose={() => undefined} channelId="3" api={api} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Start Chess' }));
+    expect(await screen.findByRole('button', { name: 'Join Chess' })).toBeInTheDocument();
+    expect(api.inChannel).toHaveBeenCalledWith('3');
   });
 });
