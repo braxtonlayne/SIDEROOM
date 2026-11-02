@@ -3,6 +3,10 @@
 // accumulated here as floats and only the rounded integer yaw/pitch ever reaches the simulation, so the same
 // recorded input replays identically.
 //
+// Touch (client/touch.js) feeds the same accumulators: `addLook` is the mouse path with a scale, and the stick and
+// buttons arrive as a bit mask (`setTouchButtons`) OR-ed into the keyboard's. So a phone player's input is the same
+// integer yaw/pitch/bit set a keyboard player's is.
+//
 // Pointer lock: the sandbox allows it (`allow-pointer-lock`). Esc releases it (the browser does that); the game
 // then pauses and shows "click to resume", and a click on the page asks for it again. Browsers refuse a new
 // lock for about a second after Esc, so a refused request just leaves the prompt up for another click.
@@ -36,6 +40,9 @@ export class InputState {
     this.yaw = 0;
     this.pitch = 0;
     this.locked = false;
+    /** Touch controls are shown and playing (no pointer lock on a phone). */
+    this.touchOn = false;
+    this.touchButtons = 0;
     /** @type {Set<(locked: boolean) => void>} */
     this.lockListeners = new Set();
     const doc = win.document;
@@ -49,11 +56,7 @@ export class InputState {
     };
     /** @param {MouseEvent} e */
     this.onMove = (e) => {
-      if (!this.locked) return;
-      const k = UNITS_PER_PX * this.settings.sensitivity;
-      this.yaw -= e.movementX * k;
-      this.pitch += (this.settings.invertY ? e.movementY : -e.movementY) * k;
-      this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
+      if (this.locked) this.addLook(e.movementX, e.movementY);
     };
     this.onLockChange = () => {
       this.locked = doc.pointerLockElement === this.target;
@@ -73,6 +76,29 @@ export class InputState {
     doc.addEventListener('pointerlockerror', this.onLockError);
   }
 
+  /**
+   * Turn the view by a pointer movement of `dx`, `dy` pixels (the mouse, or a finger dragging). The float
+   * accumulators are rounded only in `sample()`.
+   * @param {number} dx @param {number} dy @param {number} [scale] 1 for a mouse pixel
+   */
+  addLook(dx, dy, scale = 1) {
+    const k = UNITS_PER_PX * this.settings.sensitivity * scale;
+    this.yaw -= dx * k;
+    this.pitch += (this.settings.invertY ? dy : -dy) * k;
+    this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch));
+  }
+
+  /** The touch stick and buttons as a BTN bit set (0 lets go of everything). @param {number} mask */
+  setTouchButtons(mask) {
+    this.touchButtons = mask & 63;
+  }
+
+  /** Touch controls on or off (on while the match is being played with them). @param {boolean} on */
+  setTouch(on) {
+    this.touchOn = on;
+    if (!on) this.touchButtons = 0;
+  }
+
   /** Ask for pointer lock (call from a click). Resolves false when the browser refuses (too soon after Esc). */
   async requestLock() {
     try {
@@ -82,6 +108,12 @@ export class InputState {
     } catch {
       return false;
     }
+  }
+
+  /** The element that takes pointer lock changed (the renderer swapped in a fresh canvas after a GPU loss). @param {HTMLElement} el */
+  setTarget(el) {
+    this.target = el;
+    this.locked = this.win.document.pointerLockElement === el;
   }
 
   /** @param {(locked: boolean) => void} cb */
@@ -95,7 +127,7 @@ export class InputState {
     const base = idleInput();
     base.yaw = wrapYaw(this.yaw);
     base.pitch = Math.round(this.pitch);
-    base.buttons = this.locked ? this.buttons : 0;
+    base.buttons = (this.locked ? this.buttons : 0) | (this.touchOn ? this.touchButtons : 0);
     return base;
   }
 
