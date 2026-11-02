@@ -55,7 +55,7 @@ describe('the emulator page (ACT-EMU-001)', () => {
       ]),
     );
     open();
-    expect(await screen.findByRole('heading', { name: 'Games', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Emulator', level: 1 })).toBeInTheDocument();
     expect(await screen.findByText('Alpha Quest')).toBeInTheDocument();
     expect(screen.getByText('Beta Run')).toBeInTheDocument();
     expect(screen.getByText(/NES - FCEUmm/)).toBeInTheDocument();
