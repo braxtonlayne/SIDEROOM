@@ -57,9 +57,22 @@
   font-size: 0.8125rem;
   cursor: pointer;
 }
+.srm-toggle {
+  justify-self: start;
+}
+.srm-toggle:hover,
+.srm-chip:hover {
+  background: var(--ui-bg-hover, transparent);
+}
+.srm-toggle:focus-visible,
+.srm-chip:focus-visible,
+.srm-banner-off:focus-visible {
+  outline: 2px solid var(--ui-focus, currentColor);
+  outline-offset: 2px;
+}
 .srm-toggle[aria-pressed='true'],
 .srm-chip[aria-pressed='true'] {
-  background: var(--ui-surface-2, transparent);
+  background: var(--ui-bg-hover, transparent);
   border-color: var(--ui-accent);
   font-weight: 600;
 }

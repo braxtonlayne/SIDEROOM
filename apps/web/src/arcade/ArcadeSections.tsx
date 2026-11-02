@@ -71,7 +71,11 @@ export function FeaturedSection({
           </GameCard>
         ))}
       </div>
-      {featured.length === 0 && <p className="arc-dim">{t('arcade.featured.empty')}</p>}
+      {featured.length === 0 && (
+        <p className="arc-dim">
+          {t(emulatorOn ? 'arcade.featured.onlyEmulator' : 'arcade.featured.empty')}
+        </p>
+      )}
     </section>
   );
 }
@@ -148,7 +152,9 @@ export function CartridgesSection({
   api: Pick<ArcadeApi, 'cartridges' | 'addCartridge' | 'removeCartridge'>;
 }) {
   const t = useT();
-  const [guildId, setGuildId] = useState(guilds[0]?.id ?? '');
+  const [picked, setGuildId] = useState(guilds[0]?.id ?? '');
+  // The list can arrive after the first render (fetched before the gateway is up): fall back to its first server.
+  const guildId = guilds.some((g) => g.id === picked) ? picked : (guilds[0]?.id ?? '');
   const [items, setItems] = useState<Cartridge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);

@@ -1,15 +1,74 @@
 /* The emulator page (ACT-EMU-001). Semantic tokens only (--ui-*); logical properties only. */
 .emu-page {
   display: grid;
-  gap: 16px;
-  padding-block: 16px;
+  gap: 20px;
+  align-content: start;
+  padding-block: 24px 48px;
   padding-inline: 16px;
   max-inline-size: 60rem;
   margin-inline: auto;
 }
+.emu-page h1,
+.emu-page h2,
+.emu-head p {
+  margin: 0;
+}
+.emu-page h1 {
+  font-family: var(--ui-font-display, inherit);
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.emu-page h2 {
+  font-size: 1.25rem;
+}
+.emu-head {
+  display: grid;
+  gap: 8px;
+}
+.emu-back {
+  justify-self: start;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.emu-back::before {
+  content: '← ';
+  content: '← ' / '';
+}
+.emu-back:hover {
+  color: var(--ui-text);
+  text-decoration: underline;
+}
+.emu-back:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.emu-section {
+  display: grid;
+  gap: 12px;
+}
 .emu-dim {
   color: var(--ui-text-muted, inherit);
   font-size: 0.875rem;
+}
+.emu-search {
+  box-sizing: border-box;
+  min-block-size: 40px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 6px);
+  background: var(--ui-bg-raised, var(--ui-bg));
+  color: var(--ui-text);
+  font: inherit;
+}
+.emu-search:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.emu-foot {
+  margin: 0;
+  font-size: 0.75rem;
 }
 .emu-stage {
   display: grid;
@@ -70,12 +129,19 @@
   padding: 10px 12px;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised, var(--ui-bg));
 }
 .emu-filter {
   display: grid;
   gap: 4px;
   max-inline-size: 20rem;
-  margin-block-end: 8px;
+}
+.emu-filter > span {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .emu-bios {
   display: grid;
@@ -105,7 +171,7 @@
   border-block-end: 1px solid var(--ui-border);
 }
 .emu-map-table tr[data-current] {
-  background: var(--ui-bg-muted, transparent);
+  background: var(--ui-bg-hover, transparent);
   font-weight: 600;
 }
 
