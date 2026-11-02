@@ -384,6 +384,22 @@ async function fakeShelves(page: Page) {
       ],
     }),
   );
+  // The Study lists a shelf through its storage mount (like study-shelves.spec.ts fakes it); without this the
+  // capture always showed "Could not load this shelf".
+  await page.route('**/api/v1/storage/mounts/*/objects*', (r) => {
+    const mount = new URL(r.request().url()).pathname.split('/')[5] ?? '';
+    return json(r, {
+      folders: [],
+      objects: (files[mount] ?? []).map((key, i) => ({
+        key,
+        size: 1000 * (i + 1),
+        last_modified: '2026-10-01T00:00:00Z',
+      })),
+      next_cursor: null,
+      can_upload: false,
+      can_manage: mount === '9501',
+    });
+  });
   await page.route(/\/api\/v1\/shelves\/\d+\/objects(\?.*)?$/, (r) => {
     const shelf = new URL(r.request().url()).pathname.split('/')[4] ?? '';
     return json(r, {
