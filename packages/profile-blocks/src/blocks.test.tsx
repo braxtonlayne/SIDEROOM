@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { BlocksEnv, ProfileRenderer, type BlockLike, type PageLike } from './index';
+import { inkOn } from './ProfileRenderer';
 
 const t = (key: string, values?: Record<string, string | number>) =>
   values ? `${key} ${JSON.stringify(values)}` : key;
@@ -127,5 +128,31 @@ describe('tip entries of the Links block (ARC-ROOM-001)', () => {
       'href',
       'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
     );
+  });
+});
+
+describe('the initial on the accent circle (XC-VIS-004)', () => {
+  const ratio = (a: string, b: string) => {
+    const lum = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16);
+      const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+    };
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi! + 0.05) / (lo! + 0.05);
+  };
+
+  it.each(['#5865f2', '#c2b08f', '#ffffff', '#000000', '#23a55a', '#f0b232', '#00a8fc', '#9b59b6'])(
+    'reads at AA on %s',
+    (accent) => {
+      expect(ratio(accent, inkOn(accent))).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it('is white on the default blue', () => {
+    expect(inkOn('#5865f2')).toBe('#ffffff');
   });
 });

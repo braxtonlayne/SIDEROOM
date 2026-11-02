@@ -349,7 +349,8 @@
   block-size: 40px;
   border-radius: 50%;
   background: var(--pp-accent);
-  color: var(--pp-bg);
+  /* XC-VIS-004: ink chosen from the accent (AA), not the page background (dark on blue). */
+  color: var(--pp-accent-ink, #fff);
   font-weight: 700;
   overflow: hidden;
 }
