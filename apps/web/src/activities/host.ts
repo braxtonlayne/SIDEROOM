@@ -17,6 +17,9 @@ import {
   SAVE_FILE_TYPES,
   STORAGE_CAPABILITY,
   STORAGE_LIMITS,
+  BYOS_READ_CAPABILITY,
+  isShelfObjectRef,
+  type ShelfObjectUrl,
   type RpcErrorBody,
   type SpeakingUpdate,
   type VoiceStateUpdate,
@@ -130,6 +133,12 @@ export interface HostEnv {
   proxyToken?: (instanceId: string) => Promise<string | null>;
   /** Hand the person a file the Activity produced (after they agreed); the host page downloads it. */
   saveFile?: (name: string, mime: string, bytes: Uint8Array) => void;
+  /**
+   * D-389: mint the per-object URL of one shelf object with the member's own session
+   * (`GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the grant and every delisting). Absent: no
+   * `shelfObjectUrl`.
+   */
+  shelfObjectUrl?: (shelfId: string, objectHash: string) => Promise<ShelfObjectUrl>;
   applicationId: string;
   instance: () => ActivityInstance;
   channel: () => { id: string; guild_id: string; name: string };
@@ -141,7 +150,8 @@ export interface HostEnv {
     ask:
       | { kind: 'authorize'; scopes: string[] }
       | { kind: 'link'; url: string }
-      | { kind: 'save'; name: string; mime: string; size: number },
+      | { kind: 'save'; name: string; mime: string; size: number }
+      | { kind: 'shelf'; shelfId: string; objectHash: string },
   ) => Promise<boolean>;
   openLink: (url: string) => void;
   post: (frame: Frame) => void;
@@ -307,6 +317,11 @@ export function createActivityHost(env: HostEnv): ActivityHost {
 
   const hasStorage = () =>
     !!env.storage && (env.instance().capabilities ?? []).includes(STORAGE_CAPABILITY);
+
+  /** Shelf objects the member let this frame open (asked once per object). */
+  const shelfAllowed = new Set<string>();
+  const hasByosRead = () =>
+    !!env.shelfObjectUrl && (env.instance().capabilities ?? []).includes(BYOS_READ_CAPABILITY);
 
   const hasData = () => !!env.data && (env.instance().capabilities ?? []).includes(DATA_CAPABILITY);
 
@@ -501,6 +516,35 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         store.set(key, value);
         return {};
       }
+      case 'shelfObjectUrl': {
+        // D-389: one object of a shelf the member can open, after the member said yes (D-399: no server data the
+        // member has not granted). The server checks the grant, the kind rule and every delisting when it mints.
+        if (!hasByosRead() || !env.shelfObjectUrl) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the byos_read capability.',
+          );
+        }
+        if (!isShelfObjectRef(args)) {
+          throw invalid('shelf_id must be an id and object_hash a lowercase hex SHA-256.');
+        }
+        const key = `${args.shelf_id}/${args.object_hash}`;
+        if (!shelfAllowed.has(key)) {
+          const yes = await env.confirm({
+            kind: 'shelf',
+            shelfId: args.shelf_id,
+            objectHash: args.object_hash,
+          });
+          if (!yes) throw new RpcError(RPC_ERRORS.denied, 'The person declined.');
+          shelfAllowed.add(key);
+        }
+        try {
+          const minted = await env.shelfObjectUrl(args.shelf_id, args.object_hash);
+          return { url: minted.url, expires_at: minted.expires_at };
+        } catch {
+          throw new RpcError(RPC_ERRORS.failed, 'That file is not available.');
+        }
+      }
       case 'saveFile': {
         if (!env.saveFile) {
           throw new RpcError(RPC_ERRORS.notAuthorized, 'Saving files is not available.');
@@ -689,6 +733,7 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       if (presenceSet) env.setPresence(null);
       presenceSet = false;
       subscribed.clear();
+      shelfAllowed.clear();
       ready = false;
       toldHost = null;
     },

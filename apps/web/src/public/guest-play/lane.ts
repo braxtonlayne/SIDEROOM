@@ -35,7 +35,8 @@ export function guestLane(lobby: Lobby): GuestLaneKit {
     if (d.kind === 'sys') {
       const previous = host;
       host = d.host;
-      if (previous !== null && previous !== host) for (const l of [...hostListeners]) l(host, previous);
+      if (previous !== null && previous !== host)
+        for (const l of [...hostListeners]) l(host, previous);
       for (const w of [...waiters]) w();
       return;
     }

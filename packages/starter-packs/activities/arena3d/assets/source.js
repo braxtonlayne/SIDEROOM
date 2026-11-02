@@ -5,9 +5,9 @@
 // - BundledAssetSource: files shipped in the bundle, by relative URL (assets/... next to this file). Fetching
 //   needs `connect-src 'self'`, which the manifest gets by declaring `"connect": ["self"]` (the sandbox CSP is
 //   `connect-src 'none'` otherwise); images load through <img> (img-src 'self') and need nothing extra.
-// - ShelfAssetSource: models from a member's shelf (`byos_read`, through short-lived per-object URLs). The SDK
-//   has no command for that yet, so every call rejects with AssetNotAvailableError. It exists so a game can be
-//   written against the interface now.
+// - ShelfAssetSource: models from a member's shelf (`byos_read`, D-389): SIDE ROOM's `shelfObjectUrl` command gives a
+//   short-lived URL for one object, which this fetches. Outside SIDE ROOM, or for a guest, it rejects with
+//   AssetNotAvailableError.
 
 /**
  * @typedef {object} AssetSource
@@ -89,34 +89,68 @@ export class BundledAssetSource {
 }
 
 const SHELF_MESSAGE =
-  'Reading models and textures from a member\'s shelf (byos_read) is not available yet: the Embedded App SDK has ' +
-  'no command that hands an activity a short-lived URL for one shelf object. Ship the asset in the bundle for now.';
+  "Reading from a member's shelf needs SIDE ROOM's shelfObjectUrl command (a member, not a guest, in an Activity that " +
+  'declares byos_read). Ship the asset in the bundle, or run inside SIDE ROOM.';
 
-/** @implements {AssetSource} */
+/**
+ * A shelf object's path: '<shelf id>/<object hash>' (the hash from the shelf's catalog).
+ * @param {string} path @returns {{ shelf_id: string, object_hash: string } | null}
+ */
+export function shelfRef(path) {
+  const m = /^([0-9]{1,20})\/([0-9a-f]{64})$/.exec(typeof path === 'string' ? path : '');
+  return m ? { shelf_id: m[1], object_hash: m[2] } : null;
+}
+
+/**
+ * Models and textures from a member's shelf (D-389, `byos_read`). Each read asks SIDE ROOM for a short-lived URL of
+ * that one object (`sdk.commands.shelfObjectUrl`; the member is asked once per object) and fetches it. The URL is on
+ * the shelf's storage host, so the fetch passes the sandbox CSP only when the manifest's `connect` list names that
+ * host (CSP is per host; docs/dev/design/byos-read-activities.md). Guests never get shelf objects (D-397).
+ * @implements {AssetSource}
+ */
 export class ShelfAssetSource {
-  /** @param {{ sdk?: unknown }} [opt] the SDK the future command will go through */
+  /**
+   * @param {{ sdk?: { config?: { guest?: boolean, capabilities?: string[] } | null,
+   *   commands?: { shelfObjectUrl?: (a: { shelf_id: string, object_hash: string }) => Promise<{ url: string }> } } | null,
+   *   fetch?: typeof fetch }} [opt]
+   */
   constructor(opt = {}) {
-    this.kind = 'shelf';
+    this.kind = "shelf";
     this.sdk = opt.sdk ?? null;
+    this.fetchImpl = opt.fetch ?? ((/** @type {any} */ u, /** @type {any} */ o) => fetch(u, o));
   }
 
-  /** Always false until the SDK has the command. */
-  static get available() {
-    return false;
+  /** Whether this page can read shelf objects: a member's SDK with the command, and the byos_read capability. */
+  get available() {
+    const sdk = this.sdk;
+    return !!(
+      sdk &&
+      typeof sdk.commands?.shelfObjectUrl === "function" &&
+      sdk.config &&
+      !sdk.config.guest &&
+      sdk.config.capabilities?.includes("byos_read")
+    );
   }
 
-  /** @param {string} _path @returns {Promise<Uint8Array>} */
-  async bytes(_path) {
-    throw new AssetNotAvailableError(SHELF_MESSAGE);
+  /** @param {string} path "<shelf id>/<object hash>" @returns {Promise<Uint8Array>} */
+  async bytes(path) {
+    if (!this.available) throw new AssetNotAvailableError(SHELF_MESSAGE);
+    const ref = shelfRef(path);
+    if (!ref) throw new Error(`shelf path ${JSON.stringify(path)} is not "<shelf id>/<object hash>"`);
+    const { url } = await /** @type {any} */ (this.sdk).commands.shelfObjectUrl(ref);
+    const res = await this.fetchImpl(url, { credentials: "omit" });
+    if (!res.ok) throw new Error(`shelf object ${path}: HTTP ${res.status}`);
+    return new Uint8Array(await res.arrayBuffer());
   }
 
-  /** @param {string} _path @returns {Promise<any>} */
-  async json(_path) {
-    throw new AssetNotAvailableError(SHELF_MESSAGE);
+  /** @param {string} path @returns {Promise<any>} */
+  async json(path) {
+    return JSON.parse(new TextDecoder().decode(await this.bytes(path)));
   }
 
-  /** @param {string} _path @returns {Promise<ImageBitmap>} */
-  async image(_path) {
-    throw new AssetNotAvailableError(SHELF_MESSAGE);
+  /** @param {string} path @returns {Promise<ImageBitmap>} */
+  async image(path) {
+    const data = await this.bytes(path);
+    return createImageBitmap(new Blob([data]));
   }
 }

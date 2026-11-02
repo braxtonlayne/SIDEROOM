@@ -31,6 +31,11 @@
 //   saveFile { name, mime, b } -> { saved }   ARC-SBX-001: hand the person a file (base64, at most 8 MiB, png, jpeg,
 //     webp, json or plain text only). A sandbox without `allow-downloads` cannot save one itself, so the host
 //     asks the person and downloads it from the app page.
+//   shelfObjectUrl { shelf_id, object_hash } -> { url, expires_at }   D-389 (wave 46), needs the `byos_read` capability:
+//     a presigned GET for ONE object of a shelf the member can open (their own, a friend's grant, a server shelf),
+//     the same per-object URL the Study uses (ten minutes at most). The member is asked first, once per object
+//     and frame. Never for a guest (D-397). The URL is on the shelf's storage host, so the game can fetch it only
+//     when its reviewed manifest names that host in `connect` (CSP is per host; docs/dev/design/byos-read-activities.md).
 //   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
 //     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
@@ -62,6 +67,7 @@ export const COMMANDS = [
   'storageSet',
   'storageRemove',
   'saveFile',
+  'shelfObjectUrl',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -251,3 +257,30 @@ export interface HostChanged {
 
 /** The capability a bundle declares to keep running when its host leaves (D-388). */
 export const HOST_HANDOFF_CAPABILITY = 'host_handoff';
+
+/** The capability a bundle declares to use `shelfObjectUrl` (D-389). */
+export const BYOS_READ_CAPABILITY = 'byos_read';
+
+/** `shelfObjectUrl` arguments: a shelf (mount) id and an object hash from that shelf's catalog. */
+export interface ShelfObjectRef {
+  shelf_id: string;
+  object_hash: string;
+}
+
+/** `shelfObjectUrl` result: a presigned GET for one object and when it stops working (ISO 8601). */
+export interface ShelfObjectUrl {
+  url: string;
+  expires_at: string;
+}
+
+/** Whether `r` names a shelf object: a snowflake id and a lowercase hex SHA-256. */
+export function isShelfObjectRef(r: unknown): r is ShelfObjectRef {
+  if (typeof r !== 'object' || r === null) return false;
+  const o = r as Record<string, unknown>;
+  return (
+    typeof o.shelf_id === 'string' &&
+    /^[0-9]{1,20}$/.test(o.shelf_id) &&
+    typeof o.object_hash === 'string' &&
+    /^[0-9a-f]{64}$/.test(o.object_hash)
+  );
+}

@@ -14,6 +14,8 @@ import {
   type ReadyConfig,
   type RpcErrorBody,
   type SubscribeArgs,
+  type ShelfObjectRef,
+  type ShelfObjectUrl,
   STORAGE_LIMITS,
   STORAGE_CAPABILITY,
   PROXY_TOKEN_HEADER,
@@ -290,6 +292,11 @@ export class SideRoomSDK {
      */
     setActivity: (args: { activity: ActivityInput | null }) =>
       this.call<ActivityInput | null>('setActivity', args),
+    /**
+     * D-389: a short-lived URL for one object of a shelf the member can open (needs `byos_read`; the member is asked
+     * first). Fetching it needs the shelf's storage host in the manifest's `connect` list. Members only.
+     */
+    shelfObjectUrl: (args: ShelfObjectRef) => this.call<ShelfObjectUrl>('shelfObjectUrl', args),
     /** Offer the person a file to save (png, jpeg, webp, json or text, at most 8 MiB). Resolves `{ saved }`. */
     saveFile: (args: { name: string; mime: string; bytes: Uint8Array }) =>
       this.call<{ saved: boolean }>('saveFile', {

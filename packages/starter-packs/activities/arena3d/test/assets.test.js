@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { flattenScene, loadGltf, parseDataUri } from '../assets/gltf.js';
-import { AssetNotAvailableError, BundledAssetSource, ShelfAssetSource, assetPathProblem } from '../assets/source.js';
+import { AssetNotAvailableError, BundledAssetSource, ShelfAssetSource, assetPathProblem, shelfRef } from '../assets/source.js';
 import { FLOATS_PER_VERTEX } from '../render/meshes.js';
 import { mat4 } from '../render/math.js';
 
@@ -83,10 +83,34 @@ test('the bundled source resolves relative paths only', async () => {
   await assert.rejects(src.json('../package.json'), /\.\./);
 });
 
-test('the shelf source is a stub that says it is not available yet', async () => {
+test('the shelf source: unavailable without a member SDK that declares byos_read', async () => {
   const shelf = new ShelfAssetSource();
-  assert.equal(ShelfAssetSource.available, false);
+  assert.equal(shelf.available, false);
   for (const call of [() => shelf.bytes('x.glb'), () => shelf.json('x.gltf'), () => shelf.image('x.ktx2')]) {
-    await assert.rejects(call(), (e) => e instanceof AssetNotAvailableError && /not available yet/.test(e.message));
+    await assert.rejects(call(), (e) => e instanceof AssetNotAvailableError && /shelfObjectUrl/.test(e.message));
   }
+  const guest = new ShelfAssetSource({ sdk: { config: { guest: true, capabilities: ['byos_read'] }, commands: { shelfObjectUrl: async () => ({ url: 'x' }) } } });
+  assert.equal(guest.available, false, 'never for a guest (D-397)');
+});
+
+test('the shelf source mints a URL per object through the SDK and fetches it', async () => {
+  const hash = 'b'.repeat(64);
+  /** @type {any[]} */
+  const asked = [];
+  /** @type {string[]} */
+  const fetched = [];
+  const shelf = new ShelfAssetSource({
+    sdk: {
+      config: { capabilities: ['datachannel', 'byos_read'] },
+      commands: { shelfObjectUrl: async (a) => (asked.push(a), { url: `https://bucket.example.com/o/${a.object_hash}?sig=1` }) },
+    },
+    fetch: /** @type {any} */ (async (/** @type {string} */ u) => (fetched.push(u), new Response(JSON.stringify({ asset: { version: '2.0' } })))),
+  });
+  assert.equal(shelf.available, true);
+  const json = await shelf.json(`42/${hash}`);
+  assert.equal(json.asset.version, '2.0');
+  assert.deepEqual(asked, [{ shelf_id: '42', object_hash: hash }]);
+  assert.deepEqual(fetched, [`https://bucket.example.com/o/${hash}?sig=1`]);
+  await assert.rejects(shelf.bytes('models/beacon.json'), /shelf id/);
+  assert.equal(shelfRef(`1/${hash.toUpperCase()}`), null);
 });
