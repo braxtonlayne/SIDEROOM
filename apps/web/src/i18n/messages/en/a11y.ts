@@ -12,4 +12,6 @@ export default {
   'a11y.notice.error': 'Error',
   'a11y.notice.dismiss': 'Dismiss',
   'a11y.toast.region': 'Notifications',
+  'a11y.colorPicker.hex': 'Hex',
+  'a11y.colorPicker.pick': 'Pick from screen',
 } satisfies Record<string, string>;

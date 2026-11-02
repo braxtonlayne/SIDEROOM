@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { cx } from "../../util/cx";
 import { isHexColor } from "../../util/contrast";
+import { useUiStrings } from "../../util/uiStrings";
 import styles from "./ColorPicker.module.css";
 
 export const DEFAULT_SWATCHES = [
@@ -44,6 +45,7 @@ function normalize(hex: string): string {
 /** DS-PRIM-013: swatches + hex field + eyedropper (where the browser supports `EyeDropper`). */
 export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueChange, swatches = DEFAULT_SWATCHES, className }: ColorPickerProps) {
   const id = useId();
+  const words = useUiStrings();
   const [internal, setInternal] = useState(defaultValue);
   const current = value ?? internal;
   const [text, setText] = useState(current);
@@ -76,7 +78,7 @@ export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueCha
       <div className={styles.row}>
         <span className={styles.preview} style={{ background: isHexColor(current) ? current : "transparent" }} aria-hidden="true" />
         <label htmlFor={`${id}-hex`} className={styles.hexLabel}>
-          Hex
+          {words.colorHex}
         </label>
         <input
           id={`${id}-hex`}
@@ -105,7 +107,7 @@ export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueCha
               }
             }}
           >
-            Pick from screen
+            {words.colorPick}
           </button>
         )}
       </div>

@@ -15,6 +15,9 @@ export interface UiStrings {
   dismiss: string;
   /** Name of the toast live region. */
   notifications: string;
+  /** ColorPicker: the hex field's label and the eyedropper button. */
+  colorHex: string;
+  colorPick: string;
 }
 
 export const UI_STRINGS_EN: UiStrings = {
@@ -24,6 +27,8 @@ export const UI_STRINGS_EN: UiStrings = {
   noticeError: "Error",
   dismiss: "Dismiss",
   notifications: "Notifications",
+  colorHex: "Hex",
+  colorPick: "Pick from screen",
 };
 
 const UiStringsContext = createContext<UiStrings>(UI_STRINGS_EN);
