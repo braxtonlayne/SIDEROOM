@@ -8,7 +8,7 @@
 //! * `btc` is a `bitcoin:` URI with a base58 or bech32 (`bc1`) address and only the `amount`, `label` and
 //!   `message` parameters; the checksum of a `bc1` address is verified (bech32 for version 0, bech32m for 1 to 16,
 //!   FU-5), a legacy base58 address is checked for shape only (its checksum needs SHA-256, and `sha2` is not a
-//! workspace dependency of `sr-core`: the wallet that scans the QR still verifies it);
+//!   workspace dependency of `sr-core`: the wallet that scans the QR still verifies it);
 //! * `lightning` is a `lightning:` URI carrying a BOLT11 invoice, an LNURL or a BOLT12 offer.
 //!
 //! The web client mirrors these rules in `apps/web/src/arcade/tips.ts`; the server is the authority.
