@@ -315,7 +315,8 @@ function Shell() {
         <NoticesBar />
         <ViewAsBanner />
         <div className="lng-body" {...(isMobile ? swipe : {})}>
-          <div className="lng-left" data-pane="list">
+          {/* O6: on phones the panes off screen leave the tab order and the accessibility tree. */}
+          <div className="lng-left" data-pane="list" inert={isMobile && pane !== 'list'}>
             <GuildRail />
             <div className="lng-left-col">
               {isHome ? (
@@ -326,7 +327,12 @@ function Shell() {
               <UserPanel />
             </div>
           </div>
-          <main className="lng-main" data-pane="chat" id="lounge-main">
+          <main
+            className="lng-main"
+            data-pane="chat"
+            id="lounge-main"
+            inert={isMobile && pane !== 'chat'}
+          >
             <Main isMobile={isMobile} onBack={goList} />
           </main>
           {showRight && (
@@ -343,6 +349,7 @@ function Shell() {
               <aside
                 className="lng-right"
                 data-pane="members"
+                inert={isMobile && pane !== 'members'}
                 style={isMobile ? undefined : { width }}
                 aria-label={
                   isHome ? t('lounge.loungeShell.profile') : t('lounge.loungeShell.memberList')

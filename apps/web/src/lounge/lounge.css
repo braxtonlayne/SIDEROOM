@@ -1916,3 +1916,35 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
+
+/* O1: a pending message request opened by link (shell/MessageRequestView.tsx). */
+.lng-request-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-block: 48px;
+  padding-inline: 16px;
+  text-align: center;
+  overflow-y: auto;
+}
+.lng-request-view-name {
+  margin-block: 8px 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+.lng-request-view-sub,
+.lng-request-view-help {
+  margin: 0;
+  max-inline-size: 40ch;
+}
+.lng-request-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-block: 12px;
+}
