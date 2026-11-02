@@ -5,7 +5,7 @@ export default {
   'settings.storageGrants.grant.viewGames': 'View shelf games (ROMs under emu/roms)',
 
   // ---- the page
-  'games.page.title': 'Games',
+  'games.page.title': 'Emulator',
   'games.page.intro':
     'Play retro games in your browser. ROMs come from the emu/roms folder of your own bucket and of the servers you are in; the game runs on your device and your saves go to your own bucket, never to this instance.',
   'games.page.legal':

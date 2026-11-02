@@ -48,7 +48,15 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
   - include tests for new behavior (unit tests in Rust, component tests in Vitest, an e2e test for user-visible flows);
   - update docs when behavior or an API changes (the API reference is generated from code; prose specs are edited by hand);
   - tick the inventory checkboxes they complete;
+  - pass the **visual check** when they add or change anything a person sees (below);
   - fill in the PR template.
+- **Visual check (owner rule, 2026-11-02):** a change that adds or alters a page, dialog, panel or other visible UI is not done until it has been looked at. It is part of the work, not a separate round.
+  1. **New routes go into the sweep.** Every new route (and every new public surface) gets an entry in `e2e/tests/page-sweep.spec.ts`, with the data it needs to look real, so the sweep always covers the whole app.
+  2. **The builder shoots its routes.** Run the sweep for the routes it touched (`SR_E2E_SWEEP=1 SR_SWEEP_ONLY='<route regex>'`, see `docs/dev/handoff/fix-visual-sweep.md` "How to run the sweep"), at desktop 1280x800 and phone 375x812, in Lounge Light and the dark theme. It reads the PNGs itself and fixes what looks wrong: overflow, overlap, clipped or off-screen controls, raw i18n keys, broken empty/loading/error states, unreadable contrast, theme not applied. The sweep's automatic checks (errors, failed requests, blank page, phone overflow, raw keys) must be clean for those routes, or each remaining flag explained.
+  3. **The builder clicks through its flows** the way a person would (create, edit, save, delete, navigate back) and fixes what breaks.
+  4. **The handoff lists the routes it shot** and where the screenshots are, with before/after for anything it fixed.
+  5. **The integrator re-shoots every route the wave touched on the merged tree** (both viewports, both themes), looks at them, and fixes or sends back anything wrong before the PR is opened. A PR that changes visible UI without this does not merge.
+  6. **Specs the sweep or a flow uses must load in CI without local files:** call `test.skip(...)` first, read `e2e/.state/*` only inside tests, and never commit scratch probes.
 - **Migrations** are forward-only SQL files in `crates/sr-db/migrations/`. Never edit a merged migration.
 - **The API contract** is generated from Rust (`utoipa` → OpenAPI → TypeScript client). Never hand-edit `packages/api-client/src/generated`.
 - **Review:** the repository owner reviews and merges. Agents never merge their own PRs.
@@ -62,6 +70,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 
 - The acceptance criteria in the relevant spec section are met and tested.
 - The feature works in the latest Chrome, Firefox, and Safari, and as an installed PWA on Android and iOS.
+- Every page it adds or changes is in the page sweep and has passed the visual check (section 4): shot at desktop and phone width in light and dark, looked at, and fixed.
 - The feature respects permissions server-side. Client-side hiding is never the security boundary.
 - Errors are typed (`thiserror` in libraries, `anyhow` only in binaries) and user-facing errors have copy.
 - New settings appear in the correct settings menu through the feature registry.

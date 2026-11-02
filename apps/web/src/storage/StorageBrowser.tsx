@@ -30,8 +30,24 @@ const sizeText = (n: number) =>
  * presigned previews of images and audio, and "copy link" which copies a presigned URL and shows its expiry.
  * Presigned URLs live in component state only: never stored, never logged, dropped at `expires_at`.
  */
-export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: string }) {
+/** Where "Back" goes without history: the settings page that opened the browser, else User Settings > Storage. */
+export function backTarget(back: string | undefined): string {
+  // Only a page of Settings (no open redirect: a full URL or a protocol-relative path never starts like this).
+  return back && back.startsWith('/settings/') ? back : '/settings/user/storage';
+}
+
+export function StorageBrowser({
+  mountId,
+  prefix,
+  back,
+}: {
+  mountId: string;
+  prefix: string;
+  /** The settings page that opened the browser (`?back=`), kept while moving between folders. */
+  back?: string | undefined;
+}) {
   const t = useT();
+  const keep = back ? { back } : {};
   const router = useRouter();
   const [page, setPage] = useState<ObjectPage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +132,7 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
       {/* The browser is a page of its own (no app chrome): a way back to where the viewer opened it. */}
       <a
         className="sto-back"
-        href="/settings/user/storage"
+        href={backTarget(back)}
         onClick={(e) => {
           if (!router.history.canGoBack()) return;
           e.preventDefault();
@@ -128,7 +144,7 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
       </a>
       <h1 className="us-title">{t('storage.browser.title')}</h1>
       <nav aria-label={t('storage.browser.crumbsAria')} className="sto-crumbs">
-        <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: '' }}>
+        <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: '', ...keep }}>
           {t('storage.browser.root')}
         </Link>
         {crumbs.map((c, i) => (
@@ -137,7 +153,7 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
             <Link
               to="/storage/$mountId"
               params={{ mountId }}
-              search={{ prefix: `${crumbs.slice(0, i + 1).join('/')}/` }}
+              search={{ prefix: `${crumbs.slice(0, i + 1).join('/')}/`, ...keep }}
             >
               {c}
             </Link>
@@ -173,7 +189,7 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
           <ul className="sto-folders" aria-label={t('storage.browser.foldersAria')}>
             {page.folders.map((f) => (
               <li key={f}>
-                <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: f }}>
+                <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: f, ...keep }}>
                   {baseName(f)}/
                 </Link>
                 {page.can_manage && (

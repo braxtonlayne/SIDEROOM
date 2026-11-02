@@ -39,6 +39,9 @@ const settled = (page: Page) =>
 
 test.describe('settings polish flows', () => {
   test.skip(!ON, 'opt-in: SR_E2E_SWEEP=1');
+  // XC-VIS-003 T6: one worker, in order, so the admin flow never switches a module off while another test of this
+  // file captures /admin/features or a Showroom page.
+  test.describe.configure({ mode: 'serial' });
   test.use({
     storageState: resolve(STATE, 'owner.json'),
     baseURL: ORIGIN,
@@ -126,7 +129,9 @@ test.describe('settings polish flows', () => {
     const member = page.getByRole('button', { name: /^Details for (?!.*owner)/ }).first();
     const who = ((await member.textContent()) ?? '').trim();
     for (const what of ['Kick', 'Ban']) {
-      await page.getByRole('button', { name: `${what} ${who}`, exact: true }).click();
+      // Behind the row's "..." menu (XC-VIS-003 T4).
+      await page.getByRole('button', { name: `More actions for ${who}`, exact: true }).click();
+      await page.getByRole('menuitem', { name: `${what} ${who}`, exact: true }).click();
       const dialog = page.getByRole('dialog', { name: `${what} ${who}` });
       await expect(dialog.getByRole('textbox', { name: 'Reason' })).toBeVisible();
       await dialog.getByRole('button', { name: 'Cancel' }).click();
@@ -150,6 +155,11 @@ test.describe('settings polish flows', () => {
   });
 
   test('admin: switch a feature module off and back on', async ({ page }) => {
+    // Switching a module off is fine on a scratch sweep world, never on a shared instance (XC-VIS-003 T6).
+    test.skip(
+      process.env.SR_SWEEP_SHARED === '1',
+      'SR_SWEEP_SHARED=1: this flow switches an instance-wide feature module off and on',
+    );
     const problems = watch(page);
     await page.goto('/admin/features');
     const sw = page.getByRole('switch', { name: 'Poll templates enabled' });

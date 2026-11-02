@@ -37,3 +37,14 @@ test('a bad invitation code on the landing page says so', async ({ page }) => {
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${OUT}/flow-landing-bad-code.png`, fullPage: true });
 });
+
+test('an expired login link says so in its headline (XC-VIS-003 S3)', async ({ page }) => {
+  await page.goto('/login/link?token=expired-or-made-up');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    "This sign-in link didn't work",
+    {
+      timeout: 10_000,
+    },
+  );
+  await page.screenshot({ path: `${OUT}/flow-login-link-expired.png`, fullPage: true });
+});

@@ -5,7 +5,7 @@ import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
 import { byosMockHandlers } from '../../settings/user/storage/mocks';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
-import { previewKind } from '../StorageBrowser';
+import { backTarget, previewKind } from '../StorageBrowser';
 
 const open = (path: string) => {
   const router = createAppRouter(createMemoryHistory({ initialEntries: [path] }));
@@ -102,5 +102,32 @@ describe('Bucket browser accessibility (axe)', () => {
     await user.click(await screen.findByRole('button', { name: 'Preview cover.png' }));
     await screen.findByRole('img', { name: 'cover.png' });
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('goes back to the settings page that opened it, and only to a settings page (XC-VIS-003 M5)', async () => {
+    const user = userEvent.setup();
+    expect(backTarget('https://evil.example/')).toBe('/settings/user/storage');
+    expect(backTarget('//evil.example/settings/')).toBe('/settings/user/storage');
+    expect(backTarget(undefined)).toBe('/settings/user/storage');
+    server.use(...byosMockHandlers({ objects: OBJECTS }));
+    open('/storage/501?prefix=&back=%2Fsettings%2Fserver%2F42%2Fstorage');
+    const back = await screen.findByRole('link', { name: /Back/ });
+    expect(back).toHaveAttribute('href', '/settings/server/42/storage');
+    // Moving between folders keeps the way back.
+    await user.click(await screen.findByRole('link', { name: 'music/' }));
+    await screen.findByText('track.flac');
+    expect(screen.getByRole('link', { name: /Back/ })).toHaveAttribute(
+      'href',
+      '/settings/server/42/storage',
+    );
+  });
+
+  it('ignores a back address outside Settings', async () => {
+    server.use(...byosMockHandlers({ objects: OBJECTS }));
+    open('/storage/501?prefix=&back=https%3A%2F%2Fevil.example');
+    expect(await screen.findByRole('link', { name: /Back/ })).toHaveAttribute(
+      'href',
+      '/settings/user/storage',
+    );
   });
 });

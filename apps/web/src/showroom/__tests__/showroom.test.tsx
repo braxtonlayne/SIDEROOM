@@ -226,8 +226,8 @@ describe('toggling in the real pages', () => {
     const seen = watch();
     open('/games');
     const page = await screen.findByTestId('showroom-arcade');
-    const live = within(page).getByRole('region', { name: 'PLAYABLE NOW' });
-    const soon = within(page).getByRole('region', { name: 'PREVIEW / IN DEVELOPMENT' });
+    const live = within(page).getByRole('region', { name: 'Playable now' });
+    const soon = within(page).getByRole('region', { name: 'Preview / in development' });
     expect(within(live).getAllByRole('article').length).toBeGreaterThanOrEqual(3);
     expect(within(soon).getAllByRole('article').length).toBeGreaterThanOrEqual(3);
     // A live card never sits in the showcase section and the other way round.

@@ -71,7 +71,8 @@ import {
 } from './apps/commands';
 import { newNonce, sendInteraction } from './apps/interactions';
 import { useAppCommands } from './apps/useAppCommands';
-import { useActivitiesEnabled } from '../activities/hooks';
+import { useActivitiesEnabled, useChannelActivity } from '../activities/hooks';
+import { httpActivityApi } from '../activities/api';
 import { useReportOutcome } from './apps/useReportOutcome';
 import { PollModal } from './msg/PollModal';
 import { commandSuggestions, runSlash, type SlashContext } from './msg/slashCommands';
@@ -267,6 +268,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   // Slash commands of installed apps (DEV-BOT-008).
   const appIndex = useAppCommands(channelId, !!guildId);
   const activitiesOn = useActivitiesEnabled();
+  // The channel's running Activity (G5): the "+" menu then joins it rather than opening a shelf that can only
+  // answer "already running". Asked only where the menu offers Activities.
+  const { instance: runningActivity } = useChannelActivity(
+    canStartActivity && activitiesOn ? channelId : undefined,
+  );
   const appCommands = useMemo(() => indexedCommands(appIndex, 1), [appIndex]);
   const reportOutcome = useReportOutcome();
   const [appForm, setAppForm] = useState<{ entry: IndexedCommand; prefill: TypedArgs } | null>(
@@ -960,10 +966,21 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             { label: t('lounge.composer.createPoll'), onSelect: () => setPollOpen(true) },
             ...(canStartActivity && activitiesOn
               ? [
-                  {
-                    label: t('lounge.composer.startActivity'),
-                    onSelect: () => openDialog({ kind: 'startActivity', channelId }),
-                  },
+                  runningActivity
+                    ? {
+                        label: t('lounge.composer.joinActivity', {
+                          name: runningActivity.application_name,
+                        }),
+                        // The voice bar's path: the join event opens the dock. If it ended meanwhile, the shelf.
+                        onSelect: () =>
+                          void httpActivityApi
+                            .join(runningActivity.id)
+                            .catch(() => openDialog({ kind: 'startActivity', channelId })),
+                      }
+                    : {
+                        label: t('lounge.composer.startActivity'),
+                        onSelect: () => openDialog({ kind: 'startActivity', channelId }),
+                      },
                 ]
               : []),
             { type: 'separator' as const },

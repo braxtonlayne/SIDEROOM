@@ -96,6 +96,32 @@ Environment notes (not app defects): the first capture after Vite starts can be 
 page); under load Vite dropped module requests a few times, which is how D20 was found; `lounge-thread` once hit the
 API rate limit (429) because the sweep opens many pages in a short time.
 
+## XC-VIS-003: owner-delegated polish decisions (Fable, 2026-11-02)
+
+Fable's decisions on the XC-VIS-002 owner questions (`polish-fable-decisions.md`, outside git), recorded as P30-VIS-1
+in the decisions log. Implemented, one commit each (`XC-VIS-003 <id>: ...`):
+
+- **S5 (visible in every dark Lounge, for the CHANGELOG):** links in running text are #00a8fc in Lounge Dark and
+  Onyx and #1ab2ff in Ash (the brand blue was 2.5 to 3:1). Rules in `styles/app-links.css` (app only, D-385);
+  `styles/__tests__/textLink.test.ts` checks every Lounge theme against its three surfaces. L2 (the Lounge button
+  reset) is the other visible Lounge change of this round.
+- **G5:** with an Activity running in the channel, the composer's "+" item and the launcher offer Join, not Start.
+- **T4:** Server Settings > Members: Roles stays a button; Timeout, Kick and Ban move to a per-row "..." menu (the UI
+  kit menu items gained optional `title` and `ariaLabel`).
+- **M3:** a not-ready or failed video goes "Back to the title page"; taken-down and missing titles keep /cinema.
+- **S3:** the login-link, verify-email and email-change-cancel pages say in the headline when the link failed or
+  finished (`entrance.linkOutcome.*`, core entrance catalog).
+- **G2 / G3:** the emulator page is titled "Emulator"; Showroom section headings are sentence case, the card badges
+  stay capitals through CSS.
+- **M5:** the storage browser's Back goes to the settings page that opened it (`?back=`, only `/settings/...`).
+- **T6:** the settings polish flows run serially; the admin switch flow skips when `SR_SWEEP_SHARED=1`.
+- **Not done: S6** (register `--text-link` in the sr-theme registry, move the values into `themes.ts`): needs Rust,
+  a follow-up PR after #82.
+
+Environment note: the web production build rewrites `apps/web/node_modules/.vite/deps`, which the running Vite dev
+server shares; afterwards every app route captured blank (504 "Outdated Optimize Dep"). Touching
+`apps/web/vite.config.ts` makes Vite reload in place and re-optimize; do that after a build while the dev server runs.
+
 ## Gates
 
 | Gate | Result |

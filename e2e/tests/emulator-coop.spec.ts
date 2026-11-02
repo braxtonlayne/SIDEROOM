@@ -171,7 +171,7 @@ async function routeTestRom(page: Page) {
 /** ROM mode: open Games IN-APP (a reload would drop the call) and play the test ROM until it runs. */
 async function startTestRom(page: Page) {
   await page.getByRole('link', { name: 'Games', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Games', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Emulator', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).first().click();
   await expect(page.locator('canvas[data-testid="emu-canvas"]')).toHaveAttribute(
     'data-phase',

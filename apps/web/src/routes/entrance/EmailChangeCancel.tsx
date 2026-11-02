@@ -44,7 +44,16 @@ export function EmailChangeCancel() {
     >
       <FormHead
         eyebrow={t('entrance.emailCancel.formEyebrow')}
-        title={t('entrance.emailCancel.title')}
+        title={
+          // The headline says what happened (S3); throttled and unreachable keep the pending one.
+          state === 'done'
+            ? t('entrance.linkOutcome.cancelledTitle')
+            : state === 'invalid'
+              ? t('entrance.linkOutcome.expiredTitle')
+              : state === 'missing'
+                ? t('entrance.linkOutcome.brokenTitle')
+                : t('entrance.emailCancel.title')
+        }
       />
       {state === 'working' && (
         <p role="status" className="ent-sub">

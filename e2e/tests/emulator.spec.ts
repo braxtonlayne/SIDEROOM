@@ -131,7 +131,7 @@ test('the NES core boots the test ROM, shows a non-blank frame, answers the keyb
   });
 
   await page.goto('/games/emulator');
-  await expect(page.getByRole('heading', { name: 'Games', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Emulator', level: 1 })).toBeVisible();
   await expect(page.getByText('sideroom test')).toBeVisible();
   await page.getByRole('button', { name: 'Play' }).click();
 

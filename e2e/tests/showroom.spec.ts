@@ -12,7 +12,7 @@ import { apiPatch, bootstrapState, expect, loginApi, test } from '../support/fix
  *   - the toggle is absent while the switch is off, and present once it is on;
  *   - while the preview shows, the page sends no write at all and no read of the Arcade front page or the shelves;
  *   - a "Preview" banner is on screen, the rail carries ten sample servers, The Study separates sources, and The Arcade
- *     separates "PLAYABLE NOW" from "PREVIEW / IN DEVELOPMENT";
+ *     separates "Playable now" from "Preview / in development";
  *   - mutation attempts on sample objects only show the hint;
  *   - API reads taken before the toggle equal the reads taken after it (nothing on the server moved).
  *
@@ -97,8 +97,8 @@ test.describe('Showroom (populated preview) @showroom', () => {
       .click();
     const arcade = page.getByTestId('showroom-arcade');
     await expect(arcade).toBeVisible();
-    const live = arcade.getByRole('region', { name: 'PLAYABLE NOW' });
-    const soon = arcade.getByRole('region', { name: 'PREVIEW / IN DEVELOPMENT' });
+    const live = arcade.getByRole('region', { name: 'Playable now' });
+    const soon = arcade.getByRole('region', { name: 'Preview / in development' });
     await expect(live.getByRole('article')).toHaveCount(3);
     await expect(soon.getByRole('article')).toHaveCount(4);
     await live.getByRole('button', { name: 'Play' }).first().click();

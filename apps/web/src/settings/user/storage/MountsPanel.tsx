@@ -331,7 +331,14 @@ function MountRow({
           <Link
             to="/storage/$mountId"
             params={{ mountId: mount.id }}
-            search={{ prefix: '' }}
+            // The browser's way back when opened in a new tab (XC-VIS-003 M5): this settings page.
+            search={{
+              prefix: '',
+              back:
+                scope.kind === 'guild'
+                  ? `/settings/server/${scope.guildId}/storage`
+                  : '/settings/user/storage',
+            }}
             className="sto-link"
           >
             {t('settings.storage.browse')}

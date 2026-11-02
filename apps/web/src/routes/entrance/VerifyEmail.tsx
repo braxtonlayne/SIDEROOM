@@ -35,7 +35,14 @@ export function VerifyEmail() {
     >
       <FormHead
         eyebrow={t('entrance.verifyEmail.formEyebrow')}
-        title={t('entrance.verifyEmail.title')}
+        title={
+          // The headline says what happened (S3); "unreachable" keeps the pending one.
+          state === 'done'
+            ? t('entrance.linkOutcome.verifiedTitle')
+            : state === 'expired'
+              ? t('entrance.linkOutcome.expiredTitle')
+              : t('entrance.verifyEmail.title')
+        }
       />
       {state === 'verifying' && (
         <p role="status" className="ent-sub">

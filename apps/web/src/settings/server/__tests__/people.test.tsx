@@ -21,6 +21,12 @@ vi.mock('../../../store/connect', () => ({
 
 const row = (name: string) => screen.getByRole('row', { name: new RegExp(name) });
 
+/** Timeout, Kick and Ban sit behind each row's "..." menu (XC-VIS-003 T4): open it and find `<what> <name>`. */
+async function rowAction(what: string, name: string) {
+  await userEvent.click(await screen.findByRole('button', { name: `More actions for ${name}` }));
+  return screen.findByRole('menuitem', { name: `${what} ${name}` });
+}
+
 describe('Members', () => {
   it('lists and searches members with their roles', async () => {
     seed({ perms: [MANAGE.kick, MANAGE.ban, MANAGE.roles] });
@@ -109,9 +115,19 @@ describe('Members', () => {
     await openSettings('members');
     await screen.findByText('3 members');
     // carol (Mod 5) outranks the viewer (3); the viewer cannot kick themselves
-    expect(screen.getByRole('button', { name: 'Kick carol' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Kick me' })).toBeDisabled();
-    await userEvent.click(screen.getByRole('button', { name: 'Kick bob' }));
+    // Roles is the one visible button; the moderation actions are menu items, Kick and Ban in the danger style.
+    expect(within(row('bob')).queryByRole('button', { name: 'Kick bob' })).toBeNull();
+    const carolKick = await rowAction('Kick', 'carol');
+    expect(carolKick).toHaveAttribute('aria-disabled', 'true');
+    expect(carolKick).toHaveAttribute('title');
+    await userEvent.keyboard('{Escape}');
+    expect(await rowAction('Kick', 'me')).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.keyboard('{Escape}');
+    const bobKick = await rowAction('Kick', 'bob');
+    expect(bobKick).toHaveAttribute('data-danger', 'true');
+    expect(screen.getByRole('menuitem', { name: 'Timeout bob' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Ban bob' })).toBeInTheDocument();
+    await userEvent.click(bobKick);
     await userEvent.type(screen.getByLabelText('Reason'), 'spam & ads');
     await userEvent.click(
       within(screen.getByRole('dialog', { name: /Kick bob/ })).getByRole('button', {
@@ -122,7 +138,9 @@ describe('Members', () => {
     expect(decodeURIComponent(cap.calls[0]!.headers.get('x-audit-log-reason') ?? '')).toBe(
       'spam & ads',
     );
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Kick bob' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'More actions for bob' })).toBeNull(),
+    );
   });
 
   it('bulk-kicks the selected members, skipping those it cannot moderate', async () => {
@@ -212,7 +230,7 @@ describe('Members', () => {
     );
     await openSettings('members');
     await screen.findByText('3 members');
-    await userEvent.click(screen.getByRole('button', { name: 'Ban bob' }));
+    await userEvent.click(await rowAction('Ban', 'bob'));
     await userEvent.selectOptions(screen.getByLabelText('Delete message history'), '604800');
     await userEvent.type(screen.getByLabelText('Reason'), 'raid');
     await userEvent.click(
@@ -238,13 +256,13 @@ describe('Members', () => {
     );
     await openSettings('members');
     await screen.findByText('3 members');
-    await userEvent.click(screen.getByRole('button', { name: 'Timeout bob' }));
+    await userEvent.click(await rowAction('Timeout', 'bob'));
     await userEvent.click(screen.getByRole('button', { name: 'Timeout' }));
     await waitFor(() => expect(cap.calls).toHaveLength(1));
     const until = (cap.calls[0]!.body as { communication_disabled_until: string })
       .communication_disabled_until;
     expect(new Date(until).getTime()).toBeGreaterThan(Date.now());
-    await userEvent.click(await screen.findByRole('button', { name: 'Timeout carol' }));
+    await userEvent.click(await rowAction('Timeout', 'carol'));
     await userEvent.click(screen.getByRole('button', { name: 'Timeout' }));
     expect(await screen.findByText('You do not have permission to do that.')).toBeInTheDocument();
   });

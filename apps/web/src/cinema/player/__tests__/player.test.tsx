@@ -617,8 +617,28 @@ describe('playback errors', () => {
         HttpResponse.json({ code: 900009, message: 'Unknown asset' }, { status: 404 }),
       ),
     );
-    renderApp('/cinema/watch/t1');
+    const ctx = renderApp('/cinema/watch/t1');
     expect(await screen.findByText('This video is not ready yet')).toBeInTheDocument();
     expect(screen.queryByText('This title is not available')).toBeNull();
+    // XC-VIS-003 M3: back to the title page (opened by link: no history, so it is pushed), not to /cinema.
+    expect(screen.queryByRole('link', { name: 'Back to the cinema' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to the title page' }));
+    await waitFor(() => expect(ctx.history.location.pathname).toBe('/cinema/t/t1'));
+  });
+
+  it('sends a missing title back to the cinema (there is no title page)', async () => {
+    useCinemaApi();
+    server.use(
+      http.get('*/api/v1/cinema/titles/:id/play', () =>
+        HttpResponse.json({ code: 10000, message: 'Unknown title' }, { status: 404 }),
+      ),
+    );
+    renderApp('/cinema/watch/t1');
+    expect(await screen.findByText('This title is not available')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to the cinema' })).toHaveAttribute(
+      'href',
+      '/cinema',
+    );
+    expect(screen.queryByRole('button', { name: 'Back to the title page' })).toBeNull();
   });
 });
