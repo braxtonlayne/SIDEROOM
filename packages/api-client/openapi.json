@@ -85032,7 +85032,7 @@
           "notified": {
             "type": "integer",
             "format": "int32",
-            "description": "Notices delivered (a member who cannot be reached is skipped).",
+            "description": "Notices delivered (a member whose DM settings refuse it, or who cannot be reached, is skipped).",
             "minimum": 0
           },
           "watchers": {
