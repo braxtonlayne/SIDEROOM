@@ -402,7 +402,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 22px 0 6px;
+  margin: 24px 0 14px;
   font-size: 13px;
   color: var(--sr-entrance-text-muted);
 }
@@ -651,6 +651,46 @@
   }
   .ent-invite > button {
     flex: 1 1 100%;
+  }
+  /* XC-VIS-002: the wordmark broke onto two lines ("SIDE / ROOM.") beside the header link. */
+  .ent-header {
+    height: 72px;
+  }
+  .ent-logo {
+    gap: 10px;
+  }
+  .ent-logo svg {
+    width: 28px;
+    height: 28px;
+  }
+  .ent-wordmark {
+    font-size: 17px;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+  .ent-navlink {
+    gap: 8px;
+    font-size: 14px;
+  }
+  /* The sign-in, reset and 2FA forms sat a full screen below the welcome copy (a 6ch headline ran to
+     four lines). Shorter copy block so the form starts near the fold. */
+  .ent-split-copy {
+    margin-top: 28px;
+  }
+  .ent-split-copy .ent-big {
+    max-width: none;
+    margin-top: 20px;
+    font-size: 2.6rem;
+  }
+  .ent-split-copy .ent-lede {
+    margin-top: 16px;
+    font-size: 15px;
+  }
+  .ent-split-right {
+    padding-block: 32px;
+  }
+  .ent-discord {
+    height: 56px;
   }
 }
 
