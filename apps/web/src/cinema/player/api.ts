@@ -49,6 +49,13 @@ export interface PlaybackRequest {
 
 const secondsToMs = (s: number) => s * 1000;
 
+/** The title is published but its video is missing (still processing, or the file was removed). */
+export class VideoNotReadyError extends Error {
+  constructor() {
+    super('video not ready');
+  }
+}
+
 export const getAssetPlayback = (assetId: string) =>
   apiFetch<WireAssetPlayback>(`/cinema/assets/${enc(assetId)}/playback`, { retries: 0 });
 
@@ -151,7 +158,11 @@ export async function getPlayback(r: PlaybackRequest): Promise<PlaybackInfo> {
         );
   const episodeId = target.episode_id ? String(target.episode_id) : null;
   const [asset, progress, next] = await Promise.all([
-    getAssetPlayback(String(target.asset_id)),
+    getAssetPlayback(String(target.asset_id)).catch((e: unknown) => {
+      // The title answered but its video did not: say so instead of "unpublished or removed".
+      if (e instanceof ApiError && e.status === 404) throw new VideoNotReadyError();
+      throw e;
+    }),
     r.trailer ? Promise.resolve(null) : progressApi.get(r.titleId, episodeId).catch(() => null),
     r.trailer ? Promise.resolve(null) : nextEpisode(target.next_episode_id),
   ]);

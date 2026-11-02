@@ -263,6 +263,11 @@
   color: var(--ui-text);
   font-weight: 600;
 }
+/* A rule between the rooms and the Study's own areas. */
+.stu-bar-nav + .stu-bar-nav {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--ui-border);
+}
 .stu-bar-link:hover,
 .stu-bar-link:focus-visible {
   color: var(--ui-text);

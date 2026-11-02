@@ -62,6 +62,16 @@
   color: var(--sr-gold);
   border-bottom-color: var(--sr-gold);
 }
+/* The rooms, then the Study's areas: a rule between the two navs, and the parent room (The Study) reads as the room
+   you are in without a second underline, so only the area (Media) looks selected. */
+.cin-sectionbar-nav + .cin-sectionbar-nav {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--sr-line);
+}
+.cin-sectionbar-nav:first-of-type .cin-sectionbar-link[aria-current='page'] {
+  color: var(--sr-text);
+  border-bottom-color: transparent;
+}
 
 /* ---------- cinema header ---------- */
 .cin-header {
@@ -830,6 +840,9 @@
   .cin-sectionbar-nav {
     gap: 12px;
     margin-inline-start: 4px;
+  }
+  .cin-sectionbar-nav + .cin-sectionbar-nav {
+    padding-inline-start: 12px;
   }
   .cin-sectionbar-brand {
     letter-spacing: 0.12em;

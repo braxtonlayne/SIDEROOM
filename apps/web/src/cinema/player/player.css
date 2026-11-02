@@ -505,6 +505,16 @@
   font-size: 40px;
   font-weight: 500;
 }
+/* On phones the four tabs fit without scrolling ("History" was cut to "Histor"). */
+@media (max-width: 30rem) {
+  .cpl-my-tabs > [role='tablist'] {
+    gap: 0;
+  }
+  .cpl-my-tabs > [role='tablist'] > [role='tab'] {
+    padding-inline: 8px;
+    font-size: 0.875rem;
+  }
+}
 .cpl-my-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
