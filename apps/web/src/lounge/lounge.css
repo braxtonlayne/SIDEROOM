@@ -776,6 +776,23 @@
   align-items: center;
   gap: 4px;
   margin-inline-start: auto;
+  /* XC-VIS-002: the tools never shrink or spill over the member list; the title gives way instead. */
+  flex: none;
+}
+.lng-header {
+  min-inline-size: 0;
+}
+.lng-header > svg,
+.lng-header > .lng-back {
+  flex: none;
+}
+.lng-header .lng-header-title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lng-dm-identity {
+  min-inline-size: 0;
 }
 .lng-search {
   display: flex;

@@ -95,6 +95,12 @@
 .lng-channel-item:focus-within .lng-channel-actions {
   display: flex;
 }
+/* XC-VIS-002: while the invite and settings buttons show, a long name ellipsizes before them instead of
+   running under them. */
+.lng-channel-item:hover .lng-channel,
+.lng-channel-item:focus-within .lng-channel {
+  padding-inline-end: 64px;
+}
 .lng-channel-item[data-dragging],
 .lng-category-head[data-dragging] {
   opacity: 0.4;
