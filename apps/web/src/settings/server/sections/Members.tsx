@@ -1,4 +1,14 @@
-import { Avatar, Button, Checkbox, Modal, TextArea, TextInput } from '@sideroom/ui';
+import {
+  Avatar,
+  Button,
+  Checkbox,
+  DropdownMenu,
+  Icon,
+  Modal,
+  TextArea,
+  TextInput,
+  type MenuEntry,
+} from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDateTime, useT } from '../../../i18n';
 import { useGuild } from '../../../store';
@@ -606,31 +616,33 @@ function MemberRow({
   const timedOut =
     member.communication_disabled_until &&
     new Date(member.communication_disabled_until).getTime() > Date.now();
-  const btn = (
-    kind: 'kick' | 'ban' | 'timeout' | 'roles',
-    label: string,
-    perm: string,
-    danger = false,
-  ) => {
-    const noPerm = !viewer.can(perm);
-    const why = noPerm
+  /** Why `kind` is unavailable on this row (missing permission, or the viewer cannot act on this member). */
+  const whyNot = (kind: 'kick' | 'ban' | 'timeout' | 'roles', label: string, perm: string) =>
+    !viewer.can(perm)
       ? t('settings.members.needPermission', { label })
       : kind === 'roles'
         ? undefined
         : block;
-    return (
-      <Button
-        size="sm"
-        variant={danger ? 'danger' : 'secondary'}
-        disabled={!!why}
-        title={why}
-        aria-label={t('settings.members.actionFor', { label, name })}
-        onClick={() => onAction(kind)}
-      >
-        {label}
-      </Button>
-    );
-  };
+  const rolesLabel = t('settings.members.roles');
+  const rolesWhy = whyNot('roles', rolesLabel, 'MANAGE_ROLES');
+  // XC-VIS-003 T4 (Discord parity): Roles stays a button; Timeout, Kick and Ban sit behind the row's "..." menu.
+  const moderation: MenuEntry[] = (
+    [
+      ['timeout', t('settings.members.timeout'), 'MODERATE_MEMBERS', false],
+      ['kick', t('settings.members.kick'), 'KICK_MEMBERS', true],
+      ['ban', t('settings.members.ban'), 'BAN_MEMBERS', true],
+    ] as const
+  ).map(([kind, label, perm, danger]) => {
+    const why = whyNot(kind, label, perm);
+    return {
+      label,
+      danger,
+      disabled: !!why,
+      title: why,
+      ariaLabel: t('settings.members.actionFor', { label, name }),
+      onSelect: () => onAction(kind),
+    };
+  });
   return (
     <tr>
       <td>
@@ -692,10 +704,32 @@ function MemberRow({
       </td>
       <td>
         <span className="ss-actions">
-          {btn('roles', t('settings.members.roles'), 'MANAGE_ROLES')}
-          {btn('timeout', t('settings.members.timeout'), 'MODERATE_MEMBERS')}
-          {btn('kick', t('settings.members.kick'), 'KICK_MEMBERS', true)}
-          {btn('ban', t('settings.members.ban'), 'BAN_MEMBERS', true)}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!!rolesWhy}
+            title={rolesWhy}
+            aria-label={t('settings.members.actionFor', { label: rolesLabel, name })}
+            onClick={() => onAction('roles')}
+          >
+            {rolesLabel}
+          </Button>
+          <DropdownMenu
+            label={t('settings.members.moreActions', { name })}
+            placement="bottom-end"
+            items={moderation}
+            trigger={
+              <Button
+                size="sm"
+                variant="secondary"
+                iconOnly
+                aria-label={t('settings.members.moreActions', { name })}
+                title={t('settings.members.moreActions', { name })}
+              >
+                <Icon name="more-horizontal" size={20} />
+              </Button>
+            }
+          />
         </span>
       </td>
     </tr>

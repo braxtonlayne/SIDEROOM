@@ -36,6 +36,10 @@ interface ItemBase {
   shortcut?: string;
   disabled?: boolean;
   danger?: boolean;
+  /** Tooltip, e.g. why the item is disabled. */
+  title?: string;
+  /** Accessible name when the visible label alone is ambiguous (e.g. "Kick Ann" for a row's "Kick"). */
+  ariaLabel?: string;
   /** Keep the menu open after selecting. Default: close. */
   keepOpen?: boolean;
 }
@@ -250,7 +254,15 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
     key: string,
     index: number,
     role: "menuitem" | "menuitemcheckbox" | "menuitemradio",
-    item: { label: ReactNode; icon?: ReactNode; shortcut?: string; disabled?: boolean; danger?: boolean },
+    item: {
+      label: ReactNode;
+      icon?: ReactNode;
+      shortcut?: string;
+      disabled?: boolean;
+      danger?: boolean;
+      title?: string;
+      ariaLabel?: string;
+    },
     extra: { checked?: boolean; onActivate: () => void; sub?: boolean },
   ) => (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- keys are handled by the menu container
@@ -260,6 +272,8 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
       tabIndex={-1}
       data-index={index}
       aria-disabled={item.disabled || undefined}
+      aria-label={item.ariaLabel}
+      title={item.title}
       aria-checked={role === "menuitem" ? undefined : !!extra.checked}
       aria-haspopup={extra.sub ? "menu" : undefined}
       aria-expanded={extra.sub ? openSub?.index === index : undefined}

@@ -4,4 +4,6 @@ export default {
   'lounge.composer.joinActivity': 'Join {name}',
   'activities.launcher.runningNamed': '{name} is running in this channel.',
   'activities.launcher.join': 'Join',
+  // T4: the per-row menu of Server Settings > Members (Timeout, Kick, Ban).
+  'settings.members.moreActions': 'More actions for {name}',
 } satisfies Record<string, string>;

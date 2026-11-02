@@ -126,7 +126,9 @@ test.describe('settings polish flows', () => {
     const member = page.getByRole('button', { name: /^Details for (?!.*owner)/ }).first();
     const who = ((await member.textContent()) ?? '').trim();
     for (const what of ['Kick', 'Ban']) {
-      await page.getByRole('button', { name: `${what} ${who}`, exact: true }).click();
+      // Behind the row's "..." menu (XC-VIS-003 T4).
+      await page.getByRole('button', { name: `More actions for ${who}`, exact: true }).click();
+      await page.getByRole('menuitem', { name: `${what} ${who}`, exact: true }).click();
       const dialog = page.getByRole('dialog', { name: `${what} ${who}` });
       await expect(dialog.getByRole('textbox', { name: 'Reason' })).toBeVisible();
       await dialog.getByRole('button', { name: 'Cancel' }).click();
