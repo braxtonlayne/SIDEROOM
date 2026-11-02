@@ -8,6 +8,20 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 46b - 2026-11-02
+
+- **Everything was checked on a phone and a desktop, in light and dark.** Dozens of pages that overflowed, overlapped,
+  ignored your theme or showed placeholder text now look and behave right, from settings and the Lounge to Cinema,
+  The Study, the Arcade and the sign-in pages.
+- **Links are easier to read.** In the dark Lounge themes, links and embed titles are a brighter blue; in Lounge Light
+  they are a deeper blue instead of pale gold. Buttons in the Lounge now use their proper colours, so primary and
+  danger buttons stand out.
+- **Kick, Ban and Timeout moved into a "..." menu** on each member in Server Settings > Members, as in Discord.
+- **A game already running in the channel?** The + menu now offers to join it instead of starting another.
+- **Clearer messages when something didn't work:** expired sign-in and email links say so in the heading, a video that
+  isn't ready takes you back to its title page, and message requests opened from a link show the request.
+- **Saving a settings page no longer throws away what you typed while it was saving.**
+
 ## Phase 46 - 2026-11-01
 
 - **Land.io keeps going when the host leaves.** If the member running the game leaves the call, the person who has
