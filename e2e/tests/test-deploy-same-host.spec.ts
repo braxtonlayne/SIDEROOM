@@ -51,10 +51,17 @@ try {
   log('api', 'blocked');
 }
 try {
-  const r = await fetch('data.json', { credentials: 'include' });
+  const r = await fetch('data.json');
   log('own', String(r.status));
 } catch (e) {
   log('own', 'error');
+}
+try {
+  // no-cors: the request completes whatever the CORS answer, so it really goes out with credentials allowed.
+  const r = await fetch('style.css?cred=1', { mode: 'no-cors', credentials: 'include' });
+  log('own-cred', r.type);
+} catch (e) {
+  log('own-cred', 'error');
 }
 const sdk = new SideRoomSDK(applicationIdFromLocation(location), { timeoutMs: 90000 });
 try {
@@ -78,6 +85,8 @@ try {
     'index.html': html,
     'main.js': main,
     'data.json': '{"ok":true}\n',
+    // A no-cors response the browser hands over whole (a JSON one would be cut by opaque-response blocking).
+    'style.css': 'body { font-family: sans-serif; }\n',
     // "self" is the Activity's own path in this mode, never the API.
     'sideroom.json': JSON.stringify({ capabilities: [], connect: ['self'] }),
     ...sdkModules(),
@@ -201,14 +210,20 @@ test.describe('Test deployment: same-host Activities (real browser)', () => {
       await expect(step(page, name, 'storage')).toHaveAttribute('data-value', 'blocked');
       await expect(step(page, name, 'api')).toHaveAttribute('data-value', 'blocked');
       await expect(step(page, name, 'own')).toHaveAttribute('data-value', '200');
+      // A credentialed (no-cors) fetch of its own file completes; its answer stays opaque to the game.
+      await expect(step(page, name, 'own-cred')).toHaveAttribute('data-value', 'opaque');
 
-      // The game's own credentialed fetch went out without the session cookie (opaque origin: cross-site).
-      const own = activityRequests.find((r) => r.url().endsWith(`${base}data.json`));
-      expect(own, 'the game fetched its own file').toBeTruthy();
-      const ownHeaders = await own!.allHeaders();
-      expect(ownHeaders.cookie ?? '').not.toContain('sr_session');
-      expect(ownHeaders['sec-fetch-site']).toBe('cross-site');
-      expect(ownHeaders.origin).toBe('null');
+      // The game's own fetches, even the one asking for credentials, went out without the session cookie: the
+      // game's origin is opaque, so they are cross-site and the SameSite=Lax cookie stays home.
+      for (const file of ['data.json', 'style.css?cred=1']) {
+        const own = activityRequests.find((r) => r.url().endsWith(`${base}${file}`));
+        expect(own, `the game fetched ${file}`).toBeTruthy();
+        const h = await own!.allHeaders();
+        expect(h.cookie ?? '', file).not.toContain('sr_session');
+        expect(h['sec-fetch-site'], file).toBe('cross-site');
+        // A cors fetch names the opaque origin; a no-cors GET sends none.
+        if (file === 'data.json') expect(h.origin, file).toBe('null');
+      }
       expect(setCookies, 'no activity response sets a cookie').toEqual([]);
 
       // D-452: the app's own origin cannot pull a game file in as its own (a fetch here is same-origin, not a frame).

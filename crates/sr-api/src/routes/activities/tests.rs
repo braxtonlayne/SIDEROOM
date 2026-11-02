@@ -1171,6 +1171,13 @@ async fn the_same_host_path_serves_a_released_game_with_the_sandbox_policy_and_n
         assert!(csp.contains("connect-src 'none';"), "{csp}");
         assert!(h.get(header::SET_COOKIE).is_none(), "{path}");
         assert!(!body.contains("secret-session-value"));
+        // A copy the game's frame fetched is never handed to the app from the browser's cache (D-452).
+        assert!(
+            h.get_all(header::VARY)
+                .iter()
+                .any(|v| v.to_str().unwrap_or("").contains("sec-fetch-site")),
+            "{path}"
+        );
     }
     // The main origin cannot pull the game's script in as its own.
     let r = get_with(

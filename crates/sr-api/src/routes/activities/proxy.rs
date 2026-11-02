@@ -105,7 +105,14 @@ pub async fn activity_host_layer(
                 if let Some(refused) = main_origin_refusal(&d, req.headers()) {
                     return refused;
                 }
-                answer(&d, app, req, rest).await
+                let mut r = answer(&d, app, req, rest).await;
+                // The browser's cache must not hand the app a copy the game's frame fetched (D-452): the answer
+                // depends on who asks.
+                r.headers_mut().append(
+                    header::VARY,
+                    HeaderValue::from_static("sec-fetch-site, sec-fetch-dest"),
+                );
+                r
             }
             ActivityPath::NeedsSlash { location, .. } if d.enabled => {
                 let mut r = page(&d, StatusCode::PERMANENT_REDIRECT, "Moved.");
