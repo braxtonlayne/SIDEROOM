@@ -8,6 +8,7 @@ import { ConfirmDialog, Modal } from "../primitives/Modal/Modal";
 import { Field } from "../primitives/Input/Field";
 import { PasswordInput, TextArea, TextInput } from "../primitives/Input/TextInput";
 import { Notice, ToastProvider } from "../primitives/Feedback/Feedback";
+import { UiStringsProvider } from "../util/uiStrings";
 import { Tabs } from "../primitives/Tabs/Tabs";
 import { ContextMenu, DropdownMenu } from "../primitives/Menu/Menu";
 import { Popover, Tooltip } from "../primitives/Overlay/Overlay";
@@ -113,6 +114,15 @@ export const ToastsProvided = () => (
   <ToastProvider>
     <p>Toasts render above this line when triggered.</p>
   </ToastProvider>
+);
+
+/** The words primitives speak on their own, translated once by the app (here: German). */
+export const TranslatedBuiltInWords = () => (
+  <UiStringsProvider value={{ noticeWarning: "Warnung", dismiss: "Schließen", colorHex: "Hex", colorPick: "Vom Bildschirm" }}>
+    <Notice variant="warning" title="Wartung heute Nacht" onDismiss={() => {}}>
+      Kurze Ausfälle möglich.
+    </Notice>
+  </UiStringsProvider>
 );
 
 export const SelectsAndTabs = () => (
