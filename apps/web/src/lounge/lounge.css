@@ -521,6 +521,10 @@
   color: var(--text-muted);
   font-size: 13px;
   text-align: start;
+  /* XC-VIS-002: one line, never spilling out of the box at larger text sizes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 .lng-home-nav {
@@ -541,6 +545,18 @@
   color: var(--interactive-normal);
   text-decoration: none;
   cursor: pointer;
+  /* XC-VIS-002: the button rows (Message Requests) match the link rows: start-aligned, one line. */
+  inline-size: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  text-align: start;
+}
+.lng-nav-item > span:not([class]) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lng-nav-item:hover,
 .lng-nav-item[data-selected] {
@@ -1951,4 +1967,11 @@
   justify-content: center;
   gap: 8px;
   margin-block: 12px;
+}
+/* XC-VIS-002: the empty DM list points at waiting message requests. */
+.lng-dm-empty p {
+  margin: 0 0 4px;
+}
+.lng-dm-empty .lng-link-btn {
+  text-align: start;
 }

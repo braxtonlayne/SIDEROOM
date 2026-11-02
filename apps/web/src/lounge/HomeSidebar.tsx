@@ -274,7 +274,16 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           const dm = sorted[i];
           return dm ? <DmRow dm={dm} selected={dm.id === channelId} /> : null;
         }}
-        empty={<p className="lng-muted lng-pad">{t('lounge.homeSidebar.noConversations')}</p>}
+        empty={
+          <div className="lng-pad lng-dm-empty">
+            <p className="lng-muted">{t('lounge.homeSidebar.noConversations')}</p>
+            {counts.messages > 0 && (
+              <button type="button" className="lng-link-btn" onClick={() => goHome('requests')}>
+                {t('lounge.polishLounge.requestsWaiting', { n: counts.messages })}
+              </button>
+            )}
+          </div>
+        }
       />
     </div>
   );
