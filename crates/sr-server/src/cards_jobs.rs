@@ -7,6 +7,11 @@
 //!    ten minutes before the start. A DM is a notification and a push like any other (LNG-NTF-003); there is no
 //!    separate delivery path.
 //!
+//! A second singleton, `cards.purge_claimants` (job id 1671, FU-8), deletes the claimant list of a card
+//! `invites.card_claimants_retention_days` (default 30, 0 = never) after the card finished or was canceled: who said they
+//! would come is personal data with no use once the event is over. The card stays and so does how many went
+//! (`invite_cards.going_final`, written in the same statement that deletes the rows).
+//!
 //! A reminder is sent only if the member's DM settings allow it ([`sr_chat::cards::reminders::dm_decision`]) and
 //! the member can still see the channel. The mark is taken before the send (so two nodes never both send) and
 //! given back when the delivery fails for a reason worth retrying.
@@ -29,6 +34,14 @@ use sr_userfeat::{Card as Dm, Poster};
 pub const JOB_ID: i64 = 1670;
 /// Kind of the job.
 pub const KIND: &str = "cards.remind";
+/// Reserved singleton id of the claimant purge (unique among job ids).
+pub const PURGE_JOB_ID: i64 = 1671;
+/// Kind of the claimant purge.
+pub const PURGE_KIND: &str = "cards.purge_claimants";
+/// `invites.card_claimants_retention_days` when staff set nothing.
+pub const DEFAULT_RETENTION_DAYS: i64 = 30;
+const PURGE_INTERVAL: Duration = Duration::from_secs(6 * 3600);
+const PURGE_BATCH: i64 = 500;
 const INTERVAL: Duration = Duration::from_secs(30);
 const BATCH: i64 = 100;
 const CANDIDATES: i64 = 500;
@@ -192,8 +205,52 @@ enum Delivery {
     Retry,
 }
 
+/// The retention in days: `invites.card_claimants_retention_days`, 0 meaning never. A stored value that is not a
+/// number in range falls back to the default.
+async fn retention_days(pool: &PgPool) -> Result<i64, sqlx::Error> {
+    let v: Option<i64> = sqlx::query_scalar(
+        "SELECT floor((value #>> '{}')::numeric)::bigint FROM platform_settings          WHERE key = 'invites.card_claimants_retention_days' AND jsonb_typeof(value) = 'number'",
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(v.filter(|d| (0..=3_650).contains(d))
+        .unwrap_or(DEFAULT_RETENTION_DAYS))
+}
+
+/// One purge pass: for cards that finished or were canceled more than the retention ago, remember how many held a
+/// seat and delete the claim rows, in one statement. Returns the number of claim rows deleted. With a retention of 0
+/// nothing happens. A pass handles at most [`PURGE_BATCH`] cards; the next one takes the rest.
+pub async fn purge_claimants(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let days = retention_days(pool).await?;
+    if days == 0 {
+        return Ok(0);
+    }
+    let done = sqlx::query(
+        "WITH due AS (             SELECT c.id, (SELECT count(*) FROM invite_card_claims k WHERE k.card_id = c.id) AS n             FROM invite_cards c             WHERE c.claimants_purged_at IS NULL               AND LEAST(c.closed_at, c.canceled_at) < now() - make_interval(days => $1::int)             ORDER BY c.id LIMIT $2 FOR UPDATE OF c          ), upd AS (             UPDATE invite_cards c SET claimants_purged_at = now(), going_final = due.n::int             FROM due WHERE c.id = due.id RETURNING c.id          )          DELETE FROM invite_card_claims k USING upd WHERE k.card_id = upd.id",
+    )
+    .bind(i32::try_from(days).unwrap_or(30))
+    .bind(PURGE_BATCH)
+    .execute(pool)
+    .await?;
+    Ok(done.rows_affected())
+}
+
 /// Register the handler. Pair with [`schedule`].
 pub fn register(runner: JobRunner, pool: &PgPool, jobs_state: Arc<CardJobs>) -> JobRunner {
+    let purge_pool = pool.clone();
+    let runner = runner.register(PURGE_KIND, 1, move |job| {
+        let pool = purge_pool.clone();
+        Box::pin(async move {
+            match purge_claimants(&pool).await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!(claims = n, "invite card claimant lists purged"),
+                // The next pass retries; a failure must not stop the singleton.
+                Err(e) => tracing::warn!(error = %e, "cards.purge_claimants failed"),
+            }
+            jobs::reschedule_running(&pool, job.id, PURGE_INTERVAL).await?;
+            Ok(())
+        })
+    });
     let pool = pool.clone();
     runner.register(KIND, 1, move |job| {
         let state = jobs_state.clone();
@@ -212,5 +269,13 @@ pub fn register(runner: JobRunner, pool: &PgPool, jobs_state: Arc<CardJobs>) -> 
 /// Create or re-arm the singleton. Safe on every boot.
 pub async fn schedule(pool: &PgPool) -> DbResult<()> {
     jobs::schedule_singleton(pool, JOB_ID, KIND, &json!({}), Duration::from_secs(20)).await?;
+    jobs::schedule_singleton(
+        pool,
+        PURGE_JOB_ID,
+        PURGE_KIND,
+        &json!({}),
+        Duration::from_secs(90),
+    )
+    .await?;
     Ok(())
 }

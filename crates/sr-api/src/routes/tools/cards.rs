@@ -278,7 +278,9 @@ async fn object(
         duration_min: card.duration_min,
         timezone: card.timezone.clone(),
         seats: card.seats,
-        taken: i32::try_from(claims.len()).unwrap_or(i32::MAX),
+        taken: card
+            .going_final
+            .unwrap_or_else(|| i32::try_from(claims.len()).unwrap_or(i32::MAX)),
         title_id: card.title_id.map(|t| t.to_string()),
         link_path: card.link_path.clone(),
         created_by: card.created_by.map(|u| u.to_string()),
@@ -375,6 +377,7 @@ pub async fn create(
         canceled_ms: None,
         started_ms: None,
         closed_ms: None,
+        going_final: None,
     };
     d.store.create(&card).await.map_err(card_err)?;
     let (embed, components) = render(&card, &[]);
@@ -671,6 +674,7 @@ mod tests {
             canceled_ms: None,
             started_ms: None,
             closed_ms: None,
+            going_final: None,
         };
         assert_eq!(status_of(&c), "open");
         c.started_ms = Some(1);

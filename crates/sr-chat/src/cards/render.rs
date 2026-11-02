@@ -51,7 +51,10 @@ fn button(style: u8, label: &str, action: CardAction, card: u64, disabled: bool)
 
 /// The embed and the buttons of a card.
 pub fn render(card: &Card, claims: &[Claim]) -> (Embed, Vec<Component>) {
-    let taken = claims.len();
+    // FU-8: once the list is purged only the number is left.
+    let taken = card
+        .going_final
+        .map_or(claims.len(), |n| usize::try_from(n).unwrap_or(0));
     let seats = usize::try_from(card.seats).unwrap_or(0);
     let canceled = card.canceled_ms.is_some();
     let closed = card.closed_ms.is_some();
@@ -115,7 +118,10 @@ pub fn render(card: &Card, claims: &[Claim]) -> (Embed, Vec<Component>) {
             },
             EmbedField {
                 name: "Going".to_owned(),
-                value: going_list(claims),
+                value: match card.going_final {
+                    Some(n) => format!("{n} went. The list of names is not kept."),
+                    None => going_list(claims),
+                },
                 inline: false,
             },
         ],
@@ -196,6 +202,7 @@ mod tests {
             canceled_ms: None,
             started_ms: None,
             closed_ms: None,
+            going_final: None,
         }
     }
 
@@ -293,5 +300,16 @@ mod tests {
         let list = going_list(&claims);
         assert!(list.ends_with("+5 more"));
         assert_eq!(list.matches("<@").count(), LISTED_CLAIMANTS);
+    }
+
+    #[test]
+    fn a_purged_card_keeps_its_count_but_not_the_names() {
+        let mut c = card();
+        c.closed_ms = Some(5);
+        c.going_final = Some(1);
+        let (e, comps) = render(&c, &[]);
+        assert!(comps.is_empty());
+        assert_eq!(e.fields[1].value, format!("1 of {} taken", c.seats));
+        assert_eq!(e.fields[2].value, "1 went. The list of names is not kept.");
     }
 }

@@ -66,6 +66,7 @@ fn card(id: u64, channel: u64, seats: i32, starts_ms: i64) -> Card {
         canceled_ms: None,
         started_ms: None,
         closed_ms: None,
+        going_final: None,
     }
 }
 

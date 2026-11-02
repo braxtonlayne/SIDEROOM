@@ -142,6 +142,8 @@ pub const INVITES_LOCKED: &str = "invites.locked";
 pub const INVITES_DEFAULT_CREDITS: &str = "invites.default_credits";
 pub const INVITES_MAX_OUTSTANDING: &str = "invites.max_outstanding";
 pub const INVITES_UNUSED_CODE_DAYS: &str = "invites.unused_code_days";
+/// FU-8: days after an invite card finishes or is canceled that its claimant list is purged (0 = never).
+pub const INVITES_CARD_CLAIMANTS_RETENTION_DAYS: &str = "invites.card_claimants_retention_days";
 /// Inviter suspicion thresholds (doc 06 section 5.4).
 pub const SUSPICION_FREEZE: &str = "invites.suspicion_freeze_threshold";
 pub const SUSPICION_ESCALATE: &str = "invites.suspicion_escalate_threshold";
@@ -569,6 +571,14 @@ pub const CATALOG: &[SettingDef] = &[
         3_650,
         30,
         "Days after which the invites.prune job revokes an invite code nobody used. It also marks invite subtrees whose first member never activated as inactive for Admin > Invites. It never deletes the invite graph.",
+    ),
+    int(
+        INVITES_CARD_CLAIMANTS_RETENTION_DAYS,
+        "invites",
+        0,
+        3_650,
+        30,
+        "Days after an invite card (Cinema ticket, Live TV, game night) finishes or is canceled that the list of who claimed a seat is deleted. The card and how many went stay. 0 keeps the lists for ever.",
     ),
     SettingDef {
         key: "invites.credit_price_usd",
