@@ -149,6 +149,30 @@ test.describe('settings polish flows', () => {
     expect(problems).toEqual([]);
   });
 
+  test('admin: switch a feature module off and back on', async ({ page }) => {
+    const problems = watch(page);
+    await page.goto('/admin/features');
+    const sw = page.getByRole('switch', { name: 'Poll templates enabled' });
+    await expect(sw).toBeChecked();
+    try {
+      await sw.click();
+      const off = page.getByRole('dialog', { name: 'Disable Poll templates' });
+      await off.getByRole('textbox', { name: /reason/i }).fill('Settings polish flow check');
+      await off.getByRole('button', { name: 'Disable' }).click();
+      await expect(sw).not.toBeChecked();
+    } finally {
+      // Always leave the module on: the sweep world is shared.
+      if (!(await sw.isChecked())) {
+        await sw.click();
+        const on = page.getByRole('dialog', { name: 'Enable Poll templates' });
+        await on.getByRole('textbox', { name: /reason/i }).fill('Settings polish flow check');
+        await on.getByRole('button', { name: 'Enable' }).click();
+      }
+    }
+    await expect(sw).toBeChecked();
+    expect(problems).toEqual([]);
+  });
+
   test('developers: create an app, visit each tab, save, delete it', async ({ page, owner }) => {
     const problems = watch(page);
     await page.goto('/developers/applications');

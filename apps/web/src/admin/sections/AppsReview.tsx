@@ -4,7 +4,7 @@ import { Badge, Button, EmptyState, Notice } from '@sideroom/ui';
 import type { MessageKey } from '../../i18n';
 import { useState } from 'react';
 import * as api from '../api';
-import { useT } from '../../i18n';
+import { t as translate, useT } from '../../i18n';
 import { ApiProblem, LoadMore, ReasonDialog, usePaged } from '../ui';
 
 type Pending =
@@ -20,6 +20,22 @@ const DECISION_TITLE: Record<api.VersionDecision, MessageKey> = {
   reject: 'admin.appsReview.decisionReject',
   request_changes: 'admin.appsReview.decisionChanges',
 };
+
+/** XC-VIS-002: why a version needs review, in words (the API sends ids such as first_release). */
+function reasonLabel(reason: string): string {
+  switch (reason) {
+    case 'first_release':
+      return translate('settings.polishSettings.reasonFirstRelease');
+    case 'scopes':
+      return translate('settings.polishSettings.reasonScopes');
+    case 'redirect_uris':
+      return translate('settings.polishSettings.reasonRedirects');
+    case 'intents':
+      return translate('settings.polishSettings.reasonIntents');
+    default:
+      return reason;
+  }
+}
 
 export function AppsReview() {
   const t = useT();
@@ -111,19 +127,38 @@ export function AppsReview() {
                   )}
                 </div>
                 {v.needs_review_reasons.length > 0 && (
-                  <div className="ss-meta">{v.needs_review_reasons.join(', ')}</div>
+                  <div className="ss-meta">
+                    {v.needs_review_reasons.map((r) => reasonLabel(r)).join(' · ')}
+                  </div>
                 )}
                 {v.diff.length > 0 && (
-                  <ul className="ss-meta" aria-label={t('admin.appsReview.diffLabel')}>
-                    {v.diff.map((d) => (
-                      <li key={d.key}>
-                        <span className="adm-mono">{d.key}</span>: {JSON.stringify(d.old ?? null)} →{' '}
-                        {JSON.stringify(d.new ?? null)}
-                      </li>
-                    ))}
-                  </ul>
+                  <details className="adm-diff">
+                    <summary>
+                      {t('settings.polishSettings.diffSummary', { count: v.diff.length })}
+                    </summary>
+                    <dl aria-label={t('admin.appsReview.diffLabel')}>
+                      {v.diff.map((d) => (
+                        <div key={d.key}>
+                          <dt className="adm-mono">{d.key}</dt>
+                          <dd>
+                            {d.old != null && (
+                              <>
+                                <span className="adm-diff-old">{JSON.stringify(d.old)}</span>
+                                {' → '}
+                              </>
+                            )}
+                            {JSON.stringify(d.new ?? null)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
                 )}
-                {v.note && <div className="ss-meta">{v.note}</div>}
+                {v.note && (
+                  <div className="ss-meta">
+                    {t('settings.polishSettings.developerNote', { note: v.note })}
+                  </div>
+                )}
               </div>
               <Button
                 size="sm"

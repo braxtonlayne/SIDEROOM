@@ -550,3 +550,29 @@ label.adm-check-row {
   font-size: 0.8125rem;
   color: var(--ui-text-muted);
 }
+/* Review queues > Apps: a version's changes fold away and read as name / value rows. */
+.adm-diff {
+  margin-block: 6px;
+  font-size: 0.8125rem;
+}
+.adm-diff summary {
+  cursor: pointer;
+  color: var(--ui-text-muted);
+}
+.adm-diff dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 8px 0 0;
+}
+.adm-diff dl > div {
+  display: contents;
+}
+.adm-diff dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.adm-diff-old {
+  color: var(--ui-text-muted);
+  text-decoration: line-through;
+}
