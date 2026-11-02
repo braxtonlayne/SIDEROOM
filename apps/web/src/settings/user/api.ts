@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearUploadsOnSignOut } from '../../lib/uploadLedger';
 import { ApiError, apiFetch, apiPost, clearCsrf, type ApiErrorBody } from '../../api/client';
 import { purgeAppCaches } from '../../pwa/purge';
+import { forgetSection } from '../../state/session';
 
 // ---- account ----
 
@@ -48,6 +49,7 @@ export const logout = async () => {
   await purgeAppCaches();
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
+  forgetSection();
   await endPlayer();
 };
 /** Revokes every session, this one included. */
@@ -56,6 +58,7 @@ export const logoutAll = async () => {
   await purgeAppCaches();
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
+  forgetSection();
   await endPlayer();
 };
 

@@ -38,6 +38,19 @@ export const useUiStore = create<UiState>((set) => ({
   },
 }));
 
+/**
+ * Forgets the remembered section (sign-out): the next account on this browser starts at the default instead of
+ * reopening the previous member's page (FU-10).
+ */
+export function forgetSection(): void {
+  useUiStore.setState({ lastSection: DEFAULT_SECTION });
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* storage unavailable: nothing was kept */
+  }
+}
+
 /** Remembers `pathname` as the last section when it is one (a no-op for every other page). */
 export function rememberSection(pathname: string): void {
   if (isSectionPath(pathname) && useUiStore.getState().lastSection !== pathname) {

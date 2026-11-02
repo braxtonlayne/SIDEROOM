@@ -40,4 +40,13 @@ describe('FU-ENT-4: /app reopens the last section', () => {
     const a = await freshStore();
     expect(a.useUiStore.getState().lastSection).toBe('/channels');
   });
+
+  it('forgets the section on sign-out, so the next account starts at the default', async () => {
+    const a = await freshStore();
+    a.rememberSection('/study');
+    a.forgetSection();
+    expect(a.useUiStore.getState().lastSection).toBe('/channels');
+    const b = await freshStore();
+    expect(b.useUiStore.getState().lastSection).toBe('/channels');
+  });
 });
