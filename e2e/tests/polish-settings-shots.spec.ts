@@ -78,8 +78,16 @@ test.describe('settings polish shots', () => {
           const overflow = await page.evaluate(() => {
             const w = document.documentElement.clientWidth;
             // Wide tables scroll sideways on purpose; anything else past the edge is cut off.
-            const clipped = (el: Element) =>
-              el.closest('table, .ss-table, [role="tablist"]') !== null;
+            // So do strips that scroll or clip on purpose (the portal nav, a marquee): an ancestor that clips sideways
+            // and itself ends inside the screen hides the overflow from the user.
+            const clipped = (el: Element) => {
+              if (el.closest('table, .ss-table, [role="tablist"]')) return true;
+              for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+                const o = getComputedStyle(p).overflowX;
+                if (o !== 'visible' && p.getBoundingClientRect().right <= w + 1) return true;
+              }
+              return false;
+            };
             const out: string[] = [];
             for (const el of Array.from(document.body.querySelectorAll('*'))) {
               const r = el.getBoundingClientRect();
