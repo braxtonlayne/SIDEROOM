@@ -35,6 +35,11 @@
   content: '← ';
   content: '← ' / '';
 }
+/* Right-to-left: "back" points the other way. */
+[dir='rtl'] .emu-back::before {
+  content: '→ ';
+  content: '→ ' / '';
+}
 .emu-back:hover {
   color: var(--ui-text);
   text-decoration: underline;

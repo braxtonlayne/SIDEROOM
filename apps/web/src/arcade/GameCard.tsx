@@ -22,9 +22,12 @@ export function TierLine({ tier, eligibility }: { tier: Tier; eligibility: Eligi
 
 /** A capability flag's readable name (`guest_play` reads "Guest play"); an unknown flag keeps its own name. */
 export function flagLabel(t: (key: string) => string, name: string): string {
-  const key = `arcade.flag.name.${name}`;
-  const label = t(key);
-  if (label !== key) return label;
+  // Catalog key segments are camelCase: `guest_play` looks up `arcade.flag.name.guestPlay`.
+  if (/^[a-z][a-z0-9_]*$/.test(name)) {
+    const key = `arcade.flag.name.${name.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())}`;
+    const label = t(key);
+    if (label !== key) return label;
+  }
   const plain = name.replace(/_/g, ' ');
   return plain.charAt(0).toUpperCase() + plain.slice(1);
 }
