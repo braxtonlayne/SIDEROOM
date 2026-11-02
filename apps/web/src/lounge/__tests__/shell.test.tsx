@@ -9,6 +9,8 @@ import { useLoungeUi } from '../store';
 import { setVoiceController, VoiceController } from '../../voice/controller';
 import { resetSession } from '../../voice/session';
 import { warmLoungeRoute } from '../../test/warmRoutes';
+import { useSocial } from '../shell/social';
+import type { DmObject } from '../shell/api';
 
 // These tests drive the Lounge against the deterministic mock seed (opt-in via VITE_SR_MOCK=1).
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -282,6 +284,22 @@ describe('Lounge shell', () => {
     expect(await screen.findByText("This channel doesn't exist")).toBeInTheDocument();
   });
 
+  it('shows a pending message request opened by link as a request, not a missing channel (O1)', async () => {
+    at('/channels/@me/9901');
+    const request = {
+      id: '9901',
+      type: 1,
+      recipients: [{ id: '9902', username: 'quill', global_name: 'Quill' }],
+      is_message_request: true,
+    } as unknown as DmObject;
+    act(() => useSocial.setState({ messageRequests: [request] }));
+    expect(await screen.findByRole('heading', { name: 'Quill' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept request from Quill' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All message requests' })).toBeInTheDocument();
+    expect(screen.queryByText("This channel doesn't exist")).not.toBeInTheDocument();
+    act(() => useSocial.setState({ messageRequests: [] }));
+  });
+
   it('collapses the section bar from the title strip', async () => {
     at('/channels/1001/2001');
     await screen.findByRole('log');
@@ -322,6 +340,18 @@ describe('Lounge mobile layout', () => {
     await vi.waitFor(() => expect(root).toHaveAttribute('data-pane', 'chat'));
     await userEvent.click(screen.getByRole('button', { name: 'Back to channels' }));
     expect(root).toHaveAttribute('data-pane', 'list');
+  });
+
+  it('takes the off-screen panes out of the tab order (O6)', async () => {
+    at('/channels/1001/2001');
+    await screen.findByRole('log');
+    const root = document.querySelector('.lng-root')!;
+    await vi.waitFor(() => expect(root).toHaveAttribute('data-pane', 'chat'));
+    expect(document.querySelector('.lng-left')).toHaveAttribute('inert');
+    expect(document.querySelector('.lng-main')).not.toHaveAttribute('inert');
+    await userEvent.click(screen.getByRole('button', { name: 'Back to channels' }));
+    expect(document.querySelector('.lng-left')).not.toHaveAttribute('inert');
+    expect(document.querySelector('.lng-main')).toHaveAttribute('inert');
   });
 
   it('swipes between panes', async () => {

@@ -488,9 +488,9 @@
 
 /* ---------- personal pages (My list, downloads) ---------- */
 .cpl-my {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px 64px;
+  /* Same gutter as every other Cinema page (.cin-page), so the heading lines up with the logo. */
+  padding-block: 32px 64px;
+  padding-inline: clamp(16px, 5vw, 80px);
 }
 .cpl-my-eyebrow {
   margin: 0;
@@ -504,6 +504,16 @@
   font-family: var(--sr-font-display);
   font-size: 40px;
   font-weight: 500;
+}
+/* On phones the four tabs fit without scrolling ("History" was cut to "Histor"). */
+@media (max-width: 30rem) {
+  .cpl-my-tabs > [role='tablist'] {
+    gap: 0;
+  }
+  .cpl-my-tabs > [role='tablist'] > [role='tab'] {
+    padding-inline: 8px;
+    font-size: 0.875rem;
+  }
 }
 .cpl-my-grid {
   display: grid;

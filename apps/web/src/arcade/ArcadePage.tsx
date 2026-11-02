@@ -3,6 +3,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
+import { apiFetch } from '../api/client';
+import type { Guild } from '../store/types';
 import { PreviewToggle } from '../showroom/PreviewToggle';
 import { useShowroomActive } from '../showroom/state';
 import { httpArcadeApi, type ArcadeApi } from './api';
@@ -18,6 +20,29 @@ import './arcade.css';
  */
 // UX-SHOW-001: sample cards live in a lazy chunk and replace the page (not the data) while the preview is on.
 const PreviewArcade = lazy(() => import('../showroom/PreviewArcade'));
+
+/**
+ * The member's servers: the live list once the Lounge has connected, else (the Arcade opened straight from a link or
+ * a reload, before the gateway is up) the REST list, so the cartridges picker is never wrongly empty.
+ */
+function useServerList(): Pick<Guild, 'id' | 'name'>[] {
+  const live = useGuilds();
+  const [fetched, setFetched] = useState<Pick<Guild, 'id' | 'name'>[]>([]);
+  const need = live.length === 0;
+  useEffect(() => {
+    if (!need) return;
+    let on = true;
+    apiFetch<{ id: string; name?: string }[]>('/users/@me/guilds', { retries: 0 })
+      .then((g) => {
+        if (on && Array.isArray(g)) setFetched(g.map((x) => ({ id: x.id, name: x.name ?? '' })));
+      })
+      .catch(() => undefined);
+    return () => {
+      on = false;
+    };
+  }, [need]);
+  return need ? fetched : live;
+}
 
 export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
   const preview = useShowroomActive();
@@ -39,7 +64,7 @@ function RealArcadePage({
   trust?: TrustSource;
 }) {
   const t = useT();
-  const guilds = useGuilds();
+  const guilds = useServerList();
   const emulatorOn = useEmulatorOn();
   const [front, setFront] = useState<ArcadeFront | null>(null);
   const [failed, setFailed] = useState(false);
@@ -57,8 +82,10 @@ function RealArcadePage({
 
   return (
     <main className="arc-page">
-      <h1>{t('arcade.page.title')}</h1>
-      <p className="arc-dim">{t('arcade.page.intro')}</p>
+      <header className="arc-head">
+        <h1>{t('arcade.page.title')}</h1>
+        <p className="arc-dim">{t('arcade.page.intro')}</p>
+      </header>
       <PreviewToggle />
       <nav aria-label={t('arcade.page.nav')} className="arc-nav">
         <a href="#featured">{t('arcade.featured.heading')}</a>

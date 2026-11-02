@@ -71,7 +71,7 @@ describe('Featured', () => {
     expect(screen.getByRole('heading', { name: 'Featured' })).toBeInTheDocument();
     const land = screen.getByRole('heading', { name: 'Land.io' }).closest('article')!;
     expect(within(land).getByText('Original')).toBeInTheDocument();
-    expect(within(land).getByText('guest_play')).toBeInTheDocument();
+    expect(within(land).getByText('Guest play')).toBeInTheDocument();
     expect(within(land).getByText('(planned)')).toBeInTheDocument();
     expect(within(land).getByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
       'href',
@@ -79,7 +79,7 @@ describe('Featured', () => {
     );
     const horizon = screen.getByRole('heading', { name: 'Horizon' }).closest('article')!;
     expect(within(horizon).getByText('Desktop app only')).toBeInTheDocument();
-    expect(within(horizon).queryByText(/voice channel/)).toBeNull();
+    expect(within(horizon).queryByText(/Start it from a channel/)).toBeNull();
   });
 
   it('says so when nothing is featured', () => {

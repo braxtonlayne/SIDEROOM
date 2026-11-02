@@ -280,3 +280,20 @@
   margin: 0;
   color: var(--text-muted);
 }
+
+/* XC-VIS-002: the DM profile panel's card reads as a stack (the Add friend row touched "Member since"), and the
+   mutual and full-profile links sit at the start, one per line, instead of wrapping centred. */
+.prf-dm-panel .lng-profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.prf-dm-panel .lng-profile-card > p,
+.prf-dm-panel .lng-profile-card section p {
+  margin: 0;
+}
+.prf-dm-panel .lng-profile-card > .lng-link-btn {
+  align-self: flex-start;
+  text-align: start;
+}

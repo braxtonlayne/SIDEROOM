@@ -21,7 +21,7 @@
 .row { font-family: var(--sr-font-body, var(--ui-font-body)); color: var(--sr-text, var(--ui-text)); }
 .rowHead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .rowTitle { margin: 0; font-family: var(--sr-font-display, var(--ui-font-display)); font-size: 1.75rem; font-weight: 400; }
-.rowTools { display: flex; align-items: center; gap: 12px; font-size: 0.8125rem; }
+.rowTools { display: flex; flex: none; align-items: center; gap: 12px; font-size: 0.8125rem; white-space: nowrap; }
 .arrowBtn {
   display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--sr-line, var(--ui-border)); border-radius: var(--sr-radius, 2px);
   background: transparent; color: var(--sr-text, var(--ui-text)); cursor: pointer;

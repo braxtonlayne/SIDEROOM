@@ -13,6 +13,7 @@ import {
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LiveRegions } from '../a11y/announcer';
+import { AppUiStrings } from '../components/AppUiStrings';
 import { EntranceShell } from '../components/EntranceShell';
 import { initLocale, useT } from '../i18n';
 import { parseSearchValue, stringifySearchValue } from '../lib/searchCodec';
@@ -72,9 +73,11 @@ export function mountSurface(router: ReturnType<typeof createSurfaceRouter>): vo
   void initLocale().finally(() => {
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
-        <RouterProvider router={router} />
-        <LiveRegions />
-        <PublicUpdateToast />
+        <AppUiStrings>
+          <RouterProvider router={router} />
+          <LiveRegions />
+          <PublicUpdateToast />
+        </AppUiStrings>
       </StrictMode>,
     );
     registerServiceWorker();

@@ -52,7 +52,7 @@ export function ActivityPanel({
   const me = useCurrentUser();
   const { enabled, instance } = useChannelActivity(channelId, api);
   const adopt = useActivitySession((s) => s.adopt);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'join' | 'leave' | 'end' | null>(null);
   const [sharing, setSharing] = useState(false);
 
   // Keep the shell's dock informed about this channel's instance.
@@ -63,14 +63,14 @@ export function ActivityPanel({
   if (!enabled || !instance || !here) return null;
 
   const joined = instance.participants.some((p) => p.user_id === me.id);
-  const run = async (f: () => Promise<unknown>) => {
-    setBusy(true);
+  const run = async (which: 'join' | 'leave' | 'end', f: () => Promise<unknown>) => {
+    setBusy(which);
     try {
       await f();
     } catch {
       // The gateway event (or the next read) shows the real state; nothing to add here.
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -94,31 +94,37 @@ export function ActivityPanel({
         {joined ? (
           <>
             {canShare(instance) && (
-              <Button size="sm" variant="ghost" onClick={() => setSharing(true)}>
+              <Button size="sm" variant="secondary" onClick={() => setSharing(true)}>
                 {t('guestshare.button')}
               </Button>
             )}
             <Button
               size="sm"
-              variant="ghost"
-              loading={busy}
-              onClick={() => void run(() => api.leave(instance.id))}
+              variant="secondary"
+              loading={busy === 'leave'}
+              disabled={busy !== null}
+              onClick={() => void run('leave', () => api.leave(instance.id))}
             >
               {t('activities.panel.leave')}
             </Button>
             {instance.started_by === me.id && (
               <Button
                 size="sm"
-                variant="ghost"
-                loading={busy}
-                onClick={() => void run(() => api.end(instance.id))}
+                variant="danger"
+                loading={busy === 'end'}
+                disabled={busy !== null}
+                onClick={() => void run('end', () => api.end(instance.id))}
               >
                 {t('activities.panel.end')}
               </Button>
             )}
           </>
         ) : (
-          <Button size="sm" loading={busy} onClick={() => void run(() => api.join(instance.id))}>
+          <Button
+            size="sm"
+            loading={busy === 'join'}
+            onClick={() => void run('join', () => api.join(instance.id))}
+          >
             {t('activities.panel.join')}
           </Button>
         )}

@@ -498,6 +498,7 @@ export function TitlePage({ id }: { id: string }) {
       <Header d={d} variant={variant} onVariant={setVariant} />
       <div className="cin-page">
         <Tabs
+          className="cin-title-tabs"
           label={tr('cinema.title.sections')}
           items={[
             ...(episodic

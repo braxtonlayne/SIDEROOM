@@ -68,6 +68,8 @@ export function ChannelsSection({ guildId, viewer }: SectionProps) {
     () => void res.reload(),
   );
   const [create, setCreate] = useState<null | { parentId?: string; category?: boolean }>(null);
+  // XC-VIS-002: a channel made here opens in the editor; the Lounge's dialog would take the owner to it instead.
+  const [created, setCreated] = useState<string | null>(null);
   return (
     <>
       <SectionHeader
@@ -90,6 +92,7 @@ export function ChannelsSection({ guildId, viewer }: SectionProps) {
             channels={channels}
             res={res}
             onCreate={setCreate}
+            focusId={created}
           />
         )}
       </Async>
@@ -102,6 +105,7 @@ export function ChannelsSection({ guildId, viewer }: SectionProps) {
             setCreate(null);
             void res.reload();
           }}
+          onCreated={(c) => setCreated(c.id)}
         />
       )}
     </>
@@ -114,27 +118,38 @@ function ChannelsEditor({
   channels,
   res,
   onCreate,
+  focusId,
 }: {
   guildId: string;
   viewer: Viewer;
   channels: api.ChannelObject[];
   res: { reload: () => Promise<void> };
   onCreate: (c: { parentId?: string; category?: boolean }) => void;
+  /** A channel just created here: select it once it is in the list (unless an edit is unsaved). */
+  focusId?: string | null;
 }) {
   const t = useT();
   const action = useAction();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const known = channels.some((c) => c.id === focusId);
+  useEffect(() => {
+    if (focusId && known && !dirty) setSelectedId(focusId);
+    // Only a new focus (or its arrival in the list) moves the selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, known]);
 
   const categories = channels.filter(isCategory).sort(bySort);
   const children = (id: string) =>
     channels.filter((c) => !isCategory(c) && c.parent_id === id).sort(bySort);
   const catIds = new Set(categories.map((c) => c.id));
-  // Top level: categories and channels without a (known) category, in one ordering.
-  const top = channels
-    .filter((c) => isCategory(c) || !c.parent_id || !catIds.has(c.parent_id))
+  // Channels without a (known) category sit above every category (Discord parity) and move among themselves;
+  // categories move among categories.
+  const loose = channels
+    .filter((c) => !isCategory(c) && (!c.parent_id || !catIds.has(c.parent_id)))
     .sort(bySort);
+  const top = [...loose, ...categories];
   const selected = channels.find((c) => c.id === selectedId);
 
   const select = (id: string) => {
@@ -163,7 +178,7 @@ function ChannelsEditor({
     const i = siblings.findIndex((x) => x.id === c.id);
     const label = c.name ?? c.id;
     return (
-      <li key={c.id} className={`ss-row${nested ? ' ss-tree-child' : ''}`}>
+      <li key={c.id} className={`ss-row ss-tree-row${nested ? ' ss-tree-child' : ''}`}>
         <button
           type="button"
           className={`ss-grow ss-name ss-link${isCategory(c) ? ' ss-tree-cat' : ''}`}
@@ -176,10 +191,12 @@ function ChannelsEditor({
           <Button
             size="sm"
             variant="ghost"
+            iconOnly
+            title={t('settings.channels.addChannel')}
             aria-label={t('settings.channels.createIn', { name: label })}
             onClick={() => onCreate({ parentId: c.id })}
           >
-            {t('settings.channels.addChannel')}
+            <span aria-hidden="true">+</span>
           </Button>
         )}
         <Button
@@ -220,7 +237,7 @@ function ChannelsEditor({
             isCategory(c) ? (
               <li key={c.id} className="ss-tree-group">
                 <ul className="ss-list" aria-label={c.name ?? t('settings.channels.category')}>
-                  {row(c, top, false)}
+                  {row(c, categories, false)}
                   {(() => {
                     const kids = children(c.id);
                     return kids.map((k) => row(k, kids, true));
@@ -228,7 +245,7 @@ function ChannelsEditor({
                 </ul>
               </li>
             ) : (
-              row(c, top, false)
+              row(c, loose, false)
             ),
           )}
         </ul>
@@ -461,7 +478,7 @@ function ChannelOverview({
       t('settings.channels.saved'),
     );
     if (ok) {
-      draft.reset();
+      draft.reset(c);
       await onChanged();
     }
   }, [nameError, draft, name, action, channel.id, onChanged, t]);

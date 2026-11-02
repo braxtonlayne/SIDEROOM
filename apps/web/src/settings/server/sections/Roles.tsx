@@ -219,7 +219,7 @@ function RolesEditor({
             return (
               <li
                 key={r.id}
-                className={`ss-row${dragId === r.id ? ' ss-dragging' : ''}`}
+                className={`ss-row ss-tree-row${dragId === r.id ? ' ss-dragging' : ''}`}
                 draggable={!query.trim() && !roleEditReason(viewer, r, guildId)}
                 onDragStart={(e) => {
                   setDragId(r.id);
@@ -254,7 +254,7 @@ function RolesEditor({
                   <Badge variant="accent">{t('settings.bridgeSync.role.mirrored')}</Badge>
                 )}
                 <span className="ss-meta">
-                  {t('settings.roles.memberCount', { count: String(counts.get(r.id) ?? 0) })}
+                  {t('settings.polishSettings.roleMembers', { count: counts.get(r.id) ?? 0 })}
                 </span>
                 {!query.trim() && (
                   <>
@@ -416,7 +416,7 @@ function RoleEditor({
       t('settings.roles.saved'),
     );
     if (next) {
-      draft.reset();
+      draft.reset(c);
       await onChanged();
     }
   }, [nameError, locked, draft, isEveryone, name, action, guildId, role.id, onChanged, t]);
@@ -496,7 +496,7 @@ function RoleEditor({
                   error={nameError}
                   onChange={(e) => draft.set('name', e.target.value)}
                 />
-                <div>
+                <div className="ss-color-block">
                   <RadioGroup
                     legend={t('settings.roles.styleLabel')}
                     value={colorStyleOf(draft.value)}
@@ -531,24 +531,24 @@ function RoleEditor({
                     />
                   </RadioGroup>
                   {colorStyleOf(draft.value) !== 'holographic' && (
-                    <>
+                    <div>
                       <span className="ss-field-label">{t('settings.roles.colorLabel')}</span>
                       <ColorPicker
                         label={t('settings.roles.colorLabel')}
                         value={draft.value.color ? hexFromInt(draft.value.color) : '#99aab5'}
                         onValueChange={(hex) => !locked && draft.set('color', intFromHex(hex))}
                       />
-                    </>
+                    </div>
                   )}
                   {colorStyleOf(draft.value) === 'gradient' && (
-                    <>
+                    <div>
                       <span className="ss-field-label">{t('settings.roles.secondColorLabel')}</span>
                       <ColorPicker
                         label={t('settings.roles.secondColorLabel')}
                         value={hexFromInt(draft.value.secondary ?? 0)}
                         onValueChange={(hex) => !locked && draft.set('secondary', intFromHex(hex))}
                       />
-                    </>
+                    </div>
                   )}
                   <Button
                     size="sm"

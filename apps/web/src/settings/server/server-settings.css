@@ -87,6 +87,10 @@
   font-size: 0.75rem;
   color: var(--ui-text-muted);
 }
+.ss-tree-row .ss-meta {
+  flex: none;
+  white-space: nowrap;
+}
 .ss-list {
   list-style: none;
   margin: 0;
@@ -129,9 +133,13 @@
 }
 .ss-split {
   display: grid;
-  grid-template-columns: minmax(200px, 280px) 1fr;
+  grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 24px;
   align-items: start;
+}
+/* XC-VIS-002 (O3): grid items default to min-width: auto, so a long nowrap channel name pushed the column past a phone screen. */
+.ss-split > * {
+  min-width: 0;
 }
 .ss-tabs {
   margin-top: 8px;
@@ -262,6 +270,22 @@
     display: block;
     overflow-x: auto;
   }
+  /* XC-VIS-001: a row's buttons and switches took the width and squeezed its name and description to one word per
+     line (Admin > Feature modules on a phone). The text keeps at least 12rem (next to an avatar); the controls wrap under it. */
+  .ss-row {
+    flex-wrap: wrap;
+  }
+  .ss-row > .ss-grow {
+    flex: 1 1 12rem;
+  }
+  /* The channel tree keeps its move buttons on the row; the name truncates instead. */
+  .ss-row.ss-tree-row {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .ss-row.ss-tree-row > .ss-grow {
+    flex: 1 1 0;
+  }
 }
 
 .ss-link {
@@ -281,7 +305,7 @@
   outline-offset: 2px;
 }
 .ss-link[aria-current='true'] {
-  color: var(--ui-accent);
+  color: var(--text-link, var(--ui-accent));
 }
 
 .ss-sr {
@@ -504,4 +528,76 @@
 .ss-trimmer-window {
   fill: var(--brand, #5865f2);
   fill-opacity: 0.25;
+}
+
+/* XC-VIS-002: the role colour editor (style, colours, default button, preview) was one unspaced block; the
+   "Holographic" radio touched the "Role color" label. */
+.ss-color-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ss-color-block > * {
+  max-inline-size: 100%;
+}
+/* The selected role or channel row reads as selected (Discord-like), not only by a colour change on its name. */
+.ss-row:has(> .ss-link[aria-current='true']),
+.ss-row:has(> .ss-grow > .ss-link[aria-current='true']) {
+  background: var(--ui-bg-hover, var(--ui-bg-raised));
+  border-radius: var(--ui-radius);
+  margin-inline: -8px;
+  padding-inline: 8px;
+}
+
+/* XC-VIS-002: table polish. The caption sat centred above the first column; chips broke "New account" over two
+   lines inside the pill; a row's action buttons wrapped Ban onto a line of its own. */
+.ss-table caption {
+  caption-side: top;
+  text-align: start;
+  padding-block-end: 8px;
+}
+.ss-table .ss-role-chip {
+  white-space: nowrap;
+}
+.ss-table td > .ss-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+/* XC-VIS-002: card titles are h2 or h3; an h3 kept the browser's margins (a gap above "Watch party cards" and every
+   feature card). Cards stacked straight in a section touched each other; links inside cards use the accent. */
+.ss-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.ss-card + .ss-card,
+.ss-card + .ss-danger-zone {
+  margin-block-start: 16px;
+}
+.ss-form > .ss-card + .ss-card,
+.ss-form > .ss-card + .ss-danger-zone {
+  margin-block-start: 0;
+}
+.ss-card > a {
+  color: var(--text-link, var(--ui-accent));
+  align-self: flex-start;
+}
+
+/* Extensions > Server look: the colour picker, its Save and Clear buttons and the search below ran together. */
+.pkg-look {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-block-end: 24px;
+}
+.pkg-look > p {
+  margin: 0;
+}
+.ss-subtitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
 }

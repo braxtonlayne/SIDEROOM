@@ -156,7 +156,7 @@
 }
 .us-themes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr));
   gap: 10px;
 }
 .us-theme {
@@ -278,19 +278,32 @@
 }
 
 /* Connections */
+/* XC-VIS-002: even rows (name at the start, Connect or the not-set-up note at the end) instead of ragged dashed chips. */
 .us-providers {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 8px;
   margin: 0 0 12px;
   padding: 0;
   list-style: none;
 }
 .us-providers li {
-  padding: 8px 14px;
-  border: 1px dashed var(--ui-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding-block: 6px;
+  padding-inline: 14px 8px;
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg, 8px);
-  color: var(--ui-text-muted);
+  background: var(--ui-bg);
+  font-weight: 600;
+}
+.us-providers li .us-muted {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-align: end;
 }
 
 /* Settings search and sidebar footer */
@@ -356,9 +369,19 @@
 }
 .us-select-row {
   display: grid;
-  grid-template-columns: 8rem 1fr;
+  grid-template-columns: minmax(0, 8rem) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+}
+/* XC-VIS-002: the select kept its intrinsic width and ran off a phone; on narrow screens the label goes above it. */
+.us-select-row > * {
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .us-select-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
 }
 .us-after {
   margin-top: 16px;
@@ -514,4 +537,25 @@
 }
 .us-preview .lng-pop-bio {
   white-space: normal;
+}
+
+/* XC-VIS-002: a card's title and its action buttons shared one row, so on a phone the description was squeezed into
+   a column a few words wide (Devices, Storage). The buttons now wrap under the text when space runs out. */
+.us-card-head {
+  flex-wrap: wrap;
+}
+.us-card-head > div:first-child {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+/* A segmented control's name was only spoken, so two "Always / On hover or focus / Never" rows sat unexplained. */
+.us-seg-label {
+  display: block;
+  margin-block-end: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+/* A section's intro line under its title ran straight into the first card (Appearance, Keybinds, Modules). */
+.us-title + .us-muted {
+  margin: -12px 0 16px;
 }

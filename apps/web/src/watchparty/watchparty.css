@@ -107,6 +107,31 @@
   .wp-title {
     font-size: 1rem;
   }
+  /* The stage keeps a 16:9 picture and the control bar sits under it at its own height; with both squeezed into a
+     56vw row the picture was a sliver and the reactions were cut off (XC-VIS-002). */
+  .wp-body {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .wp-stage-wrap {
+    overflow: hidden;
+  }
+  .wp-stage,
+  .wp-ext {
+    flex: none;
+    aspect-ratio: 16 / 9;
+  }
+}
+/* Phones: the title takes the first header line beside Close; the count and the buttons go on the second (the title
+   was squeezed out and Leave ran off the screen). */
+@media (max-width: 600px) {
+  .wp-top {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-inline: 8px 12px;
+  }
+  .wp-titleblock {
+    flex: 1 1 calc(100% - 56px);
+  }
 }
 
 /* controls */
@@ -556,4 +581,33 @@
 .wp-ext-remember {
   font-size: 0.875rem;
   color: var(--sr-muted, #b9b2a3);
+}
+
+/* The party's video could not be loaded (XC-VIS-002): a message in the middle of the stage. */
+.wp-media-error {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+  pointer-events: none;
+}
+.wp-media-error-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--sr-text, var(--ui-text));
+}
+.wp-media-error-body {
+  margin: 0;
+  max-inline-size: 28rem;
+  color: var(--sr-text-2, var(--ui-text-muted));
+}
+@media (max-width: 600px) {
+  .wp-media-error {
+    padding: 12px;
+    font-size: 0.875rem;
+  }
 }

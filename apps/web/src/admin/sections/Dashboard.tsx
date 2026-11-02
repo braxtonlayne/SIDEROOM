@@ -15,7 +15,13 @@ export const bytes = (v: number) => {
     x /= 1024;
     i += 1;
   }
-  return formatNumber(x, { style: 'unit', unit: BYTE_UNITS[i]!, maximumFractionDigits: 1 });
+  // Short units read "51 byte" in English; plain bytes take the long form ("51 bytes"), the rest stay short ("1.5 kB").
+  return formatNumber(x, {
+    style: 'unit',
+    unit: BYTE_UNITS[i]!,
+    unitDisplay: i === 0 ? 'long' : 'short',
+    maximumFractionDigits: 1,
+  });
 };
 
 export function DashboardSection() {

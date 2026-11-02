@@ -12,6 +12,8 @@
   flex-direction: column;
   width: 100%;
   max-height: calc(100vh - 32px);
+  /* XC-VIS-002: on phones 100vh includes the browser bars, so the footer sat under them. */
+  max-height: calc(100dvh - 32px);
   background: var(--ui-bg-overlay);
   color: var(--ui-text);
   font-family: var(--ui-font-body);
@@ -25,8 +27,9 @@
 .md { max-width: 560px; }
 .lg { max-width: 800px; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 20px 0; }
-.title { margin: 0; font-size: 1.25rem; font-weight: 600; font-family: var(--ui-font-display); }
+.title { margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 1.25rem; font-weight: 600; font-family: var(--ui-font-display); }
 .close {
+  flex-shrink: 0;
   width: 32px;
   height: 32px;
   border: 0;
@@ -42,7 +45,7 @@
 .description { margin: 8px 20px 0; color: var(--ui-text-muted); font-size: 0.9375rem; line-height: 1.45; }
 .body { padding: 16px 20px; overflow-y: auto; }
 .body:empty { display: none; }
-.footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; background: var(--ui-bg-raised); border-top: 1px solid var(--ui-border); border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg); }
+.footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 16px 20px; background: var(--ui-bg-raised); border-top: 1px solid var(--ui-border); border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg); }
 @keyframes pop {
   from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: none; }

@@ -9,7 +9,7 @@ import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { isAgeGateError, useAgeGate, withAgeGate } from '../../lib/ageGate';
 import { ItemHoldBanner, useItemHoldState } from '../../moderation/ItemHold';
-import { getPlayback } from './api';
+import { getPlayback, VideoNotReadyError } from './api';
 import { resumeOffer } from './model';
 import { PlayerView } from './Player';
 import { progressApi } from './progress';
@@ -115,22 +115,27 @@ function WatchLoader({
 
   if (query.isError && !declined) {
     const gone = query.error instanceof ApiError && query.error.status === 404;
+    const notReady = query.error instanceof VideoNotReadyError;
     return (
       <div className="cpl-player cpl-player-msg" role="main">
         <EmptyState
           title={
             takenDown
               ? tr('cinema.watch.takenDownTitle')
-              : gone
-                ? tr('cinema.watch.goneTitle')
-                : tr('cinema.watch.errorTitle')
+              : notReady
+                ? tr('cinema.watch.notReadyTitle')
+                : gone
+                  ? tr('cinema.watch.goneTitle')
+                  : tr('cinema.watch.errorTitle')
           }
           description={
             takenDown
               ? tr('cinema.watch.takenDownBody')
-              : gone
-                ? tr('cinema.watch.goneBody')
-                : tr('cinema.watch.errorBody')
+              : notReady
+                ? tr('cinema.watch.notReadyBody')
+                : gone
+                  ? tr('cinema.watch.goneBody')
+                  : tr('cinema.watch.errorBody')
           }
           action={
             <a className="cpl-primary" href="/cinema">

@@ -5,6 +5,7 @@ import { useRouter } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import { useT } from '../i18n';
 import { useAgeGate } from '../lib/ageGate';
+import { partyMessage } from './pageMessage';
 import { partyController, useParty } from './runtime';
 import { Theatre } from './Theatre';
 import './watchparty.css';
@@ -45,26 +46,12 @@ export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
 
   if (status === 'active' && party) return <Theatre onExit={back} />;
   if (status === 'error' || status === 'ended') {
-    const gone = error?.kind === 'gone';
+    const { title, description } = partyMessage(status, error, t);
     return (
       <div className="wp-root wp-msg">
         <EmptyState
-          title={
-            status === 'ended'
-              ? error?.kind === 'removed'
-                ? t('watchparty.page.removed')
-                : t('watchparty.page.ended')
-              : error?.kind === 'age'
-                ? t('watchparty.page.ageTitle')
-                : gone
-                  ? t('watchparty.page.gone')
-                  : t('watchparty.page.couldNotOpen')
-          }
-          description={
-            error?.kind === 'age'
-              ? t('watchparty.page.ageDescription')
-              : (error?.message ?? t('watchparty.page.checkConnection'))
-          }
+          title={title}
+          description={description}
           action={
             <Button onClick={back} variant="secondary">
               {t('watchparty.page.back')}

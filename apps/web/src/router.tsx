@@ -9,7 +9,6 @@ import {
   type RouterHistory,
 } from '@tanstack/react-router';
 import { lazy, Suspense } from 'react';
-import { useT } from './i18n';
 import { CatalogGate } from './i18n/CatalogGate';
 import { RouteFallback } from './lib/lazyRoute';
 import { useNoindex } from './lib/useNoindex';
@@ -129,9 +128,16 @@ const routeTree = root.addChildren([
   ...createEmuRoutes(root),
 ]);
 
+// The not-found page is its own chunk (XC-VIS-001): the first paint only carries this stub.
+const NotFoundBody = lazy(() =>
+  import('./app/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
+);
 function NotFoundPage() {
-  const t = useT();
-  return <p>{t('app.router.notFound')}</p>;
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <NotFoundBody />
+    </Suspense>
+  );
 }
 
 export { parseSearchValue, stringifySearchValue };

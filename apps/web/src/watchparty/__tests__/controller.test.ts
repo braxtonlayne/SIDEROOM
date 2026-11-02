@@ -48,6 +48,23 @@ describe('opening a party', () => {
     expect(c.state.status).toBe('active');
   });
 
+  it('stays in the party when only its video fails to load, and says which failure it was', async () => {
+    const missing = new Error('video not ready');
+    missing.name = 'VideoNotReadyError';
+    c = new PartyController({ ...d, load: vi.fn(() => Promise.reject(missing)) });
+    await c.open('900');
+    expect(c.state.status).toBe('active');
+    expect(c.state.error?.kind).toBe('notReady');
+    await c.close();
+    c = new PartyController({
+      ...d,
+      load: vi.fn(() => Promise.reject(new ApiError(500, 'boom'))),
+    });
+    await c.open('900');
+    expect(c.state.status).toBe('active');
+    expect(c.state.error?.kind).toBe('media');
+  });
+
   it('joins a visible party the viewer is not in yet', async () => {
     server.party.you = {
       member: false,

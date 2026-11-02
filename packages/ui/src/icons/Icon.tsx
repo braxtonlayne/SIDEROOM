@@ -1,10 +1,11 @@
 import type { SVGAttributes } from "react";
 import { ICON_PATHS, type IconName } from "./paths";
 
-export type IconSize = 16 | 20 | 24;
+export type IconSize = 16 | 20 | 24 | 32 | 40;
 
 /** Stroke weight in viewBox units, tuned so the rendered line stays ~1.5-1.75px at each optical size. */
-const STROKE: Record<IconSize, number> = { 24: 1.75, 20: 2, 16: 2.25 };
+// 32 and 40 are display sizes (empty states, XC-VIS-002): a thinner stroke keeps the line near 2px.
+const STROKE: Record<IconSize, number> = { 40: 1.25, 32: 1.5, 24: 1.75, 20: 2, 16: 2.25 };
 
 export interface IconProps extends Omit<SVGAttributes<SVGSVGElement>, "children" | "name"> {
   name: IconName;

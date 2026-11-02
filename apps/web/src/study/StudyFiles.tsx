@@ -108,8 +108,15 @@ function FileCard({
       <ProvenanceBadge text={badge} kind={badgeKind} />
       {note?.note && <p className="stu-note">{note.note}</p>}
       {canEdit && (
-        <Button variant="secondary" size="sm" onClick={onEdit}>
-          {t('study.file.edit', { title })}
+        // The visible label stays short (a long file name stretched the card to twice the others); the name is in
+        // the accessible name.
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label={t('study.file.edit', { title })}
+          onClick={onEdit}
+        >
+          {t('study.edit.title')}
         </Button>
       )}
     </li>
@@ -226,25 +233,45 @@ export function StudyFiles({
           </Button>
         )}
       </nav>
-      <div className="stu-tools">
-        <TextInput
-          label={t('study.search')}
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-      <FilterChips
-        label={t('study.filter.label')}
-        value={type}
-        onValueChange={(v) => setType(v as StudyType | null)}
-        options={STUDY_TYPES.map((k) => ({
-          value: k,
-          label: `${t(`study.type.${k}` as 'study.type.other')} (${counts[k]})`,
-        }))}
-      />
+      {/* Search and the type chips only once the folder is read: "Video (0)" next to a load error read as an
+          empty folder. */}
+      {dir.isSuccess && (
+        <>
+          <div className="stu-tools">
+            <TextInput
+              label={t('study.search')}
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <FilterChips
+            label={t('study.filter.label')}
+            value={type}
+            onValueChange={(v) => setType(v as StudyType | null)}
+            options={STUDY_TYPES.map((k) => ({
+              value: k,
+              label: `${t(`study.type.${k}` as 'study.type.other')} (${counts[k]})`,
+            }))}
+          />
+        </>
+      )}
       {dir.isPending && <p className="stu-muted">{t('study.loading')}</p>}
-      {dir.isError && <Notice variant="danger">{t('study.error')}</Notice>}
+      {dir.isError && (
+        <Notice variant="danger">
+          <span className="stu-error">
+            {t('study.error')}
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={dir.isFetching}
+              onClick={() => void dir.refetch()}
+            >
+              {t('study.retry')}
+            </Button>
+          </span>
+        </Notice>
+      )}
       {dir.isSuccess && shown.length === 0 && shownFolders.length === 0 && (
         <EmptyState
           title={

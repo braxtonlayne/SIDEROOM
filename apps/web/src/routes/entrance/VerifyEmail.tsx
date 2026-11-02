@@ -1,3 +1,4 @@
+import { Notice } from '@sideroom/ui';
 import { useParams } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -42,19 +43,19 @@ export function VerifyEmail() {
         </p>
       )}
       {state === 'done' && (
-        <p role="status" className="ent-sub">
+        <Notice variant="success" className="ent-notice">
           {t('entrance.verifyEmail.done')}
-        </p>
+        </Notice>
       )}
       {state === 'expired' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.verifyEmail.expired')}
-        </p>
+        </Notice>
       )}
       {state === 'error' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.common.unreachable')}
-        </p>
+        </Notice>
       )}
       <p className="ent-footnote">
         <a href="/login">{t('entrance.common.backToSignIn')}</a>

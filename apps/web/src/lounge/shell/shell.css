@@ -95,6 +95,12 @@
 .lng-channel-item:focus-within .lng-channel-actions {
   display: flex;
 }
+/* XC-VIS-002: while the invite and settings buttons show, a long name ellipsizes before them instead of
+   running under them. */
+.lng-channel-item:hover .lng-channel,
+.lng-channel-item:focus-within .lng-channel {
+  padding-inline-end: 64px;
+}
 .lng-channel-item[data-dragging],
 .lng-category-head[data-dragging] {
   opacity: 0.4;
@@ -162,6 +168,8 @@
 .lng-friends-tabs {
   margin-inline-start: 16px;
   flex: 1;
+  /* XC-VIS-002: the kit's 16px gap to its (empty, here) panel pushed the pills above the header's centre line. */
+  gap: 0;
 }
 .lng-friends-body {
   display: flex;

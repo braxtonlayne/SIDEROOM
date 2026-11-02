@@ -3,6 +3,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { LiveRegions } from '../a11y/announcer';
+import { AppUiStrings } from '../components/AppUiStrings';
 import { CatalogGate } from '../i18n/CatalogGate';
 import { initLocale } from '../i18n';
 import { PwaHost } from '../pwa/PwaHost';
@@ -21,6 +22,7 @@ import { exitToLogin } from '../lib/enterApp';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/a11y.css';
+import '../styles/app-links.css';
 
 const queryClient = new QueryClient();
 
@@ -52,20 +54,22 @@ void initLocale().finally(() => {
     <StrictMode>
       <CrashBoundary>
         <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-          <PwaHost />
-          <LiveRegions />
-          <ReportsFlagSync />
-          <CatalogGate>
-            <ReportDialog />
-            <ShowroomBanner />
-            <TestDeploymentNotice />
-            {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
-            <VoiceBridge />
-            <IncomingCallOverlay />
-            {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}
-            <MiniPlayerMount history={router.history} />
-          </CatalogGate>
+          <AppUiStrings>
+            <RouterProvider router={router} />
+            <PwaHost />
+            <LiveRegions />
+            <ReportsFlagSync />
+            <CatalogGate>
+              <ReportDialog />
+              <ShowroomBanner />
+              <TestDeploymentNotice />
+              {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
+              <VoiceBridge />
+              <IncomingCallOverlay />
+              {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}
+              <MiniPlayerMount history={router.history} />
+            </CatalogGate>
+          </AppUiStrings>
         </QueryClientProvider>
       </CrashBoundary>
     </StrictMode>,

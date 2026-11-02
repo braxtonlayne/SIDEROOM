@@ -220,7 +220,11 @@ export interface Draft<T extends object> {
   dirty: boolean;
   /** Only the keys that differ from the baseline. */
   changed: Partial<T>;
-  reset: () => void;
+  /**
+   * Drop the edits. Given the edits a save sent, drops only those still holding the sent value, so what the person
+   * typed while the save was in flight survives it.
+   */
+  reset: (sent?: Partial<T>) => void;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -243,6 +247,14 @@ export function useDraft<T extends object>(base: T): Draft<T> {
     <K extends keyof T>(key: K, v: T[K]) => setEdits((e) => ({ ...e, [key]: v })),
     [],
   );
-  const reset = useCallback(() => setEdits({}), []);
+  const reset = useCallback((sent?: Partial<T>) => {
+    if (!sent) return setEdits({});
+    setEdits((e) => {
+      const out: Partial<T> = {};
+      for (const k of Object.keys(e) as (keyof T)[])
+        if (!(k in sent) || !same(e[k], sent[k])) out[k] = e[k] as T[keyof T];
+      return out;
+    });
+  }, []);
   return { value, set, dirty: Object.keys(changed).length > 0, changed, reset };
 }

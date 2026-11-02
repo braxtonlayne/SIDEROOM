@@ -25,10 +25,14 @@ h2 { margin: 0 0 4px; font-size: 20px; }
 .keys { line-height: 1.5; }
 button, select, input[type='text'] { font: inherit; color: var(--text); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line);
   border-radius: 9px; padding: 10px 12px; }
-button { cursor: pointer; text-align: left; }
+button { cursor: pointer; text-align: center; }
 button:hover:not(:disabled), button:focus-visible { border-color: var(--accent); outline: none; }
 button:disabled { opacity: 0.6; cursor: progress; }
 button.primary { background: var(--accent); color: #062312; font-weight: 650; text-align: center; border: none; }
+button.primary:focus-visible { box-shadow: 0 0 0 3px var(--text); }
+/* Touch-only devices: say plainly that the demo needs a keyboard and mouse (there are no touch controls yet). */
+.touch-note { display: none; color: var(--text); }
+@media (hover: none) and (pointer: coarse) { .touch-note { display: block; } }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 label.row { flex-direction: row; align-items: center; gap: 8px; }
 input[type='range'] { accent-color: var(--accent); }

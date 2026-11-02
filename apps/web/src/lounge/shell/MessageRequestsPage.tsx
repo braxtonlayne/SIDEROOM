@@ -76,7 +76,7 @@ export function MessageRequestsPage() {
         </Button>
         <Button
           size="sm"
-          variant="danger"
+          variant="secondary"
           aria-label={t('lounge.messageRequests.spamLabel', { name })}
           onClick={() => void answer(dm, 'spam')}
         >

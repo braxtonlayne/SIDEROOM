@@ -210,6 +210,22 @@ select {
 input[type='file'] {
   max-inline-size: 100%;
 }
+/* The picker button looks like the panel's other buttons; the file name gets the whole row under its label. */
+input[type='file']::file-selector-button {
+  margin-inline-end: 8px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding-block: 3px;
+  padding-inline: 8px;
+  cursor: pointer;
+}
+.field:has(input[type='file']) {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
 .filebtn input {
   display: none;
 }

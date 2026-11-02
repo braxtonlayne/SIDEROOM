@@ -9,7 +9,10 @@
   color: var(--text-normal);
   font-size: 16px;
 }
-.lng-root button {
+/* XC-VIS-002: zero specificity. As `.lng-root button` (0,1,1) this beat every UI kit button's own colour
+   (0,1,0): primary buttons showed body text on the accent (pale on tan in the dark themes, about 1.6:1) and
+   danger buttons dark text on red. */
+:where(.lng-root) :where(button) {
   font: inherit;
   color: inherit;
 }
@@ -477,6 +480,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* XC-VIS-002: a long name squeezed the channel icon to a dot ("#" half size next to the others). */
+.lng-channel > svg {
+  flex: none;
+}
 .lng-voice-limit {
   margin-inline-start: auto;
   font-size: 12px;
@@ -521,6 +528,10 @@
   color: var(--text-muted);
   font-size: 13px;
   text-align: start;
+  /* XC-VIS-002: one line, never spilling out of the box at larger text sizes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 .lng-home-nav {
@@ -541,6 +552,18 @@
   color: var(--interactive-normal);
   text-decoration: none;
   cursor: pointer;
+  /* XC-VIS-002: the button rows (Message Requests) match the link rows: start-aligned, one line. */
+  inline-size: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  text-align: start;
+}
+.lng-nav-item > span:not([class]) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lng-nav-item:hover,
 .lng-nav-item[data-selected] {
@@ -643,9 +666,15 @@
 .lng-user-panel {
   display: flex;
   align-items: center;
-  gap: 2px;
+  /* XC-VIS-002: tighter, so the name shows more than three letters next to the five controls. */
+  gap: 0;
   height: 52px;
-  padding: 0 8px;
+  padding-block: 0;
+  padding-inline: 4px;
+}
+.lng-user-panel .lng-device-arrow {
+  inline-size: 14px;
+  min-inline-size: 14px;
 }
 .lng-user-id {
   display: flex;
@@ -747,6 +776,23 @@
   align-items: center;
   gap: 4px;
   margin-inline-start: auto;
+  /* XC-VIS-002: the tools never shrink or spill over the member list; the title gives way instead. */
+  flex: none;
+}
+.lng-header {
+  min-inline-size: 0;
+}
+.lng-header > svg,
+.lng-header > .lng-back {
+  flex: none;
+}
+.lng-header .lng-header-title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lng-dm-identity {
+  min-inline-size: 0;
 }
 .lng-search {
   display: flex;
@@ -865,7 +911,9 @@
 .lng-msg-hover-time {
   visibility: hidden;
   display: block;
-  width: 40px;
+  /* XC-VIS-002: "12:22 AM" wrapped in 40px and doubled the height of every grouped row. */
+  padding-inline-end: 8px;
+  white-space: nowrap;
   text-align: end;
   font-size: 11px;
   line-height: 22px;
@@ -878,6 +926,8 @@
   min-width: 0;
   flex: 1;
   line-height: 1.375;
+  /* XC-VIS-001: a long URL or an unbroken word wraps instead of running past the column. */
+  overflow-wrap: anywhere;
 }
 .lng-msg-head {
   display: flex;
@@ -897,6 +947,10 @@
   font-size: 10px;
   color: var(--text-muted);
 }
+/* XC-VIS-002: "(edited)" follows the last line of the text (Discord), not a line of its own under it. */
+.lng-msg-content > .sr-md:has(+ .lng-edited) {
+  display: inline;
+}
 .lng-msg[data-pending] {
   opacity: 0.6;
 }
@@ -909,16 +963,27 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  max-width: 100%;
-  margin: 0 0 2px var(--lounge-message-gutter, 72px);
+  /* XC-VIS-002: logical margin; the line never wraps (the name stayed whole and broke over two lines on phones). */
+  max-inline-size: calc(100% - var(--lounge-message-gutter, 72px));
+  margin-block: 0 2px;
+  margin-inline: var(--lounge-message-gutter, 72px) 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
+  white-space: nowrap;
+}
+.lng-reply > svg,
+.lng-reply > .lng-reply-avatar {
+  flex: none;
 }
 .lng-reply-name {
+  flex: none;
+  max-inline-size: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
 }
 .lng-reply-text {
@@ -968,6 +1033,8 @@
 }
 .lng-attach-file {
   display: inline-flex;
+  max-width: 100%;
+  box-sizing: border-box;
   align-items: center;
   gap: 8px;
   margin-top: 4px;
@@ -990,15 +1057,30 @@
   border: 0;
   border-radius: 8px;
   background: var(--brand);
-  color: #fff;
+  /* XC-VIS-002: the theme's ink for its accent (white on the pale Editorial accent was unreadable). */
+  color: var(--ui-accent-ink, #fff);
   font-size: 13px;
   cursor: pointer;
+  /* One line on phones too: the label ellipsizes, "Jump to present" stays whole. */
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: start;
 }
 .lng-jump span {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   font-weight: 700;
+}
+.lng-jump .lng-jump-label {
+  display: block;
+  flex: 0 1 auto;
+  font-weight: inherit;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- composer ---------- */
@@ -1373,6 +1455,8 @@
 .lng-root[data-mobile] .lng-left-col {
   flex: 1;
   width: auto;
+  /* XC-VIS-002: a long channel name ellipsizes instead of pushing the column (and the user panel) off screen. */
+  min-inline-size: 0;
 }
 .lng-root[data-mobile] .lng-right {
   width: 100%;
@@ -1411,6 +1495,7 @@
   padding-inline-start: 12px;
 }
 .lng-root[data-mobile] .lng-reply {
+  max-inline-size: calc(100% - 56px);
   margin-inline-start: 56px;
 }
 .lng-root[data-mobile] .lng-composer-wrap {
@@ -1913,4 +1998,43 @@
   background: #000;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+}
+
+/* O1: a pending message request opened by link (shell/MessageRequestView.tsx). */
+.lng-request-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-block: 48px;
+  padding-inline: 16px;
+  text-align: center;
+  overflow-y: auto;
+}
+.lng-request-view-name {
+  margin-block: 8px 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+.lng-request-view-sub,
+.lng-request-view-help {
+  margin: 0;
+  max-inline-size: 40ch;
+}
+.lng-request-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-block: 12px;
+}
+/* XC-VIS-002: the empty DM list points at waiting message requests. */
+.lng-dm-empty p {
+  margin: 0 0 4px;
+}
+.lng-dm-empty .lng-link-btn {
+  text-align: start;
 }

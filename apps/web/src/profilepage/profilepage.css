@@ -21,6 +21,13 @@
 }
 .pp-body {
   flex: 1;
+  /* XC-VIS-002: a customised page's own background runs to the bottom of the window, not just under its
+     blocks (the app background showed below a short page). */
+  display: flex;
+  flex-direction: column;
+}
+.pp-body > :last-child {
+  flex: 1;
 }
 .pp-plain {
   max-inline-size: 560px;
@@ -98,14 +105,40 @@
   flex-direction: column;
   gap: 8px;
 }
+/* One colour per row: two per row ran 76px past the 320px side column (XC-VIS-001). A fieldset is as wide as its
+   content unless told otherwise. */
 .pp-colors {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
 }
 .pp-color {
   display: flex;
   gap: 6px;
+  align-items: center;
+}
+.pp-color > span {
+  flex: 1;
+  min-inline-size: 0;
+}
+.pp-color input[type='text'] {
+  inline-size: 7.5em;
+  padding: 4px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
+}
+.pp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   align-items: center;
 }
 .pp-color input[type='color'] {
@@ -121,4 +154,56 @@
   gap: 8px;
   align-items: center;
   justify-content: space-between;
+}
+/* XC-VIS-002: the header links were the pale accent on the page background (hard to read in Lounge Light). */
+.pp-bar .us-link {
+  color: var(--ui-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pp-bar .us-link:hover,
+.pp-bar .us-link:focus-visible {
+  color: var(--ui-text);
+}
+/* XC-VIS-002: the side column's sections read as one panel each, with headings that do not shout over the
+   page title, and every style choice says what it is. */
+.pp-side .us-card {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+  background: var(--ui-bg-raised);
+}
+.pp-side .us-card-title {
+  margin-block: 0 8px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.pp-field {
+  display: grid;
+  gap: 4px;
+}
+.pp-field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+}
+.pp-canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--ui-text-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.pp-colors legend {
+  padding-inline: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ui-text-muted);
+}
+.pp-color > span {
+  font-size: 0.875rem;
 }

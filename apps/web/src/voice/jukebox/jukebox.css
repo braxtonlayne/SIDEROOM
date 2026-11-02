@@ -1,14 +1,16 @@
-/* The voice jukebox strip. Tokens only (Side Room theme): --sr-*, --ui-*. Class prefix jb-. Logical properties. */
+/* The voice jukebox strip. Tokens only: the theme's --ui-* first (it follows Lounge Light, XC-VIS-001), the Side Room --sr-* palette as the fallback. Class prefix jb-. Logical properties. */
 .jb-strip {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-block: 0 8px;
+  /* XC-VIS-002: inset like the Screening Room strip above it, not edge to edge. */
+  margin-block: 4px 8px;
+  margin-inline: 12px;
   padding: 8px 12px;
-  border: 1px solid var(--sr-line, rgb(255 255 255 / 12%));
+  border: 1px solid var(--ui-border, var(--sr-line, rgb(255 255 255 / 12%)));
   border-radius: 8px;
-  background: var(--sr-bg-1, rgb(0 0 0 / 20%));
-  color: var(--sr-text, #ece6d6);
+  background: var(--ui-bg-raised, var(--sr-bg-1, rgb(0 0 0 / 20%)));
+  color: var(--ui-text, var(--sr-text, #ece6d6));
 }
 :where(.jb-strip) :focus-visible {
   outline: 2px solid var(--ui-focus, var(--sr-gold));
@@ -35,7 +37,7 @@
   flex: 1;
 }
 .jb-muted {
-  color: var(--sr-text-2, #a39d8e);
+  color: var(--ui-text-muted, var(--sr-text-2, #a39d8e));
 }
 .jb-body {
   display: flex;
@@ -84,8 +86,8 @@
 .jb-picker input {
   inline-size: 100%;
   padding: 6px 8px;
-  border: 1px solid var(--sr-line, rgb(255 255 255 / 12%));
+  border: 1px solid var(--ui-border, var(--sr-line, rgb(255 255 255 / 12%)));
   border-radius: 6px;
-  background: var(--sr-bg-0, #0d0c0a);
+  background: var(--ui-bg, var(--sr-bg-0, #0d0c0a));
   color: inherit;
 }

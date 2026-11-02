@@ -1,3 +1,4 @@
+import { Notice } from '@sideroom/ui';
 import { useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -52,9 +53,9 @@ export function EmailChangeCancel() {
       )}
       {state === 'done' && (
         <>
-          <p role="status" className="ent-sub">
+          <Notice variant="success" className="ent-notice">
             {t('entrance.emailCancel.done')}
-          </p>
+          </Notice>
           <p className="ent-sub">
             {t('entrance.emailCancel.adviceBefore')}{' '}
             <a href="/forgot">{t('entrance.emailCancel.adviceLink')}</a>{' '}
@@ -63,24 +64,24 @@ export function EmailChangeCancel() {
         </>
       )}
       {state === 'missing' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.emailCancel.missing')}
-        </p>
+        </Notice>
       )}
       {state === 'invalid' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.emailCancel.invalid')}
-        </p>
+        </Notice>
       )}
       {state === 'throttled' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.common.tooManyTries', { minutes: minutesFromSeconds(retryAfter) })}
-        </p>
+        </Notice>
       )}
       {state === 'error' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.common.unreachable')}
-        </p>
+        </Notice>
       )}
       <p className="ent-footnote">
         <a href="/login">{t('entrance.common.backToSignIn')}</a>

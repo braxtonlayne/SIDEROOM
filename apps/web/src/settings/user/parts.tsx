@@ -2,6 +2,9 @@ import { Button, Notice, Spinner } from '@sideroom/ui';
 import type { ReactNode } from 'react';
 import { formatDateTime, useT } from '../../i18n';
 import { errorText, type Resource } from './api';
+// XC-VIS-002: User Settings shows Lounge pieces (server tag chip, traits, profile preview); opened straight from a
+// link they rendered unstyled. Lounge styles are class-scoped.
+import '../../lounge/lounge.css';
 import './user-settings.css';
 
 export function SectionTitle({ children }: { children: ReactNode }) {

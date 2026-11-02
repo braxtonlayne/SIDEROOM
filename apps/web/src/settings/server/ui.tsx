@@ -7,6 +7,9 @@ import {
 } from '../../i18n';
 import { errorText } from './api';
 import type { Resource } from './hooks';
+// XC-VIS-002: Server Settings uses Lounge dialogs and pickers (Create Channel, Invite, emoji picker, slowmode); opened
+// straight from a link, before the Lounge has loaded, they rendered unstyled. Their styles are class-scoped.
+import '../../lounge/lounge.css';
 import './server-settings.css';
 
 export function SectionHeader({

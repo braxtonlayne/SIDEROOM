@@ -59,6 +59,15 @@
   color: var(--sr-gold);
   border-bottom-color: var(--sr-gold);
 }
+/* The rooms, then the Study's areas: a rule between them; only the area (Reading) is underlined. */
+.lib-sectionbar-nav + .lib-sectionbar-nav {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--sr-line);
+}
+.lib-sectionbar-nav:first-of-type .lib-sectionbar-link[aria-current='page'] {
+  color: var(--sr-text);
+  border-bottom-color: transparent;
+}
 
 /* ---------- body / sidebar ---------- */
 .lib-body {
@@ -1110,18 +1119,24 @@
 .lib-frame[data-mobile] .lib-content {
   padding: 16px 16px 88px;
 }
+/* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). The bar scrolls
+   as one; two navs scrolling on their own squeezed each other (XC-VIS-001). */
 .lib-frame[data-mobile] .lib-sectionbar {
   padding: 0 16px;
   gap: 8px;
   white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.lib-frame[data-mobile] .lib-sectionbar > * {
+  flex: none;
 }
 .lib-frame[data-mobile] .lib-sectionbar-nav {
   gap: 12px;
   margin-inline-start: 4px;
-  /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). */
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+}
+.lib-frame[data-mobile] .lib-sectionbar-nav + .lib-sectionbar-nav {
+  padding-inline-start: 12px;
 }
 .lib-frame[data-mobile] .lib-poster-row {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1563,4 +1578,41 @@
   list-style: none;
   display: grid;
   gap: 6px;
+}
+
+/* Page header actions (Submissions: state filter + New submission) stay on one row; the shared Select is full width
+   by default, which stacked the button under it. */
+.lib-page-head > .rv-row {
+  flex-wrap: nowrap;
+}
+.lib-page-head > .rv-row > :first-child {
+  inline-size: 11rem;
+  flex: none;
+}
+.lib-page-head > .rv-row > button {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 30rem) {
+  .lib-page-head > .rv-row {
+    inline-size: 100%;
+  }
+  .lib-page-head > .rv-row > :first-child {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+}
+
+/* Shelves inside the Library: the content area already has the page gutter, so the shelf page does not add a
+   second one (its heading sat 32px in from Browse's). */
+.lib-frame .shv-page {
+  padding-block: 0;
+  padding-inline: 0;
+}
+/* ...and its heading matches the other Library pages (lib-h1), not the browser default. */
+.lib-frame .shv-head h1 {
+  font-family: var(--sr-font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 40px);
 }

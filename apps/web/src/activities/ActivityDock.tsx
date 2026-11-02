@@ -15,8 +15,11 @@ import type { ActivityInstance, InstanceUpdateEvent } from './types';
 import './activities.css';
 
 const DOCK_W = 320;
-const DOCK_H = 180;
+/** The whole docked window, title bar included (activities.css). */
+const DOCK_H = 220;
 const MARGIN = 12;
+/** Room left under the docked window at first, so it opens above the message box (and the tab bar on phones). */
+const bottomClear = () => (window.innerWidth <= 720 ? 132 : 84);
 
 interface Pos {
   x: number;
@@ -26,7 +29,7 @@ interface Pos {
 function clamp(p: Pos, vw: number, vh: number): Pos {
   return {
     x: Math.min(Math.max(0, p.x), Math.max(0, vw - DOCK_W)),
-    y: Math.min(Math.max(0, p.y), Math.max(0, vh - DOCK_H - 40)),
+    y: Math.min(Math.max(0, p.y), Math.max(0, vh - DOCK_H)),
   };
 }
 
@@ -52,7 +55,7 @@ export function ActivityWindow({
   const origin = (): Pos =>
     pos ?? {
       x: window.innerWidth - DOCK_W - MARGIN,
-      y: window.innerHeight - DOCK_H - 40 - MARGIN,
+      y: Math.max(MARGIN, window.innerHeight - DOCK_H - bottomClear()),
     };
 
   // The same element changes its box between the two modes; the iframe inside never moves in the tree.

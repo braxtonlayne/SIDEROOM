@@ -1,3 +1,4 @@
+import { Notice } from '@sideroom/ui';
 import { useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -57,24 +58,24 @@ export function LoginLink() {
         </p>
       )}
       {state.kind === 'missing' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.loginLink.missing')}
-        </p>
+        </Notice>
       )}
       {state.kind === 'expired' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.loginLink.expired')}
-        </p>
+        </Notice>
       )}
       {state.kind === 'throttled' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.common.tooManyTries', { minutes: minutesFromSeconds(state.retryAfter) })}
-        </p>
+        </Notice>
       )}
       {state.kind === 'error' && (
-        <p role="alert" className="ent-sub">
+        <Notice variant="warning" className="ent-notice">
           {t('entrance.common.unreachable')}
-        </p>
+        </Notice>
       )}
       <p className="ent-footnote">
         <a href="/login">{t('entrance.loginLink.usePassword')}</a>

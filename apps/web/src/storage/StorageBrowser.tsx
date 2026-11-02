@@ -1,5 +1,5 @@
 import { Button, Notice } from '@sideroom/ui';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useState } from 'react';
 import { formatDateTime, useT } from '../i18n';
 import '../settings/user/storage/storage.css';
@@ -32,6 +32,7 @@ const sizeText = (n: number) =>
  */
 export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: string }) {
   const t = useT();
+  const router = useRouter();
   const [page, setPage] = useState<ObjectPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +113,19 @@ export function StorageBrowser({ mountId, prefix }: { mountId: string; prefix: s
   const crumbs = prefix.split('/').filter(Boolean);
   return (
     <main className="sto-browser">
+      {/* The browser is a page of its own (no app chrome): a way back to where the viewer opened it. */}
+      <a
+        className="sto-back"
+        href="/settings/user/storage"
+        onClick={(e) => {
+          if (!router.history.canGoBack()) return;
+          e.preventDefault();
+          router.history.back();
+        }}
+      >
+        <span aria-hidden="true">← </span>
+        {t('storage.browser.back')}
+      </a>
       <h1 className="us-title">{t('storage.browser.title')}</h1>
       <nav aria-label={t('storage.browser.crumbsAria')} className="sto-crumbs">
         <Link to="/storage/$mountId" params={{ mountId }} search={{ prefix: '' }}>

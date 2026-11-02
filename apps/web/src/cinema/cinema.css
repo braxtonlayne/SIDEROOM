@@ -62,6 +62,16 @@
   color: var(--sr-gold);
   border-bottom-color: var(--sr-gold);
 }
+/* The rooms, then the Study's areas: a rule between the two navs, and the parent room (The Study) reads as the room
+   you are in without a second underline, so only the area (Media) looks selected. */
+.cin-sectionbar-nav + .cin-sectionbar-nav {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--sr-line);
+}
+.cin-sectionbar-nav:first-of-type .cin-sectionbar-link[aria-current='page'] {
+  color: var(--sr-text);
+  border-bottom-color: transparent;
+}
 
 /* ---------- cinema header ---------- */
 .cin-header {
@@ -814,18 +824,25 @@
   .cin-row-label {
     display: none;
   }
+  /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). The whole bar
+     scrolls as one: two navs each scrolling on their own squeezed each other ("The Arca" cut off next to
+     "Shelves", XC-VIS-001). */
   .cin-sectionbar {
     font-size: 12px;
     gap: 8px;
     white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cin-sectionbar > * {
+    flex: none;
   }
   .cin-sectionbar-nav {
     gap: 12px;
     margin-inline-start: 4px;
-    /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). */
-    min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
+  }
+  .cin-sectionbar-nav + .cin-sectionbar-nav {
+    padding-inline-start: 12px;
   }
   .cin-sectionbar-brand {
     letter-spacing: 0.12em;
@@ -876,4 +893,73 @@
   margin: 0;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+
+/* Submit a video: the title on one side, the state filter and "New submission" together on the other. The shared
+   Select is full width by default, which stacked the button under it. */
+.cin-submit > .rv-head {
+  justify-content: space-between;
+}
+.cin-submit > .rv-head .cin-h1 {
+  margin: 0;
+}
+.cin-submit > .rv-head > .rv-row {
+  flex-wrap: nowrap;
+}
+.cin-submit > .rv-head > .rv-row > :first-child {
+  inline-size: 11rem;
+  flex: none;
+}
+.cin-submit > .rv-head > .rv-row > button {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 30rem) {
+  .cin-submit > .rv-head > .rv-row {
+    inline-size: 100%;
+  }
+  .cin-submit > .rv-head > .rv-row > :first-child {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+}
+
+/* Phones swipe the poster rows; the scroll arrows only pushed each row title onto two lines. */
+@media (max-width: 30rem) {
+  .cin-row > :first-child button {
+    display: none;
+  }
+}
+
+/* Title page tabs on phones: compact, and the row fades at the end so the cut-off tab reads as "scroll for more"
+   rather than a clipped word ("More lik"). */
+@media (max-width: 30rem) {
+  .cin-title-tabs > [role='tablist'] {
+    gap: 0;
+    padding-inline-end: 24px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+  .cin-title-tabs > [role='tablist']:dir(rtl) {
+    mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+  }
+  .cin-title-tabs > [role='tablist'] > [role='tab'] {
+    padding-inline: 10px;
+    font-size: 0.875rem;
+  }
+}
+
+/* Submission page: the details card is as wide as the cards below it (it stopped at 560px, half the width of
+   Artwork and Episodes); its fields keep the readable width. The two artwork pickers sit side by side. */
+.cin-submit .rv-panel.rv-form {
+  max-width: none;
+}
+.cin-submit .rv-panel.rv-form > * {
+  max-width: 560px;
+}
+.cin-submit .rv-panel[aria-labelledby='cs-art-h'] > .rv-stack {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }

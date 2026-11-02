@@ -56,6 +56,8 @@ a{color:var(--gold)}
 nav{padding:20px 24px;border-bottom:1px solid var(--line)}
 nav a{text-decoration:none;letter-spacing:.14em;font-size:.8rem;text-transform:uppercase}
 footer{padding:24px;border-top:1px solid var(--line);color:var(--text-2);font-size:.85rem;text-align:center}
+/* An operator value the install never set leaves its sentence out ("This server is run from ."). */
+p:has(.op:empty){display:none}
 `;
 
 export function renderHouseNotes(cat, cssHref) {
@@ -66,7 +68,7 @@ export function renderHouseNotes(cat, cssHref) {
   const h = (k) => esc(t(k));
   const country = esc(t('entrance.houseNotes.privacy.operatorCountry')).replace(
     '{country}',
-    '{{operator_country}}',
+    '<span class="op">{{operator_country}}</span>',
   );
   return `<!doctype html>
 <html lang="en">
@@ -94,7 +96,7 @@ ${[1, 2, 3, 4, 5].map((n) => `<li>${h(`entrance.houseNotes.rules.${n}`)}</li>`).
 <p>${h('entrance.houseNotes.privacy.body2')}</p>
 <p>${h('entrance.houseNotes.privacy.body3')}</p>
 <p>${country}</p>
-<p>${h('entrance.houseNotes.privacy.operatorContact')} <a href="mailto:{{operator_contact}}">{{operator_contact}}</a></p>
+<p>${h('entrance.houseNotes.privacy.operatorContact')} <a href="mailto:{{operator_contact}}"><span class="op">{{operator_contact}}</span></a></p>
 </section>
 <section aria-labelledby="notes-terms" id="terms">
 <h2 id="notes-terms">${h('entrance.houseNotes.terms.title')}</h2>

@@ -9,6 +9,10 @@
   text-transform: uppercase;
   color: var(--sr-gold, var(--ui-accent));
 }
+/* XC-VIS-002: a long eyebrow on a phone left one word alone on the second line ("US."). */
+.eyebrow > span:last-child {
+  text-wrap: balance;
+}
 .rule {
   flex: none;
   width: var(--sr-eyebrow-rule, 40px);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button } from '@sideroom/ui';
+import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useChannels } from '../data';
 import {
@@ -288,7 +288,14 @@ export function Filters({
 }
 
 /** The masonry gallery of a server's scrapbook (`/channels/:guildId/scrapbook`). */
-export function ScrapbookGallery({ guildId }: { guildId: string }) {
+export function ScrapbookGallery({
+  guildId,
+  onBack,
+}: {
+  guildId: string;
+  /** Phones: back to the channel list (the gallery fills the chat pane). */
+  onBack?: (() => void) | undefined;
+}) {
   const t = useT();
   const status = useGuildScrapbook(guildId);
   const channels = useChannels(guildId);
@@ -324,71 +331,99 @@ export function ScrapbookGallery({ guildId }: { guildId: string }) {
     if (on) void load(filter);
   }, [on, filter, load]);
 
-  if (status === undefined)
-    return <p className="lng-scr-loading">{t('lounge.scrapbook.loading')}</p>;
-  if (!on)
+  // XC-VIS-002: the gallery has the same header bar as a channel (with the phone's back button), and the
+  // loading and "off" states are centred like every other empty pane.
+  const header = (
+    <header className="lng-header">
+      {onBack && (
+        <button
+          type="button"
+          className="lng-icon-btn lng-back"
+          aria-label={t('lounge.channelHeader.backToChannels')}
+          onClick={onBack}
+        >
+          <Icon name="arrow-left" size={20} />
+        </button>
+      )}
+      <Icon name="image" size={24} />
+      <h2 className="lng-header-title">{t('lounge.scrapbook.title')}</h2>
+    </header>
+  );
+
+  if (status === undefined || !on)
     return (
-      <section className="lng-scr-page" aria-label={t('lounge.scrapbook.title')}>
-        <h2>{t('lounge.scrapbook.title')}</h2>
-        <p className="lng-scr-note" data-testid="scr-off">
-          {t('lounge.scrapbook.off')}
-        </p>
+      <section className="lng-scr-view" aria-label={t('lounge.scrapbook.title')}>
+        {header}
+        <div className="lng-scr-center">
+          {status === undefined ? (
+            <Spinner label={t('lounge.scrapbook.loading')} />
+          ) : (
+            <EmptyState
+              icon={<Icon name="image" size={40} />}
+              title={t('lounge.scrapbook.title')}
+              description={t('lounge.scrapbook.off')}
+              data-testid="scr-off"
+            />
+          )}
+        </div>
       </section>
     );
 
   return (
-    <section className="lng-scr-page" aria-label={t('lounge.scrapbook.title')}>
-      <header className="lng-scr-head">
-        <h2>{t('lounge.scrapbook.title')}</h2>
+    <section className="lng-scr-view" aria-label={t('lounge.scrapbook.title')}>
+      {header}
+      <div className="lng-scr-page">
         <p className="lng-scr-note">
           {t('lounge.scrapbook.howItWorks', {
             emoji: status.emojis.join(' '),
             n: status.threshold,
           })}
         </p>
-      </header>
-      {status.can_manage ? <ShelfPanel guildId={guildId} /> : null}
-      <Filters
-        facets={facets}
-        channelNames={channelNames}
-        value={filter}
-        onChange={(f) => setFilter(f)}
-      />
-      {notice ? (
-        <p className="lng-scr-note" role="status" data-testid="scr-notice">
-          {t('lounge.scrapbook.copyPending')}
-        </p>
-      ) : null}
-      {state === 'failed' ? (
-        <p className="lng-scr-note" role="alert">
-          {t('lounge.scrapbook.loadFailed')}
-        </p>
-      ) : null}
-      {state === 'ready' && entries.length === 0 ? (
-        <p className="lng-scr-note" data-testid="scr-empty">
-          {t('lounge.scrapbook.empty')}
-        </p>
-      ) : null}
-      <div className="lng-scr-grid" data-testid="scr-grid">
-        {entries.map((e) => (
-          <EntryTile
-            key={e.id}
-            guildId={guildId}
-            entry={e}
-            channelName={channelNames[e.channel_id] ?? e.channel_id}
-            onChanged={(u) => setEntries((old) => old.map((x) => (x.id === u.id ? u : x)))}
-            onRemoved={(id, failed) => {
-              setEntries((old) => old.filter((x) => x.id !== id));
-              if (failed > 0) setNotice(true);
-            }}
+        {status.can_manage ? <ShelfPanel guildId={guildId} /> : null}
+        <Filters
+          facets={facets}
+          channelNames={channelNames}
+          value={filter}
+          onChange={(f) => setFilter(f)}
+        />
+        {notice ? (
+          <p className="lng-scr-note" role="status" data-testid="scr-notice">
+            {t('lounge.scrapbook.copyPending')}
+          </p>
+        ) : null}
+        {state === 'failed' ? (
+          <p className="lng-scr-note" role="alert">
+            {t('lounge.scrapbook.loadFailed')}
+          </p>
+        ) : null}
+        {state === 'ready' && entries.length === 0 ? (
+          <EmptyState
+            icon={<Icon name="image" size={40} />}
+            title={t('lounge.scrapbook.empty')}
+            data-testid="scr-empty"
           />
-        ))}
+        ) : null}
+        <div className="lng-scr-grid" data-testid="scr-grid">
+          {entries.map((e) => (
+            <EntryTile
+              key={e.id}
+              guildId={guildId}
+              entry={e}
+              channelName={channelNames[e.channel_id] ?? e.channel_id}
+              onChanged={(u) => setEntries((old) => old.map((x) => (x.id === u.id ? u : x)))}
+              onRemoved={(id, failed) => {
+                setEntries((old) => old.filter((x) => x.id !== id));
+                if (failed > 0) setNotice(true);
+              }}
+            />
+          ))}
+        </div>
+        {next ? (
+          <Button onClick={() => void load(filter, next)} disabled={state === 'loading'}>
+            {t('lounge.scrapbook.more')}
+          </Button>
+        ) : null}
       </div>
-      {next ? (
-        <Button onClick={() => void load(filter, next)} disabled={state === 'loading'}>
-          {t('lounge.scrapbook.more')}
-        </Button>
-      ) : null}
     </section>
   );
 }

@@ -3,7 +3,8 @@
 .swatch { width: 28px; height: 28px; padding: 0; border: 2px solid transparent; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
 .swatch[aria-pressed="true"] { border-color: var(--ui-text); }
 .swatch:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
-.row { display: flex; align-items: center; gap: 8px; }
+/* Wraps (the eyedropper drops under the hex field) rather than overflowing a narrow column. */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .preview { width: 28px; height: 28px; border-radius: var(--ui-radius); border: 1px solid var(--ui-border); }
 .hexLabel { font-size: 0.875rem; color: var(--ui-text-muted); }
 .hex {
@@ -13,5 +14,7 @@
 }
 .hex:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
 .hex[aria-invalid="true"] { border-color: var(--ui-danger); }
-.dropper { min-height: 32px; padding: 0 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg-raised); color: var(--ui-text); font: inherit; cursor: pointer; }
+/* One line, at the hex row's size (it wrapped to two lines, in a larger font, beside the field). */
+.dropper { min-height: 32px; padding: 0 12px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: var(--ui-bg-raised); color: var(--ui-text); font: inherit; font-size: 0.875rem; white-space: nowrap; flex-shrink: 0; cursor: pointer; }
+.dropper:hover { background: var(--ui-bg-hover); }
 .dropper:focus-visible { outline: 2px solid var(--ui-focus); }

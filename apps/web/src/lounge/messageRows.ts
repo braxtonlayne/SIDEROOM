@@ -4,6 +4,9 @@ import { sameDay } from './time';
 /** Consecutive messages by the same author within this window collapse under one header (spec 6.1). */
 export const GROUP_WINDOW_MS = 7 * 60_000;
 
+/** Default (0) and reply (19) messages; every other Discord message type is a system row. */
+const isChatMessage = (m: Message) => m.type === undefined || m.type === 0 || m.type === 19;
+
 export type Row =
   | { kind: 'welcome'; key: string }
   | { kind: 'date'; key: string; iso: string }
@@ -71,6 +74,9 @@ export function buildRows(
       // Every Discord person arrives under the one bridge author: group by their Discord name too.
       (!m.author.bridge || prev.author.displayName === m.author.displayName) &&
       !m.replyToId &&
+      // Discord: a system row (pin notice, thread started, member joined) starts and ends a group.
+      isChatMessage(prev) &&
+      isChatMessage(m) &&
       new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() <= GROUP_WINDOW_MS;
     rows.push({ kind: 'message', key: m.id, message: m, grouped });
     prev = m;

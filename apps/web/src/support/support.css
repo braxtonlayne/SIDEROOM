@@ -54,7 +54,7 @@
   gap: 12px;
 }
 .sup-link {
-  color: var(--ui-accent);
+  color: var(--text-link, var(--ui-accent));
   text-decoration: underline;
 }
 .sup-steps {
@@ -165,4 +165,8 @@
   .sup-amounts {
     flex-direction: column;
   }
+}
+/* A section notice (donations off, no price, a failed invoice) keeps the cards' gap from the first card. */
+.sup-notice {
+  margin-block-end: 20px;
 }

@@ -204,8 +204,8 @@ export function CinemaDraftPage({ id }: { id: string }) {
   );
 
   return (
-    <div className="cin-submit">
-      <p style={{ margin: '0 0 12px' }}>
+    <div className="cin-page cin-submit">
+      <p style={{ margin: '32px 0 12px' }}>
         <Link to="/cinema/submit" className="cin-link">
           {t('cinema.submit.all')}
         </Link>
@@ -288,7 +288,11 @@ export function CinemaDraftPage({ id }: { id: string }) {
         <UploadDock manager={getCinemaUploadManager()} />
         {view.items.length === 0 ? (
           <p className="rv-muted">
-            {film ? t('cinema.submit.video.emptyFilm') : t('cinema.submit.episodesEmpty')}
+            {!editable
+              ? t('cinema.submit.noVideosSent')
+              : film
+                ? t('cinema.submit.video.emptyFilm')
+                : t('cinema.submit.episodesEmpty')}
           </p>
         ) : (
           <ul className="rv-changes" aria-label={t('cinema.submit.videoList')}>

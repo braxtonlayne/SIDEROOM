@@ -25,11 +25,18 @@ export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chil
   decoration?: ReactNode;
 }
 
+/** The first letter or digit of a word; brackets, quotes and other punctuation are skipped ("(owner)" gives "O"). */
+const LETTER = /[\p{L}\p{N}]/u;
+const leadLetter = (word: string) => Array.from(word).find((ch) => LETTER.test(ch));
+
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  const first = Array.from(parts[0]!)[0] ?? "?";
-  const last = parts.length > 1 ? (Array.from(parts[parts.length - 1]!)[0] ?? "") : "";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const letters = words.map(leadLetter).filter((c): c is string => !!c);
+  // A name of symbols or emoji only keeps its first character.
+  if (letters.length === 0) return Array.from(words[0]!)[0] ?? "?";
+  const first = letters[0]!;
+  const last = letters.length > 1 ? letters[letters.length - 1]! : "";
   return (first + last).toUpperCase();
 }
 

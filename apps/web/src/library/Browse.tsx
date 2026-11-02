@@ -205,7 +205,8 @@ export function Browse({ search }: { search: BrowseSearch }) {
                 aria-pressed={search.order === 'asc'}
                 onClick={() => go({ order: search.order === 'asc' ? 'desc' : 'asc' })}
               >
-                <Icon name="filter" size={20} />
+                {/* The direction of the sort, not a filter (a funnel here read as a second Filters button). */}
+                <Icon name={search.order === 'asc' ? 'chevron-up' : 'chevron-down'} size={20} />
               </button>
               <SegmentedControl
                 label={t('library.browse.layout')}

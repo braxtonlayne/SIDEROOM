@@ -20,6 +20,7 @@ import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { ReauthHost } from './ReauthHost';
+import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { useStaffRevoked } from './useStaffRevoked';
 import { AccessLogSection } from './sections/AccessLog';
 import { AnnouncementsSection } from './sections/Announcements';
@@ -55,6 +56,7 @@ import { JobsSection, SystemSection } from './sections/System';
 import { ArcadeAdminSection } from '../arcade/ArcadeAdmin';
 import '../arcade/arcade.css';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
+import { useSettingsLayoutLabels } from '../components/useSettingsLayoutLabels';
 
 // T-03 (D-369): the runbook carries the 34 KB deploy/RUNBOOK.md, so it is its own chunk.
 const RunbookLazy = lazy(() =>
@@ -355,6 +357,7 @@ function useMe() {
 
 export function AdminShell({ section }: { section: string | undefined }) {
   const t = useT();
+  const layoutLabels = useSettingsLayoutLabels();
   const navigate = useNavigate();
   const me = useMe();
   const viewer = useMemo(
@@ -428,6 +431,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
     <>
       <SkipLink />
       <SettingsLayout
+        labels={layoutLabels}
         title={t('admin.adminApp.title')}
         sections={navSections}
         activeId={active?.id ?? ''}
@@ -442,11 +446,23 @@ export function AdminShell({ section }: { section: string | undefined }) {
   );
 }
 
-/** Route component: provides the staff theme and toast context the full-screen page needs. */
+/**
+ * Route component: provides the staff theme and toast context the full-screen page needs. Like the developer
+ * portal, Admin follows the viewer's Lounge theme (light or dark); a platform default for `staff` still wins.
+ */
 export function AdminPage() {
   const { section } = useParams({ strict: false }) as { section?: string };
+  const theme = useAppliedTheme();
   return (
-    <ThemeProvider section="staff" className="ss-root">
+    <ThemeProvider
+      section="staff"
+      userGlobal={theme.perSection.lounge ?? theme.userGlobal}
+      perSection={theme.perSection}
+      appearance={theme.appearance}
+      style={theme.style}
+      {...theme.data}
+      className="ss-root"
+    >
       <ToastProvider>
         <AdminShell section={section} />
       </ToastProvider>

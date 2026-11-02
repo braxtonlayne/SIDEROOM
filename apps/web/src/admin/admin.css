@@ -363,7 +363,7 @@
 .adm-reconvert {
   margin-block-start: 16px;
   padding-block-start: 12px;
-  border-block-start: 1px solid var(--sr-line, #333);
+  border-block-start: 1px solid var(--ui-border);
   display: grid;
   gap: 8px;
 }
@@ -481,4 +481,98 @@
   border: 1px solid var(--ui-border);
   text-align: start;
   vertical-align: top;
+}
+
+/* XC-VIS-002: a feature's name and its badges wrap on a phone instead of running past the edge. */
+.ss-row .ss-name.adm-feature-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  white-space: normal;
+}
+
+/* XC-VIS-002: a few admin filters (Entitlements, Invoices) are plain <label>text <select> pairs; they rendered as
+   tiny browser-default selects next to the styled ones. Same look as .ss-select, label and control on one line. */
+.ss-root .ss-toolbar > label:has(> select) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+.ss-root .ss-toolbar select:not([class]) {
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  font: inherit;
+}
+.ss-root .ss-toolbar > label:has(> input[type='checkbox']) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 0.875rem;
+}
+/* A lone checkbox label (Pricing: Donations are on) stacked the box above its text. */
+label.adm-check-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+/* Admin > Invites: the three quotas were a bare <dl> (value on its own indented line under each label). */
+.adm-quota {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.adm-quota dt {
+  color: var(--ui-text-muted);
+}
+.adm-quota dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+/* Dashboard stats two to a row on phones instead of one tall column. */
+@media (max-width: 480px) {
+  .adm-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ss-card > p.ss-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ui-text-muted);
+}
+/* Review queues > Apps: a version's changes fold away and read as name / value rows. */
+.adm-diff {
+  margin-block: 6px;
+  font-size: 0.8125rem;
+}
+.adm-diff summary {
+  cursor: pointer;
+  color: var(--ui-text-muted);
+}
+.adm-diff dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 16px;
+  margin: 8px 0 0;
+}
+.adm-diff dl > div {
+  display: contents;
+}
+.adm-diff dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.adm-diff-old {
+  color: var(--ui-text-muted);
+  text-decoration: line-through;
 }

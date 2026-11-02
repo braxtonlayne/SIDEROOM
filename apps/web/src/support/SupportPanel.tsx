@@ -583,17 +583,26 @@ export function SupportSection() {
         {(c) => (
           <>
             {!c.enabled && (
-              <Notice variant="info" title={t('support.panel.offTitle')}>
+              <Notice className="sup-notice" variant="info" title={t('support.panel.offTitle')}>
                 {t('support.panel.offBody')}
               </Notice>
             )}
             {c.enabled && c.rate === null && (
-              <Notice variant="warning" title={t('support.panel.noPriceTitle')}>
+              <Notice
+                className="sup-notice"
+                variant="warning"
+                title={t('support.panel.noPriceTitle')}
+              >
                 {t('support.panel.noPriceBody')}
               </Notice>
             )}
             {error && (
-              <Notice variant="danger" role="alert" title={t('support.panel.failedTitle')}>
+              <Notice
+                className="sup-notice"
+                variant="danger"
+                role="alert"
+                title={t('support.panel.failedTitle')}
+              >
                 {error}
               </Notice>
             )}

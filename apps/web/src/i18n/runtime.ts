@@ -150,15 +150,24 @@ let failed = false;
 /** True once the rest catalog is registered, or its load failed (the app then opens degraded, not blank). */
 export const fullCatalogSettled = () => isRestLoaded() || failed;
 
+/** Waits (ms) before each new try of a failed rest catalog; the gates open after the second failure. */
+const RETRY_MS = [600, 2000, 5000, 15000];
+
 /**
- * Start loading the rest catalog without blocking anything. If the chunk fails (offline, stale deploy) the
- * gates open anyway; affected strings then show their keys.
+ * Start loading the rest catalog without blocking anything. A failed chunk (a dropped request on a weak connection,
+ * offline) is tried again before the gates open degraded, and after that in the background: when it arrives the
+ * text replaces the keys (XC-VIS-001; one failed request used to leave raw keys on every screen until a reload).
  */
-export function startFullCatalog(): void {
+export function startFullCatalog(attempt = 0): void {
   loadFullCatalog().catch((e: unknown) => {
-    console.error('Could not load the full message catalog', e);
-    failed = true;
-    emit();
+    fullCatalog = undefined;
+    if (attempt >= 1 && !failed) {
+      console.error('Could not load the full message catalog', e);
+      failed = true;
+      emit();
+    }
+    const wait = RETRY_MS[attempt];
+    if (wait !== undefined) setTimeout(() => startFullCatalog(attempt + 1), wait);
   });
 }
 

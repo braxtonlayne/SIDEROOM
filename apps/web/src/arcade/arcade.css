@@ -1,11 +1,29 @@
 /* The Arcade (ARC-ROOM-001). Semantic tokens only (--ui-*); logical properties only. */
 .arc-page {
   display: grid;
-  gap: 16px;
-  padding-block: 16px;
+  gap: 20px;
+  align-content: start;
+  padding-block: 24px 48px;
   padding-inline: 16px;
   max-inline-size: 64rem;
   margin-inline: auto;
+}
+.arc-page h1,
+.arc-page h2,
+.arc-page h3 {
+  margin: 0;
+}
+.arc-page h1 {
+  font-family: var(--ui-font-display, inherit);
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+.arc-page h2 {
+  font-size: 1.25rem;
+}
+.arc-head {
+  display: grid;
+  gap: 6px;
 }
 .arc-dim {
   color: var(--ui-text-muted, inherit);
@@ -15,11 +33,32 @@
 .arc-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
+}
+.arc-nav a {
+  padding-block: 4px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  color: var(--ui-text);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.arc-nav a:hover {
+  background: var(--ui-bg-hover);
+}
+.arc-nav a:focus-visible,
+.arc-tip:focus-visible,
+.arc-link:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
 }
 .arc-section {
   display: grid;
   gap: 12px;
+  padding-block-start: 20px;
+  border-block-start: 1px solid var(--ui-border);
+  scroll-margin-block-start: 16px;
 }
 .arc-grid {
   display: grid;
@@ -33,7 +72,10 @@
   padding: 12px;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg, 8px);
-  background: var(--ui-bg);
+  background: var(--ui-bg-raised, var(--ui-bg));
+}
+.arc-card > :is(a, button):last-child {
+  justify-self: start;
 }
 .arc-card header {
   display: flex;
@@ -111,4 +153,37 @@
 }
 .arc-link {
   color: var(--ui-accent, inherit);
+  font-weight: 500;
+}
+.arc-form {
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+}
+/* Native selects dressed like the kit's TextInput (label above, same control box) so a form reads as one. */
+.arc-field > span {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.arc-form .arc-field {
+  max-inline-size: none;
+}
+.arc-field select {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 40px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 6px);
+  background: var(--ui-bg-raised, var(--ui-bg));
+  color: var(--ui-text);
+  font: inherit;
+}
+.arc-field select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
 }

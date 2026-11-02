@@ -73,11 +73,14 @@ export function CreateChannelDialog({
   parentId,
   category: categoryOnly,
   onClose,
+  onCreated,
 }: {
   guildId: string;
   parentId?: string | undefined;
   category?: boolean | undefined;
   onClose: () => void;
+  /** Called with the new channel instead of opening it (Server Settings stays open on the new row). */
+  onCreated?: ((channel: Awaited<ReturnType<typeof rest.createChannel>>) => void) | undefined;
 }) {
   const t = useT();
   const guild = useGuild(guildId);
@@ -149,7 +152,8 @@ export function CreateChannelDialog({
     try {
       const created = await useStore.getState().createChannel(guildId, body);
       onClose();
-      if (created.type === 0) goto(guildId, created.id);
+      if (onCreated) onCreated(created);
+      else if (created.type === 0) goto(guildId, created.id);
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 403

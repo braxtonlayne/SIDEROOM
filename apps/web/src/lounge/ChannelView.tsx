@@ -33,6 +33,8 @@ import { useLoungeUi } from './store';
 import { openProfilePopout } from './profile/popoutStore';
 import { startDmCall } from './shell/dmCall';
 import { useVoiceSession } from '../voice/session';
+import { MessageRequestView } from './shell/MessageRequestView';
+import { useSocial } from './shell/social';
 
 export interface ChannelViewProps {
   guildId: string;
@@ -65,6 +67,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const presence = usePresence(dmFirst?.id ?? '');
   const openDialog = useLoungeUi((s) => s.openDialog);
   const inCallHere = useVoiceSession((s) => s.channelId === channelId && s.status !== 'idle');
+  const pendingRequest = useSocial((s) =>
+    isDm ? s.messageRequests.find((r) => r.id === channelId) : undefined,
+  );
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
@@ -73,6 +78,8 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const [openedLastRead] = useState(channel?.lastReadMessageId ?? null);
   // Read state is acked by MessageList, once the newest message is actually on screen (Q128).
 
+  if (!channel && !dm && pendingRequest)
+    return <MessageRequestView dm={pendingRequest} onBack={onBack} />;
   if (!channel && !dm) {
     return (
       <EmptyState

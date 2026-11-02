@@ -22,7 +22,7 @@ export default {
   'lounge.inviteDialog.noInvites': 'No active invites yet.',
   // Followed by " · " and the expiry text
   'lounge.inviteDialog.usesOf': '{uses} / {max} uses ·',
-  'lounge.inviteDialog.usesOnly': '{uses} uses ·',
+  'lounge.inviteDialog.usesOnly': '{uses, plural, one {# use} other {# uses}} ·',
   'lounge.inviteDialog.copyLinkFor': 'Copy link for {code}',
   'lounge.inviteDialog.revokeInvite': 'Revoke invite {code}',
   'lounge.inviteDialog.revoke': 'Revoke',

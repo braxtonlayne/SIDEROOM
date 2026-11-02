@@ -72,6 +72,12 @@ function commitSha(): string {
  * separate build, `vite.public.config.ts`; `scripts/build-web.mjs` runs both. `vite dev` and `vitest` use this
  * file, with the base at `/`.
  */
+// The API server the dev and preview servers (and their sign-in gate and Activity proxy) forward to. SR_DEV_API_PORT lets
+// several checkouts run side by side, each with its own sr-server (default 8080, as in e2e and CI).
+const apiPort = process.env.SR_DEV_API_PORT ?? '8080';
+const api = `http://localhost:${apiPort}`;
+const apiWs = `ws://localhost:${apiPort}`;
+
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
   // The public files (fonts, icons, the service worker) belong to the public build; the app only links them.
@@ -94,9 +100,9 @@ export default defineConfig(({ command }) => ({
     react(),
     appContractPlugin({ csp: buildCsp(extra) }),
     // SEC-ENT-004: the dev counterpart of sr-server's gate (shells by path, 302 to /login without a session).
-    publicDev(),
+    publicDev({ api: process.env.SR_DEV_API ?? `http://127.0.0.1:${apiPort}` }),
     pseudoLocalePlugin(),
-    ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy()] : []),
+    ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy(api)] : []),
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
   worker: { format: 'es' },
@@ -109,32 +115,32 @@ export default defineConfig(({ command }) => ({
     // break a dev or e2e session. The enforced policy is on `vite preview` and in Caddyfile.prod.
     headers: securityHeaders({ ...extra, dev: true }),
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': api,
       // CSP violation reports (RDY-SEC-009).
-      '/internal/csp-report': 'http://localhost:8080',
+      '/internal/csp-report': api,
       // The Lounge's live connection (docs/05 gateway); the WebSocket upgrade must be proxied too.
-      '/gateway': { target: 'ws://localhost:8080', ws: true },
+      '/gateway': { target: apiWs, ws: true },
       // The SFU's signalling WebSocket (`GET /voice/ws`, docs/specs/lounge-voice-video.md section 4); media is UDP.
-      '/voice': { target: 'ws://localhost:8080', ws: true },
+      '/voice': { target: apiWs, ws: true },
       // Signed media delivery (attachments, avatars, HLS), as in `preview` below and Caddyfile's `handle /cdn/*`.
       // publicDev() passes `/cdn/` on (DEV_PASS); without this entry it fell to the SPA fallback and every
       // attachment URL answered index.html as text/html, so images never decoded in the dev e2e leg.
-      '/cdn': 'http://localhost:8080',
+      '/cdn': api,
       // OPS-TDEP-001: a test deployment's same-host Activities (`[activities] origin_mode = "same_host_sandboxed"`).
-      '/_activity': 'http://localhost:8080',
+      '/_activity': api,
     },
   },
   preview: {
     // Mirrors production: enforced CSP. `vite preview` is what the PWA and CSP checks run against.
     headers: securityHeaders(extra),
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/internal/csp-report': 'http://localhost:8080',
-      '/gateway': { target: 'ws://localhost:8080', ws: true },
+      '/api': api,
+      '/internal/csp-report': api,
+      '/gateway': { target: apiWs, ws: true },
       // As in Caddyfile and Caddyfile.prod (`handle /voice/*`): the voice soak runs against the built bundle.
-      '/voice': { target: 'ws://localhost:8080', ws: true },
-      '/cdn': 'http://localhost:8080',
-      '/_activity': 'http://localhost:8080',
+      '/voice': { target: apiWs, ws: true },
+      '/cdn': api,
+      '/_activity': api,
     },
   },
   test: {

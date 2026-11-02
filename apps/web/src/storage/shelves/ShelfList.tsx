@@ -7,6 +7,8 @@ import { ShelfChip, useChipLabel } from './ShelfChip';
 import './shelves.css';
 
 const PAGE = 24;
+/** The "any" chip in front of a filter's options; never sent to the server. */
+const ANY = '*';
 const KINDS: Record<ShelfSection, string[]> = {
   cinema: ['movie', 'series', 'anime'],
   library: ['manga', 'comic', 'book'],
@@ -69,6 +71,13 @@ export function ShelfList({ section }: { section: ShelfSection }) {
   const total = pages[0]?.total ?? 0;
   const noFilter = !query.q && !query.kind && !query.mount;
   const kinds = KINDS[section];
+  // Nothing reachable at all: the search and the chips would filter nothing, so only the empty state shows.
+  const bare = list.isSuccess && noFilter && total === 0;
+  const clear = () => {
+    setQ('');
+    setKind(null);
+    setMount(null);
+  };
 
   return (
     <section className="shv-page" aria-labelledby="shv-h">
@@ -76,39 +85,62 @@ export function ShelfList({ section }: { section: ShelfSection }) {
         <h1 id="shv-h">{t(`shelves.title.${section}` as 'shelves.title.cinema')}</h1>
         <p className="shv-muted">{t(`shelves.sub.${section}` as 'shelves.sub.cinema')}</p>
       </header>
-      <div className="shv-tools">
-        <TextInput
-          label={t('shelves.search')}
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-      {kinds.length > 0 && (
+      {!bare && (
+        <div className="shv-tools">
+          <TextInput
+            label={t('shelves.search')}
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+      )}
+      {!bare && kinds.length > 0 && (
         <FilterChips
           label={t('shelves.filter.kind')}
-          value={kind}
-          onValueChange={setKind}
-          options={kinds.map((k) => ({
-            value: k,
-            label: t(`shelves.kind.${k}` as 'shelves.kind.movie'),
-          }))}
+          value={kind ?? ANY}
+          onValueChange={(v) => setKind(v === ANY ? null : v)}
+          options={[
+            { value: ANY, label: t('shelves.filter.anyKind') },
+            ...kinds.map((k) => ({
+              value: k,
+              label: t(`shelves.kind.${k}` as 'shelves.kind.movie'),
+            })),
+          ]}
         />
       )}
       {sources.length > 1 && (
         <FilterChips
           label={t('shelves.filter.shelves')}
-          value={mount}
-          onValueChange={setMount}
-          options={sources.map((s) => ({ value: s.mount_id, label: <SourceLabel source={s} /> }))}
+          value={mount ?? ANY}
+          onValueChange={(v) => setMount(v === ANY ? null : v)}
+          options={[
+            { value: ANY, label: t('shelves.filter.all') },
+            ...sources.map((s) => ({ value: s.mount_id, label: <SourceLabel source={s} /> })),
+          ]}
         />
       )}
       {list.isPending && <p className="shv-muted">{t('shelves.loading')}</p>}
       {list.isError && <Notice variant="danger">{t('shelves.error')}</Notice>}
       {list.isSuccess && items.length === 0 && (
         <EmptyState
-          title={noFilter ? t('shelves.empty.title') : t('shelves.noMatch')}
+          title={
+            noFilter
+              ? t('shelves.empty.title')
+              : query.q
+                ? t('shelves.noMatch')
+                : t('shelves.noMatchFilters')
+          }
           description={noFilter ? t('shelves.empty.body') : undefined}
+          action={
+            noFilter ? (
+              <a href="/settings/user/storage">{t('shelves.nothing.mount')}</a>
+            ) : (
+              <Button variant="secondary" onClick={clear}>
+                {t('shelves.clearFilters')}
+              </Button>
+            )
+          }
         />
       )}
       {items.length > 0 && (

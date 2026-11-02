@@ -125,7 +125,7 @@ function ThreadStarterPreview({
         <>
           <strong className="lng-sys-name">
             {original.author || t('lounge.systemMessage.someone')}
-          </strong>
+          </strong>{' '}
           <q className="lng-sys-quote">
             {(original.text || t('lounge.systemMessage.attachment')).slice(0, 200)}
           </q>
@@ -134,10 +134,12 @@ function ThreadStarterPreview({
         <span className="lng-muted">{t('lounge.systemMessage.aMessageEllipsis')}</span>
       )}
       {onJump && (
-        <button type="button" className="lng-link-btn" onClick={onJump}>
+        <>
           {' '}
-          {t('lounge.systemMessage.jumpToOriginal')}
-        </button>
+          <button type="button" className="lng-link-btn" onClick={onJump}>
+            {t('lounge.systemMessage.jumpToOriginal')}
+          </button>
+        </>
       )}
     </>
   );

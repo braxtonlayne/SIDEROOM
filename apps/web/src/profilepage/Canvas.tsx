@@ -120,6 +120,10 @@ export function Canvas({
       }}
       onClick={() => onSelect(null)}
     >
+      {/* XC-VIS-002: an empty canvas said nothing; it points at "Add a block". */}
+      {blocks.length === 0 && (
+        <p className="pp-canvas-empty">{t('lounge.polishLounge.canvasEmpty')}</p>
+      )}
       {blocks.map((b) => (
         <div
           key={b.id}

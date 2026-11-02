@@ -187,8 +187,34 @@ describe('Shelves list (BYOS-CAT-002, against MSW)', () => {
   it('explains an empty shelf and a search with no match', async () => {
     const user = userEvent.setup();
     useShelfApi({ list: () => ({ items: [], total: 0, sources: [] }) });
-    renderAt('/cinema/shelves');
+    const empty = renderAt('/cinema/shelves');
     expect(await screen.findByText('Nothing on your shelves yet')).toBeInTheDocument();
+    // Nothing to search or filter: only the empty state, with the way to mount a bucket.
+    expect(screen.queryByRole('searchbox', { name: 'Search shelves' })).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Kind' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Mount a bucket' })).toHaveAttribute(
+      'href',
+      '/settings/user/storage',
+    );
+    empty.unmount();
+
+    useShelfApi({
+      list: (u) =>
+        u.searchParams.get('q') || u.searchParams.get('kind')
+          ? { items: [], total: 0, sources: [OWN] }
+          : { items: [item('1')], total: 1, sources: [OWN] },
+    });
+    renderAt('/cinema/shelves');
+    await screen.findByRole('article');
+    const kinds = screen.getByRole('group', { name: 'Kind' });
+    expect(within(kinds).getByRole('button', { name: 'Any kind' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(within(kinds).getByRole('button', { name: 'Anime' }));
+    expect(await screen.findByText('Nothing matches these filters.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByRole('article')).toBeInTheDocument();
     await user.type(screen.getByRole('searchbox', { name: 'Search shelves' }), 'zzz');
     expect(await screen.findByText('Nothing matches that search.')).toBeInTheDocument();
   });

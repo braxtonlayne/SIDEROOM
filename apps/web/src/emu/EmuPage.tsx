@@ -1,4 +1,5 @@
 import { Button, Notice } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatNumber, useT } from '../i18n';
 import type { Mount } from '../settings/user/storage/types';
@@ -143,6 +144,9 @@ export function EmuPage() {
   return (
     <main className="emu-page">
       <header className="emu-head">
+        <Link to="/games" className="emu-back">
+          {t('games.page.back')}
+        </Link>
         <h1>{t('games.page.title')}</h1>
         <p>{t('games.page.intro')}</p>
         <p className="emu-dim">{t('games.page.legal')}</p>
@@ -264,11 +268,16 @@ export function EmuPage() {
 
       {hasPs1 && me && <BiosPanel mounts={mounts} userId={me.id} bios={bios} onBios={setBios} />}
 
-      <section aria-labelledby="emu-list-h">
+      <section aria-labelledby="emu-list-h" className="emu-section">
         <h2 id="emu-list-h">{t('games.list.title')}</h2>
         <label className="emu-filter">
           <span>{t('games.list.filter')}</span>
-          <input type="search" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input
+            type="search"
+            className="emu-search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
         </label>
         {roms === null && !error && <p role="status">{t('games.list.loading')}</p>}
         {roms !== null && roms.length === 0 && (

@@ -7,7 +7,6 @@ import {
   Button,
   EmptyState,
   SettingsLayout,
-  ThemeProvider,
   ToastProvider,
   type SettingsSection,
 } from '@sideroom/ui';
@@ -15,6 +14,7 @@ import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { LiveDataConnection, useEnsureGuild } from '../../lounge/live';
+import { LoungeThemeProvider } from '../user/LoungeThemeProvider';
 import { useGuild, useStore } from '../../store';
 import { FormContext, useViewer, type FormHandle, type Viewer } from './hooks';
 import { Loading } from './ui';
@@ -40,6 +40,7 @@ import { ServerSupportSection } from './sections/ServerSupport';
 import { TagSection } from './sections/Tag';
 import { ServerStorageSection } from './storage/StorageSection';
 import { WatchLibrarySection } from './sections/WatchLibrary';
+import { useSettingsLayoutLabels } from '../../components/useSettingsLayoutLabels';
 
 export interface SectionProps {
   guildId: string;
@@ -235,6 +236,7 @@ export function ServerSettings({
   section: string | undefined;
 }) {
   const t = useT();
+  const layoutLabels = useSettingsLayoutLabels();
   const navigate = useNavigate();
   const { guild } = useGuild(guildId);
   const viewer = useViewer(guildId);
@@ -309,6 +311,7 @@ export function ServerSettings({
   return (
     <FormContext.Provider value={setForm}>
       <SettingsLayout
+        labels={layoutLabels}
         title={t('settings.serverSettings.title', {
           name: guild?.name ?? t('settings.serverSettings.defaultName'),
         })}
@@ -337,11 +340,11 @@ export function ServerSettingsPage() {
   };
   return (
     <LiveDataConnection>
-      <ThemeProvider section="lounge" className="ss-root">
+      <LoungeThemeProvider className="ss-root">
         <ToastProvider>
           {guildId ? <ServerSettings guildId={guildId} section={section} /> : null}
         </ToastProvider>
-      </ThemeProvider>
+      </LoungeThemeProvider>
     </LiveDataConnection>
   );
 }

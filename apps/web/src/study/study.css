@@ -43,20 +43,31 @@
   padding-block: 6px;
   padding-inline: 10px;
   border: 0;
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius, 6px);
   background: transparent;
   color: inherit;
   cursor: pointer;
 }
 .stu-entry:hover {
-  background: var(--ui-surface-2, transparent);
+  background: var(--ui-bg-hover);
 }
 .stu-entry[aria-current='true'] {
-  background: var(--ui-surface-2, transparent);
+  background: var(--ui-bg-hover);
   box-shadow: inset 3px 0 0 var(--ui-accent);
   font-weight: 600;
 }
-.stu-main {
+.stu-page,
+.stu-bar {
+  /* Shared Side Room widgets (FilterChips) read --sr-* first; the Study follows the Lounge theme instead. */
+  --sr-bg-2: var(--ui-bg-raised);
+  --sr-bg-olive: var(--ui-bg-hover);
+  --sr-line: var(--ui-border);
+  --sr-text: var(--ui-text);
+  --sr-gold: var(--ui-accent);
+  --sr-radius: 999px;
+}
+.stu-main,
+.stu-files {
   display: grid;
   align-content: start;
   gap: 16px;
@@ -105,7 +116,21 @@
 .stu-crumbs button {
   border: 0;
   padding-inline: 2px;
+  font-weight: 600;
+}
+.stu-crumbs button:hover,
+.stu-crumbs button:focus-visible {
   text-decoration: underline;
+}
+.stu-tools > * {
+  flex: 1 1 16rem;
+  max-inline-size: 24rem;
+}
+.stu-rail button:hover,
+.stu-mounts button:hover,
+.stu-folder:hover {
+  border-color: var(--ui-accent);
+  background: var(--ui-bg-hover);
 }
 .stu-tools {
   display: flex;
@@ -145,7 +170,7 @@
   overflow: hidden;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg, 8px);
-  background: var(--ui-surface-2, transparent);
+  background: var(--ui-bg-raised);
 }
 .stu-cover img {
   inline-size: 100%;
@@ -210,9 +235,9 @@
   inline-size: 100%;
   font: inherit;
   color: inherit;
-  background: var(--ui-surface-2, transparent);
+  background: var(--ui-bg-hover);
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius, 6px);
   padding: 8px;
 }
 /* The room bar (STU-NAV-001): the three rooms, then the Study's own areas. */
@@ -238,8 +263,70 @@
   color: var(--ui-text);
   font-weight: 600;
 }
+/* A rule between the rooms and the Study's own areas. */
+.stu-bar-nav + .stu-bar-nav {
+  padding-inline-start: 24px;
+  border-inline-start: 1px solid var(--ui-border);
+}
 .stu-bar-link:hover,
 .stu-bar-link:focus-visible {
   color: var(--ui-text);
   text-decoration: underline;
+}
+
+/* The load error and its Try again button on one line (wrapping on phones). */
+.stu-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+/* A card never grows past its grid column, whatever its title. */
+.stu-card > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+/* The rails scroll inside the column: a long file name in "Recently added" widened the whole page on phones
+   (424px on a 375px screen). Long names end in an ellipsis. */
+.stu-rails,
+.stu-rail {
+  min-inline-size: 0;
+}
+.stu-rail button {
+  max-inline-size: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Edit details: Note and Cover look like the Title field above them (UI kit label and control), not plain text and a
+   tiny native select. */
+.stu-field > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.stu-field > select {
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 40px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  font: inherit;
+  color: var(--ui-text);
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 6px);
+}
+.stu-field > select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.stu-field > .stu-textarea {
+  box-sizing: border-box;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: var(--ui-bg-raised);
 }

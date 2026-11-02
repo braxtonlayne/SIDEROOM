@@ -15,6 +15,7 @@ export const ALLOWED: AllowList = [
   // The scaffolding's chrome (the "nothing here" page) and its small helpers.
   'components/EntranceShell',
   'components/SkipLink',
+  'components/AppUiStrings',
   'components/icons',
   'components/entrance.css',
   'lib/useNoindex',

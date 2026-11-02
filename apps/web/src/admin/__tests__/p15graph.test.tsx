@@ -19,6 +19,7 @@ import {
   zoomAt,
 } from '../sections/graph/graphModel';
 import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
+import { useStore } from '../../store';
 import { asStaff, http, HttpResponse, openAdmin, server } from './helpers';
 
 const layoutGraph = vi.hoisted(() =>
@@ -245,7 +246,12 @@ describe('invite graph: canvas view', () => {
   });
 
   describe('reduced motion (integrator item 3b)', () => {
-    afterEach(() => usePrefsStore.setState({ prefs: DEFAULT_PREFS }));
+    // Admin follows the Lounge theme, so it runs the account prefs sync: a choice saved by one test lands in the
+    // store's settings blob and would be adopted by the next mount. Forget both copies between tests.
+    afterEach(() => {
+      usePrefsStore.setState({ prefs: DEFAULT_PREFS });
+      useStore.setState({ userSettings: null });
+    });
 
     const frames = () => {
       const raf = vi.fn((f: FrameRequestCallback) => {

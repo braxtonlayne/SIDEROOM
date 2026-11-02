@@ -266,8 +266,22 @@ export function publicDev(options: PublicDevOptions = {}): Plugin {
         }
         const surface = matchSurface(table, pathname);
         if (surface?.kind === 'bundle' && surface.shell && !surface.reserved) {
-          req.url = `/${surface.shell}${url.slice(pathname.length)}`;
-          next();
+          const shell = surface.shell;
+          const toSurface = () => {
+            req.url = `/${shell}${url.slice(pathname.length)}`;
+            next();
+          };
+          // As web.rs does: `/~handle` is an alias of `/u/handle` in the app, so a signed-in member gets the app;
+          // only a visitor without a session gets the public profile shell (PRF-PRO-001).
+          if (pathname.startsWith('/~')) {
+            void hasSession(api, req.headers.cookie).then((ok) => {
+              if (!ok) return toSurface();
+              req.url = `/${table.appShell ?? 'app.html'}${url.slice(pathname.length)}`;
+              next();
+            });
+            return;
+          }
+          toSurface();
           return;
         }
         // Everything else is the app: the session decides.

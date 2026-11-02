@@ -1,3 +1,5 @@
+import { Button } from '@sideroom/ui';
+import { flagLabel } from '../arcade/GameCard';
 import { useT } from '../i18n';
 import { FIXTURE_GAMES, type FixtureGame } from './fixtures';
 import { previewHint } from './state';
@@ -21,16 +23,17 @@ function SampleCard({ game }: { game: FixtureGame }) {
       <ul className="arc-flags" aria-label={game.title}>
         {game.tags.map((tag) => (
           <li key={tag} className="arc-chip">
-            {tag}
+            {flagLabel(t, tag)}
           </li>
         ))}
       </ul>
-      <button
-        type="button"
+      <Button
+        size="sm"
+        variant={live ? 'primary' : 'secondary'}
         onClick={() => previewHint(t(live ? 'showroom.hint.play' : 'showroom.hint.notify'))}
       >
         {live ? t('showroom.arcade.play') : t('showroom.arcade.notify')}
-      </button>
+      </Button>
     </article>
   );
 }
@@ -45,8 +48,10 @@ export default function PreviewArcade() {
   const soon = FIXTURE_GAMES.filter((g) => g.status === 'preview');
   return (
     <main className="arc-page" data-testid="showroom-arcade">
-      <h1>{t('arcade.page.title')}</h1>
-      <p className="arc-dim">{t('arcade.page.intro')}</p>
+      <header className="arc-head">
+        <h1>{t('arcade.page.title')}</h1>
+        <p className="arc-dim">{t('arcade.page.intro')}</p>
+      </header>
       <PreviewToggle />
       <section className="arc-section" aria-labelledby="srm-live">
         <h2 id="srm-live">{t('showroom.arcade.playableNow')}</h2>

@@ -10,7 +10,8 @@
 .sidebar > * { width: min(100%, 220px); }
 .nav { display: block; }
 .navToggle { display: none; }
-.wide .content { max-width: none; }
+/* A wide page reaches the Close button: keep its header actions clear of it (XC-VIS-001). */
+.wide .content { max-width: none; padding-inline-end: 112px; }
 .group + .group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ui-border); }
 .groupName { margin: 0 0 6px 10px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
 .list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
@@ -53,12 +54,30 @@
 :global([data-reduced-motion="true"]) .bar { animation: none; }
 @media (max-width: 720px) {
   .root { flex-direction: column; }
-  .sidebar { flex: none; align-items: stretch; padding: 12px; max-height: 60vh; }
-  .navToggle { display: block; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); font: inherit; text-align: start; cursor: pointer; }
+  /* The Close button shares the section picker's row on phones (XC-VIS-002): it took a row of its own. */
+  .sidebar { flex: none; align-items: stretch; padding: 12px; padding-inline-end: 60px; max-height: 60vh; }
+  .navToggle {
+    display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+    background: var(--ui-bg); color: var(--ui-text); font: inherit; text-align: start; cursor: pointer;
+  }
+  /* A chevron so the picker reads as one (it looked like a plain text box). */
+  .navToggle::after {
+    content: ""; flex: none; margin-inline-start: auto; width: 7px; height: 7px; border-inline-end: 2px solid currentColor; border-block-end: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); opacity: 0.7;
+  }
+  .navToggle[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
+  .navToggle:hover { border-color: var(--ui-text-muted); }
   .navToggle:focus-visible { outline: 2px solid var(--ui-focus); }
   .sidebar[data-open="false"] .nav { display: none; }
   .sidebar[data-open="true"] .nav { margin-top: 8px; }
   .sidebar > * { width: 100%; }
-  .content { padding: 24px 16px 96px; }
-  .topline { top: 4px; inset-inline-end: 8px; }
+  .content, .wide .content { padding: 8px 16px 96px; }
+  /* Not over the content: it covered the section title and its description (XC-VIS-001). */
+  .main { position: static; }
+  .topline { position: absolute; top: 13px; inset-inline-end: 12px; }
+  .close { flex-direction: row; gap: 0; }
+  .closeX { width: 32px; height: 32px; font-size: 1.125rem; }
+  /* No Escape key on a phone: the button is the round X; "Close settings" stays its accessible name. */
+  .closeText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .esc { display: none; }
 }

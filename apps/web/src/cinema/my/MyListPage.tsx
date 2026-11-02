@@ -324,6 +324,7 @@ export function MyListPage() {
       <p className="cpl-my-eyebrow">{tr('cinema.my.eyebrow')}</p>
       <h1 className="cpl-my-h1">{tr('cinema.my.heading')}</h1>
       <Tabs
+        className="cpl-my-tabs"
         label={tr('cinema.my.sections')}
         items={[
           {

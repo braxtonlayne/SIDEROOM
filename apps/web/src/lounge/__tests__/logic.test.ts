@@ -63,6 +63,21 @@ describe('buildRows', () => {
     ).toEqual([false, false, false]);
   });
 
+  it('breaks groups around system rows like pin and thread notices (XC-VIS-002)', () => {
+    const rows = buildRows(
+      [
+        msg('a', 'u1', '2026-03-01T10:00:00Z'),
+        msg('b', 'u1', '2026-03-01T10:01:00Z', { type: 18 }),
+        msg('c', 'u1', '2026-03-01T10:02:00Z'),
+        msg('d', 'u1', '2026-03-01T10:03:00Z', { type: 0 }),
+      ],
+      { atStart: false },
+    );
+    expect(
+      rows.filter((r) => r.kind === 'message').map((r) => r.kind === 'message' && r.grouped),
+    ).toEqual([false, false, false, true]);
+  });
+
   it('inserts a NEW divider after the last read message, but not before own messages', () => {
     const list = [msg('a', 'u1', '2026-03-01T10:00:00Z'), msg('b', 'u2', '2026-03-01T10:01:00Z')];
     expect(buildRows(list, { atStart: false, lastReadId: 'a' }).map((r) => r.kind)).toEqual([

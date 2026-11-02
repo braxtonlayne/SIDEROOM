@@ -384,12 +384,23 @@
   height: 100%;
   box-sizing: border-box;
   display: grid;
-  place-items: center;
+  /* The label sits at the slot start, where its time is (the "now" line lines up with it). */
+  place-items: center start;
   border-inline-start: 1px solid var(--sr-line);
   font-family: var(--sr-teletext-font);
   font-size: 14px;
   letter-spacing: 0.06em;
   color: var(--sr-text-2);
+}
+/* The guide opens scrolled to now, so the first visible slot usually starts under the sticky channel column. Its
+   label slides along with the scroll instead of being cut at the start (":00 AM"). */
+.tv-slot-label {
+  position: sticky;
+  inset-inline-start: calc(var(--tv-chan) + 8px);
+  padding-inline: 8px;
+  /* Sticky keeps the margin box inside the slot, so a sliding label stops short of the next one ("3:30 AM4:00 AM"). */
+  margin-inline-end: 32px;
+  white-space: nowrap;
 }
 .tv-cell-wrap {
   position: absolute;
@@ -696,4 +707,25 @@
   border-radius: 999px;
   font-size: 11px;
   color: var(--sr-text-3);
+}
+
+/* XC-VIS-001: "My reminders" sat flush under the guide grid and its lead-time select was an unstyled native control
+   touching the sentence. */
+.tv-reminders {
+  margin-block: 32px 16px;
+}
+.tv-reminders-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.tv-reminders-lead select {
+  min-block-size: 36px;
+  padding-inline: 10px;
+  border: 1px solid var(--sr-line);
+  border-radius: var(--sr-radius);
+  background: var(--sr-bg-1);
+  color: var(--sr-text);
+  font: inherit;
 }
