@@ -11,7 +11,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--brand);
+  color: var(--text-link, var(--brand));
   font: inherit;
   cursor: pointer;
   text-decoration: none;
@@ -152,7 +152,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--brand);
+  color: var(--text-link, var(--brand));
 }
 .lng-file-preview {
   max-height: 240px;
@@ -295,7 +295,7 @@
   font-weight: 600;
 }
 .lng-embed-title a {
-  color: var(--brand);
+  color: var(--text-link, var(--brand));
 }
 .lng-embed-desc {
   margin-top: 8px;

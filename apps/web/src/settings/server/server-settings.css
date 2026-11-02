@@ -305,7 +305,7 @@
   outline-offset: 2px;
 }
 .ss-link[aria-current='true'] {
-  color: var(--ui-accent);
+  color: var(--text-link, var(--ui-accent));
 }
 
 .ss-sr {
@@ -581,7 +581,7 @@
   margin-block-start: 0;
 }
 .ss-card > a {
-  color: var(--ui-accent);
+  color: var(--text-link, var(--ui-accent));
   align-self: flex-start;
 }
 
