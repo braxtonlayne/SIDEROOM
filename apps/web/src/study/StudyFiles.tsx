@@ -108,8 +108,15 @@ function FileCard({
       <ProvenanceBadge text={badge} kind={badgeKind} />
       {note?.note && <p className="stu-note">{note.note}</p>}
       {canEdit && (
-        <Button variant="secondary" size="sm" onClick={onEdit}>
-          {t('study.file.edit', { title })}
+        // The visible label stays short (a long file name stretched the card to twice the others); the name is in
+        // the accessible name.
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-label={t('study.file.edit', { title })}
+          onClick={onEdit}
+        >
+          {t('study.edit.title')}
         </Button>
       )}
     </li>

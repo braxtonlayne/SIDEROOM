@@ -222,3 +222,65 @@ test('cinema shelves: list, filter, item details (faked shelf)', async ({ browse
     await context.close();
   }
 });
+
+test('the Study with files: type filter, open a file, edit details (faked shelves)', async ({
+  browser,
+}) => {
+  const files = [
+    { key: 'Films/heat.mp4', size: 1_000_000 },
+    { key: 'Music/blue.mp3', size: 2_000_000 },
+    { key: 'Books/dune.epub', size: 3_000_000 },
+    { key: 'Comics/akira-volume-one-the-long-edition.cbz', size: 4_000_000 },
+  ];
+  for (const phone of [false, true]) {
+    const { context, page, errors } = await open(browser, phone);
+    const v = phone ? 'phone' : 'desktop';
+    const json = (r: import('@playwright/test').Route, body: unknown) =>
+      r.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
+    await page.route('**/api/v1/shelves/visible', (r) =>
+      json(r, {
+        shelves: [
+          { shelf_id: '9501', label: 'Home', via: 'own', object_count: 4, can_manage: true },
+        ],
+      }),
+    );
+    await page.route('**/api/v1/storage/mounts/*/objects*', (r) =>
+      json(r, {
+        folders: ['Films/'],
+        objects: files.map((f) => ({ ...f, last_modified: '2026-10-01T00:00:00Z' })),
+        next_cursor: null,
+        can_upload: false,
+        can_manage: true,
+      }),
+    );
+    await page.route(/\/api\/v1\/shelves\/\d+\/objects(\?.*)?$/, (r) =>
+      json(r, {
+        objects: files.map((f, i) => ({
+          object_hash: String(i).padStart(64, '0'),
+          path: f.key,
+          size: f.size,
+          class: 'other',
+          title: '',
+          cover: '',
+          note: '',
+          updated_at: '2026-10-01T00:00:00Z',
+        })),
+        can_edit: true,
+      }),
+    );
+    await page.goto('/study');
+    await expect(page.getByRole('button', { name: /^Open heat, / })).toBeVisible();
+    await shot(page, `study-files-${v}`);
+    await page.getByRole('button', { name: 'Audio (1)' }).click();
+    await expect(page.getByRole('button', { name: /^Open heat, / })).toHaveCount(0);
+    await shot(page, `study-audio-${v}`);
+    await page.getByRole('button', { name: 'Audio (1)' }).click();
+    await page.getByRole('button', { name: 'Edit details of heat' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.waitForTimeout(600);
+    await shot(page, `study-edit-${v}`);
+    await page.keyboard.press('Escape');
+    expect(errors).toEqual([]);
+    await context.close();
+  }
+});

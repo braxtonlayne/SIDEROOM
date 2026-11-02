@@ -282,3 +282,51 @@
   justify-content: space-between;
   gap: 8px 16px;
 }
+/* A card never grows past its grid column, whatever its title. */
+.stu-card > * {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+/* The rails scroll inside the column: a long file name in "Recently added" widened the whole page on phones
+   (424px on a 375px screen). Long names end in an ellipsis. */
+.stu-rails,
+.stu-rail {
+  min-inline-size: 0;
+}
+.stu-rail button {
+  max-inline-size: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Edit details: Note and Cover look like the Title field above them (UI kit label and control), not plain text and a
+   tiny native select. */
+.stu-field > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.stu-field > select {
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 40px;
+  padding-block: 8px;
+  padding-inline: 12px;
+  font: inherit;
+  color: var(--ui-text);
+  background: var(--ui-bg-raised);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 6px);
+}
+.stu-field > select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.stu-field > .stu-textarea {
+  box-sizing: border-box;
+  padding-block: 8px;
+  padding-inline: 12px;
+  background: var(--ui-bg-raised);
+}
