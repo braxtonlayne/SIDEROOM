@@ -7,6 +7,8 @@
   --felt: #14513a;
   --felt-edge: #0c3324;
   --accent: #e8b84a;
+  /* Accent as text on the page background (the gold is too light to read on white). */
+  --accent-ink: #e8b84a;
   --danger: #d9534f;
   --card: #f7f5ef;
   --card-text: #1c1c1c;
@@ -19,6 +21,7 @@
     --panel: #ffffff;
     --text: #1a2230;
     --muted: #5d6878;
+    --accent-ink: #7a5600;
   }
 }
 
@@ -61,7 +64,7 @@ body {
 }
 .pill.host {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .warn {

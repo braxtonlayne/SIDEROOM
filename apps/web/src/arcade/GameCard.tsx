@@ -20,6 +20,15 @@ export function TierLine({ tier, eligibility }: { tier: Tier; eligibility: Eligi
   );
 }
 
+/** A capability flag's readable name (`guest_play` reads "Guest play"); an unknown flag keeps its own name. */
+export function flagLabel(t: (key: string) => string, name: string): string {
+  const key = `arcade.flag.name.${name}`;
+  const label = t(key);
+  if (label !== key) return label;
+  const plain = name.replace(/_/g, ' ');
+  return plain.charAt(0).toUpperCase() + plain.slice(1);
+}
+
 /** Capability flags a build declares; a reserved one is marked as planned. */
 export function FlagChips({
   names,
@@ -38,7 +47,7 @@ export function FlagChips({
         const reserved = flags.find((f) => f.name === n)?.status === 'reserved';
         return (
           <li key={n} className="arc-chip" title={flags.find((f) => f.name === n)?.summary}>
-            {n}
+            {flagLabel(t, n)}
             {reserved && <span className="arc-chip-note"> ({t('arcade.flag.reserved')})</span>}
           </li>
         );

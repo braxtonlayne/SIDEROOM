@@ -1,4 +1,5 @@
 import { Button } from '@sideroom/ui';
+import { flagLabel } from '../arcade/GameCard';
 import { useT } from '../i18n';
 import { FIXTURE_GAMES, type FixtureGame } from './fixtures';
 import { previewHint } from './state';
@@ -22,7 +23,7 @@ function SampleCard({ game }: { game: FixtureGame }) {
       <ul className="arc-flags" aria-label={game.title}>
         {game.tags.map((tag) => (
           <li key={tag} className="arc-chip">
-            {tag}
+            {flagLabel(t, tag)}
           </li>
         ))}
       </ul>

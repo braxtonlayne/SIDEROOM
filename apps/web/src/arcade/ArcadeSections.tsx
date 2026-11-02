@@ -66,14 +66,15 @@ export function FeaturedSection({
             }}
           >
             {f.eligibility.browser_play && (
-              <p className="arc-dim">{t('arcade.featured.startHint')}</p>
+              <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
             )}
           </GameCard>
         ))}
       </div>
       {featured.length === 0 && (
         <p className="arc-dim">
-          {t(emulatorOn ? 'arcade.featured.onlyEmulator' : 'arcade.featured.empty')}
+          {t(emulatorOn ? 'arcade.featured.noneOther' : 'arcade.featured.none')}{' '}
+          {t('arcade.featured.startWhere')}
         </p>
       )}
     </section>
