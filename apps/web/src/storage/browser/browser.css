@@ -52,3 +52,17 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+/* The way back above the title (the browser has no app chrome). */
+.sto-back {
+  display: inline-block;
+  margin-block-end: 12px;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.sto-back:hover,
+.sto-back:focus-visible {
+  color: var(--ui-text);
+  text-decoration: underline;
+}

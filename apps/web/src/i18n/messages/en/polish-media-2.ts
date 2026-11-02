@@ -6,4 +6,6 @@ export default {
   // Shelves: a kind or shelf filter (not a search) left nothing; the button resets search and filters.
   'shelves.noMatchFilters': 'Nothing matches these filters.',
   'shelves.clearFilters': 'Clear filters',
+  // The storage browser (a page without app chrome): back to where it was opened, usually Settings > Storage.
+  'storage.browser.back': 'Back',
 } satisfies Record<string, string>;

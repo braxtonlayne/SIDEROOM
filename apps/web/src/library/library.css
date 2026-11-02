@@ -1603,3 +1603,16 @@
     min-inline-size: 0;
   }
 }
+
+/* Shelves inside the Library: the content area already has the page gutter, so the shelf page does not add a
+   second one (its heading sat 32px in from Browse's). */
+.lib-frame .shv-page {
+  padding-block: 0;
+  padding-inline: 0;
+}
+/* ...and its heading matches the other Library pages (lib-h1), not the browser default. */
+.lib-frame .shv-head h1 {
+  font-family: var(--sr-font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 4vw, 40px);
+}
