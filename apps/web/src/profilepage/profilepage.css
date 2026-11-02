@@ -21,6 +21,13 @@
 }
 .pp-body {
   flex: 1;
+  /* XC-VIS-002: a customised page's own background runs to the bottom of the window, not just under its
+     blocks (the app background showed below a short page). */
+  display: flex;
+  flex-direction: column;
+}
+.pp-body > :last-child {
+  flex: 1;
 }
 .pp-plain {
   max-inline-size: 560px;

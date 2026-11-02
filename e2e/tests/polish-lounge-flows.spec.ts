@@ -166,3 +166,72 @@ test('send, edit, react, reply, pin, thread, attach and delete a message', async
   writeFileSync(`${OUT}-flows.txt`, log.join('\n'));
   expect(failed, log.join('\n')).toEqual([]);
 });
+
+test('answer a message request, send and delete a DM, and edit the profile page', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const world = JSON.parse(readFileSync(resolve(STATE, 'world.json'), 'utf8'));
+  const log: string[] = [];
+  const failed: string[] = [];
+  page.on('pageerror', (e) => log.push(`pageerror ${e.message}`));
+  const step = async (name: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+      log.push(`ok   ${name}`);
+    } catch (e) {
+      failed.push(name);
+      log.push(`FAIL ${name}: ${String(e).split('\n')[0]}`);
+      await page
+        .screenshot({ path: `${OUT}-flow-fail-${name.replace(/\W+/g, '-')}.png` })
+        .catch(() => {});
+    }
+  };
+  const stamp = Date.now().toString(36);
+
+  await step('open the DM by link (a pending request shows the request, O1)', async () => {
+    await page.goto(`/channels/@me/${world.dmId}`);
+    const accept = page.getByRole('button', { name: /^Accept/ });
+    const composer = page.getByRole('textbox', { name: /^Message (?!#)/ });
+    await expect(accept.or(composer).first()).toBeVisible({ timeout: 30_000 });
+    if (await accept.isVisible()) {
+      await page.screenshot({ path: `${OUT}-flow-dm-request.png` });
+      await accept.click();
+    }
+    await expect(composer).toBeVisible();
+  });
+  await step('send and delete a DM', async () => {
+    const composer = page.getByRole('textbox', { name: /^Message (?!#)/ });
+    await composer.fill(`dm ${stamp}`);
+    await composer.press('Enter');
+    const row = page
+      .locator('.lng-msg')
+      .filter({ hasText: `dm ${stamp}` })
+      .last();
+    await expect(row).toBeVisible();
+    await page.screenshot({ path: `${OUT}-flow-dm.png` });
+    await row.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Delete Message' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
+    await expect(page.locator('.lng-msg-content', { hasText: `dm ${stamp}` })).toHaveCount(0);
+  });
+  await step('add a block to the profile page, save, view, remove it again', async () => {
+    await page.goto('/profile-page/edit');
+    await page.getByRole('button', { name: 'Add block' }).click();
+    await page.getByRole('button', { name: 'Save page' }).click();
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'View page' }).click();
+    await expect(page).toHaveURL(/\/u\//);
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: `${OUT}-flow-profile-page.png`, fullPage: true });
+    await page.goto('/profile-page/edit');
+    const tile = page.locator('.pp-tile').last();
+    await tile.click();
+    await page.keyboard.press('Delete');
+    await page.getByRole('button', { name: 'Save page' }).click();
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  });
+
+  writeFileSync(`${OUT}-flows-2.txt`, log.join('\n'));
+  expect(failed, log.join('\n')).toEqual([]);
+});
