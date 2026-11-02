@@ -63,11 +63,23 @@ export interface PosterRowProps extends Omit<HTMLAttributes<HTMLElement>, "title
   /** "Explore all ↗" style link in the heading row. */
   exploreHref?: string;
   exploreLabel?: ReactNode;
+  /** Accessible names of the arrow buttons (English defaults; the app passes translated ones). */
+  prevLabel?: string;
+  nextLabel?: string;
   children: ReactNode;
 }
 
 /** DS-SR-005: titled horizontal scroller of posters with prev/next arrows and an "Explore all" link. */
-export function PosterRow({ title, exploreHref, exploreLabel = "Explore all", className, children, ...rest }: PosterRowProps) {
+export function PosterRow({
+  title,
+  exploreHref,
+  exploreLabel = "Explore all",
+  prevLabel = "Scroll back",
+  nextLabel = "Scroll forward",
+  className,
+  children,
+  ...rest
+}: PosterRowProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
@@ -82,10 +94,10 @@ export function PosterRow({ title, exploreHref, exploreLabel = "Explore all", cl
         <h2 className={styles.rowTitle}>{title}</h2>
         <div className={styles.rowTools}>
           {exploreHref && <ArrowLink href={exploreHref}>{exploreLabel}</ArrowLink>}
-          <button type="button" className={styles.arrowBtn} aria-label="Scroll back" onClick={() => page(-1)}>
+          <button type="button" className={styles.arrowBtn} aria-label={prevLabel} onClick={() => page(-1)}>
             <span aria-hidden="true">←</span>
           </button>
-          <button type="button" className={styles.arrowBtn} aria-label="Scroll forward" onClick={() => page(1)}>
+          <button type="button" className={styles.arrowBtn} aria-label={nextLabel} onClick={() => page(1)}>
             <span aria-hidden="true">→</span>
           </button>
         </div>

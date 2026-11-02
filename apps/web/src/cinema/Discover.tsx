@@ -232,6 +232,8 @@ function RowView({
           title={heading}
           exploreHref={row.explore_href ?? undefined}
           exploreLabel={tr('cinema.discover.exploreAll')}
+          prevLabel={tr('cinema.posterRow.scrollBack')}
+          nextLabel={tr('cinema.posterRow.scrollForward')}
           aria-label={row.title}
         >
           {row.titles.map((t) => (
