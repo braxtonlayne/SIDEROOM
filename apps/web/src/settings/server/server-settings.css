@@ -564,3 +564,40 @@
   flex-wrap: nowrap;
   gap: 6px;
 }
+
+/* XC-VIS-002: card titles are h2 or h3; an h3 kept the browser's margins (a gap above "Watch party cards" and every
+   feature card). Cards stacked straight in a section touched each other; links inside cards use the accent. */
+.ss-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.ss-card + .ss-card,
+.ss-card + .ss-danger-zone {
+  margin-block-start: 16px;
+}
+.ss-form > .ss-card + .ss-card,
+.ss-form > .ss-card + .ss-danger-zone {
+  margin-block-start: 0;
+}
+.ss-card > a {
+  color: var(--ui-accent);
+  align-self: flex-start;
+}
+
+/* Extensions > Server look: the colour picker, its Save and Clear buttons and the search below ran together. */
+.pkg-look {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-block-end: 24px;
+}
+.pkg-look > p {
+  margin: 0;
+}
+.ss-subtitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}

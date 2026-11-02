@@ -538,3 +538,20 @@
 .us-preview .lng-pop-bio {
   white-space: normal;
 }
+
+/* XC-VIS-002: a card's title and its action buttons shared one row, so on a phone the description was squeezed into
+   a column a few words wide (Devices, Storage). The buttons now wrap under the text when space runs out. */
+.us-card-head {
+  flex-wrap: wrap;
+}
+.us-card-head > div:first-child {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+/* A segmented control's name was only spoken, so two "Always / On hover or focus / Never" rows sat unexplained. */
+.us-seg-label {
+  display: block;
+  margin-block-end: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}

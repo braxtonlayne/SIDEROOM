@@ -16,16 +16,21 @@ export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
     <>
       <SectionTitle>{t('settings.accessibility.title')}</SectionTitle>
       <Card id="us-motion" title={t('settings.accessibility.motion')}>
-        <SegmentedControl
-          label={t('settings.accessibility.reducedMotion')}
-          value={prefs.reducedMotion}
-          onValueChange={(v) => setPrefs({ reducedMotion: v as UserPrefs['reducedMotion'] })}
-          options={[
-            { value: 'system', label: t('settings.accessibility.motionSystem') },
-            { value: 'on', label: t('settings.accessibility.motionOn') },
-            { value: 'off', label: t('settings.accessibility.motionOff') },
-          ]}
-        />
+        <div className="us-seg">
+          <span className="us-seg-label" aria-hidden="true">
+            {t('settings.accessibility.reducedMotion')}
+          </span>
+          <SegmentedControl
+            label={t('settings.accessibility.reducedMotion')}
+            value={prefs.reducedMotion}
+            onValueChange={(v) => setPrefs({ reducedMotion: v as UserPrefs['reducedMotion'] })}
+            options={[
+              { value: 'system', label: t('settings.accessibility.motionSystem') },
+              { value: 'on', label: t('settings.accessibility.motionOn') },
+              { value: 'off', label: t('settings.accessibility.motionOff') },
+            ]}
+          />
+        </div>
         <div className="us-stack us-after">
           <Switch
             label={t('settings.accessibility.gifAutoplay')}
@@ -33,18 +38,28 @@ export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
             checked={prefs.gifAutoplay}
             onChange={(e) => setPrefs({ gifAutoplay: e.target.checked })}
           />
-          <SegmentedControl
-            label={t('settings.accessibility.stickers')}
-            value={prefs.stickerAnimation}
-            onValueChange={(v) => setPrefs({ stickerAnimation: v as Animation })}
-            options={animationOptions(t)}
-          />
-          <SegmentedControl
-            label={t('settings.accessibility.emoji')}
-            value={prefs.emojiAnimation}
-            onValueChange={(v) => setPrefs({ emojiAnimation: v as Animation })}
-            options={animationOptions(t)}
-          />
+          <div className="us-seg">
+            <span className="us-seg-label" aria-hidden="true">
+              {t('settings.accessibility.stickers')}
+            </span>
+            <SegmentedControl
+              label={t('settings.accessibility.stickers')}
+              value={prefs.stickerAnimation}
+              onValueChange={(v) => setPrefs({ stickerAnimation: v as Animation })}
+              options={animationOptions(t)}
+            />
+          </div>
+          <div className="us-seg">
+            <span className="us-seg-label" aria-hidden="true">
+              {t('settings.accessibility.emoji')}
+            </span>
+            <SegmentedControl
+              label={t('settings.accessibility.emoji')}
+              value={prefs.emojiAnimation}
+              onValueChange={(v) => setPrefs({ emojiAnimation: v as Animation })}
+              options={animationOptions(t)}
+            />
+          </div>
         </div>
       </Card>
       <Card id="us-contrast" title={t('settings.accessibility.contrast')}>
@@ -64,16 +79,21 @@ export function AccessibilitySection({ prefs, setPrefs }: PrefsFormProps) {
         />
       </Card>
       <Card id="us-roles" title={t('settings.accessibility.roleColors')}>
-        <SegmentedControl
-          label={t('settings.accessibility.showRoleColors')}
-          value={prefs.roleColors}
-          onValueChange={(v) => setPrefs({ roleColors: v as RoleColors })}
-          options={[
-            { value: 'name', label: t('settings.accessibility.roleName') },
-            { value: 'dot', label: t('settings.accessibility.roleDot') },
-            { value: 'off', label: 'Off' },
-          ]}
-        />
+        <div className="us-seg">
+          <span className="us-seg-label" aria-hidden="true">
+            {t('settings.accessibility.showRoleColors')}
+          </span>
+          <SegmentedControl
+            label={t('settings.accessibility.showRoleColors')}
+            value={prefs.roleColors}
+            onValueChange={(v) => setPrefs({ roleColors: v as RoleColors })}
+            options={[
+              { value: 'name', label: t('settings.accessibility.roleName') },
+              { value: 'dot', label: t('settings.accessibility.roleDot') },
+              { value: 'off', label: t('settings.accessibility.motionOff') },
+            ]}
+          />
+        </div>
         <p className="us-muted">{t('settings.accessibility.roleHelp')}</p>
       </Card>
       <Card id="us-font" title={t('settings.accessibility.reading')}>

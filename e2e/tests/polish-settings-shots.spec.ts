@@ -22,12 +22,17 @@ const THEME_IDS = { light: 'lounge-light', dark: 'lounge-editorial' } as const;
 
 function rows(): { name: string; path: string }[] {
   if (!ON) return [];
-  const world = JSON.parse(readFileSync(resolve(STATE, 'world.json'), 'utf8')) as Record<string, string>;
+  const world = JSON.parse(readFileSync(resolve(STATE, 'world.json'), 'utf8')) as Record<
+    string,
+    string
+  >;
   return (process.env.POLISH_PATHS ?? '')
     .split(',')
     .filter(Boolean)
     .map((pair) => {
-      const [name, path] = pair.split('=') as [string, string];
+      const at = pair.indexOf('=');
+      const name = pair.slice(0, at);
+      const path = pair.slice(at + 1);
       return {
         name,
         path: path.replace('{g}', world.guildId ?? '').replace('{app}', world.appId ?? ''),
@@ -48,8 +53,12 @@ async function forceTheme(page: Page, theme: keyof typeof THEME_IDS) {
 
 test.describe('settings polish shots', () => {
   test.skip(!ON, 'opt-in: SR_E2E_SWEEP=1');
-  const themes = (process.env.POLISH_THEMES ?? 'light,dark').split(',') as (keyof typeof THEME_IDS)[];
-  const viewports = (process.env.POLISH_VIEWPORTS ?? 'desktop,phone').split(',') as (keyof typeof VIEWPORTS)[];
+  const themes = (process.env.POLISH_THEMES ?? 'light,dark').split(
+    ',',
+  ) as (keyof typeof THEME_IDS)[];
+  const viewports = (process.env.POLISH_VIEWPORTS ?? 'desktop,phone').split(
+    ',',
+  ) as (keyof typeof VIEWPORTS)[];
   for (const row of rows())
     for (const theme of themes)
       for (const viewport of viewports)
@@ -69,20 +78,27 @@ test.describe('settings polish shots', () => {
           const overflow = await page.evaluate(() => {
             const w = document.documentElement.clientWidth;
             // Wide tables scroll sideways on purpose; anything else past the edge is cut off.
-            const clipped = (el: Element) => el.closest('table, .ss-table, [role="tablist"]') !== null;
+            const clipped = (el: Element) =>
+              el.closest('table, .ss-table, [role="tablist"]') !== null;
             const out: string[] = [];
             for (const el of Array.from(document.body.querySelectorAll('*'))) {
               const r = el.getBoundingClientRect();
               if (r.width === 0 || r.right <= w + 1 || clipped(el)) continue;
               const cls = typeof el.className === 'string' ? el.className.split(' ')[0] : '';
-              out.push(`${el.tagName.toLowerCase()}${cls ? '.' + cls : ''} right=${Math.round(r.right)} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
+              out.push(
+                `${el.tagName.toLowerCase()}${cls ? '.' + cls : ''} right=${Math.round(r.right)} "${(el.textContent ?? '').trim().slice(0, 30)}"`,
+              );
               if (out.length >= 6) break;
             }
             return out;
           });
-          if (overflow.length) console.log(`OVERFLOW ${row.name} ${viewport}:\n  ${overflow.join('\n  ')}`);
+          if (overflow.length)
+            console.log(`OVERFLOW ${row.name} ${viewport}:\n  ${overflow.join('\n  ')}`);
           mkdirSync(OUT, { recursive: true });
-          await page.screenshot({ path: resolve(OUT, `${row.name}-${viewport}-${theme}.png`), fullPage: true });
+          await page.screenshot({
+            path: resolve(OUT, `${row.name}-${viewport}-${theme}.png`),
+            fullPage: true,
+          });
           expect(page.url()).not.toContain('/login');
           await context.close();
         });

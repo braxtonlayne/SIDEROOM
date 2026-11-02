@@ -81,9 +81,9 @@ export function AuditLogSection({ guildId }: SectionProps) {
   const names: Names = {
     user: userName,
     role: (id) =>
-      roles.find((r) => r.id === id)?.name ?? t('settings.auditLog.roleFallback', { id }),
+      roles.find((r) => r.id === id)?.name ?? t('settings.polishSettings.auditRoleGone'),
     channel: (id) =>
-      channels.find((c) => c.id === id)?.name ?? t('settings.auditLog.channelFallback', { id }),
+      channels.find((c) => c.id === id)?.name ?? t('settings.polishSettings.auditChannelGone'),
   };
   const memberOptions = members
     .map((m) => ({

@@ -48,7 +48,7 @@ export function InviteControlsCard() {
                 <span className="ss-meta">{t('admin.invites.doorsNeedFeatures')}</span>
               )}
             </div>
-            <dl className="ss-meta" aria-label={t('admin.invites.quotasLabel')}>
+            <dl className="adm-quota" aria-label={t('admin.invites.quotasLabel')}>
               <dt>{t('admin.invites.quotaCredits')}</dt>
               <dd>{c.default_credits}</dd>
               <dt>{t('admin.invites.quotaOutstanding')}</dt>
@@ -59,7 +59,7 @@ export function InviteControlsCard() {
             <p className="ss-sub">{t('admin.invites.quotasEdit')}</p>
             <p className="ss-meta" role="status">
               {c.last_prune
-                ? t('admin.invites.lastPrune', {
+                ? t('settings.polishSettings.lastPrune', {
                     when: fmtMs(c.last_prune.ran_at_ms),
                     revoked: c.last_prune.codes_revoked,
                     marked: c.last_prune.roots_marked,
