@@ -6,4 +6,6 @@ export default {
   'activities.launcher.join': 'Join',
   // T4: the per-row menu of Server Settings > Members (Timeout, Kick, Ban).
   'settings.members.moreActions': 'More actions for {name}',
+  // M3: a not-ready or failed video goes back to its title page.
+  'cinema.watch.backToTitle': 'Back to the title page',
 } satisfies Record<string, string>;

@@ -138,9 +138,17 @@ function WatchLoader({
                   : tr('cinema.watch.errorBody')
           }
           action={
-            <a className="cpl-primary" href="/cinema">
-              {tr('cinema.watch.backToCinema')}
-            </a>
+            // XC-VIS-003 M3: a video that is not ready (or failed to load) is worth trying again from its title
+            // page, where the viewer just came from; a taken-down or missing title has no title page to go to.
+            takenDown || gone ? (
+              <a className="cpl-primary" href="/cinema">
+                {tr('cinema.watch.backToCinema')}
+              </a>
+            ) : (
+              <button type="button" className="cpl-primary" onClick={back}>
+                {tr('cinema.watch.backToTitle')}
+              </button>
+            )
           }
         />
       </div>
