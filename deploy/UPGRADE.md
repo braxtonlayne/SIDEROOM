@@ -56,6 +56,10 @@ Everything written after the backup is lost; the restored database is exactly th
 
 Upgrading across several releases: step through each release in order, running `sr-cli migrate` at each, unless the release notes say a jump is safe.
 
+## Release notes: a signed-in member sees their full profile at `/~handle` (FU-BETA-1)
+
+Caddy now sends `/~*` to `sr-server` when the request carries a session cookie. The server answers a member with the app (the full profile page); a visitor without a cookie, or one whose cookie the server refuses (it answers `404`), still gets the static public profile shell from Caddy. To pick this up, re-render the Caddyfile (`node deploy/scripts/render-caddyfile.mjs --public-url https://<domain>`, or take the release's `compose/caddy/Caddyfile.prod`) and recreate Caddy: `$dc up -d --force-recreate caddy`.
+
 ## Release notes: public profiles need a second switch (phase 39, OPS-FLG-001, P39-FLG-1)
 
 A public profile page now needs **both** the feature `platform.public_profiles` (Admin > Features) **and** the new setting `profiles.access = opt_in_public` (Admin > Limits & settings, group privacy). The setting defaults to `walled`. **If your instance had `platform.public_profiles` switched on, set `profiles.access` to `opt_in_public` after upgrading, or every public profile page goes dark** (members' choices are kept; the pages come back as soon as the setting is set). Instances that never switched the feature on need do nothing.

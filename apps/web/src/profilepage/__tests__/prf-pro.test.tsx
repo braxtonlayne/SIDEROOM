@@ -4,6 +4,7 @@ import { createAppRouter } from '../../router';
 import { resetStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { signedIn } from '../../settings/user/__tests__/helpers';
+import { Inspector } from '../Inspector';
 import { ProfileRenderer } from '../ProfileRenderer';
 import { emptyDoc, type Block, type ProfilePage } from '../types';
 
@@ -91,5 +92,53 @@ describe('the new profile blocks in the app (PRF-PRO-001)', () => {
     // MOD-VCH-001: the vouch panel sits on the profile, with the tier badge and the Vouch button.
     expect(await screen.findByRole('button', { name: 'Vouch tier: Pillar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Vouch' })).toBeInTheDocument();
+  });
+});
+
+describe('tip QR codes in the Links block editor (FU-ARC-5)', () => {
+  const linktree = (links: { label: string; url: string; tip?: string }[]): Block => ({
+    id: 'l',
+    type: 'linktree',
+    x: 0,
+    y: 0,
+    w: 6,
+    h: 3,
+    config: { links },
+  });
+
+  it('draws a bitcoin link as a QR code with its text, and an https link without one', () => {
+    render(
+      <Inspector
+        block={linktree([
+          {
+            label: 'Tip me',
+            url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+            tip: 'btc',
+          },
+          { label: 'Site', url: 'https://example.com' },
+        ])}
+        friends={[]}
+        onConfig={() => {}}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'QR code for Tip me' })).toBeInTheDocument();
+    expect(
+      screen.getByText('bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'QR code for Site' })).toBeNull();
+    expect(screen.getAllByRole('img')).toHaveLength(1);
+  });
+
+  it('keeps the text when the payload is longer than the encoder takes', () => {
+    const long = `lightning:${'lnbc1'.padEnd(400, 'q')}`;
+    render(
+      <Inspector
+        block={linktree([{ label: 'Zap', url: long, tip: 'lightning' }])}
+        friends={[]}
+        onConfig={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText(long)).toBeInTheDocument();
   });
 });

@@ -85,7 +85,7 @@ describe('the emulator page (ACT-EMU-001)', () => {
     expect(screen.getByText('Beta Run')).toBeInTheDocument();
   });
 
-  it('explains why a PlayStation game needs your own BIOS, and will not start without one', async () => {
+  it('offers your own BIOS for a PlayStation game, and starts without one on the built-in HLE BIOS (D-390)', async () => {
     const user = userEvent.setup();
     server.use(
       ...handlers([
@@ -97,13 +97,17 @@ describe('the emulator page (ACT-EMU-001)', () => {
           core: 'pcsx_rearmed',
         }),
       ]),
+      http.get('*/emu/cores/pcsx_rearmed/*', () => new HttpResponse(null, { status: 404 })),
     );
     open();
     expect(await screen.findByRole('heading', { name: 'PlayStation BIOS' })).toBeInTheDocument();
+    expect(screen.getByTestId('emu-bios-hle')).toHaveTextContent(/built-in HLE BIOS/);
     expect(screen.getByText(/never provides, stores or keeps one/)).toBeInTheDocument();
     expect(screen.getByText(/emu\/bios folder of your own bucket/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Play' }));
-    expect(await screen.findByText('A PlayStation BIOS is needed')).toBeInTheDocument();
+    // No BIOS refusal any more: the start goes on to the core (this test browser has no WebGL 2, which the PS1 core needs).
+    expect(await screen.findByText(/needs WebGL 2/)).toBeInTheDocument();
+    expect(screen.queryByText('A PlayStation BIOS is needed')).toBeNull();
     await waitFor(() =>
       expect(document.querySelector('canvas[data-testid="emu-canvas"]')).toHaveAttribute(
         'data-phase',

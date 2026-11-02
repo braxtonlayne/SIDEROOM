@@ -207,3 +207,30 @@
 .pp-color > span {
   font-size: 0.875rem;
 }
+
+/* FU-ARC-5: tip links of a Links block as QR codes in the editor's inspector. */
+.pp-tipqr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-tipqr-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+.pp-tipqr-text {
+  display: flex;
+  flex: 1 1 8rem;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+.pp-tipqr-code {
+  font-size: 0.6875rem;
+  overflow-wrap: anywhere;
+}

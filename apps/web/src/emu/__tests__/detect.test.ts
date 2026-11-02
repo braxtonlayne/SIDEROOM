@@ -1,5 +1,5 @@
 import { chooseCore, detectPlatform, isRomName } from '../detect';
-import { CORES, coreDataUrl, coreFor } from '../cores';
+import { biosMode, CORES, coreDataUrl, coreFor } from '../cores';
 import { cueFiles } from '../romApi';
 
 const buf = (n: number, set: Record<number, number[]> = {}) => {
@@ -51,8 +51,14 @@ describe('the core is chosen by extension and header', () => {
       'pcsx_rearmed',
       'supafaust',
     ]);
-    expect(coreFor('ps1').needsBios).toBe(true);
-    expect(coreFor('nes').needsBios).toBe(false);
+    expect(coreFor('ps1').bios).toBe('optional');
+    expect(coreFor('nes').bios).toBe('none');
+  });
+  it('starts a PlayStation game on the HLE BIOS without a BIOS file and writes the checked file when there is one (D-390)', () => {
+    expect(biosMode(CORES.pcsx_rearmed, false)).toBe('hle');
+    expect(biosMode(CORES.pcsx_rearmed, true)).toBe('file');
+    expect(biosMode(CORES.fceumm, false)).toBe('none');
+    expect(biosMode(CORES.fceumm, true)).toBe('none');
   });
   it('asks for the build variant EmulatorJS ships for each core', () => {
     expect(coreDataUrl(CORES.fceumm)).toBe('/emu/cores/fceumm/fceumm-legacy-wasm.data');
