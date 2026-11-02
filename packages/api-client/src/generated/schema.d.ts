@@ -722,6 +722,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/arcade/coming-soon/{entry_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release a Coming Soon entry (`OPERATOR`, audited): the entry goes and everyone who asked to be
+         *     told gets one system DM with a link to the Arcade (FU-3). `DELETE` stays the silent removal.
+         */
+        post: operations["release_coming_soon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/arcade/featured/{application_id}": {
         parameters: {
             query?: never;
@@ -17829,6 +17849,27 @@ export interface components {
             /** @description Whether to tell me when the game ships. */
             notify: boolean;
         };
+        /** @description Body of `POST /admin/arcade/coming-soon/{entry_id}/release` (every field optional). */
+        ArcadeReleaseBody: {
+            /**
+             * @description The released game in the Arcade, when it already is one: the notice then names it. It must
+             *     be an application the Operator could feature.
+             */
+            application_id?: string | null;
+        };
+        /** @description What a release did. */
+        ArcadeReleaseResult: {
+            /**
+             * Format: int32
+             * @description Notices delivered (a member who cannot be reached is skipped).
+             */
+            notified: number;
+            /**
+             * Format: int32
+             * @description Members who asked to be told.
+             */
+            watchers: number;
+        };
         /**
          * @description The two content tiers of a game manifest.
          * @enum {string}
@@ -19994,6 +20035,11 @@ export interface components {
             /** Format: int64 */
             last_seen_ms: number;
             route: string;
+            /**
+             * @description FU-13: the first three frames of the stored card as `fn file:line` (`file:line` when the frame has no
+             *     function), so the triage list shows where a crash is. Reading them is not the audited replay read.
+             */
+            top_frames: string[];
         };
         CrashTickBody: {
             /** @description An opaque input enum; anything outside the list is recorded as `other`. */
@@ -32641,6 +32687,65 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    release_coming_soon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Coming Soon entry snowflake */
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        /** @description Optional */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArcadeReleaseBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArcadeReleaseResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             401: {
                 headers: {
