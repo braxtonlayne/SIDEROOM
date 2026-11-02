@@ -1,8 +1,9 @@
 /**
- * Voice message helpers (LNG-CMP-012). The server accepts exactly one `audio/ogg` file of at most two minutes
- * with a waveform of up to 256 amplitude bytes (rich_create.rs). Browsers differ in what MediaRecorder can
- * produce: Firefox records Ogg Opus, Chrome records WebM and Safari records MP4. Only a browser that can record
- * Ogg gets the recorder; the others do not see the button rather than uploading a file the server refuses.
+ * Voice message helpers (LNG-CMP-012). The server accepts exactly one `audio/ogg` or `audio/webm` (FU-7) file
+ * of at most two minutes, one Opus track, with a waveform of up to 256 amplitude bytes (rich_create.rs).
+ * Browsers differ in what MediaRecorder can produce: Firefox records Ogg Opus, Chrome records WebM Opus and
+ * Safari records MP4. Ogg is preferred where it exists; WebM Opus is the fallback; Safari does not get the
+ * recorder rather than uploading a file the server refuses.
  */
 
 export const MAX_VOICE_SECS = 120;
@@ -10,11 +11,18 @@ export const WAVEFORM_BINS = 64;
 /** Message flag for voice messages (1 << 13). */
 export const VOICE_FLAG = 8192;
 
-/** The Ogg type this browser can record, or null when it cannot record Ogg. */
+/** The file extension and type of a recording made with `mime`. */
+export function voiceFileInfo(mime: string): { type: string; ext: string } {
+  return mime.startsWith('audio/webm')
+    ? { type: 'audio/webm', ext: 'webm' }
+    : { type: 'audio/ogg', ext: 'ogg' };
+}
+
+/** The Opus type this browser can record (Ogg first, then WebM), or null when it can record neither. */
 export function voiceMimeType(): string | null {
   if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function')
     return null;
-  for (const t of ['audio/ogg;codecs=opus', 'audio/ogg']) {
+  for (const t of ['audio/ogg;codecs=opus', 'audio/ogg', 'audio/webm;codecs=opus']) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
   return null;

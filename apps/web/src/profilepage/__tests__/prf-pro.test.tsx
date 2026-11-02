@@ -142,3 +142,34 @@ describe('tip QR codes in the Links block editor (FU-ARC-5)', () => {
     expect(screen.getByText(long)).toBeInTheDocument();
   });
 });
+
+describe('tip QR codes in the signed-in profile view (FU-18)', () => {
+  const tips = blk('l', 'linktree', {
+    links: [
+      {
+        label: 'Tip me',
+        url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+        tip: 'btc',
+      },
+      { label: 'Ko-fi', url: 'https://ko-fi.com/someone', tip: 'kofi' },
+    ],
+  });
+
+  it('draws Bitcoin and Lightning links as QR codes, with the text beside them', () => {
+    render(<ProfileRenderer page={page([tips])} />);
+    expect(screen.getByRole('img', { name: 'QR code for Tip me' })).toBeInTheDocument();
+    expect(
+      screen.getByText('bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'),
+    ).toBeInTheDocument();
+    // Ko-fi is a page, not a payment URI: no code.
+    expect(screen.getAllByRole('img')).toHaveLength(1);
+  });
+
+  it('keeps the mini popout text-only', () => {
+    render(<ProfileRenderer page={page([tips])} compact />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(
+      screen.getByText('bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'),
+    ).toBeInTheDocument();
+  });
+});

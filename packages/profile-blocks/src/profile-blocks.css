@@ -368,3 +368,10 @@
   overflow-wrap: anywhere;
   font-size: 0.6875rem;
 }
+
+/* FU-18: a Bitcoin or Lightning tip link drawn as a QR code by the host (the signed-in profile view only). */
+.pp-tipqr-view {
+  display: flex;
+  justify-content: center;
+  margin-block: 6px;
+}

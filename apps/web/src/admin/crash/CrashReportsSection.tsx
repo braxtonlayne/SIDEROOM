@@ -7,7 +7,7 @@ import {
   TextInput,
   type BadgeVariant,
 } from '@sideroom/ui';
-import { useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
 import { Async, Loading, SectionHeader, fmtMs, useResource } from '../ui';
 import * as api from './api';
@@ -99,7 +99,6 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
     );
   }, [res.data, q, kind, sort]);
 
-  const showFrames = (res.data ?? []).some((r) => (r.top_frames?.length ?? 0) > 0);
   const filtered = q.trim() !== '' || kind !== '';
 
   return (
@@ -190,7 +189,6 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
                         <th scope="col">{t('admin.crash.colLastSeen')}</th>
                         <th scope="col">{t('admin.crash.colCommit')}</th>
                         <th scope="col">{t('admin.crash.colRoute')}</th>
-                        {showFrames && <th scope="col">{t('admin.crash.colFrames')}</th>}
                         <th scope="col">
                           <span className="adm-vh">{t('admin.crash.colActions')}</span>
                         </th>
@@ -198,36 +196,41 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
                     </thead>
                     <tbody>
                       {rows.map((r) => (
-                        <tr key={r.id}>
-                          <td>
-                            <div className="adm-mono">{shortFp(r.fingerprint)}</div>
-                            <KindBadge kind={r.kind} />
-                          </td>
-                          <td>{formatNumber(r.count)}</td>
-                          <td>{fmtMs(r.first_seen_ms)}</td>
-                          <td>{fmtMs(r.last_seen_ms)}</td>
-                          <td className="adm-mono">{r.commit.slice(0, 12)}</td>
-                          <td className="adm-mono">{r.route}</td>
-                          {showFrames && (
-                            <td className="adm-mono">
-                              {(r.top_frames ?? []).map((f, i) => (
-                                <div key={i}>{f}</div>
-                              ))}
+                        <Fragment key={r.id}>
+                          <tr>
+                            <td>
+                              <div className="adm-mono">{shortFp(r.fingerprint)}</div>
+                              <KindBadge kind={r.kind} />
                             </td>
+                            <td>{formatNumber(r.count)}</td>
+                            <td>{fmtMs(r.first_seen_ms)}</td>
+                            <td>{fmtMs(r.last_seen_ms)}</td>
+                            <td className="adm-mono">{r.commit.slice(0, 12)}</td>
+                            <td className="adm-mono">{r.route}</td>
+                            <td>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                aria-label={t('admin.crash.openLabel', {
+                                  fingerprint: shortFp(r.fingerprint),
+                                })}
+                                onClick={() => onOpen(r.id)}
+                              >
+                                {t('admin.crash.open')}
+                              </Button>
+                            </td>
+                          </tr>
+                          {(r.top_frames?.length ?? 0) > 0 && (
+                            <tr className="adm-crash-frames-row">
+                              <td colSpan={7} className="adm-mono">
+                                <span className="adm-vh">{t('admin.crash.colFrames')}: </span>
+                                {(r.top_frames ?? []).map((f, i) => (
+                                  <div key={i}>{f}</div>
+                                ))}
+                              </td>
+                            </tr>
                           )}
-                          <td>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              aria-label={t('admin.crash.openLabel', {
-                                fingerprint: shortFp(r.fingerprint),
-                              })}
-                              onClick={() => onOpen(r.id)}
-                            >
-                              {t('admin.crash.open')}
-                            </Button>
-                          </td>
-                        </tr>
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

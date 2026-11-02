@@ -442,6 +442,29 @@ async fn coming_soon_has_a_per_member_notify_toggle() {
         .await
         .unwrap();
     assert_eq!(left, 0);
+
+    // FU-3: releasing hands back the title and the watchers and removes the entry and its opt-ins.
+    let next = r.arcade.add_coming_soon(op, entry.clone()).await.unwrap();
+    let next_id: i64 = next.id.parse().unwrap();
+    r.arcade.set_notify(a, next_id, true).await.unwrap();
+    r.arcade.set_notify(b, next_id, true).await.unwrap();
+    let (title, who) = r
+        .arcade
+        .release_coming_soon(next_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(title, entry.title);
+    assert_eq!(who, vec![a.min(b), a.max(b)]);
+    assert!(r.arcade.coming_soon(a).await.unwrap().is_empty());
+    assert!(
+        r.arcade
+            .release_coming_soon(next_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(r.arcade.watchers(next_id).await.unwrap().is_empty());
     r.db.cleanup().await.unwrap();
 }
 

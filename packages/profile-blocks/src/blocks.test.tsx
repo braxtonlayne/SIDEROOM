@@ -131,6 +131,41 @@ describe('tip entries of the Links block (ARC-ROOM-001)', () => {
   });
 });
 
+describe('tip QR codes of the Links block (FU-18)', () => {
+  const links = [
+    {
+      label: 'Tip BTC',
+      url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
+      tip: 'btc',
+    },
+    { label: 'Ko-fi', url: 'https://ko-fi.com/someone', tip: 'kofi' },
+    { label: 'Plain', url: 'https://example.com/x' },
+  ];
+  const Qr = ({ value, label }: { value: string; label: string }) => (
+    <svg role="img" aria-label={label} data-value={value} />
+  );
+
+  it('are drawn by the renderer the host fills, for Bitcoin and Lightning only', () => {
+    render(
+      <BlocksEnv t={t} cdn={cdn} tipQr={Qr}>
+        <ProfileRenderer page={page([block('l', 'linktree', { links })])} />
+      </BlocksEnv>,
+    );
+    const qr = screen.getAllByRole('img');
+    expect(qr).toHaveLength(1);
+    expect(qr[0]).toHaveAttribute('data-value', links[0]!.url);
+    expect(qr[0]!.getAttribute('aria-label')).toContain('profile.editor.tipQrLabel');
+    // The text link and the code stay beside it.
+    expect(screen.getByText(links[0]!.url)).toBeTruthy();
+  });
+
+  it('stay text when the host fills nothing (the public profile, the popout)', () => {
+    draw(page([block('l', 'linktree', { links })]));
+    expect(screen.queryAllByRole('img')).toHaveLength(0);
+    expect(screen.getByText(links[0]!.url)).toBeTruthy();
+  });
+});
+
 describe('the initial on the accent circle (XC-VIS-004)', () => {
   const ratio = (a: string, b: string) => {
     const lum = (hex: string) => {

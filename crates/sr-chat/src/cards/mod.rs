@@ -70,6 +70,8 @@ pub struct Card {
     pub canceled_ms: Option<i64>,
     pub started_ms: Option<i64>,
     pub closed_ms: Option<i64>,
+    /// FU-8: how many held a seat, kept after the claimant list was purged (`None` while the list exists).
+    pub going_final: Option<i32>,
 }
 
 impl Card {

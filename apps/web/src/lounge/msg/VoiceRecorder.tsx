@@ -4,7 +4,7 @@ import { useT } from '../../i18n';
 import { formatDuration } from './format';
 import { decodeAudioFile, durationOf } from '../../settings/server/sections/soundTrim';
 import { AudioTool } from '../../tools/audio/AudioTool';
-import { FLAT_WAVEFORM, MAX_VOICE_SECS, voiceMimeType, waveformOf } from './voice';
+import { FLAT_WAVEFORM, MAX_VOICE_SECS, voiceFileInfo, voiceMimeType, waveformOf } from './voice';
 
 export interface VoiceClip {
   file: File;
@@ -57,6 +57,8 @@ export function VoiceRecorder({
   }, [stop, stopRef]);
 
   useEffect(() => {
+    // A remount (React StrictMode in development) must not inherit the cancel of the first mount.
+    cancelled.current = false;
     const mime = voiceMimeType();
     if (!mime || !navigator.mediaDevices?.getUserMedia) {
       setError('lounge.voiceRecorder.unsupported');
@@ -84,11 +86,12 @@ export function VoiceRecorder({
             MAX_VOICE_SECS,
             Math.max(0.1, (Date.now() - startedAt.current) / 1000),
           );
-          const blob = new Blob(chunks.current, { type: 'audio/ogg' });
+          const info = voiceFileInfo(mime);
+          const blob = new Blob(chunks.current, { type: info.type });
           setPhase('processing');
           void waveformOf(blob).then((waveform) => {
             if (cancelled.current) return;
-            const file = new File([blob], 'voice-message.ogg', { type: 'audio/ogg' });
+            const file = new File([blob], `voice-message.${info.ext}`, { type: info.type });
             setClip({ file, durationSecs, waveform: waveform || FLAT_WAVEFORM });
             setUrl(URL.createObjectURL(blob));
             setPhase('preview');
@@ -113,7 +116,7 @@ export function VoiceRecorder({
 
   useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
 
-  /** The trimmed part replaces the recording (UTL-AUD-001); the same Ogg and two-minute rules apply. */
+  /** The trimmed part replaces the recording (UTL-AUD-001); the same Opus (Ogg or WebM) and two-minute rules apply. */
   const acceptTrimmed = async (file: File) => {
     let durationSecs = clip?.durationSecs ?? 0.1;
     try {

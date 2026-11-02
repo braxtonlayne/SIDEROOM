@@ -188,6 +188,7 @@ mod tests {
             canceled_ms: None,
             started_ms: None,
             closed_ms: None,
+            going_final: None,
         }
     }
 

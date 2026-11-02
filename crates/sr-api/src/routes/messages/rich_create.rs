@@ -214,7 +214,7 @@ pub fn apply_voice_meta(uploads: &mut [(Attachment, Option<String>)], refs: &[&A
     }
 }
 
-/// A voice message is one `audio/ogg` file of at most two minutes with a waveform.
+/// A voice message is one `audio/ogg` or `audio/webm` (FU-7) file of at most two minutes with a waveform.
 /// (Text, embeds, stickers and polls are rejected by the chat rules.)
 pub fn validate_voice(uploads: &[(Attachment, Option<String>)]) -> MsgResult<()> {
     let [(att, _)] = uploads else {
@@ -224,11 +224,14 @@ pub fn validate_voice(uploads: &[(Attachment, Option<String>)]) -> MsgResult<()>
             "A voice message is exactly one audio attachment.",
         ));
     };
-    if att.content_type.as_deref() != Some("audio/ogg") {
+    if !matches!(
+        att.content_type.as_deref(),
+        Some("audio/ogg" | "audio/webm")
+    ) {
         return Err(invalid(
             "attachments",
             "VOICE_MESSAGE_TYPE",
-            "A voice message must be an audio/ogg file.",
+            "A voice message must be an audio/ogg or audio/webm file.",
         ));
     }
     if att.size > MAX_VOICE_BYTES {
@@ -430,6 +433,19 @@ mod tests {
         assert!(check(voice(
             Some("audio/ogg"),
             Some(120_000),
+            Some(&wave),
+            1000
+        )));
+        // FU-7: a WebM Opus recording is a voice message too.
+        assert!(check(voice(
+            Some("audio/webm"),
+            Some(5_000),
+            Some(&wave),
+            1000
+        )));
+        assert!(!check(voice(
+            Some("video/webm"),
+            Some(5_000),
             Some(&wave),
             1000
         )));

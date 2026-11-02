@@ -46,7 +46,7 @@ fn card_cols() -> String {
     format!(
         "c.id, c.channel_id, c.guild_id, c.kind, c.title, c.note, {} AS starts_ms, c.duration_min, c.timezone, \
          c.seats, c.title_id, c.link_path, c.created_by, {} AS created_ms, {} AS canceled_ms, \
-         {} AS started_ms, {} AS closed_ms",
+         {} AS started_ms, {} AS closed_ms, c.going_final",
         ms("c.starts_at"),
         ms("c.created_at"),
         ms("c.canceled_at"),
@@ -74,6 +74,7 @@ fn card(r: &PgRow) -> Card {
         canceled_ms: r.get("canceled_ms"),
         started_ms: r.get("started_ms"),
         closed_ms: r.get("closed_ms"),
+        going_final: r.get("going_final"),
     }
 }
 

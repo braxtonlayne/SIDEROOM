@@ -278,15 +278,17 @@ function Custom({ block }: { block: BlockLike }) {
 
 /** PRF-PRO-001: a stack of links, each opened in a new tab without a referrer. */
 function Linktree({ block }: { block: BlockLike }) {
-  const { t } = useEnv();
+  const { t, tipQr: TipQr } = useEnv();
   const links = list<{ label: string; url: string; tip?: string }>(block.config, 'links')
     .map((l) => ({
       label: (l?.label ?? '').trim(),
       // A tip entry (ARC-ROOM-001) is a payment URI; anything else must be an https link.
       href: l?.tip ? tipUri(l.tip, l.url) : httpsUrl(l?.url),
       pay: !!l?.tip,
+      // Bitcoin and Lightning links are payment URIs a wallet scans; Ko-fi and Patreon are ordinary pages.
+      qr: l?.tip === 'btc' || l?.tip === 'lightning',
     }))
-    .filter((l): l is { label: string; href: string; pay: boolean } => l.href !== null);
+    .filter((l): l is { label: string; href: string; pay: boolean; qr: boolean } => l.href !== null);
   return (
     <>
       <h3 className="pp-title">{text(block.config, 'title') || t('profile.blocks.linksTitle')}</h3>
@@ -299,6 +301,14 @@ function Linktree({ block }: { block: BlockLike }) {
               <a href={l.href} target="_blank" rel="noopener noreferrer nofollow">
                 {l.label || l.href}
               </a>
+              {l.qr && TipQr && (
+                <div className="pp-tipqr-view">
+                  <TipQr
+                    value={l.href}
+                    label={t('profile.editor.tipQrLabel', { label: l.label || l.href })}
+                  />
+                </div>
+              )}
               {l.pay && <code className="pp-tipcode">{l.href}</code>}
             </li>
           ))}

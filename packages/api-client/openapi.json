@@ -3231,6 +3231,94 @@
         ]
       }
     },
+    "/admin/arcade/coming-soon/{entry_id}/release": {
+      "post": {
+        "tags": [
+          "arcade"
+        ],
+        "summary": "Release a Coming Soon entry (`OPERATOR`, audited): the entry goes and everyone who asked to be\ntold gets one system DM with a link to the Arcade (FU-3). `DELETE` stays the silent removal.",
+        "operationId": "release_coming_soon",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "description": "Coming Soon entry snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArcadeReleaseBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArcadeReleaseResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/arcade/featured/{application_id}": {
       "put": {
         "tags": [
@@ -84920,6 +85008,41 @@
           }
         }
       },
+      "ArcadeReleaseBody": {
+        "type": "object",
+        "description": "Body of `POST /admin/arcade/coming-soon/{entry_id}/release` (every field optional).",
+        "properties": {
+          "application_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The released game in the Arcade, when it already is one: the notice then names it. It must\nbe an application the Operator could feature."
+          }
+        }
+      },
+      "ArcadeReleaseResult": {
+        "type": "object",
+        "description": "What a release did.",
+        "required": [
+          "watchers",
+          "notified"
+        ],
+        "properties": {
+          "notified": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Notices delivered (a member who cannot be reached is skipped).",
+            "minimum": 0
+          },
+          "watchers": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Members who asked to be told.",
+            "minimum": 0
+          }
+        }
+      },
       "ArcadeTier": {
         "type": "string",
         "description": "The two content tiers of a game manifest.",
@@ -91545,7 +91668,8 @@
           "route",
           "count",
           "first_seen_ms",
-          "last_seen_ms"
+          "last_seen_ms",
+          "top_frames"
         ],
         "properties": {
           "commit": {
@@ -91574,6 +91698,13 @@
           },
           "route": {
             "type": "string"
+          },
+          "top_frames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "FU-13: the first three frames of the stored card as `fn file:line` (`file:line` when the frame has no\nfunction), so the triage list shows where a crash is. Reading them is not the audited replay read."
           }
         }
       },

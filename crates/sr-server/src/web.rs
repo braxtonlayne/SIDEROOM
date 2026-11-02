@@ -115,6 +115,12 @@ const BUCKET_WINDOW: Duration = Duration::from_secs(60);
 pub trait OperatorInfo: Send + Sync {
     /// `(country, contact)` from the compliance settings; `None` when not set.
     async fn operator(&self, api: &AppState) -> (Option<String>, Option<String>);
+
+    /// FU-9 (D-239): the `house-notes` Entrance copy staff wrote (Admin > Entrance), as written; `None` when staff
+    /// never overrode it. The legal page shows it as escaped text.
+    async fn house_notes(&self, _api: &AppState) -> Option<String> {
+        None
+    }
 }
 
 /// No operator values (tests, installs that never set them).
@@ -138,6 +144,12 @@ impl OperatorInfo for ComplianceOperator {
         };
         let s = sr_api::routes::settings::features::compliance_settings(&gf).await;
         (s.operator_country, s.operator_contact)
+    }
+
+    async fn house_notes(&self, api: &AppState) -> Option<String> {
+        let deps = api.extension::<sr_api::routes::admin::AdminDeps>()?;
+        let copy = deps.service.entrance_copy().await.ok()?;
+        copy.get("house-notes").cloned()
     }
 }
 
@@ -696,10 +708,12 @@ async fn legal(State(gs): State<GateState>, req: Request) -> Response {
         return plain(StatusCode::NOT_FOUND);
     };
     let (country, contact) = gate.operator.operator(&gs.api).await;
-    let body = fill_placeholders(
+    let notes = house_notes_html(&gate.operator.house_notes(&gs.api).await.unwrap_or_default());
+    let body = fill_legal(
         &template,
         country.as_deref().unwrap_or(""),
         contact.as_deref().unwrap_or(""),
+        &notes,
     );
     let mut r = Response::new(if req.method() == Method::HEAD {
         Body::empty()
@@ -1046,9 +1060,38 @@ pub fn escape_html(s: &str) -> String {
 /// Replace `{{operator_country}}` and `{{operator_contact}}` in one pass, HTML-escaped, so a value that
 /// contains a placeholder is never expanded again.
 pub fn fill_placeholders(template: &str, country: &str, contact: &str) -> String {
+    fill_legal(template, country, contact, "")
+}
+
+/// The house-notes copy staff wrote (FU-9, D-239) as HTML: blank lines separate paragraphs, a single line break is
+/// a `<br>`, and every character is escaped, so the text is shown exactly as typed (markdown marks included) and
+/// cannot add markup. Empty or blank copy gives an empty string.
+pub fn house_notes_html(copy: &str) -> String {
+    let copy = copy.replace("\r\n", "\n");
+    let mut out = String::new();
+    for para in copy.split("\n\n") {
+        let lines: Vec<String> = para
+            .trim_matches('\n')
+            .lines()
+            .map(|l| escape_html(l.trim_end()))
+            .collect();
+        if lines.iter().all(String::is_empty) {
+            continue;
+        }
+        out.push_str("<p>");
+        out.push_str(&lines.join("<br>"));
+        out.push_str("</p>\n");
+    }
+    out
+}
+
+/// [`fill_placeholders`] plus `{{house_notes}}`, which takes `notes_html` as it is (already escaped by
+/// [`house_notes_html`]). One pass: nothing a value holds is expanded again.
+pub fn fill_legal(template: &str, country: &str, contact: &str, notes_html: &str) -> String {
     let country = escape_html(country);
     let contact = escape_html(contact);
-    let mut out = String::with_capacity(template.len() + country.len() + contact.len());
+    let mut out =
+        String::with_capacity(template.len() + country.len() + contact.len() + notes_html.len());
     let mut rest = template;
     while let Some(i) = rest.find("{{") {
         out.push_str(&rest[..i]);
@@ -1058,6 +1101,9 @@ pub fn fill_placeholders(template: &str, country: &str, contact: &str) -> String
             rest = t;
         } else if let Some(t) = tail.strip_prefix("{{operator_contact}}") {
             out.push_str(&contact);
+            rest = t;
+        } else if let Some(t) = tail.strip_prefix("{{house_notes}}") {
+            out.push_str(notes_html);
             rest = t;
         } else {
             out.push_str("{{");
@@ -1304,5 +1350,26 @@ mod tests {
             fill_placeholders(t, "<script>", "\"x\" & 'y' {{operator_country}}"),
             "<p>&lt;script&gt; / &quot;x&quot; &amp; &#39;y&#39; {{operator_country}} / {{other}}</p>"
         );
+    }
+
+    #[test]
+    fn the_house_notes_copy_is_shown_as_escaped_text() {
+        assert_eq!(house_notes_html(""), "");
+        assert_eq!(house_notes_html("  \n\n \n"), "");
+        assert_eq!(
+            house_notes_html(
+                "One <b>rule</b>\nsecond line\r\n\r\nA & B \"quoted\" {{operator_country}}"
+            ),
+            "<p>One &lt;b&gt;rule&lt;/b&gt;<br>second line</p>\n<p>A &amp; B &quot;quoted&quot; {{operator_country}}</p>\n"
+        );
+        let t = "<div>{{house_notes}}</div><p>{{operator_country}}</p>";
+        let notes = house_notes_html("<script>alert(1)</script> {{operator_contact}}");
+        // The copy lands once, escaped, and a placeholder inside it is not expanded.
+        assert_eq!(
+            fill_legal(t, "NL", "a@b.example", &notes),
+            "<div><p>&lt;script&gt;alert(1)&lt;/script&gt; {{operator_contact}}</p>\n</div><p>NL</p>"
+        );
+        // Without copy the placeholder is simply gone.
+        assert_eq!(fill_placeholders(t, "NL", "c"), "<div></div><p>NL</p>");
     }
 }

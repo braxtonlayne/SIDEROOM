@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fillPlaceholders,
+  houseNotesHtml,
   HOUSE_NOTES_HEADERS,
   isNavigation,
   isPublicFile,
@@ -105,6 +106,18 @@ describe('publicDev: the house notes in dev (the server renders them in producti
     expect(fillPlaceholders(tpl, '<script>', `"x" & 'y' {{operator_country}}`)).toBe(
       '<p>&lt;script&gt; / &quot;x&quot; &amp; &#39;y&#39; {{operator_country}} / {{other}}</p>',
     );
+  });
+
+  it("shows the operator's house-notes copy as escaped text (FU-9, web.rs::house_notes_html)", () => {
+    expect(houseNotesHtml('')).toBe('');
+    expect(houseNotesHtml('One <b>rule</b>\nsecond line\r\n\r\nA & B {{operator_country}}')).toBe(
+      '<p>One &lt;b&gt;rule&lt;/b&gt;<br>second line</p>\n<p>A &amp; B {{operator_country}}</p>\n',
+    );
+    const t = '<div>{{house_notes}}</div><p>{{operator_country}}</p>';
+    expect(fillPlaceholders(t, 'NL', 'c', houseNotesHtml('<i>x</i> {{operator_contact}}'))).toBe(
+      '<div><p>&lt;i&gt;x&lt;/i&gt; {{operator_contact}}</p>\n</div><p>NL</p>',
+    );
+    expect(fillPlaceholders(t, 'NL', 'c')).toBe('<div></div><p>NL</p>');
   });
 
   it('renders the plain-HTML page from the catalog, with no script, even when sr-server is unreachable', async () => {

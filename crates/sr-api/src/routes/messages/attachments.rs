@@ -358,6 +358,8 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
     let content_type = match (sniffed, declared.as_deref()) {
         // Declared media types must match the bytes; otherwise the file could be
         // rendered inline as something it is not.
+        // FU-7: a recorder's WebM voice message is declared audio/webm; the bytes decide below.
+        (Some("video/webm"), Some("audio/webm")) => Some("video/webm".to_owned()),
         (got, Some(d)) if d.starts_with("image/") || d.starts_with("video/") => {
             let same = got.is_some_and(|g| g == d || (g == "video/mp4" && d == "video/quicktime"));
             if !same {
@@ -391,12 +393,29 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         }
     }
     // Voice messages: the server measures the duration and builds the waveform itself
-    // (LNG-MSG-019); the values the client declares only fill in when it cannot.
-    if content_type == "audio/ogg" && info.size <= super::rich_create::MAX_VOICE_BYTES {
-        let whole = deps.storage.get(&att.key).await?;
-        if let Some(m) = sr_chat::voice_meta::analyze_ogg_opus(&whole) {
-            att.duration_ms = Some(m.duration_ms);
-            att.waveform = Some(data_encoding::BASE64.encode(&m.waveform));
+    // (LNG-MSG-019); the values the client declares only fill in when it cannot. FU-7: a WebM
+    // declared audio/webm that holds exactly one Opus track is a voice file too (Chromium).
+    let mut content_type = content_type;
+    if info.size <= super::rich_create::MAX_VOICE_BYTES {
+        let webm = content_type == "video/webm"
+            && att
+                .declared_content_type
+                .as_deref()
+                .is_some_and(|d| d.trim().to_ascii_lowercase().starts_with("audio/webm"));
+        if content_type == "audio/ogg" || webm {
+            let whole = deps.storage.get(&att.key).await?;
+            let meta = if webm {
+                sr_chat::voice_meta::analyze_webm_opus(&whole)
+            } else {
+                sr_chat::voice_meta::analyze_ogg_opus(&whole)
+            };
+            if let Some(m) = meta {
+                if webm {
+                    content_type = "audio/webm".to_owned();
+                }
+                att.duration_ms = Some(m.duration_ms);
+                att.waveform = Some(data_encoding::BASE64.encode(&m.waveform));
+            }
         }
     }
     att.content_type = Some(content_type);

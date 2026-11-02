@@ -87,9 +87,23 @@ fn web_root() -> tempfile::TempDir {
     write(
         r,
         "legal/house-notes.de.html",
-        "<p>DE {{operator_country}} | {{operator_contact}}</p>",
+        "<p>DE {{operator_country}} | {{operator_contact}}</p>{{house_notes}}",
     );
     d
+}
+
+/// The operator values plus the staff-written `house-notes` copy (FU-9).
+struct WithNotes(&'static str);
+
+#[async_trait]
+impl OperatorInfo for WithNotes {
+    async fn operator(&self, _api: &AppState) -> (Option<String>, Option<String>) {
+        (Some("NL".to_owned()), None)
+    }
+
+    async fn house_notes(&self, _api: &AppState) -> Option<String> {
+        Some(self.0.to_owned())
+    }
 }
 
 struct Operator(Option<&'static str>, Option<&'static str>);
@@ -769,6 +783,28 @@ async fn house_notes_fill_the_operator_values_escaped() {
         assert!(!csp.contains("script-src") && !csp.contains("connect-src"));
         assert_eq!(r.h("x-robots-tag"), "noindex, nofollow");
     }
+}
+
+/// FU-9 (D-239): the staff-written `house-notes` copy lands in the rendered page as escaped text; with none the
+/// placeholder is gone and the page is as the build wrote it.
+#[tokio::test]
+async fn the_house_notes_copy_is_substituted_as_escaped_text() {
+    let (f, _) = fixture_with(
+        false,
+        Arc::new(WithNotes(
+            "Be <b>kind</b>.\nAlways.\n\nNo \"spam\" & {{operator_country}}",
+        )),
+    )
+    .await;
+    let r = send(&f, empty(nav("/house-notes?lang=de"))).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(
+        r.body,
+        "<p>DE NL | </p><p>Be &lt;b&gt;kind&lt;/b&gt;.<br>Always.</p>\n<p>No &quot;spam&quot; &amp; {{operator_country}}</p>\n"
+    );
+    let (f, _) = fixture_with(false, Arc::new(Operator(None, None))).await;
+    let r = send(&f, empty(nav("/house-notes?lang=de"))).await;
+    assert_eq!(r.body, "<p>DE  | </p>");
 }
 
 #[tokio::test]

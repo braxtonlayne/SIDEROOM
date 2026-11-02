@@ -1040,3 +1040,93 @@ async fn a_card_in_a_dm_works_for_its_recipients_and_nobody_else() {
         Some(format!("/channels/@me/{dm}/{}", card.id).as_str())
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn claimant_lists_are_purged_after_the_retention_and_the_count_stays() {
+    use crate::cards_jobs::purge_claimants;
+    let f = fx().await;
+    let make = |starts_in: i64| {
+        f.make(
+            f.owner,
+            f.channel,
+            body("game_night", 4, now_ms() + starts_in),
+        )
+    };
+    let guest = f.add_member("guest").await;
+    let over = make(3 * HOUR).await.ok().unwrap();
+    let kept = make(3 * HOUR).await.ok().unwrap();
+    for id in [&over.id, &kept.id] {
+        for who_id in [f.member, guest] {
+            f.claim(who_id, f.channel, id, true).await.ok().unwrap();
+        }
+    }
+    let days_ago = |d: i64| format!("now() - interval '{d} days'");
+    // `over` was canceled 40 days ago; `kept` is still open.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE invite_cards SET canceled_at = {} WHERE id = $1",
+        days_ago(40)
+    )))
+    .bind(over.id.parse::<i64>().unwrap())
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    let claims = |id: &str| {
+        let pool = f.pool.clone();
+        let id = id.parse::<i64>().unwrap();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM invite_card_claims WHERE card_id = $1",
+            )
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+
+    // Retention 0 means never.
+    sqlx::query("INSERT INTO platform_settings (key, value) VALUES ('invites.card_claimants_retention_days', '0')")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(purge_claimants(&f.pool).await.unwrap(), 0);
+    assert_eq!(claims(&over.id).await, 2);
+
+    // 30 days (the default when the row is gone): the old card loses its list, the open one keeps it.
+    sqlx::query(
+        "DELETE FROM platform_settings WHERE key = 'invites.card_claimants_retention_days'",
+    )
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(purge_claimants(&f.pool).await.unwrap(), 2);
+    assert_eq!(claims(&over.id).await, 0);
+    assert_eq!(claims(&kept.id).await, 2);
+    // The card stays and still says how many went; the message names nobody.
+    let read = f.get(f.owner, f.channel, &over.id).await.ok().unwrap();
+    assert_eq!((read.taken, read.claimants.len()), (2, 0));
+    // A second pass has nothing to do.
+    assert_eq!(purge_claimants(&f.pool).await.unwrap(), 0);
+
+    // A card that finished (closed) 31 days ago goes the same way; one that finished 29 days ago does not.
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE invite_cards SET closed_at = {} WHERE id = $1",
+        days_ago(29)
+    )))
+    .bind(kept.id.parse::<i64>().unwrap())
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(purge_claimants(&f.pool).await.unwrap(), 0);
+    sqlx::query(sqlx::AssertSqlSafe(format!(
+        "UPDATE invite_cards SET closed_at = {} WHERE id = $1",
+        days_ago(31)
+    )))
+    .bind(kept.id.parse::<i64>().unwrap())
+    .execute(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(purge_claimants(&f.pool).await.unwrap(), 2);
+    assert_eq!(claims(&kept.id).await, 0);
+}
