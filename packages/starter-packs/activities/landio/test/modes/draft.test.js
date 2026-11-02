@@ -1,6 +1,6 @@
 // @ts-check
 import assert from 'node:assert/strict';
-import { performance } from 'node:perf_hooks';
+import { modeOverhead } from '../support/timing.js';
 import { RESULTS_TICKS, createState, spawnPlayer, spawnPlayerAt, step, stateHash } from '../../shared/rules.js';
 import { ACT, REGISTRY } from '../../shared/cards.js';
 import { kill } from '../../shared/cards/util.js';
@@ -133,16 +133,9 @@ test('bot game: rounds advance, results have a winner, deterministic', () => {
 });
 
 test('timing: tick stays cheap at 200x200 with 30 bots', () => {
-  const time = (/** @type {string} */ mode) => {
-    const s = createState({ w: 200, h: 200, targetHeads: 30, mode }, 'time', { fill: true });
-    step(s, [], 100);
-    const t = performance.now();
-    step(s, [], 2000);
-    return (performance.now() - t) / 2000;
-  };
-  const base = time('classic');
-  const d = time('draft');
-  assert.ok(d - base < 0.3, `draft ${d.toFixed(3)} ms vs classic ${base.toFixed(3)} ms`);
+  // Median of 7 alternating pairs (test/support/timing.js): machine load cannot fail it, a real 0.3 ms regression does.
+  const r = modeOverhead('draft', 'classic');
+  assert.ok(r.extra < 0.3, `draft ${r.mode.toFixed(3)} ms vs classic ${r.base.toFixed(3)} ms (median extra ${r.extra.toFixed(3)})`);
 });
 
 test('bot game numbers', { skip: !process.env.DRAFT_NUMBERS }, () => {
