@@ -1,6 +1,6 @@
-import { QRCode } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../i18n';
+import { QrBox } from '../tips/QrBox';
 import { isQrKind, safeTips, type TipKind, type TipLink } from './tips';
 
 const LABEL = {
@@ -32,15 +32,6 @@ function QrTip({ link, name }: { link: TipLink; name: string }) {
       )}
     </span>
   );
-}
-
-/** A QR code, or the text alone when the payload is longer than the generator takes. */
-function QrBox({ value, label }: { value: string; label: string }) {
-  try {
-    return <QRCode value={value} label={label} size={160} ecc="L" />;
-  } catch {
-    return null;
-  }
 }
 
 /**

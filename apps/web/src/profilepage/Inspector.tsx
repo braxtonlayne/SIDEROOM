@@ -3,6 +3,7 @@
 import { Button, Checkbox, Select, Switch, TextArea, TextInput } from '@sideroom/ui';
 import { useRef } from 'react';
 import { useT } from '../i18n';
+import { QrBox } from '../tips/QrBox';
 import type { Block, GalleryItem, ProfileMedia } from './types';
 
 /** Most pictures one gallery holds. */
@@ -76,6 +77,38 @@ export const parseLinktree = (text: string) =>
     const tip = tipKindOf(l.url);
     return tip ? { ...l, tip } : l;
   });
+
+interface LinkEntry {
+  label: string;
+  url: string;
+  tip?: string;
+}
+
+/**
+ * FU-ARC-5: Bitcoin and Lightning tip links of a Links block drawn as QR codes (the in-house encoder, as the Arcade
+ * cards do), with the link and its text beside the code. Only in this signed-in editor; the public profile keeps text
+ * (D-385). A payload longer than the encoder takes shows the text alone.
+ */
+function TipQrList({ links }: { links: LinkEntry[] }) {
+  const t = useT();
+  const tips = links.filter((l) => l.tip === 'btc' || l.tip === 'lightning');
+  if (tips.length === 0) return null;
+  return (
+    <ul className="pp-tipqr" aria-label={t('profile.editor.tipQrList')}>
+      {tips.map((l, i) => (
+        <li key={`${i}:${l.url}`} className="pp-tipqr-item">
+          <QrBox value={l.url} label={t('profile.editor.tipQrLabel', { label: l.label })} />
+          <span className="pp-tipqr-text">
+            <a href={l.url} rel="noopener noreferrer nofollow">
+              {l.label}
+            </a>
+            <code className="pp-tipqr-code">{l.url}</code>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export function Inspector({
   block,
@@ -206,6 +239,7 @@ export function Inspector({
             rows={5}
             onChange={(e) => set({ links: parseLinktree(e.target.value) })}
           />
+          <TipQrList links={arr<LinkEntry>(c, 'links')} />
         </div>
       );
     case 'featured_guilds': {
