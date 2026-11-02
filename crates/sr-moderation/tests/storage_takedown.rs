@@ -549,3 +549,75 @@ async fn a_server_bucket_strikes_the_uploader_when_the_ledger_knows_them_else_th
     assert_eq!(dms.len(), 1);
     assert_eq!(dms[0].0, w.owner);
 }
+
+/// FU-2 (FU-STU-6): a shelf delisting counts toward the repeat-infringer counter only through the takedown notice it
+/// belongs to. A bare staff delisting (no notice) keeps its `shelf_delist_strikes` row and the owner is told, but it
+/// is a policy act, not a copyright strike: nothing enters the counter, which reads upheld notices by person.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_bare_shelf_delisting_never_counts_toward_the_repeat_infringer_counter() {
+    let w = world().await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let hash: String = sqlx::query_scalar("SELECT shelf_object_hash('films/bare.mkv')")
+        .fetch_one(w.pool())
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO shelf_objects (shelf_id, object_hash, path, kind) VALUES ($1, $2, 'films/bare.mkv', 'cinema')",
+    )
+    .bind(mnt)
+    .bind(&hash)
+    .execute(w.pool())
+    .await
+    .unwrap();
+    let c = w.caller();
+    let who = Who::Staff(&c);
+
+    // The bare delisting: no notice behind it.
+    let d =
+        w.m.delist_shelf_object(&who, mnt, &hash, None, Some("policy: not for this server"))
+            .await
+            .unwrap();
+    assert_eq!(d.subject_account, Some(w.owner));
+    let (shelf_strikes, linked): (i64, i64) = sqlx::query_as(
+        "SELECT count(*), count(notice_id) FROM shelf_delist_strikes WHERE subject_account = $1",
+    )
+    .bind(w.owner)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        (shelf_strikes, linked),
+        (1, 0),
+        "its own row, tied to no notice"
+    );
+    for table in ["takedown_notices", "takedown_items"] {
+        let n: i64 =
+            sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
+                .fetch_one(w.pool())
+                .await
+                .unwrap();
+        assert_eq!(
+            n, 0,
+            "{table}: the delisting wrote nothing the counter reads"
+        );
+    }
+
+    // One upheld notice against the same owner is exactly one strike: the delisting added none.
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let detail = w.m.get_notice(&who, id).await.unwrap();
+    let owner_person = person_of(w.pool(), w.owner).await;
+    let count = detail
+        .strikes
+        .iter()
+        .find(|s| s.person_id == owner_person)
+        .expect("the owner's person is counted");
+    assert_eq!(count.strikes, 1, "only the upheld notice counts");
+    assert_eq!(count.counted.len(), 1);
+    assert_eq!(count.counted[0].id, id);
+    assert_eq!(
+        count.review_case_id, None,
+        "one strike is below the review threshold"
+    );
+}
