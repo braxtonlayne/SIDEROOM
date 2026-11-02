@@ -37,6 +37,8 @@ export class Game {
     this.client = channel.isHost ? null : new PredictedClient({ channel, world: this.world, name });
     this.scene = createScene(opt.renderer, this.world.level);
     this.pacer = new TickPacer();
+    /** performance.now() of the last drawn frame (see stalled()). */
+    this.lastFrameAt = 0;
     this.running = false;
     this.frames = 0;
     this.fpsAt = 0;
@@ -68,30 +70,31 @@ export class Game {
       this.frame(now);
     };
     this.raf = requestAnimationFrame(frame);
-    // requestAnimationFrame stops in a hidden tab (or a display:none iframe), which would freeze the match for
-    // everyone when it is the host's. While hidden, tick from a timer instead. Browsers throttle background timers
-    // (to 1 Hz, later to once a minute), so a hidden HOST keeps the simulation on time three ways:
+    // requestAnimationFrame stops in a hidden tab, a display:none iframe or an occluded window, which would freeze
+    // the match for everyone when it is the host's. So a watchdog timer ticks whenever no animation frame has run
+    // for 100 ms (it does nothing while frames come). Browsers throttle background timers (to 1 Hz, later to once a
+    // minute), so a stalled HOST keeps the simulation on time three ways:
     //   1. every call counts the real elapsed time and runs that many fixed ticks in one burst (TickPacer
     //      catch-up, capped at 5 s / 300 ticks), publishing one snapshot at the end of a long burst;
     //   2. every message a peer sends the host also runs the loop (messages are not throttled like timers, and a
     //      match with peers gets about 30 a second from each);
     //   3. when the tab comes back, one more burst runs before the first drawn frame.
+    this.timer = setInterval(() => this.stalled() && this.frame(performance.now(), false), 50);
     this.onVisibility = () => {
-      if (document.hidden && !this.timer) this.timer = setInterval(() => this.frame(performance.now(), false), 50);
-      else if (!document.hidden && this.timer) {
-        clearInterval(this.timer);
-        this.timer = null;
-        this.frame(performance.now(), false);
-      }
+      if (!document.hidden) this.frame(performance.now(), false);
     };
     document.addEventListener('visibilitychange', this.onVisibility);
-    this.onVisibility();
     const ch = this.opt.platform.channel;
     if (ch) {
-      this.offs.push(ch.onInput(() => document.hidden && this.host && this.frame(performance.now(), false)));
+      this.offs.push(ch.onInput(() => this.host && this.stalled() && this.frame(performance.now(), false)));
       const off = ch.onHostChange?.(() => this.handoff());
       if (off) this.offs.push(off);
     }
+  }
+
+  /** No animation frame for 100 ms: the tab is hidden or occluded, or the page is stalled. */
+  stalled() {
+    return performance.now() - this.lastFrameAt > 100;
   }
 
   /**
@@ -115,6 +118,7 @@ export class Game {
     for (let i = 0; i < n; i++) this.tick(n <= QUIET_BURST);
     if (n > QUIET_BURST) this.host?.publishSnapshot();
     if (!draw) return;
+    this.lastFrameAt = now;
     this.client?.frame();
     this.render(this.pacer.alpha);
     this.frames++;
