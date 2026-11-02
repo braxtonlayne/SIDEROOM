@@ -123,3 +123,15 @@ export const httpAssetsApi: AssetsApi = {
     return rows.map((a) => ({ id: a.id, name: a.name }));
   },
 };
+
+/**
+ * D-389 (wave 46): the per-object URL of one shelf object for an Activity that declares `byos_read`, minted with the
+ * member's own session by the route the Study uses (`GET /shelves/{shelf_id}/objects/{object_hash}/url`). The route
+ * checks the grant, the kind rule and every delisting; the URL lives ten minutes at most.
+ */
+export function mintShelfObjectUrl(
+  shelfId: string,
+  objectHash: string,
+): Promise<{ url: string; expires_at: string }> {
+  return apiFetch(`/shelves/${enc(shelfId)}/objects/${enc(objectHash)}/url`, NO_RETRY);
+}

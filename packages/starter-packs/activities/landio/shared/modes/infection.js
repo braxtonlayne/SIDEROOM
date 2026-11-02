@@ -72,6 +72,7 @@ export default {
   blurb: 'Get caught by the virus and you join it. Last clean player wins.',
   roundTicks: 5 * 60 * 7,
   respawn: true,
+  minHeads: 4,
   teams: 2,
   winner,
 

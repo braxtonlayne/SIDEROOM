@@ -26,7 +26,7 @@ export interface BridgeOptions {
   instanceId: string;
   lobbyToken: string;
   gameKey: string;
-  /** The user id the game knows as its host (`instance.started_by`). */
+  /** The user id the game knows as its host when the bridge starts (`hostOf(instance)`). */
   hostId: string;
   /** This member's own user id (their frame's messages go to the lobby under it). */
   selfId: string;
@@ -62,12 +62,15 @@ export class GuestBridge {
   private lobby: Lobby | null = null;
   private offRoom: (() => void) | null = null;
   private stopped = false;
+  /** The host the guests are told about (D-388: it moves when the host leaves a `host_handoff` game). */
+  private hostId: string;
   readonly instanceId: string;
   readonly lobbyToken: string;
 
   constructor(private readonly o: BridgeOptions) {
     this.instanceId = o.instanceId;
     this.lobbyToken = o.lobbyToken;
+    this.hostId = o.hostId;
   }
 
   /** Seat in the lobby and start relaying. Resolves once the relay seated us. */
@@ -96,7 +99,8 @@ export class GuestBridge {
             bot: false,
           })),
       );
-    const announce = () => void lobby.publish(encodeSys({ host: this.o.hostId }));
+    const announce = () => void lobby.publish(encodeSys({ host: this.hostId }));
+    this.announceHost = announce;
     announce();
     // A guest who sits down later learns the host too.
     let known = new Set(lobby.peers().map((p) => p.seat));
@@ -120,6 +124,15 @@ export class GuestBridge {
       for (const l of [...guestListeners]) l(this.o.instanceId, d.from, d.bytes);
       void this.o.room.send(this.o.instanceId, wrapForRoom(d.from, d.bytes));
     });
+  }
+
+  private announceHost: (() => void) | null = null;
+
+  /** D-388: the instance's host moved; tell the guests, whose games then send inputs to the new host. */
+  setHost(hostId: string): void {
+    if (!hostId || hostId === this.hostId) return;
+    this.hostId = hostId;
+    this.announceHost?.();
   }
 
   /** This member's own frame sent `bytes`: guests get them too. */

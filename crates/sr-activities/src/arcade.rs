@@ -156,6 +156,11 @@ pub const FLAGS: &[Flag] = &[
         summary: "A lobby room for the game session (data now), with its own keys and no access to the call.",
     },
     Flag {
+        name: bundle::HOST_HANDOFF,
+        status: FlagStatus::Active,
+        summary: "Keep the game running when its host leaves: the longest-connected member becomes the host (D-388).",
+    },
+    Flag {
         name: bundle::INGAME_VOICE,
         status: FlagStatus::Reserved,
         summary: "Voice between the players of one game session (reserved: accepted, refused at runtime until it ships; see docs/dev/design/ingame-voice.md).",

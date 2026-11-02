@@ -22457,6 +22457,11 @@ export interface components {
             /** @description Running a development build (live entry URL). */
             development: boolean;
             guild_id: string;
+            /**
+             * @description The instance's host now: the only writer of `host:*` keys and the receiver of inputs. The starter until
+             *     the starter leaves a game that declares `host_handoff`; then the longest-connected member (D-388).
+             */
+            host_id?: string;
             id: string;
             participants: components["schemas"]["ParticipantView"][];
             started_by: string;

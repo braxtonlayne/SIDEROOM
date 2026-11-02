@@ -1,0 +1,13 @@
+{
+  "id": "side-room-arena3d",
+  "name": "Arena 3D",
+  "version": "0.1.0",
+  "description": "A low-poly 3D arena: walk, jump, crouch and push boxes around with your friends. The starter kit for SIDE ROOM's 3D games.",
+  "tier": "TIER_1_ORIGINAL",
+  "capabilities": ["datachannel", "storage", "guest_play", "lobby_channel", "byos_read"],
+  "connect": ["self"],
+  "min_participants": 1,
+  "max_participants": 8,
+  "_comment": "JSON has no comments, and crates/sr-activities reads only the keys it knows, so this note and the key below are ignored by the server. connect: [\"self\"] gives connect-src 'self', so assets/source.js can fetch the bundle's own model files (the sandbox default is connect-src 'none'). D-399: ingame_voice (spatial voice, see client/spatial-voice.js) and byos_write are reserved: a bundle may declare them, but the runtime refuses them until the platform ships them. To opt in early, move them from _reserved_capabilities_example into capabilities.",
+  "_reserved_capabilities_example": ["ingame_voice", "byos_write"]
+}

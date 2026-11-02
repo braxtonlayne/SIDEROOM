@@ -565,6 +565,60 @@ test.describe('wave 43 gate proof (real stack)', () => {
       await req.dispose();
       void name;
       await incognito.close();
+
+      // ACT-LND-002 (wave 46): Draft Night for a guest on a phone. Alice (the host; only the host changes settings by
+      // default) switches the room to Draft Night from her start screen; a guest on a touch screen at 375 px opens
+      // the same link, presses Play, gets the round's keeper pick and taps a card, which lands in their hand (and the
+      // offer moves on to the life's normal draft).
+      await session.a.frame.locator('#start .settings-btn').click();
+      await session.a.frame.locator('#g-modes label', { hasText: 'Draft Night' }).click();
+      await session.a.frame.locator('#g-apply').click();
+      const phone = await browser.newContext({
+        hasTouch: true,
+        isMobile: true,
+        viewport: { width: 375, height: 740 },
+      });
+      try {
+        const p = await phone.newPage();
+        await p.goto(href);
+        await p.getByRole('button', { name: 'Join the game' }).tap();
+        const pf = p.frameLocator('iframe[title^="Game:"]');
+        await expect(pf.locator('#start')).toBeVisible({ timeout: 60_000 });
+        const pfr = p.frames().find((f) => f.url().includes('.activities.'))!;
+        await expect
+          .poll(() => pfr.evaluate(() => (window as any).__landio.world.round?.mode ?? null), {
+            timeout: 30_000,
+          })
+          .toBe('draft');
+        await pf.locator('#play').tap();
+        await expect(pf.locator('#draft')).toBeVisible({ timeout: 30_000 });
+        await expect(pf.locator('#draft-head')).toHaveText('Keeper pick');
+        const offered = (await pfr.evaluate(() => {
+          const o = (window as any).__landio.world.you?.hand?.offers?.[0];
+          return o ? { keep: !!o.keep, first: o.cards[0] as string } : null;
+        }))!;
+        expect(offered).toMatchObject({ keep: true });
+        await pf.locator('#draft-cards .card-btn').first().tap();
+        // The keeper is taken; Draft Night then offers this life's normal draft (no longer the keeper pick).
+        await expect(pf.locator('#draft')).not.toHaveClass(/keeper/, { timeout: 15_000 });
+        await expect
+          .poll(
+            () =>
+              pfr.evaluate(() => {
+                const h = (window as any).__landio.world.you?.hand;
+                if (!h) return [];
+                return [
+                  ...h.items.map((c: [string]) => c[0]),
+                  ...(h.active ? [h.active[0]] : []),
+                  ...h.passives.map((c: [string]) => c[0]),
+                ];
+              }),
+            { timeout: 15_000 },
+          )
+          .toContain(offered.first);
+      } finally {
+        await phone.close();
+      }
     } finally {
       await session.close();
     }

@@ -1,5 +1,6 @@
 // @ts-check
 import assert from 'node:assert/strict';
+import { modeOverhead } from '../support/timing.js';
 import { RESULTS_TICKS, createState, spawnPlayerAt, step, stateHash } from '../../shared/rules.js';
 import { results } from '../../shared/modes/index.js';
 import teams, { teamCount } from '../../shared/modes/teams.js';
@@ -109,17 +110,8 @@ test('bot game: rounds advance, teams are valid, results make sense, determinist
 });
 
 test('timing: the mode costs under 0.3 ms per tick at 200x200 with 30 bots', () => {
-  /** @param {string} mode */
-  const time = (mode) => {
-    const s = createState({ w: 200, h: 200, targetHeads: 30, mode }, 'timing', { fill: true });
-    step(s, [], 100);
-    const t0 = performance.now();
-    step(s, [], 2000);
-    return (performance.now() - t0) / 2000;
-  };
-  time('teams');
-  const base = time('rounds');
-  const mine = time('teams');
-  console.log(`teams ${mine.toFixed(3)} ms/tick, rounds baseline ${base.toFixed(3)}`);
-  assert.ok(mine - base < 0.3);
+  // Median of 7 alternating pairs (test/support/timing.js): machine load cannot fail it, a real 0.3 ms regression does.
+  const r = modeOverhead('teams', 'rounds');
+  console.log(`teams ${r.mode.toFixed(3)} ms/tick, rounds baseline ${r.base.toFixed(3)}`);
+  assert.ok(r.extra < 0.3, `${r.extra.toFixed(3)} ms extra per tick (median of ${r.diffs.length} pairs)`);
 });

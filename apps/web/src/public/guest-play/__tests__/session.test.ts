@@ -275,6 +275,21 @@ describe('the guest lane', () => {
     expect(kit.hostId()).toBe('5550001');
   });
 
+  it('D-388: tells the runner when a member names a different host, not for the first name or a repeat', async () => {
+    const { ws, lobby, key } = await rig();
+    ws.say(ready());
+    await lobby.seated;
+    const kit = guestLane(lobby);
+    const moves: [string, string | null][] = [];
+    kit.onHost((h, p) => moves.push([h, p]));
+    for (const host of ['5550001', '5550001', '5550002']) {
+      ws.say({ op: 'data', from: 1, data: b64(await seal(key, TOKEN, encodeSys({ host }))) });
+      await settle();
+    }
+    expect(moves).toEqual([['5550002', '5550001']]);
+    expect(kit.hostId()).toBe('5550002');
+  });
+
   it('wraps what the game sends as a direct message', async () => {
     const { ws, lobby, key } = await rig();
     ws.say(ready());

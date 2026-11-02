@@ -81,6 +81,33 @@ jobs:
           path: e2e/test-results
           retention-days: 7
 
+  # ACT-A3D-001, the wave 46 gate proof: the arena3d starter's deterministic replay gives the Node hash in Chromium,
+  # Firefox and WebKit, and two players over the fake platform see each other. No sr-server, database, WASM or web
+  # build: the bundle is built here and served as static files. If an engine disagrees, report it to the owner
+  # (roadmap change 11); never switch engines or skip it.
+  arena3d-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/build-activities.mjs arena3d
+      - run: ./scripts/playwright-install.sh chromium firefox webkit
+      - run: pnpm --filter @sideroom/e2e test:arena3d
+        env:
+          CI: 'true'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: arena3d-replay-traces
+          path: e2e/test-results
+          retention-days: 7
+
   # XC-SEC-006: dependency advisories. An advisory signal, not a gate: a new CVE in a transitive dependency
   # must not block unrelated pull requests. Needs the network, so it cannot run on the agent machines.
   npm-audit:

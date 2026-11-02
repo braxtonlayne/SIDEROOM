@@ -71,6 +71,8 @@ export interface GuestHostEnv {
   roster: () => GuestMember[];
   /** The id the game's host sends under (the member bridge told the lobby); absent: the roster's member seat. */
   hostId?: () => string | null;
+  /** D-388: the member bridge named a new host; the game gets `HOST_CHANGED`. */
+  onHostChange?: (cb: (host: string, previous: string | null) => void) => () => void;
   lane: GuestLane;
   post: (frame: Frame) => void;
   /** Origin that frame messages carry. Default [`OPAQUE_ORIGIN`]. */
@@ -106,6 +108,7 @@ export function createGuestHost(env: GuestHostEnv): GuestHost {
   const requests: number[] = [];
   let ready = false;
   let off: (() => void) | null = null;
+  let offHost: (() => void) | null = null;
   const caps = guestCapabilities(env.declared);
   const hasData = caps.includes('datachannel');
 
@@ -185,6 +188,14 @@ export function createGuestHost(env: GuestHostEnv): GuestHost {
           off = env.lane.onMessage((from, bytes) => emit('DATA_MESSAGE', { from, b: b64(bytes) }));
         }
         const hostId = env.hostId?.() ?? env.roster().find((m) => m.host)?.id ?? env.self().id;
+        if (!offHost && env.onHostChange) {
+          let told = hostId;
+          offHost = env.onHostChange((next) => {
+            if (next === told) return;
+            emit('HOST_CHANGED', { host_id: next, previous: told });
+            told = next;
+          });
+        }
         env.post({
           sr: PROTOCOL_VERSION,
           kind: 'ready',
@@ -233,6 +244,8 @@ export function createGuestHost(env: GuestHostEnv): GuestHost {
     dispose() {
       off?.();
       off = null;
+      offHost?.();
+      offHost = null;
       subscribed.clear();
       ready = false;
     },

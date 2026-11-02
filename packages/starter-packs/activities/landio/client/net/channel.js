@@ -14,8 +14,11 @@
 /**
  * @typedef {object} Channel
  * @property {Member} self                                   who I am, from the SDK (never from a Land.io sign-in)
- * @property {string} hostId                                 the member who launched the instance: the only writer of `host:*` state and the one who runs the game
+ * @property {string} hostId                                 the host (the member who launched the instance, or its successor after a
+ *   handoff, D-388): the only writer of `host:*` state and the one who runs the game
  * @property {boolean} isHost                                self.id === hostId
+ * @property {(cb: (host: string, previous: string) => void) => () => void} [onHostChange]   D-388: the platform moved
+ *   the host (SIDE ROOM only; hostId and isHost follow it)
  * @property {() => Member[]} members                        everyone in the instance, me included
  * @property {(cb: (list: Member[]) => void) => () => void} onMembers
  * @property {(msg: object) => void} toHost                  guest -> host (`sdk.input.send`)

@@ -31,6 +31,11 @@
 //   saveFile { name, mime, b } -> { saved }   ARC-SBX-001: hand the person a file (base64, at most 8 MiB, png, jpeg,
 //     webp, json or plain text only). A sandbox without `allow-downloads` cannot save one itself, so the host
 //     asks the person and downloads it from the app page.
+//   shelfObjectUrl { shelf_id, object_hash } -> { url, expires_at }   D-389 (wave 46), needs the `byos_read` capability:
+//     a presigned GET for ONE object of a shelf the member can open (their own, a friend's grant, a server shelf),
+//     the same per-object URL the Study uses (ten minutes at most). The member is asked first, once per object
+//     and frame. Never for a guest (D-397). The URL is on the shelf's storage host, so the game can fetch it only
+//     when its reviewed manifest names that host in `connect` (CSP is per host; docs/dev/design/byos-read-activities.md).
 //   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
 //     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
@@ -41,6 +46,9 @@
 //   SPEAKING_START / SPEAKING_STOP { channel_id, user_id }
 //   DATA_MESSAGE { from, b }          ACT-CH-001: bytes (base64) another member of the instance sent; `from` is
 //     authenticated by the room's key, never claimed by the sender
+//   HOST_CHANGED { host_id, previous }   D-388 (wave 46): the instance's host left and the platform made
+//     `host_id` (the longest-connected member; never a guest) the host. Needs the `host_handoff` capability; without
+//     it the instance ends with its host. The SDK subscribes for the data channel itself and moves `sdk.hostId`.
 // Voice events exist only for an Activity in a voice channel and only for that channel.
 
 export const PROTOCOL_VERSION = 1;
@@ -59,6 +67,7 @@ export const COMMANDS = [
   'storageSet',
   'storageRemove',
   'saveFile',
+  'shelfObjectUrl',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -69,6 +78,7 @@ export const EVENTS = [
   'SPEAKING_START',
   'SPEAKING_STOP',
   'DATA_MESSAGE',
+  'HOST_CHANGED',
 ] as const;
 export type EventName = (typeof EVENTS)[number];
 
@@ -80,7 +90,7 @@ export interface ReadyConfig {
   guild_id: string;
   /** The signed-in member (ACT-CH-001). */
   user_id?: string;
-  /** The member who launched the instance: the only writer of `host:*` keys. */
+  /** The instance's host: the only writer of `host:*` keys (the launcher, or the successor after HOST_CHANGED). */
   host_id?: string;
   /** What the reviewed bundle declared in `sideroom.json` (`datachannel`, `storage`). */
   capabilities?: string[];
@@ -237,4 +247,40 @@ export interface VoiceStateUpdate {
 export interface SpeakingUpdate {
   channel_id: string;
   user_id: string;
+}
+
+/** `HOST_CHANGED` data (D-388): the new host and the one who left. */
+export interface HostChanged {
+  host_id: string;
+  previous: string;
+}
+
+/** The capability a bundle declares to keep running when its host leaves (D-388). */
+export const HOST_HANDOFF_CAPABILITY = 'host_handoff';
+
+/** The capability a bundle declares to use `shelfObjectUrl` (D-389). */
+export const BYOS_READ_CAPABILITY = 'byos_read';
+
+/** `shelfObjectUrl` arguments: a shelf (mount) id and an object hash from that shelf's catalog. */
+export interface ShelfObjectRef {
+  shelf_id: string;
+  object_hash: string;
+}
+
+/** `shelfObjectUrl` result: a presigned GET for one object and when it stops working (ISO 8601). */
+export interface ShelfObjectUrl {
+  url: string;
+  expires_at: string;
+}
+
+/** Whether `r` names a shelf object: a snowflake id and a lowercase hex SHA-256. */
+export function isShelfObjectRef(r: unknown): r is ShelfObjectRef {
+  if (typeof r !== 'object' || r === null) return false;
+  const o = r as Record<string, unknown>;
+  return (
+    typeof o.shelf_id === 'string' &&
+    /^[0-9]{1,20}$/.test(o.shelf_id) &&
+    typeof o.object_hash === 'string' &&
+    /^[0-9a-f]{64}$/.test(o.object_hash)
+  );
 }

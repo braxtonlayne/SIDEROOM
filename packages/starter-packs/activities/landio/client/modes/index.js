@@ -5,6 +5,7 @@
 import shrink from './shrink.js';
 import koth from './koth.js';
 import infection from './infection.js';
+import draft from './draft.js';
 
 /**
  * @typedef {object} ModeView
@@ -16,4 +17,4 @@ import infection from './infection.js';
 
 // Last Land Standing's sudden death is the same closing border, drawn and timed the same way.
 /** @type {Record<string, ModeView>} */
-export const MODE_VIEWS = { shrink, koth, infection, lastland: shrink };
+export const MODE_VIEWS = { shrink, koth, infection, lastland: shrink, draft };

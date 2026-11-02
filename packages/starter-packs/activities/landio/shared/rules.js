@@ -12,6 +12,7 @@ import { rand, randInt, seedFrom } from './rng.js';
 import { botThink, newBotMemory } from './bots.js';
 import { cardAct, cardsTick, emptyHand, extraMoves, fxOn, hooks, offerCards, rankOf } from './cards.js';
 import { registerKill } from './cards/util.js';
+import { botQuota, nextBotName, wantedHeads } from './backfill.js';
 
 /** @typedef {import('./types.js').GameState} GameState */
 /** @typedef {import('./types.js').Player} Player */
@@ -33,6 +34,7 @@ export const DEFAULT_CONFIG = {
   mode: 'classic',
   botSkill: 'normal',
   roundTicks: 0,
+  backfill: false,
 };
 
 /** How long a round's results show before the next round starts (10 s). */
@@ -40,11 +42,6 @@ export const RESULTS_TICKS = 70;
 /** In modes without respawns, people may still join this long after a round starts (10 s). */
 export const JOIN_GRACE_TICKS = 70;
 
-
-const BOT_NAMES = [
-  'Ada', 'Bix', 'Cosmo', 'Dot', 'Echo', 'Fizz', 'Gizmo', 'Hex', 'Ion', 'Jinx', 'Kilo', 'Lumen', 'Mochi',
-  'Nova', 'Orbit', 'Pixel', 'Quark', 'Rune', 'Sprocket', 'Tofu', 'Umbra', 'Vex', 'Widget', 'Yeti', 'Zed',
-];
 
 /**
  * A new arena. With `fill` the bot slots are filled at once.
@@ -76,7 +73,7 @@ export function createState(cfg, seed, opt = {}) {
     round: { n: 1, phase: 'play', start: 0, end: roundLength({ cfg: c }), next: 0, result: null },
     md: {},
   };
-  if (opt.fill) while (s.players.length < c.targetHeads && spawnBot(s)) { /* fill */ }
+  if (opt.fill) while (s.players.length < wantedHeads(s) && spawnBot(s)) { /* fill */ }
   modeOf(s).setup?.(s);
   return s;
 }
@@ -98,16 +95,18 @@ export function endRound(s) {
   if (s.round.phase === 'over') return;
   s.round.phase = 'over';
   s.round.result = results(s);
+  modeOf(s).onRoundOver?.(s, s.round.result);
   s.round.next = s.tick + RESULTS_TICKS;
   s.events.push({ k: 'round', phase: 'over', n: s.round.n });
 }
 
 /**
  * Start a new round: a freshly built map (from the seed and the round number), nobody's land, every human who
- * was in the arena placed again (alive), the bots refilled, then the mode's setup.
- * @param {GameState} s
+ * was in the arena placed again (alive), the bots refilled, then the mode's setup. The mode's `carry` keys of
+ * its data survive, unless `fresh` (a restart or a new mode: everything starts over).
+ * @param {GameState} s @param {{fresh?: boolean}} [opt]
  */
-export function startRound(s) {
+export function startRound(s, opt = {}) {
   const { w, h } = s.cfg;
   const n = s.round.n + 1;
   // The host may have changed the arena's size: the tile layers are made anew.
@@ -123,7 +122,10 @@ export function startRound(s) {
   s.dirtyMark.fill(0);
   s.dirty = [];
   s.objects = [];
-  s.md = {};
+  /** @type {GameState['md']} */
+  const kept = {};
+  if (!opt.fresh) for (const k of modeOf(s).carry ?? []) if (s.md[k] !== undefined) kept[k] = s.md[k];
+  s.md = kept;
   const humans = s.players.filter((p) => p.kind === 'human');
   s.players = [];
   s.round = { n, phase: 'play', start: s.tick, end: roundLength(s) ? s.tick + roundLength(s) : 0, next: 0, result: null };
@@ -135,7 +137,7 @@ export function startRound(s) {
     s.players.sort((a, b) => a.id - b.id);
     resetPlayer(s, p, at.x, at.y);
   }
-  while (s.players.length < s.cfg.targetHeads && spawnBot(s)) { /* fill */ }
+  while (s.players.length < wantedHeads(s) && spawnBot(s)) { /* fill */ }
   s.botCooldown = 0;
   modeOf(s).setup?.(s);
   s.events.push({ k: 'round', phase: 'start', n });
@@ -357,13 +359,9 @@ function smallestTeam(s, n) {
   return best;
 }
 
-/** @param {GameState} s */
+/** A bot takes the first free name (shared/backfill.js): Lumen bot, Tofu bot, Lumen bot 2, ... @param {GameState} s */
 function spawnBot(s) {
-  const used = new Set(s.players.map((p) => p.name));
-  const free = BOT_NAMES.filter((n) => !used.has(n));
-  const pool = free.length ? free : BOT_NAMES;
-  const name = pool[randInt(s, 0, pool.length - 1)];
-  return spawnPlayer(s, { kind: 'bot', name });
+  return spawnPlayer(s, { kind: 'bot', name: nextBotName(s.players.map((p) => p.name)) });
 }
 
 /**
@@ -667,9 +665,12 @@ function capture(s, p) {
   if (p.alive) hooks.capture(s, p, gained);
 }
 
-/** Keep the bots at `targetHeads - humans`: one leaves or arrives per tick at most. @param {GameState} s */
+/**
+ * Keep the bots at the wanted heads minus the people (shared/backfill.js): one leaves or arrives per tick at
+ * most, so a person joining sends a bot home and a person leaving lets one back in. @param {GameState} s
+ */
 function manageBots(s) {
-  const quota = Math.max(0, s.cfg.targetHeads - s.humans);
+  const quota = botQuota(s);
   const bots = s.players.filter((p) => p.kind === 'bot');
   if (bots.length > quota) {
     // The bot with least land leaves first (its land returns to neutral).

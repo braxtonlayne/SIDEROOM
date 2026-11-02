@@ -17,13 +17,17 @@ import {
   SAVE_FILE_TYPES,
   STORAGE_CAPABILITY,
   STORAGE_LIMITS,
+  BYOS_READ_CAPABILITY,
+  isShelfObjectRef,
+  type ShelfObjectUrl,
   type RpcErrorBody,
   type SpeakingUpdate,
   type VoiceStateUpdate,
+  type HostChanged,
 } from '@sideroom/embedded-app-sdk';
 import { bridgeInput, recordTick } from '../crash/ringBuffer';
 import type { OAuthApi } from './api';
-import type { ActivityInstance } from './types';
+import { hostOf, type ActivityInstance } from './types';
 
 /** Scopes an Activity may ask for. `email` and the bot scopes are not an Activity's business. */
 export const ACTIVITY_SCOPES = ['identify', 'guilds'] as const;
@@ -129,6 +133,12 @@ export interface HostEnv {
   proxyToken?: (instanceId: string) => Promise<string | null>;
   /** Hand the person a file the Activity produced (after they agreed); the host page downloads it. */
   saveFile?: (name: string, mime: string, bytes: Uint8Array) => void;
+  /**
+   * D-389: mint the per-object URL of one shelf object with the member's own session
+   * (`GET /shelves/{shelf_id}/objects/{object_hash}/url`, which checks the grant and every delisting). Absent: no
+   * `shelfObjectUrl`.
+   */
+  shelfObjectUrl?: (shelfId: string, objectHash: string) => Promise<ShelfObjectUrl>;
   applicationId: string;
   instance: () => ActivityInstance;
   channel: () => { id: string; guild_id: string; name: string };
@@ -140,7 +150,8 @@ export interface HostEnv {
     ask:
       | { kind: 'authorize'; scopes: string[] }
       | { kind: 'link'; url: string }
-      | { kind: 'save'; name: string; mime: string; size: number },
+      | { kind: 'save'; name: string; mime: string; size: number }
+      | { kind: 'shelf'; shelfId: string; objectHash: string },
   ) => Promise<boolean>;
   openLink: (url: string) => void;
   post: (frame: Frame) => void;
@@ -279,6 +290,11 @@ export interface ActivityHost {
   /** The instance changed: tell subscribers. */
   participantsChanged(): void;
   /**
+   * D-388: the instance's host may have moved (`instance().host_id`). Tells a subscribed Activity `HOST_CHANGED`
+   * once per change; `participantsChanged` checks it too.
+   */
+  hostChanged(): void;
+  /**
    * The voice channel's people changed (voice states or speaking): tell subscribers of `VOICE_STATE_UPDATE`,
    * `SPEAKING_START` and `SPEAKING_STOP`. The first call only records the baseline.
    */
@@ -296,9 +312,16 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   const now = env.now ?? Date.now;
   let voiceBaseline: Map<string, VoicePerson> | null = null;
   let dataJoined: { instance: string; off: () => void } | null = null;
+  /** The host the Activity was last told about (in `ready` or `HOST_CHANGED`). */
+  let toldHost: string | null = null;
 
   const hasStorage = () =>
     !!env.storage && (env.instance().capabilities ?? []).includes(STORAGE_CAPABILITY);
+
+  /** Shelf objects the member let this frame open (asked once per object). */
+  const shelfAllowed = new Set<string>();
+  const hasByosRead = () =>
+    !!env.shelfObjectUrl && (env.instance().capabilities ?? []).includes(BYOS_READ_CAPABILITY);
 
   const hasData = () => !!env.data && (env.instance().capabilities ?? []).includes(DATA_CAPABILITY);
 
@@ -493,6 +516,35 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         store.set(key, value);
         return {};
       }
+      case 'shelfObjectUrl': {
+        // D-389: one object of a shelf the member can open, after the member said yes (D-399: no server data the
+        // member has not granted). The server checks the grant, the kind rule and every delisting when it mints.
+        if (!hasByosRead() || !env.shelfObjectUrl) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the byos_read capability.',
+          );
+        }
+        if (!isShelfObjectRef(args)) {
+          throw invalid('shelf_id must be an id and object_hash a lowercase hex SHA-256.');
+        }
+        const key = `${args.shelf_id}/${args.object_hash}`;
+        if (!shelfAllowed.has(key)) {
+          const yes = await env.confirm({
+            kind: 'shelf',
+            shelfId: args.shelf_id,
+            objectHash: args.object_hash,
+          });
+          if (!yes) throw new RpcError(RPC_ERRORS.denied, 'The person declined.');
+          shelfAllowed.add(key);
+        }
+        try {
+          const minted = await env.shelfObjectUrl(args.shelf_id, args.object_hash);
+          return { url: minted.url, expires_at: minted.expires_at };
+        } catch {
+          throw new RpcError(RPC_ERRORS.failed, 'That file is not available.');
+        }
+      }
       case 'saveFile': {
         if (!env.saveFile) {
           throw new RpcError(RPC_ERRORS.notAuthorized, 'Saving files is not available.');
@@ -552,6 +604,15 @@ export function createActivityHost(env: HostEnv): ActivityHost {
     }
   };
 
+  const hostChanged = () => {
+    if (!ready || toldHost === null) return;
+    const now = hostOf(env.instance());
+    if (now === toldHost) return;
+    const data: HostChanged = { host_id: now, previous: toldHost };
+    toldHost = now;
+    emit('HOST_CHANGED', data);
+  };
+
   const userOf = (id: string): Participant =>
     env.users([id])[0] ?? { id, username: null, global_name: null, avatar: null };
 
@@ -579,7 +640,7 @@ export function createActivityHost(env: HostEnv): ActivityHost {
             channel_id: inst.channel_id,
             guild_id: inst.guild_id,
             ...(env.selfId?.() ? { user_id: env.selfId() ?? undefined } : {}),
-            host_id: inst.started_by,
+            host_id: (toldHost = hostOf(inst)),
             capabilities: inst.capabilities ?? [],
             ...(hasStorage() && env.storage ? { storage: env.storage.all() } : {}),
             ...(proxyToken ? { proxy_token: proxyToken } : {}),
@@ -614,7 +675,9 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         else fail(f.nonce, { code: RPC_ERRORS.failed, message: 'The request failed.' });
       }
     },
+    hostChanged,
     participantsChanged() {
+      hostChanged();
       emit('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE', { participants: participants() });
     },
     voiceChanged(people) {
@@ -670,7 +733,11 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       if (presenceSet) env.setPresence(null);
       presenceSet = false;
       subscribed.clear();
+      shelfAllowed.clear();
       ready = false;
+      toldHost = null;
     },
   };
 }
+
+export { hostOf } from './types';

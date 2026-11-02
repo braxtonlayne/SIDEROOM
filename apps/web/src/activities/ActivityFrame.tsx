@@ -9,12 +9,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
-import { activityOrigin, httpAssetsApi, httpOAuthApi, mintProxyToken } from './api';
-import { createActivityHost, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } from './host';
+import {
+  activityOrigin,
+  httpAssetsApi,
+  httpOAuthApi,
+  mintProxyToken,
+  mintShelfObjectUrl,
+} from './api';
+import { createActivityHost, hostOf, OPAQUE_ORIGIN, type HostEnv, type VoicePerson } from './host';
 import { createBridgeStorage, downloadBytes } from './bridgeStorage';
 import { reportPresence } from './presence';
 import { activityDataPort } from '../voice/dataPort';
-import { guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
+import { bridgeFor, guestAwareData, guestParticipants, onGuestRoster } from './guestBridge';
 import { restoreGuestBridge } from './ShareLinkDialog';
 import { useStore } from '../store/store';
 import type { ActivityInstance } from './types';
@@ -79,6 +85,8 @@ export function ActivityFrame({
           instance.application_id,
         ),
         saveFile: downloadBytes,
+        // D-389: the same per-object URL route the Study uses, with this member's own session.
+        shelfObjectUrl: mintShelfObjectUrl,
         proxyToken: mintProxyToken,
         guests: () => guestParticipants(latest.current.instance.id),
         selfId: () => useStore.getState().currentUserId ?? null,
@@ -134,6 +142,14 @@ export function ActivityFrame({
     );
   }, [host, voice, instance.channel_type]);
 
+  // D-388: the host moved (a `host_handoff` game whose host left). Tell the Activity, and the guests through this
+  // tab's guest bridge when it has one, so everybody sends inputs to the new host.
+  const currentHost = hostOf(instance);
+  useEffect(() => {
+    host.hostChanged();
+    bridgeFor(instance.id)?.setHost(currentHost);
+  }, [host, instance.id, currentHost]);
+
   // Tell the Activity when people join or leave.
   const roster = instance.participants.map((p) => p.user_id).join(',');
   useEffect(() => {
@@ -165,14 +181,18 @@ export function ActivityFrame({
               ? t('activities.confirm.authorizeTitle', { name: instance.application_name })
               : ask.ask.kind === 'save'
                 ? t('activities.confirm.saveTitle', { name: instance.application_name })
-                : t('activities.confirm.linkTitle', { name: instance.application_name })
+                : ask.ask.kind === 'shelf'
+                  ? t('activities.confirm.shelfTitle', { name: instance.application_name })
+                  : t('activities.confirm.linkTitle', { name: instance.application_name })
           }
           description={
             ask.ask.kind === 'authorize'
               ? t('activities.confirm.authorizeBody', { scopes: ask.ask.scopes.join(', ') })
               : ask.ask.kind === 'save'
                 ? t('activities.confirm.saveBody', { file: ask.ask.name, size: ask.ask.size })
-                : ask.ask.url
+                : ask.ask.kind === 'shelf'
+                  ? t('activities.confirm.shelfBody')
+                  : ask.ask.url
           }
           footer={
             <>
@@ -184,7 +204,9 @@ export function ActivityFrame({
                   ? t('activities.confirm.authorize')
                   : ask.ask.kind === 'save'
                     ? t('activities.confirm.save')
-                    : t('activities.confirm.openLink')}
+                    : ask.ask.kind === 'shelf'
+                      ? t('activities.confirm.shelfAllow')
+                      : t('activities.confirm.openLink')}
               </Button>
             </>
           }

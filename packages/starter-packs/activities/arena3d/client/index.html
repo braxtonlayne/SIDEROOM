@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arena 3D</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="main.js"></script>
+  </head>
+  <body>
+    <canvas id="view" aria-label="Arena 3D game view"></canvas>
+
+    <div id="hud" hidden>
+      <div id="crosshair" aria-hidden="true"></div>
+      <div id="hud-score" class="hud-box"></div>
+      <ul id="hud-players" class="hud-box" aria-label="Players"></ul>
+      <div id="hud-info" class="hud-box"></div>
+      <div id="hud-net" class="hud-box" hidden></div>
+    </div>
+
+    <div id="resume" class="overlay" hidden>
+      <div class="card">
+        <h2>Paused</h2>
+        <p>Click anywhere to look around again.</p>
+        <p class="small">Esc releases the mouse. <button id="btn-menu" type="button">Menu</button></p>
+      </div>
+    </div>
+
+    <div id="menu" class="overlay">
+      <section id="screen-main" class="card">
+        <h1>Arena 3D</h1>
+        <p class="tagline">Walk, jump, crouch and shove the boxes onto the green pad.</p>
+        <button id="btn-play" type="button" class="primary" disabled>Loading…</button>
+        <button id="btn-settings" type="button">Settings</button>
+        <button id="btn-howto" type="button">Make your own game from this</button>
+        <p id="status" class="small" role="status">Starting…</p>
+        <p class="small keys">WASD or arrows to move · mouse to look · Space to jump · C or Shift to crouch · Esc to pause</p>
+      </section>
+
+      <section id="screen-settings" class="card" hidden>
+        <h2>Settings</h2>
+        <label>Name <input id="set-name" type="text" maxlength="24" autocomplete="off" placeholder="Your name in SIDE ROOM" /></label>
+        <label>Mouse sensitivity <input id="set-sens" type="range" min="1" max="20" step="1" /></label>
+        <label class="row"><input id="set-invert" type="checkbox" /> Invert mouse Y</label>
+        <label>Field of view <input id="set-fov" type="range" min="60" max="100" step="1" /></label>
+        <label>Volume <input id="set-volume" type="range" min="0" max="1" step="0.05" /></label>
+        <label>Renderer
+          <select id="set-renderer">
+            <option value="auto">WebGPU when available</option>
+            <option value="webgl2">Always WebGL2</option>
+          </select>
+        </label>
+        <label class="row"><input id="set-net" type="checkbox" /> Show network numbers</label>
+        <p id="settings-note" class="small">Saved for you in SIDE ROOM. Renderer changes apply next time the game opens.</p>
+        <button id="btn-settings-back" type="button">Back</button>
+      </section>
+
+      <section id="screen-howto" class="card wide" hidden>
+        <h2>Make your own game from this</h2>
+        <p>Arena 3D is SIDE ROOM's 3D starter kit. Everything here is meant to be copied. The full guide is the
+          <strong>“Make your own game from this starter”</strong> section of <code>README.md</code> in the
+          <code>packages/starter-packs/activities/arena3d</code> folder of SIDE ROOM's source.</p>
+        <ol>
+          <li><strong>Copy the folder</strong> to <code>packages/starter-packs/activities/&lt;your-game&gt;</code>, rename the
+            package and change <code>id</code>, <code>name</code> and <code>description</code> in <code>sideroom.json</code>.</li>
+          <li><strong>Change the level</strong> in <code>sim/level.js</code>: blocks, boxes, spawn points, the goal.</li>
+          <li><strong>Change the rules</strong> in <code>sim/world.js</code> (<code>TUNING</code>, <code>movePlayer</code>,
+            <code>afterStep</code>). Keep it deterministic: integer inputs, the seeded PRNG, no clocks.</li>
+          <li><strong>Add to the snapshot</strong> anything new the host must send (<code>World.snapshot</code>,
+            <code>net/codec.js</code>), and bump <code>PROTOCOL_VERSION</code>.</li>
+          <li><strong>Draw it</strong> in <code>client/scene.js</code>; load models through <code>assets/</code>.</li>
+          <li><strong>Prove it</strong>: <code>pnpm test</code> runs the determinism gate, then <code>pnpm build</code> checks
+            the bundle against SIDE ROOM's rules.</li>
+        </ol>
+        <button id="btn-howto-back" type="button">Back</button>
+      </section>
+    </div>
+
+    <noscript><p class="overlay">Arena 3D needs JavaScript.</p></noscript>
+  </body>
+</html>

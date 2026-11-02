@@ -10,6 +10,8 @@ export interface GuestLaneKit {
   roster(): GuestMember[];
   /** The id a message from the game's host carries: told by the member bridge, else the first member seat. */
   hostId(): string | null;
+  /** D-388: the member bridge named a different host (the old one left a `host_handoff` game). */
+  onHost(cb: (host: string, previous: string | null) => void): () => void;
   /** Resolves (true) once a member bridge named the host, or (false) after `ms`. */
   hostKnown(ms: number): Promise<boolean>;
 }
@@ -25,12 +27,16 @@ export const memberOf = (p: GuestPeer): GuestMember =>
 export function guestLane(lobby: Lobby): GuestLaneKit {
   let host: string | null = null;
   const waiters = new Set<() => void>();
+  const hostListeners = new Set<(host: string, previous: string | null) => void>();
   const listeners = new Set<(from: string, bytes: Uint8Array) => void>();
   lobby.onMessage((m) => {
     const d = decodeLobby(m.seat, m.role, m.bytes);
     if (!d) return;
     if (d.kind === 'sys') {
+      const previous = host;
       host = d.host;
+      if (previous !== null && previous !== host)
+        for (const l of [...hostListeners]) l(host, previous);
       for (const w of [...waiters]) w();
       return;
     }
@@ -48,6 +54,10 @@ export function guestLane(lobby: Lobby): GuestLaneKit {
     hostId: () => {
       const m = lobby.peers().find((p) => p.role === 'member');
       return host ?? (m ? memberSeatId(m.seat) : null);
+    },
+    onHost(cb) {
+      hostListeners.add(cb);
+      return () => hostListeners.delete(cb);
     },
     hostKnown(ms) {
       if (host) return Promise.resolve(true);

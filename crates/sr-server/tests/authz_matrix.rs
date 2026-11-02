@@ -4339,7 +4339,7 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
 
 /// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
 /// watcher cursor), so that they say nothing about one refused call.
-const NOISY: [&str; 17] = [
+const NOISY: [&str; 18] = [
     "payment_watcher",
     "staff_access_log",
     "sessions",
@@ -4360,6 +4360,9 @@ const NOISY: [&str; 17] = [
     // refused call never writes them (CI run 41364114161 caught the job mid-group).
     "guild_insights_daily",
     "guild_insights_channel_daily",
+    // The invites.prune job (sr-server invites_jobs.rs) first runs 60 s after start and writes its pass record;
+    // only the job writes this table, never a route (wave 46: it landed inside the admin group, 3 runs of 3).
+    "invite_prune_runs",
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).

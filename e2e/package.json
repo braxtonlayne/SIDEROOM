@@ -7,7 +7,8 @@
     "test:e2e": "playwright test",
     "list": "playwright test --list",
     "typecheck": "tsc --noEmit",
-    "test:static": "playwright test -c playwright.static.config.ts"
+    "test:static": "playwright test -c playwright.static.config.ts",
+    "test:arena3d": "playwright test -c playwright.arena3d.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

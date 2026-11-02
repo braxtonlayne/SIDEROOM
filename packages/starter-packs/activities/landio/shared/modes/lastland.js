@@ -38,6 +38,7 @@ export default {
   blurb: 'No respawns. The last one alive wins.',
   roundTicks: 5 * 60 * 7,
   respawn: false,
+  minHeads: 3,
   rank,
   setup(s) {
     const { w, h } = s.cfg;

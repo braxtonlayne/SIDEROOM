@@ -195,3 +195,22 @@ describe('guestAwareData', () => {
     expect(bridgeFor(INST)).toBeUndefined();
   });
 });
+
+describe('host handoff through the guest bridge (D-388)', () => {
+  it('tells the lobby the new host once, and ignores a repeat', async () => {
+    const { l, b } = bridge();
+    await settle();
+    l.published.length = 0;
+    b.setHost('556');
+    b.setHost('556');
+    b.setHost('');
+    expect(l.published.map((p) => decodeLobby(1, 'member', p))).toEqual([
+      { kind: 'sys', host: '556' },
+    ]);
+    // A guest who sits down later is told the new host.
+    l.published.length = 0;
+    l.join({ seat: 2, role: 'guest', callsign: 'Amber Otter 42' });
+    await settle();
+    expect(decodeLobby(1, 'member', l.published[0]!)).toEqual({ kind: 'sys', host: '556' });
+  });
+});

@@ -206,7 +206,8 @@ test('the real Land.io bundle passes every rule and carries the host engine, the
   for (const bad of ['.env', 'auth.js', 'server/main.js', 'platform/discord-platform.js', 'platform/sign-in.js'])
     assert.ok(![...names].some((n) => n === bad || n.endsWith('/' + bad) || n.endsWith(bad)), bad);
   const manifest = JSON.parse(files.find((f) => f.path === 'sideroom.json').data.toString('utf8'));
-  assert.deepEqual(manifest.capabilities, ['datachannel', 'storage', 'guest_play', 'lobby_channel']);
+  // host_handoff (D-388, wave 46): the platform moves the host when it leaves; the game resumes from its snapshot.
+  assert.deepEqual(manifest.capabilities, ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'host_handoff']);
   assert.equal(manifest.tier, 'TIER_1_ORIGINAL');
   // The SDK is vendored transpiled: no TypeScript syntax is left, and the specifiers name .js files.
   const sdk = files.find((f) => f.path === 'sdk/sdk.js').data.toString('utf8');

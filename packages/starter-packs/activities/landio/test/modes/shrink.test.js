@@ -1,6 +1,7 @@
 // @ts-check
 // Shrinking Arena: the border closes in steps, tiles outside become walls, heads outside die.
 import assert from 'node:assert/strict';
+import { modeOverhead } from '../support/timing.js';
 import { RESULTS_TICKS, createState, findSpawn, spawnPlayerAt, step, stateHash, takeEvents } from '../../shared/rules.js';
 import { WALL, setBase } from '../../shared/grid.js';
 import { MODE_BY_ID } from '../../shared/modes/index.js';
@@ -192,16 +193,8 @@ test('bot game: rounds advance, winners are sensible, bots rarely die to the bor
 });
 
 test('timing: the mode costs under 0.3 ms per tick at 200x200 with 30 bots', () => {
-  /** @param {string} mode */
-  const time = (mode) => {
-    const s = createState({ w: 200, h: 200, targetHeads: 30, mode }, 'timing', { fill: true });
-    const t0 = performance.now();
-    step(s, [], 2000);
-    return (performance.now() - t0) / 2000;
-  };
-  time('shrink');
-  const base = time('rounds');
-  const mine = time('shrink');
-  console.log(`ms/tick: rounds ${base.toFixed(3)}, shrink ${mine.toFixed(3)}`);
-  assert.ok(mine - base < 0.3, `${(mine - base).toFixed(3)} ms extra per tick`);
+  // Median of 7 alternating pairs (test/support/timing.js): machine load cannot fail it, a real 0.3 ms regression does.
+  const r = modeOverhead('shrink', 'rounds');
+  console.log(`ms/tick: rounds ${r.base.toFixed(3)}, shrink ${r.mode.toFixed(3)}`);
+  assert.ok(r.extra < 0.3, `${r.extra.toFixed(3)} ms extra per tick (median of ${r.diffs.length} pairs)`);
 });
