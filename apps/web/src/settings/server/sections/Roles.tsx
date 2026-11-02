@@ -496,7 +496,7 @@ function RoleEditor({
                   error={nameError}
                   onChange={(e) => draft.set('name', e.target.value)}
                 />
-                <div>
+                <div className="ss-color-block">
                   <RadioGroup
                     legend={t('settings.roles.styleLabel')}
                     value={colorStyleOf(draft.value)}
@@ -531,24 +531,24 @@ function RoleEditor({
                     />
                   </RadioGroup>
                   {colorStyleOf(draft.value) !== 'holographic' && (
-                    <>
+                    <div>
                       <span className="ss-field-label">{t('settings.roles.colorLabel')}</span>
                       <ColorPicker
                         label={t('settings.roles.colorLabel')}
                         value={draft.value.color ? hexFromInt(draft.value.color) : '#99aab5'}
                         onValueChange={(hex) => !locked && draft.set('color', intFromHex(hex))}
                       />
-                    </>
+                    </div>
                   )}
                   {colorStyleOf(draft.value) === 'gradient' && (
-                    <>
+                    <div>
                       <span className="ss-field-label">{t('settings.roles.secondColorLabel')}</span>
                       <ColorPicker
                         label={t('settings.roles.secondColorLabel')}
                         value={hexFromInt(draft.value.secondary ?? 0)}
                         onValueChange={(hex) => !locked && draft.set('secondary', intFromHex(hex))}
                       />
-                    </>
+                    </div>
                   )}
                   <Button
                     size="sm"
