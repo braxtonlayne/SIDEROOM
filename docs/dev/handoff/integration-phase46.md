@@ -2,7 +2,8 @@
 
 Branch `integration/phase46`, base `origin/integration/phase45` 91628f9d (wave 45, PR #78 in CI), then
 `origin/feat/p46-external` 21176e18 (the outside agent's arena3d and Land.io work) `--no-ff`. PR #78 had not merged
-when this was written, so `origin/main` is not merged in yet (do it when #78 lands). Not pushed; no PR opened.
+at first; `origin/main` 4d482ddd (PR #78 merged: three CI-flake fixes) was merged in before the final gates. Not
+pushed; no PR opened.
 
 Outside report: [feat-p46-external](feat-p46-external.md) (brief: [wave46-external-brief](wave46-external-brief.md)).
 Decisions D-440 to D-448. Threat model T47, T48. Migration 2200 (`activity_instances.host_id`).
@@ -69,7 +70,42 @@ i. Docs: inventory rows, D-440..D-448, T47/T48, CHANGELOG "Phase 46", owner chec
 
 ## Gates
 
-GATES_TABLE
+Scratch DBs `sr_p46_integ` (cargo) and `sr_p46_e2e` (Playwright), both dropped at the end. `-j 2`, one cargo or test
+process at a time. By the owner's speed decision, gates marked **CI** were left to GitHub CI on the PR.
+
+| Gate | Where | Result |
+|---|---|---|
+| `cargo fmt --all --check`; clippy `--all-targets -D warnings` (sr-activities, sr-db, sr-api, sr-server) | local | ok |
+| sr-db `secret_columns` / `migration_versions` (migration 2200) | local | 2 / 1 pass |
+| sr-activities lib / arcade / db / trust_db (`--include-ignored`) | local | 48 / 7 / 13 / 9 pass |
+| sr-api lib (`--include-ignored`) / `route_matrix` / `openapi_names` | local | 826 / 6 / 2 pass; no route changed, `KNOWN_CLASHES` empty |
+| sr-server `feature_registry` | local | 7 pass |
+| sr-server `authz_matrix` (`--include-ignored`) | local | 11 pass on the first run; after the merge 10 pass, 1 fail ONLY on `staff_alerts` (see below) |
+| sr-server `immutable_rules` (`--include-ignored`) | local | 24 of 25 pass; `refusals_and_logs_hold_in_every_flag_state` failed only on background-job tables (see below) |
+| OpenAPI, api-client types, MSW handlers regenerated once; `mocks:check` | local | 1202 operations, `InstanceView.host_id` added, no drift |
+| `pnpm -r typecheck` (incl. e2e, both activities, SDK) | local | 0 errors |
+| eslint (`pnpm -r lint`), `prettier --check .` | local | clean (only the gitignored `e2e/.state` file, since removed) |
+| vitest full `--maxWorkers=2` (web) | local (before the speed decision) | 446 files, 4062 tests pass |
+| SDK vitest | local | 34 pass |
+| `node --test scripts/*.test.mjs`; `secret-scan`; `i18n-audit`; `check-css-tokens` | local | 110 pass (112, 2 skipped); clean; TOTAL 0; 69 clean |
+| `build-web.mjs`; bundle budget; entrance isolation | local | ok; app chunk 248.2 KB (unchanged, 1.8 KB headroom), activities 484.5/550; every public surface clean |
+| Land.io suite / arena3d suite / both tsc / both bundles | local | 330 pass, 1 skipped (40 files) / 56 pass / clean / 93 and 51 files, every check |
+| `build-activities.mjs` all five | local | whiteboard, holdem, tabletop, landio, arena3d zipped |
+| Playwright `arena3d/replay.spec.ts` | local Chromium + WebKit (pre-merge tree); **CI** for Firefox and the final tree | equal to Node: `6fdea5719b5383d6` / `e35977c2a4cddeed` |
+| Playwright `arena3d/smoke.spec.ts` | local Chromium (pre-merge tree); **CI** final | pass |
+| Playwright `guest-play.spec.ts` | local Chromium, final tree | 8 pass (unchanged spec first, then with the Draft Night step) |
+| Playwright `exit-gate`, `lounge-shell` | local Chromium, final tree | 6 pass |
+| Firefox / WebKit for the server specs, the nightly immutable matrix | **CI** | not run locally |
+
+**The two Rust failures are environmental, not wave 46.** Both are the "refused calls changed tables" check:
+- `invite_prune_runs`: the `invites.prune` singleton first runs 60 s after server start and only it writes that table;
+  it landed inside the admin group in 3 of 3 runs. Added to `NOISY` in `authz_matrix.rs` (the same kind of fix as
+  main's insights tables). After that it no longer appears.
+- `staff_alerts`: the health job (also +60 s) raises a disk alert because this machine's C: is 88% full and the
+  default `alerts.disk_percent` is 80. The `SettingsMax` state (threshold 99) is the one state with no
+  `staff_alerts` change, which confirms it. NOT added to `NOISY` (a route can ack alerts, so ignoring the table could
+  hide a real write). CI's disks are not that full; if CI shows it, the fix is a harness-level disk threshold, not
+  `NOISY`. The immutable suite was not re-run after the `NOISY` change (owner speed decision): **CI**.
 
 ## Not done / open
 
@@ -77,7 +113,6 @@ GATES_TABLE
 - Live two-browser host handoff E2E; arena3d host handoff; guest relay surviving the creator's departure.
 - Crash reporter reading arena3d's state hash (h, above).
 - The outside report's open arena3d points (hidden-tab host lag, GPU loss recovery, touch controls), KTX2.
-- Merge `origin/main` once PR #78 merges.
 
 ## Owner items
 
@@ -85,7 +120,7 @@ Rows in [owner-checklist](../owner-checklist.md) section 4b, "The 3D starter and
 
 ## Resume here
 
-Nothing half-done. Next: when PR #78 merges, merge `origin/main`, then the owner's go-ahead to push
+Nothing half-done; `origin/main` (PR #78) is merged. Next: the owner's go-ahead to push
 `integration/phase46` and open the PR "ACT-A3D-001, ACT-LND-002: arena3d 3D starter with the cross-engine replay gate,
 Land.io Draft Night run, bot backfill and host handoff (wave 46)". Watch the new `arena3d-replay` job: it is the gate
 proof on Firefox.
