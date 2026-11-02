@@ -397,6 +397,18 @@ describe('profile page route (EXT-PRF-002)', () => {
     expect(await screen.findByText('Bob has not customised a profile page')).toBeInTheDocument();
   });
 
+  it('names the person by display name in the header (XC-VIS-004)', async () => {
+    server.use(
+      http.get('*/api/v1/profile-pages/bob', () =>
+        HttpResponse.json(page(doc([]), { user: user({ display_name: 'Bobby Tables' }) })),
+      ),
+    );
+    openPage('/u/bob');
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Profile of Bobby Tables' }),
+    ).toBeInTheDocument();
+  });
+
   it('shows a plain not-found card for an unknown person', async () => {
     server.use(
       http.get('*/api/v1/profile-pages/ghost', () =>
