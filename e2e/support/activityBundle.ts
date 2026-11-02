@@ -57,7 +57,7 @@ export function zip(files: Record<string, string | Uint8Array>): Buffer {
 }
 
 /** The Embedded App SDK (packages/embedded-app-sdk) as browser ES modules under `sdk/`. */
-function sdkModules(): Record<string, string> {
+export function sdkModules(): Record<string, string> {
   const src = resolve(repoRoot, 'packages', 'embedded-app-sdk', 'src');
   const out: Record<string, string> = {};
   for (const name of ['index', 'sdk', 'protocol', 'data']) {

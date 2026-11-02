@@ -74,7 +74,7 @@ function classify(request, origin) {
   if (url.origin !== origin) return 'bypass';
   const p = url.pathname;
   if (request.headers.get('authorization') || request.headers.has('range')) return 'bypass';
-  // OPS-TDEP-001: a test deployment serves Activities from this path; they are never a shell, never cached.
+  // OPS-TDEP-001: a test deployment serves sandboxed game frames from this path: never a shell, never cached.
   if (p.startsWith(ACTIVITY_PATH)) return 'bypass';
   if (p.startsWith(APP_FILES) && request.mode !== 'navigate') return 'app-file';
   if (request.mode === 'navigate') {
