@@ -20,6 +20,7 @@ import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
 import { ReauthHost } from './ReauthHost';
+import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { useStaffRevoked } from './useStaffRevoked';
 import { AccessLogSection } from './sections/AccessLog';
 import { AnnouncementsSection } from './sections/Announcements';
@@ -442,11 +443,23 @@ export function AdminShell({ section }: { section: string | undefined }) {
   );
 }
 
-/** Route component: provides the staff theme and toast context the full-screen page needs. */
+/**
+ * Route component: provides the staff theme and toast context the full-screen page needs. Like the developer
+ * portal, Admin follows the viewer's Lounge theme (light or dark); a platform default for `staff` still wins.
+ */
 export function AdminPage() {
   const { section } = useParams({ strict: false }) as { section?: string };
+  const theme = useAppliedTheme();
   return (
-    <ThemeProvider section="staff" className="ss-root">
+    <ThemeProvider
+      section="staff"
+      userGlobal={theme.perSection.lounge ?? theme.userGlobal}
+      perSection={theme.perSection}
+      appearance={theme.appearance}
+      style={theme.style}
+      {...theme.data}
+      className="ss-root"
+    >
       <ToastProvider>
         <AdminShell section={section} />
       </ToastProvider>

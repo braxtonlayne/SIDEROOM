@@ -131,10 +131,12 @@ function ChannelsEditor({
   const children = (id: string) =>
     channels.filter((c) => !isCategory(c) && c.parent_id === id).sort(bySort);
   const catIds = new Set(categories.map((c) => c.id));
-  // Top level: categories and channels without a (known) category, in one ordering.
-  const top = channels
-    .filter((c) => isCategory(c) || !c.parent_id || !catIds.has(c.parent_id))
+  // Channels without a (known) category sit above every category (Discord parity) and move among themselves;
+  // categories move among categories.
+  const loose = channels
+    .filter((c) => !isCategory(c) && (!c.parent_id || !catIds.has(c.parent_id)))
     .sort(bySort);
+  const top = [...loose, ...categories];
   const selected = channels.find((c) => c.id === selectedId);
 
   const select = (id: string) => {
@@ -163,7 +165,7 @@ function ChannelsEditor({
     const i = siblings.findIndex((x) => x.id === c.id);
     const label = c.name ?? c.id;
     return (
-      <li key={c.id} className={`ss-row${nested ? ' ss-tree-child' : ''}`}>
+      <li key={c.id} className={`ss-row ss-tree-row${nested ? ' ss-tree-child' : ''}`}>
         <button
           type="button"
           className={`ss-grow ss-name ss-link${isCategory(c) ? ' ss-tree-cat' : ''}`}
@@ -176,10 +178,12 @@ function ChannelsEditor({
           <Button
             size="sm"
             variant="ghost"
+            iconOnly
+            title={t('settings.channels.addChannel')}
             aria-label={t('settings.channels.createIn', { name: label })}
             onClick={() => onCreate({ parentId: c.id })}
           >
-            {t('settings.channels.addChannel')}
+            <span aria-hidden="true">+</span>
           </Button>
         )}
         <Button
@@ -220,7 +224,7 @@ function ChannelsEditor({
             isCategory(c) ? (
               <li key={c.id} className="ss-tree-group">
                 <ul className="ss-list" aria-label={c.name ?? t('settings.channels.category')}>
-                  {row(c, top, false)}
+                  {row(c, categories, false)}
                   {(() => {
                     const kids = children(c.id);
                     return kids.map((k) => row(k, kids, true));
@@ -228,7 +232,7 @@ function ChannelsEditor({
                 </ul>
               </li>
             ) : (
-              row(c, top, false)
+              row(c, loose, false)
             ),
           )}
         </ul>

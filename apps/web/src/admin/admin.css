@@ -363,7 +363,7 @@
 .adm-reconvert {
   margin-block-start: 16px;
   padding-block-start: 12px;
-  border-block-start: 1px solid var(--sr-line, #333);
+  border-block-start: 1px solid var(--ui-border);
   display: grid;
   gap: 8px;
 }
