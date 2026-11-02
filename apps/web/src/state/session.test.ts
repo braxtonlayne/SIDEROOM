@@ -35,6 +35,12 @@ describe('FU-ENT-4: /app reopens the last section', () => {
     expect(a.useUiStore.getState().lastSection).toBe('/channels/12/34');
   });
 
+  it('remembers the emulator page (FU-16)', async () => {
+    const a = await freshStore();
+    a.rememberSection('/games/emulator');
+    expect(a.useUiStore.getState().lastSection).toBe('/games/emulator');
+  });
+
   it('ignores a damaged stored value', async () => {
     localStorage.setItem('sr.lastSection.v1', '/settings/account');
     const a = await freshStore();

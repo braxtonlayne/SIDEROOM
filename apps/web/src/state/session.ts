@@ -5,7 +5,7 @@ const DEFAULT_SECTION = '/channels';
 
 /** The sections `/app` can reopen (FU-ENT-4): the Lounge, Cinema, the Study, the Arcade, the Library and Music. */
 const SECTION =
-  /^\/(?:channels(?:\/[^?#\s]*)?|cinema(?:\/[^?#\s]*)?|study(?:\/[^?#\s]*)?|games|library(?:\/[^?#\s]*)?|music(?:\/[^?#\s]*)?)$/;
+  /^\/(?:channels(?:\/[^?#\s]*)?|cinema(?:\/[^?#\s]*)?|study(?:\/[^?#\s]*)?|games(?:\/emulator)?|library(?:\/[^?#\s]*)?|music(?:\/[^?#\s]*)?)$/;
 
 /** True for a path worth reopening: a section page, never settings, auth or error pages, never a query string. */
 export const isSectionPath = (pathname: string): boolean => SECTION.test(pathname);

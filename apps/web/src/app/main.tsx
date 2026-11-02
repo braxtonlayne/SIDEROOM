@@ -19,6 +19,7 @@ import { createAppRouter } from '../router';
 import { CrashBoundary, currentRouteName, installCrashTelemetry } from '../crash';
 import { setUnauthorizedHandler } from '../api/client';
 import { exitToLogin } from '../lib/enterApp';
+import { forgetSection } from '../state/session';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/a11y.css';
@@ -35,6 +36,7 @@ setUnauthorizedHandler(() => {
     .then((res) => {
       if (res.status !== 401 || leaving) return;
       leaving = true;
+      forgetSection(); // FU-16: a session that ends without a sign-out forgets its last section too
       exitToLogin();
     })
     .catch(() => undefined);
