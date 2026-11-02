@@ -166,3 +166,7 @@
     flex-direction: column;
   }
 }
+/* A section notice (donations off, no price, a failed invoice) keeps the cards' gap from the first card. */
+.sup-notice {
+  margin-block-end: 20px;
+}
