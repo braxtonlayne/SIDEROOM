@@ -17,15 +17,10 @@ body {
   font-family: var(--sr-font-body);
 }
 /*
- * --text-link: the colour of a link in running text. Only a theme whose links need it sets it; everywhere else
- * links keep their colour (gold here, the accent where a component asks for it), so the dark themes are unchanged.
- * Lounge Light: gold on white is 2:1 and the accent #5865f2 is 4.2:1 on the raised grey; the deeper accent
- * (--ui-accent-hover, 6.4:1 on white, 5.1:1 on the darkest Lounge Light surface) passes WCAG AA.
- * Declared on the themed element itself so var() resolves against that theme's (and a recoloured) accent.
+ * --text-link: the colour of a link in running text. Only a theme whose links need it sets it (app-links.css, which
+ * only the signed-in app loads: the public pages may not name the app's sections, D-385); everywhere else links keep
+ * their colour (gold here, the accent where a component asks for it).
  */
-[data-theme='lounge-light'] {
-  --text-link: var(--ui-accent-hover);
-}
 a {
   color: var(--text-link, var(--sr-gold));
 }

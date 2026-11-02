@@ -22,6 +22,7 @@ import { exitToLogin } from '../lib/enterApp';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
 import '../styles/a11y.css';
+import '../styles/app-links.css';
 
 const queryClient = new QueryClient();
 

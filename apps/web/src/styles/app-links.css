@@ -1,0 +1,10 @@
+/*
+ * Link colours per theme, signed-in app only (imported by app/main.tsx, never by the public surfaces: D-385 keeps the
+ * app's section and theme names out of the entrance bundle). The token itself is described in tokens.css.
+ * Lounge Light: gold on white is 2:1 and the accent #5865f2 is 4.2:1 on the raised grey; the deeper accent
+ * (--ui-accent-hover, 6.4:1 on white, 5.1:1 on the darkest Lounge Light surface) passes WCAG AA.
+ * Declared on the themed element itself so var() resolves against that theme's (and a recoloured) accent.
+ */
+[data-theme='lounge-light'] {
+  --text-link: var(--ui-accent-hover);
+}
