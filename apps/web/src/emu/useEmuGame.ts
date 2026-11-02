@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { Mount } from '../settings/user/storage/types';
 import { coopGameFor, offerCoop, withdrawCoop, type CoopGame } from './coopOffer';
-import type { CoreInfo } from './cores';
+import { biosMode, type CoreInfo } from './cores';
 import type { PadMapping } from './gamepad';
 import { InputPoller } from './input';
 import { CoreUnavailableError, loadCore, realLoaderDeps } from './loader';
@@ -16,7 +16,6 @@ export type GameError =
   | { kind: 'core-missing'; core: CoreInfo | string }
   | { kind: 'webgl2' }
   | { kind: 'platform' }
-  | { kind: 'bios' }
   | { kind: 'rom'; detail?: string }
   | { kind: 'failed'; detail: string };
 
@@ -41,7 +40,10 @@ export interface GameBios {
 export interface UseEmuGame {
   status: GameStatus;
   save: SaveStatus;
-  needsBios: boolean;
+  /** The core takes a BIOS (the BIOS panel is offered). */
+  usesBios: boolean;
+  /** The game runs on the core's built-in HLE BIOS because no BIOS of the member's is mounted (D-390). */
+  hle: boolean;
   pause(): void;
   resume(): void;
   restart(): void;
@@ -63,7 +65,8 @@ export function useEmuGame(opts: {
   const { rom, canvasRef, mounts, bios, mapping } = opts;
   const [status, setStatus] = useState<GameStatus>({ phase: 'idle' });
   const [save, setSave] = useState<SaveStatus>({ kind: 'none' });
-  const [needsBios, setNeedsBios] = useState(false);
+  const [usesBios, setUsesBios] = useState(false);
+  const [hle, setHle] = useState(false);
   const [session, setSession] = useState<EmuSession | null>(null);
   const live = useRef<{
     session: EmuSession;
@@ -95,6 +98,7 @@ export function useEmuGame(opts: {
   useEffect(() => {
     if (!rom) {
       setStatus({ phase: 'idle' });
+      setHle(false);
       return;
     }
     let cancelled = false;
@@ -105,6 +109,7 @@ export function useEmuGame(opts: {
       const saveMount = pickSaveMount(mountsRef.current);
       setSave(saveMount ? { kind: 'ready', mountLabel: saveMount.label } : { kind: 'none' });
       setStatus({ phase: 'loading', stage: 'rom', fraction: 0 });
+      setHle(false);
       let prepared: Prepared;
       try {
         prepared = await prepareGame(
@@ -125,12 +130,11 @@ export function useEmuGame(opts: {
         return;
       }
       if (cancelled) return;
-      // The BIOS rule: a core that needs one starts only with a checked BIOS from the member's own mount.
-      setNeedsBios(prepared.core.needsBios);
-      if (prepared.core.needsBios && !biosRef.current) {
-        fail({ kind: 'bios' });
-        return;
-      }
+      // The BIOS rule (D-390): a checked BIOS from the member's own mount is written when there is one; without
+      // one the core runs on its own open-source HLE BIOS, and the shell says so.
+      const mode = biosMode(prepared.core, biosRef.current !== null);
+      setUsesBios(mode !== 'none');
+      setHle(mode === 'hle');
       const canvas = canvasRef.current;
       if (!canvas) return;
       let loaded;
@@ -162,9 +166,10 @@ export function useEmuGame(opts: {
           romName: rom.key.split('/').pop() ?? rom.key,
           rom: prepared.rom,
           extra: prepared.extra,
-          bios: biosRef.current
-            ? { file: biosRef.current.file, bytes: biosRef.current.bytes }
-            : undefined,
+          bios:
+            mode === 'file' && biosRef.current
+              ? { file: biosRef.current.file, bytes: biosRef.current.bytes }
+              : undefined,
           sram: prepared.sram,
         });
       } catch (e) {
@@ -294,5 +299,5 @@ export function useEmuGame(opts: {
     }
   }, []);
 
-  return { status, save, needsBios, pause, resume, restart, saveState, loadState, session };
+  return { status, save, usesBios, hle, pause, resume, restart, saveState, loadState, session };
 }

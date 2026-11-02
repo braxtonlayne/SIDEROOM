@@ -74,6 +74,8 @@ pub const TOKENS: &[TokenSpec] = &[
     t("--brand", Color),
     t("--mention-bg", Color),
     t("--danger", Color),
+    // The colour of a link in running text (P30-VIS-1). A theme that omits it gets its family's value in CSS.
+    t("--text-link", Color),
     // Lounge layout constants.
     t("--lounge-server-rail", Length),
     t("--lounge-channel-list", Length),
@@ -115,4 +117,16 @@ pub const TOKENS: &[TokenSpec] = &[
 /// Look up a token by CSS custom property name.
 pub fn token_spec(name: &str) -> Option<&'static TokenSpec> {
     TOKENS.iter().find(|s| s.name == name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_link_is_a_registered_colour_token() {
+        let spec = token_spec("--text-link").expect("--text-link is registered");
+        assert_eq!(spec.kind, Color);
+        assert_eq!(TOKENS.iter().filter(|s| s.name == "--text-link").count(), 1);
+    }
 }

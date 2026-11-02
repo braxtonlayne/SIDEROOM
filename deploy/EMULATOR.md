@@ -58,7 +58,7 @@ scripts/check-ops-files.mjs` fails when they disagree.
 |---|---|---|---|
 | FCEUmm | NES, Famicom Disk System | GPL-2.0 | yes |
 | mGBA | Game Boy, Game Boy Color, Game Boy Advance | MPL-2.0 | yes |
-| PCSX-ReARMed | PlayStation (BIOS supplied by the member, never stored) | GPL-2.0 | yes |
+| PCSX-ReARMed | PlayStation (BIOS optional: the member's own, never stored; else the core's built-in HLE BIOS) | GPL-2.0 | yes |
 | Beetle Supafaust | SNES | GPL-2.0 | **no**: not in the EmulatorJS 4.2.3 build set (the CDN has `snes9x` only) |
 | BlastEm | Genesis / Mega Drive | GPL-3.0 | **no**: not in the EmulatorJS 4.2.3 build set (the CDN has `genesis_plus_gx` and `picodrive` only) |
 
@@ -90,9 +90,11 @@ allows each by name. The corresponding source is the project each archive names 
 
 ## PlayStation BIOS
 
-The PlayStation core needs Sony's BIOS, which is Sony's copyright. The instance never ships, stores or caches it: a
-member supplies it from their own storage mount (`emu/bios/`), the shell checks its hash against a known list and
-holds it in memory only. Only ROMs a member owns, and homebrew, are legal to play (docs/dev/roadmap-p27.md Q23).
+The PlayStation core runs without a BIOS file, on PCSX-ReARMed's own built-in open-source HLE BIOS (D-390): the shell
+says when a game runs on it and offers the BIOS panel. Some games need a real BIOS, which is Sony's copyright. The
+instance never ships, stores or caches it: a member supplies it from their own storage mount (`emu/bios/`), the shell
+checks its hash against a known list and holds it in memory only. The HLE path is the core's own code, so there is
+nothing to download for it. Only ROMs a member owns, and homebrew, are legal to play (docs/dev/roadmap-p27.md Q23).
 
 ## ROMs
 

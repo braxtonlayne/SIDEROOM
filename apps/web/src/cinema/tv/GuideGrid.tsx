@@ -123,6 +123,23 @@ export const GuideGrid = forwardRef<HTMLDivElement, GuideGridProps>(function Gui
     el?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [focus]);
 
+  // XC-VIS-004: a time label that the right edge of the scroller would cut ("6:") is hidden until it fits.
+  useEffect(() => {
+    const scroller = root.current?.parentElement;
+    if (!scroller || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.intersectionRatio < 0.95) e.target.setAttribute('data-clipped', '');
+          else e.target.removeAttribute('data-clipped');
+        }
+      },
+      { root: scroller, threshold: [0, 0.25, 0.5, 0.75, 0.95, 1] },
+    );
+    for (const el of scroller.querySelectorAll('.tv-slot-label')) io.observe(el);
+    return () => io.disconnect();
+  }, [slots, slotPx, dayStart]);
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'n' || e.key === 'N') {

@@ -43,6 +43,7 @@ export const KNOWN_TOKEN_NAMES = [
   "--brand",
   "--mention-bg",
   "--danger",
+  "--text-link",
   "--lounge-server-rail",
   "--lounge-channel-list",
   "--lounge-member-list",

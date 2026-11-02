@@ -49,6 +49,8 @@ export const loungeDark: ThemeDefinition = {
     "--interactive-active": "#ffffff",
     "--mention-bg": "#5865f2",
     "--danger": "#da373c",
+    // Links in running text (P30-VIS-1): Discord's own link blue, 4.82:1 on #313338 and 7.5:1 on Onyx; brand is 2.74:1.
+    "--text-link": "#00a8fc",
     "--ui-bg": "#313338",
     "--ui-bg-raised": "#2b2d31",
     "--ui-bg-overlay": "#2b2d31",
@@ -85,6 +87,8 @@ export const loungeLight: ThemeDefinition = {
     "--interactive-active": "#060607",
     "--mention-bg": "#5865f2",
     "--danger": "#d12d35",
+    // The deeper accent: 6.4:1 on white, 5.1:1 on the darkest Lounge Light surface (gold is 2:1, the accent 4.2:1).
+    "--text-link": "#4752c4",
     "--ui-bg": "#ffffff",
     "--ui-bg-raised": "#f2f3f5",
     "--ui-bg-overlay": "#ffffff",
@@ -127,6 +131,8 @@ export const loungeAsh: ThemeDefinition = {
     "--ui-text-faint": "#a6acb6",
     // #949ba4 is 4.05:1 on this theme's #383a40 (tokens-contrast.test.ts walks every theme).
     "--text-muted": "#a2a8b2",
+    // #00a8fc is 4.33:1 on #383a40; the same hue lightened to 55% is 4.79:1 (5.57:1 on #2e3035).
+    "--text-link": "#1ab2ff",
   },
 };
 
@@ -170,6 +176,8 @@ export const loungeEditorial: ThemeDefinition = {
     "--ui-accent-ink": "#1b1a15",
     "--ui-focus": "#d9c9a4",
     "--brand": "#c2b08f",
+    // Editorial keeps its gold for links (5.96:1 on its darkest surface).
+    "--text-link": "#c2b08f",
     "--ui-font-display": '"Newsreader", "Source Serif 4", Georgia, serif',
     "--ui-radius": "4px",
     "--ui-radius-lg": "6px",
@@ -222,6 +230,7 @@ export const sideroom: ThemeDefinition = {
     "--sr-text-2": "#a9a493",
     "--sr-text-3": "#918d7e",
     "--sr-gold": "#c2b08f",
+    "--text-link": "#c2b08f",
     "--sr-gold-ink": "#1b1a15",
     "--sr-olive-accent": "#8c9a6a",
     "--sr-font-display": '"Newsreader", "Source Serif 4", Georgia, serif',

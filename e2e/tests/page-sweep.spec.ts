@@ -126,6 +126,7 @@ const SERVER_SETTINGS = [
 ];
 const ADMIN = [
   'dashboard',
+  'crash-reports',
   'accounts',
   'bans',
   'moderation',
@@ -651,6 +652,44 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
   );
   const o = s.a.context.request;
   await s.a.context.storageState({ path: OWNER_STATE });
+
+  // OPS-CRASH-002: synthetic crash reports so Admin > Crash reports shows groups, a repeat and a replay buffer.
+  await step('crash reports', async () => {
+    const frames = (names: string[]) =>
+      names.map((fn, i) => ({ file: '/assets/index-sweep.js', line: 120 + i * 7, col: 14, fn }));
+    const base = {
+      commit: '0a1b2c3d4e5f6a7b',
+      caps: { wasm: true, webgpu: false, engine: 'chromium' },
+    };
+    const reports = [
+      {
+        ...base,
+        kind: 'wasm_panic',
+        route: 'arena.play',
+        frames: frames(['decodeFrame', 'stepSim', 'tick']),
+        ticks: [
+          { t: 1, src: 'game', input: 'left' },
+          { t: 2, src: 'game', input: 'jump' },
+          { t: 3, src: 'game', input: 'fire' },
+        ],
+      },
+      {
+        ...base,
+        kind: 'react_boundary',
+        route: 'lounge.channel',
+        frames: frames(['renderMessageList', 'Row']),
+      },
+      {
+        ...base,
+        kind: 'unhandled_rejection',
+        route: 'cinema.watch',
+        frames: frames(['loadManifest']),
+      },
+    ];
+    for (const r of reports) await apiPost(o, '/crash-reports', r);
+    // The same crash again: the group's count goes up.
+    await apiPost(o, '/crash-reports', reports[1]);
+  });
 
   // Name the server like a real one and give the Owner a display name.
   await step('rename server', () =>

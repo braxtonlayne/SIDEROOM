@@ -19,14 +19,33 @@ const FONT_STACK: Record<string, string> = {
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const safeHex = (v: string, fallback: string) => (HEX.test(v) ? v : fallback);
 
+function channel(v: number): number {
+  const s = v / 255;
+  return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+}
+
+/** WCAG relative luminance of a `#rrggbb` colour. */
+function luminance(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.2126 * channel((n >> 16) & 255) + 0.7152 * channel((n >> 8) & 255) + 0.0722 * channel(n & 255);
+}
+
+/** White or near-black, whichever reads better on `bg` (an initial on the accent circle, XC-VIS-004). */
+export function inkOn(bg: string): '#ffffff' | '#111110' {
+  const l = luminance(bg);
+  return 1.05 / (l + 0.05) >= (l + 0.05) / (luminance('#111110') + 0.05) ? '#ffffff' : '#111110';
+}
+
 /** The custom properties of a document's style. */
 export function pageVars(doc: DocLike): CSSProperties {
   const p = doc.style.palette;
+  const accent = safeHex(p.accent, '#5865f2');
   return {
     '--pp-bg': safeHex(p.background, '#1e1f22'),
     '--pp-panel': safeHex(p.panel, '#2b2d31'),
     '--pp-text': safeHex(p.text, '#f2f3f5'),
-    '--pp-accent': safeHex(p.accent, '#5865f2'),
+    '--pp-accent': accent,
+    '--pp-accent-ink': inkOn(accent),
     '--pp-font': FONT_STACK[doc.style.font] ?? FONT_STACK.inter,
   } as CSSProperties;
 }

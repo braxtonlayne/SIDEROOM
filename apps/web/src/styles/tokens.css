@@ -17,9 +17,9 @@ body {
   font-family: var(--sr-font-body);
 }
 /*
- * --text-link: the colour of a link in running text. Only a theme whose links need it sets it (app-links.css, which
- * only the signed-in app loads: the public pages may not name the app's sections, D-385); everywhere else links keep
- * their colour (gold here, the accent where a component asks for it).
+ * --text-link: the colour of a link in running text. Each theme sets it in its token set (packages/ui themes, and a
+ * custom theme may too); where none is set (an unthemed page) links keep
+ * their colour (gold here, the accent or brand where a component asks for it).
  */
 a {
   color: var(--text-link, var(--sr-gold));

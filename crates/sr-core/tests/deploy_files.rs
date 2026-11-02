@@ -782,3 +782,22 @@ fn the_prod_smoke_workflow_calls_things_that_exist() {
     assert!(install.contains("```toml\n[server]\nbind = \"127.0.0.1:8080\""));
     assert!(install.contains("metrics_bind = \"127.0.0.1:9100\""));
 }
+
+#[test]
+fn caddy_sends_a_signed_in_members_profile_to_the_server_and_falls_back_to_the_public_shell() {
+    // FU-BETA-1: a session cookie on `/~*` goes to sr-server (the full profile); a refused one (404) and a
+    // visitor without a cookie get the static public shell.
+    let caddy = read("deploy/compose/caddy/Caddyfile.prod");
+    let member = caddy
+        .find("handle @profile-member {")
+        .expect("Caddyfile.prod has no @profile-member handle");
+    let public = caddy
+        .find("handle @profile {")
+        .expect("Caddyfile.prod has no @profile handle");
+    assert!(member < public, "the member handle must come first");
+    let block = &caddy[member..public];
+    assert!(block.contains("reverse_proxy {$SR_UPSTREAM"));
+    assert!(block.contains("handle_response @profile-gone"));
+    assert!(block.contains("rewrite * /profile.html"));
+    assert!(caddy.contains("header Cookie *sr_session=*"));
+}

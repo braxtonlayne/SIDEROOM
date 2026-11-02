@@ -54,9 +54,6 @@ export default {
   'games.error.webgl2': 'This core needs WebGL 2, which this browser does not offer',
   'games.error.platform':
     'Could not tell which console this file is for. Rename it with its usual extension (.nes, .gba, .sfc, ...).',
-  'games.error.biosTitle': 'A PlayStation BIOS is needed',
-  'games.error.bios':
-    'Choose a BIOS file from your own bucket in the BIOS panel below. This instance cannot supply one.',
   'games.error.rom': 'The game file could not be read from the bucket',
   'games.error.failed': 'The game could not start',
 
@@ -95,7 +92,7 @@ export default {
   // ---- the PlayStation BIOS
   'games.bios.title': 'PlayStation BIOS',
   'games.bios.why':
-    "PlayStation games need the console BIOS, which is Sony's property. This instance never provides, stores or keeps one: you supply your own, it is read straight from your bucket into this browser tab, checked against the list of known BIOS dumps, and forgotten when you close the game.",
+    "Some PlayStation games run better, or only run, with the console BIOS, which is Sony's property. This instance never provides, stores or keeps one: if you want to use one, you supply your own, it is read straight from your bucket into this browser tab, checked against the list of known BIOS dumps, and forgotten when you close the game.",
   'games.bios.where':
     "Put your BIOS file (512 KiB) in the emu/bios folder of your own bucket. Files from a server shelf or anyone else's bucket are not accepted.",
   'games.bios.none': 'No 512 KiB file found in emu/bios of your buckets.',

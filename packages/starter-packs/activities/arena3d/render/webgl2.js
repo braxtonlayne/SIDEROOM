@@ -22,9 +22,12 @@ function compile(gl, type, src) {
 
 /**
  * @param {HTMLCanvasElement} canvas
+ * @param {{ onLost?: (why: string) => void, onRestored?: () => void }} [hooks]
+ *   the context was lost (the tab's GPU process crashed, the driver reset) and, maybe later, restored. A lost
+ *   context is not usable again by this renderer: GL objects do not survive, so the caller builds a new one.
  * @returns {Renderer | null}
  */
-export function createWebGL2Renderer(canvas) {
+export function createWebGL2Renderer(canvas, hooks = {}) {
   const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
   if (!gl) return null;
   const prog = gl.createProgram();
@@ -52,6 +55,15 @@ export function createWebGL2Renderer(canvas) {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
   // No mipmaps, so the default minification filter (which wants them) would leave it incomplete (black).
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+
+  // preventDefault() on the loss event is what allows the browser to restore the context later.
+  const onCtxLost = (/** @type {Event} */ e) => {
+    e.preventDefault();
+    hooks.onLost?.('WebGL context lost');
+  };
+  const onCtxRestored = () => hooks.onRestored?.();
+  canvas.addEventListener?.('webglcontextlost', onCtxLost);
+  canvas.addEventListener?.('webglcontextrestored', onCtxRestored);
 
   /** @type {Renderer} */
   const r = {
@@ -127,6 +139,8 @@ export function createWebGL2Renderer(canvas) {
       gl.bindVertexArray(null);
     },
     destroy() {
+      canvas.removeEventListener?.('webglcontextlost', onCtxLost);
+      canvas.removeEventListener?.('webglcontextrestored', onCtxRestored);
       for (const m of meshes.values()) {
         gl.deleteVertexArray(m.vao);
         for (const b of m.buffers) gl.deleteBuffer(b);

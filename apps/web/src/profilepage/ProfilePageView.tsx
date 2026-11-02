@@ -29,7 +29,13 @@ export function ProfilePageView({ username }: { username: string }) {
       className="pp-page"
     >
       <header className="pp-bar">
-        <h1>{t('lounge.profilePage.title', { username })}</h1>
+        <h1>
+          {page
+            ? t('lounge.profilePage.titleNamed', {
+                name: page.user.display_name?.trim() || page.user.username,
+              })
+            : t('lounge.profilePage.title', { username })}
+        </h1>
         <span className="pp-actions">
           <Link to="/channels" className="us-link">
             {t('lounge.profilePage.back')}

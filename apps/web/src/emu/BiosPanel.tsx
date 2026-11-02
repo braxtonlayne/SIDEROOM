@@ -73,6 +73,7 @@ export function BiosPanel({
       <h3 id="emu-bios-h">{t('games.bios.title')}</h3>
       <p>{t('games.bios.why')}</p>
       <p>{t('games.bios.where')}</p>
+      {!bios && <p data-testid="emu-bios-hle">{t('games.bios.hleHint')}</p>}
       {bios && (
         <Notice variant="success" title={t('games.bios.accepted', { file: bios.file })}>
           {t('games.bios.memoryOnly')}{' '}

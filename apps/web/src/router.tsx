@@ -8,7 +8,7 @@ import {
   useRouterState,
   type RouterHistory,
 } from '@tanstack/react-router';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { CatalogGate } from './i18n/CatalogGate';
 import { RouteFallback } from './lib/lazyRoute';
 import { useNoindex } from './lib/useNoindex';
@@ -26,6 +26,7 @@ import { createStorageRoutes } from './storage/routes';
 import { createStudyRoutes } from './study/routes';
 import { createEmuRoutes } from './emu/routes';
 import { isPublicPath } from './player/scope';
+import { rememberSection } from './state/session';
 import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
 import { Help } from './help/HelpPage';
 import { HelpOperators } from './help/Operators';
@@ -66,6 +67,10 @@ const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   useNoindex(pathname);
+  // FU-ENT-4: `/app` reopens the last section; only in-app pages are remembered, never a public one.
+  useEffect(() => {
+    if (!isPublicPath(pathname)) rememberSection(pathname);
+  }, [pathname]);
   return (
     <>
       {/* Every app route waits for the full catalog (the public surfaces paint from the core fragments alone). */}

@@ -50,11 +50,29 @@ describe('CSP', () => {
       (s: { kind: string; reserved?: boolean; csp?: string }) =>
         s.kind === 'bundle' && !s.reserved && !s.csp,
     );
+    // The profile shell is also the fallback of its member proxy (FU-BETA-1), so its policy appears twice.
+    const proxied = table.surfaces.filter((s: { memberProxy?: boolean }) => s.memberProxy).length;
     expect(caddy.split(`header Content-Security-Policy "${PUBLIC_CSP}"`)).toHaveLength(
-      shells.length + 1,
+      shells.length + proxied + 1,
     );
     expect(caddy).not.toContain('wasm-unsafe-eval');
     expect(caddy).toContain(`Permissions-Policy "${PERMISSIONS_POLICY}"`);
+  });
+
+  it('proxies the /~handle of a signed-in member to sr-server and falls back to the public shell (FU-BETA-1)', () => {
+    const profile = table.surfaces.find((s: { surface: string }) => s.surface === 'profile');
+    expect(profile.memberProxy).toBe(true);
+    expect(caddy).toContain(
+      '@profile-member {\n\t\tpath /~*\n\t\theader Cookie *sr_session=*\n\t}',
+    );
+    expect(caddy).toContain(
+      'handle @profile-member {\n\t\treverse_proxy {$SR_UPSTREAM:127.0.0.1:8080} {',
+    );
+    expect(caddy).toContain('handle_response @profile-gone');
+    // Member handle first, so a session cookie is checked before the static handle takes the path.
+    expect(caddy.indexOf('handle @profile-member')).toBeLessThan(
+      caddy.indexOf('handle @profile {'),
+    );
   });
 
   it('gives the guest-play shell its own policy: the plain one plus its game frame and socket (ARC-GST-002)', () => {

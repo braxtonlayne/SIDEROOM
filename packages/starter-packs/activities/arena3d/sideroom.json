@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "A low-poly 3D arena: walk, jump, crouch and push boxes around with your friends. The starter kit for SIDE ROOM's 3D games.",
   "tier": "TIER_1_ORIGINAL",
-  "capabilities": ["datachannel", "storage", "guest_play", "lobby_channel", "byos_read"],
+  "capabilities": ["datachannel", "storage", "guest_play", "lobby_channel", "byos_read", "host_handoff"],
   "connect": ["self"],
   "min_participants": 1,
   "max_participants": 8,
