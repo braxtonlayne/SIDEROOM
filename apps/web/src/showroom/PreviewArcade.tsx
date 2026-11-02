@@ -14,7 +14,7 @@ function SampleCard({ game }: { game: FixtureGame }) {
     <article className="arc-card" data-status={game.status}>
       <header>
         <h3 className="arc-card-title">{game.title}</h3>
-        <span className="arc-chip">
+        <span className="arc-chip srm-status">
           {live ? t('showroom.arcade.playableNow') : t('showroom.arcade.inDevelopment')}
         </span>
       </header>
