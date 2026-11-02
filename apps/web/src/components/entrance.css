@@ -699,6 +699,10 @@
   .ent-discord {
     height: 56px;
   }
+  .ent-hero,
+  .ent-split {
+    --sr-eyebrow-rule: 24px;
+  }
 }
 
 /* Calibrated to the 1704 px login mockup: roomy fields and sentence-case labels on wide screens.
