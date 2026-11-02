@@ -198,7 +198,8 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   }, [guildId, channelId, channels, remembered, navigate, isMobile, ageCleared, onScrapbook]);
 
   if (!guildId) return null;
-  if (onScrapbook && guildId !== HOME) return <ScrapbookGallery guildId={guildId} />;
+  if (onScrapbook && guildId !== HOME)
+    return <ScrapbookGallery guildId={guildId} onBack={isMobile ? onBack : undefined} />;
   if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
   if (resolved.pending) return null;
   return (
@@ -235,7 +236,9 @@ function Shell() {
   const width = useLoungeUi((s) => s.rightPanelWidth);
   const setWidth = useLoungeUi((s) => s.setRightPanelWidth);
   const [sheet, setSheet] = useState(false);
-  const [pane, setPane] = useState<Pane>(channelId ? 'chat' : 'list');
+  // The scrapbook gallery is not a channel, but on phones it fills the chat pane like one (XC-VIS-002).
+  const onScrapbook = useRouterState({ select: (s) => s.location.pathname.endsWith('/scrapbook') });
+  const [pane, setPane] = useState<Pane>(channelId || onScrapbook ? 'chat' : 'list');
   const [tab, setTab] = useState<'home' | 'notifications' | 'you'>('home');
   const [coming, setComing] = useState(false);
 
@@ -274,8 +277,8 @@ function Shell() {
 
   // Picking a channel on mobile reveals the chat pane.
   useEffect(() => {
-    if (channelId) setPane('chat');
-  }, [channelId]);
+    if (channelId || onScrapbook) setPane('chat');
+  }, [channelId, onScrapbook]);
 
   const goList = useCallback(() => setPane('list'), []);
   const swipe = useSwipe(['list', 'chat', 'members'], pane, setPane);

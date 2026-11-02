@@ -728,7 +728,7 @@ export function MessageList({
             } else scrollToEnd();
           }}
         >
-          {t('lounge.messageList.viewingOlder')}
+          <span className="lng-jump-label">{t('lounge.messageList.viewingOlder')}</span>
           <span>
             {t('lounge.messageList.jumpToPresent')} <Icon name="chevron-down" size={16} />
           </span>

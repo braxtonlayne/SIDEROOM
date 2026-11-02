@@ -1012,15 +1012,30 @@
   border: 0;
   border-radius: 8px;
   background: var(--brand);
-  color: #fff;
+  /* XC-VIS-002: the theme's ink for its accent (white on the pale Editorial accent was unreadable). */
+  color: var(--ui-accent-ink, #fff);
   font-size: 13px;
   cursor: pointer;
+  /* One line on phones too: the label ellipsizes, "Jump to present" stays whole. */
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-align: start;
 }
 .lng-jump span {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   font-weight: 700;
+}
+.lng-jump .lng-jump-label {
+  display: block;
+  flex: 0 1 auto;
+  font-weight: inherit;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- composer ---------- */
@@ -1395,6 +1410,8 @@
 .lng-root[data-mobile] .lng-left-col {
   flex: 1;
   width: auto;
+  /* XC-VIS-002: a long channel name ellipsizes instead of pushing the column (and the user panel) off screen. */
+  min-inline-size: 0;
 }
 .lng-root[data-mobile] .lng-right {
   width: 100%;
