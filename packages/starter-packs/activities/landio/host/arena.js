@@ -56,8 +56,9 @@ export class Arena {
   constructor(id, cfg, seed, now) {
     this.id = id;
     /** @type {GameState} */
-    // Real arenas protect a fresh spawn for 3 s (D-45); the rules default (tests) is off.
-    this.state = createState({ spawnShieldTicks: 21, ...cfg }, seed, { fill: true });
+    // Real arenas protect a fresh spawn for 3 s (D-45) and backfill bots up to the mode's minimum
+    // (shared/backfill.js); the rules defaults (tests) are off.
+    this.state = createState({ spawnShieldTicks: 21, backfill: true, ...cfg }, seed, { fill: true });
     takeDirty(this.state);
     takeEvents(this.state);
     /** @type {Map<string, Seat>} by token */
@@ -466,7 +467,7 @@ export class Arena {
       this.restartedAt = performance.now();
       // Everyone who was playing (or asked to) is in the new round.
       for (const seat2 of this.seats.values()) if (seat2.pid) seat2.queued = true;
-      startRound(s);
+      startRound(s, { fresh: true });
       s.events.push({ k: 'settings', name: seat.name, mode, map });
       this.log('settings', { by: seat.name, mode, map, size, bots, skill, roundMin, cards, shield: shield / hz, restart: true });
       this.newRound();
@@ -492,7 +493,7 @@ export class Arena {
       if (wait > 0) return { ok: false, error: 'too-soon', wait };
       this.restartedAt = performance.now();
       for (const seat2 of this.seats.values()) if (seat2.pid) seat2.queued = true;
-      startRound(s);
+      startRound(s, { fresh: true });
       s.events.push({ k: 'host', name: seat.name, phase: 'restart' });
       this.newRound();
     } else if (body.action === 'end') {

@@ -145,6 +145,7 @@ export default {
   blurb: 'Score for every tile you hold inside the hill.',
   roundTicks: 5 * 60 * 7,
   respawn: true,
+  minHeads: 3,
   scoreLabel: 'points',
 
   setup(s) {

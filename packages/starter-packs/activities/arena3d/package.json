@@ -1,0 +1,20 @@
+{
+  "name": "@sideroom/activity-arena3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Arena 3D, the WebGPU low-poly multiplayer starter kit, as a built-in SIDE ROOM Activity (ACT-A3D-001). `pnpm build` writes the bundle root to dist/.",
+  "scripts": {
+    "build": "node tools/bundle.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --maxWorkers=2"
+  },
+  "dependencies": {
+    "jolt-physics": "1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "~5.6.3",
+    "vitest": "^3.0.0"
+  }
+}

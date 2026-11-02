@@ -7,7 +7,7 @@ import { createTransport } from './net/transport.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Hud, pct } from './hud.js';
-import { bindInput, firstKey, keysOf, hintText, loadBindings } from './input.js';
+import { bindInput, firstKey, keysOf, hintText, loadBindings, touchFirst } from './input.js';
 import { lookColor } from '../shared/look.js';
 import { Predictor } from './predict.js';
 import { FLAG_STOPPED } from './world.js';
@@ -172,8 +172,10 @@ world.onEvent = (/** @type {any} */ e) => {
     if (e.id === myPid && screen === 'playing') {
       sfx.play('cardPick');
       const c = CARDS[e.card];
-      if (c?.kind === 'item') hud.tip('items', `Items: ${firstKey('item0')} and ${firstKey('item1')} use them, once each.`);
-      else if (c?.kind === 'active') hud.tip('ability', `Abilities: ${keysOf('ability')} uses yours; it recharges.`);
+      if (c?.kind === 'item')
+        hud.tip('items', touchFirst() ? 'Items: tap a slot at the bottom to use it, once each.' : `Items: ${firstKey('item0')} and ${firstKey('item1')} use them, once each.`);
+      else if (c?.kind === 'active')
+        hud.tip('ability', touchFirst() ? 'Abilities: tap the ability slot to use yours; it recharges.' : `Abilities: ${keysOf('ability')} uses yours; it recharges.`);
     }
     return;
   }
@@ -240,7 +242,11 @@ function rounds(now) {
     if (screen !== 'results') {
       stopWatching();
       screen = 'results';
-      sfx.play('bigCapture', { size: 1 });
+      // Won the round (or your team did): a fanfare; otherwise a gentle end.
+      const res = rd.result;
+      const myTeam = res?.players.find((p) => p.id === myPid)?.team ?? 0;
+      const won = !!res && (res.winner === myPid || (res.winner < 0 && myTeam === -res.winner));
+      sfx.play(won ? 'roundWin' : 'roundEnd');
     }
     hud.showResults(world, myPid, hz, tick);
     return;
@@ -398,7 +404,7 @@ async function play() {
   screen = 'playing';
   cameraCut = true;
   lastCards = [];
-  hud.tip('move', `Steer with ${hintText().split(' to turn')[0]}. Leave your land to draw a trail.`);
+  hud.tip('move', touchFirst() ? 'Swipe to steer, tap to stop. Leave your land to draw a trail.' : `Steer with ${hintText().split(' to turn')[0]}. Leave your land to draw a trail.`);
   hud.hideOverlays();
   canvas.focus();
   if (earlyDir >= 0) {
@@ -591,7 +597,7 @@ function feel() {
     lastCards = [...hand.items.map((c) => c[0]), ...(hand.active ? [hand.active[0]] : []), ...hand.passives.map((c) => c[0])];
     if (hand.offers.length > lastOfferCount) {
       sfx.play('cardOffer');
-      hud.tip('cards', `You earned cards! Press ${firstKey('pick1')}, ${firstKey('pick2')} or ${firstKey('pick3')} (or click) to pick one.`);
+      hud.tip('cards', touchFirst() ? 'Pick a card: tap one.' : `Pick a card: press ${firstKey('pick1')}, ${firstKey('pick2')} or ${firstKey('pick3')} (or click).`);
     }
     lastOfferCount = hand.offers.length;
   } else lastOfferCount = 0;

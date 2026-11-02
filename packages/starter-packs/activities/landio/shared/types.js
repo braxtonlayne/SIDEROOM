@@ -21,6 +21,7 @@
  * @property {string} mode           mode id (shared/modes): how rounds run and are won
  * @property {'easy'|'normal'|'hard'} botSkill  how well bots play
  * @property {number} roundTicks     round length set by the host (0 = the mode's own); only for modes with rounds
+ * @property {boolean} [backfill]    bots fill up to the mode's minimum heads (ModeDef.minHeads) even past targetHeads
  */
 
 /**
@@ -40,6 +41,18 @@
  * @property {ResultLine[]} players   best first
  * @property {{team: number, score: number}[]} teams   best first (empty when there are no teams)
  * @property {number} winner          the winning player's id, or minus the winning team, or 0
+ * @property {RunSummary} [run]       Draft Night: the run so far (after the last round: the end-of-run summary)
+ */
+
+/**
+ * Draft Night's run standings, sent with a round's results.
+ * @typedef {object} RunSummary
+ * @property {number} n               which run of this arena
+ * @property {number} leg             the round of the run just played (1-based)
+ * @property {number} of              rounds per run
+ * @property {boolean} final          the run is over: these are the final standings
+ * @property {string} [champion]      final: who won the run
+ * @property {{name: string, bot: boolean, pts: number, gain: number, keep: string[]}[]} lines   best first, at most 8
  */
 
 /**
@@ -99,7 +112,15 @@
  * @property {DeathInfo|null} death
  * @property {{items: {id: string, level: number}[], active: {id: string, level: number, ready: number} | null, passives: {id: string, level: number}[]}} cards
  * @property {Record<string, number>} fx        timed effects: name -> tick it ends on (exclusive); also card memory
- * @property {{cards: string[], until: number}[]} offers   drafts waiting for a choice, oldest first
+ * @property {Offer[]} offers   drafts waiting for a choice, oldest first
+ */
+
+/**
+ * A draft waiting for a choice.
+ * @typedef {object} Offer
+ * @property {string[]} cards
+ * @property {number} until          the tick the timer picks for you
+ * @property {boolean} [keep]        Draft Night's keeper pick: the card stays for the rest of the run
  */
 
 /**

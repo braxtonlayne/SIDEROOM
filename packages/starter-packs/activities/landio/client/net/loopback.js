@@ -30,8 +30,13 @@ export function createLoopbackHub(opt) {
     /** @type {Channel} */
     const ch = {
       self: member,
-      hostId: opt.hostId,
-      isHost: id === opt.hostId,
+      // Getters: the hub can move the host role (setHost), as the platform will for host migration (D-388).
+      get hostId() {
+        return opt.hostId;
+      },
+      get isHost() {
+        return id === opt.hostId;
+      },
       members: list,
       onMembers: (cb) => (mine.members.add(cb), () => mine.members.delete(cb)),
       toHost(msg) {
@@ -84,5 +89,13 @@ export function createLoopbackHub(opt) {
     for (const p of peers.values()) later(() => p.members.forEach((cb) => cb(l)));
   }
 
-  return { join, stats, doc, peers: () => [...peers.keys()] };
+  /**
+   * Make `id` the host (what the platform does on host migration, D-388, once it can): from now on `toHost` reaches
+   * it and only it may publish. The old host's document stays until the new host overwrites it. @param {string} id
+   */
+  function setHost(id) {
+    opt.hostId = id;
+  }
+
+  return { join, stats, doc, setHost, peers: () => [...peers.keys()] };
 }

@@ -701,7 +701,8 @@ export class Renderer {
         ctx.stroke();
       }
       if (info && (this.prefs.names || id === view.me)) {
-        const label = info.bot ? `${info.name} · bot` : info.name;
+        // Bot names already say so (Lumen bot, Tofu bot 2); an older name gets the tag.
+        const label = info.bot && !/ bot( \d+)?$/.test(info.name) ? `${info.name} · bot` : info.name;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText(label, px + T / 2 + 1, py - 2 + 1);
         ctx.fillStyle = info.bot ? '#c9d1e0' : '#ffffff';

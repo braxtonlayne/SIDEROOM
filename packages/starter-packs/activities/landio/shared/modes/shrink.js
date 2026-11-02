@@ -106,6 +106,7 @@ export default {
   blurb: 'The border closes in. Land outside it is gone.',
   roundTicks: 4 * 60 * 7,
   respawn: true,
+  minHeads: 3,
   setup: startData,
   tick(s) {
     closing(s, STEP_EVERY);

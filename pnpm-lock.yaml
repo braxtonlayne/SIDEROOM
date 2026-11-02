@@ -334,6 +334,22 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jsdom@25.0.1)(msw@2.15.0(@types/node@22.20.5)(typescript@5.9.3))
 
+  packages/starter-packs/activities/arena3d:
+    dependencies:
+      jolt-physics:
+        specifier: 1.1.1
+        version: 1.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      typescript:
+        specifier: ~5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jsdom@25.0.1)(msw@2.15.0(@types/node@22.20.5)(typescript@5.6.3))
+
   packages/starter-packs/activities/holdem:
     devDependencies:
       '@eslint/js':
@@ -2759,6 +2775,9 @@ packages:
 
   jassub@2.5.16:
     resolution: {integrity: sha512-n4vjXfraf3o8k3/5TK6DhCYVcbQ/VqhVOgwqLd3l0xfMtsN4fpE/hPq2hPaGagBTOtJS9yHwRoRp3mmchQ9XVg==}
+
+  jolt-physics@1.1.1:
+    resolution: {integrity: sha512-kMCQu/b4wbHwy7EgZWaSbUyDthIKZUvAGGqta4pBF4Pdq+ljWaNvQoa5hPr/PkVCUVsqcoLwXITUm6975mQhiQ==}
 
   js-levenshtein@1.1.6:
     resolution: {integrity: sha512-X2BB11YZtrRqY4EnQcLX5Rh373zbK4alC1FW7D7MBhL2gtcC17cTnr6DmfHZeS0s2rTHjUTMMHfG7gO8SSdw+g==}
@@ -6809,6 +6828,8 @@ snapshots:
       lfa-ponyfill: 1.1.1
       rvfc-polyfill: 1.0.8
       throughput: 1.0.2
+
+  jolt-physics@1.1.1: {}
 
   js-levenshtein@1.1.6: {}
 

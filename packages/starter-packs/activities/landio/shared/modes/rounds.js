@@ -9,4 +9,5 @@ export default {
   blurb: 'Five minutes. Most land at the end wins.',
   roundTicks: 5 * 60 * 7,
   respawn: true,
+  minHeads: 2,
 };

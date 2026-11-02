@@ -28,7 +28,7 @@ import { createSdkTransport } from './sdk-transport.js';
  * @property {number} [rdv]              version of `round` (sent only when changed)
  * @property {{pid: number, alive: boolean, death: any, ack: [number, number], pct: number, tick: number, spawn?: number, queued?: boolean, host?: boolean,
  *   hand: {items: [string, number][], active: [string, number, number] | null, passives: [string, number][],
- *   offers: {cards: string[], until: number}[], fx: Record<string, number>} | null}} you
+ *   offers: {cards: string[], until: number, keep?: boolean}[], fx: Record<string, number>} | null}} you
  * @property {string} [token]            join only
  * @property {{code: string, instance: boolean, url?: string}} [room]   join only: the room joined (D-59)
  * @property {import('../../shared/types.js').Config} [cfg] join only
