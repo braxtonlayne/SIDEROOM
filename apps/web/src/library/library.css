@@ -1567,3 +1567,27 @@
   display: grid;
   gap: 6px;
 }
+
+/* Page header actions (Submissions: state filter + New submission) stay on one row; the shared Select is full width
+   by default, which stacked the button under it. */
+.lib-page-head > .rv-row {
+  flex-wrap: nowrap;
+}
+.lib-page-head > .rv-row > :first-child {
+  inline-size: 11rem;
+  flex: none;
+}
+.lib-page-head > .rv-row > button {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 30rem) {
+  .lib-page-head > .rv-row {
+    inline-size: 100%;
+  }
+  .lib-page-head > .rv-row > :first-child {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+}

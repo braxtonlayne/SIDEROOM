@@ -12,6 +12,8 @@ import { holdGateway } from '../store/connect';
 import { httpPartyApi } from './api';
 import { getLastDest, setLastDest } from './lastDest';
 import { TitlePicker, type PickedTitle } from './TitlePicker';
+// The dialog opens from Cinema and TV pages too, where nothing else of the watch party is loaded (XC-VIS-002).
+import './watchparty.css';
 
 export interface StartPartyDialogProps {
   open: boolean;

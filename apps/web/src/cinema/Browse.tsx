@@ -321,6 +321,8 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
   const genres = more ? names : names.slice(0, SHOWN_GENRES);
   const anime = page === 'anime';
   const nFilters = activeFilters(search);
+  // "No titles match / clear the filters" only when something narrows the list; an empty room says so plainly.
+  const narrowed = searching || nFilters > 0 || !!search.genres?.length || !!search.collection;
 
   return (
     <div className="cin-page" data-anime={anime || undefined}>
@@ -397,8 +399,14 @@ export function Browse({ page, search }: { page: Page | 'search'; search: Browse
       )}
       {done && items.length === 0 && (
         <EmptyState
-          title={t('cinema.browse.emptyTitle')}
-          description={searching ? t('cinema.browse.emptySearch') : t('cinema.browse.emptyBrowse')}
+          title={narrowed ? t('cinema.browse.emptyTitle') : t('cinema.browse.emptyRoomTitle')}
+          description={
+            searching
+              ? t('cinema.browse.emptySearch')
+              : narrowed
+                ? t('cinema.browse.emptyBrowse')
+                : t('cinema.browse.emptyRoomBody')
+          }
         />
       )}
       {items.length > 0 && (
