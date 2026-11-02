@@ -785,7 +785,7 @@ async fn house_notes_fill_the_operator_values_escaped() {
     }
 }
 
-/// FU-9 (D-239): the staff-written `house-notes` copy lands in the rendered page as escaped text; with none the
+/// FU-9 (D-239): the staff-written `house-notes` copy lands in the rendered page (FU-22 renders it as markdown, every character escaped); with none the
 /// placeholder is gone and the page is as the build wrote it.
 #[tokio::test]
 async fn the_house_notes_copy_is_substituted_as_escaped_text() {
@@ -805,6 +805,43 @@ async fn the_house_notes_copy_is_substituted_as_escaped_text() {
     let (f, _) = fixture_with(false, Arc::new(Operator(None, None))).await;
     let r = send(&f, empty(nav("/house-notes?lang=de"))).await;
     assert_eq!(r.body, "<p>DE  | </p>");
+}
+
+/// FU-22: the copy is rendered as restricted markdown (heading with an `op-` id, safe link with `rel`), raw HTML stays text.
+#[tokio::test]
+async fn the_house_notes_copy_is_rendered_as_restricted_markdown() {
+    let (f, _) = fixture_with(
+        false,
+        Arc::new(WithNotes(
+            "## Our rules
+
+Read [the wiki](https://wiki.example/a?b=1&c=2) or [this](javascript:x).",
+        )),
+    )
+    .await;
+    let r = send(&f, empty(nav("/house-notes?lang=de"))).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert!(
+        r.body.contains("<h3 id=\"op-our-rules\">Our rules</h3>"),
+        "{}",
+        r.body
+    );
+    assert!(
+        r.body.contains(
+            "<a href=\"https://wiki.example/a?b=1&amp;c=2\" rel=\"noopener noreferrer\">the wiki</a>"
+        ),
+        "{}",
+        r.body
+    );
+    assert!(!r.body.contains("javascript:x\"") && !r.body.contains("href=\"javascript"));
+    let (f, _) = fixture_with(false, Arc::new(WithNotes("<img src=x onerror=alert(1)>"))).await;
+    let r = send(&f, empty(nav("/house-notes?lang=de"))).await;
+    assert!(
+        r.body.contains("&lt;img src=x onerror=alert(1)&gt;"),
+        "{}",
+        r.body
+    );
+    assert!(!r.body.contains("<img"));
 }
 
 #[tokio::test]

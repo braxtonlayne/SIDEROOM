@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   fillPlaceholders,
@@ -108,7 +110,7 @@ describe('publicDev: the house notes in dev (the server renders them in producti
     );
   });
 
-  it("shows the operator's house-notes copy as escaped text (FU-9, web.rs::house_notes_html)", () => {
+  it("renders the operator's house-notes copy as restricted markdown with every character escaped (FU-22)", () => {
     expect(houseNotesHtml('')).toBe('');
     expect(houseNotesHtml('One <b>rule</b>\nsecond line\r\n\r\nA & B {{operator_country}}')).toBe(
       '<p>One &lt;b&gt;rule&lt;/b&gt;<br>second line</p>\n<p>A &amp; B {{operator_country}}</p>\n',
@@ -119,6 +121,16 @@ describe('publicDev: the house notes in dev (the server renders them in producti
     );
     expect(fillPlaceholders(t, 'NL', 'c')).toBe('<div></div><p>NL</p>');
   });
+
+  it.each(['basic', 'links', 'headings'])(
+    'agrees with sr-server on the shared fixture %s (house_notes_md.rs)',
+    (name) => {
+      const dir = resolve(process.cwd(), '../../crates/sr-server/tests/fixtures/house-notes');
+      const md = readFileSync(resolve(dir, name + '.md'), 'utf8');
+      const html = readFileSync(resolve(dir, name + '.html'), 'utf8');
+      expect(houseNotesHtml(md)).toBe(html);
+    },
+  );
 
   it('renders the plain-HTML page from the catalog, with no script, even when sr-server is unreachable', async () => {
     const html = await renderDevHouseNotes(new URL('http://127.0.0.1:9'));

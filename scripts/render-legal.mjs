@@ -58,6 +58,17 @@ nav a{text-decoration:none;letter-spacing:.14em;font-size:.8rem;text-transform:u
 footer{padding:24px;border-top:1px solid var(--line);color:var(--text-2);font-size:.85rem;text-align:center}
 /* An operator value the install never set leaves its sentence out ("This server is run from ."). */
 p:has(.op:empty){display:none}
+/* The staff copy at the top (FU-22): restricted markdown, styled from the tokens above, nothing loaded. */
+.notes-copy h2,.notes-copy h3,.notes-copy h4{font-family:Newsreader,Georgia,serif;font-weight:400}
+.notes-copy h3{font-size:1.25rem;margin:1.6em 0 .4em;border-top:0;padding-top:0}
+.notes-copy h4{font-size:1.05rem;margin:1.4em 0 .3em}
+.notes-copy ul,.notes-copy ol{padding-inline-start:1.4em}
+.notes-copy blockquote{margin:1em 0;padding-inline-start:1em;border-inline-start:2px solid var(--line)}
+.notes-copy blockquote p{margin:0}
+.notes-copy pre{overflow-x:auto;padding:12px 14px;border:1px solid var(--line);background:var(--bg-1);border-radius:6px}
+.notes-copy code{font-family:ui-monospace,Consolas,monospace;font-size:.9em;color:var(--text)}
+.notes-copy table{border-collapse:collapse;margin:1em 0;max-inline-size:100%}
+.notes-copy th,.notes-copy td{border:1px solid var(--line);padding:6px 10px;text-align:start}
 `;
 
 export function renderHouseNotes(cat, cssHref) {

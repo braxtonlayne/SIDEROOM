@@ -9,7 +9,7 @@ export default {
   'admin.entrance.noInvitationHint': 'Shown at /no-invitation, below the page heading.',
   'admin.entrance.houseNotesTitle': 'House notes',
   'admin.entrance.houseNotesHint':
-    'Shown at /house-notes in place of the built-in rules, privacy, terms and credits. Headings get anchors such as #privacy.',
+    'Shown at /house-notes above the built-in rules, privacy, terms and credits, rendered from the Markdown below. Headings get anchors such as #op-privacy.',
   'admin.entrance.landingNoteTitle': 'Landing note',
   'admin.entrance.landingNoteHint': 'A short note under the invitation box on the landing page.',
   'admin.entrance.customised': 'Customised by staff.',

@@ -708,7 +708,9 @@ async fn legal(State(gs): State<GateState>, req: Request) -> Response {
         return plain(StatusCode::NOT_FOUND);
     };
     let (country, contact) = gate.operator.operator(&gs.api).await;
-    let notes = house_notes_html(&gate.operator.house_notes(&gs.api).await.unwrap_or_default());
+    let notes = crate::house_notes_md::render(
+        &gate.operator.house_notes(&gs.api).await.unwrap_or_default(),
+    );
     let body = fill_legal(
         &template,
         country.as_deref().unwrap_or(""),
@@ -1063,30 +1065,8 @@ pub fn fill_placeholders(template: &str, country: &str, contact: &str) -> String
     fill_legal(template, country, contact, "")
 }
 
-/// The house-notes copy staff wrote (FU-9, D-239) as HTML: blank lines separate paragraphs, a single line break is
-/// a `<br>`, and every character is escaped, so the text is shown exactly as typed (markdown marks included) and
-/// cannot add markup. Empty or blank copy gives an empty string.
-pub fn house_notes_html(copy: &str) -> String {
-    let copy = copy.replace("\r\n", "\n");
-    let mut out = String::new();
-    for para in copy.split("\n\n") {
-        let lines: Vec<String> = para
-            .trim_matches('\n')
-            .lines()
-            .map(|l| escape_html(l.trim_end()))
-            .collect();
-        if lines.iter().all(String::is_empty) {
-            continue;
-        }
-        out.push_str("<p>");
-        out.push_str(&lines.join("<br>"));
-        out.push_str("</p>\n");
-    }
-    out
-}
-
-/// [`fill_placeholders`] plus `{{house_notes}}`, which takes `notes_html` as it is (already escaped by
-/// [`house_notes_html`]). One pass: nothing a value holds is expanded again.
+/// [`fill_placeholders`] plus `{{house_notes}}`, which takes `notes_html` as it is (finished HTML from
+/// [`crate::house_notes_md::render`]). One pass: nothing a value holds is expanded again.
 pub fn fill_legal(template: &str, country: &str, contact: &str, notes_html: &str) -> String {
     let country = escape_html(country);
     let contact = escape_html(contact);
@@ -1353,17 +1333,17 @@ mod tests {
     }
 
     #[test]
-    fn the_house_notes_copy_is_shown_as_escaped_text() {
-        assert_eq!(house_notes_html(""), "");
-        assert_eq!(house_notes_html("  \n\n \n"), "");
+    fn the_house_notes_copy_is_rendered_with_every_character_escaped() {
+        assert_eq!(crate::house_notes_md::render(""), "");
+        assert_eq!(crate::house_notes_md::render("  \n\n \n"), "");
         assert_eq!(
-            house_notes_html(
+            crate::house_notes_md::render(
                 "One <b>rule</b>\nsecond line\r\n\r\nA & B \"quoted\" {{operator_country}}"
             ),
             "<p>One &lt;b&gt;rule&lt;/b&gt;<br>second line</p>\n<p>A &amp; B &quot;quoted&quot; {{operator_country}}</p>\n"
         );
         let t = "<div>{{house_notes}}</div><p>{{operator_country}}</p>";
-        let notes = house_notes_html("<script>alert(1)</script> {{operator_contact}}");
+        let notes = crate::house_notes_md::render("<script>alert(1)</script> {{operator_contact}}");
         // The copy lands once, escaped, and a placeholder inside it is not expanded.
         assert_eq!(
             fill_legal(t, "NL", "a@b.example", &notes),
