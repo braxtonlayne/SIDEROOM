@@ -74,6 +74,9 @@ body {
 .felt {
   position: relative;
   aspect-ratio: 16 / 10;
+  /* Sized to the window height too, so the seat and action controls stay in view in a short Activity frame. */
+  inline-size: min(100%, 60vh * 1.6);
+  justify-self: center;
   min-block-size: 300px;
   background: radial-gradient(ellipse at center, var(--felt), var(--felt-edge));
   border-radius: 50% / 45%;
@@ -311,11 +314,46 @@ summary:focus-visible {
 }
 
 @media (max-width: 560px) {
+  /* Narrower than the column so the outer seats overhang into the gutter instead of off the screen. */
   .felt {
     aspect-ratio: 4 / 5;
+    inline-size: min(100% - 56px, 60vh * 0.8);
+  }
+  .seat {
+    min-inline-size: 0;
+    max-inline-size: 78px;
+    padding: 2px 4px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .seat .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .seat.empty {
+    min-inline-size: 28px;
+    min-block-size: 18px;
+  }
+  .card.small {
+    inline-size: 20px;
+    block-size: 28px;
+    font-size: 10px;
   }
   .card {
     inline-size: 36px;
     block-size: 52px;
+  }
+  /* The board and the pot line keep to the middle of the felt, clear of the side seats. */
+  .center {
+    inset-inline: 18%;
+  }
+  .board {
+    gap: 3px;
+  }
+  .board .card {
+    inline-size: 30px;
+    block-size: 42px;
+    font-size: 14px;
   }
 }

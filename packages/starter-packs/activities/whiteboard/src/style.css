@@ -144,3 +144,24 @@ textarea:focus-visible {
 [hidden] {
   display: none !important;
 }
+
+/* Phones: the tool and colour rows scroll sideways instead of stacking, so the board keeps the height. */
+@media (max-width: 600px) {
+  .wb-bar {
+    gap: 6px 8px;
+  }
+  #tools,
+  #colors {
+    flex-wrap: nowrap;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #tools > *,
+  #colors > * {
+    flex: none;
+  }
+  .wb-status:empty {
+    display: none;
+  }
+}

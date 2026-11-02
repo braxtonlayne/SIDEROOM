@@ -205,9 +205,9 @@ export function startApp(board: Board, opts: AppOptions = {}): () => void {
     delPageBtn.disabled = view.pages.length <= 1;
     undoBtn.disabled = !canUndo;
     redoBtn.disabled = !canRedo;
-    statusEl.textContent = [status, S.status(board.liveCount(), board.compactions)]
-      .filter(Boolean)
-      .join('  ');
+    // The connection state is for everyone; the log counters are for whoever debugs a board (a tooltip).
+    statusEl.textContent = status;
+    statusEl.title = S.status(board.liveCount(), board.compactions);
     if (!editingPage) renderPages();
   }
 
