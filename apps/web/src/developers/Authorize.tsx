@@ -286,6 +286,7 @@ function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <ThemeProvider
         section="developer"
+        userGlobal={theme.perSection.lounge ?? theme.userGlobal}
         perSection={theme.perSection}
         appearance={theme.appearance}
         style={theme.style}

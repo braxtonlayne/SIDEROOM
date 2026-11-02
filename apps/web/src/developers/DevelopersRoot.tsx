@@ -45,7 +45,11 @@ function Shell() {
   );
 }
 
-/** Own query cache and theme, loaded lazily by routes.tsx (own bundle budget entry). */
+/**
+ * Own query cache and theme, loaded lazily by routes.tsx (own bundle budget entry). The portal follows the
+ * viewer's Lounge theme (light or dark) like the rest of the app area; a platform default set for the
+ * `developer` section still wins.
+ */
 export function DevelopersRoot() {
   const theme = useAppliedTheme();
   const [client] = useState(
@@ -63,6 +67,7 @@ export function DevelopersRoot() {
     <QueryClientProvider client={client}>
       <ThemeProvider
         section="developer"
+        userGlobal={theme.perSection.lounge ?? theme.userGlobal}
         perSection={theme.perSection}
         appearance={theme.appearance}
         style={theme.style}
