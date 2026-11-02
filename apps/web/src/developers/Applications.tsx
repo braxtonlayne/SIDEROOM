@@ -220,8 +220,10 @@ export function ApplicationsPage() {
                 <span className="dev-muted">
                   {tt('developers.applications.botLine', { username: a.bot.username })}
                 </span>
+                <span className="dev-app-card-badge">
+                  <StateBadge state={a.release_state} />
+                </span>
               </span>
-              <StateBadge state={a.release_state} />
             </Link>
           </li>
         ))}

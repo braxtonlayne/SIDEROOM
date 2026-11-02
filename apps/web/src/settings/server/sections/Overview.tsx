@@ -138,7 +138,7 @@ function OverviewForm({
     }, t('settings.overview.saved'));
     if (next) {
       onSaved(next);
-      draft.reset();
+      draft.reset(c);
     }
   }, [nameError, draft, name, action, guildId, onSaved, t]);
 

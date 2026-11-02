@@ -465,7 +465,7 @@ function ChannelOverview({
       t('settings.channels.saved'),
     );
     if (ok) {
-      draft.reset();
+      draft.reset(c);
       await onChanged();
     }
   }, [nameError, draft, name, action, channel.id, onChanged, t]);

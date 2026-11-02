@@ -549,3 +549,18 @@
   margin-inline: -8px;
   padding-inline: 8px;
 }
+
+/* XC-VIS-002: table polish. The caption sat centred above the first column; chips broke "New account" over two
+   lines inside the pill; a row's action buttons wrapped Ban onto a line of its own. */
+.ss-table caption {
+  caption-side: top;
+  text-align: start;
+  padding-block-end: 8px;
+}
+.ss-table .ss-role-chip {
+  white-space: nowrap;
+}
+.ss-table td > .ss-actions {
+  flex-wrap: nowrap;
+  gap: 6px;
+}

@@ -544,3 +544,23 @@
   max-block-size: 220px;
   overflow: auto;
 }
+
+/* XC-VIS-002: application cards. The badge took the right third of the card, so the name and the bot line
+   ("Bot: bot_1106...") broke over three ragged lines. The badge now sits under the text; both lines truncate. */
+.dev-app-card-text > strong,
+.dev-app-card-text > .dev-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dev-app-card-text > .dev-muted {
+  font-size: 0.8125rem;
+}
+.dev-app-card-badge {
+  display: flex;
+  margin-block-start: 4px;
+}
+/* A card's lead paragraph kept the browser's 1em margins on top of the card gap: a hole under the heading. */
+.dev-card > p {
+  margin: 0;
+}

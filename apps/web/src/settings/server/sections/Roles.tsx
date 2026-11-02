@@ -416,7 +416,7 @@ function RoleEditor({
       t('settings.roles.saved'),
     );
     if (next) {
-      draft.reset();
+      draft.reset(c);
       await onChanged();
     }
   }, [nameError, locked, draft, isEveryone, name, action, guildId, role.id, onChanged, t]);
