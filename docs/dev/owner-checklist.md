@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 45)
+### 4b. Decisions of the feature phase (waves 27 to 46)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -149,6 +149,22 @@ Crash telemetry and the Showroom (wave 45, [handoff](handoff/integration-phase45
 - [ ] **Who sees `#crash-triage`** (D-433). **Default:** staff roles that carry a platform permission; a staff role without one (a cosmetic role) does not. Any appointed staff member can read the two JSON routes. **Option:** every staff role sees the channel.
 - [ ] **The Showroom switch in production builds** (D-435). **Default:** the preview's code ships in every build (lazy chunk, loaded only when a signed-in member turns it on) and the operator's switch `platform.showroom`, OFF by default, decides. **Option:** a build flag so production images do not carry the toggle at all.
 - [ ] **The Showroom over the Lounge** (D-436). **Default:** the preview replaces the servers rail (ten sample servers), The Study and The Arcade; the Lounge channel list, messages, the Cinema and the Library stay real. **Option:** a store-level overlay with a bigger fixture set so the Lounge itself looks populated.
+
+The 3D starter and Land.io polish (wave 46, [handoff](handoff/integration-phase46.md)):
+
+- [ ] **`connect: ["self"]` for a built-in Activity** (D-441). arena3d fetches its own model JSON, which the sandbox CSP refuses unless the reviewed manifest says `connect: ["self"]`. **Default:** declared; the server reads it from the zip into the reviewed connect list and serves `connect-src 'self'` (`sandbox.rs` test on the real manifest). **Option:** ship models as JS modules and drop `connect`.
+- [ ] **Two string rewrites in the vendored Jolt file** (D-440). The stock `jolt-physics.wasm-compat.js` 1.1.1 carries a GitHub URL in its header and a Node-only `import("node:module")`; `tools/bundle.mjs` rewrites both, counted, and pins the input's sha256, so a Jolt bump stops the build until someone re-checks. **Default:** stands. **Option:** a self-built Jolt (needs Emscripten and your yes).
+- [ ] **Reserved capabilities shown as a "commented example"** (arena3d `_comment` / `_reserved_capabilities_example` keys; the server reads only the keys it knows). **Default:** stands.
+- [ ] **arena3d netcode choices** (outside report §5, 4-8): players collide through each character's inner kinematic body; snapshots go through `sdk.state` (`host:snap`, 20 Hz, about 1 KiB); `max_participants: 8`; the host seeds the world from the instance id; member names from `getInstanceConnectedParticipants`, guests use the relay callsign. **Default:** stands.
+- [ ] **Names like "Lumen bot"** (outside report §5, 9). A person can still call themselves "Lumen bot". **Default:** allowed. **Option:** refuse names that end in " bot".
+- [ ] **Bot backfill minimums** (D-443): rounds 2; Last Land, Shrink and KotH 3; Teams, Infection and Draft Night 4; Classic 0. Backfill is on in the activity and off in the rules defaults. **Default:** stands.
+- [ ] **Draft Night run rules** (D-442): a run is 3 rounds of the mode's 5 minutes; the keeper pick happens at the start of the next round (inputs freeze between rounds); set bonuses at 3 and 5 cards (Runner faster recharge, Trickster a ward, Builder +8% / +15% score), tuned against bots only; a host restart or a change of mode, map or size starts a new run; guests set no Rich Presence. **Default:** stands.
+- [ ] **Host handoff is a capability, not the default** (D-444). Only a game whose reviewed manifest declares `host_handoff` keeps running when its host leaves (Land.io does; Hold'em, Whiteboard, Tabletop and arena3d still end, because they keep host-only state the successor would not have). **Default:** stands. **Option:** hand off every data-channel game.
+- [ ] **Guests lose their relay when the link's creator leaves** (D-413 with D-444). The guest bridge runs in the browser of the member who made the link; if that member is the host and leaves, the game moves to a successor but the guests' lobby ends. **Default:** stands (the successor can make a new link). **Option:** move the bridge to the new host (needs the link key, which never reaches the server).
+- [ ] **Handoff snapshots cost bandwidth** (D-444): Land.io's host now publishes a snapshot every 35 ticks (5 s): under 40 KB, about 4-8 KB/s per member at 100x100. **Default:** on in SIDE ROOM. **Option:** longer interval.
+- [ ] **Shelf objects for Activities: how the URL reaches the CSP** (D-446, [design](design/byos-read-activities.md)). **Default (built):** `shelfObjectUrl` asks the member once per object, then returns the 41-C ten-minute URL; the game can fetch it only when its reviewed `connect` list names that storage host. **Options:** add the mounts' hosts to the CSP per instance, or relay the bytes through the member's page (works for every host, no CSP change).
+- [ ] **KTX2/Basis textures for arena3d** need a transcoder download. **Default:** not used (glTF base colour PNG/JPEG only).
+- [ ] **arena3d open points** (outside report §2): a hidden host tab lags its peers (timer throttling), no recovery after a lost GPU (a "reload" message), no touch controls (a phone guest can watch, not play). **Default:** documented, not built.
 
 Dependencies:
 

@@ -8,6 +8,21 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 46 - 2026-11-01
+
+- **Land.io keeps going when the host leaves.** If the member running the game leaves the call, the person who has
+  been in the game longest takes over and everyone keeps their land, cards and place. Guests who came in on that
+  member's guest link need a new link from someone still in the call.
+- **Draft Night is now a three-round run.** Your first pick each round is a keeper you hold for the whole run, cards
+  come in three families with set bonuses, and the run ends with standings and a champion. Guests on a phone can play
+  it from a guest link.
+- **Bots fill small games.** With only one or two people in a mode that needs more, Lumen bot and Tofu bot join to
+  make up the numbers and step out as people arrive.
+- **Arena 3D, a small 3D game and starter kit.** Walk, jump, crouch and shove boxes around with friends in a call; it
+  is also the template for SIDE ROOM's 3D games.
+- **Games can ask to open a file from your shelves.** A game that declares it asks you first, once for each file, and
+  gets only that file for ten minutes.
+
 ## Phase 45 - 2026-11-01
 
 - **If a screen breaks, you get a plain page with a Reload button** instead of a blank window. Behind it, the app
