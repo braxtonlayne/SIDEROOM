@@ -262,6 +262,14 @@
     display: block;
     overflow-x: auto;
   }
+  /* XC-VIS-001: a row's buttons and switches took the width and squeezed its name and description to one word per
+     line (Admin > Feature modules on a phone). The text keeps at least 12rem (next to an avatar); the controls wrap under it. */
+  .ss-row {
+    flex-wrap: wrap;
+  }
+  .ss-row > .ss-grow {
+    flex: 1 1 12rem;
+  }
 }
 
 .ss-link {
