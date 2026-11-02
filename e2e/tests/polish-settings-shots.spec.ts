@@ -65,6 +65,22 @@ test.describe('settings polish shots', () => {
           await page.goto(row.path);
           await page.waitForLoadState('networkidle').catch(() => undefined);
           await page.waitForTimeout(600);
+          // Elements that run past the right edge outside a scroll container (what a phone user sees cut off).
+          const overflow = await page.evaluate(() => {
+            const w = document.documentElement.clientWidth;
+            // Wide tables scroll sideways on purpose; anything else past the edge is cut off.
+            const clipped = (el: Element) => el.closest('table, .ss-table, [role="tablist"]') !== null;
+            const out: string[] = [];
+            for (const el of Array.from(document.body.querySelectorAll('*'))) {
+              const r = el.getBoundingClientRect();
+              if (r.width === 0 || r.right <= w + 1 || clipped(el)) continue;
+              const cls = typeof el.className === 'string' ? el.className.split(' ')[0] : '';
+              out.push(`${el.tagName.toLowerCase()}${cls ? '.' + cls : ''} right=${Math.round(r.right)} "${(el.textContent ?? '').trim().slice(0, 30)}"`);
+              if (out.length >= 6) break;
+            }
+            return out;
+          });
+          if (overflow.length) console.log(`OVERFLOW ${row.name} ${viewport}:\n  ${overflow.join('\n  ')}`);
           mkdirSync(OUT, { recursive: true });
           await page.screenshot({ path: resolve(OUT, `${row.name}-${viewport}-${theme}.png`), fullPage: true });
           expect(page.url()).not.toContain('/login');

@@ -44,8 +44,8 @@ export function FeaturesSection() {
               {list.map((f) => (
                 <li key={f.id} className="ss-row">
                   <div className="ss-grow">
-                    <div className="ss-name">
-                      {f.name} <Badge>{f.section}</Badge>{' '}
+                    <div className="ss-name adm-feature-name">
+                      <span>{f.name}</span> <Badge>{f.section}</Badge>{' '}
                       {f.enabled !== f.default_enabled && (
                         <Badge variant="warning">{t('admin.features.overridden')}</Badge>
                       )}

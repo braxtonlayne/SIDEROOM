@@ -87,6 +87,10 @@
   font-size: 0.75rem;
   color: var(--ui-text-muted);
 }
+.ss-tree-row .ss-meta {
+  flex: none;
+  white-space: nowrap;
+}
 .ss-list {
   list-style: none;
   margin: 0;

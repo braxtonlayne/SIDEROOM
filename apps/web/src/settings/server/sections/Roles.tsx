@@ -219,7 +219,7 @@ function RolesEditor({
             return (
               <li
                 key={r.id}
-                className={`ss-row${dragId === r.id ? ' ss-dragging' : ''}`}
+                className={`ss-row ss-tree-row${dragId === r.id ? ' ss-dragging' : ''}`}
                 draggable={!query.trim() && !roleEditReason(viewer, r, guildId)}
                 onDragStart={(e) => {
                   setDragId(r.id);
@@ -254,7 +254,7 @@ function RolesEditor({
                   <Badge variant="accent">{t('settings.bridgeSync.role.mirrored')}</Badge>
                 )}
                 <span className="ss-meta">
-                  {t('settings.roles.memberCount', { count: String(counts.get(r.id) ?? 0) })}
+                  {t('settings.polishSettings.roleMembers', { count: counts.get(r.id) ?? 0 })}
                 </span>
                 {!query.trim() && (
                   <>

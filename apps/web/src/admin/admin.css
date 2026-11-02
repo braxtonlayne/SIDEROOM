@@ -482,3 +482,12 @@
   text-align: start;
   vertical-align: top;
 }
+
+/* XC-VIS-002: a feature's name and its badges wrap on a phone instead of running past the edge. */
+.ss-row .ss-name.adm-feature-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  white-space: normal;
+}
