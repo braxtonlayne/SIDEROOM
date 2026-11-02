@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Build the built-in Activities (wave 36: ACT-WB-001, ACT-CT-001, ACT-TT-001, ACT-LND-001) into the zips the
-// developer portal takes. One shape for all four: each folder under packages/starter-packs/activities is a
+// Build the built-in Activities (wave 36: ACT-WB-001, ACT-CT-001, ACT-TT-001, ACT-LND-001; wave 46: ACT-A3D-001)
+// into the zips the developer portal takes. One shape for all five: each folder under packages/starter-packs/activities is a
 // workspace package whose `build` writes the bundle root to its dist/ (index.html and the bundle manifest
 // sideroom.json, which declares the `datachannel` capability); this script runs those builds, checks the
 // result, and writes packages/starter-packs/activities/dist/<name>.zip (stored entries, the shape
 // crates/sr-activities/src/bundle.rs accepts).
 //
-//   node scripts/build-activities.mjs                    build and zip all four
+//   node scripts/build-activities.mjs                    build and zip all five
 //   node scripts/build-activities.mjs whiteboard holdem  only these
 //   node scripts/build-activities.mjs --no-build         zip what is already in each dist/
 //
@@ -16,7 +16,7 @@
 // the same zips (e2e/support/activityBundle.ts `builtInActivityBundle`).
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crc32 } from 'node:zlib';
@@ -32,6 +32,10 @@ export const ACTIVITIES = {
   holdem: (dir) => vite(dir),
   tabletop: (dir) => [join(dir, 'build.mjs'), join(dir, 'dist')],
   landio: (dir) => [join(dir, 'tools', 'bundle.mjs')],
+  // ACT-A3D-001 (wave 46): the 3D starter. Its manifest declares `connect: ["self"]`; the server reads the zip's
+  // sideroom.json (`sr_activities::sandbox::parse_connect`) into the reviewed bundle's connect list, so the sandbox
+  // CSP sends `connect-src 'self'` and the game can fetch its own model JSON.
+  arena3d: (dir) => [join(dir, 'tools', 'bundle.mjs')],
 };
 
 /** Every file under `dir`, keyed by its path relative to `dir` with forward slashes, sorted. */
@@ -48,8 +52,12 @@ export function readTree(dir) {
   return files;
 }
 
-/** What is wrong with a built bundle root (empty when it is fine). */
-export function checkTree(files) {
+/**
+ * What is wrong with a built bundle root (empty when it is fine). `source` is the package's own sideroom.json,
+ * when given: the built manifest must keep its `capabilities` and `connect` lists, because the server reviews and
+ * serves the zip's manifest, not the package's (a `connect` list lost in the build means `connect-src 'none'`).
+ */
+export function checkTree(files, source) {
   const problems = [];
   if (!files['index.html']) problems.push('no index.html at the bundle root');
   const manifest = files['sideroom.json'];
@@ -60,6 +68,13 @@ export function checkTree(files) {
       const m = JSON.parse(manifest.toString('utf8'));
       if (!Array.isArray(m.capabilities) || !m.capabilities.includes('datachannel'))
         problems.push('sideroom.json does not declare the datachannel capability');
+      if (source) {
+        const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+        if (!same(m.capabilities, source.capabilities))
+          problems.push('sideroom.json lost or changed the capabilities of the package manifest');
+        if (!same(m.connect, source.connect))
+          problems.push('sideroom.json lost or changed the connect list of the package manifest');
+      }
     } catch {
       problems.push('sideroom.json is not valid JSON');
     }
@@ -133,7 +148,9 @@ function main(argv) {
         stdio: ['ignore', 'ignore', 'inherit'],
       });
     const files = readTree(join(dir, 'dist'));
-    const problems = checkTree(files);
+    const sourcePath = join(dir, 'sideroom.json');
+    const source = existsSync(sourcePath) ? JSON.parse(readFileSync(sourcePath, 'utf8')) : undefined;
+    const problems = checkTree(files, source);
     if (problems.length) {
       for (const p of problems) console.error(`${name}: ${p}`);
       failed = true;

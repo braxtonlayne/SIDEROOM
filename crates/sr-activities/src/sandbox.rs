@@ -701,4 +701,22 @@ mod tests {
         assert!(p.contains("frame-ancestors https://chat.example.org"));
         assert!(p.contains("form-action 'none'"));
     }
+
+    /// ACT-A3D-001 (wave 46): the built-in 3D starter declares `connect: ["self"]` so it can fetch its own model
+    /// JSON. Its real manifest passes the validator (the `_comment` and `_reserved_capabilities_example` keys are
+    /// ignored), and the reviewed connect list gives `connect-src 'self'` and nothing wider.
+    #[test]
+    fn the_arena3d_manifest_survives_review_with_connect_self() {
+        let manifest =
+            include_bytes!("../../../packages/starter-packs/activities/arena3d/sideroom.json");
+        let m = crate::arcade::parse_manifest(manifest).expect("arena3d manifest validates");
+        for c in ["datachannel", "storage", "guest_play", "lobby_channel", "byos_read"] {
+            assert!(m.capabilities.iter().any(|x| x == c), "{c}");
+        }
+        assert!(!m.capabilities.iter().any(|x| x == "ingame_voice" || x == "byos_write"));
+        let connect = parse_connect(manifest).expect("connect parses");
+        assert_eq!(connect, vec!["self".to_owned()]);
+        assert_eq!(connect_src(&input(false, false, &connect)), "'self'");
+        assert!(csp(&input(false, false, &connect)).contains("connect-src 'self';"));
+    }
 }
