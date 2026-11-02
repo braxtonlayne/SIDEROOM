@@ -40,6 +40,7 @@ import { ServerSupportSection } from './sections/ServerSupport';
 import { TagSection } from './sections/Tag';
 import { ServerStorageSection } from './storage/StorageSection';
 import { WatchLibrarySection } from './sections/WatchLibrary';
+import { useSettingsLayoutLabels } from '../../components/useSettingsLayoutLabels';
 
 export interface SectionProps {
   guildId: string;
@@ -235,6 +236,7 @@ export function ServerSettings({
   section: string | undefined;
 }) {
   const t = useT();
+  const layoutLabels = useSettingsLayoutLabels();
   const navigate = useNavigate();
   const { guild } = useGuild(guildId);
   const viewer = useViewer(guildId);
@@ -309,6 +311,7 @@ export function ServerSettings({
   return (
     <FormContext.Provider value={setForm}>
       <SettingsLayout
+        labels={layoutLabels}
         title={t('settings.serverSettings.title', {
           name: guild?.name ?? t('settings.serverSettings.defaultName'),
         })}

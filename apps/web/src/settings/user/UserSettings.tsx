@@ -41,6 +41,7 @@ import { ProfileSection, useProfileForm } from './sections/Profile';
 import { TextImagesSection } from './sections/TextImages';
 import { SettingsSearch } from './SettingsSearch';
 import { SupportSection } from '../../support/SupportPanel';
+import { useSettingsLayoutLabels } from '../../components/useSettingsLayoutLabels';
 
 export interface UserSettingsProps {
   section: UserSettingsSectionId;
@@ -62,6 +63,7 @@ function Body({
   setDraft,
 }: UserSettingsProps & { draft: UserPrefs; setDraft: Dispatch<SetStateAction<UserPrefs>> }) {
   const t = useT();
+  const layoutLabels = useSettingsLayoutLabels();
   const toast = useToast();
   const saved = useSavedPrefs();
   const savePrefs = usePrefsStore((s) => s.save);
@@ -143,6 +145,7 @@ function Body({
   return (
     <>
       <SettingsLayout
+        labels={layoutLabels}
         inline={inline}
         title={t('settings.group.user')}
         sections={USER_SETTINGS_SECTIONS.map((s) => ({ id: s.id, label: s.label, group: s.group }))}

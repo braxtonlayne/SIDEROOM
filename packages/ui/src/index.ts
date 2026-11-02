@@ -51,6 +51,8 @@ export * from "./primitives/Rail/RailPill";
 export * from "./primitives/Resize/ResizeHandle";
 export * from "./sideroom/ComingSoon";
 export * from "./util/useMediaQuery";
+export { UI_STRINGS_EN, UiStringsProvider, useUiStrings } from "./util/uiStrings";
+export type { UiStrings } from "./util/uiStrings";
 export { observeRectWithFallback } from "./util/virtual";
 export * from "./sideroom/Poster";
 export * from "./sideroom/FilterChips";

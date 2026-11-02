@@ -56,6 +56,7 @@ import { JobsSection, SystemSection } from './sections/System';
 import { ArcadeAdminSection } from '../arcade/ArcadeAdmin';
 import '../arcade/arcade.css';
 import { AdminViewerContext, Loading, errorText, makeViewer, type AdminViewer } from './ui';
+import { useSettingsLayoutLabels } from '../components/useSettingsLayoutLabels';
 
 // T-03 (D-369): the runbook carries the 34 KB deploy/RUNBOOK.md, so it is its own chunk.
 const RunbookLazy = lazy(() =>
@@ -356,6 +357,7 @@ function useMe() {
 
 export function AdminShell({ section }: { section: string | undefined }) {
   const t = useT();
+  const layoutLabels = useSettingsLayoutLabels();
   const navigate = useNavigate();
   const me = useMe();
   const viewer = useMemo(
@@ -429,6 +431,7 @@ export function AdminShell({ section }: { section: string | undefined }) {
     <>
       <SkipLink />
       <SettingsLayout
+        labels={layoutLabels}
         title={t('admin.adminApp.title')}
         sections={navSections}
         activeId={active?.id ?? ''}

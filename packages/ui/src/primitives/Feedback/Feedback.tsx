@@ -12,27 +12,42 @@ import {
 import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
+import { useUiStrings, type UiStrings } from "../../util/uiStrings";
 import styles from "./Feedback.module.css";
 
 export type NoticeVariant = "info" | "success" | "warning" | "danger";
 
 const ICONS: Record<NoticeVariant, string> = { info: "i", success: "✓", warning: "!", danger: "!" };
-const VARIANT_LABEL: Record<NoticeVariant, string> = {
-  info: "Information",
-  success: "Success",
-  warning: "Warning",
-  danger: "Error",
+const VARIANT_LABEL: Record<NoticeVariant, keyof UiStrings> = {
+  info: "noticeInfo",
+  success: "noticeSuccess",
+  warning: "noticeWarning",
+  danger: "noticeError",
 };
 
 export interface NoticeProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   variant?: NoticeVariant;
   title?: ReactNode;
   onDismiss?: () => void;
+  /** Screen-reader prefix ("Warning"); defaults to the UiStringsProvider word for the variant. */
+  variantLabel?: string;
+  /** Accessible name of the × button; defaults to the UiStringsProvider `dismiss`. */
+  dismissLabel?: string;
   children?: ReactNode;
 }
 
 /** Inline banner. Warnings and errors are announced assertively (role=alert). */
-export function Notice({ variant = "info", title, onDismiss, className, children, ...rest }: NoticeProps) {
+export function Notice({
+  variant = "info",
+  title,
+  onDismiss,
+  variantLabel,
+  dismissLabel,
+  className,
+  children,
+  ...rest
+}: NoticeProps) {
+  const words = useUiStrings();
   const urgent = variant === "danger" || variant === "warning";
   return (
     <div role={urgent ? "alert" : "status"} {...rest} className={cx(styles.notice, styles[variant], className)}>
@@ -40,12 +55,12 @@ export function Notice({ variant = "info", title, onDismiss, className, children
         {ICONS[variant]}
       </span>
       <div className={styles.content}>
-        <span className={styles.srOnly}>{VARIANT_LABEL[variant]}: </span>
+        <span className={styles.srOnly}>{variantLabel ?? words[VARIANT_LABEL[variant]]}: </span>
         {title && <strong className={styles.title}>{title}</strong>}
         {children && <div className={styles.text}>{children}</div>}
       </div>
       {onDismiss && (
-        <button type="button" className={styles.dismiss} aria-label="Dismiss" onClick={onDismiss}>
+        <button type="button" className={styles.dismiss} aria-label={dismissLabel ?? words.dismiss} onClick={onDismiss}>
           <span aria-hidden="true">×</span>
         </button>
       )}
@@ -125,13 +140,14 @@ export function ToastProvider({ children, max = 5 }: { children: ReactNode; max?
   );
   const api = useMemo(() => ({ show, dismiss }), [show, dismiss]);
   const urgent = toasts.some((t) => t.variant === "danger");
+  const words = useUiStrings();
 
   return (
     <ToastContext.Provider value={api}>
       {children}
       {target &&
         createPortal(
-          <div role={urgent ? "alert" : "status"} aria-live={urgent ? "assertive" : "polite"} aria-label="Notifications">
+          <div role={urgent ? "alert" : "status"} aria-live={urgent ? "assertive" : "polite"} aria-label={words.notifications}>
             <ol className={styles.region}>
               {toasts.map((t) => (
                 <ToastView key={t.id} toast={t} onDismiss={dismiss} />

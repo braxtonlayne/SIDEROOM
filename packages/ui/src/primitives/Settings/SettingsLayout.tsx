@@ -17,6 +17,28 @@ export interface SettingsSection {
   danger?: boolean;
 }
 
+/** Words the layout speaks on its own; the app passes translated ones (English defaults). */
+export interface SettingsLayoutLabels {
+  /** Visible text of the close button ("Close"). */
+  close: string;
+  /** Screen-reader word after it ("settings"), so the button reads "Close settings". */
+  closeTarget: string;
+  /** The unsaved-changes bar. */
+  unsaved: string;
+  reset: string;
+  save: string;
+  saving: string;
+}
+
+export const SETTINGS_LAYOUT_LABELS_EN: SettingsLayoutLabels = {
+  close: "Close",
+  closeTarget: "settings",
+  unsaved: "Careful, you have unsaved changes!",
+  reset: "Reset",
+  save: "Save changes",
+  saving: "Saving...",
+};
+
 export interface SettingsLayoutProps {
   /** Dialog name, e.g. "User settings". */
   title: string;
@@ -37,6 +59,8 @@ export interface SettingsLayoutProps {
   wide?: boolean;
   /** Label of the button that expands the section list on narrow screens. */
   navToggleLabel?: string;
+  /** Translated words for the close button and the unsaved-changes bar; missing ones fall back to English. */
+  labels?: Partial<SettingsLayoutLabels>;
   className?: string;
   /** Pinned above the section list (a settings search box). */
   sidebarHeader?: ReactNode;
@@ -64,11 +88,13 @@ export function SettingsLayout({
   blockNavWhenDirty,
   wide,
   navToggleLabel = "Sections",
+  labels,
   className,
   sidebarHeader,
   sidebarFooter,
   children,
 }: SettingsLayoutProps) {
+  const words = { ...SETTINGS_LAYOUT_LABELS_EN, ...labels };
   const [nudge, setNudge] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -212,9 +238,9 @@ export function SettingsLayout({
               ×
             </span>
             <span className={styles.closeText}>
-              Close <span className={styles.esc}>ESC</span>
+              {words.close} <span className={styles.esc}>ESC</span>
             </span>
-            <span className={styles.srOnly}>settings</span>
+            <span className={styles.srOnly}>{words.closeTarget}</span>
           </button>
         </div>
         <main
@@ -229,13 +255,13 @@ export function SettingsLayout({
         </main>
         {dirty && (
           <div key={nudge} role="alert" className={styles.bar} data-nudge={nudge > 0 || undefined}>
-            <span>Careful, you have unsaved changes!</span>
+            <span>{words.unsaved}</span>
             <span className={styles.barActions}>
               <button type="button" className={styles.reset} onClick={onReset}>
-                Reset
+                {words.reset}
               </button>
               <button type="button" className={styles.save} onClick={onSave} disabled={saving}>
-                {saving ? "Saving..." : "Save changes"}
+                {saving ? words.saving : words.save}
               </button>
             </span>
           </div>
