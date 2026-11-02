@@ -61,6 +61,13 @@
   font-size: 0.8125rem;
   color: var(--ui-text-muted);
 }
+/* XC-VIS-004: a group of cards under its own label (Features): room above the label, the label close to its cards. */
+.ss-group {
+  margin-block-start: 20px;
+}
+.ss-group > .ss-sub {
+  margin-block-end: 8px;
+}
 .ss-na {
   margin: 0;
   color: var(--ui-text-muted);

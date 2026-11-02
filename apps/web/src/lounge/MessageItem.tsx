@@ -8,7 +8,7 @@ import {
   Tooltip,
   type MenuEntry,
 } from '@sideroom/ui';
-import { memo, useMemo, type CSSProperties } from 'react';
+import { memo, useMemo, type CSSProperties, type SyntheticEvent } from 'react';
 import { useT } from '../i18n';
 import { nameStyle } from '../lib/roleGradient';
 import { useReportEntry } from '../moderation/reports';
@@ -212,6 +212,24 @@ function MessageBody({
       )}
     </LikelySpamGate>
   );
+}
+
+/**
+ * XC-VIS-004: the hover toolbar hangs 16px above its message, so on the message at the top edge of the scrolling
+ * list it would be cut off. Such a message gets `data-tools-inside` and the toolbar sits inside it instead.
+ */
+const TOOLS_OVERHANG = 18;
+function keepToolsInside(e: SyntheticEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  let scroller: HTMLElement | null = el.parentElement;
+  while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY))
+    scroller = scroller.parentElement;
+  const top = scroller ? scroller.getBoundingClientRect().top : -Infinity;
+  const inside = el.getBoundingClientRect().top - top < TOOLS_OVERHANG;
+  if (inside !== el.hasAttribute('data-tools-inside')) {
+    if (inside) el.setAttribute('data-tools-inside', '');
+    else el.removeAttribute('data-tools-inside');
+  }
 }
 
 function authorStyle(color?: string, decor?: NameDecor): CSSProperties | undefined {
@@ -536,6 +554,9 @@ function MessageItemImpl(props: MessageItemProps) {
         data-editing={editing || undefined}
         data-compact={compact || undefined}
         data-message-id={m.id}
+        onMouseEnter={keepToolsInside}
+        onMouseMove={keepToolsInside}
+        onFocus={keepToolsInside}
         aria-label={t('lounge.messageItem.articleLabel', {
           name: m.author.displayName,
           time: formatMessageTime(m.createdAt),

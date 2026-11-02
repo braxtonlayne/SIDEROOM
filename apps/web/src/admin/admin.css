@@ -386,6 +386,24 @@
   border-color: var(--ui-border);
   box-shadow: 0 -2px 8px rgb(0 0 0 / 0.12);
 }
+/* XC-VIS-004: the bar's buttons share one row on a phone; a long label wraps inside its button instead of pushing
+   the second button to its own line. */
+.adm-unsaved .adm-actions {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+}
+.adm-unsaved .adm-actions > button {
+  min-inline-size: 0;
+  block-size: auto;
+  min-block-size: 28px;
+  padding-block: 4px;
+  white-space: normal;
+  text-align: center;
+}
+/* The primary button keeps its one-line label; the other gives way. */
+.adm-unsaved .adm-actions > button:first-child {
+  flex: none;
+}
 .adm-unsaved-note {
   margin: 0;
   font-size: 0.875rem;

@@ -543,9 +543,9 @@
 .lng-nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   height: 42px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -1001,6 +1001,9 @@
   border-radius: 8px;
   background: var(--bg-base-low);
   box-shadow: var(--ui-shadow-overlay);
+}
+.lng-msg[data-tools-inside] .lng-msg-tools {
+  top: 2px;
 }
 .lng-msg:hover .lng-msg-tools,
 .lng-msg:focus-within .lng-msg-tools {

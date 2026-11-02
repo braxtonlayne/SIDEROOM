@@ -85,7 +85,7 @@ export function FeaturesSection({ guildId, viewer }: SectionProps) {
               />
               {shown.length === 0 && <p className="ss-meta">{t('settings.features.noMatch')}</p>}
               {[...bySection.entries()].map(([section, list]) => (
-                <section key={section} aria-label={section}>
+                <section key={section} aria-label={section} className="ss-group">
                   <h2 className="ss-sub">{section}</h2>
                   {list.map((f) => {
                     const onChanged = (next: api.GuildFeature) =>

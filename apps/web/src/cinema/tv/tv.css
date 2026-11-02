@@ -402,6 +402,10 @@
   margin-inline-end: 32px;
   white-space: nowrap;
 }
+/* GuideGrid hides a label the right edge of the scroller would cut. */
+.tv-slot-label[data-clipped] {
+  visibility: hidden;
+}
 .tv-cell-wrap {
   position: absolute;
   top: 0;
