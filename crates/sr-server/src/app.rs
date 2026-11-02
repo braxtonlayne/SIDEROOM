@@ -967,9 +967,15 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     );
     // The Arcade room (ARC-ROOM-001): Featured, Coming Soon and a server's cartridges.
     let arcade_dm = routes::review::DmSlot::default();
+    // One DM-settings gate for the Arcade release notice and the invite-card reminders (FU-20).
+    let dm_gate: Arc<dyn sr_chat::cards::reminders::ReminderGate> =
+        Arc::new(sr_chat::cards::reminders::SocialGate::new(Arc::new(
+            sr_db::social_repo::PgSocialRepo::new(pool.clone()),
+        )));
     let arcade_deps = Arc::new(routes::arcade::ArcadeDeps {
         service: sr_activities::arcade::ArcadeService::new(pool.clone(), id_src.clone()),
         dm: arcade_dm.clone(),
+        gate: dm_gate.clone(),
         public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
     });
     // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
@@ -1393,9 +1399,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // the member's DM settings (privacy, blocks, the system user's conversation) before they DM.
     let card_deps = Arc::new(routes::tools::cards::CardDeps {
         store: Arc::new(sr_db::cards_repo::PgCards::new(pool.clone())),
-        gate: Arc::new(sr_chat::cards::reminders::SocialGate::new(Arc::new(
-            sr_db::social_repo::PgSocialRepo::new(pool.clone()),
-        ))),
+        gate: dm_gate.clone(),
         public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
         locks: routes::tools::cards::CardLocks::default(),
     });
