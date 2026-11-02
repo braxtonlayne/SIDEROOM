@@ -75,9 +75,27 @@ export async function landioCase(s: ActivitySession) {
   ).toBeGreaterThan(14);
   expect(apiCalls).toEqual([]);
 
-  // Alice leaves the Activity: as its host she ends it for Bob too.
+  // D-388: Land.io declares host_handoff, so Alice (the host) leaving moves the host to Bob instead of ending the
+  // game. Bob resumes from the newest handoff snapshot (the host sends one every 5 s), so wait until he holds one.
+  await expect
+    .poll(
+      () =>
+        fb.evaluate(() => {
+          const t = (window as any).__landio.transport;
+          return !!(t.impl?.() ?? t).handoff?.snapshot();
+        }),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
   await activityPanel(a.page, name).getByRole('button', { name: 'Leave', exact: true }).click();
-  await expect(b.page.locator(`iframe[title="${name} (Activity)"]`)).toHaveCount(0, {
-    timeout: 30_000,
-  });
+  await expect
+    .poll(() => fb.evaluate(() => (window as any).__landio.world.you.host as boolean), {
+      timeout: 30_000,
+    })
+    .toBe(true);
+  const frame = b.page.locator(`iframe[title="${name} (Activity)"]`);
+  await expect(frame).toHaveCount(1);
+  // Bob leaves too: the last member out ends it.
+  await activityPanel(b.page, name).getByRole('button', { name: 'Leave', exact: true }).click();
+  await expect(frame).toHaveCount(0, { timeout: 30_000 });
 }
