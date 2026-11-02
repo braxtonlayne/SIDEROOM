@@ -98707,6 +98707,10 @@
           "guild_id": {
             "type": "string"
           },
+          "host_id": {
+            "type": "string",
+            "description": "The instance's host now: the only writer of `host:*` keys and the receiver of inputs. The starter until\nthe starter leaves a game that declares `host_handoff`; then the longest-connected member (D-388)."
+          },
           "id": {
             "type": "string"
           },
