@@ -626,9 +626,14 @@
   .ent-hero-foot {
     margin-top: 40px;
   }
+  /* The form panel runs down to the footer: a short form (a sent reset link) left a band of another colour. */
   .ent-split {
-    display: block;
+    display: flex;
+    flex-direction: column;
     min-height: 0;
+  }
+  .ent-split-right {
+    flex: 1;
   }
   .ent-split-left {
     min-height: 0;

@@ -98,3 +98,14 @@
   border-radius: var(--sr-radius);
   background: var(--sr-bg-0);
 }
+/* XC-VIS-002: the wordmark over the card, so a bare "link is not valid" box is not the whole page. */
+.gp-brand {
+  margin-block-end: 24px;
+}
+.gp-brand .ent-logo svg {
+  inline-size: 28px;
+  block-size: 28px;
+}
+.gp-brand .ent-wordmark {
+  font-size: 18px;
+}

@@ -1,4 +1,4 @@
-import { GoldButton, PasswordInput, TextInput } from '@sideroom/ui';
+import { GoldButton, Notice, PasswordInput, TextInput } from '@sideroom/ui';
 import { useParams } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
@@ -45,12 +45,12 @@ export function Forgot() {
       <FormHead
         eyebrow={t('entrance.forgot.formEyebrow')}
         title={t('entrance.forgot.title')}
-        sub={t('entrance.forgot.sub')}
+        sub={sent ? undefined : t('entrance.forgot.sub')}
       />
       {sent ? (
-        <p role="status" className="ent-sub">
+        <Notice variant="success" className="ent-notice">
           {t('entrance.forgot.sent')}
-        </p>
+        </Notice>
       ) : (
         <form className="ent-form" onSubmit={onSubmit} noValidate>
           <FormError>{error}</FormError>
@@ -126,10 +126,12 @@ export function Reset() {
       <FormHead eyebrow={t('entrance.reset.formEyebrow')} title={t('entrance.reset.title')} />
       {done ? (
         <>
-          <p role="status" className="ent-sub">
+          <Notice variant="success" className="ent-notice">
             {t('entrance.reset.done')}
+          </Notice>
+          <p className="ent-footnote">
+            <a href="/login">{t('entrance.common.backToSignIn')}</a>
           </p>
-          <a href="/login">{t('entrance.common.backToSignIn')}</a>
         </>
       ) : (
         <form className="ent-form" onSubmit={onSubmit} noValidate>

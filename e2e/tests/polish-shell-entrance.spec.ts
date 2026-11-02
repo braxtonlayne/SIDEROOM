@@ -8,7 +8,7 @@ import { repoRoot } from '../support/cli';
 const ON = process.env.SR_E2E_SWEEP === '1';
 test.skip(!ON, 'Opt-in: set SR_E2E_SWEEP=1.');
 const OUT = process.env.SR_SWEEP_OUT ?? resolve(repoRoot, '../visual-sweep-shots/shell');
-mkdirSync(OUT, { recursive: true });
+test.beforeAll(() => mkdirSync(OUT, { recursive: true }));
 
 test.use({ baseURL: 'http://localhost:5173', viewport: { width: 375, height: 812 } });
 

@@ -5,6 +5,7 @@
 import { ThemeProvider } from '@sideroom/ui';
 import type { Frame } from '@sideroom/embedded-app-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Logo } from '../../components/EntranceShell';
 import { useT } from '../../i18n/react';
 import { runnerRefusal } from './capabilities';
 import type { GuestJoined } from './contract';
@@ -136,6 +137,11 @@ export function Runner({
   return (
     <ThemeProvider section="entrance" platformDefault="sideroom" className="gp-root">
       <main className="gp-main" aria-live="polite">
+        {phase.k !== 'playing' && (
+          <div className="gp-brand">
+            <Logo />
+          </div>
+        )}
         {phase.k === 'ask' && (
           <form className="gp-card" onSubmit={(e) => void start(e)}>
             <h1>{t('guestplay.page.title')}</h1>

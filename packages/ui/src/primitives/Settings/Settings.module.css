@@ -54,15 +54,30 @@
 :global([data-reduced-motion="true"]) .bar { animation: none; }
 @media (max-width: 720px) {
   .root { flex-direction: column; }
-  .sidebar { flex: none; align-items: stretch; padding: 12px; max-height: 60vh; }
-  .navToggle { display: block; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius); background: transparent; color: var(--ui-text); font: inherit; text-align: start; cursor: pointer; }
+  /* The Close button shares the section picker's row on phones (XC-VIS-002): it took a row of its own. */
+  .sidebar { flex: none; align-items: stretch; padding: 12px; padding-inline-end: 60px; max-height: 60vh; }
+  .navToggle {
+    display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: var(--ui-radius);
+    background: var(--ui-bg); color: var(--ui-text); font: inherit; text-align: start; cursor: pointer;
+  }
+  /* A chevron so the picker reads as one (it looked like a plain text box). */
+  .navToggle::after {
+    content: ""; flex: none; margin-inline-start: auto; width: 7px; height: 7px; border-inline-end: 2px solid currentColor; border-block-end: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg); opacity: 0.7;
+  }
+  .navToggle[aria-expanded="true"]::after { transform: translateY(2px) rotate(-135deg); }
+  .navToggle:hover { border-color: var(--ui-text-muted); }
   .navToggle:focus-visible { outline: 2px solid var(--ui-focus); }
   .sidebar[data-open="false"] .nav { display: none; }
   .sidebar[data-open="true"] .nav { margin-top: 8px; }
   .sidebar > * { width: 100%; }
   .content, .wide .content { padding: 8px 16px 96px; }
-  /* In the flow on phones: floating, it covered the section title and its description (XC-VIS-001). */
-  .topline { position: static; display: flex; justify-content: flex-end; padding-block-start: 8px; padding-inline: 8px; }
-  .close { flex-direction: row; gap: 6px; }
-  .closeX { width: 28px; height: 28px; font-size: 1rem; }
+  /* Not over the content: it covered the section title and its description (XC-VIS-001). */
+  .main { position: static; }
+  .topline { position: absolute; top: 13px; inset-inline-end: 12px; }
+  .close { flex-direction: row; gap: 0; }
+  .closeX { width: 32px; height: 32px; font-size: 1.125rem; }
+  /* No Escape key on a phone: the button is the round X; "Close settings" stays its accessible name. */
+  .closeText { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .esc { display: none; }
 }
