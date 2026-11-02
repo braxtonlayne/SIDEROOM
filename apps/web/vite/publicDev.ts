@@ -148,11 +148,74 @@ export function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** web.rs::fill_placeholders: one pass, escaped, so a value holding a placeholder is never expanded again. */
-export function fillPlaceholders(template: string, country: string, contact: string): string {
-  return template.replace(/{{operator_(country|contact)}}/g, (_, k: string) =>
-    escapeHtml(k === 'country' ? country : contact),
+/**
+ * web.rs::house_notes_html (FU-9, D-239): the operator's house-notes copy as escaped text, one paragraph per
+ * blank-line group and a break for a single newline, so it shows exactly as typed and adds no markup.
+ */
+export function houseNotesHtml(copy: string): string {
+  return copy
+    .replace(/\r\n/g, '\n')
+    .split('\n\n')
+    .map((para) =>
+      para
+        .replace(/^\n+|\n+$/g, '')
+        .split('\n')
+        .map((l) => escapeHtml(l.trimEnd())),
+    )
+    .filter((lines) => lines.some((l) => l !== ''))
+    .map((lines) => `<p>${lines.join('<br>')}</p>\n`)
+    .join('');
+}
+
+/**
+ * web.rs::fill_legal: one pass, so a value holding a placeholder is never expanded again. The operator values are
+ * escaped here; `notesHtml` is already escaped by {@link houseNotesHtml}.
+ */
+export function fillPlaceholders(
+  template: string,
+  country: string,
+  contact: string,
+  notesHtml = '',
+): string {
+  return template.replace(/{{(operator_country|operator_contact|house_notes)}}/g, (_, k: string) =>
+    k === 'house_notes' ? notesHtml : escapeHtml(k === 'operator_country' ? country : contact),
   );
+}
+
+/** The `house-notes` Entrance copy from sr-server's public endpoint; empty when staff never wrote one or it is down. */
+function houseNotesCopy(api: URL): Promise<string> {
+  return new Promise((resolve) => {
+    const out = httpRequest(
+      {
+        hostname: api.hostname,
+        port: api.port,
+        path: '/api/v1/sr/entrance/copy',
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        timeout: 3000,
+      },
+      (r) => {
+        let body = '';
+        r.setEncoding('utf8');
+        r.on('data', (c: string) => (body += c));
+        r.on('end', () => {
+          try {
+            const j = JSON.parse(body) as Record<string, unknown>;
+            const v = j['house-notes'];
+            resolve(typeof v === 'string' ? v : '');
+          } catch {
+            resolve('');
+          }
+        });
+      },
+    );
+    out.on('error', () => resolve(''));
+    out.on('timeout', () => {
+      out.destroy();
+      resolve('');
+    });
+    out.end();
+  });
 }
 
 /** The operator's country and contact from sr-server's public compliance settings; empty when unset or down. */
@@ -210,11 +273,15 @@ export const HOUSE_NOTES_HEADERS: Record<string, string> = {
 
 /** The house notes, rendered now from the catalog (only English exists, as in the build). */
 export async function renderDevHouseNotes(api: URL): Promise<string> {
-  const { country, contact } = await operatorValues(api);
+  const [{ country, contact }, copy] = await Promise.all([
+    operatorValues(api),
+    houseNotesCopy(api),
+  ]);
   return fillPlaceholders(
     renderHouseNotes(loadCatalog(), `/entrance/${cssFileName()}`),
     country,
     contact,
+    houseNotesHtml(copy),
   );
 }
 

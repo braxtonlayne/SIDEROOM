@@ -84,6 +84,7 @@ export function renderHouseNotes(cat, cssHref) {
 <main>
 <h1>${h('entrance.houseNotes.title')}</h1>
 <p>${h('entrance.houseNotes.intro')}</p>
+<div class="notes-copy" id="operator-notes">{{house_notes}}</div>
 <section aria-labelledby="notes-rules" id="rules">
 <h2 id="notes-rules">${h('entrance.houseNotes.rules.title')}</h2>
 <ol>
