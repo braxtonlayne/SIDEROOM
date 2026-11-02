@@ -3,6 +3,7 @@
 // level (`StudyAreas`), and their own pages keep their nav.
 import { Link } from '@tanstack/react-router';
 import { useT } from '../i18n';
+import { PreviewToggle } from '../showroom/PreviewToggle';
 import { carryCall } from '../voice/carry';
 
 export type RoomId = 'lounge' | 'arcade' | 'study';
@@ -34,6 +35,8 @@ export function RoomsNav({
       <Link to={STUDY_PATH} className={linkClassName} aria-current={cur('study')}>
         {t('study.rooms.study')}
       </Link>
+      {/* UX-SHOW-001: shown only where the deployment switch `platform.showroom` is on. */}
+      <PreviewToggle />
     </nav>
   );
 }

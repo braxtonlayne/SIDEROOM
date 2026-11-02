@@ -19,6 +19,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
+import { ShowroomRailSlot } from '../showroom/ShowroomRailSlot';
 import { InstallButton } from './shell/InstallButton';
 import { useGuildMenuCore, useLoadNotifSettings } from './shell/useGuildMenu';
 import { useRailDnd, type DropMark, type DropTarget } from './shell/useRailDnd';
@@ -465,6 +466,8 @@ export function GuildRail() {
             </li>
           ) : null;
         })}
+        {/* UX-SHOW-001: sample servers under the real ones while the preview is on. */}
+        <ShowroomRailSlot />
         <li>
           <div className="lng-rail-item">
             <Tooltip content={t('lounge.guildRail.addServer')} placement="right" delay={150}>

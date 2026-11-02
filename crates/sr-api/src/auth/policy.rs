@@ -104,6 +104,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/arcade") || (p.starts_with("/guilds/") && p.contains("/arcade/")) {
         return true;
     }
+    // A crash report comes from a member's browser session (OPS-CRASH-001, T45): a bot has no page to crash.
+    if p == "/crash-reports" {
+        return true;
+    }
     // The Discord bridge is configured by people (BRG-COR-001, D-381): the token is the owner's, never a bot's.
     if p.starts_with("/guilds/") && p.contains("/bridge/") {
         return true;

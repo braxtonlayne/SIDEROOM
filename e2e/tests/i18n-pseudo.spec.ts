@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import type { Page } from '@playwright/test';
-import { test, expect } from '../support/fixtures';
+import { request as pwRequest, type Page } from '@playwright/test';
+import { PUBLIC_URL } from '../support/cli';
+import { apiPatch, bootstrapState, loginApi, test, expect } from '../support/fixtures';
 import { soloServer, buildWorld, type World } from '../support/world';
 
 /**
@@ -48,6 +49,23 @@ interface Row {
   session?: Record<string, string>;
   /** A fragment after the query (the guest link's `#key=`, which never reaches a server). */
   hash?: string;
+  /** Local storage the page needs before it loads (the Showroom's per-device choice). */
+  local?: Record<string, string>;
+  /** A platform switch (OFF by default) the row turns on as the Owner for its own run, and off again after. */
+  platformSwitch?: string;
+}
+
+async function setPlatformSwitch(id: string, enabled: boolean): Promise<void> {
+  const ctx = await pwRequest.newContext({ baseURL: PUBLIC_URL });
+  try {
+    await loginApi(ctx, bootstrapState().owner);
+    await apiPatch(ctx, `/admin/features/${id}`, {
+      enabled,
+      reason: enabled ? 'e2e: i18n pseudo row' : 'e2e: i18n pseudo row done',
+    });
+  } finally {
+    await ctx.dispose();
+  }
 }
 
 const ROWS: Row[] = [
@@ -77,6 +95,15 @@ const ROWS: Row[] = [
   { name: 'profile vouch panel', path: (w) => `/u/${w.ownerHandle ?? ''}`, auth: true },
   // ARC-ROOM-001: the Arcade and its own section bar (Featured, Guild Cartridges, Coming Soon).
   { name: 'arcade', path: () => '/games', auth: true },
+  // UX-SHOW-001: the Showroom preview over The Study (the Preview banner, its hint and off button, the toggle in the
+  // rooms bar, the sample shelves and filters). The switch is on for this row only; the choice is per device.
+  {
+    name: 'showroom preview',
+    path: () => '/study',
+    auth: true,
+    local: { 'sr.showroom.v1': '1' },
+    platformSwitch: 'platform.showroom',
+  },
   // ARC-GST-002 (D-385): the guest-play surface, signed out. With a key the runner asks before it joins (a link
   // preview never takes a seat); without one it explains the link is incomplete. Neither calls the server.
   {
@@ -174,6 +201,15 @@ test('build the fixture world', async ({ owner, signedIn }) => {
 
 const seen = new Set<string>();
 
+/** A platform switch a row turned on; it goes off again after that row whatever the outcome. */
+let switchedOn: string | undefined;
+test.afterEach(async () => {
+  if (!switchedOn) return;
+  const id = switchedOn;
+  switchedOn = undefined;
+  await setPlatformSwitch(id, false);
+});
+
 for (const vp of WIDTHS) {
   test.describe(`en-XA at ${vp.name} width`, () => {
     for (const row of ROWS) {
@@ -189,11 +225,26 @@ for (const vp of WIDTHS) {
               for (const [k, v] of Object.entries(items)) sessionStorage.setItem(k, v);
             }, row.session);
           }
+          if (row.local) {
+            await page.addInitScript((items) => {
+              for (const [k, v] of Object.entries(items)) localStorage.setItem(k, v);
+            }, row.local);
+          }
+          if (row.platformSwitch) {
+            await setPlatformSwitch(row.platformSwitch, true);
+            switchedOn = row.platformSwitch;
+          }
           const path = row.path(world);
           await page.goto(`${path}${path.includes('?') ? '&' : '?'}lang=en-XA${row.hash ?? ''}`);
           await expect(page.getByRole('main').or(page.getByRole('log')).first()).toBeVisible({
             timeout: 20_000,
           });
+          // The row exists for the preview's own controls: they must be on screen before the scan.
+          if (row.platformSwitch === 'platform.showroom') {
+            await expect(page.getByTestId('showroom-banner')).toBeVisible();
+            await expect(page.getByTestId('showroom-toggle')).toBeVisible();
+            await expect(page.getByTestId('showroom-study')).toBeVisible();
+          }
           await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => undefined);
           await page.waitForTimeout(500);
 

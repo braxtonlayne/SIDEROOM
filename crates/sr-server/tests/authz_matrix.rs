@@ -3549,6 +3549,15 @@ async fn seed(
         .await
         .unwrap();
         a.insert("alert_id", alert.to_string());
+        // OPS-CRASH-001: one stored crash for the staff read routes.
+        let crash: i64 = sqlx::query_scalar(
+            "INSERT INTO crash_reports (fingerprint, commit_sha, kind, route, card, replay) \
+             VALUES (repeat('a', 64), 'abcdef1', 'error', 'authz', '{\"v\":1}', '[]') RETURNING id",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        a.insert("report_id", crash.to_string());
         // A data request about the victim.
         if let Some(id) = mk(
             &srv,
@@ -4330,7 +4339,7 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
 
 /// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
 /// watcher cursor), so that they say nothing about one refused call.
-const NOISY: [&str; 15] = [
+const NOISY: [&str; 17] = [
     "payment_watcher",
     "staff_access_log",
     "sessions",
@@ -4347,6 +4356,10 @@ const NOISY: [&str; 15] = [
     // UTL-CALC-001: the hourly ECB rates job records its attempt (and, online, the rates) at any moment.
     "fx_rates",
     "fx_fetch_state",
+    // The insights job (sr-server jobs.rs, compute_insights_day) recomputes the daily counts at any moment; a
+    // refused call never writes them (CI run 41364114161 caught the job mid-group).
+    "guild_insights_daily",
+    "guild_insights_channel_daily",
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).
@@ -4886,6 +4899,8 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/developers/tester-invites/{invite_id}/respond")
         | ("POST", "/staff/offers/{offer_id}/respond") => r#"{"accept":true}"#,
         ("PUT", "/activities/{application_id}/vouch") => r#"{"code_sha256":"{code_sha256}"}"#,
+        // OPS-CRASH-001: a valid, allow-listed report; the plain member sends it.
+        ("POST", "/crash-reports") => r#"{"commit":"abcdef1","kind":"error","route":"authz"}"#,
         ("POST", "/applications/{application_id}/activity/submit") => {
             r#"{"bundle_id":"{bundle_id}"}"#
         }

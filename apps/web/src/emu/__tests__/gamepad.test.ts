@@ -17,6 +17,7 @@ import {
   startCapture,
   type PadLike,
 } from '../gamepad';
+import { ticks } from '../../crash/ringBuffer';
 import { InputPoller } from '../input';
 
 const pad = (over: Partial<PadLike> = {}): PadLike => ({
@@ -103,6 +104,30 @@ describe('players', () => {
     expect(sent.at(-1)).toBe('0:b:0');
     poller.releaseAll();
     expect(sent.at(-1)).toBe('1:a:0');
+  });
+
+  it('records each local press in the crash ring as an opaque enum (OPS-CRASH-001)', () => {
+    ticks.clear();
+    let pads: PadLike[] = [pad({ index: 0 })];
+    const poller = new InputPoller(
+      () => undefined,
+      () => defaultMapping(),
+      () => pads,
+    );
+    poller.key('KeyZ', true);
+    poller.poll();
+    poller.poll();
+    pads = [press(pad({ index: 0 }), 4)];
+    poller.poll();
+    poller.key('KeyZ', false);
+    poller.poll();
+    const snap = ticks.snapshot();
+    expect(snap.map((x) => [x.src, x.input])).toEqual([
+      ['emulator', 'b'],
+      ['emulator', 'other'],
+    ]);
+    expect(JSON.stringify(snap)).not.toMatch(/KeyZ|Test Pad/);
+    ticks.clear();
   });
 });
 

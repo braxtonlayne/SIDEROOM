@@ -61,6 +61,11 @@ pub const STUDY_SWITCH_IDS: [&str; 5] = [
     INGEST_QUEUES_ID,
 ];
 
+/// UX-SHOW-001 (wave 45-B, D-435): the Showroom, a populated preview for beta and test deployments. OFF by default.
+/// On, signed-in members see a "Preview populated state" toggle that overlays made-up sample data on the web client
+/// (servers rail, The Study, The Arcade) with no request to the server. It reaches nothing else.
+pub const SHOWROOM_ID: &str = "platform.showroom";
+
 const PLATFORM_GUILD: &[Scope] = &[Scope::Platform, Scope::Guild];
 const PLATFORM_ONLY: &[Scope] = &[Scope::Platform];
 
@@ -227,12 +232,23 @@ const INGEST_QUEUES: Switch = Switch {
     gated_by: None,
     default_on: false,
 };
+const SHOWROOM: Switch = Switch {
+    id: SHOWROOM_ID,
+    name: "Showroom (populated preview)",
+    description: "Shows signed-in members a Preview populated state toggle that fills the web client with made-up sample servers, shelves and games, with a banner on every screen. The sample data lives only in the browser: nothing is read or written on the server. For beta and test deployments; off by default.",
+    section: "Study",
+    phase: 45,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
 
 switch_feature!(ExternalMetadata, EXTERNAL_METADATA);
 switch_feature!(StorefrontCategories, STOREFRONT_CATEGORIES);
 switch_feature!(GlobalTrending, GLOBAL_TRENDING);
 switch_feature!(RequestsBoard, REQUESTS_BOARD);
 switch_feature!(IngestQueues, INGEST_QUEUES);
+switch_feature!(Showroom, SHOWROOM);
 switch_feature!(Jukebox, JUKEBOX);
 switch_feature!(ListeningRooms, LISTENING_ROOMS);
 switch_feature!(Tools, TOOLS);
@@ -352,6 +368,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         GlobalTrending,
         RequestsBoard,
         IngestQueues,
+        Showroom,
     )?;
     for flag in TOOL_FLAGS {
         registry.register(ToolSwitch(flag))?;

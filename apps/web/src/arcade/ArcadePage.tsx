@@ -1,8 +1,10 @@
 import { Notice, Spinner } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
+import { PreviewToggle } from '../showroom/PreviewToggle';
+import { useShowroomActive } from '../showroom/state';
 import { httpArcadeApi, type ArcadeApi } from './api';
 import { CartridgesSection, ComingSoonSection, FeaturedSection } from './ArcadeSections';
 import { sandboxTrust } from './sandboxTrust';
@@ -14,7 +16,21 @@ import './arcade.css';
  * The Arcade (ARC-ROOM-001), route `/games`. Featured is the Operator's Front Page; Guild Cartridges are unlisted
  * games and mods a server lists; Coming Soon shows games in development. Loaded only after sign-in (D-385).
  */
-export function ArcadePage({
+// UX-SHOW-001: sample cards live in a lazy chunk and replace the page (not the data) while the preview is on.
+const PreviewArcade = lazy(() => import('../showroom/PreviewArcade'));
+
+export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
+  const preview = useShowroomActive();
+  if (preview)
+    return (
+      <Suspense fallback={null}>
+        <PreviewArcade />
+      </Suspense>
+    );
+  return <RealArcadePage {...props} />;
+}
+
+function RealArcadePage({
   api = httpArcadeApi,
   trust = sandboxTrust,
 }: {
@@ -43,6 +59,7 @@ export function ArcadePage({
     <main className="arc-page">
       <h1>{t('arcade.page.title')}</h1>
       <p className="arc-dim">{t('arcade.page.intro')}</p>
+      <PreviewToggle />
       <nav aria-label={t('arcade.page.nav')} className="arc-nav">
         <a href="#featured">{t('arcade.featured.heading')}</a>
         <a href="#cartridges">{t('arcade.cartridges.heading')}</a>

@@ -9,10 +9,12 @@ import { PwaHost } from '../pwa/PwaHost';
 import { registerServiceWorker } from '../pwa/register';
 import { ReportDialog } from '../moderation/ReportDialog';
 import { ReportsFlagSync } from '../moderation/reports';
+import { ShowroomBanner } from '../showroom/ShowroomBanner';
 import { MiniPlayerMount } from '../cinema/player/MiniPlayerMount';
 import { IncomingCallOverlay } from '../lounge/voice/IncomingCall';
 import { VoiceBridge } from '../lounge/voice/VoiceBridge';
 import { createAppRouter } from '../router';
+import { CrashBoundary, currentRouteName, installCrashTelemetry } from '../crash';
 import { setUnauthorizedHandler } from '../api/client';
 import { exitToLogin } from '../lib/enterApp';
 import '../styles/fonts.css';
@@ -37,26 +39,33 @@ setUnauthorizedHandler(() => {
 });
 const router = createAppRouter();
 
+// OPS-CRASH-001: unhandled errors and rejections (WASM and WebGPU panics arrive as one of the two) become allow-listed
+// crash reports, with the route NAME and the last 60 ticks. Only this gated bundle installs it (D-385).
+installCrashTelemetry({ routeName: () => currentRouteName(router) });
+
 // Restore the saved language, then paint at once from the core catalog (entrance, a11y, pwa). The rest of
 // the catalog loads in parallel; every non-entrance route and overlay waits behind CatalogGate, so a
 // message key is never shown. Failures fall back to English.
 void initLocale().finally(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <PwaHost />
-        <LiveRegions />
-        <ReportsFlagSync />
-        <CatalogGate>
-          <ReportDialog />
-          {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
-          <VoiceBridge />
-          <IncomingCallOverlay />
-          {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}
-          <MiniPlayerMount history={router.history} />
-        </CatalogGate>
-      </QueryClientProvider>
+      <CrashBoundary>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+          <PwaHost />
+          <LiveRegions />
+          <ReportsFlagSync />
+          <CatalogGate>
+            <ReportDialog />
+            <ShowroomBanner />
+            {/* Outside the router so a voice call survives leaving the Lounge (VOX-CLI-010). */}
+            <VoiceBridge />
+            <IncomingCallOverlay />
+            {/* Same reason: the Cinema mini player keeps playing across routes (CIN-PLY-011). */}
+            <MiniPlayerMount history={router.history} />
+          </CatalogGate>
+        </QueryClientProvider>
+      </CrashBoundary>
     </StrictMode>,
   );
   registerServiceWorker();

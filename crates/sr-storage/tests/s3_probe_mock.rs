@@ -246,11 +246,16 @@ async fn each_failure_is_a_fail_row_with_a_sentence() {
 
 #[tokio::test]
 async fn an_unreachable_endpoint_fails_the_first_row_and_skips_the_rest() {
-    // Bind and drop to get a closed port.
-    let port = {
-        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        l.local_addr().unwrap().port()
-    };
+    // A port this test keeps for itself, closing every connection before a byte is read. Binding and dropping a
+    // listener to get a "closed" port raced the other tests here: one of their fake endpoints could be handed the
+    // freed port and answer (CI run 41364114161).
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((socket, _)) = listener.accept().await {
+            drop(socket);
+        }
+    });
     let t = probe::run(&admin(&format!("http://127.0.0.1:{port}")), "", BUDGET).await;
     assert_eq!(t.rows.len(), 6);
     assert!(t.rows.iter().all(|r| r.status == ProbeStatus::Fail));

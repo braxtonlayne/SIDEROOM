@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
@@ -46,6 +47,26 @@ function changelogVersion(): string {
 }
 
 /**
+ * OPS-CRASH-001: the commit the build was made from, for crash cards (SR_COMMIT_SHA, then CI's GITHUB_SHA, then
+ * `git rev-parse HEAD`). Empty outside a checkout; the client then reports seven zeros.
+ */
+function commitSha(): string {
+  const fromEnv = (process.env.SR_COMMIT_SHA ?? process.env.GITHUB_SHA ?? '').trim().toLowerCase();
+  if (/^[0-9a-f]{7,40}$/.test(fromEnv)) return fromEnv;
+  try {
+    const out = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: fileURLToPath(new URL('.', import.meta.url)),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .trim()
+      .toLowerCase();
+    return /^[0-9a-f]{40}$/.test(out) ? out : '';
+  } catch {
+    return '';
+  }
+}
+/**
  * The gated APP build (D-385, docs/dev/entrance-isolation.md section 2): `app.html` and its assets, base `/app/`,
  * written to `dist/app/` (the shell is moved to `dist/app.html` by `appContractPlugin`). The public surfaces are a
  * separate build, `vite.public.config.ts`; `scripts/build-web.mjs` runs both. `vite dev` and `vitest` use this
@@ -63,6 +84,7 @@ export default defineConfig(({ command }) => ({
   },
   define: {
     __SR_VERSION__: JSON.stringify(changelogVersion()),
+    __SR_COMMIT__: JSON.stringify(commitSha()),
     // RDY-I18N-002: the pseudo-locales ship only in a build made with SR_PSEUDO_LOCALE=1 (src/i18n/runtime.ts).
     'import.meta.env.VITE_SR_PSEUDO_LOCALE': JSON.stringify(
       process.env.SR_PSEUDO_LOCALE === '1' ? 'true' : 'false',

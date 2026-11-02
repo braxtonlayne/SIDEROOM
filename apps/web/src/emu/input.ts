@@ -1,6 +1,9 @@
 // ACT-EMU-001: turns keyboard and gamepad state into `setButton` calls, one poll at a time. The keyboard drives
 // player 1 together with the first pad; the next pads drive players 2 to 4. Only changes are sent. ACT-EMU-002 (co-op)
 // feeds remote players through the same `send`.
+// OPS-CRASH-001: every local press found by `poll` is also a tick in the crash ring buffer (the button as an opaque
+// enum, never a key code or a pad id); remote co-op input does not pass through `poll` and is not recorded.
+import { recordTick } from '../crash/ringBuffer';
 import {
   assignPlayers,
   BUTTONS,
@@ -47,8 +50,10 @@ export class InputPoller {
     const now = this.state();
     now.forEach((next, player) => {
       const before = this.prev[player] ?? new Set<Button>();
-      for (const ev of diffButtons(player, before, next))
+      for (const ev of diffButtons(player, before, next)) {
+        if (ev.pressed) recordTick('emulator', ev.button);
         this.send(ev.player, ev.button, ev.pressed);
+      }
       this.prev[player] = next;
     });
   }

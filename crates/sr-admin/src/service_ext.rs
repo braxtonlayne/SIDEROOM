@@ -1395,6 +1395,25 @@ impl AdminService {
         self.extras()?.ack_alert(id, c.user_id, &audit).await
     }
 
+    /// OPS-CRASH-001 (wave 45-A): may this staff member read the crash triage store? Any appointed staff member may
+    /// (the store holds only the allow-listed card and replay buffer, nothing private). Opening one crash's replay
+    /// leaves a platform audit entry (`crash.report.read`); a refusal leaves the usual `denied` row.
+    pub async fn authorize_crash_read(&self, c: &Caller, report: Option<i64>) -> AdminResult<()> {
+        self.require(c, P::STAFF_BASIC, "crash.list").await?;
+        if let Some(id) = report {
+            let e = self.entry(
+                c,
+                AccessKind::AdminAction,
+                "crash.report.read",
+                Some(("crash_report", id)),
+                "",
+                json!({}),
+            );
+            self.repo().append_log(&e).await?;
+        }
+        Ok(())
+    }
+
     /// A button on a staff card (`sr:<action>:<id>`). The caller needs the permission of
     /// the underlying action; the card itself grants nothing.
     pub async fn card_action(&self, c: &Caller, custom_id: &str) -> AdminResult<CardActionResult> {

@@ -52,7 +52,7 @@ async function routePaths(root: string): Promise<string[]> {
     server: { middlewareMode: true, hmr: false, ws: false },
     optimizeDeps: { noDiscovery: true, include: [] },
     plugins: [react()],
-    define: { __SR_VERSION__: '"build"' },
+    define: { __SR_VERSION__: '"build"', __SR_COMMIT__: '""' },
     ssr: { noExternal: [/^@sideroom\//] },
   });
   try {

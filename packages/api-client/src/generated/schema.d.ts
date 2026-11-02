@@ -1402,6 +1402,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/crash-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The crashes, most recently seen first (any appointed staff member). */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/crash-reports/{report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One crash with its replay buffer (any appointed staff member). Leaves a platform audit entry. */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/data-requests": {
         parameters: {
             query?: never;
@@ -7534,6 +7568,26 @@ export interface paths {
         get: operations["cinema_user_lists"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/crash-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a crash. Session only (nothing before sign-in, D-385); at most 32 KiB; the server rebuilds the card from the
+         *     allow-list and drops every other field. 400 for a report without a valid commit and kind, 429 past the limits.
+         */
+        post: operations["submit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -19873,6 +19927,75 @@ export interface components {
         CoverBody: {
             /** @description `data:image/jpeg;base64,...` or `data:image/png;base64,...`: one image of at most 2 MiB. */
             image: string;
+        };
+        CrashAccepted: {
+            /**
+             * Format: int32
+             * @description Reports with this fingerprint so far.
+             */
+            count: number;
+            /** @description An earlier report had the same fingerprint. */
+            deduplicated: boolean;
+            id: string;
+        };
+        CrashDetail: components["schemas"]["CrashSummary"] & {
+            /** @description The allow-listed card: commit, kind, route, frames, capability flags. */
+            card: Record<string, never>;
+            /** @description The last 60 ticks, oldest first: `{t, src, input}` with `input` an opaque enum. */
+            replay: Record<string, never>[];
+        };
+        CrashFrameBody: {
+            /** Format: int32 */
+            col?: number | null;
+            file: string;
+            fn?: string | null;
+            /** Format: int32 */
+            line?: number | null;
+        };
+        /**
+         * @description What a browser may send. This type only documents the allow-list for the generated client: the handler reads a
+         *     plain JSON value and takes nothing from it that [`allow_list::sanitize`] does not name, so an extra field is
+         *     ignored, not rejected.
+         */
+        CrashReportBody: {
+            /**
+             * Format: int64
+             * @description Client time, Unix ms.
+             */
+            at?: number | null;
+            /** @description Capability flags: booleans named in the allow-list, and `engine`. */
+            caps?: Record<string, never> | null;
+            /** @description The build's commit, 7 to 40 lowercase hex characters. */
+            commit: string;
+            /** @description Stack frames, newest first (at most 24 are kept). */
+            frames?: components["schemas"]["CrashFrameBody"][] | null;
+            /** @description `error`, `unhandled_rejection`, `react_boundary`, `wasm_panic` or `webgpu_panic`. */
+            kind: string;
+            /** @description The route NAME (for example `lounge.:guildId`), never a URL. */
+            route?: string | null;
+            /** @description The last 60 deterministic ticks, oldest first. */
+            ticks?: components["schemas"]["CrashTickBody"][] | null;
+        };
+        CrashSummary: {
+            commit: string;
+            /** Format: int32 */
+            count: number;
+            fingerprint: string;
+            /** Format: int64 */
+            first_seen_ms: number;
+            id: string;
+            kind: string;
+            /** Format: int64 */
+            last_seen_ms: number;
+            route: string;
+        };
+        CrashTickBody: {
+            /** @description An opaque input enum; anything outside the list is recorded as `other`. */
+            input: string;
+            /** @description `activity`, `game` or `emulator`. */
+            src: string;
+            /** Format: int64 */
+            t?: number | null;
         };
         CreateAppAssetBody: {
             /** @description `data:image/png;base64,...` (PNG, JPEG or WebP; at most 2 MiB). */
@@ -35208,6 +35331,90 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description 1 to 200, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrashSummary"][];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Crash report id */
+                report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrashDetail"];
+                };
             };
             401: {
                 headers: {
@@ -55130,6 +55337,61 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrashReportBody"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrashAccepted"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

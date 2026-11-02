@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 /** The build's version: the newest heading of CHANGELOG.md, without its date (vite.config.ts). */
 declare const __SR_VERSION__: string;
+/** The commit the build was made from (vite.config.ts), lowercase hex, or empty outside a checkout (OPS-CRASH-001). */
+declare const __SR_COMMIT__: string;
 declare module '*.module.css' {
   const classes: Record<string, string>;
   export default classes;
