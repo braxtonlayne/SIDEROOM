@@ -14,7 +14,7 @@ after every change; also equal in Chromium and WebKit through `e2e/arena3d/repla
 | 1. Touch controls | Move stick (floating, 8 directions, dead zone), look by dragging anywhere else, Jump (held) and Crouch (toggle), Menu button; shown on `(pointer: coarse)`, `?touch=1`, or on the first real touch; no pointer lock on touch; HUD moves out from under the thumbs. Goes through `InputState.addLook` and `setTouchButtons`, the same integer path as keyboard and mouse. Menu text explains touch and hides the keyboard line on touch. | `client/touch.js`, `client/input.js`, `client/main.js`, `client/index.html`, `client/style.css` |
 
 Commits: `ee5c82e0` (handoff and hidden-tab), `3c75e0c6` (GPU loss), `f74b3c5f` (touch and the GPU notice), plus the
-follow-up commit that holds the README, the two e2e specs, the empty-HUD fix and this file. `dist/` is rebuilt
+follow-up commit that holds the stalled-frame watchdog in `client/game.js` (replacing the `document.hidden` timer), the README, the two e2e specs, the empty-HUD fix and this file (`bd6613c5`). `dist/` is rebuilt
 (`node tools/bundle.mjs`) and `node scripts/build-activities.mjs arena3d` passes (55 files).
 
 ## 2. Not done, and why
