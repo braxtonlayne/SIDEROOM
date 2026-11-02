@@ -4339,7 +4339,7 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
 
 /// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
 /// watcher cursor), so that they say nothing about one refused call.
-const NOISY: [&str; 15] = [
+const NOISY: [&str; 17] = [
     "payment_watcher",
     "staff_access_log",
     "sessions",
@@ -4356,6 +4356,10 @@ const NOISY: [&str; 15] = [
     // UTL-CALC-001: the hourly ECB rates job records its attempt (and, online, the rates) at any moment.
     "fx_rates",
     "fx_fetch_state",
+    // The insights job (sr-server jobs.rs, compute_insights_day) recomputes the daily counts at any moment; a
+    // refused call never writes them (CI run 41364114161 caught the job mid-group).
+    "guild_insights_daily",
+    "guild_insights_channel_daily",
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).
