@@ -9,6 +9,7 @@ import {
   loadCatalog,
   renderHouseNotes,
 } from '../../../scripts/render-legal.mjs';
+import { escapeHtml, renderHouseNotes as houseNotesHtml } from './houseNotesMd';
 import { NO_SCRIPT_CSP } from '../src/security/csp';
 
 /**
@@ -138,38 +139,12 @@ export function hasSession(api: URL, cookie: string | undefined): Promise<boolea
   });
 }
 
-/** HTML-escape a value the way web.rs::escape_html does. */
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * web.rs::house_notes_html (FU-9, D-239): the operator's house-notes copy as escaped text, one paragraph per
- * blank-line group and a break for a single newline, so it shows exactly as typed and adds no markup.
- */
-export function houseNotesHtml(copy: string): string {
-  return copy
-    .replace(/\r\n/g, '\n')
-    .split('\n\n')
-    .map((para) =>
-      para
-        .replace(/^\n+|\n+$/g, '')
-        .split('\n')
-        .map((l) => escapeHtml(l.trimEnd())),
-    )
-    .filter((lines) => lines.some((l) => l !== ''))
-    .map((lines) => `<p>${lines.join('<br>')}</p>\n`)
-    .join('');
-}
+/** web.rs::house_notes_md::render (FU-22): the house-notes copy as restricted markdown, see ./houseNotesMd. */
+export { escapeHtml, houseNotesHtml };
 
 /**
  * web.rs::fill_legal: one pass, so a value holding a placeholder is never expanded again. The operator values are
- * escaped here; `notesHtml` is already escaped by {@link houseNotesHtml}.
+ * escaped here; `notesHtml` is finished HTML from {@link houseNotesHtml}.
  */
 export function fillPlaceholders(
   template: string,

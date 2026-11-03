@@ -17861,7 +17861,7 @@ export interface components {
         ArcadeReleaseResult: {
             /**
              * Format: int32
-             * @description Notices delivered (a member who cannot be reached is skipped).
+             * @description Notices delivered (a member whose DM settings refuse it, or who cannot be reached, is skipped).
              */
             notified: number;
             /**

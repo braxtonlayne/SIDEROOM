@@ -19,7 +19,13 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row, postgres::PgRow};
-use sr_core::tips::{TipError, TipKind, TipLink, validate_tips};
+use sr_core::tips::{TipError, TipKind, TipLink, validate_tips_with};
+
+/// SHA-256 for the base58check of a legacy Bitcoin tip address (FU-23): `sr-core` takes the hash from its callers.
+fn sha256(bytes: &[u8]) -> [u8; 32] {
+    use sha2::Digest as _;
+    sha2::Sha256::digest(bytes).into()
+}
 use utoipa::ToSchema;
 
 use crate::bundle::{self, BundleError, MANIFEST, MAX_MANIFEST_BYTES};
@@ -279,7 +285,8 @@ pub fn parse_manifest(data: &[u8]) -> Result<Manifest, BundleError> {
             problem("has tip_links that are not a list of {\"kind\", \"url\"} (kinds: btc, lightning, kofi, patreon)")
         })?,
     };
-    validate_tips(&tip_links).map_err(|e| problem(format!("has tip_links that {}", e.text())))?;
+    validate_tips_with(&tip_links, Some(&sha256))
+        .map_err(|e| problem(format!("has tip_links that {}", e.text())))?;
     check_flags(tier, &capabilities).map_err(problem)?;
     Ok(Manifest {
         capabilities,
@@ -537,7 +544,7 @@ fn tips_of(links: &[TipInput]) -> ActivityResult<Vec<TipLink>> {
             url: l.url.clone(),
         });
     }
-    validate_tips(&out)
+    validate_tips_with(&out, Some(&sha256))
         .map_err(|e| invalid("tip_links", format!("The tip links {}.", e.text())))?;
     Ok(out)
 }
@@ -1255,6 +1262,36 @@ mod tests {
         assert!(source_ref("shelf-1/games/pong.zip").is_ok());
         for bad in ["", "../x", "a/../b", "a b", "a\\b", "a/./b"] {
             assert!(source_ref(bad).is_err(), "{bad}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tip_checksum_tests {
+    use super::*;
+
+    fn tips(url: &str) -> ActivityResult<Vec<TipLink>> {
+        tips_of(&[TipInput {
+            kind: "btc".into(),
+            url: url.into(),
+        }])
+    }
+
+    #[test]
+    fn legacy_bitcoin_tip_addresses_are_checked_by_base58check() {
+        for ok in [
+            "bitcoin:1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+            "bitcoin:3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy",
+            "bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq",
+        ] {
+            assert!(tips(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "bitcoin:1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN3",
+            "bitcoin:3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLz",
+            "bitcoin:1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2?amount=abc",
+        ] {
+            assert!(tips(bad).is_err(), "{bad}");
         }
     }
 }

@@ -27,6 +27,7 @@ use sr_activities::arcade::{
     ArcadeFront, ArcadeService, CandidateView, CartridgeInput, CartridgeView, ComingSoonCard,
     ComingSoonInput, FeatureInput, FeaturedCard,
 };
+use sr_chat::cards::reminders::Verdict;
 use sr_core::permissions::Permissions;
 use sr_core::{ApiError, ErrorCode, GuildId, PlatformPermissions as P, UserId};
 use utoipa::{OpenApi, ToSchema};
@@ -37,6 +38,8 @@ pub struct ArcadeDeps {
     /// Sender of the system DMs (FU-3: the release notice), filled by the composition root once the
     /// Staff Server voice exists.
     pub dm: crate::routes::review::DmSlot,
+    /// The member's DM settings (FU-20): the block and the ignored/spam state of the system DM.
+    pub gate: std::sync::Arc<dyn sr_chat::cards::reminders::ReminderGate>,
     /// The site origin, for the link in a notice.
     pub public_url: String,
 }
@@ -407,7 +410,7 @@ pub struct ReleaseBody {
 pub struct ReleaseResult {
     /// Members who asked to be told.
     pub watchers: u32,
-    /// Notices delivered (a member who cannot be reached is skipped).
+    /// Notices delivered (a member whose DM settings refuse it, or who cannot be reached, is skipped).
     pub notified: u32,
 }
 
@@ -463,21 +466,14 @@ pub async fn release_coming_soon(
     let Some((title, watchers)) = d.service.release_coming_soon(entry).await.map_err(arc)? else {
         return Err(ErrorCode::SrNotFound.into());
     };
-    let name = app.as_ref().map_or(title.as_str(), |(_, n)| n.as_str());
+    let released_as = app.as_ref().map(|(_, n)| n.as_str());
     let mut notified = 0u32;
     if let Some(dm) = d.dm.get() {
         let card = SystemCard {
-            content: format!(
-                "{name} is out. You asked to hear when it shipped: find it in the Arcade, {}/games",
-                d.public_url
-            ),
+            content: release_text(&title, released_as, &d.public_url),
             ..SystemCard::default()
         };
-        for w in &watchers {
-            if dm.dm(*w, card.clone()).await {
-                notified += 1;
-            }
-        }
+        notified = send_release_notices(dm.as_ref(), d.gate.as_ref(), &watchers, &card).await;
     } else {
         tracing::debug!("no system DM sender wired; Coming Soon release notices skipped");
     }
@@ -490,6 +486,7 @@ pub async fn release_coming_soon(
             json!({
                 "watchers": watched,
                 "notified": notified,
+                "skipped": watched.saturating_sub(notified),
                 "application_id": app.map(|(id, _)| id.to_string()),
             }),
         )
@@ -499,6 +496,99 @@ pub async fn release_coming_soon(
         watchers: watched,
         notified,
     }))
+}
+
+/// The release DM (FU-20): the entry's title is the name the watcher recognises; the Activity's name is added
+/// only when the Operator released it under another one. The link comes last.
+fn release_text(title: &str, released_as: Option<&str>, public_url: &str) -> String {
+    let head =
+        format!("{title} is out. You asked to be told when it was ready: it is in the Arcade now");
+    match released_as.map(str::trim) {
+        Some(name) if name != title.trim() => format!("{head} as {name}. {public_url}/games"),
+        _ => format!("{head}. {public_url}/games"),
+    }
+}
+
+/// Send the release notice to each watcher whose DM settings allow it (FU-20); returns how many were
+/// delivered. The block and the ignored/spam state apply (`guild: None`); an unreadable setting is a
+/// skip too, as a one-shot notice has no retry pass.
+async fn send_release_notices(
+    dm: &dyn crate::routes::developer::SystemDm,
+    gate: &dyn sr_chat::cards::reminders::ReminderGate,
+    watchers: &[i64],
+    card: &SystemCard,
+) -> u32 {
+    let mut notified = 0u32;
+    for w in watchers {
+        let Ok(uid) = u64::try_from(*w) else { continue };
+        match gate.check(uid, None).await {
+            Verdict::Send => {
+                if dm.dm(*w, card.clone()).await {
+                    notified += 1;
+                }
+            }
+            verdict => tracing::debug!(?verdict, "Coming Soon release notice skipped"),
+        }
+    }
+    notified
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::*;
+
+    #[test]
+    fn the_release_text_names_the_activity_only_when_it_differs() {
+        let url = "https://s.example";
+        let base =
+            "Moon Quest is out. You asked to be told when it was ready: it is in the Arcade now";
+        assert_eq!(
+            release_text("Moon Quest", None, url),
+            format!("{base}. https://s.example/games")
+        );
+        assert_eq!(
+            release_text("Moon Quest", Some("Moon Quest"), url),
+            format!("{base}. https://s.example/games")
+        );
+        assert_eq!(
+            release_text("Moon Quest", Some("Moon Quest DX"), url),
+            format!("{base} as Moon Quest DX. https://s.example/games")
+        );
+    }
+
+    use sr_chat::cards::reminders::Skip;
+    use std::sync::Mutex;
+
+    struct Log(Mutex<Vec<i64>>);
+    #[async_trait::async_trait]
+    impl crate::routes::developer::SystemDm for Log {
+        async fn dm(&self, to: i64, _card: SystemCard) -> bool {
+            self.0.lock().unwrap().push(to);
+            true
+        }
+    }
+    struct Gate;
+    #[async_trait::async_trait]
+    impl sr_chat::cards::reminders::ReminderGate for Gate {
+        async fn check(&self, user: u64, _guild: Option<u64>) -> Verdict {
+            match user {
+                2 => Verdict::Skip(Skip::Blocked),
+                3 => Verdict::Unknown("down".into()),
+                _ => Verdict::Send,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_watcher_the_gate_refuses_is_not_notified() {
+        let log = Log(Mutex::new(vec![]));
+        let n = send_release_notices(&log, &Gate, &[1, 2], &SystemCard::default()).await;
+        assert_eq!(n, 1);
+        assert_eq!(*log.0.lock().unwrap(), vec![1]);
+        let n = send_release_notices(&log, &Gate, &[3], &SystemCard::default()).await;
+        assert_eq!(n, 0, "an unreadable setting is a skip");
+        assert_eq!(log.0.lock().unwrap().len(), 1);
+    }
 }
 
 /// OpenAPI fragment for the Arcade endpoints.

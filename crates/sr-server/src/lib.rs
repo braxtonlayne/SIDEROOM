@@ -27,6 +27,7 @@ pub mod gateway_pg;
 pub mod graduated_mod;
 pub mod guest_relay;
 pub mod healthcheck;
+pub mod house_notes_md;
 pub mod inbox_pg;
 pub mod instance_mount;
 pub mod integration_policy;
