@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Sketch &amp; Slander</title>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand" aria-hidden="true"><span class="brand-mark">S&amp;S</span><span class="brand-name">Sketch &amp; Slander</span></div>
+    <div id="hud" class="hud" hidden>
+      <span id="hud-round" class="hud-round"></span>
+      <span id="hud-hint" class="hud-hint" aria-live="polite"></span>
+      <span id="hud-timer" class="hud-timer" role="timer"></span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section id="scr-loading" class="screen center">
+      <p class="muted" id="loading-text">Joining the game…</p>
+    </section>
+
+    <section id="scr-lobby" class="screen lobby" hidden aria-labelledby="lobby-title">
+      <div class="card lobby-main">
+        <h1 id="lobby-title">Sketch &amp; Slander</h1>
+        <p class="muted">One person draws a secret prompt, everyone else races to guess it. Faster guesses score more, and the artist scores for every right guess.</p>
+        <div id="name-form" class="row">
+          <label class="field grow"><span>Your nickname</span><input id="name-input" maxlength="20" autocomplete="off" enterkeyhint="done"></label>
+          <button type="button" class="btn" id="name-save">Save</button>
+        </div>
+        <h2>Players <span id="lobby-count" class="pill"></span></h2>
+        <ul id="lobby-players" class="chips"></ul>
+        <div class="join-tip" id="join-tip">
+          <strong>Playing on a phone?</strong>
+          <span>Anyone in the call can open <em>Share link</em> on the Activity and show the QR code: a phone that scans it joins as a guest and becomes a drawing pad.</span>
+        </div>
+      </div>
+
+      <div class="card lobby-host" id="host-panel" hidden>
+        <h2>Game settings</h2>
+        <div class="row wrap">
+          <label class="field"><span>Rounds</span><select id="set-rounds"></select></label>
+          <label class="field"><span>Drawing time</span><select id="set-time"></select></label>
+        </div>
+        <label class="check"><input type="checkbox" id="set-builtin"> <span>Use the built-in prompts</span></label>
+        <div id="pack-panel">
+          <h3>Server prompt packs</h3>
+          <p class="muted small">Load a pack from one of this server's shelves: paste the shelf id and the file's hash (or a link that has both). A pack is a JSON or text file with one prompt per line.</p>
+          <div id="pack-form" class="row">
+            <label class="field grow"><span>Shelf file</span><input id="pack-ref" autocomplete="off" spellcheck="false" placeholder="shelf id / file hash"></label>
+            <button type="button" class="btn" id="pack-load">Load</button>
+          </div>
+          <p id="pack-msg" class="small" role="status"></p>
+          <ul id="pack-list" class="packs"></ul>
+        </div>
+        <button type="button" id="start" class="btn primary big">Start the game</button>
+        <p id="start-hint" class="muted small center-text"></p>
+      </div>
+      <div class="card lobby-wait" id="wait-panel" hidden>
+        <p class="muted center-text">Waiting for <strong id="wait-host"></strong> to start the game…</p>
+        <p id="wait-settings" class="small muted center-text"></p>
+      </div>
+    </section>
+
+    <section id="scr-game" class="screen game" hidden>
+      <aside class="board" aria-label="Scores">
+        <ol id="board" class="board-list"></ol>
+        <button type="button" id="skip" class="btn ghost small" hidden aria-label="Skip this turn">Skip turn</button>
+      </aside>
+      <div class="stage">
+        <div class="paper-wrap">
+          <div class="paper" id="paper">
+            <canvas id="pad" aria-label="Drawing"></canvas>
+            <div id="overlay" class="overlay" hidden></div>
+          </div>
+        </div>
+        <div id="tools" class="tools" hidden aria-label="Drawing tools">
+          <div id="colors" class="colors" role="radiogroup" aria-label="Colour"></div>
+          <div class="tool-row">
+            <div id="sizes" class="sizes" role="radiogroup" aria-label="Brush size"></div>
+            <button type="button" id="eraser" class="tool" aria-pressed="false" title="Eraser">Eraser</button>
+            <button type="button" id="undo" class="tool" title="Undo">Undo</button>
+            <button type="button" id="clear" class="tool danger" title="Clear">Clear</button>
+          </div>
+        </div>
+        <div id="you-draw" class="you-draw" hidden></div>
+      </div>
+      <aside class="side">
+        <ol id="feed" class="feed" aria-live="polite" aria-label="Guesses"></ol>
+        <div id="guess-form" class="guess">
+          <input id="guess" maxlength="48" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" aria-label="Your guess" placeholder="Type your guess">
+          <button type="button" class="btn primary" id="guess-send">Guess</button>
+        </div>
+        <p id="guess-note" class="small muted" role="status"></p>
+      </aside>
+    </section>
+
+    <section id="scr-end" class="screen end" hidden aria-labelledby="end-title">
+      <div class="card end-card">
+        <h1 id="end-title">Final scores</h1>
+        <ol id="podium" class="podium"></ol>
+        <ol id="end-rest" class="end-rest"></ol>
+        <button type="button" id="again" class="btn primary big" hidden>Back to the lobby</button>
+        <p id="again-wait" class="muted small center-text" hidden>The host can start another game.</p>
+      </div>
+    </section>
+
+    <section id="scr-ended" class="screen center" hidden>
+      <div class="card">
+        <h1>The game ended</h1>
+        <p id="ended-text" class="muted"></p>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast" role="status" hidden></div>
+</div>
+</body>
+</html>

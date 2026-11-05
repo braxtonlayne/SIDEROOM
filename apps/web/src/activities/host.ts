@@ -18,6 +18,7 @@ import {
   STORAGE_CAPABILITY,
   STORAGE_LIMITS,
   BYOS_READ_CAPABILITY,
+  SHELF_OBJECT_BYTES_MAX,
   isShelfObjectRef,
   type ShelfObjectUrl,
   type RpcErrorBody,
@@ -139,6 +140,11 @@ export interface HostEnv {
    * `shelfObjectUrl`.
    */
   shelfObjectUrl?: (shelfId: string, objectHash: string) => Promise<ShelfObjectUrl>;
+  /**
+   * D-460: fetch the bytes behind a per-object URL from this (the member's) page, without credentials and at most
+   * `max` bytes; rejects past the cap. Default: `fetch`. Tests pass their own.
+   */
+  fetchShelfObject?: (url: string, max: number) => Promise<Uint8Array>;
   applicationId: string;
   instance: () => ActivityInstance;
   channel: () => { id: string; guild_id: string; name: string };
@@ -301,6 +307,20 @@ export interface ActivityHost {
   voiceChanged(people: VoicePerson[]): void;
   /** The frame is going away (closed, left, instance ended): clear the Activity's presence. */
   dispose(): void;
+}
+
+/** D-460: GET a per-object URL without credentials, refusing more than `max` bytes. */
+export async function fetchCapped(url: string, max: number): Promise<Uint8Array> {
+  const res = await fetch(url, {
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (Number(res.headers.get('content-length') ?? 0) > max) throw new Error('too big');
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (bytes.length > max) throw new Error('too big');
+  return bytes;
 }
 
 export function createActivityHost(env: HostEnv): ActivityHost {
@@ -544,6 +564,40 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         } catch {
           throw new RpcError(RPC_ERRORS.failed, 'That file is not available.');
         }
+      }
+      case 'shelfObjectBytes': {
+        // D-460: the same object, the same yes and the same per-object URL as shelfObjectUrl, but this page fetches
+        // it and hands the frame the bytes, so the game's CSP never names a storage host.
+        if (!hasByosRead() || !env.shelfObjectUrl) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the byos_read capability.',
+          );
+        }
+        if (!isShelfObjectRef(args)) {
+          throw invalid('shelf_id must be an id and object_hash a lowercase hex SHA-256.');
+        }
+        const key = `${args.shelf_id}/${args.object_hash}`;
+        if (!shelfAllowed.has(key)) {
+          const yes = await env.confirm({
+            kind: 'shelf',
+            shelfId: args.shelf_id,
+            objectHash: args.object_hash,
+          });
+          if (!yes) throw new RpcError(RPC_ERRORS.denied, 'The person declined.');
+          shelfAllowed.add(key);
+        }
+        let bytes: Uint8Array;
+        try {
+          const minted = await env.shelfObjectUrl(args.shelf_id, args.object_hash);
+          bytes = await (env.fetchShelfObject ?? fetchCapped)(minted.url, SHELF_OBJECT_BYTES_MAX);
+        } catch {
+          throw new RpcError(RPC_ERRORS.failed, 'That file is not available.');
+        }
+        if (bytes.length > SHELF_OBJECT_BYTES_MAX) {
+          throw new RpcError(RPC_ERRORS.failed, 'That file is too big.');
+        }
+        return { b: b64(bytes), size: bytes.length };
       }
       case 'saveFile': {
         if (!env.saveFile) {
