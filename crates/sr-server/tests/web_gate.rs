@@ -815,7 +815,9 @@ async fn the_house_notes_copy_is_rendered_as_restricted_markdown() {
         Arc::new(WithNotes(
             "## Our rules
 
-Read [the wiki](https://wiki.example/a?b=1&c=2) or [this](javascript:x).",
+Read [the wiki](https://wiki.example/a?b=1&c=2) or [this](javascript:x).
+
+### Über uns",
         )),
     )
     .await;
@@ -828,11 +830,12 @@ Read [the wiki](https://wiki.example/a?b=1&c=2) or [this](javascript:x).",
     );
     assert!(
         r.body.contains(
-            "<a href=\"https://wiki.example/a?b=1&amp;c=2\" rel=\"noopener noreferrer\">the wiki</a>"
+            "<a href=\"https://wiki.example/a?b=1&amp;c=2\" rel=\"noopener noreferrer nofollow\">the wiki</a>"
         ),
         "{}",
         r.body
     );
+    assert!(r.body.contains("id=\"op-über-uns\""), "{}", r.body);
     assert!(!r.body.contains("javascript:x\"") && !r.body.contains("href=\"javascript"));
     let (f, _) = fixture_with(false, Arc::new(WithNotes("<img src=x onerror=alert(1)>"))).await;
     let r = send(&f, empty(nav("/house-notes?lang=de"))).await;

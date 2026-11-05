@@ -3,9 +3,12 @@
   display: grid;
   gap: 20px;
   align-content: start;
-  padding-block: 24px 48px;
-  padding-inline: 16px;
-  max-inline-size: 60rem;
+  box-sizing: border-box;
+  inline-size: 100%;
+  /* D-480: lined up with the Arcade page (.arc-page) it is entered from. */
+  padding-block: 32px 64px;
+  padding-inline: clamp(16px, 5vw, 80px);
+  max-inline-size: 90rem;
   margin-inline: auto;
 }
 .emu-page h1,

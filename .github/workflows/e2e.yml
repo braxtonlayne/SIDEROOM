@@ -231,6 +231,17 @@ jobs:
         env:
           CI: "true"
           SR_E2E_GUEST: "1"
+      # ACT-SKS-001 (wave 47 gate proof, D-389, D-396, D-397, D-460): Sketch & Slander with one member and one guest
+      # phone; the guest's bundle and trace hold no chat, member, profile or shelf route, and the prompt pack comes
+      # only through a presigned per-object URL fetched by the member's page. Its own server run (registration cap).
+      - name: Sketch & Slander gate (Chromium)
+        if: always()
+        run: |
+          ./deploy/compose/e2e-run.sh --project=chromium tests/sketch-gate.spec.ts
+          cp server.log server-sketch-gate.log || true
+        env:
+          CI: "true"
+          SR_E2E_GUEST: "1"
       # Required since run 39224043323 passed it 5 of 5 (--repeat-each=5 --retries=0), which turned the E2EE defaults
       # on (D-249, VOX-E2E-003).
       - name: Voice E2EE (Firefox)
@@ -440,6 +451,7 @@ jobs:
             server-voice-bot.log
             server-e2ee-chromium.log
             server-guest-play.log
+            server-sketch-gate.log
             server-e2ee-firefox.log
             server-relay.log
             server-cinema.log

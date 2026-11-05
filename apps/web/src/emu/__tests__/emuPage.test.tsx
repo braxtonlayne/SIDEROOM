@@ -1,8 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
+import { afterEach } from 'vitest';
 import { createAppRouter } from '../../router';
 import { http, HttpResponse, server } from '../../test/server';
+import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import { useStore } from '../../store/store';
 
 const open = () => {
@@ -134,5 +136,24 @@ describe('the emulator page (ACT-EMU-001)', () => {
     await user.click(await screen.findByRole('button', { name: 'Play' }));
     expect(await screen.findByText('This emulator core is not installed here')).toBeInTheDocument();
     expect(screen.getByText(/Beetle Supafaust core is not on this instance/)).toBeInTheDocument();
+  });
+});
+
+describe('D-480: the Emulator is a room of the Arcade', () => {
+  afterEach(() => usePrefsStore.setState({ prefs: DEFAULT_PREFS }));
+
+  it('carries the Arcade rooms bar, with the Arcade current, and the Arcade theme under a Lounge Light member', async () => {
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, theme: 'lounge-light' } });
+    server.use(...handlers([]));
+    open();
+    expect(await screen.findByRole('heading', { name: 'Emulator', level: 1 })).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.arc-roombar')).not.toBeNull());
+    expect(
+      within(screen.getByTestId('rooms-nav')).getByRole('link', { name: 'The Arcade' }),
+    ).toHaveAttribute('aria-current', 'page');
+    expect(document.querySelector('[data-section="arcade"]')).toHaveAttribute(
+      'data-theme',
+      'lounge-editorial',
+    );
   });
 });

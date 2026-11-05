@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Build the built-in Activities (wave 36: ACT-WB-001, ACT-CT-001, ACT-TT-001, ACT-LND-001; wave 46: ACT-A3D-001)
+// Build the built-in Activities (wave 36: ACT-WB-001, ACT-CT-001, ACT-TT-001, ACT-LND-001; wave 46: ACT-A3D-001;
+// wave 47: ACT-SKS-001)
 // into the zips the developer portal takes. One shape for all five: each folder under packages/starter-packs/activities is a
 // workspace package whose `build` writes the bundle root to its dist/ (index.html and the bundle manifest
 // sideroom.json, which declares the `datachannel` capability); this script runs those builds, checks the
@@ -36,6 +37,9 @@ export const ACTIVITIES = {
   // sideroom.json (`sr_activities::sandbox::parse_connect`) into the reviewed bundle's connect list, so the sandbox
   // CSP sends `connect-src 'self'` and the game can fetch its own model JSON.
   arena3d: (dir) => [join(dir, 'tools', 'bundle.mjs')],
+  // ACT-SKS-001 (wave 47): Sketch & Slander, the party game. No connect list: Guild Prompt Packs reach it as bytes
+  // through the member bridge (`shelfObjectBytes`, D-460), so its CSP stays `connect-src 'none'`.
+  sketch: (dir) => [join(dir, 'tools', 'bundle.mjs')],
 };
 
 /** Every file under `dir`, keyed by its path relative to `dir` with forward slashes, sorted. */

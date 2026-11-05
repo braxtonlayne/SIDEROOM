@@ -90,7 +90,14 @@
   align-items: baseline;
   gap: 4px 14px;
 }
+/* D-469: a phone gives the game its width in the play phase (the join card keeps its 16px). */
+@media (max-width: 480px) {
+  .gp-main:has(.gp-play) {
+    padding-inline: 8px;
+  }
+}
 .gp-frame {
+  box-sizing: border-box;
   flex: 1;
   inline-size: 100%;
   min-block-size: 60vh;

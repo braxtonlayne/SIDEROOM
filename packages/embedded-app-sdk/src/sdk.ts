@@ -15,6 +15,7 @@ import {
   type RpcErrorBody,
   type SubscribeArgs,
   type ShelfObjectRef,
+  type ShelfObjectBytes,
   type ShelfObjectUrl,
   STORAGE_LIMITS,
   STORAGE_CAPABILITY,
@@ -297,6 +298,13 @@ export class SideRoomSDK {
      * first). Fetching it needs the shelf's storage host in the manifest's `connect` list. Members only.
      */
     shelfObjectUrl: (args: ShelfObjectRef) => this.call<ShelfObjectUrl>('shelfObjectUrl', args),
+    /**
+     * D-460: the bytes of one shelf object (needs `byos_read`; the member is asked first). The member's page fetches
+     * the per-object URL and hands the bytes over, so no storage host has to be in the game's CSP. At most
+     * SHELF_OBJECT_BYTES_MAX. Members only.
+     */
+    shelfObjectBytes: async (args: ShelfObjectRef): Promise<Uint8Array> =>
+      unb64((await this.call<ShelfObjectBytes>('shelfObjectBytes', args)).b),
     /** Offer the person a file to save (png, jpeg, webp, json or text, at most 8 MiB). Resolves `{ saved }`. */
     saveFile: (args: { name: string; mime: string; bytes: Uint8Array }) =>
       this.call<{ saved: boolean }>('saveFile', {

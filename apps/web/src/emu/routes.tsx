@@ -6,11 +6,10 @@ import { EmulatorSwitchedOff, useEmulatorOn } from './SwitchedOff';
 // The Arcade and the emulator are chunks of the signed-in app only: nothing here loads before sign-in (D-385).
 const EmuPage = lazyNamed(() => import('./EmuPage'), 'EmuPage');
 const ArcadePage = lazyNamed(() => import('../arcade/ArcadePage'), 'ArcadePage');
-// The viewer's saved theme, like the Lounge (XC-VIS-001); a chunk of its own, so the first paint does not grow.
-const LoungeThemeProvider = lazyNamed(
-  () => import('../settings/user/LoungeThemeProvider'),
-  'LoungeThemeProvider',
-);
+// The Arcade's own themed section (D-476, editorial by default); a chunk of its own, so the first paint does not grow.
+const ArcadeThemeProvider = lazyNamed(() => import('../arcade/ArcadeTheme'), 'ArcadeThemeProvider');
+// D-480: the Emulator is a room of the Arcade, so it carries the Arcade's rooms bar (its own small chunk).
+const ArcadeRoomBar = lazyNamed(() => import('../arcade/ArcadeShell'), 'ArcadeRoomBar');
 
 /** /games: the Arcade (ARC-ROOM-001); /games/emulator: the emulator (ACT-EMU-001). */
 export function createEmuRoutes(root: AnyRoute) {
@@ -19,11 +18,11 @@ export function createEmuRoutes(root: AnyRoute) {
     path: '/games',
     component: function GamesRoute() {
       return (
-        <LoungeThemeProvider>
+        <ArcadeThemeProvider>
           <ToastProvider>
             <ArcadePage />
           </ToastProvider>
-        </LoungeThemeProvider>
+        </ArcadeThemeProvider>
       );
     },
   });
@@ -33,9 +32,12 @@ export function createEmuRoutes(root: AnyRoute) {
     component: function EmulatorRoute() {
       const on = useEmulatorOn();
       return (
-        <LoungeThemeProvider>
-          <ToastProvider>{on ? <EmuPage /> : <EmulatorSwitchedOff />}</ToastProvider>
-        </LoungeThemeProvider>
+        <ArcadeThemeProvider>
+          <ToastProvider>
+            <ArcadeRoomBar />
+            {on ? <EmuPage /> : <EmulatorSwitchedOff />}
+          </ToastProvider>
+        </ArcadeThemeProvider>
       );
     },
   });

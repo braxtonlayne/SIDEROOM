@@ -792,4 +792,28 @@ mod tests {
         assert_eq!(connect_src(&input(false, false, &connect)), "'self'");
         assert!(csp(&input(false, false, &connect)).contains("connect-src 'self';"));
     }
+
+    /// ACT-SKS-001 (wave 47): Sketch & Slander's real manifest validates with the capabilities it plays with, and has
+    /// no connect list: Guild Prompt Packs reach it as bytes through the member bridge (`shelfObjectBytes`, D-460),
+    /// so its sandbox keeps `connect-src 'none'` and no storage host is ever added to its policy.
+    #[test]
+    fn the_sketch_manifest_survives_review_with_no_connect_hosts() {
+        let manifest =
+            include_bytes!("../../../packages/starter-packs/activities/sketch/sideroom.json");
+        let m = crate::arcade::parse_manifest(manifest).expect("sketch manifest validates");
+        for c in [
+            "datachannel",
+            "storage",
+            "guest_play",
+            "lobby_channel",
+            "host_handoff",
+            "byos_read",
+        ] {
+            assert!(m.capabilities.iter().any(|x| x == c), "{c}");
+        }
+        assert!(!m.capabilities.iter().any(|x| x == "ingame_voice"));
+        let connect = parse_connect(manifest).expect("connect parses");
+        assert!(connect.is_empty());
+        assert!(csp(&input(false, false, &connect)).contains("connect-src 'none';"));
+    }
 }

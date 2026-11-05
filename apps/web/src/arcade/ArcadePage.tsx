@@ -1,21 +1,30 @@
-import { Notice, Spinner } from '@sideroom/ui';
+import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
 import { apiFetch } from '../api/client';
 import type { Guild } from '../store/types';
-import { PreviewToggle } from '../showroom/PreviewToggle';
 import { useShowroomActive } from '../showroom/state';
+import { httpActivityApi } from '../activities/api';
 import { httpArcadeApi, type ArcadeApi } from './api';
-import { CartridgesSection, ComingSoonSection, FeaturedSection } from './ArcadeSections';
+import { ArcadeShell } from './ArcadeShell';
+import {
+  ArcadeHero,
+  CartridgesSection,
+  ComingSoonSection,
+  FeaturedSection,
+  PlayableSection,
+} from './ArcadeSections';
 import { sandboxTrust } from './sandboxTrust';
+import { StartInDialog, type PlayTarget } from './StartInDialog';
 import { TrustProvider, type TrustSource } from './trust';
 import type { ArcadeFront } from './types';
 import './arcade.css';
 
 /**
- * The Arcade (ARC-ROOM-001), route `/games`. Featured is the Operator's Front Page; Guild Cartridges are unlisted
+ * The Arcade (ARC-ROOM-001, redesigned in ARC-UI-010), route `/games`. Playable now is the built-in games and the
+ * Emulator, drawn without waiting for data; Featured is the Operator's Front Page; Guild Cartridges are unlisted
  * games and mods a server lists; Coming Soon shows games in development. Loaded only after sign-in (D-385).
  */
 // UX-SHOW-001: sample cards live in a lazy chunk and replace the page (not the data) while the preview is on.
@@ -44,6 +53,26 @@ function useServerList(): Pick<Guild, 'id' | 'name'>[] {
   return need ? fetched : live;
 }
 
+/**
+ * The Activities shelf by name (D-477): only read when the Operator has picks, so a pick that is the same game as a
+ * built-in hero can take that hero's slot instead of showing twice.
+ */
+function useShelfIds(need: boolean): Record<string, string> {
+  const [ids, setIds] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!need) return;
+    let on = true;
+    httpActivityApi
+      .shelf()
+      .then((s) => on && setIds(Object.fromEntries(s.items.map((i) => [i.name, i.application_id]))))
+      .catch(() => undefined);
+    return () => {
+      on = false;
+    };
+  }, [need]);
+  return ids;
+}
+
 export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
   const preview = useShowroomActive();
   if (preview)
@@ -68,9 +97,14 @@ function RealArcadePage({
   const emulatorOn = useEmulatorOn();
   const [front, setFront] = useState<ArcadeFront | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [playing, setPlaying] = useState<PlayTarget | null>(null);
+  const [listSignal, setListSignal] = useState(0);
+  const shelfIds = useShelfIds(!!front && front.featured.length > 0);
 
   useEffect(() => {
     let live = true;
+    setFailed(false);
     api
       .front()
       .then((f) => live && setFront(f))
@@ -78,29 +112,80 @@ function RealArcadePage({
     return () => {
       live = false;
     };
-  }, [api]);
+  }, [api, attempt]);
+
+  const links = [
+    { href: '#playable', label: t('arcade.playable.heading') },
+    // D-474: no Featured link while there are no picks (the section is not on the page).
+    ...(front && front.featured.length > 0
+      ? [{ href: '#featured', label: t('arcade.featured.heading') }]
+      : []),
+    { href: '#cartridges', label: t('arcade.cartridges.heading') },
+    { href: '#coming-soon', label: t('arcade.soon.heading') },
+  ];
 
   return (
-    <main className="arc-page">
-      <header className="arc-head">
-        <h1>{t('arcade.page.title')}</h1>
-        <p className="arc-dim">{t('arcade.page.intro')}</p>
-      </header>
-      <PreviewToggle />
-      <nav aria-label={t('arcade.page.nav')} className="arc-nav">
-        <a href="#featured">{t('arcade.featured.heading')}</a>
-        <a href="#cartridges">{t('arcade.cartridges.heading')}</a>
-        <a href="#coming-soon">{t('arcade.soon.heading')}</a>
-      </nav>
-      {failed && <Notice variant="danger" title={t('arcade.page.failed')} />}
-      {!front && !failed && <Spinner label={t('arcade.page.loading')} />}
+    <ArcadeShell
+      links={links}
+      action={
+        guilds.length > 0 ? (
+          <a
+            href="#cartridges"
+            className="arc-tabs-link"
+            onClick={() => setListSignal((n) => n + 1)}
+          >
+            <Icon name="plus" size={16} />
+            <span className="arc-tabs-label">{t('arcade.cartridges.listButton')}</span>
+          </a>
+        ) : undefined
+      }
+    >
+      <ArcadeHero
+        flags={front?.flags ?? []}
+        onPlay={setPlaying}
+        featured={front?.featured ?? []}
+        shelfIds={shelfIds}
+      />
+      <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} onPlay={setPlaying} />
+      {failed && (
+        <div className="arc-section">
+          <EmptyState
+            className="arc-empty"
+            data-tone="danger"
+            role="alert"
+            icon={<Icon name="alert" size={32} />}
+            title={t('arcade.page.failed')}
+            action={
+              <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+                {t('arcade.page.retry')}
+              </Button>
+            }
+          />
+        </div>
+      )}
+      {!front && !failed && (
+        <div className="arc-section arc-loading" aria-busy="true">
+          <Spinner label={t('arcade.page.loading')} />
+          <div className="arc-grid" aria-hidden="true">
+            <div className="arc-skeleton" />
+            <div className="arc-skeleton" />
+            <div className="arc-skeleton" />
+          </div>
+        </div>
+      )}
       {front && (
         <TrustProvider source={trust}>
-          <FeaturedSection featured={front.featured} flags={front.flags} emulatorOn={emulatorOn} />
-          <CartridgesSection guilds={guilds} flags={front.flags} api={api} />
-          <ComingSoonSection entries={front.coming_soon} api={api} />
+          <FeaturedSection featured={front.featured} flags={front.flags} onPlay={setPlaying} />
+          <CartridgesSection
+            guilds={guilds}
+            flags={front.flags}
+            api={api}
+            openSignal={listSignal}
+          />
+          <ComingSoonSection entries={front.coming_soon} api={api} flags={front.flags} />
         </TrustProvider>
       )}
-    </main>
+      <StartInDialog target={playing} guilds={guilds} onClose={() => setPlaying(null)} />
+    </ArcadeShell>
   );
 }

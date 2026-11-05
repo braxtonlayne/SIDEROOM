@@ -82,6 +82,7 @@ export function ArcadeAdminSection({
         <Notice variant="danger" title={t('arcade.admin.failed', { reason: error })} />
       )}
       <h3>{t('arcade.admin.candidates')}</h3>
+      <p className="arc-dim">{t('arcade.admin.heroNote')}</p>
       {cands === null && <p className="arc-dim">{t('arcade.admin.loading')}</p>}
       {cands?.length === 0 && <p className="arc-dim">{t('arcade.admin.noCandidates')}</p>}
       <ul className="arc-admin-list">

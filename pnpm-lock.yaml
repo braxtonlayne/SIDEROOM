@@ -389,6 +389,18 @@ importers:
         specifier: ^3.0.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jsdom@25.0.1)(msw@2.15.0(@types/node@22.20.5)(typescript@5.6.3))
 
+  packages/starter-packs/activities/sketch:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      typescript:
+        specifier: ~5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.5)(jsdom@25.0.1)(msw@2.15.0(@types/node@22.20.5)(typescript@5.6.3))
+
   packages/starter-packs/activities/tabletop:
     devDependencies:
       '@types/node':

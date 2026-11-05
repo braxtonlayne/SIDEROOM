@@ -21,6 +21,7 @@ const SECTIONS: &[&str] = &[
     "entrance",
     "cinema",
     "library",
+    "arcade",
     "support",
     "live-tv",
 ];

@@ -3,7 +3,7 @@
 // first-paint core: it has no t() keys and imports nothing heavy, and the markdown is rendered by the small
 // restricted renderer below (paragraphs, headings, lists, code blocks, quotes, tables, bold, italic, code,
 // http(s), same-site and same-page links; never raw HTML).
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch } from '../../api/client';
 
 export type EntranceCopyKey = 'no-invitation' | 'house-notes' | 'landing-note' | 'hero-alt';
@@ -107,6 +107,28 @@ function defaultHeadingId(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/**
+ * The id rule of the served /house-notes page (FU-25): `op-` plus Unicode letters and digits lower-cased per
+ * character, runs of other characters as one dash, deduped `-2`, `-3`. `EntranceMarkdown` passes a fresh `seen` set
+ * on every render, so a double render (StrictMode) cannot count a heading twice.
+ */
+export function houseNotesHeadingId(text: string, seen: Set<string>): string {
+  let s = '';
+  let dash = false;
+  for (const ch of text) {
+    if (/[\p{L}\p{N}]/u.test(ch)) {
+      if (dash && s) s += '-';
+      dash = false;
+      s += ch.toLowerCase();
+    } else dash = true;
+  }
+  if (!s) return '';
+  let id = `op-${s}`;
+  for (let k = 2; seen.has(id); k++) id = `op-${s}-${k}`;
+  seen.add(id);
+  return id;
+}
+
 const cells = (row: string) =>
   row
     .trim()
@@ -119,14 +141,27 @@ const cells = (row: string) =>
  * Renders operator markdown as React elements. Headings start at h2 (the page keeps its own h1). Supported:
  * paragraphs, headings, lists (an ordered list keeps its first number), fenced code, block quotes, simple
  * tables and the inline marks above. `headingId` replaces the id rule (the runbook uses the playbook slug).
+ * `hardBreaks` keeps a newline inside a paragraph or quote as a line break (the house-notes page does, FU-26).
  */
 export function EntranceMarkdown({
   source,
   headingId = defaultHeadingId,
+  hardBreaks = false,
 }: {
   source: string;
-  headingId?: (text: string) => string;
+  headingId?: (text: string, seen: Set<string>) => string;
+  hardBreaks?: boolean;
 }) {
+  const joined = (lines: string[], key: string): ReactNode =>
+    hardBreaks
+      ? lines.map((l, i) => (
+          <Fragment key={i}>
+            {i > 0 && <br />}
+            {inline(l, `${key}-${i}`)}
+          </Fragment>
+        ))
+      : inline(lines.join(' '), key);
+  const seenIds = new Set<string>();
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const out: ReactNode[] = [];
   let para: string[] = [];
@@ -138,7 +173,7 @@ export function EntranceMarkdown({
   const flushPara = () => {
     if (para.length) {
       const key = `p${n++}`;
-      out.push(<p key={key}>{inline(para.join(' '), key)}</p>);
+      out.push(<p key={key}>{joined(para, key)}</p>);
       para = [];
     }
   };
@@ -147,7 +182,7 @@ export function EntranceMarkdown({
       const key = `q${n++}`;
       out.push(
         <blockquote key={key}>
-          <p>{inline(quote.join(' '), key)}</p>
+          <p>{joined(quote, key)}</p>
         </blockquote>,
       );
       quote = [];
@@ -245,7 +280,7 @@ export function EntranceMarkdown({
       const key = `h${n++}`;
       const Tag = `h${level}` as 'h2' | 'h3' | 'h4';
       // An id from the text keeps footer anchors such as /house-notes#privacy working for operator copy.
-      const id = headingId(heading[2] ?? '');
+      const id = headingId(heading[2] ?? '', seenIds);
       out.push(
         <Tag key={key} {...(id ? { id } : {})}>
           {inline(heading[2] ?? '', key)}

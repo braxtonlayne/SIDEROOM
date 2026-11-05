@@ -1,6 +1,6 @@
 # `byos_read` for Activities: one shelf object per ask (D-389, wave 46)
 
-Status: **built** (conservative default). Owner decision pending on how the URL's host reaches the sandbox CSP.
+Status: **built and decided** (D-465): option 3 for small files, option 1 for big assets, option 2 never.
 
 ## What is built
 
@@ -20,25 +20,25 @@ Status: **built** (conservative default). Owner decision pending on how the URL'
   SDK and fetches it with `credentials: 'omit'`. Unavailable (rejects with `AssetNotAvailableError`) outside SIDE
   ROOM, for a guest, or without the capability.
 
-## The CSP question (owner decision)
+## The CSP question (decided: D-465)
 
 The URL points at the shelf's **storage host** (the bucket endpoint of that mount), not at the activity origin. The
 sandbox CSP is per host (`sr_activities::sandbox::csp`): `connect-src` is `'none'` unless the reviewed manifest's
 `connect` list names hosts. So today a game can fetch a shelf URL only when its reviewed `connect` list names that
 storage host, which a reviewer approves like any other host. Nothing widens the CSP automatically.
 
-Options for the owner:
+The options, and what was decided:
 
-1. **Keep it (the default built here).** Works for a server whose shelves live on one known bucket host that the
+1. **Keep it (decided, for big assets).** Works for a server whose shelves live on one known bucket host that the
    game's developer lists in `connect`. Safe: no host is ever added to a game's CSP without review. Limits: a member's
    own bucket on another host is unreachable for that game.
-2. **Per-instance CSP from the mounts.** The activity proxy adds the storage host of every mount the member can reach
+2. **Per-instance CSP from the mounts (decided against, D-465).** The activity proxy adds the storage host of every mount the member can reach
    to `connect-src` for `byos_read` games. Needs the proxy to know the viewer (it is cookieless today) or a per-instance
    policy; it widens the policy to hosts no reviewer saw. Not built.
-3. **Bytes through the bridge.** The member's page fetches the object (the mount's CORS is already checked for the app
+3. **Bytes through the bridge (decided, for small files; built in wave 47 as `shelfObjectBytes`, D-460; 1 MiB cap).** The member's page fetches the object (the mount's CORS is already checked for the app
    origin, `cors_ok_at`) and hands the frame the bytes (transferable `ArrayBuffer`, size-capped, like `saveFile` in
    reverse). No CSP change at all, works for every host; costs app-page memory for big assets and needs a size cap.
-   Not built; the smallest next step if option 1 is too narrow.
+   The page stops reading at the cap (aborting a body with no content-length) and tells the game the file is over 1 MiB.
 
 ## Threat notes
 

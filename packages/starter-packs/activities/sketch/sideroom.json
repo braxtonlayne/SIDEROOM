@@ -1,0 +1,10 @@
+{
+  "id": "side-room-sketch",
+  "name": "Sketch & Slander",
+  "version": "1.0.0",
+  "description": "One player draws a secret prompt, everyone else races to guess it. Phones join as drawing pads through a guest link. Hosted in the browser of the member who starts it.",
+  "tier": "TIER_1_ORIGINAL",
+  "capabilities": ["datachannel", "storage", "guest_play", "lobby_channel", "host_handoff", "byos_read"],
+  "min_participants": 1,
+  "max_participants": 16
+}
