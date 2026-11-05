@@ -500,7 +500,8 @@ describe('ARC-UI-010: the cover art', () => {
     expect(hueOf('Pong')).toBe(hueOf('Pong'));
     expect(hueOf('Pong')).toBeGreaterThanOrEqual(0);
     expect(hueOf('Pong')).toBeLessThan(360);
-    expect(artKind('sketch')).toBe('featured');
+    expect(artKind('pong')).toBe('featured');
+    expect(artKind('sketch')).toBe('sketch');
     expect(artKind('holdem')).toBe('holdem');
   });
 

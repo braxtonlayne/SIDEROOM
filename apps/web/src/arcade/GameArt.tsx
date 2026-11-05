@@ -9,6 +9,7 @@ export type ArtKind =
   | 'holdem'
   | 'whiteboard'
   | 'tabletop'
+  | 'sketch'
   | 'emulator'
   | 'featured'
   | 'cartridge'
@@ -20,6 +21,7 @@ const KNOWN = new Set<string>([
   'holdem',
   'whiteboard',
   'tabletop',
+  'sketch',
   'emulator',
   'featured',
   'cartridge',
@@ -373,6 +375,84 @@ function Whiteboard() {
   );
 }
 
+function Sketch() {
+  const id = useSvgId();
+  const table = id('table');
+  const screen = id('screen');
+  return (
+    <Frame art="sketch">
+      <defs>
+        <linearGradient id={table.id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3b2a1c" />
+          <stop offset="1" stopColor="#1c130c" />
+        </linearGradient>
+        <linearGradient id={screen.id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fbf7ef" />
+          <stop offset="1" stopColor="#e9dfcd" />
+        </linearGradient>
+      </defs>
+      <rect width="320" height="180" fill={table.url} />
+      {/* The phone, drawing pad up. */}
+      <g transform="translate(112 22) rotate(-6)">
+        <rect width="96" height="150" rx="14" fill="#121214" />
+        <rect x="6" y="14" width="84" height="122" rx="6" fill={screen.url} />
+        <rect x="40" y="6" width="16" height="3" rx="1.5" fill="#2a2a2e" />
+        {/* A doodle: a long-necked animal, scribbled. */}
+        <path
+          d="M22 118c6-18 14-26 26-26c10 0 16 8 22 4M48 92c2-22 4-40 8-56c2-6 8-8 10-2"
+          fill="none"
+          stroke="#1d1d22"
+          strokeWidth="3.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="60" cy="34" r="2.2" fill="#1d1d22" />
+        <path
+          d="M30 100l-2 18M58 100l2 18"
+          stroke="#1d1d22"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+        <path
+          d="M40 70l6 4M46 58l6 3M50 80l5 2"
+          stroke="#e53935"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+      </g>
+      {/* The pencil. */}
+      <g transform="translate(214 118) rotate(-38)">
+        <rect width="64" height="10" rx="2" fill="#f2b632" />
+        <rect x="54" width="10" height="10" rx="2" fill="#e88aa3" />
+        <path d="M0 0L-12 5L0 10z" fill="#e7cfa4" />
+        <path d="M-8 3.4L-12 5L-8 6.6z" fill="#1d1d22" />
+      </g>
+      {/* Guesses rising from the room. */}
+      <g fill="#f6efe3" fillOpacity="0.92">
+        <rect x="22" y="34" width="62" height="24" rx="12" />
+        <path d="M36 56l-4 10l12-8z" />
+        <rect x="30" y="80" width="46" height="22" rx="11" />
+        <path d="M44 100l-4 9l11-7z" />
+      </g>
+      <path d="M38 46h30M42 91h18" stroke="#6b5a48" strokeWidth="4" strokeLinecap="round" />
+      <g transform="translate(238 26)">
+        <rect width="56" height="34" rx="9" fill="#e53935" />
+        <text
+          x="28"
+          y="23"
+          textAnchor="middle"
+          fontSize="15"
+          fontWeight="800"
+          fill="#fff"
+          fontFamily="system-ui, sans-serif"
+        >
+          S&amp;S
+        </text>
+      </g>
+    </Frame>
+  );
+}
+
 function hexPath(cx: number, cy: number, r: number): string {
   const pts = Array.from({ length: 6 }, (_, i) => {
     const a = (Math.PI / 3) * i + Math.PI / 6;
@@ -620,6 +700,8 @@ export function GameArt({ kind, seed = '' }: { kind: string; seed?: string }) {
       return <Whiteboard />;
     case 'tabletop':
       return <Tabletop />;
+    case 'sketch':
+      return <Sketch />;
     case 'emulator':
       return <Emulator />;
     default:

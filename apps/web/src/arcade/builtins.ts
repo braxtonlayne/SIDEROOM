@@ -9,7 +9,7 @@
 
 import type { Tier } from './types';
 
-export type BuiltinArt = 'landio' | 'arena3d' | 'holdem' | 'whiteboard' | 'tabletop';
+export type BuiltinArt = 'landio' | 'arena3d' | 'holdem' | 'whiteboard' | 'tabletop' | 'sketch';
 
 export interface BuiltinGame {
   /** Stable id: names the i18n keys (`arcade.builtin.<id>.*`) and the card. */
@@ -82,6 +82,22 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
     status: 'live',
     capabilities: ['datachannel'],
     art: 'tabletop',
+  },
+  {
+    id: 'sketch',
+    packageId: 'side-room-sketch',
+    shelfName: 'Sketch & Slander',
+    status: 'live',
+    players: { min: 2, max: 16 },
+    capabilities: [
+      'datachannel',
+      'storage',
+      'guest_play',
+      'lobby_channel',
+      'host_handoff',
+      'byos_read',
+    ],
+    art: 'sketch',
   },
 ];
 

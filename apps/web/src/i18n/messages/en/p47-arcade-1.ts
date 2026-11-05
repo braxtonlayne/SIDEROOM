@@ -40,6 +40,9 @@ export default {
   'arcade.builtin.tabletop.name': 'Tabletop',
   'arcade.builtin.tabletop.pitch':
     'A grid or hex map with tokens, fog of war, initiative and a dice tray anyone can check.',
+  'arcade.builtin.sketch.name': 'Sketch & Slander',
+  'arcade.builtin.sketch.pitch':
+    'One player draws a secret prompt, everyone races to guess it. Phones join as drawing pads.',
   'arcade.emulator.kicker': 'Your own games',
   'arcade.featured.intro':
     'Community games the Operator picked. Each one says who owns its code, art and sound.',
