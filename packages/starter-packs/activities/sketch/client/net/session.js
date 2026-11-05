@@ -53,6 +53,8 @@ export function createSession(opt) {
   /** My own ink ops the host has not echoed yet (the drawer's prediction). @type {InkOp[]} */
   let pending = [];
   let q = 0;
+  /** The packs' references the host sent me (members only, D-467); in memory, per instance. @type {import('../../host/engine.js').PackRef[]} */
+  let packRefs = [];
   const secret = { prompt: '', choices: /** @type {string[]} */ ([]), n: -1 };
   let myName = opt.name;
   /** @type {Set<(what: string, data?: any) => void>} */
@@ -125,6 +127,11 @@ export function createSession(opt) {
     } else if (m.t === 'close') emit('close', m.text);
     else if (m.t === 'hit') emit('hit', m);
     else if (m.t === 'err') emit('error', m.error);
+    else if (m.t === 'packrefs' && Array.isArray(m.refs)) {
+      packRefs = m.refs
+        .filter((/** @type {any} */ r) => r && typeof r.shelf_id === 'string' && typeof r.object_hash === 'string')
+        .map((/** @type {any} */ r) => ({ shelf_id: r.shelf_id, object_hash: r.object_hash, name: String(r.name ?? '') }));
+    }
   }
 
   function engineOptions() {
@@ -191,7 +198,7 @@ export function createSession(opt) {
     if (engine || !st) return;
     for (const u of unsubs.splice(0)) u();
     const mine = st.drawer === self ? secret.prompt : undefined;
-    const resumed = SketchHost.resume(st, ops, { ...engineOptions(), leaving: previous, prompt: mine });
+    const resumed = SketchHost.resume(st, ops, { ...engineOptions(), leaving: previous, prompt: mine, refs: packRefs });
     wireHost(resumed);
     resumed.handle(self, { t: 'hello', name: myName });
   });
