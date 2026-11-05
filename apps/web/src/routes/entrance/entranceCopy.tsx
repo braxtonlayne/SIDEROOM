@@ -109,26 +109,24 @@ function defaultHeadingId(text: string): string {
 
 /**
  * The id rule of the served /house-notes page (FU-25): `op-` plus Unicode letters and digits lower-cased per
- * character, runs of other characters as one dash, deduped `-2`, `-3`. Build one per render: it keeps the ids seen.
+ * character, runs of other characters as one dash, deduped `-2`, `-3`. `EntranceMarkdown` passes a fresh `seen` set
+ * on every render, so a double render (StrictMode) cannot count a heading twice.
  */
-export function houseNotesHeadingId(): (text: string) => string {
-  const seen = new Set<string>();
-  return (text) => {
-    let s = '';
-    let dash = false;
-    for (const ch of text) {
-      if (/[\p{L}\p{N}]/u.test(ch)) {
-        if (dash && s) s += '-';
-        dash = false;
-        s += ch.toLowerCase();
-      } else dash = true;
-    }
-    if (!s) return '';
-    let id = `op-${s}`;
-    for (let k = 2; seen.has(id); k++) id = `op-${s}-${k}`;
-    seen.add(id);
-    return id;
-  };
+export function houseNotesHeadingId(text: string, seen: Set<string>): string {
+  let s = '';
+  let dash = false;
+  for (const ch of text) {
+    if (/[\p{L}\p{N}]/u.test(ch)) {
+      if (dash && s) s += '-';
+      dash = false;
+      s += ch.toLowerCase();
+    } else dash = true;
+  }
+  if (!s) return '';
+  let id = `op-${s}`;
+  for (let k = 2; seen.has(id); k++) id = `op-${s}-${k}`;
+  seen.add(id);
+  return id;
 }
 
 const cells = (row: string) =>
@@ -151,7 +149,7 @@ export function EntranceMarkdown({
   hardBreaks = false,
 }: {
   source: string;
-  headingId?: (text: string) => string;
+  headingId?: (text: string, seen: Set<string>) => string;
   hardBreaks?: boolean;
 }) {
   const joined = (lines: string[], key: string): ReactNode =>
@@ -163,6 +161,7 @@ export function EntranceMarkdown({
           </Fragment>
         ))
       : inline(lines.join(' '), key);
+  const seenIds = new Set<string>();
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
   const out: ReactNode[] = [];
   let para: string[] = [];
@@ -281,7 +280,7 @@ export function EntranceMarkdown({
       const key = `h${n++}`;
       const Tag = `h${level}` as 'h2' | 'h3' | 'h4';
       // An id from the text keeps footer anchors such as /house-notes#privacy working for operator copy.
-      const id = headingId(heading[2] ?? '');
+      const id = headingId(heading[2] ?? '', seenIds);
       out.push(
         <Tag key={key} {...(id ? { id } : {})}>
           {inline(heading[2] ?? '', key)}

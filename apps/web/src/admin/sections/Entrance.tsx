@@ -123,7 +123,7 @@ function CopyBlock({
           style={{ padding: 16 }}
         >
           {block.key === 'house-notes' ? (
-            <EntranceMarkdown source={text} hardBreaks headingId={houseNotesHeadingId()} />
+            <EntranceMarkdown source={text} hardBreaks headingId={houseNotesHeadingId} />
           ) : (
             <EntranceMarkdown source={text} />
           )}

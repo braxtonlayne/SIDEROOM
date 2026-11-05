@@ -76,7 +76,8 @@ describe('EntranceMarkdown', () => {
   });
 
   it('builds the served page ids: op- prefix, Unicode letters, deduped (FU-25)', () => {
-    const id = houseNotesHeadingId();
+    const seen = new Set<string>();
+    const id = (s: string) => houseNotesHeadingId(s, seen);
     expect(id('Privacy')).toBe('op-privacy');
     expect(id('Privacy!')).toBe('op-privacy-2');
     expect(id('Ünï')).toBe('op-ünï');
