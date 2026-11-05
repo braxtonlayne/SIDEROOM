@@ -1,9 +1,9 @@
 // D-389 (wave 46): `shelfObjectUrl` hands an Activity that declares byos_read the per-object URL of ONE shelf object,
 // after the member said yes (once per object and frame). Without the capability, with bad arguments, after a "no" or
 // when the server refuses, the game gets an error and no URL.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Frame } from '@sideroom/embedded-app-sdk';
-import { createActivityHost, type HostEnv } from '../host';
+import { createActivityHost, fetchCapped, type HostEnv } from '../host';
 import type { ActivityInstance } from '../types';
 
 const ORIGIN = 'https://7.activities.chat.example.org';
@@ -114,5 +114,89 @@ describe('shelfObjectUrl (byos_read)', () => {
     await ready(r);
     const gone = await r.call({ shelf_id: '404', object_hash: HASH });
     expect(!gone.ok && gone.error.code).toBe('FAILED');
+  });
+});
+
+// S1 / D-465: shelfObjectBytes stops reading at the 1 MiB cap even with no content-length, and says so.
+function streamOf(sizes: number[], onCancel?: () => void): ReadableStream<Uint8Array> {
+  let i = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(ctl) {
+      if (i >= sizes.length) return ctl.close();
+      ctl.enqueue(new Uint8Array(sizes[i++]).fill(7));
+    },
+    cancel() {
+      onCancel?.();
+    },
+  });
+}
+
+describe('fetchCapped (D-460, D-465)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const MAX = 1024 * 1024;
+
+  it('refuses and aborts a streamed body over the cap that has no content-length', async () => {
+    let cancelled = false;
+    let aborted = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        init.signal?.addEventListener('abort', () => (aborted = true));
+        return new Response(streamOf([MAX / 2, MAX / 2, 1, 100], () => (cancelled = true)));
+      }),
+    );
+    await expect(fetchCapped('https://b.example.com/x', MAX)).rejects.toThrow('too big');
+    expect(cancelled).toBe(true);
+    expect(aborted).toBe(true);
+  });
+
+  it('reads a body under the cap with no content-length', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(streamOf([10, 20, 30]))),
+    );
+    const out = await fetchCapped('https://b.example.com/x', MAX);
+    expect(out.length).toBe(60);
+    expect(out[59]).toBe(7);
+  });
+
+  it('refuses early on a content-length over the cap', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () => new Response(streamOf([1]), { headers: { 'content-length': String(MAX + 1) } }),
+      ),
+    );
+    await expect(fetchCapped('https://b.example.com/x', MAX)).rejects.toThrow('too big');
+  });
+});
+
+describe('shelfObjectBytes over the cap', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('tells the game the file is over 1 MiB', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(streamOf([1024 * 1024, 5]))),
+    );
+    const r = rig(['byos_read']);
+    await ready(r);
+    const nonce = 'big1';
+    await r.host.handle(
+      {
+        sr: 1,
+        kind: 'request',
+        nonce,
+        cmd: 'shelfObjectBytes',
+        args: { shelf_id: '1', object_hash: HASH },
+      },
+      ORIGIN,
+    );
+    const res = r.posted.find((f) => f.kind === 'response' && f.nonce === nonce) as Extract<
+      Frame,
+      { kind: 'response' }
+    >;
+    expect(!res.ok && res.error.code).toBe('FAILED');
+    expect(!res.ok && res.error.message).toBe('That file is over 1 MiB.');
   });
 });
