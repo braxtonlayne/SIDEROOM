@@ -6,6 +6,7 @@ import { useGuilds } from '../store/hooks';
 import { apiFetch } from '../api/client';
 import type { Guild } from '../store/types';
 import { useShowroomActive } from '../showroom/state';
+import { httpActivityApi } from '../activities/api';
 import { httpArcadeApi, type ArcadeApi } from './api';
 import { ArcadeShell } from './ArcadeShell';
 import {
@@ -52,6 +53,26 @@ function useServerList(): Pick<Guild, 'id' | 'name'>[] {
   return need ? fetched : live;
 }
 
+/**
+ * The Activities shelf by name (D-477): only read when the Operator has picks, so a pick that is the same game as a
+ * built-in hero can take that hero's slot instead of showing twice.
+ */
+function useShelfIds(need: boolean): Record<string, string> {
+  const [ids, setIds] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!need) return;
+    let on = true;
+    httpActivityApi
+      .shelf()
+      .then((s) => on && setIds(Object.fromEntries(s.items.map((i) => [i.name, i.application_id]))))
+      .catch(() => undefined);
+    return () => {
+      on = false;
+    };
+  }, [need]);
+  return ids;
+}
+
 export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
   const preview = useShowroomActive();
   if (preview)
@@ -79,6 +100,7 @@ function RealArcadePage({
   const [attempt, setAttempt] = useState(0);
   const [playing, setPlaying] = useState<PlayTarget | null>(null);
   const [listSignal, setListSignal] = useState(0);
+  const shelfIds = useShelfIds(!!front && front.featured.length > 0);
 
   useEffect(() => {
     let live = true;
@@ -113,12 +135,17 @@ function RealArcadePage({
             onClick={() => setListSignal((n) => n + 1)}
           >
             <Icon name="plus" size={16} />
-            {t('arcade.cartridges.listButton')}
+            <span className="arc-tabs-label">{t('arcade.cartridges.listButton')}</span>
           </a>
         ) : undefined
       }
     >
-      <ArcadeHero flags={front?.flags ?? []} onPlay={setPlaying} />
+      <ArcadeHero
+        flags={front?.flags ?? []}
+        onPlay={setPlaying}
+        featured={front?.featured ?? []}
+        shelfIds={shelfIds}
+      />
       <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} onPlay={setPlaying} />
       {failed && (
         <div className="arc-section">

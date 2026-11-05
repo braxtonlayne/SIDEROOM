@@ -6,7 +6,7 @@ export default {
   'arcade.page.nav': 'Arcade sections',
   'arcade.featured.heading': 'Featured',
   'arcade.emulator.name': 'Emulator',
-  'arcade.emulator.description': 'Play your own game files in the browser, on your own shelf.',
+  'arcade.emulator.description': 'Your own game files, played in the browser from your shelf.',
   'arcade.emulator.open': 'Open the emulator',
   'arcade.tier.original': 'Original',
   'arcade.tier.reimplementation': 'Clean-room reimplementation',

@@ -25,6 +25,7 @@ function SampleCard({ game }: { game: FixtureGame }) {
         </span>
       }
       capabilities={game.tags}
+      allFlags
     >
       <div className="arc-actions">
         <Button

@@ -6,7 +6,7 @@ import { errorText } from '../settings/server/api';
 import { useStore } from '../store/store';
 import type { Guild } from '../store/types';
 import type { ArcadeApi } from './api';
-import { BUILTIN_GAMES, builtinsByStatus, type BuiltinGame } from './builtins';
+import { BUILTIN_GAMES, builtinsByStatus, heroSlots, type BuiltinGame } from './builtins';
 import { GameCard } from './GameCard';
 import type { PlayTarget } from './StartInDialog';
 import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
@@ -23,7 +23,7 @@ async function openShelfObject(shelfId: string, hash: string): Promise<void> {
   window.open(r.url, '_blank', 'noopener,noreferrer');
 }
 
-const tierKey = (t: Tier) =>
+export const tierKey = (t: Tier) =>
   t === 'TIER_1_ORIGINAL' ? 'arcade.tier.original' : 'arcade.tier.reimplementation';
 
 /** A section label in the rooms' editorial style: a thin rule, the name in small caps, a muted note after it. */
@@ -115,7 +115,17 @@ export function BuiltinCard({
     >
       {playable && (
         <div className="arc-actions">
-          <PlayButton title={title} onClick={() => onPlay({ title, shelfName: game.shelfName })} />
+          <PlayButton
+            title={title}
+            onClick={() =>
+              onPlay({
+                title,
+                shelfName: game.shelfName,
+                // D-478: board tools (no seats) list text channels first.
+                kind: game.players ? 'seated' : 'board',
+              })
+            }
+          />
         </div>
       )}
     </GameCard>
@@ -123,20 +133,25 @@ export function BuiltinCard({
 }
 
 /**
- * The top of the Arcade (the concept's hero): the room's headline on one side, the house picks large on the other.
- * Built-ins only, so it needs no Front Page data.
+ * The top of the Arcade (the concept's hero): the room's headline on one side, two large cards on the other. The
+ * cards are the Operator's browser-playable Featured picks at positions 1 and 2, then the shipped heroes (D-477), so
+ * the built-in pair shows while the Front Page loads and on an instance with no picks.
  */
 export function ArcadeHero({
   flags,
   onPlay,
+  featured = [],
+  shelfIds,
   games = BUILTIN_GAMES,
 }: {
   flags: readonly CapabilityFlag[];
   onPlay?: PlayHandler;
+  featured?: readonly FeaturedCard[];
+  shelfIds?: Readonly<Record<string, string>>;
   games?: readonly BuiltinGame[];
 }) {
   const t = useT();
-  const heroes = games.filter((g) => g.hero && g.status === 'live');
+  const slots = heroSlots(featured, games, shelfIds);
   return (
     <div className="arc-hero">
       <div className="arc-hero-text">
@@ -145,11 +160,45 @@ export function ArcadeHero({
         <p className="arc-hero-sub">{t('arcade.hero.subline')}</p>
         <p className="arc-hero-how">{t(onPlay ? 'arcade.hero.how' : 'arcade.hero.howNoPlay')}</p>
       </div>
-      {heroes.length > 0 && (
+      {slots.length > 0 && (
         <div className="arc-hero-cards">
-          {heroes.map((g) => (
-            <BuiltinCard key={g.id} game={g} flags={flags} onPlay={onPlay} size="hero" />
-          ))}
+          {slots.map((slot) =>
+            slot.kind === 'builtin' ? (
+              <BuiltinCard
+                key={slot.game.id}
+                game={slot.game}
+                flags={flags}
+                onPlay={onPlay}
+                size="hero"
+              />
+            ) : (
+              <GameCard
+                key={slot.pick.application_id}
+                size="hero"
+                title={slot.pick.name}
+                description={slot.pick.description}
+                blurb={slot.pick.blurb}
+                art="featured"
+                status="live"
+                tag={t(tierKey(slot.pick.tier))}
+              >
+                {onPlay && (
+                  <div className="arc-actions">
+                    <PlayButton
+                      title={slot.pick.name}
+                      onClick={() =>
+                        onPlay({
+                          title: slot.pick.name,
+                          applicationId: slot.pick.application_id,
+                          kind: 'seated',
+                        })
+                      }
+                    />
+                  </div>
+                )}
+              </GameCard>
+            ),
+          )}
         </div>
       )}
     </div>
@@ -234,6 +283,7 @@ export function FeaturedSection({
             blurb={f.blurb}
             art="featured"
             status={f.eligibility.browser_play ? 'live' : undefined}
+            tag={t(tierKey(f.tier))}
             tier={f.tier}
             eligibility={f.eligibility}
             capabilities={f.capabilities}
@@ -245,17 +295,21 @@ export function FeaturedSection({
               codeSha256: f.code_sha256 ?? null,
             }}
           >
-            {f.eligibility.browser_play &&
-              (onPlay ? (
-                <div className="arc-actions">
-                  <PlayButton
-                    title={f.name}
-                    onClick={() => onPlay({ title: f.name, applicationId: f.application_id })}
-                  />
-                </div>
-              ) : (
-                <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
-              ))}
+            {!f.eligibility.browser_play ? (
+              // Fix 7: a desktop-only pick ends in one quiet sentence, never a dead end.
+              <p className="arc-dim">{t('arcade.featured.desktopOnlyHint')}</p>
+            ) : onPlay ? (
+              <div className="arc-actions">
+                <PlayButton
+                  title={f.name}
+                  onClick={() =>
+                    onPlay({ title: f.name, applicationId: f.application_id, kind: 'seated' })
+                  }
+                />
+              </div>
+            ) : (
+              <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
+            )}
           </GameCard>
         ))}
       </div>
@@ -314,6 +368,7 @@ export function ComingSoonSection({
               description={e.summary}
               art="workshop"
               status="preview"
+              tag={t(tierKey(e.tier))}
               tier={e.tier}
               eligibility={{
                 browser_play: e.tier === 'TIER_1_ORIGINAL',
@@ -626,6 +681,7 @@ export function CartridgesSection({
                   badge={t(
                     c.kind === 'mod' ? 'arcade.cartridges.kindMod' : 'arcade.cartridges.kindGame',
                   )}
+                  tag={t(tierKey(c.tier))}
                   tier={c.tier}
                   eligibility={c.eligibility}
                   capabilities={c.capabilities}
@@ -646,8 +702,13 @@ export function CartridgesSection({
                         {t('arcade.cartridges.open', { title: c.title })}
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => remove(c.id)}>
-                      {t('arcade.cartridges.remove', { title: c.title })}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t('arcade.cartridges.remove', { title: c.title })}
+                      onClick={() => remove(c.id)}
+                    >
+                      {t('arcade.cartridges.removeShort')}
                     </Button>
                   </div>
                 </GameCard>

@@ -1,5 +1,6 @@
 // ARC-UI-010 (wave 47): the Arcade redesign: hero, built-in games, sections and empty states.
 export default {
+  'settings.appearance.sectionArcade': 'Arcade',
   'arcade.page.brand': 'SIDE ROOM',
   'arcade.hero.eyebrow': 'House games',
   'arcade.hero.title': 'The Arcade.',
@@ -26,23 +27,17 @@ export default {
   'arcade.builtin.players': '{min} to {max} players',
   'arcade.builtin.start': 'Start it from a channel or a call',
   'arcade.builtin.landio.name': 'Land.io',
-  'arcade.builtin.landio.pitch':
-    'Draw a trail out of your land, loop back home to claim it, and cut your friends off.',
+  'arcade.builtin.landio.pitch': 'Draw a trail, loop home to claim land, cut your friends off.',
   'arcade.builtin.arena3d.name': 'Arena 3D',
-  'arcade.builtin.arena3d.pitch':
-    'A low-poly arena: run, jump, crouch and shove boxes around together.',
+  'arcade.builtin.arena3d.pitch': 'A low-poly arena: run, jump, crouch and shove boxes together.',
   'arcade.builtin.holdem.name': 'Hold’em',
-  'arcade.builtin.holdem.pitch':
-    'Texas Hold’em with play-money chips: seats, blinds and showdowns for a table of friends.',
+  'arcade.builtin.holdem.pitch': 'Texas Hold’em with play-money chips for a table of friends.',
   'arcade.builtin.whiteboard.name': 'Whiteboard',
-  'arcade.builtin.whiteboard.pitch':
-    'Pens, shapes, text and pages on one shared board. Export it as a picture when you are done.',
+  'arcade.builtin.whiteboard.pitch': 'Pens, shapes, text and pages on one shared board.',
   'arcade.builtin.tabletop.name': 'Tabletop',
-  'arcade.builtin.tabletop.pitch':
-    'A grid or hex map with tokens, fog of war, initiative and a dice tray anyone can check.',
+  'arcade.builtin.tabletop.pitch': 'Grid or hex maps, tokens, fog of war and a shared dice tray.',
   'arcade.builtin.sketch.name': 'Sketch & Slander',
-  'arcade.builtin.sketch.pitch':
-    'One player draws a secret prompt, everyone races to guess it. Phones join as drawing pads.',
+  'arcade.builtin.sketch.pitch': 'One player draws a secret prompt; everyone races to guess it.',
   'arcade.emulator.kicker': 'Your own games',
   'arcade.featured.intro':
     'Community games the Operator picked. Each one says who owns its code, art and sound.',
@@ -58,4 +53,11 @@ export default {
   'arcade.soon.emptyTitle': 'Nothing in the workshop right now',
   'arcade.soon.emptyBody': 'Games in development show up here before they ship.',
   'arcade.page.retry': 'Try again',
+  'arcade.featured.desktopOnlyHint': 'Plays in the desktop app.',
+  'arcade.start.voice': 'Voice channels',
+  'arcade.start.text': 'Text channels',
+  'arcade.start.joining': 'Joining the call…',
+  'arcade.start.joinFailed': 'That call could not be joined.',
+  'arcade.cartridges.removeShort': 'Unlist',
+  'arcade.admin.heroNote': 'Positions 1 and 2 are the Arcade’s two large cards.',
 } satisfies Record<string, string>;

@@ -111,3 +111,39 @@ export function builtinsByStatus(list: readonly BuiltinGame[] = BUILTIN_GAMES): 
     preview: list.filter((g) => g.status === 'preview'),
   };
 }
+
+/** One of the two large cards at the top of the Arcade (D-477). */
+export type HeroSlot<P> = { kind: 'pick'; pick: P } | { kind: 'builtin'; game: BuiltinGame };
+
+/**
+ * The two large cards (D-477): the Operator's Featured picks at positions 1 and 2 that play in the browser, then the
+ * shipped heroes (Land.io, then Arena 3D) for any slot left. A pick that is the same game as a built-in takes that
+ * built-in's slot instead of showing it twice: same application id as the shelf entry the built-in's `shelfName`
+ * names (when the shelf is known), else the same name. Fixed order, no rotation.
+ */
+export function heroSlots<
+  P extends {
+    application_id: string;
+    name: string;
+    position: number;
+    eligibility: { browser_play: boolean };
+  },
+>(
+  featured: readonly P[],
+  games: readonly BuiltinGame[] = BUILTIN_GAMES,
+  shelfIds: Readonly<Record<string, string>> = {},
+): HeroSlot<P>[] {
+  const picks = [...featured]
+    .sort((a, b) => a.position - b.position)
+    .slice(0, 2)
+    .filter((p) => p.eligibility.browser_play);
+  const sameGame = (g: BuiltinGame, p: P) =>
+    shelfIds[g.shelfName] ? shelfIds[g.shelfName] === p.application_id : g.shelfName === p.name;
+  const slots: HeroSlot<P>[] = picks.map((pick) => ({ kind: 'pick', pick }));
+  for (const game of games.filter((g) => g.hero && g.status === 'live')) {
+    if (slots.length >= 2) break;
+    if (picks.some((p) => sameGame(game, p))) continue;
+    slots.push({ kind: 'builtin', game });
+  }
+  return slots;
+}

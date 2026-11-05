@@ -11,7 +11,10 @@ import {
   FeaturedSection,
   PlayableSection,
 } from '../ArcadeSections';
-import { builtinsByStatus, type BuiltinGame } from '../builtins';
+import { builtinsByStatus, heroSlots, type BuiltinGame } from '../builtins';
+import { memberFlags } from '../GameCard';
+import { sandboxTrust } from '../sandboxTrust';
+import { http, HttpResponse, server } from '../../test/server';
 import { artKind, GameArt, hueOf } from '../GameArt';
 import { TipBadges } from '../TipBadges';
 import { TrustProvider } from '../trust';
@@ -87,8 +90,10 @@ describe('Featured', () => {
     expect(screen.getByRole('heading', { name: 'Featured' })).toBeInTheDocument();
     const land = screen.getByRole('heading', { name: 'Land.io' }).closest('article')!;
     expect(within(land).getByText('Original')).toBeInTheDocument();
-    expect(within(land).getByText('Guest play')).toBeInTheDocument();
-    expect(within(land).getByText('(planned)')).toBeInTheDocument();
+    // D-479: plumbing (datachannel) and a reserved flag (guest_play here) never show on a member card.
+    expect(within(land).queryByText('Shared state')).toBeNull();
+    expect(within(land).queryByText('Guest play')).toBeNull();
+    expect(within(land).queryByText(/planned/)).toBeNull();
     expect(within(land).getByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
       'href',
       'https://ko-fi.com/dev',
@@ -340,7 +345,8 @@ describe('ARC-UI-010: the redesigned shelves', () => {
   });
 
   it('Playable now shows every built-in game with its art and readable capabilities, and the Emulator', () => {
-    render(<PlayableSection flags={flags} emulatorOn />);
+    // The live catalogue: guest_play is active (the fixture above marks it reserved).
+    render(<PlayableSection flags={[]} emulatorOn />);
     const region = screen.getByRole('region', { name: 'Playable now' });
     for (const name of ['Land.io', 'Arena 3D', 'Hold’em', 'Whiteboard', 'Tabletop']) {
       const card = within(region).getByRole('article', { name });
@@ -465,7 +471,7 @@ describe('D-472: Play on the cards', () => {
     // A card with its own control is reached through that control, not as a whole.
     expect(land).not.toHaveAttribute('tabindex');
     await user.click(within(land).getByRole('button', { name: 'Play Land.io' }));
-    expect(onPlay).toHaveBeenCalledWith({ title: 'Land.io', shelfName: 'Land.io' });
+    expect(onPlay).toHaveBeenCalledWith({ title: 'Land.io', shelfName: 'Land.io', kind: 'seated' });
   });
 
   it('a browser-playable Featured pick plays by its application id; a desktop-only one has no Play', async () => {
@@ -482,7 +488,11 @@ describe('D-472: Play on the cards', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Play Land.io' }));
-    expect(onPlay).toHaveBeenCalledWith({ title: 'Land.io', applicationId: '10' });
+    expect(onPlay).toHaveBeenCalledWith({
+      title: 'Land.io',
+      applicationId: '10',
+      kind: 'seated',
+    });
     expect(screen.queryByRole('button', { name: 'Play Horizon' })).toBeNull();
   });
 
@@ -492,6 +502,162 @@ describe('D-472: Play on the cards', () => {
     expect(screen.getByRole('article', { name: 'Land.io' })).toHaveAttribute('data-size', 'hero');
     expect(screen.getByRole('article', { name: 'Arena 3D' })).toHaveAttribute('data-size', 'hero');
     expect(screen.queryByRole('article', { name: 'Tabletop' })).toBeNull();
+  });
+});
+
+describe('D-477: the two large cards', () => {
+  const pick = (over: Partial<FeaturedCard>) => featured({ blurb: null, ...over });
+
+  it('fall back to the shipped heroes, in order, with no picks', () => {
+    expect(heroSlots([]).map((s) => (s.kind === 'builtin' ? s.game.id : 'pick'))).toEqual([
+      'landio',
+      'arena3d',
+    ]);
+  });
+
+  it('take the browser-playable picks at positions 1 and 2 first', () => {
+    const one = heroSlots([pick({ application_id: 'a', name: 'Orbit', position: 0 })]);
+    expect(one.map((s) => (s.kind === 'pick' ? s.pick.name : s.game.id))).toEqual([
+      'Orbit',
+      'landio',
+    ]);
+    const two = heroSlots([
+      pick({ application_id: 'b', name: 'Second', position: 1 }),
+      pick({ application_id: 'a', name: 'First', position: 0 }),
+      pick({ application_id: 'c', name: 'Third', position: 2 }),
+    ]);
+    expect(two.map((s) => (s.kind === 'pick' ? s.pick.name : s.game.id))).toEqual([
+      'First',
+      'Second',
+    ]);
+  });
+
+  it('skip a desktop-only pick (its slot goes to a built-in) and never look past position 2', () => {
+    const slots = heroSlots([
+      pick({ application_id: 'a', name: 'Horizon', position: 0, eligibility: T2 }),
+      pick({ application_id: 'b', name: 'Orbit', position: 1 }),
+      pick({ application_id: 'c', name: 'Later', position: 2 }),
+    ]);
+    expect(slots.map((s) => (s.kind === 'pick' ? s.pick.name : s.game.id))).toEqual([
+      'Orbit',
+      'landio',
+    ]);
+  });
+
+  it('let a pick that is a built-in take that built-in’s slot instead of showing twice', () => {
+    const byId = heroSlots(
+      [pick({ application_id: '42', name: 'Land.io (v2)', position: 0 })],
+      undefined,
+      {
+        'Land.io': '42',
+      },
+    );
+    expect(byId.map((s) => (s.kind === 'pick' ? s.pick.name : s.game.id))).toEqual([
+      'Land.io (v2)',
+      'arena3d',
+    ]);
+    const byName = heroSlots([pick({ application_id: '9', name: 'Arena 3D', position: 0 })]);
+    expect(byName.map((s) => (s.kind === 'pick' ? s.pick.name : s.game.id))).toEqual([
+      'Arena 3D',
+      'landio',
+    ]);
+  });
+
+  it('render a pick as a large card with its blurb, corner tag and Play by id', async () => {
+    const user = userEvent.setup();
+    const onPlay = vi.fn();
+    render(
+      <ArcadeHero
+        flags={flags}
+        onPlay={onPlay}
+        featured={[
+          pick({ application_id: '77', name: 'Orbit', blurb: 'Our flagship', position: 0 }),
+        ]}
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'Orbit' });
+    expect(card).toHaveAttribute('data-size', 'hero');
+    expect(within(card).getByText('Our flagship')).toBeInTheDocument();
+    expect(within(card).getByText('Original')).toBeInTheDocument();
+    await user.click(within(card).getByRole('button', { name: 'Play Orbit' }));
+    expect(onPlay).toHaveBeenCalledWith({ title: 'Orbit', applicationId: '77', kind: 'seated' });
+    expect(screen.getByRole('article', { name: 'Land.io' })).toHaveAttribute('data-size', 'hero');
+    expect(screen.queryByRole('article', { name: 'Arena 3D' })).toBeNull();
+  });
+});
+
+describe('D-479: what a member card says', () => {
+  it('shows only the flags a player acts on, and never a reserved one', () => {
+    expect(
+      memberFlags(
+        [
+          'datachannel',
+          'storage',
+          'guest_play',
+          'lobby_channel',
+          'host_handoff',
+          'byos_read',
+          'ingame_voice',
+        ],
+        [{ name: 'ingame_voice', status: 'reserved', summary: '' }],
+      ),
+    ).toEqual(['storage', 'guest_play', 'byos_read']);
+  });
+
+  it('gives a board tool (no seats) the board kind, so Start in lists text channels first', async () => {
+    const user = userEvent.setup();
+    const onPlay = vi.fn();
+    render(<PlayableSection flags={[]} emulatorOn={false} onPlay={onPlay} />);
+    await user.click(screen.getByRole('button', { name: 'Play Whiteboard' }));
+    expect(onPlay).toHaveBeenCalledWith({
+      title: 'Whiteboard',
+      shelfName: 'Whiteboard',
+      kind: 'board',
+    });
+    const holdem = screen.getByRole('article', { name: 'Hold’em' });
+    // Hold'em declares only plumbing: no capability line at all.
+    expect(within(holdem).queryByRole('list')).toBeNull();
+  });
+
+  it('puts the tier in the corner tag and the eligibility notes on a meta line; a desktop-only pick ends in a hint', () => {
+    render(
+      <FeaturedSection
+        featured={[
+          featured({
+            application_id: '11',
+            name: 'Horizon',
+            tier: 'TIER_2_REIMPLEMENTATION',
+            eligibility: T2,
+          }),
+        ]}
+        flags={flags}
+        onPlay={vi.fn()}
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'Horizon' });
+    expect(within(card).getByText('Clean-room reimplementation')).toHaveClass('arc-tag');
+    expect(within(card).getByText('Desktop app only')).toBeInTheDocument();
+    expect(within(card).getByText('Plays in the desktop app.')).toBeInTheDocument();
+    expect(within(card).queryByRole('button', { name: /Play/ })).toBeNull();
+  });
+
+  it.each([404, 500])('prints nothing when the trust badge answers %i', async (status) => {
+    let asked = 0;
+    server.use(
+      http.get('*/api/v1/activities/:id/trust', () => {
+        asked += 1;
+        return new HttpResponse(null, { status });
+      }),
+    );
+    render(
+      <TrustProvider source={sandboxTrust}>
+        <FeaturedSection featured={[featured()]} flags={flags} />
+      </TrustProvider>,
+    );
+    await waitFor(() => expect(asked).toBe(1));
+    const card = screen.getByRole('article', { name: 'Land.io' });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(within(card).queryByText(/could not be loaded/)).toBeNull();
   });
 });
 

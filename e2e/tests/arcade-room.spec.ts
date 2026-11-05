@@ -11,7 +11,8 @@ import { test } from '../support/world';
 
 const flags = [
   { name: 'datachannel', status: 'active', summary: 'Shared state through the call.' },
-  { name: 'guest_play', status: 'reserved', summary: 'Guest links.' },
+  { name: 'guest_play', status: 'active', summary: 'Guest links.' },
+  { name: 'ingame_voice', status: 'reserved', summary: 'Spatial voice.' },
 ];
 const t1 = {
   browser_play: true,
@@ -31,7 +32,7 @@ const front = {
       blurb: 'Our flagship',
       tier: 'TIER_1_ORIGINAL',
       eligibility: t1,
-      capabilities: ['datachannel', 'guest_play'],
+      capabilities: ['datachannel', 'guest_play', 'ingame_voice'],
       tip_links: [
         { kind: 'kofi', url: 'https://ko-fi.com/landio' },
         { kind: 'btc', url: 'bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq' },
@@ -91,6 +92,9 @@ test('the Arcade shows Featured, tips and Coming Soon, and the emulator moved to
   const land = featuredRegion.getByRole('article').filter({ hasText: 'Land.io' });
   await expect(land.getByText('Original')).toBeVisible();
   await expect(land.getByRole('listitem').filter({ hasText: 'Guest play' })).toBeVisible();
+  // D-479: plumbing and reserved flags never show on a member card.
+  await expect(land.getByText('Shared state')).toHaveCount(0);
+  await expect(land.getByText(/In-game voice|planned/)).toHaveCount(0);
   await expect(land.getByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
     'href',
     'https://ko-fi.com/landio',

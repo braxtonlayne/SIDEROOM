@@ -2,11 +2,13 @@
 // Featured section and its jump link only when the Operator picked something (D-474), and the provenance line in
 // the Featured intro (D-475).
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
-import { render, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createAppRouter } from '../../router';
+import { DEFAULT_PREFS, usePrefsStore, type UserPrefs } from '../../settings/user/prefs';
 import { useStore } from '../../store/store';
 import { http, HttpResponse, server } from '../../test/server';
+import { ArcadeThemeProvider } from '../ArcadeTheme';
 import type { ArcadeFront, FeaturedCard } from '../types';
 
 const pick: FeaturedCard = {
@@ -40,7 +42,7 @@ function serve(front: ArcadeFront) {
 
 function open() {
   const router = createAppRouter(createMemoryHistory({ initialEntries: ['/games'] }));
-  render(<RouterProvider router={router} />);
+  return render(<RouterProvider router={router} />);
 }
 
 beforeEach(() => {
@@ -91,6 +93,48 @@ describe('the Arcade page', () => {
     expect(
       screen.getByText(/Each one says who owns its code, art and sound\./),
     ).toBeInTheDocument();
-    expect(screen.getByRole('article', { name: 'Orbit' })).toBeInTheDocument();
+    // D-477: the pick is also the first large card; here, its Featured card.
+    expect(
+      within(screen.getByRole('region', { name: 'Featured' })).getByRole('article', {
+        name: 'Orbit',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('wraps the page in the arcade section (D-476)', async () => {
+    serve({ featured: [], coming_soon: [], flags: [] });
+    open();
+    await waitFor(() => expect(document.querySelector('[data-section="arcade"]')).not.toBeNull());
+  });
+});
+
+describe('D-476: the Arcade is an editorial room', () => {
+  const themeOf = (prefs: UserPrefs) => {
+    act(() => usePrefsStore.setState({ prefs }));
+    const { container, unmount } = render(
+      <ArcadeThemeProvider>
+        <p>room</p>
+      </ArcadeThemeProvider>,
+    );
+    const theme = container.querySelector('[data-section="arcade"]')?.getAttribute('data-theme');
+    unmount();
+    return theme;
+  };
+  afterEach(() => act(() => usePrefsStore.setState({ prefs: DEFAULT_PREFS })));
+
+  it('is editorial whatever the member’s theme for everything', () => {
+    expect(themeOf(DEFAULT_PREFS)).toBe('lounge-editorial');
+    expect(themeOf({ ...DEFAULT_PREFS, theme: 'lounge-light' })).toBe('lounge-editorial');
+    expect(themeOf({ ...DEFAULT_PREFS, theme: 'lounge-dark' })).toBe('lounge-editorial');
+  });
+
+  it('follows a theme the member chose for the Arcade', () => {
+    expect(
+      themeOf({
+        ...DEFAULT_PREFS,
+        theme: 'lounge-light',
+        sectionThemes: { arcade: 'lounge-dark' },
+      }),
+    ).toBe('lounge-dark');
   });
 });

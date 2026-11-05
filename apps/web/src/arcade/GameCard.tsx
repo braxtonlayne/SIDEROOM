@@ -1,3 +1,4 @@
+import { Icon } from '@sideroom/ui';
 import { useId, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { GameArt } from './GameArt';
@@ -5,17 +6,28 @@ import { TipBadges } from './TipBadges';
 import { TrustBadges, type CardRef } from './trust';
 import type { CapabilityFlag, Eligibility, Tier } from './types';
 
-/** The tier as a short label, with what it means for where the game runs. */
+/**
+ * What the tier means for where the game runs (D-479): desktop only, needs the base game, as one quiet meta line. The
+ * tier itself is the card's corner tag.
+ */
 export function TierLine({ tier, eligibility }: { tier: Tier; eligibility: Eligibility }) {
   const t = useT();
+  if (!eligibility.desktop_only && !eligibility.needs_base_game_hint) return null;
   const label =
     tier === 'TIER_1_ORIGINAL' ? t('arcade.tier.original') : t('arcade.tier.reimplementation');
   return (
-    <p className="arc-tier" aria-label={t('arcade.tier.aria', { tier: label })}>
-      <span className="arc-chip">{label}</span>
-      {eligibility.desktop_only && <span className="arc-chip">{t('arcade.tier.desktopOnly')}</span>}
+    <p className="arc-meta arc-tier" aria-label={t('arcade.tier.aria', { tier: label })}>
+      {eligibility.desktop_only && (
+        <span className="arc-meta-item">
+          <Icon name="tv" size={16} />
+          {t('arcade.tier.desktopOnly')}
+        </span>
+      )}
       {eligibility.needs_base_game_hint && (
-        <span className="arc-chip">{t('arcade.tier.needsBase')}</span>
+        <span className="arc-meta-item">
+          <Icon name="info" size={16} />
+          {t('arcade.tier.needsBase')}
+        </span>
       )}
     </p>
   );
@@ -33,17 +45,42 @@ export function flagLabel(t: (key: string) => string, name: string): string {
   return plain.charAt(0).toUpperCase() + plain.slice(1);
 }
 
-/** Capability flags a build declares; a reserved one is marked as planned. */
+/**
+ * The capability flags a player acts on (D-479). Plumbing (`datachannel`, `lobby_channel`, `host_handoff`,
+ * `external_launch`, `asset_cache`) never shows on a member card; the full manifest list stays in Admin.
+ */
+export const MEMBER_FLAGS: ReadonlySet<string> = new Set([
+  'guest_play',
+  'storage',
+  'byos_read',
+  'byos_write',
+  'ingame_voice',
+]);
+
+/** The flags a member card shows: the allowlist, and never a reserved (not yet shipped) flag. */
+export function memberFlags(names: readonly string[], flags: readonly CapabilityFlag[]): string[] {
+  return names.filter(
+    (n) => MEMBER_FLAGS.has(n) && flags.find((f) => f.name === n)?.status !== 'reserved',
+  );
+}
+
+/**
+ * Capability flags as chips. Member cards pass them through `memberFlags` first; with `all` (the Showroom's sample
+ * genre tags) every name shows, and a reserved one is marked as planned.
+ */
 export function FlagChips({
-  names,
+  names: given,
   flags,
   title,
+  all = false,
 }: {
   names: readonly string[];
   flags: readonly CapabilityFlag[];
   title: string;
+  all?: boolean;
 }) {
   const t = useT();
+  const names = all ? given : memberFlags(given, flags);
   if (names.length === 0) return null;
   return (
     <ul className="arc-flags" aria-label={t('arcade.flag.group', { name: title })}>
@@ -87,6 +124,8 @@ export interface GameCardProps {
    * row (server cartridges).
    */
   size?: 'row' | 'hero' | 'list';
+  /** Show every capability name as given (the Showroom's sample genre tags), not only the member allowlist. */
+  allFlags?: boolean;
   /** Controls, laid out as the card's footer. */
   children?: ReactNode;
 }
@@ -130,7 +169,14 @@ export function GameCard(p: GameCardProps) {
         {p.description && <p className="arc-desc">{p.description}</p>}
         {p.meta && <p className="arc-meta">{p.meta}</p>}
         {p.tier && p.eligibility && <TierLine tier={p.tier} eligibility={p.eligibility} />}
-        <FlagChips names={p.capabilities ?? []} flags={p.flags ?? []} title={p.title} />
+        {p.size !== 'hero' && (
+          <FlagChips
+            names={p.capabilities ?? []}
+            flags={p.flags ?? []}
+            title={p.title}
+            all={p.allFlags}
+          />
+        )}
         {p.trust && <TrustBadges card={p.trust} />}
         <TipBadges links={p.tips} name={p.title} />
         {p.children && <div className="arc-card-foot">{p.children}</div>}

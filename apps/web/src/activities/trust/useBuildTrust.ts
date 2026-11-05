@@ -1,6 +1,7 @@
 // The trust badge of one game, loaded when it is shown, with the vouch actions. Plain state like the other
 // Activity hooks (the Lounge has no query cache).
 import { useCallback, useEffect, useState } from 'react';
+import { ApiError } from '../../api/client';
 import { httpTrustApi, type TrustApi } from './api';
 import type { TrustView } from './types';
 
@@ -35,7 +36,11 @@ export function useBuildTrust(
     api
       .get(applicationId)
       .then((t) => !dead && setTrust(t))
-      .catch(() => !dead && setFailed(true));
+      // A 404 is a game with no trust record yet (featured before its first reviewed build): no badge, not an error
+      // (D-479). Anything else is a failure the launcher and Admin report.
+      .catch(
+        (e: unknown) => !dead && !(e instanceof ApiError && e.status === 404) && setFailed(true),
+      );
     return () => {
       dead = true;
     };

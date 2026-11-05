@@ -139,7 +139,7 @@
 /* --- Hero: the headline and the two house picks ------------------------------------------------------------- */
 .arc-hero {
   display: grid;
-  grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 2fr);
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 2.3fr);
   gap: 32px;
   align-items: center;
 }
@@ -248,7 +248,7 @@
 }
 .arc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   gap: 16px;
 }
 .arc-list {
@@ -338,14 +338,12 @@
 }
 .arc-card-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 6px 8px;
 }
 .arc-card-heading {
   display: grid;
-  flex: 1 1 9rem;
+  flex: 1 1 0;
   gap: 2px;
   min-inline-size: 0;
 }
@@ -356,12 +354,23 @@
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
+/* D-479: one tier tag, in the card's top corner, on every card kind. A card with a tag keeps its text clear of it. */
 .arc-card-tags {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 10px;
+  inset-inline-end: 10px;
   display: flex;
-  flex: none;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 4px;
+  max-inline-size: 60%;
+}
+.arc-card:is([data-size='row'], [data-size='list']):has(.arc-card-tags) .arc-card-head {
+  padding-inline-end: 5.5rem;
+}
+.arc-trust:empty {
+  display: none;
 }
 .arc-tag {
   padding-block: 2px;
@@ -369,7 +378,7 @@
   border: 1px solid var(--ui-border);
   background: var(--ui-bg);
   color: var(--ui-text-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -449,7 +458,7 @@
 /* The two house picks: the painting fills the card, the text sits on a wash of the page colour. */
 .arc-card[data-size='hero'] {
   display: block;
-  min-block-size: 15rem;
+  min-block-size: 17rem;
   overflow: hidden;
 }
 .arc-card[data-size='hero'] .arc-card-art {
@@ -460,17 +469,20 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--ui-bg) 94%, transparent) 0%,
-    color-mix(in srgb, var(--ui-bg) 82%, transparent) 55%,
-    color-mix(in srgb, var(--ui-bg) 15%, transparent) 100%
-  );
+  /* Fix 1: the top half of the painting stays clear; the text sits on a wash low and to the left. */
+  background:
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--ui-bg) 92%, transparent) 0%,
+      color-mix(in srgb, var(--ui-bg) 70%, transparent) 45%,
+      transparent 75%
+    ),
+    linear-gradient(to right, color-mix(in srgb, var(--ui-bg) 80%, transparent) 0%, transparent 60%);
 }
 .arc-card[data-size='hero'] .arc-card-body {
   position: relative;
   justify-content: flex-end;
-  min-block-size: 15rem;
+  min-block-size: 17rem;
   box-sizing: border-box;
   padding: 20px 24px;
 }
@@ -495,7 +507,7 @@
   font-size: 0.75rem;
 }
 .arc-card[data-size='hero'] .arc-card-body {
-  max-inline-size: 75%;
+  max-inline-size: 62%;
 }
 
 /* Server cartridges: one wide row each (art, title and who listed it, the file's hash, the actions). */
@@ -610,6 +622,22 @@
   font-weight: 500;
 }
 
+/* Visually hidden, still read (the Start in dialog's one-server group name). */
+.arc-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.arc-start-error {
+  margin: 2px 0 6px;
+  padding-inline: 10px;
+  color: var(--ui-danger, var(--ui-text));
+  font-size: 0.8125rem;
+}
+
 /* --- The Start in... dialog --------------------------------------------------------------------------------- */
 .arc-start {
   display: grid;
@@ -635,6 +663,10 @@
   padding: 0;
   overflow-y: auto;
   list-style: none;
+}
+.arc-start-list + .arc-start-list {
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--ui-border);
 }
 .arc-start-row {
   display: flex;
@@ -736,19 +768,56 @@
     gap: 32px;
     padding-block-start: 24px;
   }
+  /* Fix 5: the rooms bar wraps like The Study's; the pill row stays one scrolling line with the + pinned after it. */
+  .arc-roombar {
+    flex-wrap: wrap;
+    row-gap: 0;
+    min-block-size: 0;
+    padding-block: 4px;
+  }
   .arc-roombar-nav {
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 0 16px;
+    margin-inline-start: 0;
+  }
+  .arc-roombar-link {
+    padding-block: 8px;
+  }
+  .arc-tabs {
+    flex-wrap: nowrap;
+  }
+  .arc-nav {
+    flex-wrap: nowrap;
+    min-inline-size: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    mask-image: linear-gradient(to right, var(--ui-text) calc(100% - 24px), transparent);
+  }
+  .arc-nav a {
+    flex: none;
+  }
+  .arc-tabs-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   /* The house picks are in the Playable now list just below; on a phone the headline is enough. */
   .arc-hero-cards {
     display: none;
   }
   .arc-tabs-action {
-    padding-inline-start: 0;
-    border-inline-start: 0;
+    flex: none;
+    padding-inline-start: 12px;
   }
+  /* Fix 6: a small thumbnail beside a short body, not a tall slice. */
   .arc-card {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-columns: 7rem minmax(0, 1fr);
+  }
+  .arc-card-art {
+    min-block-size: 0;
   }
   .arc-card[data-size='list'] {
     grid-template-columns: minmax(0, 1fr);
@@ -758,9 +827,6 @@
   }
   .arc-page .arc-card-title {
     font-size: 1.25rem;
-  }
-  .arc-card-head {
-    flex-wrap: wrap;
   }
 }
 @media (prefers-reduced-motion: reduce) {

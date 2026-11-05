@@ -120,6 +120,7 @@ describe('Start in…', () => {
       'Start Land.io in general',
       'Start Land.io in news',
     ]);
+    // A text channel: no call to join, the game launches there.
     await user.click(rows[1]!);
     await waitFor(() => expect(api.launch).toHaveBeenCalledWith('t1', '42'));
     // The launcher stays open with its shelf and the reason; nothing navigates.
@@ -127,9 +128,18 @@ describe('Start in…', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('uses a Featured pick’s own application id without asking the shelf', async () => {
+  it('joins a voice channel the member is not in before launching there (D-478), with a pick’s own id', async () => {
     const user = userEvent.setup();
     const api = activityApi();
+    const order: string[] = [];
+    const join = vi.fn(() => {
+      order.push('join');
+      return Promise.resolve(true);
+    });
+    (api.launch as ReturnType<typeof vi.fn>).mockImplementation((c: string, a: string) => {
+      order.push('launch');
+      return activityApi().launch(c, a);
+    });
     render(
       <StartInDialog
         target={{ title: 'Orbit', applicationId: '77' }}
@@ -137,9 +147,71 @@ describe('Start in…', () => {
         onClose={vi.fn()}
         api={api}
         loadChannels={() => Promise.resolve(channels)}
+        join={join}
       />,
     );
     await user.click(await screen.findByRole('button', { name: 'Start Orbit in Hangout' }));
     await waitFor(() => expect(api.launch).toHaveBeenCalledWith('v1', '77'));
+    expect(join).toHaveBeenCalledWith({ guildId: '1', channelId: 'v1', name: 'Hangout' });
+    expect(order).toEqual(['join', 'launch']);
+  });
+
+  it('launches nothing when the call cannot be joined, and says so on the row', async () => {
+    const user = userEvent.setup();
+    const api = activityApi();
+    render(
+      <StartInDialog
+        target={{ title: 'Land.io', shelfName: 'Land.io' }}
+        guilds={[{ id: '1', name: 'Friends' }]}
+        onClose={vi.fn()}
+        api={api}
+        loadChannels={() => Promise.resolve(channels)}
+        join={() => Promise.resolve(false)}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Start Land.io in Hangout' }));
+    expect(await screen.findByText('That call could not be joined.')).toBeInTheDocument();
+    expect(api.launch).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Start Land.io in…' })).toBeInTheDocument();
+  });
+
+  it('lists text channels first for a board tool, the call still on top', async () => {
+    act(() =>
+      useVoiceSession.setState({
+        ...IDLE_SESSION,
+        status: 'connected',
+        guildId: '1',
+        channelId: 'v1',
+        channelName: 'Hangout',
+      }),
+    );
+    expect(startableChannels(channels, { textFirst: true }).map((c) => c.id)).toEqual([
+      't1',
+      'a1',
+      'v1',
+    ]);
+    render(
+      <StartInDialog
+        target={{ title: 'Whiteboard', shelfName: 'Whiteboard', kind: 'board' }}
+        guilds={[{ id: '1', name: 'Friends' }]}
+        onClose={vi.fn()}
+        api={activityApi()}
+        loadChannels={() =>
+          Promise.resolve([
+            ...channels,
+            { id: 'v2', type: 2, guild_id: '1', name: 'Lounge', position: 3 },
+          ])
+        }
+      />,
+    );
+    await screen.findByRole('button', { name: 'Start Whiteboard in Lounge' });
+    const rows = screen.getAllByRole('button', { name: /^Start Whiteboard in / });
+    expect(rows.map((r) => r.getAttribute('aria-label'))).toEqual([
+      'Start Whiteboard in Hangout',
+      'Start Whiteboard in general',
+      'Start Whiteboard in news',
+      'Start Whiteboard in Lounge',
+    ]);
+    expect(screen.getByRole('list', { name: 'Text channels' })).toBeInTheDocument();
   });
 });
