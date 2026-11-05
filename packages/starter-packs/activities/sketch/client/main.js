@@ -19,6 +19,21 @@ const el = (/** @type {string} */ tag, /** @type {string} */ cls = '', /** @type
   return n;
 };
 
+/**
+ * The Activity sandbox has no `allow-forms`, so a form never submits (not even with Enter): every "form" here is a
+ * button click or Enter in its field.
+ * @param {string} inputId @param {string} buttonId @param {() => void} fn
+ */
+function onSend(inputId, buttonId, fn) {
+  $(buttonId).addEventListener('click', fn);
+  $(inputId).addEventListener('keydown', (e) => {
+    if (/** @type {KeyboardEvent} */ (e).key === 'Enter' && !(/** @type {KeyboardEvent} */ (e).isComposing)) {
+      e.preventDefault();
+      fn();
+    }
+  });
+}
+
 const PACK_ERRORS = /** @type {Record<string, string>} */ ({
   empty: 'That file is empty.',
   'too-big': 'That file is over 64 KB. Packs are small text or JSON files.',
@@ -167,16 +182,14 @@ function buildLobby() {
   time.addEventListener('change', sendSettings);
   $('set-builtin').addEventListener('change', sendSettings);
   $('start').addEventListener('click', () => session?.send({ t: 'start' }));
-  $('name-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+  onSend('name-input', 'name-save', () => {
     const name = /** @type {HTMLInputElement} */ ($('name-input')).value.trim().slice(0, LIMITS.nameChars);
     if (!name) return;
     store.set('sketch.name', name);
     session?.send({ t: 'name', name });
     toast('Nickname saved');
   });
-  $('pack-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+  onSend('pack-ref', 'pack-load', () => {
     void loadPack(/** @type {HTMLInputElement} */ ($('pack-ref')).value);
   });
   $('again').addEventListener('click', () => session?.send({ t: 'again' }));
@@ -378,7 +391,7 @@ function renderGame(s) {
   const guessing = s.phase === 'draw' && !drawing && !s.guessed.includes(me);
   const input = /** @type {HTMLInputElement} */ ($('guess'));
   input.disabled = !guessing;
-  /** @type {HTMLButtonElement} */ ($('guess-form').querySelector('button')).disabled = !guessing;
+  /** @type {HTMLButtonElement} */ ($('guess-send')).disabled = !guessing;
   input.placeholder = drawing ? 'You are drawing' : s.guessed.includes(me) ? 'You got it!' : s.phase === 'draw' ? 'Type your guess' : 'Wait for the next turn';
   $('guess-form').hidden = drawing && (s.phase === 'draw' || s.phase === 'pick');
   /** @type {HTMLCanvasElement} */ ($('pad')).classList.toggle('can-draw', isDrawing());
@@ -496,8 +509,7 @@ async function main() {
       render();
     }
   });
-  $('guess-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+  onSend('guess', 'guess-send', () => {
     const input = /** @type {HTMLInputElement} */ ($('guess'));
     const text = input.value.trim();
     if (!text) return;

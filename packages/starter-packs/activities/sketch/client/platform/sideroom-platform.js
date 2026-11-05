@@ -27,7 +27,13 @@ export const applicationIdOf = (win) =>
   ACTIVITY_PATH.exec(win.location.pathname ?? '')?.[1] ?? win.location.hostname.split('.')[0];
 
 /** A member as the game names them: the display name only, never the handle. @param {any} u @returns {Identity} */
-export const person = (u) => ({ id: String(u.id), name: String(u.global_name || 'Player').slice(0, 20) });
+export const person = (u) => {
+  const display = String(u.global_name ?? '').trim();
+  const handle = String(u.username ?? '').trim();
+  // The client fills global_name with the handle when a member never set a display name: that is still a handle.
+  const name = display && display.toLowerCase() !== handle.toLowerCase() ? display : 'Player';
+  return { id: String(u.id), name: name.slice(0, 20) };
+};
 
 /** The bridge commands a guest page may send (ARC-GST-002, D-397). Everything else is a member's. */
 export const GUEST_COMMANDS = Object.freeze(['ready', 'dataSend', 'subscribe', 'unsubscribe', 'storageSet', 'storageRemove']);

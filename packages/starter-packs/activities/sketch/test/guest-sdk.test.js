@@ -208,3 +208,10 @@ test("a member host's pack loads through shelfObjectBytes only, and its prompts 
     globalThis.fetch = realFetch;
   }
 });
+
+test('a member is named by their display name, never by their handle (D-462)', async () => {
+  const { person } = await import('../client/platform/sideroom-platform.js');
+  assert.deepEqual(person({ id: 1, username: 'alice_h', global_name: 'Alice' }), { id: '1', name: 'Alice' });
+  assert.deepEqual(person({ id: 2, username: 'bob_h', global_name: 'bob_h' }), { id: '2', name: 'Player' });
+  assert.deepEqual(person({ id: 3, username: 'cy', global_name: null }), { id: '3', name: 'Player' });
+});
