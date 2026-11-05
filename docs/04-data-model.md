@@ -1,6 +1,6 @@
 # 04 — Data Model
 
-PostgreSQL is the system of record. This is the **logical** model. Exact DDL lives in `crates/sr-db/migrations/`. All IDs are Snowflakes (`BIGINT`) unless noted. Every table has `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Mutable tables also have `updated_at`.
+PostgreSQL is the system of record. This is the **logical** model. Exact DDL lives in `crates/sr-db/migrations/` (forward-only, numbered; the newest at wave 47 is 2320). Where the built table has another name than the logical one below, an "As built" note or section 14 says so. All IDs are Snowflakes (`BIGINT`) unless noted. Every table has `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Mutable tables also have `updated_at`.
 
 Conventions:
 - Soft states use enums, not deletion (accounts, messages).
@@ -155,7 +155,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 5. Expression
 
-`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `guild_scheduled_events` (with `image_key`, `entity_id` and `empty_since`, migration 0820), `guild_scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
+`emojis` (guild_id, name, key, animated, roles allowed, available), `stickers`, `sticker_packs`, `soundboard_sounds`, `guild_templates`, `guild_scheduled_events` (with `image_key`, `entity_id` and `empty_since`, migration 0820), `guild_scheduled_event_users`, `stage_instances`, `automod_rules`, `onboarding` (prompts, options, default channels), `welcome_screens`, `webhooks`, `invites` (built as `guild_invites`, migration 0030; server invites: code, guild_id, channel_id, inviter_id, max_age, max_uses, uses, temporary, single_use_external default per D-022).
 
 ## 6. Applications and developer platform
 
@@ -206,9 +206,11 @@ Phase 4 adds migrations 0210 and 0211. `reading_gc_keys` (key, chapter_id, queue
 
 `wallets` (operator config: xpub/descriptor, network, current derivation index), `invoices` (id, account_id, purpose: personal_tier / server_contribution / invite_credit, target_id (guild for server), amount_usd_cents, amount_sats, btc_rate, address, derivation_index, state: open / seen / confirmed / expired / underpaid / overpaid, expires_at, confirmations, txids text[]), `entitlements` (account_id or guild_id, kind, level, starts_at, ends_at, grace_ends_at, source_invoice_id), `server_donation_pool` (guild_id, period_month, total_usd_cents), `donor_preferences` (hide_name, hide_amount).
 
+As built (migrations 0540 and 0541, `sr-payments`): `payment_wallets` (watch-only `descriptor`, refused if it looks like a private key; `network` mainnet/testnet/signet/regtest; `fingerprint`; `next_index`, which only ever increases; `gap_limit`; one active row), `payment_config` (one JSON document of operator settings: prices, thresholds, perks, confirmation depths), `payment_invoices` (`purpose` is `donate`, `patron`, `server_level` or `invite_credit`; USD cents, sats and the rate are all stored), `payment_txs`, `payment_credits`, `payment_audit`, `payment_watcher` (the poller's cursor). Entitlements are derived, not stored as one table: `entitlement_grants` are the source of truth, and Patron validity and a server's pool are computed from the live (not revoked) grants, so a reorg or a staff revocation is just another row. `guild_support_levels` holds a server's level and `user_patron_notices` the member's Patron notices. The logical names `wallets`, `invoices`, `entitlements` and `server_donation_pool` above are the concepts, not table names.
+
 ## 13. Indexing notes
 
-- Migration-level additions beyond the tables above: `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use reserved ids below 1024), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
+- Migration-level additions beyond the tables above (the many later ones are listed in section 14): `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use reserved ids below 1024), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
 - `messages`: (channel_id, id DESC), partial index `WHERE visibility='visible'`, and (purge_after) WHERE purge_after IS NOT NULL.
 - `attachments`: (expires_at) WHERE is_large AND state='ready'.
 - `guild_members`: (user_id) for "my guilds".
@@ -233,3 +235,32 @@ Findings that are not index gaps:
 
 - Message queries without an `id` bound touch every monthly partition of `messages` (pruning needs an `id` range). Each probe is a cheap index lookup, but the partition count grows by one per month; pass an id lower bound (for example the channel's creation snowflake) when listing the first page if this shows up in profiles.
 - Full-text message search runs in Tantivy (`sr-search`), not Postgres, so it has no EXPLAIN here.
+
+## 14. Tables added after the first design
+
+The sections above are the original logical model plus "as built" notes up to about migration 1020. These tables came later. Each line names the area, the migration that created them and the spec or decision to read; the DDL is the authority.
+
+| Area | Tables | Migration | Read |
+|---|---|---|---|
+| Platform settings | `platform_settings`, `feature_state`, `entrance_copy` | 0003, 0680, 0843 | doc 11, doc 09 |
+| Trusted devices and account hygiene | `trusted_devices`, `account_known_devices`, `account_delete_requests`, `deleted_accounts`, `data_exports`, `age_gate_resets` | 0043, 0880, 0131, 0660, 1140 | doc 09 |
+| Staff and abuse signals | `staff_role_templates`, `staff_appointment_offers`, `staff_alerts`, `platform_announcements`, `person_bans`, `suspicion_events`, `evasion_signals`, `csp_report_counters` | 0130, 0131, 0650, 1150, 1230 | doc 07 |
+| Servers (built names) | `guild_bans`, `guild_invites`, `guild_onboarding`, `guild_welcome_screens`, `guild_insights_daily`, `guild_insights_channel_daily`, `guild_guides`, `guild_application_forms`, `guild_applications`, `guild_appearance`, `guild_pack_items`, `guild_sticker_settings`, `group_dm_invites`, `dm_channels` | 0010, 0011, 0030, 0036, 0632, 0633, 0634, 0796, 1060, 1080 | doc 06, lounge-chat |
+| Notifications and push | `notification_settings`, `channel_notification_overrides`, `user_connections`, `user_presence_prefs`, `push_subscriptions`, `push_vapid_key` | 0022, 0023, 0670 | LNG-NTF |
+| Feature modules | `scheduled_messages`, `message_bookmarks`, `user_birthdays`, `birthday_announcements`, `member_xp`, `rss_feeds`, `poll_templates`, `suggestions`, `tickets`, `feature_cursors`, `message_self_deletes`, `automod_alerts` | 0760, 0966, 1102 | inventory 09 |
+| Cinema social, media, downloads | `cinema_progress`, `cinema_watching`, `cinema_lists`, `cinema_ratings`, `cinema_reviews`, `cinema_comments`, `cinema_reports`, `video_renditions`, `video_audio_tracks`, `video_subtitle_tracks`, `worker_tokens`, `transcode_workers`, `transcode_uploads`, `cinema_downloads`, `cinema_media_gc`, `cinema_submission_uploads` | 0400 to 0403, 0420 to 0423, 1240 | cinema-media |
+| Live TV | `tv_channels`, `tv_blocks`, `tv_reminders`, `tv_schedule_slots`, `tv_guide_imports`, `tv_favorites` | 0460, 0461, 0780, 1000 | cinema-live-tv |
+| Watch parties | `watch_parties`, `watch_party_members`, `watch_party_bans`, `watch_party_queue`, `watch_party_audit`, `watch_party_cards`; party media kinds `cinema`, `embed`, `direct` | 0480, 1001, 1700 | watch-parties |
+| Library social and ingest | `reading_ratings`, `reading_reviews`, `reading_lists`, `reading_comments`, `reading_downloads`, `reading_presence`, `reading_upload_multipart`, `library_cover_hashes`, `library_export_cache`, `ingest_sources`, `ingest_files`, `review_queue_cards`, `submission_upload_bytes` | 0690, 0700, 0810, 0830 to 0832, 0879, 0890 to 0892 | library-reader |
+| Developer platform | `developer_requests`, `application_audit`, `application_command_permissions`, `oauth2_codes`, `oauth2_tokens`, `interactions`, `interaction_messages`, `application_emojis`, `application_assets`, `app_testers`, `message_webhook_authors` | 0500 to 0505, 0770, 0811, 0850, 0851 | developer-platform |
+| Activities | `application_activities`, `activity_instances` (with `host_id`, D-388), `activity_participants`, `application_activity_bundles` (with capabilities), `activity_proxy_tokens`, `activity_guest_links`, `activity_guest_sessions` | 0930, 0965, 1760, 2070, 2080, 2200 | doc 11 section 3, D-408 to D-419 |
+| Arcade | `arcade_featured`, `arcade_coming_soon`, `arcade_coming_soon_notify`, `arcade_guild_cartridges`, `arcade_signing_keys`, `arcade_code_signatures`, `arcade_build_vouches`; `code_sha256` on bundles | 2040, 2050, 2051, 2071 | D-406 to D-411 |
+| Payments | see section 12 | 0540, 0541 | donations |
+| Storage mounts and shelves (BYOS) | `storage_mounts`, `storage_mount_shares`, `guild_storage_grants`, `storage_mount_uploads`, `storage_mount_part_notes`, `storage_mount_attachments`, `storage_objects`, `storage_index_runs`, `storage_object_transcodes`, `storage_figures`, `attachment_multipart`; wave 41: `shelf_objects`, `shelf_grants`, `shelf_delist_strikes` | 1350, 1400, 1410, 1440, 1441, 1450, 1501, 1030, 2020 | D-393, D-394, D-401, D-402 |
+| Music | `music_tracks`, `music_playlists`, `music_playlist_items`, `music_favorites`, `music_recent`, `jukebox_sessions`, `jukebox_queue`, `jukebox_votes`, `jukebox_listeners`, `listening_rooms` | 1450, 1550, 1570, 1580 | MUS-* |
+| Utility drawer | `fx_rates`, `fx_fetch_state`, `scratch_notes` (ciphertext only), `loot_tables`, `tool_rooms`, `invite_cards`, `invite_card_claims` | 1620, 1630, 1660, 1670, 2320 | UTL-* |
+| Profiles | `profile_privacy`, `scrapbook_targets`, `scrapbook_entries`, `scrapbook_objects`, `scrapbook_removals`, `status_rings`, `status_ring_guilds`, `status_ring_views`, `status_ring_posts`, `profile_vouches` | 1680, 1690, 1710, 2130 | PRF-*, D-382, D-425 |
+| Discord bridge | `bridges`, `bridge_channel_maps`, `bridge_message_map`, `bridge_outbox`, `bridge_members`, `bridge_reactions`, `bridge_role_maps`, `bridge_sync_ops`, `bridge_sync_plans`, `bridge_conflicts` and others | 1720 to 1754 | BRG-*, D-386, D-391 |
+| Invite controls | `invite_inactive_roots`, `invite_prune_runs` | 1890 | OPS-INV-001 |
+| Moderation and compliance | `moderation_cases`, `moderation_reports`, `moderation_case_evidence`, `moderation_case_notes`, `moderation_case_events`, `moderation_appeals`, `takedown_notices`, `takedown_items`, `takedown_events`, `takedown_strike_reviews`, `blocked_objects`, `data_requests`; wave 44-A: `account_activity`, `moderation_subtree_cases`, `moderation_subtree_nodes`, `member_restrictions`, `moderation_requests`, `moderation_notices` | 1090, 1100, 1120, 2120 | moderation-compliance, D-395, D-420 to D-424 |
+| Operations | `crash_reports` (deduplicated by fingerprint) | 2160 | OPS-CRASH-001 |

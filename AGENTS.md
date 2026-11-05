@@ -23,10 +23,11 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 | Movies/shows/anime | `specs/cinema-media.md`, `specs/submissions-and-review.md`, `specs/ingest-naming-conventions.md` |
 | Live TV guide | `specs/cinema-live-tv.md` |
 | Watch parties | `specs/watch-parties.md` |
-| Donations, perks, invite purchases | `08-donations-perks-and-cost-model.md` |
+| Donations, perks, invite purchases | `08-donations-perks-and-cost-model.md`, `specs/donations.md` (as built) |
 | Data retention, deletion, privacy | `09-retention-and-privacy.md` |
 | Styling, themes, customization | `10-design-system-and-theming.md` |
-| Bots, apps, extensions, activities | `11-extensibility-and-developer-platform.md` |
+| Bots, apps, extensions, activities | `11-extensibility-and-developer-platform.md`, `specs/developer-platform.md` (as built) |
+| Reports, cases, takedowns, data requests | `specs/moderation-compliance.md`, `09-retention-and-privacy.md` |
 | Servers, deployment, backups | `12-deployment-and-operations.md` |
 
 ## 3. Ground rules
@@ -44,7 +45,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 - **Claiming work:** pick inventory items (or a GitHub issue that references them). Put the item IDs in your branch name and PR title, e.g. `feat/LNG-MSG-014-message-edit`.
 - **Branches:** `feat/…`, `fix/…`, `docs/…`, `chore/…`. One logical change per PR.
 - **PRs must:**
-  - pass CI (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and Playwright smoke tests once they exist);
+  - pass CI (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and the Playwright suites in `e2e/`);
   - include tests for new behavior (unit tests in Rust, component tests in Vitest, an e2e test for user-visible flows);
   - update docs when behavior or an API changes (the API reference is generated from code; prose specs are edited by hand);
   - tick the inventory checkboxes they complete;

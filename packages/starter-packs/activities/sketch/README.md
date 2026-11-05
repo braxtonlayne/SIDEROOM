@@ -17,10 +17,10 @@ become drawing pads.
     node tools/bundle.mjs --dir out                    # then serve out/ and open
                                                        # ?user=alice and ?user=bob (&guest=1) in two tabs
 
-Rules that hold the game to the platform (see `docs/01-decisions-log.md` D-460 to D-464):
+Rules that hold the game to the platform (see `docs/01-decisions-log.md` D-460 to D-468):
 
 - Secrets (the prompt, the three choices) go only to the drawer and come from the host's own randomness; the shared
-  state has a mask. Guild pack prompts stay in the host's page.
+  state has a mask. Guild pack prompts stay in the host's page (members get only a pack reference, D-467; after a host handoff the new host reloads the packs at the next pick phase).
 - Guests use only the handshake and the data channel (`GUEST_COMMANDS`); `test/guest-sdk.test.js` plays a round with a
   guest SDK that throws on anything else.
 - Prompt packs come from one shelf object through `sdk.commands.shelfObjectBytes`: the member's page fetches the

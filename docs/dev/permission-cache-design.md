@@ -1,6 +1,6 @@
 # Permission-shape cache (P24-PERF-1)
 
-Status: designed, not built. Fable decided it on the owner's behalf on 2026-10-25 during the wave-24 integration. Build it only if `load-test.yml` at the defaults still misses a target after the two measured fixes: Postgres reached at the container address instead of through docker-proxy, and 16 statements per message instead of 25 (see `load-testing.md`). The decision is in `../01-decisions-log.md` (P24-PERF-1).
+Status: designed, not built, and not needed so far: the run at the defaults on 2026-10-26 (run 40256129938) passed every target with the two fixes below, so the build condition never came true. Fable decided it on the owner's behalf on 2026-10-25 during the wave-24 integration. Build it only if `load-test.yml` at the defaults still misses a target after the two measured fixes: Postgres reached at the container address instead of through docker-proxy, and 16 statements per message instead of 25 (see `load-testing.md`). The decision is in `../01-decisions-log.md` (P24-PERF-1).
 
 ## Why it is narrow
 

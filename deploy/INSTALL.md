@@ -113,7 +113,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
    sr-cli storage ensure-cors --origin https://chat.example.org
    ```
 
-   The rule allows `PUT`, `GET` and `HEAD` from the origin, allows the `Content-Type` request header and exposes `ETag`. Without `--origin` it uses `server.public_url`. If the web app is also served from another origin (a second hostname, a dev URL), repeat `--origin`.
+   The rule allows `PUT`, `GET` and `HEAD` from the origin, allows the `Content-Type` and `Range` request headers (the music player reads audio by byte range) and exposes `ETag`, `Content-Range`, `Accept-Ranges` and `Content-Length` (see [GARAGE.md](GARAGE.md)). Without `--origin` it uses `server.public_url`. If the web app is also served from another origin (a second hostname, a dev URL), repeat `--origin`.
 
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage); `sr-server healthcheck` runs the `/readyz` probe from the command line and is what the container health check uses.
 

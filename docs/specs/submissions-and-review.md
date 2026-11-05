@@ -86,9 +86,9 @@ What `sr-review` ships today, so the other kinds can plug in. Status per invento
 
 **Audit.** Every reviewer action (`review.claim`, `review.release`, `review.item`, `review.request_changes`, `review.reject`, `review.approve`, `review.publish`, `review.publish_now`, `review.request.decline`) is appended to the staff access log with the submission as target and the kind and reason as detail. The timeline (`submission_events`) carries the same decisions for the submitter.
 
-**Limits.** A member may have 5 open submissions (staff are exempt) and 10 open requests. Bytes per day (REV-CORE-008) is not enforced yet; uploads are bounded by `library.ingest.max_upload_mb`.
+**Limits.** A member may have 5 open submissions (staff are exempt) and 10 open requests. Bytes per day (REV-CORE-008) is enforced since phase 11 (50 GB per UTC day, `GET /submissions/quota`, staff exempt); each upload is also bounded by `library.ingest.max_upload_mb`.
 
-**Not built yet.** Cinema, app and package kinds; contribution credits (section 6); the system-user DM on decisions and the Staff Server `#review-queue` card; the purge and stale-draft jobs; resumable multipart uploads; duplicate detection; metadata lookup; the requests board UI.
+**Not built at phase 5, built since** (see section 10 and the 12-review inventory): the Cinema kind (`sr-cinema` `CinemaKind`) and package approval from the `#review-queue` card; contribution credits (section 6, CIN-SOC-003); the system-user DM on decisions and the Staff Server `#review-queue` card (REV-CORE-007); the purge and stale-draft jobs (`review.housekeeping`, REV-CORE-009); resumable multipart uploads, duplicate detection and metadata lookup (phase 13); the requests board UI (`/library/requests`, REV-REQ-002).
 
 ## 10. Phase 13 additions
 - **Resumable uploads (section 3).** `UploadRequest.multipart = true` opens a multipart session (parts of 64 MB, parallelism 4 in the browser, URLs valid 6 hours). `GET /admin/library/uploads/{id}/parts` and `GET /submissions/{id}/library/uploads/{id}/parts` report what arrived and give fresh URLs for the rest; `DELETE` cancels. `complete` asks the store for its parts, checks their sizes against the announced size and assembles the object, so the browser never reads ETags. The browser ledger is IndexedDB (`review/uploadManager.ts`). Off with `SR_MEDIA_SINGLE_PUT=1`.

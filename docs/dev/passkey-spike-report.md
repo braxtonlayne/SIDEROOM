@@ -48,7 +48,7 @@ Maintenance: p256, ed25519-dalek and crypto-bigint are RustCrypto/dalek projects
 
 ## Follow-up (done)
 
-Step 2 landed on `feat/p4-passkeys`: migration 0180, store methods, routes, web UI and a Playwright run against the CDP virtual authenticator. See `docs/dev/handoff/feat-p4-passkeys.md`. The "Not verified or not done" items about the browser run and the REST wiring are resolved there.
+Step 2 landed on `feat/p4-passkeys`: migration 0180, store methods, routes, web UI and a Playwright run against the CDP virtual authenticator. See `docs/dev/handoff/feat-p4-passkeys.md`. The "Not verified or not done" items about the browser run and the REST wiring are resolved there. The `webauthn` feature is still off by default in `sr-auth` itself, but `sr-api` and `sr-server` enable it; ENT-AUTH-010 is ticked in the inventory.
 
 ## Recommendation
 

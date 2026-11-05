@@ -12,6 +12,7 @@ Decisions: D-013, D-014, D-020–D-032.
 | **Invite credit** | The right to have one platform invite redeemed. 5 per account (lifetime), more by purchase |
 | **Server invite** | A Discord-style guild invite link. Requires an existing account |
 | **Counted account** | `state = active`. Counts toward the 20,000 cap |
+| **Guest** | A person who opened a game's `/play/<token>` link (D-397). Not an account: no row in `users`, no Person, no invite, never counted toward the cap. A random callsign ("Amber Otter 42"), a token for one lobby only, gone after 2 hours or when the link is revoked (doc 05 section 5.3d) |
 
 ## 2. Account states
 
@@ -28,7 +29,7 @@ Decisions: D-013, D-014, D-020–D-032.
 ```
 
 - **active**: normal.
-- **deleted** (user-initiated, D-029): login is impossible forever. The profile renders as "Deleted User" with a default avatar. The username is released after 30 days. Messages remain. Friendships, server memberships, and sessions are removed. Outstanding platform invites are revoked. Unredeemed invite credits are forfeited. Account deletion requires password + 2FA re-auth and a typed confirmation.
+- **deleted** (user-initiated, D-029): login is impossible forever. The profile renders as "Deleted User" with a default avatar. The username is released after 30 days. Messages remain. Friendships, server memberships, and sessions are removed. Outstanding platform invites are revoked. Unredeemed invite credits are forfeited. Account deletion (`POST /sr/auth/account/delete`) requires password + 2FA re-auth and a typed confirmation, and is refused for the Owner (transfer ownership first).
 - **deactivated** (staff-initiated, temporary): cannot log in. The profile stays as-is. Doesn't count toward the cap. Reactivation requires a free cap slot.
 - **platform_banned**: cannot log in. Doesn't count toward the cap. The ban is tied to the **Person**, so any later account linked to that Person is banned automatically on linking (staff may override).
 
@@ -39,7 +40,7 @@ Decisions: D-013, D-014, D-020–D-032.
    - If the cap is reached: response `{valid:false, reason:"closed"}`. Copy: "The door's closed for now."
 2. Valid → registration form: username, display name, email, password (min 10 chars, zxcvbn score ≥ 3 via `zxcvbn` Rust crate), date-of-birth **not** collected. Two confirmations, each its own unticked, required checkbox (D-311): "I've read the house notes" and "I am at least {age} years old." (p17, M-06, D-294: `accounts.minimum_age` from the `platform.compliance` settings, default 13, 13 to 18; the landing and the form say "You must be at least {age} to join"; the affirmed value is recorded in `accounts.age_declared`; no identity check).
    - **Or** "Continue with Discord": OAuth → we receive the Discord id, username, email (if granted), and avatar, which prefill the form. The user still must set username, email, and password (D-027). The Discord identity is linked.
-3. `POST /sr/register {code, …}` runs in **one transaction**:
+3. `POST /sr/register {code, …}` (rate-limited to 5 a minute and 20 a day per client address, then `429` with `retry_after`; `crates/sr-api/src/routes/auth/register.rs`) runs in **one transaction**:
    1. `SELECT … FOR UPDATE` the invite. Must be `open`.
    2. Take advisory lock `CAP_LOCK`. Count active accounts. Reject if ≥ cap.
    3. Check the issuer's credit balance ≥ 1. If they've hit 0, the invite is invalid (issuers can never have more open codes than credits, but double-check).
@@ -66,7 +67,7 @@ Decisions: D-013, D-014, D-020–D-032.
 ### 5.1 Creating
 - **Where:** User Settings → *Invites* (new section), and a quick action in the Lounge home ("Invite someone to SIDE ROOM").
 - **Rules:**
-  - Account must be active, email verified, and at least 7 days old (configurable).
+  - Account must be active, email verified, and at least `invites.min_account_age_days` old (default 7).
   - `open_codes_count < credit_balance` (D-026).
   - Cap not reached (D-014).
   - Not flagged with a suspicion level ≥ the configured "freeze" threshold.
@@ -96,6 +97,8 @@ An issuer can revoke any `open` code. Revocation is instant. A redemption in fli
   - `≥ 3` → escalated alert to senior staff/Owner.
   - Staff can clear suspicion (logged).
 - Ordinary bans (non-serious categories) do not propagate.
+- **Graduated moderation (MOD-GRD-001, D-395, D-420 to D-424, wave 44).** A ban whose category is serious (D-211, D-420) opens a subtree case instead of a purge: the banned account's invitees are listed for staff; only those that are unactivated (7 days old, no messages, no voice time) are frozen automatically (cannot post, invite or join voice; they can sign in, read and appeal) and are removed after 30 days unless staff clear them; younger or active ones are only listed. Inviters get no automatic penalty. Staff can instead warn, time out, freeze someone's invites, or revoke their unused codes. A sterilization (`can_invite = false` for 12 months, unused codes revoked) and the Operator's branch action are each proposed by one staff member and approved by another, both with a second-factor step-up (D-422). Every restriction is appealable once by the person it is on (D-423), and the public notice shows a category and two counts, never names or the tree (D-424). Routes: doc 05 section 5.3d.
+- **Vouches (MOD-VCH-001, D-425 to D-429, wave 44-B).** An active, non-bot account at least three days old that is not sterilized can vouch for a profile it can see (one per pair, never for oneself, at most 20 held under a day old and 500 outstanding). The count sets the tier (Citizen, Pillar 50+, Elder 500+) and a multiplier (1.0, 1.5, 3.0) that only lengthens automated penalties. A vouch is not an invite credit and does not touch the invite graph. A serious ban removes the vouches the banned member received and sends each voucher a private message naming the category, never the handle; the voucher is not penalised.
 
 ## 6. Server invites (Lounge)
 

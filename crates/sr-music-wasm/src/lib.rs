@@ -3,7 +3,7 @@
 //! No tag-parsing dependency is used: the readers are hand-written (ID3v2.2-2.4, ID3v1, FLAC, Ogg
 //! Vorbis/Opus, MP4 `ilst`). The public Rust API ([`read_tags`], [`read_tags_tail`],
 //! [`lrc::parse_lrc`], [`lrc::lrc_sidecar_names`]) and the wasm-bindgen surface are the stable
-//! shape; `lofty` can replace the internals later without changing either.
+//! shape; `lofty` is tried first and the hand-written reader fills gaps, without changing either.
 //!
 //! The client passes the first 1 MiB of a file (never the whole file) and, for MP3 without an
 //! ID3v2 head, the last 128 bytes. Every reader returns an error on truncated or garbage input.

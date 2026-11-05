@@ -28,6 +28,21 @@ Written by the owner on 2026-10-31 and adopted as given, then revised after the 
 11. **Physics engine: Jolt (owner, 2026-11-01).** Wave 46 (was 47 when this was written) uses [Jolt Physics](https://github.com/jrouwe/JoltPhysics) through its official WebAssembly build, `jolt-physics` 1.1.1 (MIT), instead of `@dimforge/rapier3d-compat`. Use the single-threaded `wasm-compat` flavour: the multithreaded flavours need `SharedArrayBuffer` and cross-origin isolation, which the sandboxed Activity iframe does not have. The npm build is compiled without Jolt's `CROSS_PLATFORM_DETERMINISTIC` option, so the wave 46 gate proof (two clients, same inputs, same physics state hash) is what proves determinism across Chromium, Firefox and WebKit; if it fails, the agent stops and reports rather than switching engines (the fix would be a self-built Jolt WASM with that option, which needs the Emscripten toolchain and the owner's yes).
 12. **3D starter first (owner, 2026-11-01).** The WebGPU 3D starter and the `Land.io` polish move up to **46**, built by an outside agent from the self-contained brief `docs/dev/handoff/wave46-external-brief.md`; Sketch & Slander is **47**; the Tauri shell stays **48**. The starter lives at `packages/starter-packs/activities/arena3d` next to the other built-in Activities instead of `packages/activity-starter-webgpu-3d`. Migration blocks follow the numbers (46 → 2200–2239, 47 → 2240–2279); wave 46 needs none, because it touches only the two game folders.
 
+### Status (2026-11-05)
+
+The plans below are kept as written. Where each wave stands:
+
+| Wave | Status | Where |
+|---|---|---|
+| 41 The Study reframe | Merged | [integration-phase41](handoff/integration-phase41.md), D-400 to D-404 |
+| 42 Arcade, sandbox, two-tier trust | Merged | [integration-phase42](handoff/integration-phase42.md), D-405 to D-411 |
+| 43 `/play/<token>` guest links | Merged | [integration-phase43](handoff/integration-phase43.md), D-412 to D-419 |
+| 44 Graduated moderation, vouches | Merged | [integration-phase44](handoff/integration-phase44.md), D-420 to D-429 |
+| 45 Crash telemetry, Showroom | Merged | [integration-phase45](handoff/integration-phase45.md), D-430 to D-437 |
+| 46 3D starter (`arena3d`) and Land.io | Done (merged), then a phone and desktop sweep as 46b | [integration-phase46](handoff/integration-phase46.md), D-440 to D-448, D-450 to D-452 |
+| 47 Sketch & Slander, plus the Arcade redesign (editorial Arcade, "Start in...", house notes formatting) | Shipping in PR #88 (`integration/phase47`); ACT-SKS-001 waits for its CI gate run | [feat-p47-sketch](handoff/feat-p47-sketch.md), [feat-arcade-redesign](handoff/feat-arcade-redesign.md), D-460 to D-482 |
+| 48 Tauri desktop shell and launcher | Next; not started. `tauri` 2.12.5 is approved (D-398) | this plan |
+
 ## 0. Global Invariants & Rules for All Agents (READ FIRST)
 1. **Do NOT break the Immutable Rule (`P28-OPS-1`):** Mandatory MLS E2EE on `sr-voice`, the cross-tenant authorization matrix (`route_matrix.tsv`), and the hash-chained staff audit/access logs must remain green across all feature-switch permutations. Every new route added in Waves 41–48 **must** have a corresponding row in `route_matrix.tsv` and pass the 10-actor read/write matrix.
 2. **Preserve Existing Working Plumbing:** Do not delete the underlying video player, HLS/remux pipeline (`ffmpeg.wasm`), EPUB/CBZ readers, or `str0m` data-channel relays. We are reframing the surface, stripping external metadata/storefront liability, elevating the Arcade, and adding cryptographic/social trust layers.

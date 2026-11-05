@@ -3,7 +3,7 @@ name = "sr-music-wasm"
 version = "0.0.0"
 edition.workspace = true
 publish.workspace = true
-description = "Audio tags, cover art and LRC lyrics for the music library (MUS-WASM-001): a hand-written ID3v2/ID3v1, FLAC, Ogg and MP4 reader behind a stable API that lofty can replace later."
+description = "Audio tags, cover art and LRC lyrics for the music library (MUS-WASM-001): lofty first (MP3, FLAC, Ogg, M4A, WAV), with a hand-written ID3v2/ID3v1, FLAC, Ogg and MP4 reader filling gaps, behind a stable API."
 
 [lib]
 crate-type = ["cdylib", "rlib"]
