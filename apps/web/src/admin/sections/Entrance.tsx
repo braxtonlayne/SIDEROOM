@@ -5,7 +5,11 @@ import { Button, ConfirmDialog, Notice, TextArea } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
-import { EntranceMarkdown, setEntranceCopy } from '../../routes/entrance/entranceCopy';
+import {
+  EntranceMarkdown,
+  houseNotesHeadingId,
+  setEntranceCopy,
+} from '../../routes/entrance/entranceCopy';
 import { HeroBlock } from './EntranceHero';
 import { ActionStatus, Async, ReasonDialog, SectionHeader, useAction, useResource } from '../ui';
 
@@ -118,7 +122,11 @@ function CopyBlock({
           aria-label={t('admin.entrance.previewAria')}
           style={{ padding: 16 }}
         >
-          <EntranceMarkdown source={text} />
+          {block.key === 'house-notes' ? (
+            <EntranceMarkdown source={text} hardBreaks headingId={houseNotesHeadingId()} />
+          ) : (
+            <EntranceMarkdown source={text} />
+          )}
         </div>
       )}
       <div className="adm-actions">
