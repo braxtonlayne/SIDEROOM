@@ -160,6 +160,10 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       const hostId = await fa.evaluate(() => (window as any).__sketch.self());
       const drawerId = await fa.evaluate(() => (window as any).__sketch.state().drawer);
       const guestDraws = drawerId !== hostId;
+      test
+        .info()
+        .annotations.push({ type: 'drawer', description: guestDraws ? 'guest phone' : 'member' });
+      console.log(`[sketch-gate] the drawer is the ${guestDraws ? 'guest phone' : 'member'}`);
       const [fd, fq] = guestDraws ? [fg, fa] : [fa, fg];
       await expect
         .poll(() => fd.evaluate(() => (window as any).__sketch.secret()?.choices.length ?? 0))
