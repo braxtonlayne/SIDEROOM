@@ -10,7 +10,7 @@
 | Reduced motion, forced colours | same spec | animations collapse, focus outline survives Windows high contrast |
 | Focus trap, Escape, focus restore | `packages/ui/src/primitives/overlays.test.tsx`, `menus.test.tsx` | Modal, Drawer, Menu, Popover |
 
-Signed-in screens are covered twice. In jsdom by `apps/web/src/a11y/signedInRoutes.test.tsx` (a table of routes with the API mocked by MSW; add a row per new route) and by the axe cases in the Library, Cinema, Admin and Developers suites. In a real browser by `e2e/tests/a11y-signed-in.spec.ts` (RDY-A11Y-001): axe, including colour contrast and landmarks, over a fixture world built through the API (`e2e/support/world.ts`: a server with messages and a thread, a published Cinema title, a watch party) and every route listed in the spec: Lounge channel, thread and home, 19 Settings sections, server settings, Library home and browse, Cinema home, movies, title, player, party, Live TV guide and My list, Admin home, Developers, Developers docs and Support. Serious and critical findings fail the test; the rest are written to `e2e/.state/a11y/<route>.json` and listed in the handoff. The `playwright` CI job runs it on Chromium, Firefox and WebKit.
+Signed-in screens are covered twice. In jsdom by `apps/web/src/a11y/signedInRoutes.test.tsx` (a table of routes with the API mocked by MSW; add a row per new route) and by the axe cases in the Library, Cinema, Admin and Developers suites. In a real browser by `e2e/tests/a11y-signed-in.spec.ts` (RDY-A11Y-001): axe, including colour contrast and landmarks, over a fixture world built through the API (`e2e/support/world.ts`: a server with messages and a thread, a published Cinema title, a watch party) and every route listed in the spec: Lounge channel, thread and home, 19 Settings sections, server settings, Library home and browse, Cinema home, movies, title, player, party, Live TV guide and My list, Admin home, Developers, Developers docs and Support. Serious and critical findings fail the test; the rest are written to `e2e/.state/a11y/<route>.json` and listed in the handoff. The `playwright` CI job runs it on Chromium, Firefox and WebKit (in its `a-f` half of the main run, XC-CI-007).
 
 | Check | Where | Covers |
 |---|---|---|
@@ -24,7 +24,7 @@ A WebKit build that does not Tab to links (the Safari default; Playwright's Wind
 ## Conventions
 
 - Every page has one `<main>`; `SkipLink` (in `EntranceShell`; mount it in the other shells) targets it.
-- Announce changes with `announce(text)` from `apps/web/src/a11y/announcer.tsx` (polite for new messages and saves, assertive for dropped calls). One pair of live regions exists for the whole app (`<LiveRegions />` in `main.tsx`).
+- Announce changes with `announce(text)` from `apps/web/src/a11y/announcer.tsx` (polite for new messages and saves, assertive for dropped calls). One pair of live regions exists for the whole app (`<LiveRegions />` in `src/app/main.tsx`, and in `src/public/surface.tsx` for the public surfaces).
 - Never rely on colour alone. Muted text must reach 4.5:1: entrance copy uses `--sr-entrance-text-muted` because `--sr-text-3` is about 3.6:1 (see `components/entrance.css`).
 - New icon-only buttons get an `aria-label` from the i18n catalog, never a hard-coded string.
 - Respect `prefers-reduced-motion`; the global rule in `styles/a11y.css` is a safety net, not a licence to animate.

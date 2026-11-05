@@ -109,9 +109,9 @@ The core's glue runs from a `blob:` URL after the archive is unpacked, and WebAs
 already has `'wasm-unsafe-eval'` and `worker-src 'self' blob:`; `sr-server` adds `blob:` to `script-src` only on documents
 loaded at `/games` and below (`emulator_csp` in `crates/sr-server/src/web.rs`, proven by
 `crates/sr-server/tests/web_gate.rs`). Every other app path, the entrance and every public shell keep their policy
-(D-385). The app is one page, so a member who opens Games by an in-app link has the policy of the page they first
-loaded: the Games page then loads itself once more (outside a call) or explains that a reload leaves the call (decision
-P37-EMU-6). A proxy that sets its own `Content-Security-Policy` for the app must do the same for `/games`.
+(D-385). The app is one page, so a member who opens the Arcade by an in-app link has the policy of the page they first
+loaded: the Emulator (the Arcade's page at `/games/emulator`, D-411, D-480) then loads itself once more (outside a call) or explains that a reload leaves the call (decision
+P37-EMU-6). A proxy that sets its own `Content-Security-Policy` for the app must do the same for `/games`. The page fetches ROMs and saves from the member's bucket under the app's own `connect-src`, so a bucket on another origin than yours must be named in the web build's `SR_CSP_CONNECT` ([FAQ.md](FAQ.md); D-465 relies on the same rule for Sketch & Slander's prompt packs).
 
 ## Who may play
 
@@ -121,7 +121,7 @@ P37-EMU-6). A proxy that sets its own `Content-Security-Policy` for the app must
   `emu/saves/<core>/<rom-sha1>/`.
 - Co-op ("Play together" in a server voice call): the host runs the game and shares the screen; seats (players 2 to 4)
   go only to members holding `view_games` on that server (P37-EMU-4). Guests never receive the ROM; their pads travel
-  on the call's sealed data channel. A call is carried to the Games page from the section bar's Games link (P37-EMU-7).
+  on the call's sealed data channel. A call is carried to the Emulator from the rooms bar's Arcade link (P37-EMU-7).
 
 ## Tests and CI
 

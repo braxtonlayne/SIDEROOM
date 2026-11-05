@@ -32,16 +32,25 @@
 | [Cinema: media](specs/cinema-media.md) | 5 |
 | [Cinema: Live TV](specs/cinema-live-tv.md) | 5 |
 | [Watch parties](specs/watch-parties.md) | 5 |
+| [Donations & Bitcoin payments (as built)](specs/donations.md) | 3 |
+| [Developer platform (as built)](specs/developer-platform.md) | 6 |
+| [Moderation & compliance](specs/moderation-compliance.md) | 7 |
 | [Future: bounties](specs/future-bounties.md) | idea only |
 
 ## ADRs
 [docs/adr/](adr/), the architecture decision records.
 
 ## Component inventory
-[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list).
+[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list and file 21 the feature-phase list, waves 27 to 47).
 
 ## Roadmap after the inventory
 [dev/roadmap-p20.md](dev/roadmap-p20.md): waves 20 to 24 (launch readiness, D-352), with their work items in [inventory/20-launch-readiness.md](inventory/20-launch-readiness.md).
+
+## Roadmaps since
+[dev/roadmap-p25.md](dev/roadmap-p25.md) (waves 25 and 26, D-374), [dev/roadmap-p27.md](dev/roadmap-p27.md) (the feature phase, waves 27 to 40, D-380) and [dev/roadmap-p28.md](dev/roadmap-p28.md) (the Study reframe, the Arcade and web-of-trust hardening, waves 41 to 48). What each wave shipped is in [the changelog](../CHANGELOG.md) and its handoff in [dev/handoff/](dev/handoff/).
+
+## For developers
+[Getting started](dev/getting-started.md), [writing a feature module](dev/writing-a-feature.md), [running sr-server](dev/server.md), [entrance isolation](dev/entrance-isolation.md), [i18n](dev/i18n.md) and the [accessibility checklist](dev/a11y-checklist.md).
 
 ## For the owner
 [Owner's action checklist](dev/owner-checklist.md), [questions for a lawyer](legal/lawyer-brief.md) and the [go-live checklist](../deploy/GO-LIVE.md).

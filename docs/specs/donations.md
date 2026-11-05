@@ -94,8 +94,8 @@ States: `open`, `seen` (in mempool), `confirming` (1..depth-1 confirmations), `c
   (`sr_payments::Entitlements`) is the cached read trait other crates use: `user(id)`, `guild(id)`, `limits(user, guild)`.
   Cache TTL 60 s, dropped on every `SR_ENTITLEMENT_UPDATE` this process emits.
 * Download perk: `sr_db::media_repo::EntitlementDownloads` implements `sr_media::downloads::DownloadEntitlements` on top
-  of `Entitlements` (Patron, including grace). The legacy `cinema_download_grants` table still works as a fallback only when
-  `SR_DOWNLOADS_LEGACY_FALLBACK=1` (off by default since Phase 12); migration `0542` copied the unexpired legacy grants into `entitlement_grants`
+  of `Entitlements` (Patron, including grace). The legacy `cinema_download_grants` table and the `SR_DOWNLOADS_LEGACY_FALLBACK` flag are gone (migration `0871`
+  dropped the table); migration `0542` copied the unexpired legacy grants into `entitlement_grants`
   (source `migrated`). Cutover plan in the handoff.
 
 ## 5. Gateway
@@ -108,7 +108,7 @@ States: `open`, `seen` (in mempool), `confirming` (1..depth-1 confirmations), `c
 ## 6. HTTP API as built
 
 All paths are relative to `/api/v1`. Ids are strings. Money is integer USD cents and satoshis. Member routes need a session
-(or user bearer); admin routes need a staff session with `MANAGE_DONATIONS` (errors: 403 `SR_STAFF_ONLY` / 50013). When the
+(or user bearer); admin routes need a staff session with `MANAGE_DONATIONS` (errors: 403 / 50013 missing permissions). When the
 installation has no wallet or `enabled` is false: 403 `SR_FEATURE_DISABLED` on creating invoices (reads keep working).
 
 ### Member
@@ -165,7 +165,7 @@ creation answers 403 `SR_FEATURE_DISABLED`). Misconfiguration is logged, never f
 | `SR_ELECTRS_DAEMON_RPC_ADDR` | _(production Compose, `payments` profile only, D-312)_ The RPC address of the host-run, non-pruned `bitcoind` that `electrs` reads; default `host.docker.internal:8332`, reached through the service's `extra_hosts` entry (doc 12 section 2.1) |
 | `SR_BITCOIND_DIR` | _(production Compose, `payments` profile only, D-312)_ The host's `bitcoind` data directory, mounted read-only into `electrs` for the blocks and the `.cookie` file; default `/var/lib/bitcoind` |
 | `SR_PAYMENTS_DESCRIPTOR`, `SR_PAYMENTS_NETWORK` | A watch-only descriptor to register at startup when no wallet exists (`mainnet` default). Admin > Donations > Wallet does the same with a reason and an access-log row |
-| `SR_DOWNLOADS_LEGACY_FALLBACK` | `0` (default since Phase 12): only entitlements grant the download perk; `1`: `cinema_download_grants` still does |
+| `SR_DOWNLOADS_LEGACY_FALLBACK` | _Removed (migration `0871`)._ It was `0` by default since Phase 12; only entitlements grant the download perk |
 
 Jobs (`sr-server/src/payments_jobs.rs`): `payments.watch` every 15 s (polls invoices whose `next_check_ms` passed: 30 s
 for open and confirming invoices, 5 min for freshly expired ones, hourly for old ones; stops at `finality_confirmations`
@@ -190,9 +190,9 @@ depths, expiry) is `DonationConfig`, edited in Admin > Donations > Pricing and p
    permanent when the legacy row never expired). The legacy `per_day` is replaced by the Patron perk
    `downloads_per_day` (20).
 2. `EntitlementDownloads` (sr-db) implements `sr_media::downloads::DownloadEntitlements` over `Entitlements`; with
-   `SR_DOWNLOADS_LEGACY_FALLBACK=1` it still honours the old table for anyone who is not a Patron yet.
-3. Since Phase 12 the fallback defaults to `0`. Staff check Admin > Entitlements before upgrading; `1` re-enables it
-   temporarily. A later phase removes the flag and drops `cinema_download_grants`.
+   `SR_DOWNLOADS_LEGACY_FALLBACK=1` it honoured the old table for anyone who was not a Patron yet.
+3. Since Phase 12 the fallback defaulted to `0`; migration `0871` has since removed the flag and dropped
+   `cinema_download_grants`.
 
 ## 10. What no test or code here touched
 

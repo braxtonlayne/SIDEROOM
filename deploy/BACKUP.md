@@ -9,6 +9,7 @@ Doc 12 section 5 sets the policy. This page is the how-to. Everything here is pl
 | Postgres | `pg_dump` custom format, one file per run, with a `.json` manifest (SHA-256, size, migration count) | `deploy/scripts/backup.sh` |
 | Object storage (attachments, avatars, library pages) | `rustic` or `restic` snapshot of the Garage data directory | same script, when `SR_BACKUP_REPOSITORY` and `SR_BACKUP_OBJECTS_DIR` are set |
 | HLS renditions | Not backed up. They are rebuilt from originals by re-transcoding | n/a |
+| Members' and servers' own buckets (BYOS mounts), including shelves, emulator saves and prompt packs | Not backed up by the instance. Only the instance bucket (mount 1) is in the object snapshot; each owner backs up their own bucket | n/a |
 | `server.secret_key` and `config.toml` | **You** copy these, encrypted, next to the dumps. Without the key the TOTP secrets in the dump are unreadable | n/a |
 
 The nightly dump alone gives a recovery point of up to 24 hours. With WAL archiving (below) the recovery point shrinks to about five minutes (`archive_timeout=300`), and you can recover to any moment in between.

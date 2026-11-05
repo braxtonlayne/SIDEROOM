@@ -18,9 +18,9 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 
 ## Status
 
-**Built, not yet installed for real.** The application exists: the Rust workspace under `crates/`, the web app under `apps/web`, the shipped deployment files under `deploy/`. Every component in the [inventory](docs/inventory/README.md) files 01 to 19 is ticked except three that are closed or wait on a run (`DON-PAY-009`, `XC-CI-005`, `DEV-SDK-003`). Moderation (Phase 7) is built through the dashboards, suspicion review and age tools.
+**Built, not yet installed for real.** The application exists: the Rust workspace under `crates/`, the web app under `apps/web`, the shipped deployment files under `deploy/`. Every component in the [inventory](docs/inventory/README.md) files 01 to 19 is ticked except three that are closed or wait on a run (`DON-PAY-009`, `XC-CI-005`, `DEV-SDK-003`); files 20 (launch readiness) and 21 (the feature phase, waves 27 to 47) are ticked where their proof ran, and what is open there waits on a run, a later wave or the owner. Moderation (Phase 7) is built through the dashboards, suspicion review and age tools. Beyond the four sections above the app has The Arcade (`/games`, an editorial games front page for the built-in Activities, Sketch & Slander among them) and The Study (`/study`, the shelves), and the signed-out surfaces carry none of the app's code (D-385).
 
-**Proven.** At the phase 19 integration (2026-10-22) the merged tree passed 2,824 Rust tests, 516 Postgres-backed tests, 2,489 web unit tests and the Chromium Playwright suite on a development machine ([handoff](docs/dev/handoff/feat-p19-integration.md)). That is proof of the code, not of an installation.
+**Proven.** At the phase 19 integration (2026-10-22) the merged tree passed 2,824 Rust tests, 516 Postgres-backed tests, 2,489 web unit tests and the Chromium Playwright suite on a development machine ([handoff](docs/dev/handoff/feat-p19-integration.md)). At the phase 46 integration (2026-11-02) the web suite was 446 files and 4,062 tests, with the Rust, authorization-matrix and IMMUTABLE RULE gates run as listed in [its handoff](docs/dev/handoff/integration-phase46.md). That is proof of the code, not of an installation.
 
 **Not yet proven.** The phase exit gates in [docs/13-roadmap-and-phases.md](docs/13-roadmap-and-phases.md) are mostly unrun: the production Compose stack, `deploy/install.sh`, the systemd units and the production Caddyfile have never booted on a real host; ffmpeg has never run in this project (transcoding is tested on canned output); `release.yml`, `openapi.yml`, `storage.yml` and `e2e.yml` have never run on GitHub; the full load target and the manual screen-reader pass are open. The plan that closes these is [docs/dev/roadmap-p20.md](docs/dev/roadmap-p20.md) (waves 20 to 24, decision D-352), with its items in [docs/inventory/20-launch-readiness.md](docs/inventory/20-launch-readiness.md).
 
@@ -39,7 +39,10 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 ```
 apps/web/            React + TypeScript + Vite PWA (all user-facing UI)
 crates/              Rust workspace (servers, workers, shared libraries, WASM modules)
-packages/            Shared TypeScript packages (generated API client, UI kit, WASM bindings)
+packages/            Shared TypeScript packages (generated API client, UI kit, WASM bindings, bot and
+                     Embedded App SDKs, starter packs and built-in Activities)
+e2e/                 Playwright suites, the page sweep and the SDK compatibility run
+scripts/             Repo checks and generators (bundle budget, doc links, entrance isolation, secret scan)
 deploy/              Docker Compose, systemd units, provisioning scripts
 docs/                Specifications, ADRs, component inventory
 ```

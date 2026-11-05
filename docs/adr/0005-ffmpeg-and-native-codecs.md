@@ -1,6 +1,6 @@
 # ADR-0005: FFmpeg (via Rust bindings) and native image/archive codecs
 
-- **Status:** accepted
+- **Status:** accepted; as built (see [doc 03](../03-tech-stack-and-rust-policy.md)): FFmpeg runs as the command-line tools by default and `ffmpeg-next` sits behind the off-by-default `native-ffmpeg` feature; PDFs are rendered in the browser, not by `pdfium-render` (D-217); 7z uses `sevenz-rust2` (D-170); images use `image` without `fast_image_resize`
 - **Date:** 2026-10-11
 
 ## Context

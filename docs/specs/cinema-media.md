@@ -427,7 +427,7 @@ caller already started. People with `cinema.share_watching = off` are not counte
 
 ### 9.8 Gaps
 
-CIN-SOC-003 contribution credits are not built: they need the cinema submissions pipeline (D-074 counts approved movies and episodes).
+CIN-SOC-003 contribution credits are built (p15): `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page (credits are granted by `cinema.title` and `cinema.episodes`; D-074 counts approved movies and episodes).
 No featured lists. "Requests fulfilled" has no provider (the cinema requests pipeline does not exist). The presence sweep runs as the
 job `cinema.presence_sweep` (every minute, singleton id 160).
 

@@ -1,6 +1,6 @@
 # The media pipeline test (RDY-MED-003, 004, 005)
 
-Status: **written, not yet run.** The workflow, the driver and the argument pins exist; nothing has run against a real ffmpeg yet, because the authoring machine has none. The first green `media.yml` run on the integration pull request is the proof (see "What waits for CI").
+Status: **running in CI.** Stages 1 to 5 were proven green on PR #48 (head 49363978, 2026-10-24); the `mount` stage (BYOS-CNV-003) came later. The authoring machine has no ffmpeg, so changes to the driver are still proved by the dry walk first and by `media.yml` second (see "What waits for CI").
 
 `.github/workflows/media.yml` runs the whole media path with a real ffmpeg: a member-visible upload, the server's probe, the review proxy, the planner, a real `sr-transcoder` worker (CPU path) over the Worker API, playback, the slate, Live TV, a re-transcode, the Patron download, and three resilience scenarios. It runs weekly (Wednesday 03:29 UTC), on dispatch, and on pull requests that touch `sr-transcoder`, `sr-media`, `sr-tv`, `sr-cli`'s `tv.rs`, `deploy/compose/**`, `deploy/scripts/media-*` or the workflow itself.
 
@@ -16,7 +16,7 @@ The stage logic is `deploy/scripts/media-smoke.mjs` (plain Node, no dependencies
 | Stack | Postgres and Garage from `deploy/compose/dev.yml`, `sr-cli migrate`, `bootstrap` (Owner `owner`), `sr-server` on 127.0.0.1:8092 (same start as `storage.yml`) |
 | Unit pins | `cargo test -p sr-transcoder`, including `ci_pins.rs` |
 | `sr-transcoder --check --force-cpu` | prints what the worker sees in this ffmpeg |
-| Driver | the five stages below |
+| Driver | stages 1 to 5 below, then the `mount` stage as a step of its own |
 
 ### Stages (`node deploy/scripts/media-smoke.mjs [stage ...]`)
 

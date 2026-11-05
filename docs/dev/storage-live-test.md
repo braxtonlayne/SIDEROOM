@@ -2,7 +2,7 @@
 
 The storage code (`sr-storage`, attachment slots, emoji upload, the abandoned-upload
 sweep) is covered by unit tests on an in-memory backend. These two opt-in suites run
-the same paths against a real S3-compatible server. They are opt-in locally; in CI the `Storage (live S3)` workflow (`.github/workflows/storage.yml`) runs both against the compose Garage on changes to the storage, CDN, message, server and compose code.
+the same paths against a real S3-compatible server. They are opt-in locally; in CI the `Storage (live S3)` workflow (`.github/workflows/storage.yml`) runs both against the compose Garage on changes to the storage, CDN, message, settings, scrapbook, server and compose code. It also runs the mount suites (`s3_mount_live.rs`, `s3_mounts_live.rs`, `s3_scrapbook_live.rs`) and `e2e/tests/storage-composer.spec.ts` (Chromium, multipart upload from the composer, `SR_E2E_STORAGE_LIVE=1`); those are not covered by the steps below.
 
 | Suite | Where | What it proves |
 |---|---|---|

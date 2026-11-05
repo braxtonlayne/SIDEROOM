@@ -65,7 +65,7 @@ Each row says what you decide, **the default that stands until you do** (so noth
 - [ ] **TMDB attribution and use** (Q22): confirm the attribution text and logo are shown wherever fetched metadata appears, or switch TMDB off with `review.lookup.enabled`. **Default:** attribution shown, covers kept as thumbnails only.
 - [ ] **Decide the corresponding-source offer for the GPL pieces** (ffmpeg.wasm and the emulator cores; Q3 and Q23): a link on `/help` to each project's source and the exact build set in `deploy/emu-cores.lock`. **Default:** `THIRD_PARTY_NOTICES.md` (linked from `/help`) carries the licence texts and names each project; the pinned build set is in `deploy/emu-cores.lock` and `deploy/EMULATOR.md`. A dedicated source-offer page is not written; the lawyer says whether the link is enough.
 
-### 4b. Decisions of the feature phase (waves 27 to 46)
+### 4b. Decisions of the feature phase (waves 27 to 47)
 
 The Study (wave 41, [handoff](handoff/integration-phase41.md)):
 
@@ -166,6 +166,17 @@ The 3D starter and Land.io polish (wave 46, [handoff](handoff/integration-phase4
 - [ ] **KTX2/Basis textures for arena3d** need a transcoder download. **Default:** not used (glTF base colour PNG/JPEG only).
 - [x] **arena3d open points** (outside report §2): a hidden host tab lags its peers (timer throttling), no recovery after a lost GPU (a "reload" message), no touch controls (a phone guest can watch, not play). **Default:** documented, not built. *Decided by Fable, 2026-11-02, see FU-12. The open points stay documented, not built.*
 
+Sketch & Slander and the editorial Arcade (wave 47, [Sketch handoff](handoff/feat-p47-sketch.md), [Arcade handoff](handoff/feat-arcade-redesign.md)). All answered by Fable on 2026-11-05 in [p47-fable-decisions.md](handoff/p47-fable-decisions.md); nothing in this wave needs a download or an owner action:
+
+- [x] **`shelfObjectBytes`** (D-460, D-465): a game reads small shelf files (1 MiB) as bytes through the member's page, big assets through `shelfObjectUrl`. **Default:** stands. **Option:** a per-instance CSP from the member's mounts (decided against). *Decided by Fable, 2026-11-05.*
+- [x] **A shelf picker for games** (D-466): `pickShelfObject`, rendered by the app, the pick is the yes. **Default:** built as decided. *Decided by Fable, 2026-11-05.*
+- [x] **Guild prompt packs after a host handoff** (D-461, D-467): the host shares pack references, never prompts, with member players; the successor reloads them through its own yes. **Default:** stands. *Decided by Fable, 2026-11-05.*
+- [x] **Names, defaults and phones** (D-462, D-463, D-464, D-468): "Player" for a member with no distinct display name; 3 rounds, 80 s to draw, 15 s to pick, 2 to 16 players; phones join through the Share link's QR; the built-in bundles stay English. **Default:** all stand. *Decided by Fable, 2026-11-05.*
+- [x] **The guest page on a phone** (D-469): 8 px gutters up to 480 px. **Default:** stands. *Decided by Fable, 2026-11-05.*
+- [x] **Arcade design** (D-470 to D-479, D-481): fixed cover palettes, the server picker, the "Start in..." button, player counts, Featured hidden while empty, the provenance sentence, hero picks, where Play takes you, the flags a card shows, richer cover art as its own handoff. **Default:** all stand. *Decided by Fable, 2026-11-05.*
+- [x] **The Arcade is editorial whatever your Lounge theme** (D-476, D-480). **Default:** `lounge-editorial` for `/games/**`, including the Emulator; members and the Operator can change it under Appearance > Sections. **Option:** follow the member's Lounge theme. *Decided by Fable, 2026-11-05.*
+- [ ] **Sketch & Slander's CI gate and the shots** (ACT-SKS-001, D-482): the gate spec needs the voice stack on CI, and the Arcade and populated flow shots are re-shot from the final commit. **Default:** the integrator ticks it with the run link. *Open until the wave 47 pull request (#88) is green.*
+
 Dependencies:
 
 - [ ] **tantivy 0.27 on or after 2026-11-17** (OPS-DEP-001, DEP-FU-001). Already approved; the item is not started and waits for its date (or an advisory). It is the wave 40 agent `dep-tantivy`'s job once the date comes: `cargo update -p tantivy`, the three `deny.toml` ignores removed, `cargo deny check`, the format-7 index opening read-write. **Unblocks:** closing DEP-FU-001.
@@ -188,6 +199,7 @@ An agent downloads nothing without your word. Each row says what the download is
 - [ ] **ffmpeg on the GitHub runner** (`apt-get install ffmpeg` in a workflow step; nothing on your machine). **Unblocks:** the media proofs of wave 22 (the transcode, playback and Live TV gate). This is the one download the plan depends on.
 - [ ] **The `electrs` container image** for the `payments` profile (pinned by digest; see the Bitcoin row above). **Unblocks:** self-hosted invoice addresses.
 - [ ] **Upstream licence texts** for the placeholders in `THIRD_PARTY_NOTICES.md` (the FreeType year, the NTP and Zlib holders; the note in that file names the upstream file each text comes from). **Unblocks:** a notices file with no placeholder. The alternative is to keep the "To complete" note.
+- [ ] **Wave 48 downloads: `tauri` 2.12.5, `@tauri-apps/cli` 2.x and `tauri-plugin-global-shortcut` 2.x** (D-398). Already approved; the wave has not started. **Unblocks:** the Tauri desktop shell (roadmap-p28 wave 48). Any other new crate or package still needs your yes first.
 - [ ] **tantivy 0.27 and its companions** (`cargo update -p tantivy`, approved as DEP-FU-001), **on or after 2026-11-17**. **Unblocks:** removing three `deny.toml` ignores.
 - [ ] **SNES and Genesis cores.** There is no allowed prebuilt source: either name one (a GPL core's WebAssembly build with a licence you accept) or approve an Emscripten build wave. **Unblocks:** SNES and Genesis in the emulator.
 - [ ] **A homebrew ROM or two** (candidates: Nova the Squirrel, 262 KB, from `github.com/NovaSquirrel/NovaTheSquirrel/releases`; Solar Guard, 4.2 MB, from `github.com/Deft-Spade/Solar-Guard/releases`; Super Tilt Bro is built from source). None is downloaded; each needs your yes and a licence check, then it is committed under `apps/web/public/emu/roms`. **Unblocks:** a game to play on a fresh instance.

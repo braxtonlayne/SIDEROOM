@@ -1,6 +1,6 @@
 # 10 — Design System and Theming
 
-Decisions: D-040, D-063, D-141, D-142.
+Decisions: D-040, D-063, D-141, D-142, D-470, D-476, D-480.
 
 ## 1. Two families, one token system
 
@@ -10,9 +10,10 @@ Every visual value is a CSS custom property (token). Components never hard-code 
 |---|---|---|
 | Lounge, Staff Server, Developer portal | `lounge-editorial` (D-400; also `lounge-dark`, `lounge-light`, `lounge-ash`, `lounge-onyx`) | `lounge-editorial` is the default for the Lounge: warm charcoal, cream text, muted gold accent, serif display headers, built from tokens on the Lounge token set. The other themes are the Discord look-alike: neutral greys, blurple accent, compact sans, 8px radii |
 | Entrance, Cinema, Library, Support | `sideroom` | Deep olive-black, cream type, muted gold, editorial serif display, letter-spaced caps |
+| Arcade (`/games/**`, including the Emulator) | `lounge-editorial` whatever the member's Lounge theme (D-476, D-480) | An editorial games front page like the Cinema's. It is a themed section (`arcade`), so the member picks its look under Settings > Appearance > Sections and the Operator sets a platform default; every route under `/games/**` follows it, and the Emulator keeps it and carries the Arcade's rooms bar. Cover art is fixed content, never tinted from tokens (D-470) |
 | Live TV page | `sideroom-broadcast` (extends `sideroom`) | Same palette with a monospaced "teletext" layer for times and channel numbers, CRT preview frame, scanline overlay |
 
-Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **per-section themes** (Settings → Appearance → Per-section themes). Server owners can set a server accent and banner that recolour the Lounge while that server is open (channel list, header, chat, members, voice and party rooms), never Cinema, Library or the Entrance (D-281), if the viewer allows server theming (default on). The look is layered, from the bottom: the section's built-in theme, the platform default (D-254), the member's own theme (global or per section), the server theme while that server is open, the server accent colour, and last a Theme Store preview while it is open (D-280). One switch, "Allow server themes", covers the server's theme and accent together; off, the member sees only their own theme. The manager's accent wins over the theme's accent token, which is only the author's default.
+Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **per-section themes** (Settings → Appearance → Per-section themes). Server owners can set a server accent and banner that recolour the Lounge while that server is open (channel list, header, chat, members, voice and party rooms), never Cinema, Library, the Arcade or the Entrance (D-281), if the viewer allows server theming (default on). The look is layered, from the bottom: the section's built-in theme, the platform default (D-254), the member's own theme (global or per section), the server theme while that server is open, the server accent colour, and last a Theme Store preview while it is open (D-280). One switch, "Allow server themes", covers the server's theme and accent together; off, the member sees only their own theme. The manager's accent wins over the theme's accent token, which is only the author's default.
 
 ## 2. `sideroom` tokens (from the mockups)
 

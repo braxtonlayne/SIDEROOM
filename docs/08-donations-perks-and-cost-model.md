@@ -72,7 +72,7 @@ Page `/support/leaderboards`, also linked from the Cinema and Library footers.
 | Top Cinema contributors | Approved **movies** and **episodes**, separate tabs | Public (contributors can opt out of appearing) |
 | Top Library contributors | Approved **chapters** | Same |
 
-Contribution credit is granted once per unique item (`contribution_credits` unique on kind + item). Replacements, re-encodes, and duplicates get nothing. Credits are revoked if the item is removed for cause.
+Contribution credit is granted once per unique item (`contribution_credits` unique on kind + item). Replacements, re-encodes, and duplicates get nothing. Credits are revoked if the item is removed for cause. Since wave 41 the member upload and review queues are off by default (`platform.ingest_queues`, D-400), so the two contributor boards stay empty until an operator switches them on.
 
 ## 5. Entitlement engine
 

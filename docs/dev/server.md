@@ -9,6 +9,7 @@ metrics listener. Wiring lives in `crates/sr-server/src/app.rs`.
 |---|---|
 | `sr-server` / `sr-server serve` | Run the server. Reads `SR_CONFIG` (TOML path) and `SR_*` env vars. |
 | `sr-server openapi` | Print the OpenAPI JSON to stdout (no config, no logging). |
+| `sr-server healthcheck` | Exit 0 when `GET /readyz` on the configured listener answers 200 (the container health probe of the distroless image, XC-OPS-001). |
 | `just serve` | `cargo run -p sr-server` against the dev stack (`DATABASE_URL` is passed as `SR_DATABASE__URL`). |
 | `just gen-api` | Regenerate `packages/api-client/openapi.json` and the TypeScript types. |
 
@@ -26,6 +27,8 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `server.shutdown_grace_secs` | `25` | Drain budget for HTTP, then again for jobs. |
 | `database.url`, `database.max_connections` | see `sr-core` | |
 | `storage.*` | see `sr-core` | S3-compatible (Garage in dev). |
+| `web.root` | unset | The built `apps/web/dist` (D-385, SEC-ENT-003). Unset: no documents are served (API only). Set: the server serves the app only to a request with a valid session and refuses to start when `<root>/app/csp.txt` is missing. |
+| `web.serve_public` | `false` | Also serve the public surfaces, the legal page and the error pages (single-binary installs without a proxy, CI). Off in production, where Caddy serves them. |
 | `voice.enabled` | `false` | Starts the embedded SFU (WebSocket at `/voice/ws` on the public listener, media on UDP). Everything below applies only when on. |
 | `voice.udp_port_min`, `voice.udp_port_max` | `50000`, `50099` | Media UDP range (at most 256 sockets bound). Open it in the firewall. |
 | `voice.egress_budget_mbps` | `0` | Egress budget of the SFU node for the egress governor. Above it, simulcast layers are capped (server level 0 first, Patrons last) and clients get a "Reduced quality: the room is busy" notice. `0` is off. Use about 70 % of the measured uplink. |
@@ -73,7 +76,7 @@ and commit `packages/api-client`; CI fails when the generated client drifts.
 
 ## Docker images
 
-`deploy/docker/{server,voice,transcoder}.Dockerfile` build from the repo root, e.g.
+`deploy/docker/{server,voice,transcoder,transcoder-cpu}.Dockerfile` build from the repo root, e.g.
 `docker build -f deploy/docker/server.Dockerfile -t sideroom-server .` (static musl
 binary on distroless). The release workflow publishes them.
 

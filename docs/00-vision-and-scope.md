@@ -2,7 +2,7 @@
 
 ## 1. One-paragraph pitch
 
-SIDE ROOM is a self-hosted, invitation-only "private corner of the internet." It combines a Discord-equivalent chat platform (**the Lounge**), a Netflix-style video library with a nostalgic retro TV guide (**the Cinema**), and a manga/comics/ebook library and reader (**the Library**). All three sit behind one invite-gated front door (**the Entrance**). Members contribute media and reading material through a reviewed submission pipeline. Platform staff run everything from inside the product, through a special **Staff Server**. The backend is written in Rust.
+SIDE ROOM is a self-hosted, invitation-only "private corner of the internet." It combines a Discord-equivalent chat platform (**the Lounge**), a Netflix-style video library with a nostalgic retro TV guide (**the Cinema**), and a manga/comics/ebook library and reader (**the Library**). Since wave 41 the Cinema and the Library are rooms of **the Study**, and a third room, **the Arcade**, holds games and Activities (D-400). All of it sits behind one invite-gated front door (**the Entrance**). Members contribute media and reading material through a reviewed submission pipeline. Platform staff run everything from inside the product, through a special **Staff Server**. The backend is written in Rust.
 
 ## 2. Who it's for
 
@@ -14,16 +14,18 @@ SIDE ROOM is a self-hosted, invitation-only "private corner of the internet." It
 
 | Section | Route prefix | Default visual style | Spec |
 |---|---|---|---|
-| Entrance (landing, login, register-with-invite) | `/`, `/login`, `/join/:code`, `/invite/:code` | Side Room (dark, cream, muted gold, serif) | [entry-landing-and-login](specs/entry-landing-and-login.md) |
+| Entrance (landing, login, register-with-invite, member profiles, guest game links; the only pages served without a login, D-385) | `/`, `/login`, `/join/:code`, `/invite/:code`, `/~:handle`, `/play/:token` | Side Room (dark, cream, muted gold, serif) | [entry-landing-and-login](specs/entry-landing-and-login.md) |
 | Lounge (chat, voice, video) | `/channels/...` | Discord look-alike | [lounge-chat](specs/lounge-chat.md), [lounge-voice-video](specs/lounge-voice-video.md) |
 | Cinema (movies, series, anime, Live TV) | `/cinema/...` | Side Room Cinema | [cinema-media](specs/cinema-media.md), [cinema-live-tv](specs/cinema-live-tv.md), [watch-parties](specs/watch-parties.md) |
 | _Wave 41 (D-400): the Cinema and Library are rooms of The Study; the storefront surfaces (external metadata, Movies/Series/Anime categories, Global Trending, Requests, ingest review queues) are off by default behind platform switches._ | | | |
 | Library (manga, manhwa, comics, ebooks) | `/library/...` | Side Room Library | [library-reader](specs/library-reader.md) |
+| The Study (shelves by source: Media = the Cinema, Reading = the Library; wave 41, D-400) | `/study` | Side Room | [roadmap-p28](dev/roadmap-p28.md) |
+| The Arcade (games, Activities, guest links, the Emulator; waves 42 to 47) | `/games`, `/games/emulator` | Editorial (`lounge-editorial`, D-476) | [11-extensibility…](11-extensibility-and-developer-platform.md), [10-design…](10-design-system-and-theming.md) |
 | Staff Server + admin pages | `/channels/<staff-guild-id>/...`, `/admin/...` | Discord look-alike | [admin-staff-server](specs/admin-staff-server.md) |
 | Donations | `/support`, plus server settings → Boosts | Side Room | [08-donations…](08-donations-perks-and-cost-model.md) |
 | Developer portal | `/developers/...` | Discord look-alike | [11-extensibility…](11-extensibility-and-developer-platform.md) |
 
-A global top bar (`SIDE ROOM / The lounge · The cinema · The library`) links the sections, as in the mockups. **"The board" is cut. Do not build it.**
+A global top bar (`SIDE ROOM / The lounge · The cinema · The library`) links the sections, as in the mockups; since wave 41 the primary rail is The Lounge, The Arcade and The Study (D-400). **"The board" is cut. Do not build it.**
 
 ## 4. Goals
 
@@ -59,3 +61,5 @@ See [13-roadmap-and-phases.md](13-roadmap-and-phases.md).
 6. Developer platform: bot API, apps, extensions, themes, activities
 7. Moderation and compliance
 8. Native clients (out of scope for this spec set)
+
+Phases 0 to 7 are built. They were followed by launch readiness (waves 20 to 24), the feature phase (waves 27 to 40) and the Study, Arcade and web-of-trust waves (41 to 47; wave 48, the desktop shell, is next). Phase 8 is still out of scope. The roadmap has the current state of each.

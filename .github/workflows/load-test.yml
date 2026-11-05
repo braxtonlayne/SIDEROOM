@@ -4,7 +4,7 @@ name: Load test
 #   - sr-loadtest: 2,000 gateway sessions, 200 messages/s, 300 REST/s, REST p95 < 100 ms, fan-out p95 < 250 ms,
 #     and one member of 60 servers loading the Lounge under that load (first paint < 1.5 s, no 429; K-22)
 # Manual only: it is long and wants a quiet standard runner. The numbers go into docs/dev/load-testing.md with the
-# link to the run. Written, not yet run (the owner dispatches it; the first run decides the numbers).
+# link to the run. The owner dispatches it; the defaults run passed on 2026-10-26 (RDY-PERF-002).
 on:
   workflow_dispatch:
     inputs:

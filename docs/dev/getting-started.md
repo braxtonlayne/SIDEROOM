@@ -5,7 +5,7 @@ Goal: running stack in under 15 minutes.
 ## Prerequisites
 
 - Rust stable (installed via `rustup`; `rust-toolchain.toml` pins the channel)
-- Node LTS and pnpm 9 (`corepack enable`)
+- Node 22 or newer and pnpm 10 (`corepack enable`; `package.json` pins `pnpm@10.12.1`)
 - Docker with Compose v2
 - [`just`](https://github.com/casey/just), `cargo-nextest`, `cargo-deny`, `sqlx-cli`
   (`cargo install just cargo-nextest cargo-deny sqlx-cli --locked`)
@@ -18,7 +18,7 @@ Goal: running stack in under 15 minutes.
 3. `just dev` starts the stack from `deploy/compose/dev.yml` and bootstraps Garage (layout, dev key, bucket).
 4. `just migrate` then `just seed`.
    `just seed` also queues the Live TV slate (the off-air colour-bars loop) when `ffmpeg` is on your PATH and says so when it skips it; without ffmpeg, run `sr-cli tv slate` later on any machine that has it (needs the server and a transcoder worker running).
-5. Run the server (`cargo run -p sr-server`) and the web app (`pnpm --filter web dev`) once those crates and apps land.
+5. Run the server (`just serve`, or `cargo run -p sr-server`) and the web app (`pnpm dev`, which is `pnpm --filter @sideroom/web dev`).
 
 ## Public surfaces, the app and the gate (D-385)
 
@@ -48,7 +48,7 @@ All credentials are dev-only and live in `deploy/compose/.env.example`; copy it 
 
 ## Everyday commands
 
-`just test`, `just lint`, `just gen-api`, `just wasm`, `just dev-down`, `just dev-reset` (wipes volumes).
+`just setup` (once: the repo's git hooks and corepack), `just test`, `just lint`, `just gen-api`, `just wasm`, `just e2e`, `just dev-down`, `just dev-reset` (wipes volumes).
 
 ## Troubleshooting
 
