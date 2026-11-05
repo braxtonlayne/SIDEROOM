@@ -207,7 +207,7 @@ p { margin: 0.25rem 0; }
 .colors { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 0.3rem; }
 @media (max-width: 360px) {
   .colors { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .swatch { aspect-ratio: 2; }
+  .colors .swatch { aspect-ratio: 2; }
 }
 .swatch {
   aspect-ratio: 1; border-radius: 0.45rem; border: 2px solid var(--line); cursor: pointer; padding: 0; min-inline-size: 0;
