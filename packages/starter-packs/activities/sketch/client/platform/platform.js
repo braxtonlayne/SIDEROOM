@@ -22,7 +22,7 @@ import { createSideRoomPlatform, isSideRoom } from './sideroom-platform.js';
  * @property {boolean} guest                                a guest on a /play/<token> link (data channel, storage, ready only)
  * @property {boolean} canLoadPacks                         a member whose bundle declares byos_read: Guild Prompt Packs
  * @property {(ref: { shelf_id: string, object_hash: string }) => Promise<Uint8Array>} loadPack
- *   the bytes of one shelf object through its per-object URL (D-389); rejects for a guest or without byos_read
+ *   the bytes of one shelf object, fetched by the member page through its per-object URL (D-389, D-460); rejects for a guest or without byos_read
  * @property {import('../net/channel.js').Channel | null} channel   the data channel (after ready)
  */
 

@@ -47,10 +47,11 @@ const INK_FLUSH_MS = 80;
  * @typedef {{ k: 'guess' | 'hit' | 'join' | 'left' | 'word' | 'skip' | 'round', who?: string, text?: string, n?: number }} FeedLine
  * @typedef {{
  *   v: 1, instance: string, seed: number, draws: number, phase: 'lobby' | 'pick' | 'draw' | 'reveal' | 'end',
- *   settings: typeof DEFAULT_SETTINGS, players: Player[], order: string[], round: number, turn: number,
+ *   settings: Settings, players: Player[], order: string[], round: number, turn: number,
  *   turnNo: number, drawer: string | null, left: number, total: number, mask: string, shown: number[],
  *   guessed: string[], turnScores: Record<string, number>, word: string, feed: FeedLine[],
  *   packs: { name: string, count: number }[], host: string, ver: number }} PublicState
+ * @typedef {{ rounds: number, drawSecs: number, pickSecs: number, revealSecs: number, builtIn: boolean }} Settings
  * @typedef {{ name: string, prompts: string[] }} Pack
  * @typedef {{ instance?: string, hostId: string, now?: () => number, secretRandom?: () => number, seed?: number,
  *   send: (to: string, msg: object) => void, publish: (key: string, value: object) => void }} EngineOptions

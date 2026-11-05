@@ -191,8 +191,9 @@ export function createSession(opt) {
     if (engine || !st) return;
     for (const u of unsubs.splice(0)) u();
     const mine = st.drawer === self ? secret.prompt : undefined;
-    wireHost(SketchHost.resume(st, ops, { ...engineOptions(), leaving: previous, prompt: mine }));
-    engine?.handle(self, { t: 'hello', name: myName });
+    const resumed = SketchHost.resume(st, ops, { ...engineOptions(), leaving: previous, prompt: mine });
+    wireHost(resumed);
+    resumed.handle(self, { t: 'hello', name: myName });
   });
 
   return {

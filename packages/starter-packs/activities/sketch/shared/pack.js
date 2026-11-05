@@ -1,6 +1,7 @@
 // @ts-check
 // Guild Prompt Packs (ACT-SKS-001, D-389, D-396). A pack is a small file on one of the guild's shelves that the
-// HOST (a member) opens through SIDE ROOM's per-object URL (`shelfObjectUrl`); guests never load one. Two shapes:
+// HOST (a member) opens through SIDE ROOM's per-object URL: the member's page fetches it and hands the game the
+// bytes (`shelfObjectBytes`, D-460); guests never load one. Two shapes:
 //
 //   JSON  { "name": "Office chaos", "prompts": ["stapler duel", "reply-all storm", ...] }   (or a bare array)
 //   text  one prompt per line; blank lines and lines starting with # are skipped

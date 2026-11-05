@@ -106,6 +106,7 @@ test('guessing: a hit scores by speed and order, the drawer scores per guesser, 
   const close = h.sent.find((s) => s.to === first && s.msg.t === 'close');
   const feedGuess = h.lastSt().feed.find((f) => f.k === 'guess');
   assert.ok(close || feedGuess, 'a wrong guess is in the feed');
+  h.host.handle(second, { t: 'hb' });
   h.advance(500);
   h.host.handle(first, { t: 'guess', text: prompt.toUpperCase() + '!' });
   const total = h.host.state.settings.drawSecs * 1000;

@@ -39,12 +39,11 @@ export const BYOS_READ = 'byos_read';
 
 /**
  * @param {Window} win
- * @param {{ loadSdk?: () => Promise<any>, fetch?: typeof fetch }} [opt]   tests pass a fake bridge and fetch
+ * @param {{ loadSdk?: () => Promise<any> }} [opt]   tests pass a fake bridge
  * @returns {Platform}
  */
 export function createSideRoomPlatform(win, opt = {}) {
   const applicationId = applicationIdOf(win);
-  const doFetch = opt.fetch ?? ((/** @type {any} */ u, /** @type {any} */ o) => fetch(u, o));
   /** @type {any} */
   let sdk = null;
   /** @type {any} */
@@ -66,7 +65,7 @@ export function createSideRoomPlatform(win, opt = {}) {
       return guest;
     },
     get canLoadPacks() {
-      return !guest && !!config?.capabilities?.includes(BYOS_READ) && typeof sdk?.commands?.shelfObjectUrl === 'function';
+      return !guest && !!config?.capabilities?.includes(BYOS_READ) && typeof sdk?.commands?.shelfObjectBytes === 'function';
     },
     get channel() {
       return channel;
@@ -116,13 +115,10 @@ export function createSideRoomPlatform(win, opt = {}) {
     },
     async loadPack(ref) {
       if (!this.canLoadPacks) throw new Error('packs need a member and the byos_read capability');
-      // D-389: one short-lived URL for this one object (the member is asked first), fetched without credentials.
-      const { url } = await sdk.commands.shelfObjectUrl({ shelf_id: ref.shelf_id, object_hash: ref.object_hash });
-      const res = await doFetch(url, { credentials: 'omit', cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const declared = Number(res.headers?.get?.('content-length') ?? 0);
-      if (declared > PACK_MAX_BYTES) throw new Error('too-big');
-      const bytes = new Uint8Array(await res.arrayBuffer());
+      // D-389 / D-460: the member's page mints the per-object URL for this one object (after the member says yes),
+      // fetches it and hands this frame the bytes; the game's CSP never names the storage host.
+      const bytes = await sdk.commands.shelfObjectBytes({ shelf_id: ref.shelf_id, object_hash: ref.object_hash });
+      if (!(bytes instanceof Uint8Array)) throw new Error('not-bytes');
       if (bytes.length > PACK_MAX_BYTES) throw new Error('too-big');
       return bytes;
     },
