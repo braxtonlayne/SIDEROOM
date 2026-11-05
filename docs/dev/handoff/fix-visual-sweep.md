@@ -26,7 +26,7 @@ SR_E2E_SWEEP=1 SR_SWEEP_ONLY='^(lounge-channel|arcade)$' pnpm --filter @sideroom
 SR_E2E_SWEEP=1 SR_SWEEP_CLEANUP=1 pnpm --filter @sideroom/e2e exec playwright test tests/page-sweep.spec.ts --project chromium -g "remove the sweep world"
 ```
 
-Options: `SR_SWEEP_OUT` (default `<repo>/../visual-sweep-shots`), `SR_SWEEP_ONLY`, `SR_SWEEP_RESEED=1`, `SR_SWEEP_CLEANUP=1`.
+Options: `SR_SWEEP_OUT` (default `<repo>/../visual-sweep-shots`), `SR_SWEEP_ONLY`, `SR_SWEEP_RESEED=1`, `SR_SWEEP_CLEANUP=1`, `SR_SWEEP_DARK=<theme id>` (the "dark" pass in another theme, e.g. `lounge-dark`; default `lounge-editorial`).
 
 What it does:
 - **World** (through the API, `e2e/.state/sweep/world.json`): a server "The Back Booth" with a second member and two

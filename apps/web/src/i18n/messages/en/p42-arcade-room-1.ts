@@ -1,14 +1,10 @@
 // ARC-ROOM-001 (wave 42): The Arcade room.
 export default {
   'arcade.page.title': 'The Arcade',
-  'arcade.page.intro':
-    'Games to play in a call, from the people who made them. Everything here declares who owns its code, art and sound.',
   'arcade.page.loading': 'Loading the Arcade…',
   'arcade.page.failed': 'The Arcade could not be loaded. Try again in a moment.',
   'arcade.page.nav': 'Arcade sections',
   'arcade.featured.heading': 'Featured',
-  'arcade.featured.empty': 'Nothing is featured yet. Activities start from a voice channel.',
-  'arcade.featured.startHint': 'Start it from a voice channel with the Activities button.',
   'arcade.emulator.name': 'Emulator',
   'arcade.emulator.description': 'Play your own game files in the browser, on your own shelf.',
   'arcade.emulator.open': 'Open the emulator',
@@ -31,7 +27,6 @@ export default {
     'Games and mods a server lists from its own shelf. They are unlisted: only its members see them.',
   'arcade.cartridges.server': 'Server',
   'arcade.cartridges.none': 'You are not in a server yet.',
-  'arcade.cartridges.empty': 'This server lists no cartridges.',
   'arcade.cartridges.failed': 'The cartridges could not be loaded.',
   'arcade.cartridges.kindGame': 'Game',
   'arcade.cartridges.kindMod': 'Mod',
@@ -49,7 +44,6 @@ export default {
   'arcade.cartridges.ipRule':
     'Games that use another company’s names, characters or assets are not accepted here.',
   'arcade.soon.heading': 'Coming soon',
-  'arcade.soon.empty': 'Nothing is in the showcase yet.',
   'arcade.soon.repo': 'Repository',
   'arcade.soon.notify': 'Notify me',
   'arcade.soon.notifying': 'You will be told when it ships',

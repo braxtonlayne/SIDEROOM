@@ -1,108 +1,358 @@
-/* The Arcade (ARC-ROOM-001). Semantic tokens only (--ui-*); logical properties only. */
+/* The Arcade (ARC-ROOM-001, redesigned in ARC-UI-010). Theme tokens only; logical properties only.
+   It speaks the Lounge's design language: the Lounge's section bar and title strip, its surfaces (--bg-base-*),
+   text (--text-*), the body font throughout (no display face), 8px radii, the Lounge header bar and its small
+   uppercase section labels, and the kit's buttons, pills and tags. The cover paintings (GameArt.tsx) keep their
+   own palettes but sit in a framed, toned panel like the chat's media attachments. */
+
+/* --- Page and chrome ---------------------------------------------------------------------------------------- */
+.arc-root {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100dvh;
+  background: var(--bg-base-low, var(--ui-bg));
+  color: var(--text-normal, var(--ui-text));
+  font-family: var(--ui-font-body, inherit);
+  font-size: 16px;
+}
+.arc-chrome {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--bg-base-lowest, var(--ui-bg));
+}
+.arc-root :focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
 .arc-page {
-  display: grid;
-  gap: 20px;
-  align-content: start;
-  padding-block: 24px 48px;
-  padding-inline: 16px;
-  max-inline-size: 64rem;
-  margin-inline: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
 }
 .arc-page h1,
 .arc-page h2,
 .arc-page h3 {
   margin: 0;
+  font-family: inherit;
 }
-.arc-page h1 {
-  font-family: var(--ui-font-display, inherit);
-  font-size: 1.75rem;
-  line-height: 1.2;
+/* The title never gives way; the jump links scroll sideways on a narrow screen. */
+.arc-header .lng-header-title {
+  flex: none;
 }
-.arc-page h2 {
-  font-size: 1.25rem;
+.arc-header {
+  gap: 12px;
+  background: var(--bg-base-low, var(--ui-bg));
 }
+.arc-nav {
+  display: flex;
+  gap: 4px;
+  margin-inline-start: 12px;
+  min-inline-size: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* The jump links look like the Lounge's pill tabs (Friends: Online, All, Pending). */
+.arc-nav a {
+  flex: none;
+  padding-block: 4px;
+  padding-inline: 10px;
+  border-radius: var(--ui-radius, 4px);
+  color: var(--text-muted, var(--ui-text-muted));
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.arc-nav a:hover {
+  background: var(--ui-bg-hover);
+  color: var(--text-normal, var(--ui-text));
+}
+.arc-body {
+  display: grid;
+  gap: 28px;
+  align-content: start;
+  padding-block: 16px 48px;
+  padding-inline: 16px;
+  max-inline-size: 90rem;
+}
+.arc-how-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arc-how-steps li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.arc-how-steps svg {
+  flex: none;
+  align-self: flex-start;
+  margin-block-start: 3px;
+}
+.arc-how-steps strong {
+  font-weight: 600;
+}
+
+/* The admin page shares this sheet: its plain headings and intro lines. */
 .arc-head {
   display: grid;
   gap: 6px;
 }
 .arc-dim {
-  color: var(--ui-text-muted, inherit);
+  color: var(--text-muted, var(--ui-text-muted));
   font-size: 0.875rem;
   margin: 0;
 }
-.arc-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.arc-nav a {
-  padding-block: 4px;
-  padding-inline: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
-  color: var(--ui-text);
-  font-size: 0.875rem;
-  text-decoration: none;
-}
-.arc-nav a:hover {
-  background: var(--ui-bg-hover);
-}
-.arc-nav a:focus-visible,
-.arc-tip:focus-visible,
-.arc-link:focus-visible {
-  outline: 2px solid var(--ui-focus);
-  outline-offset: 2px;
-}
+
+/* --- Sections ----------------------------------------------------------------------------------------------- */
 .arc-section {
   display: grid;
   gap: 12px;
   padding-block-start: 20px;
   border-block-start: 1px solid var(--ui-border);
-  scroll-margin-block-start: 16px;
+  scroll-margin-block-start: 72px;
+}
+/* On the Arcade the sections read like the Lounge's lists: a small uppercase label, a muted line, the content. */
+.arc-page .arc-section {
+  gap: 12px;
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+.arc-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.arc-section-title {
+  display: grid;
+  gap: 2px;
+}
+.arc-page .arc-section-title h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--ui-text-muted));
 }
 .arc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   gap: 12px;
 }
-.arc-card {
+.arc-loading {
   display: grid;
-  gap: 8px;
-  align-content: start;
-  padding: 12px;
+  gap: 12px;
+  justify-items: start;
+}
+.arc-loading > .arc-grid {
+  justify-self: stretch;
+}
+.arc-skeleton {
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  background: var(--bg-base-lower, var(--ui-bg-hover));
+  animation: arc-pulse 1.4s ease-in-out infinite;
+}
+@keyframes arc-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+/* Empty states as in the Lounge (No one's around to play with): no box, just the kit's block, kept compact. */
+.arc-page .arc-empty {
+  gap: 4px;
+  padding-block: 20px;
+  padding-inline: 16px;
+}
+.arc-page .arc-empty[data-tone='danger'] svg {
+  color: var(--ui-danger, inherit);
+}
+.arc-server-pick {
+  max-inline-size: 20rem;
+}
+
+/* --- Cards (the chat's attachment cards: lower surface, 1px border, 8px radius) ----------------------------- */
+.arc-card {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg, 8px);
-  background: var(--ui-bg-raised, var(--ui-bg));
+  border-radius: 8px;
+  background: var(--bg-base-lower, var(--ui-bg-raised));
+  overflow: hidden;
+  transition: background-color var(--ui-motion-duration, 120ms) ease;
 }
-.arc-card > :is(a, button):last-child {
-  justify-self: start;
+.arc-card:hover {
+  background: color-mix(in srgb, var(--bg-base-lower, var(--ui-bg-raised)) 80%, var(--ui-bg-hover));
 }
-.arc-card header {
+.arc-card:focus-visible,
+.arc-card:focus-within:has(:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+/* The painting, framed like an image in a message: inset, rounded, and toned a little toward the theme. */
+.arc-card-art {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  margin: 8px;
+  margin-block-end: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-base-lowest, var(--ui-bg));
+}
+.arc-card-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bg-base-lowest, var(--ui-bg));
+  opacity: 0.12;
+  box-shadow: inset 0 0 0 1px var(--ui-border);
+  pointer-events: none;
+}
+.arc-art-svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+.arc-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 10px 12px;
+  padding-inline: 12px;
+}
+.arc-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px 8px;
+}
+.arc-page .arc-card-title {
+  margin: 0;
+  margin-inline-end: auto;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--interactive-active, var(--ui-text));
+}
+.arc-status {
+  font-size: 0.6875rem;
+}
+.arc-blurb {
+  margin: 0;
+  color: var(--text-muted, var(--ui-text-muted));
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.arc-desc {
+  margin: 0;
+  color: var(--text-normal, var(--ui-text));
+  font-size: 14px;
+  line-height: 1.4;
+}
+.arc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0;
+  color: var(--text-muted, var(--ui-text-muted));
+  font-size: 12px;
+}
+.arc-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.arc-card-foot {
+  display: grid;
   gap: 8px;
+  margin-block-start: auto;
+  padding-block-start: 4px;
 }
-.arc-card-title {
-  margin: 0;
-  font-size: 1rem;
+.arc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
 }
-.arc-blurb,
-.arc-desc,
-.arc-tier {
-  margin: 0;
+.arc-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+.arc-notifying {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The Emulator link, sized and coloured as the kit's primary button. */
+.arc-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  min-block-size: 36px;
+  padding-inline: 16px;
+  border-radius: var(--ui-radius, 4px);
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.arc-cta:hover {
+  background: var(--ui-accent-hover, var(--ui-accent));
+}
+/* The Emulator: one wide card across the grid, painting beside the text where there is room. */
+.arc-card[data-size='feature'] {
+  grid-column: 1 / -1;
+}
+@media (min-width: 48rem) {
+  .arc-card[data-size='feature'] {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+  .arc-card[data-size='feature'] .arc-card-art {
+    margin-block-end: 8px;
+  }
+  .arc-card[data-size='feature'] .arc-card-body {
+    justify-content: center;
+    padding: 20px;
+  }
+  .arc-card[data-size='feature'] .arc-card-title {
+    font-size: 20px;
+  }
+  .arc-card[data-size='feature'] .arc-card-foot {
+    margin-block-start: 8px;
+  }
+}
+
+/* --- Chips, tier, tips, trust (the kit's filled tag) -------------------------------------------------------- */
 .arc-chip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding-block: 2px;
   padding-inline: 8px;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius, 4px);
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
   font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 .arc-chip-note {
+  margin-inline-start: 3px;
   color: var(--ui-text-muted, inherit);
+  font-weight: 400;
 }
 .arc-flags,
 .arc-tips,
@@ -110,25 +360,61 @@
 .arc-tier {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
+.arc-tier .arc-chip {
+  border-color: var(--ui-border);
+  background: transparent;
+  color: var(--ui-text-muted);
+}
+.arc-tips {
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--ui-border);
+}
 .arc-tip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 28px;
   padding-block: 2px;
   padding-inline: 10px;
   border: 1px solid var(--ui-border);
-  border-radius: 999px;
+  border-radius: var(--ui-radius, 4px);
   background: transparent;
-  color: inherit;
+  color: var(--ui-text);
+  font: inherit;
   font-size: 0.8125rem;
+  font-weight: 500;
+  text-decoration: none;
   cursor: pointer;
+}
+.arc-tip:hover {
+  background: var(--ui-bg-hover);
+}
+.arc-tip[aria-expanded='true'] {
+  border-color: var(--ui-accent);
+}
+.arc-tip-qr {
+  display: inline-grid;
+  justify-items: start;
+  max-inline-size: 100%;
+}
+.arc-tip-qr:has(.arc-tip-pop) {
+  flex-basis: 100%;
 }
 .arc-tip-pop {
   display: grid;
   gap: 6px;
+  justify-items: center;
+  justify-self: stretch;
   margin-block-start: 6px;
+  padding: 10px;
   max-inline-size: 100%;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-low, var(--ui-bg));
 }
 .arc-tip-code {
   overflow-wrap: anywhere;
@@ -137,10 +423,17 @@
 .arc-trust-badge {
   padding-block: 2px;
   padding-inline: 8px;
-  border-radius: 4px;
+  border-radius: var(--ui-radius, 4px);
   font-size: 0.75rem;
   border: 1px solid var(--ui-border);
 }
+.arc-link {
+  color: var(--text-link, var(--ui-accent));
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* --- Forms (the List a cartridge dialog and the admin page) ------------------------------------------------- */
 .arc-field {
   display: grid;
   gap: 4px;
@@ -148,17 +441,20 @@
 }
 .arc-form {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   max-inline-size: 28rem;
 }
-.arc-link {
-  color: var(--ui-accent, inherit);
-  font-weight: 500;
+.arc-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 12px;
 }
-.arc-form {
-  padding: 16px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg, 8px);
+.arc-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-block-start: 4px;
 }
 /* Native selects dressed like the kit's TextInput (label above, same control box) so a form reads as one. */
 .arc-field > span {
@@ -187,7 +483,12 @@
   outline: 2px solid var(--ui-focus);
   outline-offset: 1px;
 }
-/* Admin > Arcade: the "Released as" picker and the two buttons of a Coming Soon entry on one row. */
+/* Admin > Arcade: the form keeps its framed box, and the "Released as" picker sits beside its two buttons. */
+.arc-section > .arc-form {
+  padding: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg, 8px);
+}
 .arc-release {
   display: flex;
   flex-wrap: wrap;
@@ -197,4 +498,34 @@
 }
 .arc-release .arc-field {
   flex: 1 1 14rem;
+}
+
+/* --- Phone: like the Lounge, the section bar stays and the title strip goes --------------------------------- */
+@media (max-width: 47.99rem) {
+  .arc-titlestrip {
+    display: none;
+  }
+  .arc-header {
+    padding-inline: 12px;
+  }
+  .arc-nav {
+    margin-inline-start: 4px;
+  }
+  .arc-nav a {
+    padding-inline: 8px;
+    font-size: 14px;
+  }
+  .arc-body {
+    padding-inline: 12px;
+  }
+  .arc-card-art {
+    aspect-ratio: 2 / 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arc-card,
+  .arc-skeleton {
+    transition: none;
+    animation: none;
+  }
 }

@@ -1,0 +1,80 @@
+// ARC-UI-010: the built-in games the Arcade shows up front. The games themselves are the starter packs in
+// `packages/starter-packs/activities/*` and start from a channel (the + menu or the call bar), not from here; this
+// list is what the Arcade draws for them: name, pitch, player count, capabilities (copied from each `sideroom.json`)
+// and which art to paint.
+//
+// Adding a built-in game (Sketch & Slander, for one) is one entry below plus its `arcade.builtin.<id>.name` and
+// `.pitch` strings. `status: 'preview'` puts it under Coming soon until it ships; an `art` the Arcade has no
+// painting for falls back to the generic art, so a new game never breaks the page.
+
+export type BuiltinArt = 'landio' | 'arena3d' | 'holdem' | 'whiteboard' | 'tabletop';
+
+export interface BuiltinGame {
+  /** Stable id: names the i18n keys (`arcade.builtin.<id>.*`) and the card. */
+  id: string;
+  /** The starter pack's manifest id (`sideroom.json` `id`). */
+  packageId: string;
+  status: 'live' | 'preview';
+  players?: { min: number; max: number };
+  capabilities: readonly string[];
+  art: BuiltinArt | string;
+}
+
+export const BUILTIN_GAMES: readonly BuiltinGame[] = [
+  {
+    id: 'landio',
+    packageId: 'side-room-landio',
+    status: 'live',
+    players: { min: 1, max: 24 },
+    capabilities: ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'host_handoff'],
+    art: 'landio',
+  },
+  {
+    id: 'arena3d',
+    packageId: 'side-room-arena3d',
+    status: 'live',
+    players: { min: 1, max: 8 },
+    capabilities: [
+      'datachannel',
+      'storage',
+      'guest_play',
+      'lobby_channel',
+      'byos_read',
+      'host_handoff',
+    ],
+    art: 'arena3d',
+  },
+  {
+    id: 'holdem',
+    packageId: 'side-room-holdem',
+    status: 'live',
+    players: { min: 2, max: 9 },
+    capabilities: ['datachannel'],
+    art: 'holdem',
+  },
+  {
+    id: 'whiteboard',
+    packageId: 'side-room-whiteboard',
+    status: 'live',
+    capabilities: ['datachannel'],
+    art: 'whiteboard',
+  },
+  {
+    id: 'tabletop',
+    packageId: 'side-room-tabletop',
+    status: 'live',
+    capabilities: ['datachannel'],
+    art: 'tabletop',
+  },
+];
+
+/** The built-ins split into the two Arcade shelves. */
+export function builtinsByStatus(list: readonly BuiltinGame[] = BUILTIN_GAMES): {
+  live: BuiltinGame[];
+  preview: BuiltinGame[];
+} {
+  return {
+    live: list.filter((g) => g.status === 'live'),
+    preview: list.filter((g) => g.status === 'preview'),
+  };
+}
