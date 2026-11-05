@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     # 45: WebKit took 26 minutes before the two exit-gate specs got their own step (RDY-DEV-005, RDY-MOD-001).
     timeout-minutes: 45
+    env:
+      # XC-CI-007: Playwright reuses the one Vite dev server this job starts (see "Start the Vite dev server").
+      SR_E2E_SHARED_WEB: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -41,15 +44,46 @@ jobs:
           key: emu-cores-${{ hashFiles('deploy/emu-cores.lock') }}
       - name: Verify or fetch the emulator cores
         run: ./deploy/scripts/fetch-emu-cores.sh
-      - name: Migrate, start the server, run Playwright
+      - name: Start the Vite dev server (shared by every step below)
+        # XC-CI-007: one dev server for the whole job, as before the split. Each step below still gets a fresh sr-server
+        # (e2e-run.sh), which is what resets the registration counters. A fresh Vite per step re-optimized dependencies
+        # mid-run and reloaded open pages: watch-together failed on the second half (PR #87, "Failed to fetch dynamically
+        # imported module", then 504 Outdated Optimize Dep). The process outlives this step and ends with the job.
+        run: |
+          VITE_SR_E2E=1 nohup pnpm --filter @sideroom/web dev --host 127.0.0.1 --port 5173 --strictPort > vite.log 2>&1 &
+          timeout 120 bash -c 'until curl -fs -o /dev/null http://localhost:5173/; do sleep 1; done' || { cat vite.log; exit 1; }
+      - name: Migrate, start the server, run Playwright (specs a-f)
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
-        # The two exit gates (tagged @gate) run in the next step on a server of their own: registration allows 20
-        # accounts per address and day, counted in memory, and the gates register seven between them.
+        #
+        # XC-CI-007, registration budget. POST /sr/register allows 5 accounts a minute and 20 a day per address, counted in
+        # memory by sr-server, and every spec registers from 127.0.0.1. Production keeps these limits; CI stays under them by
+        # giving each group of specs a fresh sr-server (a restart resets the counters). The old single main run sat at about
+        # 20 registrations, so one retry (retries: 1 in CI) pushed later specs into 429 (PR #86). Every run below is a
+        # server of its own, with a report, results and server log of their own:
+        #   step                          specs                            registrations (call sites, retry doubles worst case)
+        #   main a-f (this step)          tests/[a-f]*.spec.ts, no tags    about 12 (cinema-submit 3, first-run, exit-gate, entrance-journey, fixtures-scenario, ...)
+        #   main g-z                      tests/[g-z]*.spec.ts, no tags    about 15 (study-shelves 2, tool-rooms 2, lounge-shell 2, page-sweep, passkeys, ...)
+        #   showroom                      @showroom                        2
+        #   gates                         @gate                            9 (moderation-gate 4, crash-telemetry 3, developer-gate 2)
+        # Each is at most 15 first tries, 30 with every spec retried once, against the 20 a day of the old single run: keep a
+        # group under about 10 first tries when adding specs. The groups are split by file name (a positional argument is a
+        # regular expression on the spec's path), so a new spec lands in one of them without editing this file. The two
+        # exit gates and the showroom spec (tagged) run in the steps after these, also on servers of their own.
         run: |
           ./target/debug/sr-cli migrate
-          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert '@gate|@showroom'
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert '@gate|@showroom' 'tests/[a-f]'
         env:
           CI: "true"
+      - name: Run Playwright (specs g-z, fresh server)
+        # XC-CI-007: the second half of the main run, on a server of its own (see the budget table above). Runs even when
+        # the first half failed, so one failure does not hide the other half.
+        if: ${{ !cancelled() }}
+        run: |
+          mv server.log server-main.log 2>/dev/null || true
+          ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep-invert '@gate|@showroom' 'tests/[g-z]' --output=test-results-main-b
+        env:
+          CI: "true"
+          PLAYWRIGHT_HTML_REPORT: playwright-report-main-b
       - name: Showroom preview (UX-SHOW-001)
         # Wave 45 gate proof, half B, on every engine: tests/showroom.spec.ts switches platform.showroom on with the
         # Owner's password session and off again, toggles the preview and proves no write and unchanged reads. Its own
@@ -57,7 +91,7 @@ jobs:
         # before the @gate step, which enrols a second factor on the Owner.
         if: ${{ !cancelled() }}
         run: |
-          mv server.log server-main.log 2>/dev/null || true
+          mv server.log server-main-b.log 2>/dev/null || true
           ./deploy/compose/e2e-run.sh --project=${{ matrix.browser }} --grep @showroom --output=test-results-showroom
         env:
           CI: "true"
@@ -91,11 +125,15 @@ jobs:
             e2e/playwright-report
             e2e/playwright-report-gate
             e2e/playwright-report-showroom
+            e2e/playwright-report-main-b
             e2e/test-results
             e2e/test-results-gate
             e2e/test-results-showroom
+            e2e/test-results-main-b
             server.log
             server-main.log
+            server-main-b.log
+            vite.log
             server-showroom.log
 
   # SEC-ENT-004 (D-385): the built bundle behind the real gate. sr-server serves apps/web/dist itself (SR_E2E_WEB=server:

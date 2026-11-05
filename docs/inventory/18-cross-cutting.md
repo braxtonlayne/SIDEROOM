@@ -60,6 +60,7 @@ All phases.
 - [x] **XC-CI-004** [OPS] Decisions-log guard (changes to 01-decisions-log.md require owner review via CODEOWNERS) _(CODEOWNERS lines added; making them binding is the "Require review from Code Owners" branch rule, an owner action.)_
 - [ ] **XC-CI-005** [OPS] Preview deployments for PRs (optional, ephemeral compose on a runner) _(won't build (D-261); the `live` e2e job is the per-PR proof)_
 - [x] **XC-CI-006** [OPS] Inventory progress summary in PR checks
+- [x] **XC-CI-007** [OPS] E2E and isolation CI hardening (wave 47) _(The main Playwright step runs as two fresh-server halves, `tests/[a-f]` and `tests/[g-z]`, so one retry cannot hit the 20-a-day registration cap; production limits untouched. `check-entrance-isolation.mjs` scans the stylesheets of the plain-HTML surfaces (legal, error) and every CSS file under `dist/entrance`. The task named this XC-CI-001, which is the issue-generation script; numbered 007 instead.)_
 
 ## XC-MOD — Moderation hooks reserved now (full build in Phase 7)
 - [x] **XC-MOD-001** [DB] moderation_holds + hold_id on messages/attachments + reason_category on platform bans

@@ -582,6 +582,8 @@ export function runCheck(distArg, options = {}) {
   };
 
   const sourceFilesSeen = new Set();
+  /** Stylesheets (dist-relative) already scanned through a surface; the sweep over dist/entrance skips these. */
+  const scannedCss = new Set();
   const bundleNames = surfaces.filter((x) => x.kind === 'bundle').map((x) => x.surface);
 
   for (const s of surfaces) {
@@ -745,6 +747,7 @@ export function runCheck(distArg, options = {}) {
           const css = readFileSync(join(dist, u), 'utf8');
           if (/sourceMappingURL\s*=/.test(css))
             fail(name, u, '', 'rule: sourceMappingURL in a public file');
+          scannedCss.add(u);
           scan(name, u, css);
         }
       }
@@ -777,6 +780,22 @@ export function runCheck(distArg, options = {}) {
         if (/rel\s*=\s*["'](?:modulepreload|preload)["']/i.test(text))
           fail(name, r, 'preload', 'rule: a plain-HTML surface preloads nothing');
         scan(name, r, text);
+        // XC-CI-007: a plain-HTML surface ships its stylesheet too (legal-<hash>.css). A word in a CSS comment there
+        // is as much a leak as one in the markup, so each linked stylesheet gets the same sourcemap rule and scan.
+        for (const ref of shellRefs(text)) {
+          if (ref.tag !== 'link' || !/\bstylesheet\b/.test(ref.rel)) continue;
+          const u = distPath(ref.url);
+          if (scannedCss.has(u)) continue;
+          if (!existsSync(join(dist, u)) || !statSync(join(dist, u)).isFile()) {
+            fail(name, r, ref.url, 'the document links a stylesheet that is not in dist');
+            continue;
+          }
+          scannedCss.add(u);
+          const css = readFileSync(join(dist, u), 'utf8');
+          if (/sourceMappingURL\s*=/.test(css))
+            fail(name, u, '', 'rule: sourceMappingURL in a public file');
+          scan(name, u, css);
+        }
       }
       row.push(`${docs.length} document${docs.length === 1 ? '' : 's'}, no script`);
     }
@@ -809,6 +828,14 @@ export function runCheck(distArg, options = {}) {
         continue;
       }
       if (/\.(?:html)$/.test(f)) continue; // covered as plain-HTML surfaces
+      scan('static', f, readFileSync(p, 'utf8'));
+      count += 1;
+    }
+    // XC-CI-007: every stylesheet the public build ships, whichever page links it (a chunk's CSS, the legal sheet).
+    for (const p of walk(join(dist, 'entrance'), (x) => x.endsWith('.css'))) {
+      const f = rel(dist, p);
+      if (scannedCss.has(f)) continue;
+      scannedCss.add(f);
       scan('static', f, readFileSync(p, 'utf8'));
       count += 1;
     }
