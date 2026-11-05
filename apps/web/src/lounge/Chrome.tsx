@@ -4,13 +4,10 @@ import { useVoiceSession } from '../voice/session';
 import { HelpButton } from './header/HelpButton';
 import { InboxButton } from './inbox/InboxButton';
 import { useLoungeUi } from './store';
-import { RoomsNav, type RoomId } from '../study/RoomsNav';
+import { RoomsNav } from '../study/RoomsNav';
 
-/**
- * Thin global section bar above everything (spec 1). Collapsible via the store setting. The Arcade shows the same bar
- * with itself as the current room (ARC-UI-010), so moving between rooms keeps the chrome.
- */
-export function SectionBar({ current = 'lounge' }: { current?: RoomId }) {
+/** Thin global section bar above everything (spec 1). Collapsible via the store setting. */
+export function SectionBar() {
   const t = useT();
   const show = useLoungeUi((s) => s.showSectionBar);
   const voiceName = useVoiceSession((s) => (s.status === 'connected' ? s.channelName : null));
@@ -20,7 +17,7 @@ export function SectionBar({ current = 'lounge' }: { current?: RoomId }) {
       <span className="lng-sectionbar-brand">{t('lounge.chrome.brand')}</span>
       <span aria-hidden="true">/</span>
       <RoomsNav
-        current={current}
+        current="lounge"
         className="lng-sectionbar-nav"
         linkClassName="lng-sectionbar-link"
       />

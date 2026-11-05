@@ -1,6 +1,6 @@
 import { Button, Icon } from '@sideroom/ui';
 import { ArcadeShell } from '../arcade/ArcadeShell';
-import { BuiltinCard, SectionHead } from '../arcade/ArcadeSections';
+import { ArcadeHero, BuiltinCard, SectionHead } from '../arcade/ArcadeSections';
 import { builtinsByStatus } from '../arcade/builtins';
 import { GameCard } from '../arcade/GameCard';
 import { useT } from '../i18n';
@@ -57,6 +57,7 @@ export default function PreviewArcade() {
         { href: '#srm-soon-games', label: t('showroom.arcade.inDevelopment') },
       ]}
     >
+      <ArcadeHero flags={[]} />
       <section className="arc-section" aria-labelledby="srm-live" id="srm-live-games">
         <SectionHead id="srm-live" title={t('showroom.arcade.playableNow')} />
         <div className="arc-grid">
