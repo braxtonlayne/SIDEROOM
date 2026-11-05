@@ -14,7 +14,9 @@ pub const APPEARANCE_ID: &str = "platform.appearance";
 /// Settings key: group of one theme id per section.
 pub const DEFAULT_THEME_KEY: &str = "default_theme_by_section";
 /// The sections a default can be set for, as the web names them (`tv` is the Live TV guide).
-pub const THEME_SECTIONS: &[&str] = &["lounge", "entrance", "cinema", "library", "arcade", "support", "tv"];
+pub const THEME_SECTIONS: &[&str] = &[
+    "lounge", "entrance", "cinema", "library", "arcade", "support", "tv",
+];
 /// The shipped theme ids of doc 10 (`sr-theme` `BUILTIN_THEME_IDS`; approved theme packages join
 /// the list when they exist).
 pub const SHIPPED_THEMES: &[(&str, &str)] = &[
