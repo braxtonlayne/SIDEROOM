@@ -219,7 +219,7 @@ async function loadPack(text) {
     const bytes = await platform.loadPack(ref);
     const pack = parsePack(bytes, `Pack ${engine.packs.length + 1}`);
     if (!pack.ok) return packMsg(PACK_ERRORS[pack.error] ?? 'That pack could not be used.', 'bad');
-    engine.addPack(pack);
+    engine.addPack({ ...pack, ref });
     /** @type {HTMLInputElement} */ ($('pack-ref')).value = '';
     packMsg(`Loaded "${pack.name}": ${pack.prompts.length} prompts${pack.skipped ? ` (${pack.skipped} skipped)` : ''}.`, 'ok');
   } catch (err) {
@@ -227,6 +227,32 @@ async function loadPack(text) {
     packMsg(why === 'too-big' ? PACK_ERRORS['too-big'] : 'That file could not be opened. Check the shelf id and hash, and that you can open the shelf.', 'bad');
   } finally {
     $('pack-load').removeAttribute('disabled');
+  }
+}
+
+/**
+ * A new host reloads its predecessor's packs at the next pick phase (D-467): one `shelfObjectBytes` yes per pack, the
+ * member's own. A decline or a failure drops that pack and the built-in set plays on.
+ */
+let reloading = false;
+async function reloadPacks() {
+  const engine = session?.engine;
+  if (!engine || reloading || platform.guest || !platform.canLoadPacks) return;
+  const due = engine.takeDueRefs();
+  if (!due.length) return;
+  reloading = true;
+  try {
+    for (const ref of due) {
+      try {
+        const bytes = await platform.loadPack(ref);
+        const pack = parsePack(bytes, ref.name || `Pack ${engine.packs.length + 1}`);
+        if (pack.ok) engine.addPack({ ...pack, name: ref.name || pack.name, ref: { shelf_id: ref.shelf_id, object_hash: ref.object_hash } });
+      } catch {
+        // declined or unavailable: this pack is dropped
+      }
+    }
+  } finally {
+    reloading = false;
   }
 }
 
@@ -294,6 +320,13 @@ function renderBoard(s) {
     }),
   );
   $('skip').hidden = !(s.host === me && (s.phase === 'pick' || s.phase === 'draw'));
+  markBoardOverflow();
+}
+
+/** D-469: `.board.more` when the scoreboard row scrolls sideways (the CSS fades its edge). */
+function markBoardOverflow() {
+  const list = $('board');
+  list.parentElement?.classList.toggle('more', list.scrollWidth > list.clientWidth + 1);
 }
 
 /** @param {PublicState} s */
@@ -491,6 +524,7 @@ async function main() {
     if (what === 'state') {
       lastHtmlVer = -1;
       render();
+      void reloadPacks();
     } else if (what === 'ink') pad.setInk(session?.ink() ?? []);
     else if (what === 'secret') {
       lastHtmlVer = -1;
@@ -517,7 +551,10 @@ async function main() {
     input.value = '';
   });
   window.addEventListener('pagehide', () => session?.leave());
-  window.addEventListener('resize', () => pad.invalidate());
+  window.addEventListener('resize', () => {
+    pad.invalidate();
+    markBoardOverflow();
+  });
   session.hello(name);
   render();
 }

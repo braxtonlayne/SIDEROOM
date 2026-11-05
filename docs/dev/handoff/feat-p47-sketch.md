@@ -108,3 +108,22 @@ Screenshots are in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p47-sk
 ## Resume here
 Nothing is pending on the branch. Next is integration: run the CI e2e job (the "Sketch & Slander gate" step), then
 tick ACT-SKS-001 with the run link. The integrator re-shoots `app/` with `SR_SKETCH_SHOTS` on the merged tree.
+
+## Follow-up "sketch2" (owner-delegated decisions, `docs/dev/handoff/p47-fable-decisions.md`)
+Commits: `4cce5ce5` S1, `2334a23d` S3, `ef795d98` decision rows D-465..D-469 plus the decisions file, `2df02c57` G1.
+- **S1**: `fetchCapped` streams the body and aborts at 1 MiB even without content-length; the error the game gets is
+  "That file is over 1 MiB."; vitest for streamed over-cap, under-cap without content-length, early refusal and the
+  RPC message; the byos design note reads as decided.
+- **S3**: the host sends pack references (never prompts) to member players only (on load, remove and join); a
+  successor reloads them at its next pick phase (`takeDueRefs`, never during draw) through its own `shelfObjectBytes`
+  yes; a decline or failure drops the pack and the built-ins play. Engine tests added; D-461 notes the amendment.
+- **G1**: `.gp-frame` is border-box, the play phase has 8 px gutters up to 480 px, and the scoreboard row snaps and
+  fades (`.board.more`, set by the client on render and resize).
+- Visual check: `visual-sweep-shots/p47-sketch2/` (gate spec, `{light,dark}-phone-guest-*`: join, lobby, draw,
+  guessing, reveal at 375x812). Nothing cut off; the fade shows on the overflowing scoreboard. Not shot: a 320 px frame.
+- Tests: web vitest (activities, guest-play), sketch package vitest and tsc, web tsc, prettier, check-css-tokens,
+  i18n-audit, web build + entrance isolation + bundle budget, `playwright --list`, sketch-gate (both branches),
+  guest-play 8/8 on my stack (ports 8201/5201, now stopped, DB dropped).
+- Owner questions: none new. Defaults: a pack's name after a reload is the one the old host sent; refs stay in each
+  member's memory until the next list arrives (a second handoff retries a pack a first successor declined); no
+  pack-reload toast (the successor sees the normal shelf dialog only).

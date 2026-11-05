@@ -274,3 +274,48 @@ test('resume: a successor carries on the turn with the drawer repeating the prom
     assert.equal(r3.state.word, '');
   }
 });
+
+test('pack references (D-467): member players get them on load and on join, guests never; prompts never leave', () => {
+  const h = threePlayers();
+  const ref = { shelf_id: '123', object_hash: 'a'.repeat(64) };
+  const pack = { name: 'Office', prompts: ['stapler duel', 'reply all storm', 'printer jam rage', 'coffee machine queue', 'desk plant drama'], ref };
+  h.host.addPack(pack);
+  const refMsgs = (id) => h.sent.filter((s) => s.to === id && s.msg.t === 'packrefs');
+  assert.deepEqual(refMsgs('m1').at(-1)?.msg.refs, [{ ...ref, name: 'Office' }]);
+  assert.equal(refMsgs('g1').length, 0, 'a guest never learns a shelf id');
+  assert.equal(refMsgs('h').length, 0, 'the host needs no copy');
+  // a member who joins later gets them; a guest who joins later does not
+  h.host.handle('m2', { t: 'hello', name: 'Cy' });
+  h.host.handle('g2', { t: 'hello', name: 'Quick Fox', guest: true });
+  assert.equal(refMsgs('m2').length, 1);
+  assert.equal(refMsgs('g2').length, 0);
+  for (const s of h.sent) for (const prompt of pack.prompts) assert.ok(!JSON.stringify(s.msg).includes(prompt) || s.msg.t === 'choices' || s.msg.t === 'secret');
+  // removing the pack tells members the list is empty
+  h.host.removePack('Office');
+  assert.deepEqual(refMsgs('m1').at(-1)?.msg.refs, []);
+  assert.equal(refMsgs('g1').length, 0);
+});
+
+test('pack references (D-467): a successor reloads them at the next pick phase, never while drawing; a decline keeps the built-in set', () => {
+  const h = threePlayers();
+  startDrawing(h);
+  const st = h.lastSt();
+  const refs = [{ shelf_id: '123', object_hash: 'b'.repeat(64), name: 'Office' }];
+  const s2 = harness({ hostId: 'm1' });
+  const resumed = SketchHost.resume(st, h.host.ink, { ...s2.host.opt, now: () => s2.clock.t, refs, prompt: 'x' });
+  assert.equal(resumed.state.phase, 'draw');
+  assert.deepEqual(resumed.takeDueRefs(), [], 'nothing is asked during a drawing turn');
+  assert.equal(resumed.state.settings.builtIn, true, 'built-ins until a pack loads');
+  resumed.state.phase = 'pick';
+  assert.deepEqual(resumed.takeDueRefs(), refs);
+  assert.deepEqual(resumed.takeDueRefs(), [], 'asked once: a decline drops the pack');
+  assert.deepEqual(resumed.state.packs, []);
+  assert.equal(resumed.state.settings.builtIn, true);
+  // a pack that does load is back, with its reference passed on to members
+  const again = SketchHost.resume(st, h.host.ink, { ...s2.host.opt, now: () => s2.clock.t, refs, prompt: 'x' });
+  again.state.phase = 'pick';
+  const [due] = again.takeDueRefs();
+  again.addPack({ name: due.name, prompts: ['a b c', 'd e f', 'g h i', 'j k l', 'm n o'], ref: { shelf_id: due.shelf_id, object_hash: due.object_hash } });
+  assert.deepEqual(again.state.packs, [{ name: 'Office', count: 5 }]);
+  assert.deepEqual(again.refs(), refs);
+});

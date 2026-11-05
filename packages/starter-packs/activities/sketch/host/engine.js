@@ -9,7 +9,8 @@
 //
 // Secrets never go into the shared state: the prompt and the drawer's choices are sent to the drawer alone, and are
 // picked with the host's own randomness (not the public seed), so nobody can work them out from host:st. Guild
-// packs stay in the host's page: only their names and sizes are public.
+// packs stay in the host's page: only their names and sizes are public, and their references (never their prompts)
+// reach member players, so a successor can reload them through its own yes (D-467); a guest never gets one (D-397).
 //
 // `host:st` holds everything a successor needs to carry on (resume()): the drawing is in host:ink, which every page
 // already has, and the drawer tells a new host its prompt again ({ t: 'reprompt' }).
@@ -52,8 +53,9 @@ const INK_FLUSH_MS = 80;
  *   guessed: string[], turnScores: Record<string, number>, word: string, feed: FeedLine[],
  *   packs: { name: string, count: number }[], host: string, ver: number }} PublicState
  * @typedef {{ rounds: number, drawSecs: number, pickSecs: number, revealSecs: number, builtIn: boolean }} Settings
- * @typedef {{ name: string, prompts: string[] }} Pack
- * @typedef {{ instance?: string, hostId: string, now?: () => number, secretRandom?: () => number, seed?: number,
+ * @typedef {{ shelf_id: string, object_hash: string, name: string }} PackRef
+ * @typedef {{ name: string, prompts: string[], ref?: { shelf_id: string, object_hash: string } }} Pack
+ * @typedef {{ instance?: string, hostId: string, refs?: PackRef[], now?: () => number, secretRandom?: () => number, seed?: number,
  *   send: (to: string, msg: object) => void, publish: (key: string, value: object) => void }} EngineOptions
  */
 
@@ -108,6 +110,10 @@ export class SketchHost {
     this.choices = [];
     /** @type {Pack[]} */
     this.packs = [];
+    /** Pack references a successor still has to reload (D-467), at the next pick phase. @type {PackRef[]} */
+    this.pendingRefs = [];
+    /** Members told the references while there were some (so removing the last pack tells them too). @type {Set<string>} */
+    this.refsSent = new Set();
     /** Prompts already played in this game (lower case), so a game does not repeat one. */
     this.used = new Set();
     /** @type {import('../shared/rules.js').InkOp[]} */
@@ -249,6 +255,7 @@ export class SketchHost {
     }
     this.bump();
     this.opt.send(from, { t: 'welcome', you: from, host: this.opt.hostId });
+    if (!p.guest) this.sendRefs(from);
     if (from === this.state.drawer) this.sendSecret();
     this.opt.send(from, { t: 'ink', n: this.state.turnNo, at: 0, ops: this.ink });
   }
@@ -278,9 +285,11 @@ export class SketchHost {
   addPack(pack) {
     const known = this.packs.findIndex((p) => p.name === pack.name);
     if (known >= 0) this.packs.splice(known, 1);
-    this.packs.push({ name: pack.name, prompts: [...pack.prompts] });
+    this.packs.push({ name: pack.name, prompts: [...pack.prompts], ...(pack.ref ? { ref: pack.ref } : {}) });
+    this.pendingRefs = this.pendingRefs.filter((r) => r.name !== pack.name);
     this.state.packs = this.packs.map((p) => ({ name: p.name, count: p.prompts.length }));
     this.bump();
+    this.broadcastRefs();
   }
 
   /** @param {string} name */
@@ -289,6 +298,38 @@ export class SketchHost {
     this.state.packs = this.packs.map((p) => ({ name: p.name, count: p.prompts.length }));
     if (this.packs.length === 0) this.state.settings.builtIn = true;
     this.bump();
+    this.broadcastRefs();
+  }
+
+  /** The references of the loaded packs that came from a shelf: never the prompts (D-467). @returns {PackRef[]} */
+  refs() {
+    return this.packs.flatMap((p) => (p.ref ? [{ shelf_id: p.ref.shelf_id, object_hash: p.ref.object_hash, name: p.name }] : []));
+  }
+
+  /** Tell one member player the references (members only: `Player.guest` is known here, D-397). @param {string} to */
+  sendRefs(to) {
+    const p = this.player(to);
+    if (to === this.opt.hostId || !p || p.guest || p.left) return;
+    const refs = this.refs();
+    if (refs.length || this.refsSent.has(to)) this.opt.send(to, { t: 'packrefs', refs });
+    if (refs.length) this.refsSent.add(to);
+    else this.refsSent.delete(to);
+  }
+
+  broadcastRefs() {
+    for (const p of this.state.players) this.sendRefs(p.id);
+  }
+
+  /**
+   * A successor reloads its predecessor's packs at the next pick phase, never while someone draws (D-467). Returns
+   * the references to load now (and forgets them: a decline or a failure drops that pack).
+   * @returns {PackRef[]}
+   */
+  takeDueRefs() {
+    if (this.state.phase !== 'pick' || this.pendingRefs.length === 0) return [];
+    const due = this.pendingRefs;
+    this.pendingRefs = [];
+    return due;
   }
 
   /** Every prompt the game may use now, minus the ones already played. */
@@ -590,6 +631,7 @@ export class SketchHost {
     const h = new SketchHost({ ...opt, seed: st.seed, instance: st.instance });
     const now = h.now();
     h.state = { ...JSON.parse(JSON.stringify(st)), host: opt.hostId, packs: [] };
+    h.pendingRefs = Array.isArray(opt.refs) ? opt.refs.filter((r) => r && typeof r.shelf_id === 'string' && typeof r.object_hash === 'string').map((r) => ({ shelf_id: r.shelf_id, object_hash: r.object_hash, name: String(r.name ?? '') })) : [];
     if (h.state.packs.length === 0 && !h.state.settings.builtIn) h.state.settings.builtIn = true;
     h.endsAt = now + Math.max(0, st.left);
     h.ink = [...ink];
