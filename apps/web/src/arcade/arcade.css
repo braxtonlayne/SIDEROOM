@@ -300,7 +300,7 @@
 .arc-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(6rem, 2fr) minmax(0, 3fr);
+  grid-template-columns: minmax(7rem, 2fr) minmax(0, 3fr);
   min-inline-size: 0;
   border: 1px solid var(--ui-border);
   background: var(--ui-bg-raised, var(--ui-bg));
@@ -373,21 +373,23 @@
 .arc-card[data-size='list'] .arc-card-tags {
   max-inline-size: calc(10rem - 16px);
 }
-.arc-card:not([data-size='hero']) .arc-tag {
-  white-space: normal;
+.arc-kind {
+  color: var(--ui-text);
+  font-weight: 600;
 }
 .arc-trust:empty {
   display: none;
 }
 .arc-tag {
   padding-block: 2px;
-  padding-inline: 8px;
+  padding-inline: 6px;
   border: 1px solid var(--ui-border);
   background: var(--ui-bg);
   color: var(--ui-text-muted);
   font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  /* A tag never wraps (Clean-room is the longest; it fits the narrowest painting column). */
   white-space: nowrap;
 }
 .arc-blurb[data-tone='preview'] {

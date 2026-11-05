@@ -103,6 +103,8 @@ Slander already live there.
 The sweep flags nothing on the Arcade routes or Appearance. study's flag is a 404 on a shelf thumbnail in the
 `memory:` storage, and it appears on main too. Before/after for this round: `arcade-concept/` → `arcade-r4/`.
 
+**Tag check on the final code** (`arcade-r4/flows-final/`, at 1280, 375 and 320 px): every card has exactly one corner tag. It is the tier tag; a cartridge's Game or Mod now leads its meta line. A tag never wraps (nowrap, 6 px padding, 0.04em tracking; the painting column is at least 7 rem). The Playwright probe measured every tag: one line, inside the painting column, never overlapping the title. "In development" is the eyebrow above the title, not a tag.
+
 **Clicked through live.** Play Whiteboard → Start in lists text before voice → choosing the voice General joins
 first. In this stack voice cannot connect, so the row says the call could not be joined and **no** launch request
 is sent; the probe checked this. The successful join → launch → go-to-channel path is covered by

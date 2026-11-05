@@ -159,15 +159,18 @@ export function GameCard(p: GameCardProps) {
               {p.title}
             </h3>
           </div>
-          {(p.tag || p.badge) && (
-            <div className="arc-card-tags">
-              {p.tag && <span className="arc-tag">{p.tag}</span>}
-              {p.badge && <span className="arc-tag">{p.badge}</span>}
-            </div>
+          {p.tag && (
+            <div className="arc-card-tags">{p.tag && <span className="arc-tag">{p.tag}</span>}</div>
           )}
         </header>
         {p.description && <p className="arc-desc">{p.description}</p>}
-        {p.meta && <p className="arc-meta">{p.meta}</p>}
+        {/* One corner tag per card (the tier); the kind of a cartridge (Game, Mod) leads the meta line instead. */}
+        {(p.badge || p.meta) && (
+          <p className="arc-meta">
+            {p.badge && <span className="arc-meta-item arc-kind">{p.badge}</span>}
+            {p.meta}
+          </p>
+        )}
         {p.tier && p.eligibility && <TierLine tier={p.tier} eligibility={p.eligibility} />}
         {p.size !== 'hero' && (
           <FlagChips
