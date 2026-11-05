@@ -104,6 +104,24 @@ services:
       # The built web app, mounted read-only below: sr-server serves /app and /app/* from it to a signed-in session only
       # (D-385). It refuses to start when this is set and app/csp.txt is missing. Caddy serves the public files only.
       SR_WEB__ROOT: /srv/web
+      # Voice (docs/12 section 1, docs/specs/lounge-voice-video.md section 4). The SFU runs inside sr-server; it is off
+      # until SR_VOICE_ENABLED=true. Then SR_VOICE_ANNOUNCE_IPS must be this host's public IP (comma-separated for
+      # more than one) and UDP 50000-50099 (published below) open on the firewall. Calls that cannot reach the host
+      # directly need the coturn relay of the `turn` profile: set SR_VOICE_TURN_URLS and SR_VOICE_TURN_SECRET to
+      # match coturn/turnserver.prod.conf. The join-token secret is derived from SR_SECRET_KEY.
+      SR_VOICE__ENABLED: ${SR_VOICE_ENABLED:-false}
+      SR_VOICE__ANNOUNCE_IPS: ${SR_VOICE_ANNOUNCE_IPS:-127.0.0.1}
+      SR_VOICE__TURN__URLS: ${SR_VOICE_TURN_URLS:-}
+      SR_VOICE__TURN__SECRET: ${SR_VOICE_TURN_SECRET:-}
+      # Activities and the Arcade's house games (docs/12 "Switching Activities on"). Also needs the web build with
+      # VITE_ACTIVITIES_ENABLED=true and the wildcard host of caddy/activities.snippet.
+      SR_ACTIVITIES__ENABLED: ${SR_ACTIVITIES_ENABLED:-false}
+      # PeerTube instances whose links get "Play here" (PRF-UNF-001); read from the process environment by the unfurler.
+      # Build the web app with the same list so the CSP allows them.
+      SR_PEERTUBE_HOSTS: ${SR_PEERTUBE_HOSTS:-}
+    # Voice media (the SFU's UDP range, voice.udp_port_min..max). The same numbers on both sides: ICE announces them.
+    ports:
+      - "50000-50099:50000-50099/udp"
     # Group 999 is the postgres group of the postgres:17 image: it lets the server read the backup folder below.
     group_add: ["999"]
     volumes:
@@ -141,6 +159,22 @@ services:
       - ${SR_WEB_DIR:?set SR_WEB_DIR to the built apps/web/dist}:/srv/web:ro
       - caddy-data:/data
       - caddy-config:/config
+
+  # --- profile: turn (XC-OPS-004, ADR-0004) ---------------------------------------------------------
+  # coturn relays calls for members whose network blocks direct UDP to the SFU. OFF by default: `--profile turn up -d`.
+  # Copy coturn/turnserver.prod.conf.example to coturn/turnserver.prod.conf and fill it in, put the TLS certificate
+  # and key for 5349 (fullchain.pem, privkey.pem) in SR_TURN_TLS_DIR, and set SR_VOICE_TURN_URLS and
+  # SR_VOICE_TURN_SECRET (= static-auth-secret) in .env.prod. Host networking, like the dev relay: the relay range
+  # 49152-49999 is too wide to publish. Open 3478 udp+tcp, 5349 tcp and 49152-49999 udp on the firewall.
+  coturn:
+    <<: *restart
+    profiles: [turn]
+    image: coturn/coturn:4.6
+    network_mode: host
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    volumes:
+      - ./coturn/turnserver.prod.conf:/etc/coturn/turnserver.conf:ro
+      - ${SR_TURN_TLS_DIR:-/etc/sideroom/turn-tls}:/etc/coturn/tls:ro
 
   # --- profile: payments (D-288, M-02) ---------------------------------------------------------------
   # A self-hosted Esplora-compatible electrs, so the invoice addresses this server derives never leave the box.
