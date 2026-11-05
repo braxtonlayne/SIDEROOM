@@ -15,6 +15,7 @@ const SECTION_OF: Record<string, Section> = {
   entrance: 'entrance',
   cinema: 'cinema',
   library: 'library',
+  arcade: 'arcade',
   support: 'support',
   tv: 'live-tv',
 };

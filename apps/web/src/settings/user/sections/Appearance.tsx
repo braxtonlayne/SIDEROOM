@@ -32,6 +32,7 @@ const SECTION_LABEL: Record<ThemedSection, MessageKey> = {
   lounge: 'settings.appearance.sectionLounge',
   cinema: 'settings.appearance.sectionCinema',
   library: 'settings.appearance.sectionLibrary',
+  arcade: 'settings.appearance.sectionArcade',
   entrance: 'settings.appearance.sectionEntrance',
 };
 

@@ -29,7 +29,7 @@ export type ThemeChoice = 'system' | (typeof THEME_CHOICES)[number];
 export type MessageDisplay = 'cozy' | 'compact';
 
 /** Sections with their own theme picker (Settings > Appearance). */
-export const THEMED_SECTIONS = ['lounge', 'cinema', 'library', 'entrance'] as const;
+export const THEMED_SECTIONS = ['lounge', 'cinema', 'library', 'arcade', 'entrance'] as const;
 export type ThemedSection = (typeof THEMED_SECTIONS)[number];
 export type SectionThemes = Partial<Record<ThemedSection, ThemeId>>;
 

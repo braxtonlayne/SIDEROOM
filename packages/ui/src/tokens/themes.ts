@@ -310,6 +310,8 @@ export const DEFAULT_THEME_BY_SECTION: Readonly<Record<Section, ThemeId>> = {
   entrance: "sideroom",
   cinema: "sideroom",
   library: "sideroom",
+  /** The Arcade is an editorial room (D-476): the owner's concept is the Editorial look. */
+  arcade: "lounge-editorial",
   support: "sideroom",
   "live-tv": "sideroom-broadcast",
 };

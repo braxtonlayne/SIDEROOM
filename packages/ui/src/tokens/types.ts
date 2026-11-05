@@ -7,7 +7,7 @@ import type { ThemeId, UiTokenName } from "../theme/tokens.generated";
 export { THEME_IDS, UI_TOKEN_NAMES, KNOWN_TOKEN_NAMES } from "../theme/tokens.generated";
 export type { ThemeId, UiTokenName, KnownTokenName } from "../theme/tokens.generated";
 
-export const SECTIONS = ["lounge", "staff", "developer", "entrance", "cinema", "library", "support", "live-tv"] as const;
+export const SECTIONS = ["lounge", "staff", "developer", "entrance", "cinema", "library", "arcade", "support", "live-tv"] as const;
 export type Section = (typeof SECTIONS)[number];
 
 /** A token name is always a CSS custom property. */
