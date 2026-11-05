@@ -8,6 +8,16 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 47 - 2026-11-05
+
+- **Sketch & Slander, a party game.** One player draws a secret prompt and everyone else races to guess it. Start it
+  from a channel; friends without an account join from their phones through the Share link's QR code and draw on
+  their screens. A server can load its own prompt packs from its shelf.
+- **A new Arcade.** The Arcade is now a proper games front page in the style of The Study: big cards for the house
+  games, a Play button that asks which call or channel to start in, server cartridges and what's coming soon.
+- **House notes formatting.** Headings in any language get working links, quotes keep their line breaks, and the
+  preview in Admin shows exactly what members will see.
+
 ## Phase 46b - 2026-11-02
 
 - **Everything was checked on a phone and a desktop, in light and dark.** Dozens of pages that overflowed, overlapped,
