@@ -13,8 +13,10 @@ what the operator now has to know. Keep each wave to a handful of lines.
 - **Sketch & Slander, a party game.** One player draws a secret prompt and everyone else races to guess it. Start it
   from a channel; friends without an account join from their phones through the Share link's QR code and draw on
   their screens. A server can load its own prompt packs from its shelf.
-- **A new Arcade.** The Arcade is now a proper games front page in the style of The Study: big cards for the house
-  games, a Play button that asks which call or channel to start in, server cartridges and what's coming soon.
+- **A new Arcade.** The Arcade is now a proper games front page, an editorial room like the Cinema: big cards for the
+  house games, a Play button that starts the game where it belongs (your call, a voice channel it joins first, or a
+  text channel), server cartridges and what's coming soon. The Emulator opens inside it. Pick its look under
+  Appearance > Sections.
 - **House notes formatting.** Headings in any language get working links, quotes keep their line breaks, and the
   preview in Admin shows exactly what members will see.
 
