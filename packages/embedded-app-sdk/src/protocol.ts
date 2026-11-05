@@ -36,6 +36,10 @@
 //     the same per-object URL the Study uses (ten minutes at most). The member is asked first, once per object
 //     and frame. Never for a guest (D-397). The URL is on the shelf's storage host, so the game can fetch it only
 //     when its reviewed manifest names that host in `connect` (CSP is per host; docs/dev/design/byos-read-activities.md).
+//   shelfObjectBytes { shelf_id, object_hash } -> { b, size }   D-460 (wave 47), needs `byos_read`: the same one object
+//     after the same member yes, but the MEMBER'S PAGE mints the per-object URL, fetches it (no credentials) and hands
+//     the frame the bytes (base64, at most SHELF_OBJECT_BYTES_MAX). The game's CSP is never widened to the storage
+//     host. Never for a guest (D-397).
 //   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
 //     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
@@ -68,6 +72,7 @@ export const COMMANDS = [
   'storageRemove',
   'saveFile',
   'shelfObjectUrl',
+  'shelfObjectBytes',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -260,6 +265,15 @@ export const HOST_HANDOFF_CAPABILITY = 'host_handoff';
 
 /** The capability a bundle declares to use `shelfObjectUrl` (D-389). */
 export const BYOS_READ_CAPABILITY = 'byos_read';
+
+/** Most bytes `shelfObjectBytes` hands a frame (D-460): small files such as prompt packs, level data or config. */
+export const SHELF_OBJECT_BYTES_MAX = 1024 * 1024;
+
+/** `shelfObjectBytes` result: the object's bytes as base64, and their length. */
+export interface ShelfObjectBytes {
+  b: string;
+  size: number;
+}
 
 /** `shelfObjectUrl` arguments: a shelf (mount) id and an object hash from that shelf's catalog. */
 export interface ShelfObjectRef {
