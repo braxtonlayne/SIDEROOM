@@ -333,6 +333,38 @@ test('a plain-HTML surface with a script, a handler or a fetch fails', () => {
   }
 });
 
+test('a section name in the legal stylesheet fails, in a comment too (XC-CI-007)', () => {
+  const link = '<link rel="stylesheet" href="/entrance/legal-aaaaaaaa.css">';
+  const legalHtml = `<!doctype html><html><head>${link}</head><body><h1>House notes</h1></body></html>`;
+  const clean = fixture((root, dist) => {
+    put(dist, 'legal/house-notes.en.html', legalHtml);
+    put(dist, 'entrance/legal-aaaaaaaa.css', ':root{--ui-x:1}');
+  }).run();
+  assert.deepEqual(rules(clean), []);
+  for (const word of ['Lounge', 'Cinema', 'Library', 'MiniPlayer']) {
+    const r = fixture((root, dist) => {
+      put(dist, 'legal/house-notes.en.html', legalHtml);
+      put(dist, 'entrance/legal-aaaaaaaa.css', `/* the ${word} palette */:root{--ui-x:1}`);
+    }).run();
+    assert.equal(r.ok, false, word);
+    assert.ok(
+      r.failures.some((f) => f.surface === 'legal' && f.file === 'entrance/legal-aaaaaaaa.css'),
+      word,
+    );
+  }
+});
+
+test('a stylesheet in the public build that no surface links is still scanned (XC-CI-007)', () => {
+  const r = fixture((root, dist) =>
+    put(dist, 'entrance/assets/orphan-bbbbbbbb.css', '/* Cinema */'),
+  ).run();
+  assert.ok(
+    r.failures.some(
+      (f) => f.surface === 'static' && f.file === 'entrance/assets/orphan-bbbbbbbb.css',
+    ),
+  );
+});
+
 test('a shell that is not in the table fails', () => {
   const r = fixture((root, dist) => put(dist, 'extra.html', '<html></html>')).run();
   assert.ok(
