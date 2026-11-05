@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useT } from '../i18n';
+import { GameArt } from './GameArt';
 import { TipBadges } from './TipBadges';
 import { TrustBadges, type CardRef } from './trust';
 import type { CapabilityFlag, Eligibility, Tier } from './types';
@@ -71,23 +72,57 @@ export interface GameCardProps {
   /** Present when the card is a build the trust badges can attach to. */
   trust?: CardRef;
   badge?: string;
+  /** The cover art (ARC-UI-010): an art kind from `GameArt`; the title colours the generic paintings. */
+  art?: string;
+  /** The status ribbon over the art: playable now, or still in development. */
+  status?: 'live' | 'preview';
+  /** A short line under the description (player count, a hint). */
+  meta?: ReactNode;
+  /** Make a card with no control of its own reachable by Tab, so a keyboard can walk the shelf. */
+  focusable?: boolean;
+  /** `feature` spans the grid as a wide card with the art beside the text. */
+  size?: 'normal' | 'feature';
+  /** Controls and notes, laid out as the card's footer. */
   children?: ReactNode;
 }
 
 export function GameCard(p: GameCardProps) {
+  const t = useT();
+  const titleId = useId();
   return (
-    <article className="arc-card">
-      <header>
-        <h3 className="arc-card-title">{p.title}</h3>
-        {p.badge && <span className="arc-chip">{p.badge}</span>}
-      </header>
-      {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
-      {p.description && <p className="arc-desc">{p.description}</p>}
-      {p.tier && p.eligibility && <TierLine tier={p.tier} eligibility={p.eligibility} />}
-      <FlagChips names={p.capabilities ?? []} flags={p.flags ?? []} title={p.title} />
-      {p.trust && <TrustBadges card={p.trust} />}
-      <TipBadges links={p.tips} name={p.title} />
-      {p.children}
+    <article
+      className="arc-card"
+      data-size={p.size ?? 'normal'}
+      data-status={p.status}
+      tabIndex={p.focusable ? 0 : undefined}
+      aria-labelledby={titleId}
+    >
+      {p.art && (
+        <div className="arc-card-art">
+          <GameArt kind={p.art} seed={p.title} />
+          {p.status && (
+            <span className="arc-ribbon" data-status={p.status}>
+              {t(p.status === 'live' ? 'arcade.status.live' : 'arcade.status.preview')}
+            </span>
+          )}
+        </div>
+      )}
+      <div className="arc-card-body">
+        <header className="arc-card-head">
+          <h3 className="arc-card-title" id={titleId}>
+            {p.title}
+          </h3>
+          {p.badge && <span className="arc-chip arc-chip-badge">{p.badge}</span>}
+        </header>
+        {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
+        {p.description && <p className="arc-desc">{p.description}</p>}
+        {p.meta && <p className="arc-meta">{p.meta}</p>}
+        {p.tier && p.eligibility && <TierLine tier={p.tier} eligibility={p.eligibility} />}
+        <FlagChips names={p.capabilities ?? []} flags={p.flags ?? []} title={p.title} />
+        {p.trust && <TrustBadges card={p.trust} />}
+        <TipBadges links={p.tips} name={p.title} />
+        {p.children && <div className="arc-card-foot">{p.children}</div>}
+      </div>
     </article>
   );
 }
