@@ -1,4 +1,3 @@
-import { Pill, Tag } from '@sideroom/ui';
 import { useId, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { GameArt } from './GameArt';
@@ -73,17 +72,22 @@ export interface GameCardProps {
   /** Present when the card is a build the trust badges can attach to. */
   trust?: CardRef;
   badge?: string;
+  /** A small-caps tag at the top corner (a built-in's declared tier). */
+  tag?: string;
   /** The cover art (ARC-UI-010): an art kind from `GameArt`; the title colours the generic paintings. */
   art?: string;
-  /** The status ribbon over the art: playable now, or still in development. */
+  /** Playable now or still in development; only "In development" is shown on the card (the section says the rest). */
   status?: 'live' | 'preview';
   /** A short line under the description (player count, a hint). */
   meta?: ReactNode;
   /** Make a card with no control of its own reachable by Tab, so a keyboard can walk the shelf. */
   focusable?: boolean;
-  /** `feature` spans the grid as a wide card with the art beside the text. */
-  size?: 'normal' | 'feature';
-  /** Controls and notes, laid out as the card's footer. */
+  /**
+   * `row`: art on the left (the concept's game cards); `hero`: the art fills the card behind the text; `list`: one wide
+   * row (server cartridges).
+   */
+  size?: 'row' | 'hero' | 'list';
+  /** Controls, laid out as the card's footer. */
   children?: ReactNode;
 }
 
@@ -93,7 +97,7 @@ export function GameCard(p: GameCardProps) {
   return (
     <article
       className="arc-card"
-      data-size={p.size ?? 'normal'}
+      data-size={p.size ?? 'row'}
       data-status={p.status}
       tabIndex={p.focusable ? 0 : undefined}
       aria-labelledby={titleId}
@@ -105,17 +109,24 @@ export function GameCard(p: GameCardProps) {
       )}
       <div className="arc-card-body">
         <header className="arc-card-head">
-          <h3 className="arc-card-title" id={titleId}>
-            {p.title}
-          </h3>
-          {p.status && (
-            <Pill tone={p.status === 'live' ? 'success' : 'warning'} className="arc-status">
-              {t(p.status === 'live' ? 'arcade.status.live' : 'arcade.status.preview')}
-            </Pill>
+          <div className="arc-card-heading">
+            {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
+            <h3 className="arc-card-title" id={titleId}>
+              {p.title}
+            </h3>
+          </div>
+          {(p.tag || p.badge || p.status === 'preview') && (
+            <div className="arc-card-tags">
+              {p.tag && <span className="arc-tag">{p.tag}</span>}
+              {p.status === 'preview' && (
+                <span className="arc-tag" data-tone="preview">
+                  {t('arcade.status.preview')}
+                </span>
+              )}
+              {p.badge && <span className="arc-tag">{p.badge}</span>}
+            </div>
           )}
-          {p.badge && <Tag variant="filled">{p.badge}</Tag>}
         </header>
-        {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
         {p.description && <p className="arc-desc">{p.description}</p>}
         {p.meta && <p className="arc-meta">{p.meta}</p>}
         {p.tier && p.eligibility && <TierLine tier={p.tier} eligibility={p.eligibility} />}

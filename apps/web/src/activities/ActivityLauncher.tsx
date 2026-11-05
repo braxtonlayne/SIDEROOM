@@ -2,7 +2,7 @@
 // With an Activity already running in the channel (`running`, or learnt from a 409 when two people start at once)
 // the shelf gives way to a Join for that one: a channel runs one Activity at a time (XC-VIS-003 G5).
 import { Button, Modal, Notice } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { httpActivityApi, type ActivityApi } from './api';
@@ -17,6 +17,7 @@ export function ActivityLauncher({
   channelId,
   onStarted,
   running = null,
+  applicationId,
   api = httpActivityApi,
 }: {
   open: boolean;
@@ -25,6 +26,11 @@ export function ActivityLauncher({
   onStarted?: (i: ActivityInstance) => void;
   /** The channel's running instance, if the opener knows it: offered to join in place of the shelf. */
   running?: ActivityInstance | null;
+  /**
+   * A game chosen before the launcher opened (the Arcade's Play, D-472): launched at once, since picking the channel
+   * was the confirmation. A refusal falls back to the shelf with the reason, as for any start.
+   */
+  applicationId?: string;
   api?: ActivityApi;
 }) {
   const t = useT();
@@ -67,6 +73,19 @@ export function ActivityLauncher({
       setBusy(null);
     }
   };
+
+  // Launch the preselected game once per opening, unless the channel already runs one (then offer to join it).
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      autoStarted.current = false;
+      return;
+    }
+    if (!applicationId || current || autoStarted.current) return;
+    autoStarted.current = true;
+    void start(applicationId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, applicationId, current]);
 
   return (
     <Modal

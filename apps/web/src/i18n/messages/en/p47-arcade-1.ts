@@ -1,15 +1,27 @@
 // ARC-UI-010 (wave 47): the Arcade redesign: hero, built-in games, sections and empty states.
 export default {
-  'arcade.hero.pitch':
-    'Games for your calls. Start one in any channel and everyone in the room plays together, right in the browser.',
-  'arcade.hero.howMenu': 'In a channel, open the message box’s + menu and pick Start an Activity.',
-  'arcade.hero.howMenuTitle': 'From a channel',
-  'arcade.hero.howCall': 'In a voice call, press the Activities button on the call bar.',
-  'arcade.hero.howCallTitle': 'From a call',
+  'arcade.page.brand': 'SIDE ROOM',
+  'arcade.hero.eyebrow': 'House games',
+  'arcade.hero.title': 'The Arcade.',
+  'arcade.hero.subline': 'Play something new.',
+  'arcade.hero.how':
+    'Press Play to start a game in your call or one of your channels. Everyone in the room plays together, right in the browser.',
+  'arcade.hero.howNoPlay':
+    'Start a game from a channel’s + menu or the call bar. Everyone in the room plays together, right in the browser.',
+  'arcade.play': 'Play',
+  'arcade.playAria': 'Play {game}',
+  'arcade.start.title': 'Start {game} in…',
+  'arcade.start.description': 'Pick where everyone will play. The game starts there right away.',
+  'arcade.start.thisCall': 'Your call',
+  'arcade.start.channels': 'Your servers',
+  'arcade.start.in': 'Start {game} in {channel}',
+  'arcade.start.loading': 'Loading channels…',
+  'arcade.start.failed': 'The channels could not be loaded.',
+  'arcade.start.none': 'This server has no channel where a game can start.',
+  'arcade.cartridges.by': 'Listed by {name}',
+  'arcade.cartridges.sha': 'SHA-256',
   'arcade.playable.heading': 'Playable now',
-  'arcade.playable.intro':
-    'Built into SIDE ROOM: nothing to install, free for everyone in the call.',
-  'arcade.status.live': 'Playable now',
+  'arcade.playable.intro': 'House originals and the emulator: nothing to install.',
   'arcade.status.preview': 'In development',
   'arcade.builtin.players': '{min} to {max} players',
   'arcade.builtin.start': 'Start it from a channel or a call',

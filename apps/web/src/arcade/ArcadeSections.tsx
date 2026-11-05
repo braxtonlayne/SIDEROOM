@@ -3,10 +3,12 @@ import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { errorText } from '../settings/server/api';
+import { useStore } from '../store/store';
 import type { Guild } from '../store/types';
 import type { ArcadeApi } from './api';
 import { BUILTIN_GAMES, builtinsByStatus, type BuiltinGame } from './builtins';
 import { GameCard } from './GameCard';
+import type { PlayTarget } from './StartInDialog';
 import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
 import type { CapabilityFlag } from './types';
 import { apiFetch } from '../api/client';
@@ -24,7 +26,7 @@ async function openShelfObject(shelfId: string, hash: string): Promise<void> {
 const tierKey = (t: Tier) =>
   t === 'TIER_1_ORIGINAL' ? 'arcade.tier.original' : 'arcade.tier.reimplementation';
 
-/** A section heading with its one-line intro and, optionally, a control at the end of the row. */
+/** A section label in the rooms' editorial style: a thin rule, the name in small caps, a muted note after it. */
 export function SectionHead({
   id,
   title,
@@ -38,53 +40,119 @@ export function SectionHead({
 }) {
   return (
     <div className="arc-section-head">
-      <div className="arc-section-title">
+      <div className="arc-label">
         <h2 id={id}>{title}</h2>
-        {intro && <p className="arc-dim">{intro}</p>}
+        {intro && <p className="arc-label-note">{intro}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-/** One built-in game (ARC-UI-010): started from a channel, so the card carries no button of its own. */
+/** Play on a card (D-472): opens the "Start in…" dialog for this game. */
+export type PlayHandler = (target: PlayTarget) => void;
+
+function PlayButton({ title, onClick }: { title: string; onClick: () => void }) {
+  const t = useT();
+  return (
+    <Button size="sm" onClick={onClick} aria-label={t('arcade.playAria', { game: title })}>
+      <Icon name="play" size={16} />
+      {t('arcade.play')}
+    </Button>
+  );
+}
+
+/**
+ * One built-in game. With `onPlay` it carries a Play button that starts it in a call or channel (D-472); without it
+ * (the Showroom, the section tests) the card says where games start and is itself reachable by Tab.
+ */
 export function BuiltinCard({
   game,
   flags,
+  onPlay,
+  size = 'row',
 }: {
   game: BuiltinGame;
   flags: readonly CapabilityFlag[];
+  onPlay?: PlayHandler;
+  size?: 'row' | 'hero';
 }) {
   const t = useT();
+  const title = t(`arcade.builtin.${game.id}.name`);
   const players = game.players
     ? t('arcade.builtin.players', { min: game.players.min, max: game.players.max })
     : null;
+  const playable = game.status === 'live' && onPlay;
   return (
     <GameCard
-      title={t(`arcade.builtin.${game.id}.name`)}
+      size={size}
+      title={title}
       description={t(`arcade.builtin.${game.id}.pitch`)}
       art={game.art}
       status={game.status}
+      tag={game.tier ? t(tierKey(game.tier)) : undefined}
       meta={
-        <>
-          {players && (
-            <span className="arc-meta-item">
-              <Icon name="users" size={16} />
-              {players}
-            </span>
-          )}
-          {game.status === 'live' && (
-            <span className="arc-meta-item">
-              <Icon name="play" size={16} />
-              {t('arcade.builtin.start')}
-            </span>
-          )}
-        </>
+        (players || (game.status === 'live' && !playable)) && (
+          <>
+            {players && (
+              <span className="arc-meta-item">
+                <Icon name="users" size={16} />
+                {players}
+              </span>
+            )}
+            {game.status === 'live' && !playable && (
+              <span className="arc-meta-item">
+                <Icon name="play" size={16} />
+                {t('arcade.builtin.start')}
+              </span>
+            )}
+          </>
+        )
       }
       capabilities={game.capabilities}
       flags={flags}
-      focusable
-    />
+      focusable={!playable}
+    >
+      {playable && (
+        <div className="arc-actions">
+          <PlayButton title={title} onClick={() => onPlay({ title, shelfName: game.shelfName })} />
+        </div>
+      )}
+    </GameCard>
+  );
+}
+
+/**
+ * The top of the Arcade (the concept's hero): the room's headline on one side, the house picks large on the other.
+ * Built-ins only, so it needs no Front Page data.
+ */
+export function ArcadeHero({
+  flags,
+  onPlay,
+  games = BUILTIN_GAMES,
+}: {
+  flags: readonly CapabilityFlag[];
+  onPlay?: PlayHandler;
+  games?: readonly BuiltinGame[];
+}) {
+  const t = useT();
+  const heroes = games.filter((g) => g.hero && g.status === 'live');
+  return (
+    <div className="arc-hero">
+      <div className="arc-hero-text">
+        <p className="arc-eyebrow">{t('arcade.hero.eyebrow')}</p>
+        <h1 className="arc-hero-title">{t('arcade.hero.title')}</h1>
+        <p className="arc-hero-sub">{t('arcade.hero.subline')}</p>
+        <p className="arc-hero-how">{t(onPlay ? 'arcade.hero.how' : 'arcade.hero.howNoPlay')}</p>
+      </div>
+      {heroes.length > 0 && (
+        <div className="arc-hero-cards">
+          {heroes.map((g) => (
+            <BuiltinCard key={g.id} game={g} flags={flags} onPlay={onPlay} size="hero" />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -95,10 +163,12 @@ export function BuiltinCard({
 export function PlayableSection({
   flags,
   emulatorOn,
+  onPlay,
   games = BUILTIN_GAMES,
 }: {
   flags: readonly CapabilityFlag[];
   emulatorOn: boolean;
+  onPlay?: PlayHandler;
   games?: readonly BuiltinGame[];
 }) {
   const t = useT();
@@ -111,23 +181,23 @@ export function PlayableSection({
         intro={t('arcade.playable.intro')}
       />
       <div className="arc-grid">
+        {live.map((g) => (
+          <BuiltinCard key={g.id} game={g} flags={flags} onPlay={onPlay} />
+        ))}
         {emulatorOn && (
           <GameCard
-            size="feature"
             art="emulator"
-            blurb={t('arcade.emulator.kicker')}
             title={t('arcade.emulator.name')}
             description={t('arcade.emulator.description')}
+            meta={<span className="arc-meta-item">{t('arcade.emulator.kicker')}</span>}
           >
-            <Link to="/games/emulator" className="arc-cta">
-              {t('arcade.emulator.open')}
-              <span aria-hidden="true"> →</span>
-            </Link>
+            <div className="arc-actions">
+              <Link to="/games/emulator" className="arc-cta">
+                {t('arcade.emulator.open')}
+              </Link>
+            </div>
           </GameCard>
         )}
-        {live.map((g) => (
-          <BuiltinCard key={g.id} game={g} flags={flags} />
-        ))}
       </div>
     </section>
   );
@@ -140,9 +210,11 @@ export function PlayableSection({
 export function FeaturedSection({
   featured,
   flags,
+  onPlay,
 }: {
   featured: FeaturedCard[];
   flags: CapabilityFlag[];
+  onPlay?: PlayHandler;
 }) {
   const t = useT();
   if (featured.length === 0) return null;
@@ -173,9 +245,17 @@ export function FeaturedSection({
               codeSha256: f.code_sha256 ?? null,
             }}
           >
-            {f.eligibility.browser_play && (
-              <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
-            )}
+            {f.eligibility.browser_play &&
+              (onPlay ? (
+                <div className="arc-actions">
+                  <PlayButton
+                    title={f.name}
+                    onClick={() => onPlay({ title: f.name, applicationId: f.application_id })}
+                  />
+                </div>
+              ) : (
+                <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
+              ))}
           </GameCard>
         ))}
       </div>
@@ -267,6 +347,27 @@ export function ComingSoonSection({
         </div>
       )}
     </section>
+  );
+}
+
+/** Who listed a cartridge (only when the app knows the name) and its file's SHA-256 (only when it has one). */
+function cartridgeMeta(
+  c: Cartridge,
+  owner: string | null,
+  t: (key: string, values?: Record<string, string>) => string,
+): ReactNode {
+  const sha = c.object_hash && /^[0-9a-f]{64}$/i.test(c.object_hash) ? c.object_hash : null;
+  if (!owner && !sha) return null;
+  return (
+    <>
+      {owner && <span className="arc-meta-item">{t('arcade.cartridges.by', { name: owner })}</span>}
+      {sha && (
+        <span className="arc-meta-item arc-sha">
+          <span className="arc-sha-label">{t('arcade.cartridges.sha')}</span>
+          <code>{sha}</code>
+        </span>
+      )}
+    </>
   );
 }
 
@@ -381,9 +482,12 @@ export function CartridgesSection({
   guilds,
   flags,
   api,
+  openSignal = 0,
 }: {
   guilds: Pick<Guild, 'id' | 'name'>[];
   flags: CapabilityFlag[];
+  /** Bumped by the page's "+ List a cartridge" in the pill row: opens the same dialog. */
+  openSignal?: number;
   api: Pick<ArcadeApi, 'cartridges' | 'addCartridge' | 'removeCartridge'>;
 }) {
   const t = useT();
@@ -456,6 +560,17 @@ export function CartridgesSection({
     </Button>
   );
   const empty = items?.length === 0;
+  useEffect(() => {
+    if (openSignal > 0) {
+      setAddError(null);
+      setDialog(true);
+    }
+  }, [openSignal]);
+  const users = useStore((st) => st.users);
+  const ownerName = (id: string) => {
+    const u = users[id];
+    return u ? (u.global_name ?? u.username) : null;
+  };
 
   return (
     <section aria-labelledby="arc-carts" id="cartridges" className="arc-section">
@@ -499,13 +614,15 @@ export function CartridgesSection({
             </div>
           )}
           {items !== null && items.length > 0 && (
-            <div className="arc-grid">
+            <div className="arc-list">
               {items.map((c) => (
                 <GameCard
                   key={c.id}
+                  size="list"
                   title={c.title}
                   description={c.description}
                   art="cartridge"
+                  meta={cartridgeMeta(c, ownerName(c.added_by), t)}
                   badge={t(
                     c.kind === 'mod' ? 'arcade.cartridges.kindMod' : 'arcade.cartridges.kindGame',
                   )}

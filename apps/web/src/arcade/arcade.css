@@ -1,161 +1,272 @@
-/* The Arcade (ARC-ROOM-001, redesigned in ARC-UI-010). Theme tokens only; logical properties only.
-   It speaks the Lounge's design language: the Lounge's section bar and title strip, its surfaces (--bg-base-*),
-   text (--text-*), the body font throughout (no display face), 8px radii, the Lounge header bar and its small
-   uppercase section labels, and the kit's buttons, pills and tags. The cover paintings (GameArt.tsx) keep their
-   own palettes but sit in a framed, toned panel like the chat's media attachments. */
+/* The Arcade (ARC-ROOM-001, redesigned in ARC-UI-010). `--ui-*` tokens only; logical properties only.
+   A sibling of the editorial rooms (The Study, the Cinema, the Library): the SIDE ROOM / rooms bar, a row of pill
+   links, a display-face headline, thin-rule small-caps section labels and quiet bordered cards. Like The Study it
+   follows the member's theme: in Editorial the display face is the serif and the accent the gold; in the Lounge
+   themes the same layout takes their face and accent. The cover paintings (GameArt.tsx, D-470) keep their own
+   palettes; the card around them is drawn from tokens. */
 
-/* --- Page and chrome ---------------------------------------------------------------------------------------- */
+/* --- Page and room chrome ----------------------------------------------------------------------------------- */
 .arc-root {
   display: flex;
   flex-direction: column;
   min-block-size: 100dvh;
-  background: var(--bg-base-low, var(--ui-bg));
-  color: var(--text-normal, var(--ui-text));
+  background: var(--ui-bg);
+  color: var(--ui-text);
   font-family: var(--ui-font-body, inherit);
-  font-size: 16px;
-}
-.arc-chrome {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 2;
-  background: var(--bg-base-lowest, var(--ui-bg));
 }
 .arc-root :focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
-.arc-page {
+.arc-roombar {
   display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-inline-size: 0;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 40px;
+  padding-inline: clamp(16px, 5vw, 80px);
+  border-block-end: 1px solid var(--ui-border);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--ui-text-muted);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.arc-roombar-brand {
+  flex: none;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--ui-text);
+}
+.arc-roombar-slash {
+  flex: none;
+}
+.arc-roombar-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-inline-start: 12px;
+}
+.arc-roombar-link {
+  flex: none;
+  padding-block: 11px;
+  border-block-end: 1px solid transparent;
+  color: var(--ui-text-muted);
+  text-decoration: none;
+}
+.arc-roombar-link:hover {
+  color: var(--ui-text);
+}
+.arc-roombar-link[aria-current='page'] {
+  color: var(--ui-accent);
+  border-block-end-color: var(--ui-accent);
+}
+/* The room's own pill row (the Study's filters and the Library's chips: rounded, outlined). */
+.arc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-block: 12px;
+  padding-inline: clamp(16px, 5vw, 80px);
+  border-block-end: 1px solid var(--ui-border);
+}
+.arc-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.arc-nav a {
+  padding-block: 6px;
+  padding-inline: 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  color: var(--ui-text);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.arc-nav a:first-child {
+  border-color: transparent;
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.arc-nav a:hover {
+  border-color: var(--ui-accent);
+}
+.arc-tabs-action {
+  display: flex;
+  align-items: center;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid var(--ui-border);
+}
+.arc-tabs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+.arc-tabs-link:hover {
+  color: var(--ui-text);
+}
+.arc-page {
+  display: grid;
+  gap: 40px;
+  align-content: start;
+  inline-size: 100%;
+  box-sizing: border-box;
+  max-inline-size: 90rem;
+  margin-inline: auto;
+  padding-block: 32px 64px;
+  padding-inline: clamp(16px, 5vw, 80px);
 }
 .arc-page h1,
 .arc-page h2,
 .arc-page h3 {
   margin: 0;
-  font-family: inherit;
 }
-/* The title never gives way; the jump links scroll sideways on a narrow screen. */
-.arc-header .lng-header-title {
-  flex: none;
-}
-.arc-header {
-  gap: 12px;
-  background: var(--bg-base-low, var(--ui-bg));
-}
-.arc-nav {
-  display: flex;
-  gap: 4px;
-  margin-inline-start: 12px;
-  min-inline-size: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-/* The jump links look like the Lounge's pill tabs (Friends: Online, All, Pending). */
-.arc-nav a {
-  flex: none;
-  padding-block: 4px;
-  padding-inline: 10px;
-  border-radius: var(--ui-radius, 4px);
-  color: var(--text-muted, var(--ui-text-muted));
-  font-size: 15px;
-  font-weight: 500;
-  text-decoration: none;
-}
-.arc-nav a:hover {
-  background: var(--ui-bg-hover);
-  color: var(--text-normal, var(--ui-text));
-}
-.arc-body {
-  display: grid;
-  gap: 28px;
-  align-content: start;
-  padding-block: 16px 48px;
-  padding-inline: 16px;
-  max-inline-size: 90rem;
-}
-.arc-how-steps {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.arc-how-steps li {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.arc-how-steps svg {
-  flex: none;
-  align-self: flex-start;
-  margin-block-start: 3px;
-}
-.arc-how-steps strong {
-  font-weight: 600;
-}
-
 /* The admin page shares this sheet: its plain headings and intro lines. */
 .arc-head {
   display: grid;
   gap: 6px;
 }
 .arc-dim {
-  color: var(--text-muted, var(--ui-text-muted));
+  color: var(--ui-text-muted, inherit);
   font-size: 0.875rem;
   margin: 0;
 }
 
-/* --- Sections ----------------------------------------------------------------------------------------------- */
+/* --- Hero: the headline and the two house picks ------------------------------------------------------------- */
+.arc-hero {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 2fr);
+  gap: 32px;
+  align-items: center;
+}
+.arc-hero-text {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+}
+.arc-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.arc-eyebrow::before {
+  content: '';
+  inline-size: 40px;
+  block-size: 1px;
+  background: var(--ui-accent);
+}
+.arc-page .arc-hero-title {
+  font-family: var(--ui-font-display, inherit);
+  font-size: clamp(2.75rem, 5.5vw, 4.5rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.arc-hero-sub {
+  margin: 0;
+  font-family: var(--ui-font-display, inherit);
+  font-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  font-style: italic;
+  line-height: 1.1;
+  color: var(--ui-accent);
+}
+.arc-hero-how {
+  margin: 8px 0 0;
+  max-inline-size: 34ch;
+  color: var(--ui-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.arc-hero-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 16px;
+}
+
+/* --- Section labels: a thin rule, small caps, a muted note, a rule to the edge ------------------------------ */
 .arc-section {
   display: grid;
   gap: 12px;
   padding-block-start: 20px;
   border-block-start: 1px solid var(--ui-border);
-  scroll-margin-block-start: 72px;
+  scroll-margin-block-start: 16px;
 }
-/* On the Arcade the sections read like the Lounge's lists: a small uppercase label, a muted line, the content. */
 .arc-page .arc-section {
-  gap: 12px;
+  gap: 16px;
   padding-block-start: 0;
   border-block-start: 0;
 }
 .arc-section-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px 12px;
+  align-items: center;
+  gap: 8px 16px;
 }
-.arc-section-title {
-  display: grid;
-  gap: 2px;
+.arc-label {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  min-inline-size: 0;
 }
-.arc-page .arc-section-title h2 {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+.arc-label::before,
+.arc-label::after {
+  content: '';
+  block-size: 1px;
+  background: var(--ui-border);
+}
+.arc-label::before {
+  inline-size: 40px;
+  background: var(--ui-accent);
+}
+.arc-label::after {
+  flex: 1;
+  min-inline-size: 24px;
+}
+.arc-page .arc-label h2 {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--text-muted, var(--ui-text-muted));
+  color: var(--ui-text);
+}
+.arc-label-note {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
 }
 .arc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 16px;
+}
+.arc-list {
+  display: grid;
   gap: 12px;
 }
 .arc-loading {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   justify-items: start;
 }
 .arc-loading > .arc-grid {
   justify-self: stretch;
 }
 .arc-skeleton {
-  aspect-ratio: 4 / 3;
-  border-radius: 8px;
-  background: var(--bg-base-lower, var(--ui-bg-hover));
+  block-size: 9rem;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-raised, var(--ui-bg));
   animation: arc-pulse 1.4s ease-in-out infinite;
 }
 @keyframes arc-pulse {
@@ -163,11 +274,20 @@
     opacity: 0.55;
   }
 }
-/* Empty states as in the Lounge (No one's around to play with): no box, just the kit's block, kept compact. */
 .arc-page .arc-empty {
-  gap: 4px;
-  padding-block: 20px;
+  gap: 6px;
+  padding-block: 24px;
   padding-inline: 16px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-raised, var(--ui-bg));
+}
+.arc-page .arc-empty [class*='title'] {
+  font-family: var(--ui-font-display, inherit);
+  font-weight: 400;
+  font-size: 1.375rem;
+}
+.arc-page .arc-empty[data-tone='danger'] {
+  border-color: var(--ui-danger, var(--ui-border));
 }
 .arc-page .arc-empty[data-tone='danger'] svg {
   color: var(--ui-danger, inherit);
@@ -176,111 +296,126 @@
   max-inline-size: 20rem;
 }
 
-/* --- Cards (the chat's attachment cards: lower surface, 1px border, 8px radius) ----------------------------- */
+/* --- Cards: quiet bordered panels like the Library's (square corners, a hairline, the raised surface) --------- */
 .arc-card {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   min-inline-size: 0;
   border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  background: var(--bg-base-lower, var(--ui-bg-raised));
-  overflow: hidden;
-  transition: background-color var(--ui-motion-duration, 120ms) ease;
+  background: var(--ui-bg-raised, var(--ui-bg));
+  transition: border-color var(--ui-motion-duration, 160ms) ease;
 }
 .arc-card:hover {
-  background: color-mix(in srgb, var(--bg-base-lower, var(--ui-bg-raised)) 80%, var(--ui-bg-hover));
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border));
 }
 .arc-card:focus-visible,
 .arc-card:focus-within:has(:focus-visible) {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
-/* The painting, framed like an image in a message: inset, rounded, and toned a little toward the theme. */
 .arc-card-art {
   position: relative;
-  aspect-ratio: 16 / 9;
-  margin: 8px;
-  margin-block-end: 0;
-  border-radius: 6px;
+  min-block-size: 9rem;
   overflow: hidden;
-  background: var(--bg-base-lowest, var(--ui-bg));
-}
-.arc-card-art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--bg-base-lowest, var(--ui-bg));
-  opacity: 0.12;
-  box-shadow: inset 0 0 0 1px var(--ui-border);
-  pointer-events: none;
+  background: var(--ui-bg);
 }
 .arc-art-svg {
+  position: absolute;
+  inset: 0;
   display: block;
   inline-size: 100%;
   block-size: 100%;
+  /* The concept's low-light look, the same for every cover (D-470: a grade, not a re-colour from the theme). */
+  filter: saturate(0.82) sepia(0.2) brightness(0.78) contrast(1.06);
 }
 .arc-card-body {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  padding-block: 10px 12px;
-  padding-inline: 12px;
+  gap: 6px;
+  min-inline-size: 0;
+  padding: 14px 16px;
 }
 .arc-card-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 6px 8px;
 }
-.arc-page .arc-card-title {
-  margin: 0;
-  margin-inline-end: auto;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--interactive-active, var(--ui-text));
+.arc-card-heading {
+  display: grid;
+  flex: 1 1 9rem;
+  gap: 2px;
+  min-inline-size: 0;
 }
-.arc-status {
+.arc-page .arc-card-title {
+  font-family: var(--ui-font-display, inherit);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.arc-card-tags {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.arc-tag {
+  padding-block: 2px;
+  padding-inline: 8px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  color: var(--ui-text-muted);
   font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.arc-tag[data-tone='preview'] {
+  border-color: var(--ui-warning, var(--ui-border));
+  color: var(--ui-text);
 }
 .arc-blurb {
   margin: 0;
-  color: var(--text-muted, var(--ui-text-muted));
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--ui-accent);
+  font-size: 0.6875rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .arc-desc {
   margin: 0;
-  color: var(--text-normal, var(--ui-text));
-  font-size: 14px;
-  line-height: 1.4;
+  color: var(--ui-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 .arc-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px 12px;
+  gap: 2px 14px;
   margin: 0;
-  color: var(--text-muted, var(--ui-text-muted));
-  font-size: 12px;
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
 }
 .arc-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  min-inline-size: 0;
 }
 .arc-card-foot {
   display: grid;
   gap: 8px;
   margin-block-start: auto;
-  padding-block-start: 4px;
+  padding-block-start: 6px;
 }
 .arc-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px 12px;
 }
 .arc-actions button {
@@ -293,66 +428,115 @@
   align-items: center;
   gap: 6px;
 }
-/* The Emulator link, sized and coloured as the kit's primary button. */
+/* The Emulator link, sized and coloured as the kit's secondary button. */
 .arc-cta {
   display: inline-flex;
   align-items: center;
-  justify-self: start;
   gap: 6px;
-  min-block-size: 36px;
-  padding-inline: 16px;
+  min-block-size: 32px;
+  padding-inline: 14px;
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius, 4px);
-  background: var(--ui-accent);
-  color: var(--ui-accent-ink);
-  font-size: 14px;
-  font-weight: 600;
+  color: var(--ui-text);
+  font-size: 0.875rem;
+  font-weight: 500;
   text-decoration: none;
 }
 .arc-cta:hover {
-  background: var(--ui-accent-hover, var(--ui-accent));
-}
-/* The Emulator: one wide card across the grid, painting beside the text where there is room. */
-.arc-card[data-size='feature'] {
-  grid-column: 1 / -1;
-}
-@media (min-width: 48rem) {
-  .arc-card[data-size='feature'] {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  }
-  .arc-card[data-size='feature'] .arc-card-art {
-    margin-block-end: 8px;
-  }
-  .arc-card[data-size='feature'] .arc-card-body {
-    justify-content: center;
-    padding: 20px;
-  }
-  .arc-card[data-size='feature'] .arc-card-title {
-    font-size: 20px;
-  }
-  .arc-card[data-size='feature'] .arc-card-foot {
-    margin-block-start: 8px;
-  }
+  background: var(--ui-bg-hover);
 }
 
-/* --- Chips, tier, tips, trust (the kit's filled tag) -------------------------------------------------------- */
+/* The two house picks: the painting fills the card, the text sits on a wash of the page colour. */
+.arc-card[data-size='hero'] {
+  display: block;
+  min-block-size: 15rem;
+  overflow: hidden;
+}
+.arc-card[data-size='hero'] .arc-card-art {
+  position: absolute;
+  inset: 0;
+}
+.arc-card[data-size='hero'] .arc-card-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--ui-bg) 94%, transparent) 0%,
+    color-mix(in srgb, var(--ui-bg) 82%, transparent) 55%,
+    color-mix(in srgb, var(--ui-bg) 15%, transparent) 100%
+  );
+}
+.arc-card[data-size='hero'] .arc-card-body {
+  position: relative;
+  justify-content: flex-end;
+  min-block-size: 15rem;
+  box-sizing: border-box;
+  padding: 20px 24px;
+}
+.arc-card[data-size='hero'] .arc-card-title {
+  font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+}
+.arc-card[data-size='hero'] .arc-desc {
+  color: var(--ui-text);
+}
+.arc-card[data-size='hero'] .arc-actions {
+  justify-content: flex-start;
+}
+
+/* On the game cards the capabilities read as one quiet line, not a wall of pills. */
+.arc-card:is([data-size='row'], [data-size='hero']) .arc-flags {
+  gap: 2px 12px;
+}
+.arc-card:is([data-size='row'], [data-size='hero']) .arc-flags .arc-chip {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 0.75rem;
+}
+.arc-card[data-size='hero'] .arc-card-body {
+  max-inline-size: 75%;
+}
+
+/* Server cartridges: one wide row each (art, title and who listed it, the file's hash, the actions). */
+.arc-card[data-size='list'] {
+  grid-template-columns: 10rem minmax(0, 1fr);
+}
+.arc-card[data-size='list'] .arc-card-art {
+  min-block-size: 6rem;
+}
+.arc-sha {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.arc-sha-label {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+}
+.arc-sha code {
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  color: var(--ui-text);
+}
+
+/* --- Chips, tier, tips, trust ------------------------------------------------------------------------------- */
 .arc-chip {
   display: inline-flex;
   align-items: center;
   padding-block: 2px;
-  padding-inline: 8px;
-  border: 1px solid transparent;
+  padding-inline: 10px;
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius, 4px);
-  background: var(--ui-bg-hover);
-  color: var(--ui-text);
+  background: transparent;
+  color: var(--ui-text-muted);
   font-size: 0.75rem;
-  font-weight: 600;
   line-height: 1.4;
 }
 .arc-chip-note {
   margin-inline-start: 3px;
-  color: var(--ui-text-muted, inherit);
-  font-weight: 400;
 }
 .arc-flags,
 .arc-tips,
@@ -365,11 +549,6 @@
   padding: 0;
   list-style: none;
 }
-.arc-tier .arc-chip {
-  border-color: var(--ui-border);
-  background: transparent;
-  color: var(--ui-text-muted);
-}
 .arc-tips {
   padding-block-start: 8px;
   border-block-start: 1px solid var(--ui-border);
@@ -379,19 +558,18 @@
   align-items: center;
   min-block-size: 28px;
   padding-block: 2px;
-  padding-inline: 10px;
+  padding-inline: 12px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius, 4px);
+  border-radius: 999px;
   background: transparent;
   color: var(--ui-text);
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
 .arc-tip:hover {
-  background: var(--ui-bg-hover);
+  border-color: var(--ui-accent);
 }
 .arc-tip[aria-expanded='true'] {
   border-color: var(--ui-accent);
@@ -413,8 +591,7 @@
   padding: 10px;
   max-inline-size: 100%;
   border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  background: var(--bg-base-low, var(--ui-bg));
+  background: var(--ui-bg);
 }
 .arc-tip-code {
   overflow-wrap: anywhere;
@@ -423,14 +600,60 @@
 .arc-trust-badge {
   padding-block: 2px;
   padding-inline: 8px;
-  border-radius: var(--ui-radius, 4px);
+  border-radius: 999px;
   font-size: 0.75rem;
   border: 1px solid var(--ui-border);
 }
 .arc-link {
-  color: var(--text-link, var(--ui-accent));
-  font-size: 14px;
+  color: var(--ui-accent, inherit);
+  font-size: 0.875rem;
   font-weight: 500;
+}
+
+/* --- The Start in... dialog --------------------------------------------------------------------------------- */
+.arc-start {
+  display: grid;
+  gap: 16px;
+}
+.arc-start-group {
+  display: grid;
+  gap: 8px;
+}
+.arc-start-label {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.arc-start-list {
+  display: grid;
+  gap: 2px;
+  max-block-size: 18rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.arc-start-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding-inline: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius, 4px);
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.arc-start-row:hover {
+  border-color: var(--ui-border);
+  background: var(--ui-bg-hover);
 }
 
 /* --- Forms (the List a cartridge dialog and the admin page) ------------------------------------------------- */
@@ -464,7 +687,8 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.arc-form .arc-field {
+.arc-form .arc-field,
+.arc-start .arc-field {
   max-inline-size: none;
 }
 .arc-field select {
@@ -500,26 +724,43 @@
   flex: 1 1 14rem;
 }
 
-/* --- Phone: like the Lounge, the section bar stays and the title strip goes --------------------------------- */
-@media (max-width: 47.99rem) {
-  .arc-titlestrip {
+/* --- Narrow screens ----------------------------------------------------------------------------------------- */
+@media (max-width: 60rem) {
+  .arc-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}
+@media (max-width: 40rem) {
+  .arc-page {
+    gap: 32px;
+    padding-block-start: 24px;
+  }
+  .arc-roombar-nav {
+    gap: 16px;
+  }
+  /* The house picks are in the Playable now list just below; on a phone the headline is enough. */
+  .arc-hero-cards {
     display: none;
   }
-  .arc-header {
-    padding-inline: 12px;
+  .arc-tabs-action {
+    padding-inline-start: 0;
+    border-inline-start: 0;
   }
-  .arc-nav {
-    margin-inline-start: 4px;
+  .arc-card {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   }
-  .arc-nav a {
-    padding-inline: 8px;
-    font-size: 14px;
+  .arc-card[data-size='list'] {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .arc-body {
-    padding-inline: 12px;
+  .arc-card[data-size='list'] .arc-card-art {
+    min-block-size: 7rem;
   }
-  .arc-card-art {
-    aspect-ratio: 2 / 1;
+  .arc-page .arc-card-title {
+    font-size: 1.25rem;
+  }
+  .arc-card-head {
+    flex-wrap: wrap;
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,4 @@
-// ARC-UI-010: the Arcade page in the app router: the Lounge's chrome (section bar with the Arcade current), the
+// ARC-UI-010: the Arcade page in the app router: the rooms' chrome (the SIDE ROOM bar with the Arcade current), the
 // Featured section and its jump link only when the Operator picked something (D-474), and the provenance line in
 // the Featured intro (D-475).
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
@@ -52,7 +52,7 @@ beforeEach(() => {
 });
 
 describe('the Arcade page', () => {
-  it('sits in the Lounge chrome with the Arcade as the current room', async () => {
+  it('sits in the rooms’ chrome with the Arcade as the current room', async () => {
     serve({ featured: [], coming_soon: [], flags: [] });
     open();
     const rooms = await screen.findByTestId('rooms-nav');
@@ -63,7 +63,7 @@ describe('the Arcade page', () => {
     expect(within(rooms).getByRole('link', { name: 'The Lounge' })).not.toHaveAttribute(
       'aria-current',
     );
-    expect(screen.getByRole('heading', { level: 1, name: 'The Arcade' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'The Arcade.' })).toBeInTheDocument();
   });
 
   it('hides Featured and its jump link while the Operator has picked nothing (D-474)', async () => {

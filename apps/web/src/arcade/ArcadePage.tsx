@@ -9,12 +9,14 @@ import { useShowroomActive } from '../showroom/state';
 import { httpArcadeApi, type ArcadeApi } from './api';
 import { ArcadeShell } from './ArcadeShell';
 import {
+  ArcadeHero,
   CartridgesSection,
   ComingSoonSection,
   FeaturedSection,
   PlayableSection,
 } from './ArcadeSections';
 import { sandboxTrust } from './sandboxTrust';
+import { StartInDialog, type PlayTarget } from './StartInDialog';
 import { TrustProvider, type TrustSource } from './trust';
 import type { ArcadeFront } from './types';
 import './arcade.css';
@@ -75,6 +77,8 @@ function RealArcadePage({
   const [front, setFront] = useState<ArcadeFront | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [playing, setPlaying] = useState<PlayTarget | null>(null);
+  const [listSignal, setListSignal] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -99,8 +103,23 @@ function RealArcadePage({
   ];
 
   return (
-    <ArcadeShell links={links}>
-      <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} />
+    <ArcadeShell
+      links={links}
+      action={
+        guilds.length > 0 ? (
+          <a
+            href="#cartridges"
+            className="arc-tabs-link"
+            onClick={() => setListSignal((n) => n + 1)}
+          >
+            <Icon name="plus" size={16} />
+            {t('arcade.cartridges.listButton')}
+          </a>
+        ) : undefined
+      }
+    >
+      <ArcadeHero flags={front?.flags ?? []} onPlay={setPlaying} />
+      <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} onPlay={setPlaying} />
       {failed && (
         <div className="arc-section">
           <EmptyState
@@ -129,11 +148,17 @@ function RealArcadePage({
       )}
       {front && (
         <TrustProvider source={trust}>
-          <FeaturedSection featured={front.featured} flags={front.flags} />
-          <CartridgesSection guilds={guilds} flags={front.flags} api={api} />
+          <FeaturedSection featured={front.featured} flags={front.flags} onPlay={setPlaying} />
+          <CartridgesSection
+            guilds={guilds}
+            flags={front.flags}
+            api={api}
+            openSignal={listSignal}
+          />
           <ComingSoonSection entries={front.coming_soon} api={api} flags={front.flags} />
         </TrustProvider>
       )}
+      <StartInDialog target={playing} guilds={guilds} onClose={() => setPlaying(null)} />
     </ArcadeShell>
   );
 }

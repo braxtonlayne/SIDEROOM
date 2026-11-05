@@ -7,6 +7,8 @@
 // `.pitch` strings. `status: 'preview'` puts it under Coming soon until it ships; an `art` the Arcade has no
 // painting for falls back to the generic art, so a new game never breaks the page.
 
+import type { Tier } from './types';
+
 export type BuiltinArt = 'landio' | 'arena3d' | 'holdem' | 'whiteboard' | 'tabletop';
 
 export interface BuiltinGame {
@@ -14,6 +16,12 @@ export interface BuiltinGame {
   id: string;
   /** The starter pack's manifest id (`sideroom.json` `id`). */
   packageId: string;
+  /** The manifest `name`: how the Activities shelf lists it, so Play can preselect it in the launcher. */
+  shelfName: string;
+  /** The manifest's content tier, only where the manifest declares one. */
+  tier?: Tier;
+  /** Shown large at the top of the Arcade (ARC-UI-010, the concept's two hero cards). */
+  hero?: boolean;
   status: 'live' | 'preview';
   players?: { min: number; max: number };
   capabilities: readonly string[];
@@ -24,6 +32,9 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
   {
     id: 'landio',
     packageId: 'side-room-landio',
+    shelfName: 'Land.io',
+    tier: 'TIER_1_ORIGINAL',
+    hero: true,
     status: 'live',
     players: { min: 1, max: 24 },
     capabilities: ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'host_handoff'],
@@ -32,6 +43,9 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
   {
     id: 'arena3d',
     packageId: 'side-room-arena3d',
+    shelfName: 'Arena 3D',
+    tier: 'TIER_1_ORIGINAL',
+    hero: true,
     status: 'live',
     players: { min: 1, max: 8 },
     capabilities: [
@@ -47,6 +61,7 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
   {
     id: 'holdem',
     packageId: 'side-room-holdem',
+    shelfName: "Card table: Texas Hold'em",
     status: 'live',
     players: { min: 2, max: 9 },
     capabilities: ['datachannel'],
@@ -55,6 +70,7 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
   {
     id: 'whiteboard',
     packageId: 'side-room-whiteboard',
+    shelfName: 'Whiteboard',
     status: 'live',
     capabilities: ['datachannel'],
     art: 'whiteboard',
@@ -62,6 +78,7 @@ export const BUILTIN_GAMES: readonly BuiltinGame[] = [
   {
     id: 'tabletop',
     packageId: 'side-room-tabletop',
+    shelfName: 'Tabletop',
     status: 'live',
     capabilities: ['datachannel'],
     art: 'tabletop',

@@ -41,7 +41,14 @@ export function artKind(kind: string): ArtKind {
   return (KNOWN.has(kind) ? kind : 'featured') as ArtKind;
 }
 
+/**
+ * Every painting is lit the same way (the owner's concept, ARC-UI-010): a warm low-light grade over the scene, a
+ * soft lamp glow from the upper left, and a vignette that darkens the edges, so the covers read as one set.
+ */
 function Frame({ children, art }: { children: ReactNode; art: string }) {
+  const id = useSvgId();
+  const vignette = id('vig');
+  const lamp = id('lamp');
   return (
     <svg
       className="arc-art-svg"
@@ -51,7 +58,26 @@ function Frame({ children, art }: { children: ReactNode; art: string }) {
       focusable="false"
       data-art={art}
     >
+      <defs>
+        <radialGradient id={vignette.id} cx="0.5" cy="0.45" r="0.75">
+          <stop offset="0.35" stopColor="#0b0805" stopOpacity="0" />
+          <stop offset="1" stopColor="#0b0805" stopOpacity="0.9" />
+        </radialGradient>
+        <radialGradient id={lamp.id} cx="0.22" cy="0.15" r="0.6">
+          <stop offset="0" stopColor="#ffcf8a" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#ffcf8a" stopOpacity="0" />
+        </radialGradient>
+      </defs>
       {children}
+      <rect
+        width="320"
+        height="180"
+        fill="#2a1a0b"
+        opacity="0.32"
+        style={{ mixBlendMode: 'multiply' }}
+      />
+      <rect width="320" height="180" fill={lamp.url} />
+      <rect width="320" height="180" fill={vignette.url} />
     </svg>
   );
 }
@@ -295,8 +321,8 @@ function Whiteboard() {
     <Frame art="whiteboard">
       <defs>
         <linearGradient id={board.id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#f8fafc" />
-          <stop offset="1" stopColor="#dbeafe" />
+          <stop offset="0" stopColor="#e8dcc6" />
+          <stop offset="1" stopColor="#b9a888" />
         </linearGradient>
         <pattern id={dots.id} width="14" height="14" patternUnits="userSpaceOnUse">
           <circle cx="2" cy="2" r="1.2" fill="#94a3b8" fillOpacity="0.45" />

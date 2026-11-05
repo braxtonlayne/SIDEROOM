@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ArcadeApi } from '../api';
 import {
+  ArcadeHero,
   CartridgesSection,
   ComingSoonSection,
   FeaturedSection,
@@ -346,7 +347,8 @@ describe('ARC-UI-010: the redesigned shelves', () => {
       expect(card.querySelector('svg[data-art]')).not.toBeNull();
       // Reachable by Tab although it has no button of its own.
       expect(card).toHaveAttribute('tabindex', '0');
-      expect(within(card).getByText('Playable now')).toBeInTheDocument();
+      // The section says "Playable now"; the card carries it as its status.
+      expect(card).toHaveAttribute('data-status', 'live');
     }
     const land = within(region).getByRole('article', { name: 'Land.io' });
     expect(within(land).getByText('1 to 24 players')).toBeInTheDocument();
@@ -366,8 +368,22 @@ describe('ARC-UI-010: the redesigned shelves', () => {
 
   it('a built-in still in development sits under Coming soon, not Playable now', () => {
     const games: BuiltinGame[] = [
-      { id: 'landio', packageId: 'p1', status: 'live', capabilities: [], art: 'landio' },
-      { id: 'whiteboard', packageId: 'p2', status: 'preview', capabilities: [], art: 'nope' },
+      {
+        id: 'landio',
+        packageId: 'p1',
+        shelfName: 'Land.io',
+        status: 'live',
+        capabilities: [],
+        art: 'landio',
+      },
+      {
+        id: 'whiteboard',
+        packageId: 'p2',
+        shelfName: 'Whiteboard',
+        status: 'preview',
+        capabilities: [],
+        art: 'nope',
+      },
     ];
     expect(builtinsByStatus(games).live.map((g) => g.id)).toEqual(['landio']);
     render(
@@ -437,6 +453,45 @@ describe('ARC-UI-010: the redesigned shelves', () => {
       await within(dialog).findByText(/The cartridge could not be listed/),
     ).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Title')).toHaveValue('X');
+  });
+});
+
+describe('D-472: Play on the cards', () => {
+  it('a live built-in gets Play, which hands the game to the Start in dialog', async () => {
+    const user = userEvent.setup();
+    const onPlay = vi.fn();
+    render(<PlayableSection flags={flags} emulatorOn={false} onPlay={onPlay} />);
+    const land = screen.getByRole('article', { name: 'Land.io' });
+    // A card with its own control is reached through that control, not as a whole.
+    expect(land).not.toHaveAttribute('tabindex');
+    await user.click(within(land).getByRole('button', { name: 'Play Land.io' }));
+    expect(onPlay).toHaveBeenCalledWith({ title: 'Land.io', shelfName: 'Land.io' });
+  });
+
+  it('a browser-playable Featured pick plays by its application id; a desktop-only one has no Play', async () => {
+    const user = userEvent.setup();
+    const onPlay = vi.fn();
+    render(
+      <FeaturedSection
+        featured={[
+          featured(),
+          featured({ application_id: '11', name: 'Horizon', eligibility: T2 }),
+        ]}
+        flags={flags}
+        onPlay={onPlay}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Play Land.io' }));
+    expect(onPlay).toHaveBeenCalledWith({ title: 'Land.io', applicationId: '10' });
+    expect(screen.queryByRole('button', { name: 'Play Horizon' })).toBeNull();
+  });
+
+  it('the hero shows the house picks large', () => {
+    render(<ArcadeHero flags={flags} onPlay={vi.fn()} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'The Arcade.' })).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Land.io' })).toHaveAttribute('data-size', 'hero');
+    expect(screen.getByRole('article', { name: 'Arena 3D' })).toHaveAttribute('data-size', 'hero');
+    expect(screen.queryByRole('article', { name: 'Tabletop' })).toBeNull();
   });
 });
 
