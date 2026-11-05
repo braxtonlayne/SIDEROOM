@@ -88,7 +88,9 @@ describe('Start in…', () => {
     );
     const dialog = screen.getByRole('dialog', { name: 'Start Land.io in…' });
     const call = within(dialog).getByRole('region', { name: 'Your call' });
-    await user.click(within(call).getByRole('button', { name: 'Start Land.io in Hangout' }));
+    await user.click(
+      within(call).getByRole('button', { name: 'Start Land.io in Hangout, a voice channel' }),
+    );
     await waitFor(() => expect(api.launch).toHaveBeenCalledWith('v1', '42'));
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({
@@ -116,7 +118,7 @@ describe('Start in…', () => {
     expect(screen.queryByRole('region', { name: 'Your call' })).toBeNull();
     const rows = await screen.findAllByRole('button', { name: /^Start Land\.io in / });
     expect(rows.map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Start Land.io in Hangout',
+      'Start Land.io in Hangout, a voice channel',
       'Start Land.io in general',
       'Start Land.io in news',
     ]);
@@ -150,7 +152,9 @@ describe('Start in…', () => {
         join={join}
       />,
     );
-    await user.click(await screen.findByRole('button', { name: 'Start Orbit in Hangout' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Start Orbit in Hangout, a voice channel' }),
+    );
     await waitFor(() => expect(api.launch).toHaveBeenCalledWith('v1', '77'));
     expect(join).toHaveBeenCalledWith({ guildId: '1', channelId: 'v1', name: 'Hangout' });
     expect(order).toEqual(['join', 'launch']);
@@ -169,7 +173,9 @@ describe('Start in…', () => {
         join={() => Promise.resolve(false)}
       />,
     );
-    await user.click(await screen.findByRole('button', { name: 'Start Land.io in Hangout' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Start Land.io in Hangout, a voice channel' }),
+    );
     expect(await screen.findByText('That call could not be joined.')).toBeInTheDocument();
     expect(api.launch).not.toHaveBeenCalled();
     expect(screen.getByRole('dialog', { name: 'Start Land.io in…' })).toBeInTheDocument();
@@ -204,13 +210,13 @@ describe('Start in…', () => {
         }
       />,
     );
-    await screen.findByRole('button', { name: 'Start Whiteboard in Lounge' });
+    await screen.findByRole('button', { name: 'Start Whiteboard in Lounge, a voice channel' });
     const rows = screen.getAllByRole('button', { name: /^Start Whiteboard in / });
     expect(rows.map((r) => r.getAttribute('aria-label'))).toEqual([
-      'Start Whiteboard in Hangout',
+      'Start Whiteboard in Hangout, a voice channel',
       'Start Whiteboard in general',
       'Start Whiteboard in news',
-      'Start Whiteboard in Lounge',
+      'Start Whiteboard in Lounge, a voice channel',
     ]);
     expect(screen.getByRole('list', { name: 'Text channels' })).toBeInTheDocument();
   });

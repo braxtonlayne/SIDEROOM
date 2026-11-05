@@ -300,7 +300,7 @@
 .arc-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  grid-template-columns: minmax(6rem, 2fr) minmax(0, 3fr);
   min-inline-size: 0;
   border: 1px solid var(--ui-border);
   background: var(--ui-bg-raised, var(--ui-bg));
@@ -354,20 +354,27 @@
   line-height: 1.1;
   overflow-wrap: anywhere;
 }
-/* D-479: one tier tag, in the card's top corner, on every card kind. A card with a tag keeps its text clear of it. */
+/* D-479: one tier tag, in the card's top corner (over the painting), on every card kind. */
 .arc-card-tags {
   position: absolute;
   z-index: 1;
-  inset-block-start: 10px;
-  inset-inline-end: 10px;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 4px;
-  max-inline-size: 60%;
+  max-inline-size: calc(100% - 16px);
 }
-.arc-card:is([data-size='row'], [data-size='list']):has(.arc-card-tags) .arc-card-head {
-  padding-inline-end: 5.5rem;
+/* On row and list cards the tags stay inside the painting's column. */
+.arc-card[data-size='row'] .arc-card-tags {
+  max-inline-size: calc(40% - 16px);
+}
+.arc-card[data-size='list'] .arc-card-tags {
+  max-inline-size: calc(10rem - 16px);
+}
+.arc-card:not([data-size='hero']) .arc-tag {
+  white-space: normal;
 }
 .arc-trust:empty {
   display: none;
@@ -383,9 +390,19 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.arc-tag[data-tone='preview'] {
-  border-color: var(--ui-warning, var(--ui-border));
-  color: var(--ui-text);
+.arc-blurb[data-tone='preview'] {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+/* The status dot carries the warning colour; the words keep the accent's contrast in every theme. */
+.arc-blurb[data-tone='preview']::before {
+  content: '';
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 999px;
+  background: var(--ui-warning, var(--ui-accent));
 }
 .arc-blurb {
   margin: 0;
@@ -440,6 +457,8 @@
 /* The Emulator link, sized and coloured as the kit's secondary button. */
 .arc-cta {
   display: inline-flex;
+  text-wrap: balance;
+  text-align: center;
   align-items: center;
   gap: 6px;
   min-block-size: 32px;
@@ -485,6 +504,9 @@
   min-block-size: 17rem;
   box-sizing: border-box;
   padding: 20px 24px;
+}
+.arc-card[data-size='hero'] .arc-card-foot {
+  margin-block-start: 8px;
 }
 .arc-card[data-size='hero'] .arc-card-title {
   font-size: clamp(1.75rem, 2.6vw, 2.5rem);
@@ -818,6 +840,17 @@
   }
   .arc-card-art {
     min-block-size: 0;
+  }
+  .arc-card[data-size='row'] .arc-card-tags {
+    max-inline-size: calc(7rem - 12px);
+    inset-inline-start: 6px;
+  }
+  .arc-tag {
+    padding-inline: 6px;
+    letter-spacing: 0.04em;
+  }
+  .arc-card[data-size='list'] .arc-card-tags {
+    max-inline-size: calc(100% - 16px);
   }
   .arc-card[data-size='list'] {
     grid-template-columns: minmax(0, 1fr);

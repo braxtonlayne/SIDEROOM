@@ -16,6 +16,7 @@ export default {
   'arcade.start.thisCall': 'Your call',
   'arcade.start.channels': 'Your servers',
   'arcade.start.in': 'Start {game} in {channel}',
+  'arcade.start.inVoice': 'Start {game} in {channel}, a voice channel',
   'arcade.start.loading': 'Loading channels…',
   'arcade.start.failed': 'The channels could not be loaded.',
   'arcade.start.none': 'This server has no channel where a game can start.',
@@ -59,5 +60,6 @@ export default {
   'arcade.start.joining': 'Joining the call…',
   'arcade.start.joinFailed': 'That call could not be joined.',
   'arcade.cartridges.removeShort': 'Unlist',
+  'arcade.tier.tagReimplementation': 'Clean-room',
   'arcade.admin.heroNote': 'Positions 1 and 2 are the Arcade’s two large cards.',
 } satisfies Record<string, string>;

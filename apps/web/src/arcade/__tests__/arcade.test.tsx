@@ -635,7 +635,7 @@ describe('D-479: what a member card says', () => {
       />,
     );
     const card = screen.getByRole('article', { name: 'Horizon' });
-    expect(within(card).getByText('Clean-room reimplementation')).toHaveClass('arc-tag');
+    expect(within(card).getByText('Clean-room')).toHaveClass('arc-tag');
     expect(within(card).getByText('Desktop app only')).toBeInTheDocument();
     expect(within(card).getByText('Plays in the desktop app.')).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /Play/ })).toBeNull();

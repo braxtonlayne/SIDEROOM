@@ -149,19 +149,19 @@ export function GameCard(p: GameCardProps) {
       <div className="arc-card-body">
         <header className="arc-card-head">
           <div className="arc-card-heading">
+            {p.status === 'preview' && (
+              <p className="arc-blurb" data-tone="preview">
+                {t('arcade.status.preview')}
+              </p>
+            )}
             {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
             <h3 className="arc-card-title" id={titleId}>
               {p.title}
             </h3>
           </div>
-          {(p.tag || p.badge || p.status === 'preview') && (
+          {(p.tag || p.badge) && (
             <div className="arc-card-tags">
               {p.tag && <span className="arc-tag">{p.tag}</span>}
-              {p.status === 'preview' && (
-                <span className="arc-tag" data-tone="preview">
-                  {t('arcade.status.preview')}
-                </span>
-              )}
               {p.badge && <span className="arc-tag">{p.badge}</span>}
             </div>
           )}

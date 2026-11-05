@@ -26,6 +26,10 @@ async function openShelfObject(shelfId: string, hash: string): Promise<void> {
 export const tierKey = (t: Tier) =>
   t === 'TIER_1_ORIGINAL' ? 'arcade.tier.original' : 'arcade.tier.reimplementation';
 
+/** The tier as a card's corner tag (D-479): short enough for the painting's column; the full name is on the meta line. */
+const tagKey = (t: Tier) =>
+  t === 'TIER_1_ORIGINAL' ? 'arcade.tier.original' : 'arcade.tier.tagReimplementation';
+
 /** A section label in the rooms' editorial style: a thin rule, the name in small caps, a muted note after it. */
 export function SectionHead({
   id,
@@ -180,7 +184,7 @@ export function ArcadeHero({
                 blurb={slot.pick.blurb}
                 art="featured"
                 status="live"
-                tag={t(tierKey(slot.pick.tier))}
+                tag={t(tagKey(slot.pick.tier))}
               >
                 {onPlay && (
                   <div className="arc-actions">
@@ -283,7 +287,7 @@ export function FeaturedSection({
             blurb={f.blurb}
             art="featured"
             status={f.eligibility.browser_play ? 'live' : undefined}
-            tag={t(tierKey(f.tier))}
+            tag={t(tagKey(f.tier))}
             tier={f.tier}
             eligibility={f.eligibility}
             capabilities={f.capabilities}
@@ -368,7 +372,7 @@ export function ComingSoonSection({
               description={e.summary}
               art="workshop"
               status="preview"
-              tag={t(tierKey(e.tier))}
+              tag={t(tagKey(e.tier))}
               tier={e.tier}
               eligibility={{
                 browser_play: e.tier === 'TIER_1_ORIGINAL',
@@ -681,7 +685,7 @@ export function CartridgesSection({
                   badge={t(
                     c.kind === 'mod' ? 'arcade.cartridges.kindMod' : 'arcade.cartridges.kindGame',
                   )}
-                  tag={t(tierKey(c.tier))}
+                  tag={t(tagKey(c.tier))}
                   tier={c.tier}
                   eligibility={c.eligibility}
                   capabilities={c.capabilities}

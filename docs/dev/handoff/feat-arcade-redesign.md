@@ -81,6 +81,45 @@ All shots are in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/`.
   build, `check-entrance-isolation` (clean), `check-bundle-budget` (all ok; first paint `app` unchanged at
   246.8 KB gzip), `playwright test --list` (902 in 66 files), and `arcade-room.spec.ts` against my stack (passed).
 
+## Round 4: Fable's review (on `integration/phase47`)
+
+`SIDEROOM_wt/arcade-fable-review.md`: shippable only with fixes 1 to 6, and the three owner questions answered as
+D-476 to D-478 (D-479 for the card wording). Done on `integration/phase47` (worktree `p47-integ`), with Sketch &
+Slander already live there.
+
+| Commit | What |
+|---|---|
+| `b4b34b58` `46efbca7` | **D-476.** `arcade` is a themed section. It is added to `SECTIONS` (shipped default `lounge-editorial`), `THEMED_SECTIONS`, `SECTION_OF`, the Appearance > Sections picker ("Arcade"), the server's `THEME_SECTIONS` (so Admin > Platform appearance and `GET /sr/appearance/defaults` carry it) and the theme validator's `SECTIONS`. The new `ArcadeThemeProvider` resolves it like `CinemaRoot`: the member's Arcade choice, then the platform default, then Editorial. The member's Lounge theme does not carry over. `/games` and `/games/emulator` both use it, so the emulator stays in the Arcade's look. The decisions log gets rows D-476 to D-479, and D-472's status now points to D-478. |
+| `d56c4bc2` and the round-4 polish commit | **Fixes 1 to 10.** <br>(1) Hero cards are paintings: the wash sits low and to the left, the top half is clear, the body is 62% wide and anchored low, and there is no capability line. <br>(2, D-479) Member cards show only `guest_play`, `storage`, `byos_read`, `byos_write` and `ingame_voice`, and never a reserved flag. The Showroom's genre tags opt out with `allFlags`. <br>(3) One tier tag in the card's top corner, over the painting, on every card kind. A clean-room game's tag is the short "Clean-room" so it fits the art column. Desktop-only and needs-base-game notes are a meta line with icons, and tags are 12 px. <br>(4) A trust badge that fails, or has no record yet (404), prints nothing on an Arcade card (`useBuildTrust` treats a 404 as "no record"), and an empty `.arc-trust` box is hidden. <br>(5) On a phone the rooms bar wraps like The Study's, and the pill row is one scrolling line with the "+" pinned after it. <br>(6) One-line pitches, four cards per row at 1280, 7 rem thumbnails on a phone. <br>(7) A desktop-only Featured pick ends in "Plays in the desktop app." <br>(8, D-477) `heroSlots()`: the Operator's browser-playable picks at positions 1 and 2, then Land.io and Arena 3D. A pick that is the same game as a built-in, by shelf id (the shelf is read only when there are picks) or else by name, takes that built-in's slot. Admin > Arcade says "Positions 1 and 2 are the Arcade's two large cards." <br>(9, D-478) Start in: board tools (Whiteboard, Tabletop) list text channels first. A voice channel the member is not in is joined first (`joinCall`: the voice controller's `join`, then waiting for `connected`), and a failed join launches nothing and says "That call could not be joined." on the row. <br>(10) A hidden "Your servers" label with one server, voice and text in separate labelled lists, and voice rows named "…, a voice channel" so a text #general and a voice General can be told apart. <br>Minor: the cartridge Unlist button is visible as "Unlist", with the title in its `aria-label`. |
+
+**Visual check (round 4).** All shots are in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/`.
+
+- `arcade-r4/`: Editorial for the default dark pass, and Lounge Light, where the Arcade is now Editorial too (D-476).
+- `arcade-r4-loungedark/`: Lounge Dark (`SR_SWEEP_DARK=lounge-dark`). In both folders: arcade, showroom-arcade,
+  admin-arcade, settings-user-appearance, study and cinema-home, at desktop and phone.
+- `arcade-r4/flows/`: a populated page at 1280, 375 and 320 px (a Featured pick taking Land.io's hero slot, a
+  desktop-only pick, a cartridge row, Coming soon), the board-tool Start in dialog, and the failed-join row.
+
+The sweep flags nothing on the Arcade routes or Appearance. study's flag is a 404 on a shelf thumbnail in the
+`memory:` storage, and it appears on main too. Before/after for this round: `arcade-concept/` → `arcade-r4/`.
+
+**Clicked through live.** Play Whiteboard → Start in lists text before voice → choosing the voice General joins
+first. In this stack voice cannot connect, so the row says the call could not be joined and **no** launch request
+is sent; the probe checked this. The successful join → launch → go-to-channel path is covered by
+`startIn.test.tsx` only. **Untested on a real deployment:** whether `voiceController().join` connects from the
+Arcade page with the Lounge not mounted.
+
+**Gates (round 4).** Results:
+
+- web tsc, e2e tsc, eslint and prettier on the changed files: pass.
+- vitest (arcade, showroom, emu, activities, lounge, settings/user, i18n): 1186 passed in 145 files.
+- `packages/ui` theme and token tests: 75 passed.
+- `check-css-tokens`: 69 files clean. `i18n-audit`: 0.
+- web build: ok. `check-entrance-isolation`: clean. `check-bundle-budget`: all ok, first paint `app` unchanged at 246.8 KB gzip.
+- `playwright test --list`: 903 tests in 67 files.
+- `arcade-room.spec.ts` against my stack: passed. Its fixture now has `guest_play` active plus a reserved `ingame_voice`, and it asserts that plumbing and reserved flags stay hidden (D-479).
+- Rust (`sr-features`, `sr-theme`): `cargo fmt --check` clean, `clippy -D warnings` clean, `cargo test` passed (139, 16, 3 and 1 tests).
+
 ## Not done
 
 - **Active lobbies strip**: needs a server route listing the running instances a member can join across their
@@ -90,15 +129,15 @@ All shots are in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/`.
 - **Richer cover scenes**: the paintings are graded for low light but are still simple vector scenes. Painting
   fuller moody scenes per game (the concept's level of detail) is a follow-up if the owner wants it.
 
-## Owner questions (defaults applied)
+## Owner questions
 
-1. The Arcade follows the member's theme the way The Study does, so the concept's exact look appears in Editorial;
-   Cinema and Library stay editorial in every theme. Should the Arcade instead always be editorial, like Cinema?
-2. The two house picks are Land.io and Arena 3D, as in the concept (`hero: true` in `builtins.ts`). Should they
-   rotate, or should the Operator choose them?
-3. Play takes the member to the channel once the game starts. Should it stay on the Arcade instead?
+Round 3's three questions are answered by Fable (D-476 to D-478). New, with defaults applied:
+
+1. The emulator page (`/games/emulator`) now follows the Arcade's theme, so it is editorial by default. Should it follow
+   the member's Lounge theme instead?
+2. Fix 11, the richer cover scenes, is not done: a follow-up for its own handoff, as the review says.
 
 ## Stack
 
-sr-server 8203 and Vite 5203 (started by me) are stopped and the `sr_arcade_ui` database is dropped. The binaries copy
+sr-server 8203 (rebuilt from `integration/phase47` with the `THEME_SECTIONS` change) and Vite 5203, both started by me, are stopped and the `sr_arcade_ui` database is dropped. The binaries copy
 is in `C:/Users/braxt/Desktop/SIDEROOM_wt/arcade-bin`.

@@ -207,7 +207,10 @@ export function StartInDialog({
         disabled={joining !== null}
         aria-busy={joining === c.id || undefined}
         onClick={() => void choose(gid, c)}
-        aria-label={t('arcade.start.in', { game: target?.title ?? '', channel: c.name ?? '' })}
+        aria-label={t(c.type === VOICE ? 'arcade.start.inVoice' : 'arcade.start.in', {
+          game: target?.title ?? '',
+          channel: c.name ?? '',
+        })}
       >
         <Icon name={c.type === VOICE ? 'volume' : 'hash'} size={16} />
         <span>{c.name}</span>
