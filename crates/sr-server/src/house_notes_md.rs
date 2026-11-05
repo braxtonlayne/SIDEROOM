@@ -47,10 +47,10 @@ impl Renderer {
 
     fn flush_quote(&mut self) {
         if !self.quote.is_empty() {
-            let text = std::mem::take(&mut self.quote).join(" ");
+            let lines: Vec<String> = self.quote.drain(..).map(|l| inline(&l)).collect();
             self.out.push_str(&format!(
                 "<blockquote><p>{}</p></blockquote>\n",
-                inline(&text)
+                lines.join("<br>")
             ));
         }
     }
@@ -254,17 +254,17 @@ fn cells(row: &str) -> Vec<String> {
     t.split('|').map(|c| c.trim().to_owned()).collect()
 }
 
-/// ASCII lower case, runs of other characters become one dash, trimmed.
+/// Unicode letters and digits lower-cased per character, runs of other characters become one dash, trimmed.
 fn slug(text: &str) -> String {
     let mut out = String::new();
     let mut dash = false;
     for c in text.chars() {
-        if c.is_ascii_alphanumeric() {
+        if c.is_alphanumeric() {
             if dash && !out.is_empty() {
                 out.push('-');
             }
             dash = false;
-            out.push(c.to_ascii_lowercase());
+            out.extend(c.to_lowercase());
         } else {
             dash = true;
         }
@@ -344,7 +344,7 @@ fn construct(c: &[char], i: usize) -> Option<(String, usize)> {
             let href = span(c, k + 2, m);
             let html = if safe_href(&href) {
                 format!(
-                    "<a href=\"{}\" rel=\"noopener noreferrer\">{text}</a>",
+                    "<a href=\"{}\" rel=\"noopener noreferrer nofollow\">{text}</a>",
                     escape_html(&href)
                 )
             } else {
@@ -429,7 +429,7 @@ mod tests {
         let ok =
             render("[a](https://x.test/p?q=1&r=2) [b](/rules) [c](#privacy) [d](HTTP://x.test)");
         assert_eq!(ok.matches("<a href=").count(), 4, "{ok}");
-        assert!(ok.contains("rel=\"noopener noreferrer\""));
+        assert!(ok.contains("rel=\"noopener noreferrer nofollow\""));
         assert!(!ok.contains("target="));
         assert!(ok.contains("href=\"https://x.test/p?q=1&amp;r=2\""));
     }
@@ -441,5 +441,6 @@ mod tests {
         assert!(h.contains("<h3 id=\"op-privacy-2\">"), "{h}");
         assert!(h.contains("<h4 id=\"op-privacy-3\">"), "{h}");
         assert!(h.contains("<h2 id=\"op-rules-terms\">"), "{h}");
+        assert!(h.contains("<h4 id=\"op-ünï\">Ünï</h4>"), "{h}");
     }
 }
