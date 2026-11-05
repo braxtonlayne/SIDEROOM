@@ -167,6 +167,7 @@ pub struct VoiceConfig {
     pub enabled: bool,
     /// Public WebSocket URLs of the SFU nodes, handed to clients in `VOICE_SERVER_UPDATE`.
     /// Empty: derived from `server.public_url` as `ws(s)://<host>/voice/ws` (the embedded SFU).
+    #[serde(deserialize_with = "list_or_csv")]
     pub endpoints: Vec<String>,
     /// Interface the media sockets bind to.
     pub bind_ip: String,
@@ -176,6 +177,7 @@ pub struct VoiceConfig {
     /// ICE-TCP passive port; 0 disables it.
     pub tcp_port: u16,
     /// Addresses advertised as ICE host candidates: the node's public (or LAN) IPs.
+    #[serde(deserialize_with = "list_or_csv")]
     pub announce_ips: Vec<String>,
     pub max_participants: usize,
     pub max_room_size: usize,
@@ -217,6 +219,7 @@ pub struct VoiceConfig {
 #[serde(default)]
 pub struct TurnSection {
     /// `stun:host:3478`, `turn:host:3478?transport=udp`, `turns:host:443?transport=tcp`.
+    #[serde(deserialize_with = "list_or_csv")]
     pub urls: Vec<String>,
     /// coturn `static-auth-secret`. Empty disables TURN credentials (STUN URLs still work).
     pub secret: Secret,
@@ -335,13 +338,13 @@ impl GifConfig {
 pub struct IngestConfig {
     /// Absolute directories, for example a mounted Storage Box. From the environment this may be a
     /// single path or a comma-separated list (`SR_INGEST__ROOTS=/srv/sideroom/ingest`); empty means none.
-    #[serde(deserialize_with = "roots_from_list_or_csv")]
+    #[serde(deserialize_with = "list_or_csv")]
     pub roots: Vec<String>,
 }
 
-/// Accept a TOML array of paths, or one string with comma-separated paths (what a compose
+/// Accept a TOML array, or one string of comma-separated entries (what a compose
 /// environment line can carry). Blank entries are dropped.
-fn roots_from_list_or_csv<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+fn list_or_csv<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
     #[derive(Deserialize)]
     #[serde(untagged)]
     enum Roots {
@@ -815,6 +818,31 @@ mod tests {
         );
         assert_eq!(load("[ingest]\nroots = \"/a, /b,\""), ["/a", "/b"]);
         assert!(load("[ingest]\nroots = \"\"").is_empty());
+    }
+    #[test]
+    fn voice_lists_accept_a_comma_separated_string_as_compose_passes_them() {
+        let load = |toml: &str| {
+            Config::from_figment(
+                &Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(toml)),
+            )
+            .unwrap()
+            .voice
+        };
+        let v = load(
+            "[voice]\nannounce_ips = \"203.0.113.5, 2001:db8::5\"\n[voice.turn]\nurls = \"stun:t.example:3478,turn:t.example:3478?transport=udp\"",
+        );
+        assert_eq!(v.announce_ips, ["203.0.113.5", "2001:db8::5"]);
+        assert_eq!(
+            v.turn.urls,
+            ["stun:t.example:3478", "turn:t.example:3478?transport=udp"]
+        );
+        // The array form (scripts/ice-announce.mjs) still works, and an empty string is no entries.
+        assert_eq!(
+            load("[voice]\nannounce_ips = [\"10.0.0.2\"]").announce_ips,
+            ["10.0.0.2"]
+        );
+        assert!(load("[voice.turn]\nurls = \"\"").turn.urls.is_empty());
+        assert!(load("[voice]\nendpoints = \"\"").endpoints.is_empty());
     }
     #[test]
     fn voice_is_off_by_default_and_validated_when_on() {

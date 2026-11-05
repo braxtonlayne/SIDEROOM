@@ -232,7 +232,8 @@ fn the_server_environment_loads_through_the_real_config_loader() {
     for l in server.section("environment") {
         let (k, v) = l.split_once(':').expect("KEY: value");
         // Read from the process environment by sr-server's payments module, not by the config loader (M-02).
-        if k.trim().starts_with("SR_PAYMENTS_") {
+        // SR_PEERTUBE_HOSTS likewise, by the unfurler (PRF-UNF-001).
+        if k.trim().starts_with("SR_PAYMENTS_") || k.trim() == "SR_PEERTUBE_HOSTS" {
             continue;
         }
         let v = expand(v.trim().trim_matches('"'), &env);
@@ -248,8 +249,10 @@ fn the_server_environment_loads_through_the_real_config_loader() {
             .strip_prefix("SR_")
             .unwrap_or_else(|| panic!("{k} lacks SR_"));
         let path = path.to_lowercase();
+        // SR_VOICE__TURN__URLS is [voice.turn] urls: every part but the last names the table.
         let (table, key) = path
-            .split_once("__")
+            .rsplit_once("__")
+            .map(|(t, k)| (t.replace("__", "."), k))
             .unwrap_or_else(|| panic!("{k} must be SR_<SECTION>__<KEY>"));
         let lit = if v == "true" || v == "false" || v.parse::<i64>().is_ok() {
             v.clone()
@@ -382,6 +385,8 @@ fn only_caddy_and_loopback_grafana_publish_ports() {
             let p = p.trim_start_matches("- ").trim_matches('"');
             let ok = match name.as_str() {
                 "caddy" => matches!(p, "80:80" | "443:443" | "443:443/udp"),
+                // The embedded SFU's media range (voice.udp_port_min..max), same numbers on both sides for ICE.
+                "sr-server" => p == "50000-50099:50000-50099/udp",
                 "grafana" => p.starts_with("127.0.0.1:"),
                 _ => false,
             };
@@ -800,4 +805,32 @@ fn caddy_sends_a_signed_in_members_profile_to_the_server_and_falls_back_to_the_p
     assert!(block.contains("handle_response @profile-gone"));
     assert!(block.contains("rewrite * /profile.html"));
     assert!(caddy.contains("header Cookie *sr_session=*"));
+}
+
+/// Voice can be switched on from `.env.prod` alone: the published UDP range is the SFU's default range, and the coturn
+/// relay is an optional profile whose secret the server is given.
+#[test]
+fn voice_is_switchable_from_the_env_file_with_an_optional_turn_profile() {
+    let c = compose();
+    let d = Config::default().voice;
+    let range = format!("{0}-{1}:{0}-{1}/udp", d.udp_port_min, d.udp_port_max);
+    let ports = c.services["sr-server"].section("ports").join("\n");
+    assert!(
+        ports.contains(&range),
+        "sr-server must publish the SFU's UDP range {range}"
+    );
+    let vars = c.services["sr-server"].section("environment").join("\n");
+    for v in [
+        "SR_VOICE__ENABLED",
+        "SR_VOICE__ANNOUNCE_IPS",
+        "SR_VOICE__TURN__URLS",
+        "SR_VOICE__TURN__SECRET",
+        "SR_ACTIVITIES__ENABLED",
+        "SR_PEERTUBE_HOSTS",
+    ] {
+        assert!(vars.contains(v), "sr-server does not pass {v} through");
+    }
+    let turn = &c.services["coturn"];
+    assert_eq!(turn.scalar("profiles").as_deref(), Some("[turn]"));
+    assert!(read("deploy/compose/coturn/turnserver.prod.conf.example").contains("use-auth-secret"));
 }
