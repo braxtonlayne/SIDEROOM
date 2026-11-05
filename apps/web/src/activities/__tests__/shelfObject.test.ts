@@ -123,7 +123,7 @@ function streamOf(sizes: number[], onCancel?: () => void): ReadableStream<Uint8A
   return new ReadableStream<Uint8Array>({
     pull(ctl) {
       if (i >= sizes.length) return ctl.close();
-      ctl.enqueue(new Uint8Array(sizes[i++]).fill(7));
+      ctl.enqueue(new Uint8Array(sizes[i++] as number).fill(7));
     },
     cancel() {
       onCancel?.();

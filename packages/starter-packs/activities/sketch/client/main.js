@@ -320,6 +320,13 @@ function renderBoard(s) {
     }),
   );
   $('skip').hidden = !(s.host === me && (s.phase === 'pick' || s.phase === 'draw'));
+  markBoardOverflow();
+}
+
+/** D-469: `.board.more` when the scoreboard row scrolls sideways (the CSS fades its edge). */
+function markBoardOverflow() {
+  const list = $('board');
+  list.parentElement?.classList.toggle('more', list.scrollWidth > list.clientWidth + 1);
 }
 
 /** @param {PublicState} s */
@@ -544,7 +551,10 @@ async function main() {
     input.value = '';
   });
   window.addEventListener('pagehide', () => session?.leave());
-  window.addEventListener('resize', () => pad.invalidate());
+  window.addEventListener('resize', () => {
+    pad.invalidate();
+    markBoardOverflow();
+  });
   session.hello(name);
   render();
 }
