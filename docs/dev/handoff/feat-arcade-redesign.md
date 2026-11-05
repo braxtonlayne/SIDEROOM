@@ -147,7 +147,7 @@ Arcade page with the Lounge not mounted.
   gets **ARC-ART-001** (D-481, scheduled after wave 47, scoped as Fable wrote it), and ARC-UI-010's line now says
   "editorial room by default".
 - **Gates.** web tsc, eslint, prettier: pass. vitest (arcade, showroom, emu): 183 passed. `check-css-tokens`: clean.
-  `i18n-audit`: 0. Emulator bundle: see the commit message.
+  `i18n-audit`: 0. Bundle budget: emulator 271.8 KB gzip (was 271.7, budget 320); first paint `app` 246.9 KB (was 246.8: the route file gained one lazy import).
 
 ## Not done
 
