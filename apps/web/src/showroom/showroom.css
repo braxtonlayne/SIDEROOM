@@ -146,10 +146,3 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-/* XC-VIS-003 G3: the section headings are sentence case like the rest of the Arcade; the small status badge on
-   each sample card reads well in capitals, which is a style, not copy. */
-.srm-status {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 0.75rem;
-}
