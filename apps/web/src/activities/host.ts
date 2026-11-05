@@ -311,7 +311,11 @@ export interface ActivityHost {
 
 /** D-460: GET a per-object URL without credentials, refusing more than `max` bytes. */
 export async function fetchCapped(url: string, max: number): Promise<Uint8Array> {
-  const res = await fetch(url, { credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' });
+  const res = await fetch(url, {
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   if (Number(res.headers.get('content-length') ?? 0) > max) throw new Error('too big');
   const bytes = new Uint8Array(await res.arrayBuffer());

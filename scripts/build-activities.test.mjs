@@ -36,7 +36,14 @@ test("arena3d's package manifest declares connect self and the capabilities the 
 test("sketch's package manifest declares the capabilities the brief names and no connect list (D-460)", () => {
   assert.ok(ACTIVITIES.sketch, 'sketch is registered');
   const m = JSON.parse(readFileSync(join(ACT, 'sketch', 'sideroom.json'), 'utf8'));
-  for (const c of ['datachannel', 'storage', 'guest_play', 'lobby_channel', 'host_handoff', 'byos_read'])
+  for (const c of [
+    'datachannel',
+    'storage',
+    'guest_play',
+    'lobby_channel',
+    'host_handoff',
+    'byos_read',
+  ])
     assert.ok(m.capabilities.includes(c), c);
   assert.equal(m.connect, undefined);
   assert.equal(checkTree(tree(m), m).length, 0);
