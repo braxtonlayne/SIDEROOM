@@ -3,7 +3,12 @@ import { render, screen } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createPublicRouter } from '../../test/publicRouter';
 import { http, HttpResponse, server } from '../../test/server';
-import { EntranceMarkdown, resetEntranceHero, setEntranceCopy } from './entranceCopy';
+import {
+  EntranceMarkdown,
+  houseNotesHeadingId,
+  resetEntranceHero,
+  setEntranceCopy,
+} from './entranceCopy';
 
 function at(path: string) {
   render(
@@ -57,6 +62,27 @@ describe('EntranceMarkdown', () => {
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
     expect(document.querySelector('img')).toBeNull();
     expect(screen.getByText(/<img src=x/)).toBeInTheDocument();
+  });
+
+  it('keeps a newline as a line break only with hardBreaks (FU-26)', () => {
+    const { container, rerender } = render(<EntranceMarkdown source={'one\ntwo'} />);
+    expect(container.querySelectorAll('p')).toHaveLength(1);
+    expect(container.querySelector('br')).toBeNull();
+    expect(container.querySelector('p')).toHaveTextContent('one two');
+    rerender(<EntranceMarkdown source={'one\ntwo\n\n> a\n> b'} hardBreaks />);
+    expect(container.querySelectorAll('p')).toHaveLength(2);
+    expect(container.querySelectorAll('br')).toHaveLength(2);
+    expect(container.querySelector('p')?.innerHTML).toBe('one<br>two');
+  });
+
+  it('builds the served page ids: op- prefix, Unicode letters, deduped (FU-25)', () => {
+    const seen = new Set<string>();
+    const id = (s: string) => houseNotesHeadingId(s, seen);
+    expect(id('Privacy')).toBe('op-privacy');
+    expect(id('Privacy!')).toBe('op-privacy-2');
+    expect(id('Ünï')).toBe('op-ünï');
+    expect(id('Café 2 go')).toBe('op-café-2-go');
+    expect(id('---')).toBe('');
   });
 });
 

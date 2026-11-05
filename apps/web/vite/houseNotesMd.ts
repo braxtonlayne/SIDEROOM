@@ -72,7 +72,9 @@ function construct(c: string[], i: number): [string, number] | null {
     const text = escapeHtml(span(c, i + 1, k));
     const href = span(c, k + 2, m);
     return [
-      safeHref(href) ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${text}</a>` : text,
+      safeHref(href)
+        ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer nofollow">${text}</a>`
+        : text,
       m + 1,
     ];
   }
@@ -100,7 +102,7 @@ function slug(text: string): string {
   let out = '';
   let dash = false;
   for (const ch of text) {
-    if (/[A-Za-z0-9]/.test(ch)) {
+    if (/[\p{L}\p{N}]/u.test(ch)) {
       if (dash && out) out += '-';
       dash = false;
       out += ch.toLowerCase();
@@ -164,7 +166,7 @@ export function renderHouseNotes(copy: string): string {
     para = [];
   };
   const flushQuote = () => {
-    if (quote.length) out += `<blockquote><p>${inline(quote.join(' '))}</p></blockquote>\n`;
+    if (quote.length) out += `<blockquote><p>${quote.map(inline).join('<br>')}</p></blockquote>\n`;
     quote = [];
   };
   const flushTable = () => {

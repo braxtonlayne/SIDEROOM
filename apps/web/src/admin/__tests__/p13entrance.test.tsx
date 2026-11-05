@@ -61,6 +61,25 @@ describe('Entrance pages editor', () => {
     expect(await screen.findByText('Back to the built-in text.')).toBeInTheDocument();
   });
 
+  it('previews house-notes like the served page: hard breaks and op- ids (FU-26)', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
+    server.use(
+      http.get('*/api/v1/sr/entrance/copy', () =>
+        HttpResponse.json({ 'house-notes': '# Privacy\n# Privacy\nline one\nline two' }),
+      ),
+    );
+    const user = userEvent.setup();
+    openAdmin('entrance');
+    const notes = within(
+      await screen.findByRole('region', { name: 'House notes' }, { timeout: 10_000 }),
+    );
+    await user.click(notes.getByRole('button', { name: 'Preview' }));
+    const preview = notes.getByRole('region', { name: 'Preview of the page text' });
+    expect(preview.querySelector('#op-privacy')).not.toBeNull();
+    expect(preview.querySelector('#op-privacy-2')).not.toBeNull();
+    expect(preview.querySelector('br')).not.toBeNull();
+  }, 20_000);
+
   it('refuses text over 16 KiB', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
     server.use(http.get('*/api/v1/sr/entrance/copy', () => HttpResponse.json({})));
