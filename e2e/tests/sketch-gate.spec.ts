@@ -3,6 +3,7 @@ import { test } from '../support/fixtures';
 import { builtInActivityBundle } from '../support/activityBundle';
 import { startActivityForTwo } from '../support/activities';
 import { VOICE_STACK } from '../support/voice';
+import { apiPatch } from '../support/fixtures';
 
 /**
  * ACT-SKS-001, the wave 47 gate proof (roadmap P28, D-385, D-389, D-396, D-397, D-460).
@@ -33,6 +34,19 @@ const PACK = {
 /** Routes a guest must never reach, and must not find in any script it loaded (D-397). */
 const MEMBER_ROUTES =
   /\/api\/v\d+\/(?:channels|users|guilds|shelves|scrapbook|profiles?|messages|relationships|dm)\b/;
+
+/**
+ * The visual check (AGENTS.md section 4): with SR_SKETCH_SHOTS=<folder> the run also saves the app's surfaces of this
+ * flow (the Activity panel with the game, the Share link dialog and its QR code, the guest page and the game on the
+ * phone) in the member's theme SR_SKETCH_THEME (light = Lounge Light, else the default dark theme). Off in CI.
+ */
+const SHOTS = process.env.SR_SKETCH_SHOTS ?? '';
+const THEME = process.env.SR_SKETCH_THEME === 'light' ? 'light' : 'dark';
+async function shot(page: Page, name: string) {
+  if (!SHOTS) return;
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${SHOTS}/${THEME}-${name}.png` });
+}
 
 const game = (page: Page): Frame => {
   const f = page.frames().find((x) => /\.activities\.|\/_activity\//.test(x.url()));
@@ -67,6 +81,10 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       const { a } = session;
       // One member: the developer account that uploaded the bundle leaves the call.
       await session.b.context.close();
+      if (SHOTS && THEME === 'light')
+        await apiPatch(a.context.request, '/users/@me/settings', {
+          settings: { user_prefs: { theme: 'lounge-light' } },
+        });
 
       // The pack: the mint route (the member's own session) and the bucket, played here.
       const minted: string[] = [];
@@ -100,6 +118,12 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       const href = await a.page.getByRole('textbox', { name: 'Guest link' }).inputValue();
       expect(href).toMatch(/\/play\/[0-9a-f]{64}#key=[A-Za-z0-9_-]{43}$/);
       await expect(a.page.getByRole('img', { name: 'QR code for the guest link' })).toBeVisible();
+      await shot(a.page, 'desktop-share-dialog');
+      if (SHOTS) {
+        await a.page.setViewportSize({ width: 375, height: 812 });
+        await shot(a.page, 'phone-share-dialog');
+        await a.page.setViewportSize({ width: 1280, height: 1000 });
+      }
       await a.page.getByRole('button', { name: 'Done' }).click();
 
       // The guest: a phone, in a fresh context (no cookies, no storage).
@@ -107,6 +131,7 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
         viewport: { width: 375, height: 812 },
         hasTouch: true,
         isMobile: true,
+        colorScheme: THEME,
       });
       const guestRequests: string[] = [];
       const guestScripts: Promise<{ url: string; body: string }>[] = [];
@@ -123,6 +148,7 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       });
       const g = await phone.newPage();
       await g.goto(href);
+      await shot(g, 'phone-guest-join');
       await g.getByRole('button', { name: 'Join the game' }).click();
       await expect(g.locator('iframe[title^="Game:"]')).toBeVisible({ timeout: 30_000 });
       const gl = g.frameLocator('iframe[title^="Game:"]');
@@ -141,6 +167,13 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
         )
         .toBe(2);
       expect(await fg.evaluate(() => (window as any).__sketch.guest())).toBe(true);
+      await shot(g, 'phone-guest-lobby');
+      await shot(a.page, 'desktop-panel-lobby');
+      if (SHOTS) {
+        await a.page.setViewportSize({ width: 375, height: 812 });
+        await shot(a.page, 'phone-panel-lobby');
+        await a.page.setViewportSize({ width: 1280, height: 1000 });
+      }
 
       // The host loads the pack: the bridge asks, the member allows, the member's page fetches the URL.
       void fa.evaluate((ref) => (window as any).__sketch.loadPack(ref), `${SHELF}/${HASH}`);
@@ -194,6 +227,8 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
         .toBeGreaterThan(0);
       // The guesser's page holds the ink (the pad drew it), and the prompt only as a mask.
       const mask: string = await fq.evaluate(() => (window as any).__sketch.state().mask);
+      await shot(a.page, 'desktop-panel-draw');
+      await shot(g, 'phone-guest-draw');
       expect(mask).not.toContain(prompt);
 
       if (guestDraws) {
@@ -209,6 +244,8 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       expect(after.word).toBe(prompt);
       expect(after.players.every((p: any) => p.score > 0)).toBe(true);
       await expect(gl.locator('#overlay')).toContainText(prompt);
+      await shot(a.page, 'desktop-panel-reveal');
+      await shot(g, 'phone-guest-reveal');
 
       // ---- The gate ------------------------------------------------------------------------------------------
       // The guest's network trace: the shell, one join call, the game's own origin; no member route, no shelf, no

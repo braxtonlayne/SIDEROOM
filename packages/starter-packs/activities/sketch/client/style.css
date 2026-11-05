@@ -204,9 +204,13 @@ p { margin: 0.25rem 0; }
 .you-draw .word { color: var(--accent); }
 
 .tools { display: flex; flex-direction: column; gap: 0.45rem; }
-.colors { display: grid; grid-template-columns: repeat(12, 1fr); gap: 0.3rem; }
+.colors { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 0.3rem; }
+@media (max-width: 360px) {
+  .colors { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .swatch { aspect-ratio: 2; }
+}
 .swatch {
-  aspect-ratio: 1; border-radius: 0.45rem; border: 2px solid var(--line); cursor: pointer; padding: 0; min-block-size: 1.6rem;
+  aspect-ratio: 1; border-radius: 0.45rem; border: 2px solid var(--line); cursor: pointer; padding: 0; min-inline-size: 0;
 }
 .swatch[aria-checked='true'] { border-color: var(--text); box-shadow: 0 0 0 2px var(--bg) inset; transform: scale(1.06); }
 .tool-row { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
