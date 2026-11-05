@@ -2,7 +2,7 @@
 #
 # The server hands clients short-lived credentials derived from the shared secret (the TURN REST API
 # convention: username = expiry timestamp, password = base64(hmac-sha1(secret, username))), so no user
-# list lives in coturn. The same secret must be given to sr-server once voice ships (the TURN setting is not in the config yet).
+# list lives in coturn. Give sr-server the same secret as voice.turn.secret (SR_VOICE_TURN_SECRET in .env.prod).
 #
 #   openssl rand -hex 32      # static-auth-secret
 #

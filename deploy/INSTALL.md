@@ -81,6 +81,12 @@ Put `database.url`, `server.secret_key`, `storage.access_key`, `storage.secret_k
 
 Limits that are product settings (upload size, invite caps) are stored in the database and set from the admin pages, not here. (doc 12 §3)
 
+**Voice, Activities and PeerTube on the Compose route.** All three are off by default and switched on from `.env.prod`; `prod.yml` passes them to `sr-server`.
+
+- Voice: the SFU runs inside `sr-server`. Set `SR_VOICE_ENABLED=true` and `SR_VOICE_ANNOUNCE_IPS` to the host's public IP (comma-separated for several), and open UDP 50000-50099 on the firewall (Compose publishes that range). Members whose network blocks direct UDP need the TURN relay: copy `deploy/compose/coturn/turnserver.prod.conf.example` to `turnserver.prod.conf` and fill it in, put the certificate and key for port 5349 in `SR_TURN_TLS_DIR`, set `SR_VOICE_TURN_URLS` and `SR_VOICE_TURN_SECRET` (the `static-auth-secret`), open 3478 udp+tcp, 5349 tcp and 49152-49999 udp, and start with `--profile turn`.
+- Activities and the Arcade's house games: `SR_ACTIVITIES_ENABLED=true`, plus the web build and Caddy changes in doc 12 "Switching Activities on".
+- PeerTube "Play here": `SR_PEERTUBE_HOSTS` (comma-separated host names), and build the web app with the same list.
+
 ## 5. Install walkthrough
 
 1. **Get the binary or image.** Build the static server image from the repository root:
