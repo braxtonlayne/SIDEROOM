@@ -108,28 +108,7 @@ export default defineConfig(({ command }) => ({
   worker: { format: 'es' },
   // BYOS-CNV-001: ffmpeg.wasm starts its worker with new URL('./worker.js', import.meta.url), which the dev
   // pre-bundler would break. The core (@ffmpeg/core) is imported with ?url: a separate static file, never inlined.
-  // Under e2e (VITE_SR_E2E=1) the dev server scans every source file for dependencies at start, so it never finds a
-  // new one mid-run and reloads: a lazy route visited first by a spec (watch-together on a fresh half of the E2E run,
-  // PR #87) otherwise failed with "Failed to fetch dynamically imported module" while the optimizer reloaded.
-  optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'],
-    ...(process.env.VITE_SR_E2E === '1'
-      ? {
-          // Test-only helpers import Node modules (msw/node) the browser scanner cannot resolve; one failure aborts
-          // the whole scan, so they stay out.
-          entries: [
-            'index.html',
-            'src/**/*.{ts,tsx}',
-            '!src/**/*.d.ts',
-            '!src/**/*.test.{ts,tsx}',
-            '!src/**/__tests__/**',
-            '!src/test/**',
-            '!src/**/*TestUtils.{ts,tsx}',
-            '!src/**/*.stories.tsx',
-          ],
-        }
-      : {}),
-  },
+  optimizeDeps: { exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'] },
   server: {
     port: 5173,
     // Report-only in dev: the HMR socket and react-refresh preamble are inline, and a header must never

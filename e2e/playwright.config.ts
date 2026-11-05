@@ -102,7 +102,8 @@ export default defineConfig({
               : 'pnpm --filter @sideroom/web dev --host 127.0.0.1 --port 5173 --strictPort',
           cwd: '..',
           url: baseURL,
-          reuseExistingServer: !process.env.CI,
+          // In CI each run starts its own, except where a job starts one Vite for all its steps (SR_E2E_SHARED_WEB).
+          reuseExistingServer: !process.env.CI || process.env.SR_E2E_SHARED_WEB === '1',
           timeout: 120_000,
           // Skips the first-run welcome modal (apps/web/src/lounge/shell/Welcome.tsx): every e2e account is new.
           env: { VITE_SR_E2E: '1' },

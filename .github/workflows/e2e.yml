@@ -22,6 +22,9 @@ jobs:
     runs-on: ubuntu-latest
     # 45: WebKit took 26 minutes before the two exit-gate specs got their own step (RDY-DEV-005, RDY-MOD-001).
     timeout-minutes: 45
+    env:
+      # XC-CI-007: Playwright reuses the one Vite dev server this job starts (see "Start the Vite dev server").
+      SR_E2E_SHARED_WEB: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +44,14 @@ jobs:
           key: emu-cores-${{ hashFiles('deploy/emu-cores.lock') }}
       - name: Verify or fetch the emulator cores
         run: ./deploy/scripts/fetch-emu-cores.sh
+      - name: Start the Vite dev server (shared by every step below)
+        # XC-CI-007: one dev server for the whole job, as before the split. Each step below still gets a fresh sr-server
+        # (e2e-run.sh), which is what resets the registration counters. A fresh Vite per step re-optimized dependencies
+        # mid-run and reloaded open pages: watch-together failed on the second half (PR #87, "Failed to fetch dynamically
+        # imported module", then 504 Outdated Optimize Dep). The process outlives this step and ends with the job.
+        run: |
+          VITE_SR_E2E=1 nohup pnpm --filter @sideroom/web dev --host 127.0.0.1 --port 5173 --strictPort > vite.log 2>&1 &
+          timeout 120 bash -c 'until curl -fs -o /dev/null http://localhost:5173/; do sleep 1; done' || { cat vite.log; exit 1; }
       - name: Migrate, start the server, run Playwright (specs a-f)
         # global-setup.ts bootstraps the Owner; e2e-run.sh starts sr-server and stops it afterwards.
         #
@@ -122,6 +133,7 @@ jobs:
             server.log
             server-main.log
             server-main-b.log
+            vite.log
             server-showroom.log
 
   # SEC-ENT-004 (D-385): the built bundle behind the real gate. sr-server serves apps/web/dist itself (SR_E2E_WEB=server:
