@@ -145,7 +145,8 @@ try {
 }
 
 /** The built-in Activities of wave 36, arena3d of wave 46 and sketch of wave 47 (packages/starter-packs/activities/<name>). */
-export type BuiltInActivity = 'whiteboard' | 'holdem' | 'tabletop' | 'landio' | 'arena3d' | 'sketch';
+export type BuiltInActivity =
+  'whiteboard' | 'holdem' | 'tabletop' | 'landio' | 'arena3d' | 'sketch';
 
 /**
  * A built-in Activity's bundle, exactly as a server's developer uploads it: `scripts/build-activities.mjs`
