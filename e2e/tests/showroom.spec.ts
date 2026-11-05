@@ -99,9 +99,10 @@ test.describe('Showroom (populated preview) @showroom', () => {
     await expect(arcade).toBeVisible();
     const live = arcade.getByRole('region', { name: 'Playable now' });
     const soon = arcade.getByRole('region', { name: 'Preview / in development' });
-    await expect(live.getByRole('article')).toHaveCount(3);
+    // ARC-UI-010: the six live house games come first, then the three sample builds; the samples are last.
+    await expect(live.getByRole('article')).toHaveCount(9);
     await expect(soon.getByRole('article')).toHaveCount(4);
-    await live.getByRole('button', { name: 'Play' }).first().click();
+    await live.getByRole('button', { name: 'Play' }).last().click();
     await expect(page.getByTestId('showroom-hint')).toContainText('no game was started');
 
     // The rail: ten sample servers with voice and unread cues.
