@@ -35,7 +35,7 @@ Options for the owner:
 2. **Per-instance CSP from the mounts.** The activity proxy adds the storage host of every mount the member can reach
    to `connect-src` for `byos_read` games. Needs the proxy to know the viewer (it is cookieless today) or a per-instance
    policy; it widens the policy to hosts no reviewer saw. Not built.
-3. **Bytes through the bridge.** The member's page fetches the object (the mount's CORS is already checked for the app
+3. **Bytes through the bridge (built in wave 47 as `shelfObjectBytes`, D-460; 1 MiB cap).** The member's page fetches the object (the mount's CORS is already checked for the app
    origin, `cors_ok_at`) and hands the frame the bytes (transferable `ArrayBuffer`, size-capped, like `saveFile` in
    reverse). No CSP change at all, works for every host; costs app-page memory for big assets and needs a size cap.
    Not built; the smallest next step if option 1 is too narrow.
