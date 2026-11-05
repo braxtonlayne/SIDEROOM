@@ -95,7 +95,7 @@ SR_OWNER_PASSWORD='<owner password>' ./target/release/sr-cli bootstrap --owner-u
   So testers cannot invite more people, set the invite setting `invites.default_credits` to `0` in **Admin** before
   they register.
 - **Activities:** a game has to be uploaded as an application's Activity bundle and approved, as on any server
-  (`node scripts/build-activities.mjs <whiteboard|holdem|tabletop|landio|arena3d>` builds the zips under
+  (`node scripts/build-activities.mjs <whiteboard|holdem|tabletop|landio|arena3d|sketch>` builds the zips under
   `packages/starter-packs/activities/dist/`). With `memory:` storage, upload again after a restart.
 
 ## Why the server handles the tunnel correctly
