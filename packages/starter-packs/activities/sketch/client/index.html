@@ -34,7 +34,7 @@
         </form>
         <h2>Players <span id="lobby-count" class="pill"></span></h2>
         <ul id="lobby-players" class="chips"></ul>
-        <div class="join-tip">
+        <div class="join-tip" id="join-tip">
           <strong>Playing on a phone?</strong>
           <span>Anyone in the call can open <em>Share link</em> on the Activity and show the QR code: a phone that scans it joins as a guest and becomes a drawing pad.</span>
         </div>
@@ -69,7 +69,7 @@
     <section id="scr-game" class="screen game" hidden>
       <aside class="board" aria-label="Scores">
         <ol id="board" class="board-list"></ol>
-        <button type="button" id="skip" class="btn ghost small" hidden>Skip this turn</button>
+        <button type="button" id="skip" class="btn ghost small" hidden aria-label="Skip this turn">Skip turn</button>
       </aside>
       <div class="stage">
         <div class="paper-wrap">

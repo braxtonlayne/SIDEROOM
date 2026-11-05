@@ -234,6 +234,8 @@ function renderLobby(s) {
   );
   $('lobby-count').textContent = String(players.length);
   $('host-panel').hidden = !host;
+  // A guest is already on a phone: the tip is for the people in the call.
+  $('join-tip').hidden = platform.guest;
   $('wait-panel').hidden = host;
   $('wait-host').textContent = nameOf(s, s.host);
   $('wait-settings').textContent = `${s.settings.rounds} ${s.settings.rounds === 1 ? 'round' : 'rounds'}, ${s.settings.drawSecs} seconds to draw${s.packs.length ? `, ${s.packs.map((p) => p.name).join(', ')}` : ''}`;
@@ -360,6 +362,7 @@ function renderGame(s) {
   const secret = session?.secret();
   $('hud-round').textContent = `Round ${s.round}/${s.settings.rounds}`;
   const hint = $('hud-hint');
+  hint.classList.toggle('plain', drawing && !!secret?.prompt && s.phase === 'draw');
   if (drawing && secret?.prompt && s.phase === 'draw') hint.textContent = secret.prompt;
   else if (s.phase === 'draw' || s.phase === 'reveal') {
     hint.textContent = s.mask;
@@ -376,8 +379,8 @@ function renderGame(s) {
   const input = /** @type {HTMLInputElement} */ ($('guess'));
   input.disabled = !guessing;
   /** @type {HTMLButtonElement} */ ($('guess-form').querySelector('button')).disabled = !guessing;
-  input.placeholder = drawing ? 'You are drawing' : s.guessed.includes(me) ? 'You got it! Wait for the others' : s.phase === 'draw' ? 'Type your guess' : 'Wait for the next turn';
-  $('guess-form').hidden = drawing && s.phase === 'draw';
+  input.placeholder = drawing ? 'You are drawing' : s.guessed.includes(me) ? 'You got it!' : s.phase === 'draw' ? 'Type your guess' : 'Wait for the next turn';
+  $('guess-form').hidden = drawing && (s.phase === 'draw' || s.phase === 'pick');
   /** @type {HTMLCanvasElement} */ ($('pad')).classList.toggle('can-draw', isDrawing());
   if (s.turnNo !== lastTurn) {
     lastTurn = s.turnNo;
