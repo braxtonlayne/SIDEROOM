@@ -1,9 +1,7 @@
 // ARC-UI-010 (wave 47): the Arcade redesign: hero, built-in games, sections and empty states.
 export default {
-  'arcade.hero.eyebrow': 'Games night, any night',
   'arcade.hero.pitch':
     'Games for your calls. Start one in any channel and everyone in the room plays together, right in the browser.',
-  'arcade.hero.howHeading': 'How to start a game',
   'arcade.hero.howMenu': 'In a channel, open the message box’s + menu and pick Start an Activity.',
   'arcade.hero.howMenuTitle': 'From a channel',
   'arcade.hero.howCall': 'In a voice call, press the Activities button on the call bar.',
@@ -31,11 +29,10 @@ export default {
   'arcade.builtin.tabletop.pitch':
     'A grid or hex map with tokens, fog of war, initiative and a dice tray anyone can check.',
   'arcade.emulator.kicker': 'Your own games',
-  'arcade.featured.intro': 'Community games the Operator picked.',
-  'arcade.featured.emptyHint': 'When the Operator picks community games, they show up here.',
+  'arcade.featured.intro':
+    'Community games the Operator picked. Each one says who owns its code, art and sound.',
   'arcade.cartridges.listButton': 'List a cartridge',
   'arcade.cartridges.listIn': 'List a cartridge in {server}',
-  'arcade.cartridges.inServer': 'Showing {server}',
   'arcade.cartridges.emptyTitle': 'No cartridges in {server} yet',
   'arcade.cartridges.emptyBody':
     'A cartridge is a game or mod a server keeps on its own shelf. Only that server’s members see it, and anyone can list one.',

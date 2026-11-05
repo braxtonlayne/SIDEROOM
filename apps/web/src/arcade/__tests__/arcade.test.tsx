@@ -97,9 +97,20 @@ describe('Featured', () => {
     expect(within(horizon).queryByText(/Start it from a channel/)).toBeNull();
   });
 
-  it('says so when nothing is featured', () => {
-    render(<FeaturedSection featured={[]} flags={flags} />);
-    expect(screen.getByText(/Nothing is featured yet/)).toBeInTheDocument();
+  it('is not on the page while nothing is featured (D-474)', () => {
+    const { container } = render(<FeaturedSection featured={[]} flags={flags} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole('heading', { name: 'Featured' })).toBeNull();
+  });
+
+  it('appears with its intro and provenance line once there is a pick (D-475)', () => {
+    render(<FeaturedSection featured={[featured()]} flags={flags} />);
+    expect(screen.getByRole('region', { name: 'Featured' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Community games the Operator picked. Each one says who owns its code, art and sound.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('shows the badges and actions the trust provider supplies for a build hash', () => {

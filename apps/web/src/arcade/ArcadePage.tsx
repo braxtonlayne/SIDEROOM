@@ -5,10 +5,9 @@ import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
 import { apiFetch } from '../api/client';
 import type { Guild } from '../store/types';
-import { PreviewToggle } from '../showroom/PreviewToggle';
 import { useShowroomActive } from '../showroom/state';
 import { httpArcadeApi, type ArcadeApi } from './api';
-import { ArcadeHero } from './ArcadeHero';
+import { ArcadeShell } from './ArcadeShell';
 import {
   CartridgesSection,
   ComingSoonSection,
@@ -91,16 +90,16 @@ function RealArcadePage({
 
   const links = [
     { href: '#playable', label: t('arcade.playable.heading') },
-    { href: '#featured', label: t('arcade.featured.heading') },
+    // D-474: no Featured link while there are no picks (the section is not on the page).
+    ...(front && front.featured.length > 0
+      ? [{ href: '#featured', label: t('arcade.featured.heading') }]
+      : []),
     { href: '#cartridges', label: t('arcade.cartridges.heading') },
     { href: '#coming-soon', label: t('arcade.soon.heading') },
   ];
 
   return (
-    <main className="arc-page">
-      <ArcadeHero links={links}>
-        <PreviewToggle />
-      </ArcadeHero>
+    <ArcadeShell links={links}>
       <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} />
       {failed && (
         <div className="arc-section">
@@ -135,6 +134,6 @@ function RealArcadePage({
           <ComingSoonSection entries={front.coming_soon} api={api} flags={front.flags} />
         </TrustProvider>
       )}
-    </main>
+    </ArcadeShell>
   );
 }

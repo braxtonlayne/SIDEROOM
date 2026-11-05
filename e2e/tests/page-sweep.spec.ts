@@ -47,6 +47,8 @@ const VIEWPORTS = {
 } as const;
 type Viewport = keyof typeof VIEWPORTS;
 const THEMES = ['light', 'dark'] as const;
+/** The theme the "dark" pass uses: the default a new account gets, or another (`SR_SWEEP_DARK=lounge-dark`). */
+const DARK_THEME = process.env.SR_SWEEP_DARK || 'lounge-editorial';
 type Theme = (typeof THEMES)[number];
 
 test.skip(!ON, 'Opt-in sweep: set SR_E2E_SWEEP=1.');
@@ -567,7 +569,7 @@ async function capture(
     storageState: opts.signedIn ? OWNER_STATE : undefined,
     bypassCSP: true,
   });
-  const theme = opts.theme === 'light' ? 'lounge-light' : 'lounge-editorial';
+  const theme = opts.theme === 'light' ? 'lounge-light' : DARK_THEME;
   await context.addInitScript(
     ([t, showroom]) => {
       try {
@@ -975,7 +977,7 @@ async function setThemeOnAccount(browser: Browser, theme: Theme) {
   const context = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
   try {
     await apiPatch(context.request, '/users/@me/settings', {
-      settings: { user_prefs: { theme: theme === 'light' ? 'lounge-light' : 'lounge-editorial' } },
+      settings: { user_prefs: { theme: theme === 'light' ? 'lounge-light' : DARK_THEME } },
     });
   } finally {
     await context.close();

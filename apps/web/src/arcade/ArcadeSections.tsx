@@ -133,7 +133,10 @@ export function PlayableSection({
   );
 }
 
-/** Featured / Front Page: the Operator's picks of community games. */
+/**
+ * Featured / Front Page: the Operator's picks of community games. Hidden while there are none (D-474): the Operator
+ * finds the picks in Admin > Arcade, and an empty shelf reads as broken.
+ */
 export function FeaturedSection({
   featured,
   flags,
@@ -142,6 +145,7 @@ export function FeaturedSection({
   flags: CapabilityFlag[];
 }) {
   const t = useT();
+  if (featured.length === 0) return null;
   return (
     <section aria-labelledby="arc-featured" id="featured" className="arc-section">
       <SectionHead
@@ -149,41 +153,32 @@ export function FeaturedSection({
         title={t('arcade.featured.heading')}
         intro={t('arcade.featured.intro')}
       />
-      {featured.length > 0 ? (
-        <div className="arc-grid">
-          {featured.map((f) => (
-            <GameCard
-              key={f.application_id}
-              title={f.name}
-              description={f.description}
-              blurb={f.blurb}
-              art="featured"
-              status={f.eligibility.browser_play ? 'live' : undefined}
-              tier={f.tier}
-              eligibility={f.eligibility}
-              capabilities={f.capabilities}
-              flags={flags}
-              tips={f.tip_links}
-              trust={{
-                applicationId: f.application_id,
-                name: f.name,
-                codeSha256: f.code_sha256 ?? null,
-              }}
-            >
-              {f.eligibility.browser_play && (
-                <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
-              )}
-            </GameCard>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          className="arc-empty"
-          icon={<Icon name="star" size={32} />}
-          title={t('arcade.featured.none')}
-          description={t('arcade.featured.emptyHint')}
-        />
-      )}
+      <div className="arc-grid">
+        {featured.map((f) => (
+          <GameCard
+            key={f.application_id}
+            title={f.name}
+            description={f.description}
+            blurb={f.blurb}
+            art="featured"
+            status={f.eligibility.browser_play ? 'live' : undefined}
+            tier={f.tier}
+            eligibility={f.eligibility}
+            capabilities={f.capabilities}
+            flags={flags}
+            tips={f.tip_links}
+            trust={{
+              applicationId: f.application_id,
+              name: f.name,
+              codeSha256: f.code_sha256 ?? null,
+            }}
+          >
+            {f.eligibility.browser_play && (
+              <p className="arc-dim">{t('arcade.featured.startHintAny')}</p>
+            )}
+          </GameCard>
+        ))}
+      </div>
     </section>
   );
 }

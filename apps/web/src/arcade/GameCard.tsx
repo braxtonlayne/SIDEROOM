@@ -1,3 +1,4 @@
+import { Pill, Tag } from '@sideroom/ui';
 import { useId, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { GameArt } from './GameArt';
@@ -100,11 +101,6 @@ export function GameCard(p: GameCardProps) {
       {p.art && (
         <div className="arc-card-art">
           <GameArt kind={p.art} seed={p.title} />
-          {p.status && (
-            <span className="arc-ribbon" data-status={p.status}>
-              {t(p.status === 'live' ? 'arcade.status.live' : 'arcade.status.preview')}
-            </span>
-          )}
         </div>
       )}
       <div className="arc-card-body">
@@ -112,7 +108,12 @@ export function GameCard(p: GameCardProps) {
           <h3 className="arc-card-title" id={titleId}>
             {p.title}
           </h3>
-          {p.badge && <span className="arc-chip arc-chip-badge">{p.badge}</span>}
+          {p.status && (
+            <Pill tone={p.status === 'live' ? 'success' : 'warning'} className="arc-status">
+              {t(p.status === 'live' ? 'arcade.status.live' : 'arcade.status.preview')}
+            </Pill>
+          )}
+          {p.badge && <Tag variant="filled">{p.badge}</Tag>}
         </header>
         {p.blurb && <p className="arc-blurb">{p.blurb}</p>}
         {p.description && <p className="arc-desc">{p.description}</p>}

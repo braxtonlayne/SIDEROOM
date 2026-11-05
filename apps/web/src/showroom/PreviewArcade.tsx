@@ -1,12 +1,11 @@
 import { Button, Icon } from '@sideroom/ui';
-import { ArcadeHero } from '../arcade/ArcadeHero';
+import { ArcadeShell } from '../arcade/ArcadeShell';
 import { BuiltinCard, SectionHead } from '../arcade/ArcadeSections';
 import { builtinsByStatus } from '../arcade/builtins';
 import { GameCard } from '../arcade/GameCard';
 import { useT } from '../i18n';
 import { FIXTURE_GAMES, type FixtureGame } from './fixtures';
 import { previewHint } from './state';
-import { PreviewToggle } from './PreviewToggle';
 import '../arcade/arcade.css';
 import './showroom.css';
 
@@ -51,15 +50,13 @@ export default function PreviewArcade() {
   const soon = FIXTURE_GAMES.filter((g) => g.status === 'preview');
   const builtins = builtinsByStatus();
   return (
-    <main className="arc-page" data-testid="showroom-arcade">
-      <ArcadeHero
-        links={[
-          { href: '#srm-live-games', label: t('showroom.arcade.playableNow') },
-          { href: '#srm-soon-games', label: t('showroom.arcade.inDevelopment') },
-        ]}
-      >
-        <PreviewToggle />
-      </ArcadeHero>
+    <ArcadeShell
+      testId="showroom-arcade"
+      links={[
+        { href: '#srm-live-games', label: t('showroom.arcade.playableNow') },
+        { href: '#srm-soon-games', label: t('showroom.arcade.inDevelopment') },
+      ]}
+    >
       <section className="arc-section" aria-labelledby="srm-live" id="srm-live-games">
         <SectionHead id="srm-live" title={t('showroom.arcade.playableNow')} />
         <div className="arc-grid">
@@ -82,6 +79,6 @@ export default function PreviewArcade() {
           ))}
         </div>
       </section>
-    </main>
+    </ArcadeShell>
   );
 }
