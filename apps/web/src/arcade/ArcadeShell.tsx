@@ -5,10 +5,28 @@
 import type { ReactNode } from 'react';
 import { useT } from '../i18n';
 import { RoomsNav } from '../study/RoomsNav';
+import './arcade.css';
 
 export interface HeroLink {
   href: string;
   label: string;
+}
+
+/**
+ * The rooms bar of the Arcade (`SIDE ROOM / The Lounge · The Arcade · The Study`, the Arcade current). Also on the
+ * Emulator page, a room of the Arcade (D-480).
+ */
+export function ArcadeRoomBar() {
+  const t = useT();
+  return (
+    <header className="arc-roombar">
+      <span className="arc-roombar-brand">{t('arcade.page.brand')}</span>
+      <span aria-hidden="true" className="arc-roombar-slash">
+        /
+      </span>
+      <RoomsNav current="arcade" className="arc-roombar-nav" linkClassName="arc-roombar-link" />
+    </header>
+  );
 }
 
 export function ArcadeShell({
@@ -26,13 +44,7 @@ export function ArcadeShell({
   const t = useT();
   return (
     <div className="arc-root">
-      <header className="arc-roombar">
-        <span className="arc-roombar-brand">{t('arcade.page.brand')}</span>
-        <span aria-hidden="true" className="arc-roombar-slash">
-          /
-        </span>
-        <RoomsNav current="arcade" className="arc-roombar-nav" linkClassName="arc-roombar-link" />
-      </header>
+      <ArcadeRoomBar />
       {(links.length > 0 || action) && (
         <div className="arc-tabs">
           {links.length > 0 && (

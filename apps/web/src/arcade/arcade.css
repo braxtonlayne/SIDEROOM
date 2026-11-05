@@ -459,8 +459,7 @@
 /* The Emulator link, sized and coloured as the kit's secondary button. */
 .arc-cta {
   display: inline-flex;
-  text-wrap: balance;
-  text-align: center;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   min-block-size: 32px;
@@ -791,6 +790,11 @@
   .arc-page {
     gap: 32px;
     padding-block-start: 24px;
+  }
+  /* The section action (+ List a cartridge) drops to its own line under the note (D-482). */
+  .arc-section-head > :is(button, a, .arc-cta) {
+    flex-basis: 100%;
+    justify-content: center;
   }
   /* Fix 5: the rooms bar wraps like The Study's; the pill row stays one scrolling line with the + pinned after it. */
   .arc-roombar {

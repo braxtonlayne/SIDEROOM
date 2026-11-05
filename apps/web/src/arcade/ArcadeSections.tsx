@@ -245,8 +245,8 @@ export function PlayableSection({
             meta={<span className="arc-meta-item">{t('arcade.emulator.kicker')}</span>}
           >
             <div className="arc-actions">
-              <Link to="/games/emulator" className="arc-cta">
-                {t('arcade.emulator.open')}
+              <Link to="/games/emulator" className="arc-cta" aria-label={t('arcade.emulator.open')}>
+                {t('arcade.emulator.openShort')}
               </Link>
             </div>
           </GameCard>
@@ -423,7 +423,11 @@ function cartridgeMeta(
       {sha && (
         <span className="arc-meta-item arc-sha">
           <span className="arc-sha-label">{t('arcade.cartridges.sha')}</span>
-          <code>{sha}</code>
+          {/* 12 hex characters on the storefront (Admin shows 8, D-407); the full hash is the title and is copied. */}
+          <code title={sha}>
+            <span aria-hidden="true">{sha.slice(0, 12)}…</span>
+            <span className="arc-sr-only">{sha}</span>
+          </code>
         </span>
       )}
     </>

@@ -122,6 +122,33 @@ Arcade page with the Lounge not mounted.
 - `arcade-room.spec.ts` against my stack: passed. Its fixture now has `guest_play` active plus a reserved `ingame_voice`, and it asserts that plumbing and reserved flags stay hidden (D-479).
 - Rust (`sr-features`, `sr-theme`): `cargo fmt --check` clean, `clippy -D warnings` clean, `cargo test` passed (139, 16, 3 and 1 tests).
 
+## Round 5: Fable's second review (D-480 to D-482, ship gate)
+
+`SIDEROOM_wt/arcade-fable-review-2.md` says: ship as wave 47 once its gate items are done.
+
+- **D-480.** `ArcadeShell.tsx` now exports `ArcadeRoomBar`. `/games/emulator` renders it, lazy-loaded, above
+  `EmuPage` or `EmulatorSwitchedOff`, inside the Arcade theme. `.emu-page` now uses `.arc-page`'s inline padding and
+  width, so the two pages line up. `emuPage.test.tsx` checks that the rooms bar is there with The Arcade current, and
+  that the page is editorial for a Lounge Light member.
+- **Shots.** `emulator-*` are in `arcade-r4/` (Editorial and Lounge Light) and `arcade-r4-loungedark/`, at desktop and
+  phone. Looked at: same bar as the Arcade, same left edge, same face, nothing flagged.
+- **Re-shoots from the final commit.** `arcade-r4/arcade-*`, `showroom-arcade-*` and `admin-arcade-*` in both
+  folders, and `arcade-r4/flows-final/` (populated at 1280, 375 and 320 px, plus the board-tool Start in). Looked at:
+  - One tier tag per card, never wrapping (`5bdd2637`).
+  - The Start in dialog shows "Your servers" here because the sweep's account is in two servers (the label is hidden
+    only with one).
+- **Gate (c), phone section head.** Below 40 rem the "+ List a cartridge" action takes its own full-width line under
+  the note.
+- **Same-wave polish.**
+  - The cartridge SHA-256 shows its first 12 hex characters plus "…". The full hash is in the `title` and in a
+    visually hidden span.
+  - The Emulator card's link is visible as "Open", with `aria-label` "Open the emulator", so it never wraps.
+- **Docs.** The decisions log gets D-480 to D-482, and D-476's status now says it covers `/games/**`. The inventory
+  gets **ARC-ART-001** (D-481, scheduled after wave 47, scoped as Fable wrote it), and ARC-UI-010's line now says
+  "editorial room by default".
+- **Gates.** web tsc, eslint, prettier: pass. vitest (arcade, showroom, emu): 183 passed. `check-css-tokens`: clean.
+  `i18n-audit`: 0. Emulator bundle: see the commit message.
+
 ## Not done
 
 - **Active lobbies strip**: needs a server route listing the running instances a member can join across their
@@ -135,9 +162,8 @@ Arcade page with the Lounge not mounted.
 
 Round 3's three questions are answered by Fable (D-476 to D-478). New, with defaults applied:
 
-1. The emulator page (`/games/emulator`) now follows the Arcade's theme, so it is editorial by default. Should it follow
-   the member's Lounge theme instead?
-2. Fix 11, the richer cover scenes, is not done: a follow-up for its own handoff, as the review says.
+1. (Answered by D-480: the Emulator keeps the Arcade theme and carries its rooms bar.)
+2. Fix 11, the richer cover scenes, is scheduled as ARC-ART-001 (D-481).
 
 ## Stack
 
