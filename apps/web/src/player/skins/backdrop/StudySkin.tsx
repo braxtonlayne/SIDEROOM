@@ -3,12 +3,20 @@
  * the retro desktop window and the pixel handheld). Painted: the pink stitched shell, the turntable on its mint
  * pad (the record turns and the tone arm swings in while a track plays), the pixel sleeping cat on the little
  * screen, the frosting on the seek ribbon and its bunny, the tomato, the notebook spirals and stickers, and the
- * ambience mixer (it makes no sound: there are no ambience sound files yet, and the card says so).
+ * mixer's cloud, record and cup thumbs.
  * Live: the ticker, the time and a rainbow level meter on the screen, the seek ribbon, the round transport keys,
  * the focus timer and the notes pad (through `SkinExtras`: wave 32's shared tools once bound, a working
- * in-memory default until then), the queue, shuffle, repeat, volume, skin, dock and close.
+ * in-memory default until then), the ambience mixer (rain, crackle and café synthesised in the browser, wave 50),
+ * the queue, shuffle, repeat, volume, skin, dock and close.
  */
-import { useId, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import {
+  useEffect,
+  useId,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { useT } from '../../../i18n';
 import {
   CloseButton,
@@ -27,10 +35,16 @@ import {
   VolumeControl,
   useNowPlayingText,
 } from '../../controls';
+import {
+  ambienceLevels,
+  releaseAmbienceIfSilent,
+  setAmbienceLevel,
+  subscribeAmbience,
+} from '../../ambience';
 import { usePlayerStore } from '../../store';
 import { useSkinExtras, type SkinExtras } from './extras';
 import { Art, BackdropFrame, LedMeter } from './frame';
-import { QueueButtons, ShuffleButton, useQueueCount } from './parts';
+import { QueueButtons, resetHandlers, ShuffleButton, useQueueCount } from './parts';
 import './study.css';
 
 // ---- Painted pieces ----
@@ -368,22 +382,23 @@ function SlotThumb({ kind }: { kind: 'rain' | 'crackle' | 'cafe' }) {
   );
 }
 
-/** The cosy ambience mixer. It is painted only: there are no ambience sound files yet, and the card says so. */
+/**
+ * The cosy ambience mixer (D-524): rain, crackle and café, synthesised in the browser (`player/ambience.ts`), each
+ * slider a real range from 0 to 100. The levels live for the tab, so they survive a skin change; with every slider
+ * at zero the mixer closes when the skin goes away, and closing the player stops it.
+ */
 function AmbienceMixer() {
   const t = useT();
   const id = useId();
+  const levels = useSyncExternalStore(subscribeAmbience, ambienceLevels, ambienceLevels);
+  useEffect(() => releaseAmbienceIfSilent, []);
   const slots = [
-    ['rain', t('player.skinx.study.rain'), 0.65],
-    ['crackle', t('player.skinx.study.crackle'), 0.4],
-    ['cafe', t('player.skinx.study.cafe'), 0.15],
+    ['rain', t('player.skinx.study.rain')],
+    ['crackle', t('player.skinx.study.crackle')],
+    ['cafe', t('player.skinx.study.cafe')],
   ] as const;
   return (
-    <section
-      className="st-card st-mixer"
-      aria-labelledby={`${id}-h`}
-      aria-describedby={`${id}-d`}
-      title={t('player.skinx.study.mixerSoon')}
-    >
+    <section className="st-card st-mixer" aria-labelledby={`${id}-h`} aria-describedby={`${id}-d`}>
       <h2 id={`${id}-h`} className="st-card-h st-mixer-h">
         <Art className="st-rain-icon">
           <svg viewBox="0 0 24 24">
@@ -396,28 +411,48 @@ function AmbienceMixer() {
         </Art>
         {t('player.skinx.study.mixer')}
       </h2>
-      <Art className="st-mixer-slots">
-        {slots.map(([kind, label, v]) => (
-          <span
-            key={kind}
-            className={`st-slot st-slot-${kind}`}
-            style={{ '--v': v } as CSSProperties}
-          >
-            <span className="st-slot-track">
-              <span className="st-slot-groove" />
-              <span className="st-slot-thumb">
-                <SlotThumb kind={kind} />
+      <div className="st-mixer-slots">
+        {slots.map(([kind, label]) => {
+          const v = levels[kind];
+          const pct = t('player.skinx.study.pct', { n: Math.round(v * 100) });
+          return (
+            <label
+              key={kind}
+              className={`st-slot st-slot-${kind}`}
+              style={{ '--v': v } as CSSProperties}
+              data-on={v > 0}
+            >
+              <span className="st-slot-track">
+                <input
+                  type="range"
+                  className="st-slot-input"
+                  aria-label={label}
+                  aria-orientation="vertical"
+                  aria-valuetext={pct}
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={Math.round(v * 100)}
+                  onChange={(e) => setAmbienceLevel(kind, Number(e.target.value) / 100)}
+                  {...resetHandlers(() => setAmbienceLevel(kind, 0))}
+                />
+                <Art className="st-slot-art">
+                  <span className="st-slot-groove" />
+                  <span className="st-slot-thumb">
+                    <SlotThumb kind={kind} />
+                  </span>
+                </Art>
               </span>
-            </span>
-            <span className="st-slot-label">{label}</span>
-            <span className="st-slot-val">
-              {t('player.skinx.study.pct', { n: Math.round(v * 100) })}
-            </span>
-          </span>
-        ))}
-      </Art>
+              <span className="st-slot-label">{label}</span>
+              <span className="st-slot-val" aria-hidden="true">
+                {pct}
+              </span>
+            </label>
+          );
+        })}
+      </div>
       <p id={`${id}-d`} className="st-mixer-note">
-        {t('player.skinx.study.mixerNote')}
+        {t('player.skinx.study.mixerMade')}
       </p>
     </section>
   );
