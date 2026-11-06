@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Button } from '@sideroom/ui';
 import { apiPost } from '../../api/client';
 import { useT } from '../../i18n';
+import { useStore } from '../../store';
 import { onDispatch } from '../../store/events';
+import { memberKey } from '../../store/reducer';
 import type { RoomUpdate } from './cursor';
 import { followRoom, joinRoom, leaveRoom, type JoinDeps, type RoomPlayer } from './join';
 import { ingestRoomClosed, ingestRoomUpdate, useListeningRooms } from './store';
@@ -75,10 +77,13 @@ export function RoomCardView({
   room,
   listening,
   failed,
+  djName,
   onJoin,
   onLeave,
 }: {
   room: RoomUpdate | undefined;
+  /** The live DJ's name when the member is known (D-513); the card falls back to the plain sentence. */
+  djName?: string | null;
   listening: boolean;
   failed: boolean;
   onJoin: () => void;
@@ -90,7 +95,9 @@ export function RoomCardView({
     <section className="lng-room-card" aria-label={t('lounge.rooms.card')} data-testid="room-card">
       <p className="lng-room-desc">{t('lounge.rooms.description')}</p>
       {room?.mode === 'stream' ? (
-        <p className="lng-room-note">{t('lounge.rooms.stream')}</p>
+        <p className="lng-room-note">
+          {djName ? t('lounge.rooms.streamBy', { name: djName }) : t('lounge.rooms.stream')}
+        </p>
       ) : (
         <>
           <h4 className="lng-room-h">{t('lounge.rooms.nowPlaying')}</h4>
@@ -145,6 +152,15 @@ export function ListeningRoomCard({ channelId }: { channelId: string }) {
   const room = useListeningRooms((s) => s.rooms[channelId]);
   const listening = useListeningRooms((s) => s.listening === channelId);
   const [failed, setFailed] = useState(false);
+  const guildId = room?.guild_id;
+  const djId = room?.djId ?? null;
+  const djName = useStore((s) =>
+    djId && guildId
+      ? (s.members[memberKey(guildId, djId)]?.nick ??
+        (s.users[djId]?.global_name || s.users[djId]?.username) ??
+        null)
+      : null,
+  );
   useRoomFeed(channelId);
   if (!room) return null;
   return (
@@ -152,6 +168,7 @@ export function ListeningRoomCard({ channelId }: { channelId: string }) {
       room={room}
       listening={listening}
       failed={failed}
+      djName={djName}
       onJoin={() => {
         setFailed(false);
         void realDeps()

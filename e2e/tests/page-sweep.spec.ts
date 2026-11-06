@@ -183,6 +183,14 @@ const SIGNED_IN: Row[] = [
     name: `settings-server-${s}`,
     path: (w) => `/settings/server/${w.guildId}/${s}`,
   })),
+  {
+    name: 'settings-server-channel-voice',
+    path: (w) =>
+      w.voiceChannelId
+        ? `/settings/server/${w.guildId}/channels?channel=${w.voiceChannelId}&tab=voice`
+        : null,
+    expect4xx: /listening-room/,
+  },
   { name: 'cinema-home', path: () => '/cinema' },
   { name: 'cinema-movies', path: () => '/cinema/movies' },
   { name: 'cinema-series', path: () => '/cinema/series' },
@@ -791,6 +799,10 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
   );
   const voice = await step('voice channel', () =>
     apiPost<{ id: string }>(o, `/guilds/${s.guildId}/channels`, { name: 'Hangout', type: 2 }),
+  );
+  // MUS-JB-003 (D-509): the voice channel's "24/7 listening room" card offers the server's playlists.
+  await step('server playlist', () =>
+    apiPost(o, `/guilds/${s.guildId}/music/playlists`, { name: 'Night shift mix' }),
   );
   await step('second text channel', () =>
     apiPost(o, `/guilds/${s.guildId}/channels`, {

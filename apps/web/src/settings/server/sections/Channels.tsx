@@ -59,6 +59,15 @@ export function overwriteApplies(id: string, channel: api.ChannelObject): boolea
   return true;
 }
 
+/** `?channel=<id>&tab=<tab>` opens a channel's editor (the visual sweep and links use it). */
+function deepLink(key: string): string | null {
+  try {
+    return new URLSearchParams(globalThis.location?.search ?? '').get(key);
+  } catch {
+    return null;
+  }
+}
+
 export function ChannelsSection({ guildId, viewer }: SectionProps) {
   const t = useT();
   const res = useResource(`channels:${guildId}`, () => api.listChannels(guildId));
@@ -69,7 +78,7 @@ export function ChannelsSection({ guildId, viewer }: SectionProps) {
   );
   const [create, setCreate] = useState<null | { parentId?: string; category?: boolean }>(null);
   // XC-VIS-002: a channel made here opens in the editor; the Lounge's dialog would take the owner to it instead.
-  const [created, setCreated] = useState<string | null>(null);
+  const [created, setCreated] = useState<string | null>(() => deepLink('channel'));
   return (
     <>
       <SectionHeader
@@ -357,7 +366,13 @@ export function ChannelEditor({
           {
             id: 'voice',
             label: t('settings.channels.tabVoice'),
-            content: <ChannelVoice channel={channel} />,
+            content: (
+              <ChannelVoice
+                channel={channel}
+                guildId={guildId}
+                canManage={viewer.can('MANAGE_CHANNELS')}
+              />
+            ),
           },
         ]
       : []),
@@ -396,7 +411,14 @@ export function ChannelEditor({
     >
       <h2 className="ss-title">{cat ? channel.name : `# ${channel.name}`}</h2>
       <ActionStatus error={action.error} />
-      <Tabs items={tabs} label={t('settings.channels.settingsLabel')} className="ss-tabs" />
+      <Tabs
+        items={tabs}
+        label={t('settings.channels.settingsLabel')}
+        className="ss-tabs"
+        defaultValue={
+          tabs.some((x) => x.id === deepLink('tab')) ? (deepLink('tab') as string) : undefined
+        }
+      />
       <div className="ss-actions" style={{ marginTop: 24 }}>
         <Button variant="danger" onClick={() => setConfirmDelete(true)}>
           {cat ? t('settings.channels.deleteCategory') : t('settings.channels.deleteChannel')}

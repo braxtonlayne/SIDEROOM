@@ -18,6 +18,8 @@ export interface RoomUpdate {
   guild_id: string;
   /** `cursor` is the 24/7 playlist; `stream` means a DJ is present and sends the music through the voice channel. */
   mode: 'cursor' | 'stream';
+  /** The jukebox DJ whose live set paused the room (D-511 to D-513); null in `cursor` mode. */
+  djId: string | null;
   /** Counts track changes (and loops): the same `seq` with a later `at_ms` is the same track, further on. */
   seq: number;
   /** Server unix time (ms) at which `position_ms` was true. */
@@ -70,6 +72,7 @@ export function parseRoomUpdate(raw: unknown): RoomUpdate | null {
     channel_id: channel,
     guild_id: guild,
     mode: raw.mode === 'stream' ? 'stream' : 'cursor',
+    djId: raw.mode === 'stream' ? str(raw.dj_id) : null,
     seq,
     at_ms: at,
     position_ms: Math.max(0, pos),

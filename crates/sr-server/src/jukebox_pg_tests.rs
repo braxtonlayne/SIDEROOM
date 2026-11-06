@@ -154,6 +154,36 @@ async fn cursor(fx: &Fx) -> (Option<i64>, i64, i64) {
     .unwrap()
 }
 
+/// A jukebox session for the room's channel in `stream` mode with `dj` seated and last heard `seen_ago_s` ago.
+async fn jukebox_dj(fx: &Fx, dj: i64, seen_ago_s: i64) {
+    sqlx::query(
+        "INSERT INTO jukebox_sessions (channel_id, guild_id, mode, dj_user_id) VALUES ($1, $2, 'stream', $3)          ON CONFLICT (channel_id) DO UPDATE SET mode = 'stream', dj_user_id = $3",
+    )
+    .bind(fx.channel)
+    .bind(fx.guild)
+    .bind(dj)
+    .execute(&fx.pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO jukebox_listeners (channel_id, user_id, seen_at) VALUES ($1, $2, now() - make_interval(secs => $3))          ON CONFLICT (channel_id, user_id) DO UPDATE SET seen_at = EXCLUDED.seen_at",
+    )
+    .bind(fx.channel)
+    .bind(dj)
+    .bind(seen_ago_s as f64)
+    .execute(&fx.pool)
+    .await
+    .unwrap();
+}
+
+async fn room_mode(fx: &Fx) -> (String, Option<i64>) {
+    sqlx::query_as("SELECT mode, stream_dj_id FROM listening_rooms WHERE channel_id = $1")
+        .bind(fx.channel)
+        .fetch_one(&fx.pool)
+        .await
+        .unwrap()
+}
+
 fn payload(ev: &DomainEvent) -> &serde_json::Value {
     match ev {
         DomainEvent::ListeningRoomUpdated { payload, .. } => payload,
@@ -269,9 +299,10 @@ async fn an_empty_playlist_is_announced_once_and_a_dj_stay_freezes_the_cursor() 
     assert!(tick(&f.pool).await.unwrap().is_empty());
     assert_eq!(cursor(&f).await.0, None);
 
-    // A DJ's stay: the job leaves the room alone.
+    // A DJ's stay (a live jukebox DJ): the job leaves the cursor alone.
     let dj = 7001;
     account(&f.pool, dj, "dj").await;
+    jukebox_dj(&f, dj, 0).await;
     sqlx::query("UPDATE listening_rooms SET mode = 'stream', stream_dj_id = $1, next_due_at = now() - interval '1 second'")
         .bind(dj)
         .execute(&f.pool)
@@ -337,4 +368,85 @@ async fn closing_a_room_announces_it_so_the_card_disappears() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_streaming_dj_freezes_the_room_and_their_leaving_resumes_it_in_place() {
+    let f = fx().await;
+    let a = item(&f, 1, 5001, Some(60_000), 0).await;
+    item(&f, 2, 5001, Some(30_000), 1).await;
+    // Cursor room, 10 s into A, stored just now and published just now (nothing else is due).
+    room(&f, Some(a), 10_000, 0, Some(0)).await;
+    sqlx::query("UPDATE listening_rooms SET next_due_at = now() + interval '1 hour'")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let dj = 7002;
+    account(&f.pool, dj, "dj").await;
+    jukebox_dj(&f, dj, 5).await;
+
+    let events = tick(&f.pool).await.unwrap();
+    assert_eq!(room_mode(&f).await, ("stream".to_owned(), Some(dj)));
+    assert_eq!(events.len(), 1);
+    let p = payload(&events[0]);
+    assert_eq!(p["mode"], "stream");
+    assert_eq!(p["dj_id"], dj.to_string());
+    assert_eq!(p["now_playing"]["title"], "Song 1");
+    assert_eq!(p["position_ms"], 10_000, "the cursor is frozen");
+    let (item_id, pos, _) = cursor(&f).await;
+    assert_eq!((item_id, pos), (Some(a), 10_000));
+    // A further tick publishes nothing (one publication per transition) and the cursor stays.
+    assert!(tick(&f.pool).await.unwrap().is_empty());
+
+    // The DJ's heartbeat expires: the room returns to the cursor, in place.
+    jukebox_dj(&f, dj, 600).await;
+    let events = tick(&f.pool).await.unwrap();
+    assert_eq!(room_mode(&f).await, ("cursor".to_owned(), None));
+    let back = events
+        .iter()
+        .map(payload)
+        .find(|p| p["mode"] == "cursor")
+        .expect("the return is published");
+    assert!(back["dj_id"].is_null());
+    assert_eq!(back["now_playing"]["title"], "Song 1");
+    assert!(
+        (10_000..11_500).contains(&back["position_ms"].as_i64().unwrap()),
+        "resumes where it paused, not where it would be: {back}"
+    );
+    let (item_id, pos, _) = cursor(&f).await;
+    assert_eq!(item_id, Some(a));
+    assert!((10_000..11_500).contains(&pos), "position was {pos}");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_synced_jukebox_is_not_a_dj() {
+    let f = fx().await;
+    let a = item(&f, 1, 5001, Some(60_000), 0).await;
+    room(&f, Some(a), 10_000, 0, Some(0)).await;
+    sqlx::query("UPDATE listening_rooms SET next_due_at = now() + interval '1 hour'")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let dj = 7003;
+    account(&f.pool, dj, "dj").await;
+    jukebox_dj(&f, dj, 1).await;
+    sqlx::query("UPDATE jukebox_sessions SET mode = 'synced'")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert!(tick(&f.pool).await.unwrap().is_empty());
+    assert_eq!(room_mode(&f).await, ("cursor".to_owned(), None));
+    // A stream jukebox whose DJ is not a listener at all is no DJ either.
+    sqlx::query("UPDATE jukebox_sessions SET mode = 'stream'")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM jukebox_listeners")
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert!(tick(&f.pool).await.unwrap().is_empty());
+    assert_eq!(room_mode(&f).await, ("cursor".to_owned(), None));
 }

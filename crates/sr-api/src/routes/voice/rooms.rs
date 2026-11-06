@@ -131,7 +131,7 @@ pub async fn disable(
     path = "/channels/{channel_id}/listening-room",
     params(("channel_id" = String, Path, description = "Voice channel snowflake")),
     responses(
-        (status = 200, description = "The cursor: mode, seq, at_ms, position_ms, now_playing, next, skipped"),
+        (status = 200, description = "The cursor: mode, dj_id, seq, at_ms, position_ms, now_playing, next, skipped, and playlist_id (this read only)"),
         (status = 403, body = ErrorBody),
         (status = 404, description = "Not a listening room", body = ErrorBody),
     ),
