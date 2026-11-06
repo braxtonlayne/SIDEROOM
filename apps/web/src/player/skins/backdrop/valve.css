@@ -1823,6 +1823,7 @@
     block-size: 2.5rem;
   }
   .v-knobs {
+    align-items: start;
     gap: 0.125rem;
   }
   .v-knob-art {
