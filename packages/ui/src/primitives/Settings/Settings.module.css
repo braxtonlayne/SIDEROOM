@@ -73,7 +73,7 @@
   .sidebar > * { width: 100%; }
   .content, .wide .content { padding: 8px 16px 96px; }
   /* Not over the content: it covered the section title and its description (XC-VIS-001). */
-  .main { position: static; }
+  .main { position: static; min-height: 0; }
   .topline { position: absolute; top: 13px; inset-inline-end: 12px; }
   .close { flex-direction: row; gap: 0; }
   .closeX { width: 32px; height: 32px; font-size: 1.125rem; }
