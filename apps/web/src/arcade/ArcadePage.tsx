@@ -97,8 +97,11 @@ export function ArcadePage(props: {
   return <RealArcadePage {...props} />;
 }
 
-/** How long "This game has ended." stays on its card before the strip is fetched again without it (D-486). */
-export const ENDED_REFETCH_MS = 2500;
+/**
+ * How long a Join that found the game ended or forbidden keeps its line on the card before the strip is fetched again
+ * without it (D-486, D-498, D-499).
+ */
+export const JOIN_REFETCH_MS = 2500;
 
 /**
  * Join from the Active lobbies strip (D-486), as Play does after a start (D-478): a voice lobby joins that call first
@@ -149,10 +152,14 @@ function useLobbyJoin(
           if (status === 404) {
             fail(l.instance_id, 'ended');
             if (later.current) clearTimeout(later.current);
-            later.current = setTimeout(refetch, ENDED_REFETCH_MS);
+            later.current = setTimeout(refetch, JOIN_REFETCH_MS);
           } else {
             fail(l.instance_id, 'failed');
-            if (status === 403) refetch();
+            // D-498: the member no longer passes the list's own check; the card goes after the line was read.
+            if (status === 403) {
+              if (later.current) clearTimeout(later.current);
+              later.current = setTimeout(refetch, JOIN_REFETCH_MS);
+            }
           }
           return;
         }
@@ -238,6 +245,7 @@ function RealArcadePage({
         flags={front?.flags ?? []}
         onPlay={setPlaying}
         featured={front?.featured ?? []}
+        lobbies={lobbies.items}
         shelfIds={shelfIds}
       />
       <LobbiesSection

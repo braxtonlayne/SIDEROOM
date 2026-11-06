@@ -160,12 +160,15 @@ export function ArcadeHero({
   featured = [],
   shelfIds,
   games = BUILTIN_GAMES,
+  lobbies = [],
 }: {
   flags: readonly CapabilityFlag[];
   onPlay?: PlayHandler;
   featured?: readonly FeaturedCard[];
   shelfIds?: Readonly<Record<string, string>>;
   games?: readonly BuiltinGame[];
+  /** The Active lobbies list, for the hero cards' "N live" chips (D-500). */
+  lobbies?: readonly Lobby[];
 }) {
   const t = useT();
   const slots = heroSlots(featured, games, shelfIds);
@@ -187,6 +190,7 @@ export function ArcadeHero({
                 flags={flags}
                 onPlay={onPlay}
                 size="hero"
+                live={liveCount(lobbies, { name: slot.game.shelfName })}
               />
             ) : (
               <GameCard
@@ -198,6 +202,13 @@ export function ArcadeHero({
                 art="featured"
                 status="live"
                 tag={t(tagKey(slot.pick.tier))}
+                meta={
+                  liveCount(lobbies, { applicationId: slot.pick.application_id }) > 0 && (
+                    <LiveChip
+                      count={liveCount(lobbies, { applicationId: slot.pick.application_id })}
+                    />
+                  )
+                }
               >
                 {onPlay && (
                   <div className="arc-actions">
@@ -800,6 +811,9 @@ function sinceText(t: ReturnType<typeof useT>, createdAtMs: number, now: number)
     : t('arcade.lobbies.since', { m });
 }
 
+/** How often a lobby card's "for N min" is worked out again in the browser; nothing is fetched (D-501). */
+export const LOBBY_CLOCK_MS = 60_000;
+
 /** What a Join on a lobby card ended in, shown under its button (D-486). */
 export type LobbyError = 'call' | 'ended' | 'failed';
 
@@ -818,7 +832,7 @@ export function LobbiesSection({
   onJoin,
   busy = null,
   errors = {},
-  now = Date.now(),
+  now: initialNow = Date.now(),
 }: {
   items: readonly Lobby[];
   onJoin: (lobby: Lobby) => void;
@@ -826,9 +840,21 @@ export function LobbiesSection({
   busy?: string | null;
   /** A card's error line, by instance id. */
   errors?: Readonly<Record<string, LobbyError>>;
+  /** The clock's first reading; it then ticks every [LOBBY_CLOCK_MS] (D-501). */
   now?: number;
 }) {
   const t = useT();
+  const [now, setNow] = useState(initialNow);
+  // A new list is read against the time it arrived, not the time the page mounted.
+  const [seen, setSeen] = useState(items);
+  if (seen !== items) {
+    setSeen(items);
+    setNow(Date.now());
+  }
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), LOBBY_CLOCK_MS);
+    return () => clearInterval(id);
+  }, []);
   if (items.length === 0) return null;
   return (
     <section aria-labelledby="arc-lobbies" id="lobbies" className="arc-section">
