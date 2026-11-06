@@ -716,7 +716,7 @@ export const liftAgeLock = (accountId: string, reason: string) =>
   send<void>(`/moderation/age/underage/${accountId}/lift`, 'POST', { reason });
 
 /** D-507: staff remove a reported guestbook note (`MANAGE_CASES`; access-logged before the delete). */
-export const removeGuestbookNote = (noteId: string, reason = '') =>
+export const removeGuestbookNote = (noteId: string, reason: string) =>
   send<void>(
     `/moderation/guestbook-notes/${encodeURIComponent(noteId)}${qs({ reason })}`,
     'DELETE',
