@@ -44,7 +44,12 @@ Other builders hit the same wall; the commander's copy source should be rebuilt.
 
 ## Tests run
 
-See the section at the end (filled in from the real runs).
+Inside the lock, on a fresh `node scripts/build-web.mjs` (two builds) of this branch:
+- `node scripts/check-entrance-isolation.mjs`: every public surface clean.
+- `playwright test -c playwright.static.config.ts` (Chromium, `vite preview` with `e2e/vite.static.config.ts`): 26 passed (axe 14, pwa-security 12 incl. the 5 new).
+- `pwa-update.spec.ts`, Chromium, `--repeat-each=4` (no API, a temporary config without global setup, deleted): 12/12 passed. The race is not reproducible on a quiet machine, so this proves no regression rather than the fix; the fix follows from the failure modes named above.
+- All workflows parse with js-yaml 4.3.2; `scripts/check-ops-files.mjs` ok; `playwright test --list --project chromium` loads 903 tests in 67 files; prettier --check and `tsc --noEmit` on e2e clean (eslint is not installed in e2e).
+- Not run: `voice-soak.yml` itself (owner dispatch, needs the SFU stack), `entrance-isolation.spec.ts --grep-invert "signed in"` against sr-server (needs the API stack; it is the spec e2e.yml's built-bundle job already runs in full).
 
 ## Owner questions
 
