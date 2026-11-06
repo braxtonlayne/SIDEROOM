@@ -9,13 +9,13 @@ import {
   currentTrack,
   cycleRepeat,
   next,
-  pause,
   play,
   prev,
   seek,
   setDock,
   setSkin,
   setVolume,
+  stop,
   toggle,
   toggleMute,
   usePlayerStore,
@@ -147,15 +147,7 @@ export function NextButton({ className }: { className?: string }) {
 export function StopButton({ className }: { className?: string }) {
   const t = useT();
   return (
-    <button
-      type="button"
-      className={className}
-      aria-label={t('player.stop')}
-      onClick={() => {
-        pause();
-        seek(0);
-      }}
-    >
+    <button type="button" className={className} aria-label={t('player.stop')} onClick={stop}>
       <IconStop />
     </button>
   );

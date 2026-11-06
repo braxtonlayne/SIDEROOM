@@ -2,11 +2,47 @@
  * MUS-SKN-001: live controls the backdrop skins add on top of the shared ones in `../../controls`. Every one is
  * a real control on the player store, with a label and a focus ring; the skins only change how they look.
  */
-import type { ReactNode } from 'react';
+import { useEffect, type KeyboardEvent, type ReactNode } from 'react';
 import { useT } from '../../../i18n';
 import { formatTime, playIndex } from '../../controls';
 import { openPlayerLibrary } from '../../presence';
-import { seek, setEqEnabled, toggleShuffle, usePlayerStore } from '../../store';
+import {
+  seek,
+  setEqEnabled,
+  setPitchFollowsRate,
+  toggleShuffle,
+  usePlayerStore,
+} from '../../store';
+
+// ---- MUS-SKN-002 (D-525): what every new extra control shares ----
+
+/** A value within `width` of the detent lands on it, so the default is easy to find by hand. */
+export function snapDetent(v: number, detent: number, width: number): number {
+  return Math.abs(v - detent) <= width ? detent : v;
+}
+
+/** Double-click, or Enter, puts a control back on its default (the detent). */
+export function resetHandlers(reset: () => void) {
+  return {
+    onDoubleClick: reset,
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      reset();
+    },
+  };
+}
+
+/**
+ * The pitch policy of the skin in use: while a skin with a tape-style speed control is shown, the pitch follows
+ * the rate; any other skin keeps the pitch. Switching skins keeps the rate itself.
+ */
+export function usePitchPolicy(follows: boolean): void {
+  useEffect(() => {
+    setPitchFollowsRate(follows);
+    return () => setPitchFollowsRate(false);
+  }, [follows]);
+}
 
 const Svg = ({ children }: { children: ReactNode }) => (
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
