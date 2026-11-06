@@ -12,6 +12,7 @@ Builder "lobbies", wave 49. Branch `feat/p49-lobbies` from main `88b87885`. Not 
 | `179e2564` | **Web.** `Lobby`/`Lobbies` types; `LobbyApi` (`lobbies`, `join`) next to `ActivityApi` (kept separate so the existing fakes of `ActivityApi` did not change); `useLobbies` (fetch on mount, refetch coalesced to one a second on `SR_ACTIVITY_INSTANCE_UPDATE`, a failed fetch keeps the last list); `LobbiesSection` between the hero and Playable now (hidden when empty, failed or off), its `#lobbies` pill only with items; Join (voice: `joinCall` first, false stops with "That call could not be joined."; then `POST .../join`; then the channel); Return (no `join`); 404 "This game has ended." and a refetch after 2.5 s (so the line is read before the card goes); 403 or another error "This game could not be joined." (403 also refetches); "N live" chips (`LiveChip`, `liveCount`) on Playable now and Featured cards, in the meta line; `builtinArtFor`. Strings in `apps/web/src/i18n/messages/en/p49-lobbies-1.ts`. Vitest `apps/web/src/arcade/__tests__/lobbies.test.tsx` (11) and a placement test in `arcadePage.test.tsx`. |
 | `1b18e271` | Fix from the visual check: the server and channel line was cut to "#gen…" in a 16 rem card; it now wraps to two lines before an ellipsis and its icon keeps its size (before: `probe/`, after: `probe-r2/`). |
 | `8b80f989` | Test typing for the full `tsc` the build runs. |
+| (follow-up commit) | Fable's answers (`p49-lobbies-fable-2.md`): **D-498** a 403 at Join refetches after the same 2.5 s as a 404 (`JOIN_REFETCH_MS`, was `ENDED_REFETCH_MS`); **D-500** the two hero cards carry the "N live" chip too (`ArcadeHero` takes `lobbies`); **D-501** a lobby card's age ticks on a 60 s clock in `LobbiesSection` (`LOBBY_CLOCK_MS`; no request), and a newly fetched list is read against the time it arrived. Three new tests in `lobbies.test.tsx`. Re-shot `lobbies20` at desktop and phone in Editorial and Lounge Dark: `probe-r3/` (the hero chips show beside Play; the strip is unchanged); the empty Arcade re-swept in `sweep-r3/` (0 flags). Gates: vitest arcade and activities (17 files, 163 tests), `tsc`, eslint, prettier, `check-css-tokens`, `i18n-audit` 0. No Rust change. |
 | (docs commit) | D-483 to D-487 in `docs/01-decisions-log.md`, T52 in `docs/15-threat-model.md`, the route in `docs/specs/developer-platform.md` 3.10, one sentence in `docs/11` section 3, the ARC-LOB-001 row under "Wave 49" in `docs/inventory/21-feature-phase.md` (ticked: the proof ran), the "Not done" line of `feat-arcade-redesign.md` pointed here. |
 
 ## Visual check (AGENTS.md section 4)
@@ -55,14 +56,10 @@ Own stack (sr-server built from this branch on 8213, Vite 5213, DB `sr_p49_lobbi
 - No e2e spec for the strip (the spec asked for a probe, not the sweep; the sweep world has no running lobby).
 - The authz matrix ran on this branch only; the integrator runs it again on the merged tree.
 
-## Owner questions (Discord-like defaults taken)
+## Owner questions (answered by Fable, `SIDEROOM_wt/p49-lobbies-fable-2.md`)
 
-1. **403 at Join.** D-486 lists "That call could not be joined." or "This game has ended."; for a text lobby the first
-   reads wrong, so a 403 (or any other failure) says "This game could not be joined." and refetches. Keep?
-2. **The ended line stays 2.5 s** before the refetch removes the card (an immediate refetch made the card vanish
-   before the line could be read). Keep?
-3. **T51 is unassigned** (wave 49 gave T52 to picker, T53 to lobbies); `scripts/threat-model.test.mjs` needs
-   consecutive rows, so the integrator must renumber (or someone owns T51) when merging. **Resolved at integration:** the picker row became T51 and this one T52.
-4. "N live" chips are on Playable now and Featured cards, not on the two hero cards (the same games sit just below,
-   and the hero is hidden on a phone). Add them there too?
-5. Lobby times say "just started", "for N min", then "for N hours"; they refresh with each refetch, not on a clock.
+1. 403 at Join: "This game could not be joined." kept; the refetch now waits 2.5 s like a 404. **D-498**, done.
+2. The ended line stays 2.5 s. **D-499**, no change.
+3. T51/T52 numbering: resolved at integration (this row becomes T52, the picker's T51); the branch's docs stay as they are.
+4. The hero cards get the "N live" chip. **D-500**, done.
+5. Lobby ages tick on a one-minute clock. **D-501**, done.
