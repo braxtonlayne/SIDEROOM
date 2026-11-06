@@ -436,7 +436,8 @@
   padding: 8px 12px;
   border: 1px solid var(--sr-gold, #c9a24d);
   border-radius: var(--sr-radius, 4px);
-  background: var(--sr-bg-1, #14120f);
+  background: var(--ui-bg-raised, var(--sr-bg-1, #14120f));
+  color: var(--ui-text, var(--sr-text, inherit));
 }
 .wp-strip-text {
   flex: 1;
@@ -467,7 +468,8 @@
   border: 1px solid var(--sr-line, var(--ui-border));
   border-inline-start: 3px solid var(--sr-gold, #c9a24d);
   border-radius: var(--sr-radius, 4px);
-  background: var(--sr-bg-1, #14120f);
+  background: var(--ui-bg-raised, var(--sr-bg-1, #14120f));
+  color: var(--ui-text, var(--sr-text, inherit));
 }
 .wp-card[data-live='false'] {
   border-inline-start-color: var(--ui-border);
