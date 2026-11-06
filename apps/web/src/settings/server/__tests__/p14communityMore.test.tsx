@@ -736,7 +736,7 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     const trimmer = await within(dialog).findByRole('group', {
       name: 'Audio trimmer and normalizer',
     });
-    expect(within(trimmer).getByText(/12.0 seconds long and the limit is 5/)).toBeVisible();
+    expect(await within(trimmer).findByText(/12.0 seconds long and the limit is 5/)).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
     expect(within(trimmer).getByTestId('audio-range')).toHaveTextContent('0.00 s to 5.00 s');
 
