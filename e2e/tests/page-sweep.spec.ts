@@ -189,6 +189,7 @@ const SIGNED_IN: Row[] = [
       w.voiceChannelId
         ? `/settings/server/${w.guildId}/channels?channel=${w.voiceChannelId}&tab=voice`
         : null,
+    expect4xx: /listening-room/,
   },
   { name: 'cinema-home', path: () => '/cinema' },
   { name: 'cinema-movies', path: () => '/cinema/movies' },
