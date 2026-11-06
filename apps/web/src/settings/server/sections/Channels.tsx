@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { CreateChannelDialog } from '../../../lounge/CreateChannelDialog';
-import { useGuild, useMembers } from '../../../store';
+import { useChannel, useGuild, useMembers } from '../../../store';
 import * as api from '../api';
 import { useWholeMirrors } from '../bridge/mirrors';
 import { useDraft, useGuildEvents, useResource, useSettingsForm, type Viewer } from '../hooks';
@@ -320,6 +320,9 @@ export function ChannelEditor({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const action = useAction();
   const cat = isCategory(channel);
+  // D-535: the channel-level answer (an overwrite can deny it), else the server-level one.
+  const storeChannel = useChannel(channel.id);
+  const canManageChannel = storeChannel?.permissions?.manageChannels ?? viewer.can('MANAGE_CHANNELS');
 
   const remove = async () => {
     const ok = await action.run(async () => {
@@ -370,7 +373,7 @@ export function ChannelEditor({
               <ChannelVoice
                 channel={channel}
                 guildId={guildId}
-                canManage={viewer.can('MANAGE_CHANNELS')}
+                canManage={canManageChannel}
               />
             ),
           },
