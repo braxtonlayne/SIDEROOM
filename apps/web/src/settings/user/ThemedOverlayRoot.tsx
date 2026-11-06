@@ -1,6 +1,8 @@
 import { ThemeProvider, useTheme } from '@sideroom/ui';
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useAppliedTheme } from './useAppliedTheme';
+import { OVERLAY_ZOOM_VAR } from './overlayZoom';
+import './overlay-root.css';
 
 /**
  * Renders the overlays only once the theme root exists. `ThemeProvider` learns its own element through a ref, so on
@@ -20,7 +22,8 @@ function WhenRooted({ children }: { children: ReactNode }) {
  * defines the `--ui-*` tokens on its own wrapper, so they bring their own: the member's Lounge theme (Light, Dark,
  * Editorial or a Theme Store theme) and appearance settings, in every section, so nothing re-skins at a section
  * boundary. The root is `display: contents`: it adds no box and no stacking context, so the overlays keep their own
- * z-index order against the page (gadgets 909, player 910, modals 1000).
+ * z-index order against the page (gadgets 909, player 910, modals 1000). The member's zoom (D-540) cannot go on a
+ * box-less root, so the root carries it as `--sr-overlay-zoom` and `overlay-root.css` applies it to each child.
  */
 export function ThemedOverlayRoot({
   className,
@@ -31,10 +34,16 @@ export function ThemedOverlayRoot({
 }) {
   const theme = useAppliedTheme(undefined, 'lounge');
   const style = useMemo(() => {
-    // Zoom belongs to the section's own layout; on a box-less root it would do nothing anyway.
+    // A real `zoom` box here would restack the overlays (D-540): the children take it from the custom property.
     const rest: Record<string, unknown> = { ...theme.style };
+    const zoom = typeof rest.zoom === 'number' && rest.zoom > 0 ? rest.zoom : 1;
     delete rest.zoom;
-    return { ...rest, background: 'transparent', display: 'contents' } as CSSProperties;
+    return {
+      ...rest,
+      [OVERLAY_ZOOM_VAR]: String(zoom),
+      background: 'transparent',
+      display: 'contents',
+    } as CSSProperties;
   }, [theme.style]);
   return (
     <ThemeProvider
@@ -44,7 +53,7 @@ export function ThemedOverlayRoot({
       appearance={theme.appearance}
       style={style}
       {...theme.data}
-      className={className}
+      className={`sr-overlay-root ${className}`}
     >
       <WhenRooted>{children}</WhenRooted>
     </ThemeProvider>

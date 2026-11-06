@@ -52,7 +52,7 @@
   --bd-led-hot: var(--st-pink-lo);
 
   container-type: inline-size;
-  inline-size: min(56rem, calc(100vw - 1rem));
+  inline-size: min(56rem, calc(100vw / var(--sr-overlay-zoom, 1) - 1rem));
   padding: 0.5rem;
   padding-block-end: 0.625rem;
   color: var(--st-ink);

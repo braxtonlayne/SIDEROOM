@@ -2,7 +2,7 @@
 
 .tooltip,
 .popover {
-  z-index: 900;
+  z-index: 1050; /* a tooltip or popover opened inside a dialog shows above its backdrop (1000), below toasts */
   box-sizing: border-box;
   max-width: min(360px, calc(100vw - 16px));
   background: var(--ui-bg-overlay);

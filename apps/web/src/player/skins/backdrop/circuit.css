@@ -41,7 +41,7 @@
   --bd-led-hot: var(--nc-red);
 
   container-type: inline-size;
-  inline-size: min(56rem, calc(100vw - 1rem));
+  inline-size: min(56rem, calc(100vw / var(--sr-overlay-zoom, 1) - 1rem));
   padding: 0;
   color: var(--nc-text);
   background: var(--nc-void);

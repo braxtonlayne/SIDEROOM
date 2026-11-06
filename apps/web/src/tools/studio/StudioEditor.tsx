@@ -77,11 +77,21 @@ export function StudioEditor({
     setDrag(null);
   }, [cur, version]);
 
+  // The canvas's own CSS size. Under the member's zoom (D-540) the client rectangle is the zoomed size, while the
+  // selection box is drawn in the canvas's own pixels: points are converted to those.
+  const ownSize = (el: HTMLCanvasElement, r: DOMRect) => ({
+    w: el.offsetWidth || r.width,
+    h: el.offsetHeight || r.height,
+  });
   const point = (e: PointerEvent): { x: number; y: number } => {
-    const r = canvasRef.current!.getBoundingClientRect();
+    const el = canvasRef.current!;
+    const r = el.getBoundingClientRect();
+    const own = ownSize(el, r);
+    const zx = r.width ? own.w / r.width : 1;
+    const zy = r.height ? own.h / r.height : 1;
     return {
-      x: Math.min(Math.max(0, e.clientX - r.left), r.width),
-      y: Math.min(Math.max(0, e.clientY - r.top), r.height),
+      x: Math.min(Math.max(0, (e.clientX - r.left) * zx), own.w),
+      y: Math.min(Math.max(0, (e.clientY - r.top) * zy), own.h),
     };
   };
   const onDown = (e: PointerEvent) => {
@@ -102,8 +112,8 @@ export function StudioEditor({
     dragging.current = false;
     setDrag((d) => {
       if (d && canvasRef.current) {
-        const box = canvasRef.current.getBoundingClientRect();
-        const k = cur.width / (box.width || cur.width);
+        const own = ownSize(canvasRef.current, canvasRef.current.getBoundingClientRect());
+        const k = cur.width / (own.w || cur.width);
         const r = clampRegion(cur, {
           x: Math.min(d.x0, d.x1) * k,
           y: Math.min(d.y0, d.y1) * k,

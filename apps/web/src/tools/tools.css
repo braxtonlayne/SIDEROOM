@@ -148,7 +148,7 @@
 .sr-tl-gadgets {
   position: fixed;
   inset: 0;
-  z-index: 909; /* under the player (910), above full-screen Settings (900) and the Lounge; menus (950) and modals (1000) stay above */
+  z-index: 909; /* under the player (910), above full-screen Settings (900) and the Lounge; modals (1000) and menus (1050) stay above */
   pointer-events: none;
 }
 .sr-tl-gadget {
@@ -253,8 +253,8 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  inline-size: min(22rem, calc(100vw - 4rem));
-  block-size: min(26rem, 70vh);
+  inline-size: min(22rem, calc(100vw / var(--sr-overlay-zoom, 1) - 4rem));
+  block-size: min(26rem, 70vh / var(--sr-overlay-zoom, 1));
   color: var(--ui-text);
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
