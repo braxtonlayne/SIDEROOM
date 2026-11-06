@@ -201,8 +201,8 @@ describe('Active lobbies', () => {
     await user.click(await screen.findByRole('button', { name: 'Join Land.io in general' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('This game has ended.');
     expect(navigate).not.toHaveBeenCalled();
-    const before = api.lobbies.mock.calls.length;
-    await waitFor(() => expect(api.lobbies.mock.calls.length).toBeGreaterThan(before), {
+    const before = vi.mocked(api.lobbies).mock.calls.length;
+    await waitFor(() => expect(vi.mocked(api.lobbies).mock.calls.length).toBeGreaterThan(before), {
       timeout: 4000,
     });
   });
