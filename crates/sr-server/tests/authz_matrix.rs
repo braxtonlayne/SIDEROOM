@@ -8071,6 +8071,39 @@ async fn shelf_access_holds_over_http() {
     if !c.body.contains("\"can_edit\":false") {
         failures.push("a grantee's catalog must say can_edit false".into());
     }
+    // P51 (ACT-SDK-001): the catalog search narrows the same listing and never widens it.
+    for (what, q, found) in [
+        ("by file name, any case", "authz%20s01E01", true),
+        ("by the owner's title", "pilot", true),
+        ("a miss", "no-such-file-zzz", false),
+    ] {
+        let r = expect!(
+            &format!("the grantee searches {what}"),
+            srv.call(&laptop, "GET", &format!("{catalog}?q={q}"), None)
+                .await,
+            200
+        );
+        if has_object(&r) != found {
+            failures.push(format!("search {what}: found={}", has_object(&r)));
+        }
+    }
+    expect!(
+        "a search that is too long",
+        srv.call(
+            &laptop,
+            "GET",
+            &format!("{catalog}?q={}", "a".repeat(101)),
+            None
+        )
+        .await,
+        400
+    );
+    expect!(
+        "the stranger searching a shelf they cannot open",
+        srv.call(&stranger, "GET", &format!("{catalog}?q=authz"), None)
+            .await,
+        404
+    );
     let gl = expect!(
         "the owner lists the grants",
         srv.call(&owner, "GET", &format!("/shelves/{m}/grants"), None)
@@ -8152,6 +8185,15 @@ async fn shelf_access_holds_over_http() {
             failures.push(format!(
                 "{name}: the delisted object is still in the catalog"
             ));
+        }
+        let s = expect!(
+            &format!("{name}: search when delisted"),
+            srv.call(dev, "GET", &format!("{catalog}?q=authz"), None)
+                .await,
+            200
+        );
+        if has_object(&s) {
+            failures.push(format!("{name}: a search matched the delisted object"));
         }
     }
     // The old per-key presign honours it too.

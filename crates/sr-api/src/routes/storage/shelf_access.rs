@@ -42,6 +42,8 @@ pub struct ShelfAccessDeps {
 
 /// Catalog page size.
 const PAGE: i64 = 200;
+/// Longest `q` of the catalog search, in characters.
+const MAX_Q_CHARS: usize = 100;
 
 /// One shelf the caller can see.
 #[derive(Debug, Serialize, ToSchema)]
@@ -133,6 +135,8 @@ pub struct CatalogPage {
 pub struct CatalogQuery {
     /// The `next_cursor` of the previous page.
     pub cursor: Option<String>,
+    /// Search: only objects whose file name (or owner title) contains this, case-insensitively (D-545).
+    pub q: Option<String>,
 }
 
 /// A short-lived URL for one object.
@@ -365,6 +369,7 @@ async fn object_allowed(
     params(
         ("shelf_id" = String, Path, description = "Shelf (mount) snowflake"),
         ("cursor" = Option<String>, Query, description = "next_cursor of the previous page"),
+        ("q" = Option<String>, Query, description = "Only objects whose file name contains this (case-insensitive, at most 100 characters)"),
     ),
     responses(
         (status = 200, body = CatalogPage),
@@ -390,10 +395,16 @@ pub async fn shelf_catalog(
             "That cursor is not valid.",
         ));
     }
+    let needle = q.q.as_deref().map(str::trim).filter(|n| !n.is_empty());
+    if let Some(n) = needle
+        && n.chars().count() > MAX_Q_CHARS
+    {
+        return Err(invalid("q", "SEARCH_TOO_LONG", "That search is too long."));
+    }
     let r = reach(&d, None, uid(&p), None, &shelf_id).await?;
     let rows = s
         .store
-        .catalog_page(r.mount.id, q.cursor.as_deref(), PAGE + 1)
+        .catalog_page(r.mount.id, q.cursor.as_deref(), needle, PAGE + 1)
         .await
         .map_err(store_failed)?;
     let more = rows.len() as i64 > PAGE;

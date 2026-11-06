@@ -415,14 +415,15 @@ impl PartyService {
         let mem = members.iter().find(|m| m.user_id == v.user_id);
         let standing = self.standing(v.user_id, row, mem).await?;
         if !standing.member {
-            // Not a member: only the viewers of the bound channel may look, never a private party.
+            // Not a member: only the viewers of the bound channel may look, never a private party (P51: except
+            // its recorded host, whose seat is stale only when the party emptied, so a lapsed host finds their way back).
             let visible = match row.channel_id {
                 Some(ch) => self
                     .channel_perms(v.user_id, ch)
                     .await?
                     .is_some_and(|p| p.view),
                 None => false,
-            };
+            } || (row.binding == Binding::Private && row.host_id == v.user_id);
             if !visible {
                 return Err(PartyError::NotFound("watch party"));
             }
@@ -751,10 +752,13 @@ impl PartyService {
         }
         match row.binding {
             Binding::Private => {
-                let ok = match (&row.invite_code, &input.invite_code) {
-                    (Some(a), Some(b)) => constant_time_eq(a.as_bytes(), b.trim().as_bytes()),
-                    _ => false,
-                };
+                // P51: the recorded host needs no code to come back (the host seat only stays with someone who
+                // is not in the party when it is empty; a banned account was refused above).
+                let ok = row.host_id == v.user_id
+                    || match (&row.invite_code, &input.invite_code) {
+                        (Some(a), Some(b)) => constant_time_eq(a.as_bytes(), b.trim().as_bytes()),
+                        _ => false,
+                    };
                 if !ok {
                     return Err(PartyError::NotFound("watch party"));
                 }

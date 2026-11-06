@@ -154,12 +154,27 @@ impl ShelfAccessStore for PgShelfAccess {
         &self,
         shelf_id: i64,
         after: Option<&str>,
+        name: Option<&str>,
         limit: i64,
     ) -> Result<Vec<CatalogEntry>, FactsError> {
+        // A substring pattern with the LIKE wildcards made literal.
+        let pattern = name.map(|n| {
+            let mut p = String::with_capacity(n.len() + 2);
+            p.push('%');
+            for c in n.chars() {
+                if matches!(c, '\\' | '%' | '_') {
+                    p.push('\\');
+                }
+                p.push(c);
+            }
+            p.push('%');
+            p
+        });
         // Listed, not delisted by staff, and not delisted by an upheld takedown item either.
         let sql = format!(
             "SELECT {CATALOG_COLS} FROM shelf_objects o \
              WHERE o.shelf_id = $1 AND o.listed AND o.delisted_at IS NULL AND o.object_hash > $2 \
+               AND ($4::text IS NULL OR o.path ILIKE $4 OR o.owner_title ILIKE $4) \
                AND NOT EXISTS (SELECT 1 FROM takedown_items t WHERE t.kind = 'storage_object' \
                    AND t.state = 'disabled' AND t.target_id = o.shelf_id AND t.object_key = o.path) \
              ORDER BY o.object_hash LIMIT $3"
@@ -168,6 +183,7 @@ impl ShelfAccessStore for PgShelfAccess {
             .bind(shelf_id)
             .bind(after.unwrap_or(""))
             .bind(limit)
+            .bind(pattern)
             .fetch_all(&self.pool)
             .await
             .map_err(fe)?;

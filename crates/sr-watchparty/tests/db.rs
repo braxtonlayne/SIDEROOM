@@ -2134,3 +2134,75 @@ async fn a_peertube_party_stores_the_resolved_playlist_and_the_page() {
     assert!(bad.is_err());
     e.db.cleanup().await.unwrap();
 }
+
+/// P51: a host whose membership lapsed (no heartbeat for 90 s) can open their own empty private party again
+/// without the invite code and takes the host seat back, but only while nobody else holds it; a non-member and a
+/// banned account stay refused.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_lapsed_host_rejoins_their_empty_party_and_retakes_the_seat_only_when_free() {
+    let e = env().await;
+    let (host, guest, stranger) = (e.user().await, e.user().await, e.user().await);
+    let hv = e.v(host).await;
+    let party = e.svc.create(hv, create(1)).await.unwrap();
+    let code = party.invite_code.clone();
+    e.advance(100_000);
+    e.svc.sweep().await.unwrap();
+    // The sweep dropped the silent host; the party is empty but alive (under five minutes).
+    let empty = e.svc.get(hv, party.id).await.unwrap();
+    assert!(empty.participants.is_empty());
+    assert!(!empty.you.unwrap().member);
+    // A stranger still sees nothing and cannot join without the code.
+    let sv = e.v(stranger).await;
+    assert!(matches!(
+        e.svc.get(sv, party.id).await,
+        Err(PartyError::NotFound(_))
+    ));
+    assert!(matches!(
+        e.svc
+            .join(sv, party.id, JoinInput { invite_code: None })
+            .await,
+        Err(PartyError::NotFound(_))
+    ));
+    // The host comes back with no code and holds the seat again.
+    let back = e
+        .svc
+        .join(hv, party.id, JoinInput { invite_code: None })
+        .await
+        .unwrap();
+    let you = back.you.unwrap();
+    assert!(you.member && you.host);
+    assert_eq!(back.participants.len(), 1);
+
+    // Lapse again; a guest with the code gets in first and takes the free seat.
+    e.advance(100_000);
+    e.svc.sweep().await.unwrap();
+    let gv = e.v(guest).await;
+    let g = e
+        .svc
+        .join(
+            gv,
+            party.id,
+            JoinInput {
+                invite_code: code.clone(),
+            },
+        )
+        .await
+        .unwrap();
+    assert!(g.you.unwrap().host);
+    // The old host returns while the seat is held: a member, not the host. Without the code they are no
+    // longer let in (they are not the recorded host any more).
+    assert!(
+        e.svc
+            .join(hv, party.id, JoinInput { invite_code: None })
+            .await
+            .is_err()
+    );
+    let h = e
+        .svc
+        .join(hv, party.id, JoinInput { invite_code: code })
+        .await
+        .unwrap();
+    let you = h.you.unwrap();
+    assert!(you.member && !you.host);
+}
