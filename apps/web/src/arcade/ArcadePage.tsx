@@ -175,7 +175,12 @@ function RealArcadePage({
       )}
       {front && (
         <TrustProvider source={trust}>
-          <FeaturedSection featured={front.featured} flags={front.flags} onPlay={setPlaying} />
+          <FeaturedSection
+            featured={front.featured}
+            flags={front.flags}
+            onPlay={setPlaying}
+            shelfIds={shelfIds}
+          />
           <CartridgesSection
             guilds={guilds}
             flags={front.flags}

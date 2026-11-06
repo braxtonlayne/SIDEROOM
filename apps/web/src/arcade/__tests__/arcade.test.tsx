@@ -11,7 +11,7 @@ import {
   FeaturedSection,
   PlayableSection,
 } from '../ArcadeSections';
-import { builtinsByStatus, heroSlots, type BuiltinGame } from '../builtins';
+import { builtinsByStatus, heroSlots, pickArt, type BuiltinGame } from '../builtins';
 import { memberFlags } from '../GameCard';
 import { sandboxTrust } from '../sandboxTrust';
 import { http, HttpResponse, server } from '../../test/server';
@@ -583,6 +583,41 @@ describe('D-477: the two large cards', () => {
     expect(onPlay).toHaveBeenCalledWith({ title: 'Orbit', applicationId: '77', kind: 'seated' });
     expect(screen.getByRole('article', { name: 'Land.io' })).toHaveAttribute('data-size', 'hero');
     expect(screen.queryByRole('article', { name: 'Arena 3D' })).toBeNull();
+  });
+
+  it('ARC-ART-001: a pick that is a built-in keeps its own cover; any other pick gets the generic one', () => {
+    expect(pickArt({ application_id: '9', name: 'Land.io' })).toBe('landio');
+    expect(pickArt({ application_id: '9', name: "Card table: Texas Hold'em" })).toBe('holdem');
+    expect(pickArt({ application_id: '9', name: 'Orbit' })).toBe('featured');
+    // With the shelf known the match is by application id, not by name.
+    expect(
+      pickArt({ application_id: '42', name: 'Renamed' }, undefined, { 'Arena 3D': '42' }),
+    ).toBe('arena3d');
+    expect(
+      pickArt({ application_id: '7', name: 'Arena 3D' }, undefined, { 'Arena 3D': '42' }),
+    ).toBe('featured');
+
+    const artOf = (name: string) =>
+      screen.getByRole('article', { name }).querySelector('svg')?.getAttribute('data-art');
+    const picks = [
+      pick({ application_id: '1', name: 'Land.io', position: 0 }),
+      pick({ application_id: '2', name: 'Orbit', position: 1 }),
+    ];
+    const { unmount } = render(<ArcadeHero flags={flags} featured={picks} />);
+    expect(artOf('Land.io')).toBe('landio');
+    expect(artOf('Orbit')).toBe('featured');
+    unmount();
+    render(
+      <FeaturedSection
+        featured={[
+          featured({ application_id: '1', name: 'Land.io' }),
+          featured({ application_id: '2', name: 'Orbit' }),
+        ]}
+        flags={flags}
+      />,
+    );
+    expect(artOf('Land.io')).toBe('landio');
+    expect(artOf('Orbit')).toBe('featured');
   });
 });
 

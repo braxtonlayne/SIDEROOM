@@ -6,7 +6,7 @@ import { errorText } from '../settings/server/api';
 import { useStore } from '../store/store';
 import type { Guild } from '../store/types';
 import type { ArcadeApi } from './api';
-import { BUILTIN_GAMES, builtinsByStatus, heroSlots, type BuiltinGame } from './builtins';
+import { BUILTIN_GAMES, builtinsByStatus, heroSlots, pickArt, type BuiltinGame } from './builtins';
 import { GameCard } from './GameCard';
 import type { PlayTarget } from './StartInDialog';
 import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
@@ -182,7 +182,7 @@ export function ArcadeHero({
                 title={slot.pick.name}
                 description={slot.pick.description}
                 blurb={slot.pick.blurb}
-                art="featured"
+                art={pickArt(slot.pick, games, shelfIds)}
                 status="live"
                 tag={t(tagKey(slot.pick.tier))}
               >
@@ -264,10 +264,15 @@ export function FeaturedSection({
   featured,
   flags,
   onPlay,
+  games = BUILTIN_GAMES,
+  shelfIds,
 }: {
   featured: FeaturedCard[];
   flags: CapabilityFlag[];
   onPlay?: PlayHandler;
+  games?: readonly BuiltinGame[];
+  /** The shelf's application ids by name, so a pick that is a built-in keeps the built-in's cover (D-477). */
+  shelfIds?: Readonly<Record<string, string>>;
 }) {
   const t = useT();
   if (featured.length === 0) return null;
@@ -285,7 +290,7 @@ export function FeaturedSection({
             title={f.name}
             description={f.description}
             blurb={f.blurb}
-            art="featured"
+            art={pickArt(f, games, shelfIds)}
             status={f.eligibility.browser_play ? 'live' : undefined}
             tag={t(tagKey(f.tier))}
             tier={f.tier}
