@@ -688,11 +688,11 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
 
       // The Owner is the other reviewer; their rows since the start of this run.
       const ownerRows = await rows(ownerId);
-      // Two module switches: moderation reports, then status rings (both start off).
+      // Three switches: moderation reports, status rings, then public profiles for the guestbook step (all start off).
       expect(
         count(ownerRows, 'admin_action', 'features.patch', startUs),
         'Owner audit rows for features.patch',
-      ).toBe(2);
+      ).toBe(3);
       for (const action of [
         'moderation.appeal.decide',
         'person.unban',
