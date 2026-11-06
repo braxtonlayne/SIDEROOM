@@ -18,12 +18,15 @@ in Editorial, Lounge Light and Lounge Dark at desktop and phone.
 | `06f08fc4` | **Fix (older bug, from the coordinator):** a Featured pick that is the same game as a built-in (D-477: by shelf id, else by name) painted the generic stage. `pickArt()` in `builtins.ts` now gives it that built-in's own cover in the hero slot and the Featured card (`FeaturedSection` takes `shelfIds` from `ArcadePage`); any other pick keeps the generic `featured` scene. Tested in `arcade.test.tsx` (by name, by shelf id, and an unmatched pick, in both the hero and the Featured row). `after/flows/` re-shot: Land.io's pick now shows the Land.io painting. |
 | `297e419b`, this commit | D-490 in the decisions log, a note on ARC-ART-001 in the inventory, this handoff. |
 
+## Fable's decisions (D-491 to D-494)
+
+The owner questions below were decided by Fable (`SIDEROOM_wt/p49-fable-decisions.md`): keep the cabinet (D-491); keep
+the phone banner and D-490 (D-492); fold hues 45 to 75 onto gold in `hueOf` (D-493, done, with a test; `after/art-sheet.png`
+re-rendered, its 60 row is now "Lantern Keep", which hashes to 48 and paints at 37); ARC-ART-001 accepted and ticked
+(D-494). The populated `after/flows/` shots predate D-493, so Lantern Keep still shows its olive cover there.
+
 ## Not done
 
-- **ARC-ART-001 is not ticked.** Its proof says "seen by the owner before merge"; everything else in the row is done.
-  Tick it once the owner has looked at the contact sheet.
-- The sheet lives in `visual-sweep-shots/p49-art/` (as the wave-49 task said), not `visual-sweep-shots/arcade-art/`
-  (the inventory row's older path).
 - Admin > Arcade shows no covers, so there was nothing to shoot there.
 
 ## Visual check (AGENTS.md section 4)

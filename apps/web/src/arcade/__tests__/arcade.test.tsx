@@ -706,6 +706,15 @@ describe('ARC-UI-010: the cover art', () => {
     expect(artKind('holdem')).toBe('holdem');
   });
 
+  it('D-493: folds the olive band (45 to 75) onto gold and leaves other hues alone', () => {
+    // "Lantern Keep" hashes to 48 and "Snake" to 43, "Orbit" to 89 before the fold.
+    expect(hueOf('Lantern Keep')).toBe(37);
+    expect(hueOf('Snake')).toBe(43);
+    expect(hueOf('Orbit')).toBe(89);
+    for (const seed of ['Lantern Keep', 'Pong', 'Tetris', 'Orbit', 'Tempest', 'Qix', 'Galaga'])
+      expect(hueOf(seed) >= 45 && hueOf(seed) <= 75).toBe(false);
+  });
+
   it('is decorative and keeps its gradient ids unique per card', () => {
     const { container } = render(
       <>

@@ -33,14 +33,18 @@ const KNOWN = new Set<string>([
   'workshop',
 ]);
 
-/** A stable hue (0..359) for a title, so a community game keeps its colours between visits. */
+/**
+ * A stable hue (0..359) for a title, so a community game keeps its colours between visits. D-493: the olive band
+ * 45..75 is folded onto gold (36..45), which reads as a curtain or a warm blueprint at the scenes' lightness.
+ */
 export function hueOf(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
     h = Math.imul(h, 16777619);
   }
-  return Math.abs(h) % 360;
+  const r = Math.abs(h) % 360;
+  return r >= 45 && r <= 75 ? 36 + Math.round(((r - 45) * 9) / 30) : r;
 }
 
 /** The art to paint for a kind; an unknown kind (a new built-in without a painting yet) gets the generic one. */
