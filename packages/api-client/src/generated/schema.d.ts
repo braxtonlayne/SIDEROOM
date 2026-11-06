@@ -49668,7 +49668,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The cursor: mode, seq, at_ms, position_ms, now_playing, next, skipped */
+            /** @description The cursor: mode, dj_id, seq, at_ms, position_ms, now_playing, next, skipped, and playlist_id (this read only) */
             200: {
                 headers: {
                     [name: string]: unknown;
