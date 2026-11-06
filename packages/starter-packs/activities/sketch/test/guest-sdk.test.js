@@ -209,6 +209,76 @@ test("a member host's pack loads through shelfObjectBytes only, and its prompts 
   }
 });
 
+/** A member SDK stand-in with the given extra commands. @param {Record<string, any>} commands */
+function memberSdk(commands) {
+  const hub = new LoopbackHub('m1');
+  const inner = new SideRoomSDK('77', { env: stubEnv(), transport: hub.connect('m1') });
+  return {
+    SideRoomSDK: class {
+      constructor() {
+        this.state = inner.state;
+        this.input = inner.input;
+        this.storage = { install() {} };
+        this.commands = {
+          getInstanceConnectedParticipants: async () => ({ participants: [{ id: 'm1', username: 'alice_handle', global_name: 'Alice' }] }),
+          setActivity: async () => null,
+          shelfObjectBytes: async () => new Uint8Array(),
+          ...commands,
+        };
+      }
+      get self() {
+        return inner.self;
+      }
+      get hostId() {
+        return inner.hostId;
+      }
+      get isHost() {
+        return inner.isHost;
+      }
+      async ready() {
+        return { capabilities: ['datachannel', 'byos_read', 'storage'], instance_id: 'i1' };
+      }
+      on(/** @type {any} */ e, /** @type {any} */ cb) {
+        return inner.on(e, cb);
+      }
+      subscribe() {
+        return () => {};
+      }
+    },
+  };
+}
+
+test('"Choose a file…" asks the host to pick a pack file (D-466): filters, the one object, cancel as null', async () => {
+  /** @type {any[]} */
+  const asked = [];
+  /** @type {any} */
+  let answer = { shelf_id: '42', object_hash: 'd'.repeat(64), name: 'Office.json', size: 900, content_type: 'application/json' };
+  const platform = createSideRoomPlatform(win(), {
+    loadSdk: async () => memberSdk({ pickShelfObject: async (/** @type {any} */ a) => (asked.push(a), answer) }),
+  });
+  await platform.ready();
+  assert.equal(platform.canPickPacks, true);
+  const ref = await platform.pickPack();
+  assert.deepEqual(asked, [{ accept: ['.json', '.txt'], max_size: 64 * 1024 }]);
+  assert.deepEqual(ref, { shelf_id: '42', object_hash: 'd'.repeat(64), name: 'Office.json' }, 'the game keeps the reference and name only');
+  answer = null;
+  assert.equal(await platform.pickPack(), null, 'cancel is null');
+});
+
+test('the picker is offered only where the host has it: not on an older host, never to a guest (D-397)', async () => {
+  const older = createSideRoomPlatform(win(), { loadSdk: async () => memberSdk({}) });
+  await older.ready();
+  assert.equal(older.canLoadPacks, true);
+  assert.equal(older.canPickPacks, false, 'the paste field stays the way in');
+  await assert.rejects(older.pickPack());
+
+  const { platform, log } = await setup();
+  assert.equal(platform.guest, true);
+  assert.equal(platform.canPickPacks, false);
+  await assert.rejects(platform.pickPack());
+  assert.deepEqual(log.filter((l) => l.startsWith('command:')), [], 'a guest page sends no pick command');
+});
+
 test('a member is named by their display name, never by their handle (D-462)', async () => {
   const { person } = await import('../client/platform/sideroom-platform.js');
   assert.deepEqual(person({ id: 1, username: 'alice_h', global_name: 'Alice' }), { id: '1', name: 'Alice' });

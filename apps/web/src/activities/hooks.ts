@@ -1,10 +1,10 @@
 // Live state of Activities in the Lounge: the running instance of a voice channel (one REST read when the
 // channel opens, then kept fresh by `SR_ACTIVITY_INSTANCE_UPDATE`) and the shelf of approved Activities.
 // Plain state, no query cache (the Lounge has none), like the Watch Party hooks.
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { onDispatch } from '../store/events';
-import { httpActivityApi, type ActivityApi } from './api';
-import type { ActivityInstance, InstanceUpdateEvent, Shelf } from './types';
+import { httpActivityApi, type ActivityApi, type LobbyApi } from './api';
+import type { ActivityInstance, InstanceUpdateEvent, Lobby, Shelf } from './types';
 
 export interface ChannelActivityState {
   /** `[activities] enabled` on the server; false until the first answer. */
@@ -86,4 +86,52 @@ export function useActivitiesEnabled(api: ActivityApi = httpActivityApi): boolea
     };
   }, [api]);
   return on;
+}
+
+/** At most one lobby refetch a second, however many instance events arrive (D-485). */
+export const LOBBY_REFETCH_MS = 1000;
+
+/**
+ * The Arcade's "Active lobbies" (ARC-LOB-001, D-485): fetched on mount, and again (coalesced to one request a second)
+ * whenever an `SR_ACTIVITY_INSTANCE_UPDATE` arrives, the event every viewer of a channel already gets. A failed fetch
+ * keeps the last list (the first failure leaves it empty, so the section stays hidden); Activities off is empty too.
+ */
+export function useLobbies(
+  enabled: boolean,
+  api: Pick<LobbyApi, 'lobbies'> = httpActivityApi,
+): { items: Lobby[]; refetch: () => void } {
+  const [items, setItems] = useState<Lobby[]>([]);
+  const [tick, setTick] = useState(0);
+  const refetch = useCallback(() => setTick((n) => n + 1), []);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let dead = false;
+    api
+      .lobbies()
+      .then((r) => !dead && setItems(r.enabled ? r.items : []))
+      .catch(() => undefined);
+    return () => {
+      dead = true;
+    };
+  }, [enabled, api, tick]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const off = onDispatch((event) => {
+      if (event !== 'SR_ACTIVITY_INSTANCE_UPDATE' || timer.current) return;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        refetch();
+      }, LOBBY_REFETCH_MS);
+    });
+    return () => {
+      off();
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+    };
+  }, [enabled, refetch]);
+
+  return { items: enabled ? items : [], refetch };
 }

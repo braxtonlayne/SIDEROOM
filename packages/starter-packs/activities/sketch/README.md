@@ -26,4 +26,7 @@ Rules that hold the game to the platform (see `docs/01-decisions-log.md` D-460 t
 - Prompt packs come from one shelf object through `sdk.commands.shelfObjectBytes`: the member's page fetches the
   per-object URL and hands the bytes over, so the manifest has no `connect` list. A pack is JSON
   `{ "name": "...", "prompts": [...] }`, a JSON array, or one prompt per line (64 KB, 5 to 1000 prompts, 48 characters each).
+  "Choose a file…" (D-466) asks the host for the app's own shelf picker with `sdk.commands.pickShelfObject`
+  (`.json` and `.txt` files up to one pack's size); the pick is the member's yes for that object, and pasting a shelf id and
+  hash stays as the fallback.
 - Nothing reads chat, the Scrapbook or profiles (D-396).

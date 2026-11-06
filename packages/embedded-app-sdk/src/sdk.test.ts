@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { SdkError, SideRoomSDK, type SdkEnv } from './sdk';
-import { parseFrame, type Frame } from './protocol';
+import {
+  COMMANDS,
+  isPickShelfObjectArgs,
+  isShelfObjectPick,
+  parseFrame,
+  type Frame,
+} from './protocol';
 
 const HOST = 'https://chat.example.org';
 
@@ -266,5 +272,62 @@ describe('SideRoomSDK mappedFetch (D-399)', () => {
     await expect(sdk.mappedFetch('//evil.example/x')).rejects.toBeInstanceOf(SdkError);
     await sdk.mappedFetch('/api/x');
     expect(new Headers(calls[0]?.headers).has('x-sr-activity-token')).toBe(false);
+  });
+});
+
+describe('pickShelfObject (D-466)', () => {
+  const HASH = 'b'.repeat(64);
+  it('sends the filters and resolves the pick or null', async () => {
+    const r = rig();
+    const sdk = new SideRoomSDK('7', { env: r.env });
+    const a = sdk.commands.pickShelfObject({ accept: ['.json', 'text/*'], max_size: 65536 });
+    const req = r.sent[0]?.msg as Extract<Frame, { kind: 'request' }>;
+    expect(req.cmd).toBe('pickShelfObject');
+    expect(req.args).toEqual({ accept: ['.json', 'text/*'], max_size: 65536 });
+    const pick = {
+      shelf_id: '12',
+      object_hash: HASH,
+      name: 'pack.json',
+      size: 10,
+      content_type: 'application/json',
+    };
+    r.deliver({ sr: 1, kind: 'response', nonce: req.nonce, ok: true, data: pick });
+    await expect(a).resolves.toEqual(pick);
+
+    const b = sdk.commands.pickShelfObject();
+    const req2 = r.sent[1]?.msg as Extract<Frame, { kind: 'request' }>;
+    expect(req2.args).toEqual({});
+    r.deliver({ sr: 1, kind: 'response', nonce: req2.nonce, ok: true, data: null });
+    await expect(b).resolves.toBeNull();
+  });
+
+  it('is a command of the protocol', () => {
+    expect(COMMANDS).toContain('pickShelfObject');
+  });
+});
+
+describe('pick argument and result checks (D-466)', () => {
+  it('accepts absent filters and short lists, refuses anything else', () => {
+    expect(isPickShelfObjectArgs(undefined)).toBe(true);
+    expect(isPickShelfObjectArgs({})).toBe(true);
+    expect(isPickShelfObjectArgs({ accept: ['.json', 'json', 'text/plain', 'image/*'], max_size: 5 })).toBe(true);
+    expect(isPickShelfObjectArgs({ accept: 'json' })).toBe(false);
+    expect(isPickShelfObjectArgs({ accept: [1] })).toBe(false);
+    expect(isPickShelfObjectArgs({ accept: ['a b'] })).toBe(false);
+    expect(isPickShelfObjectArgs({ accept: Array.from({ length: 17 }, () => '.a') })).toBe(false);
+    expect(isPickShelfObjectArgs({ max_size: 0 })).toBe(false);
+    expect(isPickShelfObjectArgs({ max_size: 1.5 })).toBe(false);
+    expect(isPickShelfObjectArgs({ max_size: '9' })).toBe(false);
+    expect(isPickShelfObjectArgs([])).toBe(false);
+    expect(isPickShelfObjectArgs('x')).toBe(false);
+  });
+
+  it('knows a well-formed pick', () => {
+    const ok = { shelf_id: '1', object_hash: 'c'.repeat(64), name: 'a', size: 0, content_type: 'a/b' };
+    expect(isShelfObjectPick(ok)).toBe(true);
+    expect(isShelfObjectPick({ ...ok, size: -1 })).toBe(false);
+    expect(isShelfObjectPick({ ...ok, object_hash: 'x' })).toBe(false);
+    expect(isShelfObjectPick({ ...ok, name: 3 })).toBe(false);
+    expect(isShelfObjectPick(null)).toBe(false);
   });
 });

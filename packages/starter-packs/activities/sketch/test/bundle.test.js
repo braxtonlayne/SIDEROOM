@@ -21,13 +21,14 @@ test('the manifest declares the capabilities the game uses and nothing that wide
   assert.ok(!ACTIVITY_MANIFEST.capabilities.includes('ingame_voice'));
 });
 
-test('the vendored SDK carries shelfObjectBytes', () => {
+test('the vendored SDK carries shelfObjectBytes and pickShelfObject', () => {
+  assert.match(byPath.get('sdk/sdk.js') ?? '', /pickShelfObject/);
   assert.match(byPath.get('sdk/sdk.js') ?? '', /shelfObjectBytes/);
 });
 
 test('game code names no app route, and member-only commands only on the member path of the platform', () => {
   const routes = /\/api\/|\/channels\/|\/users\/|\/shelves\/|\/scrapbook|\/profile|\/messages|\/guilds\//i;
-  const memberOnly = /\bcommands\.(?:getInstanceConnectedParticipants|setActivity|shelfObjectBytes|shelfObjectUrl|authorize|authenticate|getChannel)\b/;
+  const memberOnly = /\bcommands\.(?:getInstanceConnectedParticipants|setActivity|shelfObjectBytes|pickShelfObject|shelfObjectUrl|authorize|authenticate|getChannel)\b/;
   for (const [path, text] of byPath) {
     if (path.startsWith('sdk/') || !path.endsWith('.js')) continue;
     assert.ok(!routes.test(text), `${path} names an app route`);

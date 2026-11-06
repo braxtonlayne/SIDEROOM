@@ -13,7 +13,7 @@ use crate::bundle;
 use crate::error::{ActivityError, ActivityResult};
 use crate::model::{
     BundleDetail, BundleEntry, BundleState, BundleView, ConfigInput, ConfigView, InstanceView,
-    ParticipantView, PendingView, ReviewState, ShelfItem, UrlMapping,
+    LobbyView, ParticipantView, PendingView, ReviewState, ShelfItem, UrlMapping,
 };
 use crate::ports::{
     ActivityEvents, ChannelAccess, ChannelPerms, EVENT_INSTANCE_UPDATE, NoChannels, NoEvents,
@@ -43,10 +43,27 @@ const DEV_GUILD_MAX_MEMBERS: i64 = 25;
 const HISTORY: i64 = 20;
 /// Objects written at once while unpacking a bundle.
 const PUT_CONCURRENCY: usize = 8;
+/// Running instances read for the Arcade's lobby strip, newest first, before the permission check (D-485).
+pub const LOBBY_SCAN: i64 = 100;
+/// Lobbies returned to the Arcade (D-485).
+pub const LOBBY_MAX: usize = 20;
 
 /// A timestamp column as epoch milliseconds.
 fn ms(col: &str) -> String {
     format!("(EXTRACT(EPOCH FROM {col}) * 1000)::bigint")
+}
+
+/// The lobby order of D-485: the caller's own first, then the most players, then the newest; at most
+/// [`LOBBY_MAX`].
+pub fn sort_lobbies(items: &mut Vec<LobbyView>) {
+    items.sort_by(|a, b| {
+        b.joined
+            .cmp(&a.joined)
+            .then(b.player_count.cmp(&a.player_count))
+            .then(b.created_at_ms.cmp(&a.created_at_ms))
+            .then(b.instance_id.cmp(&a.instance_id))
+    });
+    items.truncate(LOBBY_MAX);
 }
 
 /// Object key of one file of a bundle.
@@ -1012,6 +1029,65 @@ impl ActivityService {
     /// channel, `USE_EMBEDDED_ACTIVITIES` in a text channel (`VIEW_CHANNEL` is checked before).
     fn may_take_part(p: &ChannelPerms) -> bool {
         p.use_activities && (p.connect || !p.voice)
+    }
+
+    /// The Arcade's "Active lobbies" (D-483 to D-485): the running instances in the caller's servers that they
+    /// could join now. Candidates come from the caller's own `guild_members` rows only, and each passes the same
+    /// channel check as `GET /channels/{id}/activity` plus the take-part rule of launch and join before it is
+    /// counted or returned. A permission error drops that row (logged), never the list. Sorted by
+    /// [`sort_lobbies`].
+    pub async fn lobbies(&self, user: i64) -> ActivityResult<Vec<LobbyView>> {
+        let sql = format!(
+            "SELECT i.id, i.application_id, a.name, i.guild_id, g.name AS guild_name, i.channel_id, \
+             COALESCE(c.name, '') AS channel_name, i.channel_type, \
+             (a.release_state::text = 'development') AS dev, \
+             (SELECT count(*) FROM activity_participants p \
+              WHERE p.instance_id = i.id AND p.left_at IS NULL) AS players, \
+             EXISTS (SELECT 1 FROM activity_participants p \
+              WHERE p.instance_id = i.id AND p.user_id = $1 AND p.left_at IS NULL) AS joined, \
+             {} AS created_ms \
+             FROM activity_instances i \
+             JOIN applications a ON a.id = i.application_id \
+             JOIN guilds g ON g.id = i.guild_id \
+             JOIN channels c ON c.id = i.channel_id AND c.guild_id = i.guild_id \
+             WHERE i.ended_at IS NULL AND g.deleted_at IS NULL \
+               AND i.guild_id IN (SELECT m.guild_id FROM guild_members m WHERE m.user_id = $1) \
+             ORDER BY i.created_at DESC, i.id DESC LIMIT $2",
+            ms("i.created_at")
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(user)
+            .bind(LOBBY_SCAN)
+            .fetch_all(self.pool())
+            .await?;
+        let mut out = Vec::new();
+        for r in &rows {
+            let channel: i64 = r.try_get("channel_id")?;
+            match self.inner.channels.perms(user, channel).await {
+                Ok(Some(p)) if p.view && Self::may_take_part(&p) => {}
+                Ok(_) => continue,
+                Err(e) => {
+                    tracing::warn!(error = %e, "lobby permission check failed; the lobby is left out");
+                    continue;
+                }
+            }
+            out.push(LobbyView {
+                instance_id: r.try_get::<i64, _>("id")?.to_string(),
+                application_id: r.try_get::<i64, _>("application_id")?.to_string(),
+                application_name: r.try_get("name")?,
+                guild_id: r.try_get::<i64, _>("guild_id")?.to_string(),
+                guild_name: r.try_get("guild_name")?,
+                channel_id: channel.to_string(),
+                channel_name: r.try_get("channel_name")?,
+                channel_type: r.try_get("channel_type")?,
+                development: r.try_get("dev")?,
+                player_count: r.try_get("players")?,
+                created_at_ms: r.try_get("created_ms")?,
+                joined: r.try_get("joined")?,
+            });
+        }
+        sort_lobbies(&mut out);
+        Ok(out)
     }
 
     /// Start an Activity in a voice or text channel of a guild. The starter joins it. One Activity runs per

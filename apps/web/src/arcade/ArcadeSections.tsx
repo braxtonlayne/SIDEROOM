@@ -6,7 +6,17 @@ import { errorText } from '../settings/server/api';
 import { useStore } from '../store/store';
 import type { Guild } from '../store/types';
 import type { ArcadeApi } from './api';
-import { BUILTIN_GAMES, builtinsByStatus, heroSlots, type BuiltinGame } from './builtins';
+import {
+  BUILTIN_GAMES,
+  builtinArtFor,
+  builtinsByStatus,
+  heroSlots,
+  liveCount,
+  pickArt,
+  type BuiltinGame,
+} from './builtins';
+import { GameArt } from './GameArt';
+import type { Lobby } from '../activities/types';
 import { GameCard } from './GameCard';
 import type { PlayTarget } from './StartInDialog';
 import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
@@ -75,11 +85,14 @@ export function BuiltinCard({
   flags,
   onPlay,
   size = 'row',
+  live = 0,
 }: {
   game: BuiltinGame;
   flags: readonly CapabilityFlag[];
   onPlay?: PlayHandler;
   size?: 'row' | 'hero';
+  /** Lobbies of this game in the strip (D-487): an "N live" chip on the meta line. */
+  live?: number;
 }) {
   const t = useT();
   const title = t(`arcade.builtin.${game.id}.name`);
@@ -96,8 +109,9 @@ export function BuiltinCard({
       status={game.status}
       tag={game.tier ? t(tierKey(game.tier)) : undefined}
       meta={
-        (players || (game.status === 'live' && !playable)) && (
+        (players || (game.status === 'live' && !playable) || live > 0) && (
           <>
+            <LiveChip count={live} />
             {players && (
               <span className="arc-meta-item">
                 <Icon name="users" size={16} />
@@ -147,12 +161,15 @@ export function ArcadeHero({
   featured = [],
   shelfIds,
   games = BUILTIN_GAMES,
+  lobbies = [],
 }: {
   flags: readonly CapabilityFlag[];
   onPlay?: PlayHandler;
   featured?: readonly FeaturedCard[];
   shelfIds?: Readonly<Record<string, string>>;
   games?: readonly BuiltinGame[];
+  /** The Active lobbies list, for the hero cards' "N live" chips (D-500). */
+  lobbies?: readonly Lobby[];
 }) {
   const t = useT();
   const slots = heroSlots(featured, games, shelfIds);
@@ -174,6 +191,7 @@ export function ArcadeHero({
                 flags={flags}
                 onPlay={onPlay}
                 size="hero"
+                live={liveCount(lobbies, { name: slot.game.shelfName })}
               />
             ) : (
               <GameCard
@@ -182,9 +200,16 @@ export function ArcadeHero({
                 title={slot.pick.name}
                 description={slot.pick.description}
                 blurb={slot.pick.blurb}
-                art="featured"
+                art={pickArt(slot.pick, games, shelfIds)}
                 status="live"
                 tag={t(tagKey(slot.pick.tier))}
+                meta={
+                  liveCount(lobbies, { applicationId: slot.pick.application_id }) > 0 && (
+                    <LiveChip
+                      count={liveCount(lobbies, { applicationId: slot.pick.application_id })}
+                    />
+                  )
+                }
               >
                 {onPlay && (
                   <div className="arc-actions">
@@ -218,11 +243,14 @@ export function PlayableSection({
   emulatorOn,
   onPlay,
   games = BUILTIN_GAMES,
+  lobbies = [],
 }: {
   flags: readonly CapabilityFlag[];
   emulatorOn: boolean;
   onPlay?: PlayHandler;
   games?: readonly BuiltinGame[];
+  /** The Active lobbies list, for the cards' "N live" chips (D-487). */
+  lobbies?: readonly Lobby[];
 }) {
   const t = useT();
   const { live } = builtinsByStatus(games);
@@ -235,7 +263,13 @@ export function PlayableSection({
       />
       <div className="arc-grid">
         {live.map((g) => (
-          <BuiltinCard key={g.id} game={g} flags={flags} onPlay={onPlay} />
+          <BuiltinCard
+            key={g.id}
+            game={g}
+            flags={flags}
+            onPlay={onPlay}
+            live={liveCount(lobbies, { name: g.shelfName })}
+          />
         ))}
         {emulatorOn && (
           <GameCard
@@ -264,10 +298,18 @@ export function FeaturedSection({
   featured,
   flags,
   onPlay,
+  games = BUILTIN_GAMES,
+  shelfIds,
+  lobbies = [],
 }: {
   featured: FeaturedCard[];
   flags: CapabilityFlag[];
   onPlay?: PlayHandler;
+  games?: readonly BuiltinGame[];
+  /** The shelf's application ids by name, so a pick that is a built-in keeps the built-in's cover (D-477). */
+  shelfIds?: Readonly<Record<string, string>>;
+  /** The Active lobbies list, for the cards' "N live" chips (D-487). */
+  lobbies?: readonly Lobby[];
 }) {
   const t = useT();
   if (featured.length === 0) return null;
@@ -285,7 +327,7 @@ export function FeaturedSection({
             title={f.name}
             description={f.description}
             blurb={f.blurb}
-            art="featured"
+            art={pickArt(f, games, shelfIds)}
             status={f.eligibility.browser_play ? 'live' : undefined}
             tag={t(tagKey(f.tier))}
             tier={f.tier}
@@ -293,6 +335,11 @@ export function FeaturedSection({
             capabilities={f.capabilities}
             flags={flags}
             tips={f.tip_links}
+            meta={
+              liveCount(lobbies, { applicationId: f.application_id }) > 0 && (
+                <LiveChip count={liveCount(lobbies, { applicationId: f.application_id })} />
+              )
+            }
             trust={{
               applicationId: f.application_id,
               name: f.name,
@@ -742,6 +789,152 @@ export function CartridgesSection({
           />
         </>
       )}
+    </section>
+  );
+}
+
+/** A card's "N live" chip (D-487): its game has lobbies in the strip above; it links there. */
+export function LiveChip({ count }: { count: number }) {
+  const t = useT();
+  if (count <= 0) return null;
+  return (
+    <a
+      href="#lobbies"
+      className="arc-meta-item arc-live"
+      aria-label={t('arcade.lobbies.liveAria', { n: count })}
+    >
+      <span className="arc-live-dot" aria-hidden="true" />
+      {t('arcade.lobbies.live', { n: count })}
+    </a>
+  );
+}
+
+/** Minutes and hours since a lobby started, as the card's count line says it. */
+function sinceText(t: ReturnType<typeof useT>, createdAtMs: number, now: number): string {
+  const m = Math.max(0, Math.floor((now - createdAtMs) / 60_000));
+  return m >= 60
+    ? t('arcade.lobbies.sinceHours', { h: Math.floor(m / 60) })
+    : t('arcade.lobbies.since', { m });
+}
+
+/** How often a lobby card's "for N min" is worked out again in the browser; nothing is fetched (D-501). */
+export const LOBBY_CLOCK_MS = 60_000;
+
+/** What a Join on a lobby card ended in, shown under its button (D-486). */
+export type LobbyError = 'call' | 'ended' | 'failed';
+
+const LOBBY_ERROR_KEY: Record<LobbyError, string> = {
+  call: 'arcade.start.joinFailed',
+  ended: 'arcade.lobbies.ended',
+  failed: 'arcade.lobbies.failed',
+};
+
+/**
+ * Active lobbies (ARC-LOB-001, D-486): the games running in the member's servers that they could join now, one row of
+ * compact cards that scrolls sideways. Hidden entirely while there are none (no empty state, D-474).
+ */
+export function LobbiesSection({
+  items,
+  onJoin,
+  busy = null,
+  errors = {},
+  now: initialNow = Date.now(),
+}: {
+  items: readonly Lobby[];
+  onJoin: (lobby: Lobby) => void;
+  /** The instance whose Join is under way: its button is busy and the others wait. */
+  busy?: string | null;
+  /** A card's error line, by instance id. */
+  errors?: Readonly<Record<string, LobbyError>>;
+  /** The clock's first reading; it then ticks every [LOBBY_CLOCK_MS] (D-501). */
+  now?: number;
+}) {
+  const t = useT();
+  const [now, setNow] = useState(initialNow);
+  // A new list is read against the time it arrived, not the time the page mounted.
+  const [seen, setSeen] = useState(items);
+  if (seen !== items) {
+    setSeen(items);
+    setNow(Date.now());
+  }
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), LOBBY_CLOCK_MS);
+    return () => clearInterval(id);
+  }, []);
+  if (items.length === 0) return null;
+  return (
+    <section aria-labelledby="arc-lobbies" id="lobbies" className="arc-section">
+      <SectionHead
+        id="arc-lobbies"
+        title={t('arcade.lobbies.heading')}
+        intro={t('arcade.lobbies.note')}
+      />
+      <ul className="arc-lobbies" aria-label={t('arcade.lobbies.list')}>
+        {items.map((l) => {
+          const voice = l.channel_type === 'voice';
+          const where = { server: l.guild_name, channel: l.channel_name };
+          const error = errors[l.instance_id];
+          return (
+            <li key={l.instance_id} className="arc-lobby">
+              <div className="arc-lobby-art">
+                <GameArt kind={builtinArtFor(l.application_name)} seed={l.application_name} />
+              </div>
+              <div className="arc-lobby-body">
+                <h3 className="arc-lobby-title">{l.application_name}</h3>
+                {l.development && (
+                  <p className="arc-blurb" data-tone="preview">
+                    {t('arcade.lobbies.development')}
+                  </p>
+                )}
+                <p
+                  className="arc-meta arc-lobby-where"
+                  aria-label={
+                    voice
+                      ? t('arcade.lobbies.whereVoiceAria', where)
+                      : t('arcade.lobbies.whereText', where)
+                  }
+                >
+                  <Icon name={voice ? 'volume' : 'hash'} size={16} />
+                  <span className="arc-lobby-where-text" aria-hidden="true">
+                    {t(voice ? 'arcade.lobbies.whereVoice' : 'arcade.lobbies.whereText', where)}
+                  </span>
+                </p>
+                <p className="arc-meta">
+                  <span className="arc-meta-item">
+                    <Icon name="users" size={16} />
+                    {t('arcade.lobbies.players', { n: l.player_count })}
+                  </span>
+                  <span className="arc-meta-item">{sinceText(t, l.created_at_ms, now)}</span>
+                </p>
+                <Button
+                  size="sm"
+                  fullWidth
+                  variant={l.joined ? 'secondary' : 'primary'}
+                  className="arc-lobby-join"
+                  disabled={busy !== null && busy !== l.instance_id}
+                  loading={busy === l.instance_id}
+                  leadingIcon={<Icon name={l.joined ? 'door' : 'play'} size={16} />}
+                  aria-label={t(
+                    l.joined ? 'arcade.lobbies.returnAria' : 'arcade.lobbies.joinAria',
+                    {
+                      game: l.application_name,
+                      channel: l.channel_name,
+                    },
+                  )}
+                  onClick={() => onJoin(l)}
+                >
+                  {t(l.joined ? 'arcade.lobbies.return' : 'arcade.lobbies.join')}
+                </Button>
+                {error && (
+                  <p className="arc-start-error arc-lobby-error" role="alert">
+                    {t(LOBBY_ERROR_KEY[error])}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

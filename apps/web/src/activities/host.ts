@@ -20,6 +20,9 @@ import {
   BYOS_READ_CAPABILITY,
   SHELF_OBJECT_BYTES_MAX,
   isShelfObjectRef,
+  isPickShelfObjectArgs,
+  isShelfObjectPick,
+  type ShelfObjectPick,
   type ShelfObjectUrl,
   type RpcErrorBody,
   type SpeakingUpdate,
@@ -29,6 +32,7 @@ import {
 import { bridgeInput, recordTick } from '../crash/ringBuffer';
 import type { OAuthApi } from './api';
 import { hostOf, type ActivityInstance } from './types';
+import { pickable } from './shelfPick';
 
 /** Scopes an Activity may ask for. `email` and the bot scopes are not an Activity's business. */
 export const ACTIVITY_SCOPES = ['identify', 'guilds'] as const;
@@ -145,6 +149,15 @@ export interface HostEnv {
    * `max` bytes; rejects past the cap. Default: `fetch`. Tests pass their own.
    */
   fetchShelfObject?: (url: string, max: number) => Promise<Uint8Array>;
+  /**
+   * D-466: open the app's own shelf picker (never inside the frame) and resolve the one object the member chose, or
+   * `null` when they cancel. `signal` aborts when the frame goes away (the picker closes and resolves `null`).
+   * Absent: no `pickShelfObject`.
+   */
+  pickShelfObject?: (
+    req: { accept: string[]; maxSize: number | null },
+    signal: AbortSignal,
+  ) => Promise<ShelfObjectPick | null>;
   applicationId: string;
   instance: () => ActivityInstance;
   channel: () => { id: string; guild_id: string; name: string };
@@ -380,8 +393,10 @@ export function createActivityHost(env: HostEnv): ActivityHost {
   const hasStorage = () =>
     !!env.storage && (env.instance().capabilities ?? []).includes(STORAGE_CAPABILITY);
 
-  /** Shelf objects the member let this frame open (asked once per object). */
+  /** Shelf objects the member let this frame open (asked once per object, or picked: D-466). */
   const shelfAllowed = new Set<string>();
+  /** The open picker, if any (one at a time, D-466). */
+  let picking: AbortController | null = null;
   const hasByosRead = () =>
     !!env.shelfObjectUrl && (env.instance().capabilities ?? []).includes(BYOS_READ_CAPABILITY);
 
@@ -640,6 +655,49 @@ export function createActivityHost(env: HostEnv): ActivityHost {
         if (bytes.length > SHELF_OBJECT_BYTES_MAX) throw tooBig();
         return { b: b64(bytes), size: bytes.length };
       }
+      case 'pickShelfObject': {
+        // D-466: the member chooses one file in the app's own dialog; that choice is their yes for that object, so a
+        // following shelfObjectBytes/shelfObjectUrl on it shows no second dialog. The game learns the pick only.
+        if (!hasByosRead() || !env.pickShelfObject) {
+          throw new RpcError(
+            RPC_ERRORS.notAuthorized,
+            'This Activity did not declare the byos_read capability.',
+          );
+        }
+        if (!isPickShelfObjectArgs(args)) {
+          throw invalid(
+            'accept must list up to 16 extensions or media types and max_size be a whole number.',
+          );
+        }
+        if (picking) throw new RpcError(RPC_ERRORS.failed, 'A file is already being chosen.');
+        const req = {
+          accept: [...(args?.accept ?? [])],
+          maxSize: args?.max_size ?? null,
+        };
+        const ctl = new AbortController();
+        picking = ctl;
+        let pick: ShelfObjectPick | null;
+        try {
+          pick = await env.pickShelfObject(req, ctl.signal);
+        } catch {
+          throw new RpcError(RPC_ERRORS.failed, 'The file picker is not available.');
+        } finally {
+          if (picking === ctl) picking = null;
+        }
+        if (pick === null || ctl.signal.aborted) return null;
+        // The picker filters too; this is the second check, so a swapped picker cannot widen what a game asked for.
+        if (!isShelfObjectPick(pick) || !pickable(pick.name, pick.size, req)) {
+          throw new RpcError(RPC_ERRORS.failed, 'That file is not available.');
+        }
+        shelfAllowed.add(`${pick.shelf_id}/${pick.object_hash}`);
+        return {
+          shelf_id: pick.shelf_id,
+          object_hash: pick.object_hash,
+          name: pick.name.slice(0, 255),
+          size: pick.size,
+          content_type: pick.content_type.slice(0, 127),
+        } satisfies ShelfObjectPick;
+      }
       case 'saveFile': {
         if (!env.saveFile) {
           throw new RpcError(RPC_ERRORS.notAuthorized, 'Saving files is not available.');
@@ -820,6 +878,8 @@ export function createActivityHost(env: HostEnv): ActivityHost {
       }
     },
     dispose() {
+      picking?.abort();
+      picking = null;
       if (dataJoined) {
         dataJoined.off();
         env.data?.leave(dataJoined.instance);

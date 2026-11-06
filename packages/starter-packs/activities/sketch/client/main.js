@@ -192,6 +192,7 @@ function buildLobby() {
   onSend('pack-ref', 'pack-load', () => {
     void loadPack(/** @type {HTMLInputElement} */ ($('pack-ref')).value);
   });
+  $('pack-choose').addEventListener('click', () => void choosePack());
   $('again').addEventListener('click', () => session?.send({ t: 'again' }));
   $('skip').addEventListener('click', () => session?.send({ t: 'skip' }));
 }
@@ -213,11 +214,42 @@ async function loadPack(text) {
   if (!engine || platform.guest || !platform.canLoadPacks) return;
   const ref = parseShelfRef(text);
   if (!ref) return packMsg('Paste a shelf id and a file hash (64 hex characters), for example 123456/ab12…', 'bad');
+  await loadPackRef(ref);
+}
+
+/**
+ * "Choose a file…" (D-466): the app's own picker, then the same load as a pasted reference. The pick is the member's yes
+ * for that object, so no second dialog follows. Cancel changes nothing.
+ */
+async function choosePack() {
+  const engine = session?.engine;
+  if (!engine || platform.guest || !platform.canPickPacks) return;
+  packMsg('', '');
+  $('pack-choose').setAttribute('disabled', '');
+  try {
+    const picked = await platform.pickPack();
+    if (!picked) return;
+    await loadPackRef({ shelf_id: picked.shelf_id, object_hash: picked.object_hash }, picked.name);
+  } catch {
+    packMsg('The file picker could not be opened.', 'bad');
+  } finally {
+    $('pack-choose').removeAttribute('disabled');
+  }
+}
+
+/**
+ * @param {{ shelf_id: string, object_hash: string }} ref
+ * @param {string} [fileName]  the picked file's name, when the member chose it from the picker
+ */
+async function loadPackRef(ref, fileName = '') {
+  const engine = session?.engine;
+  if (!engine || platform.guest || !platform.canLoadPacks) return;
   packMsg('Loading…', '');
   $('pack-load').setAttribute('disabled', '');
   try {
     const bytes = await platform.loadPack(ref);
-    const pack = parsePack(bytes, `Pack ${engine.packs.length + 1}`);
+    const stem = fileName.replace(/.[^.]*$/, '').trim().slice(0, 40);
+    const pack = parsePack(bytes, stem || `Pack ${engine.packs.length + 1}`);
     if (!pack.ok) return packMsg(PACK_ERRORS[pack.error] ?? 'That pack could not be used.', 'bad');
     engine.addPack({ ...pack, ref });
     /** @type {HTMLInputElement} */ ($('pack-ref')).value = '';
@@ -285,6 +317,9 @@ function renderLobby(s) {
     builtIn.checked = s.settings.builtIn || s.packs.length === 0;
     builtIn.disabled = s.packs.length === 0;
     $('pack-panel').hidden = !platform.canLoadPacks;
+    $('pack-choose-row').hidden = !platform.canPickPacks;
+    $('pack-choose-hint').hidden = !platform.canPickPacks;
+    $('pack-paste-hint').hidden = platform.canPickPacks;
     const packs = $('pack-list');
     packs.replaceChildren(
       ...s.packs.map((p) => {

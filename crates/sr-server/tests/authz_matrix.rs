@@ -4064,7 +4064,9 @@ fn rightful_of(r: &Route) -> &'static str {
 fn soft_empty(r: &Route) -> bool {
     matches!(
         (r.method.as_str(), r.path.as_str()),
-        ("GET", "/guilds/{guild_id}/stage-instances") | ("GET", "/channels/{channel_id}/activity")
+        ("GET", "/guilds/{guild_id}/stage-instances")
+            | ("GET", "/channels/{channel_id}/activity")
+            | ("GET", "/users/@me/activity-lobbies")
     )
 }
 

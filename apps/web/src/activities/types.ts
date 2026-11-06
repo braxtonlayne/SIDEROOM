@@ -50,3 +50,32 @@ export interface InstanceUpdateEvent {
 
 /** The instance's host now (D-388): `host_id`, or the starter for a server that does not send it. */
 export const hostOf = (inst: ActivityInstance): string => inst.host_id ?? inst.started_by;
+
+/**
+ * One of the Arcade's "Active lobbies" (ARC-LOB-001, D-483, D-484): a running Activity the member could join now.
+ * Names and a count only: never who plays.
+ */
+export interface Lobby {
+  instance_id: string;
+  application_id: string;
+  application_name: string;
+  guild_id: string;
+  guild_name: string;
+  channel_id: string;
+  channel_name: string;
+  /** `voice` or `text`. */
+  channel_type: 'voice' | 'text';
+  development: boolean;
+  /** Members playing now; guests are never counted (D-397). */
+  player_count: number;
+  created_at_ms: number;
+  /** The member is in it already (the card says Return). */
+  joined: boolean;
+}
+
+/** `GET /users/@me/activity-lobbies` (D-485). */
+export interface Lobbies {
+  /** `[activities] enabled` on the server. */
+  enabled: boolean;
+  items: Lobby[];
+}
