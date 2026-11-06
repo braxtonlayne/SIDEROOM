@@ -142,3 +142,26 @@ export function mintShelfObjectUrl(
 ): Promise<{ url: string; expires_at: string }> {
   return apiFetch(`/shelves/${enc(shelfId)}/objects/${enc(objectHash)}/url`, NO_RETRY);
 }
+
+/** One object of a shelf catalog as `GET /shelves/{shelf_id}/objects` lists it (the fields the picker reads, D-466). */
+export interface ShelfCatalogObject {
+  object_hash: string;
+  /** Mount-relative key. */
+  path: string;
+  size: number;
+  /** The owner's title, empty when none. */
+  title: string;
+}
+export interface ShelfCatalogPage {
+  objects: ShelfCatalogObject[];
+  next_cursor: string | null;
+}
+
+/** A page of the shelf catalog, which the server already cuts to the objects the member may open (D-393). */
+export function shelfCatalogPage(
+  shelfId: string,
+  cursor?: string | null,
+): Promise<ShelfCatalogPage> {
+  const q = cursor ? `?cursor=${enc(cursor)}` : '';
+  return apiFetch(`/shelves/${enc(shelfId)}/objects${q}`, NO_RETRY);
+}

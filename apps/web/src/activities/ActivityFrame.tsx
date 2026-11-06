@@ -5,7 +5,8 @@
 // storage and saving files all go through the validated bridge in host.ts. A strict `allow` list delegates
 // nothing but full screen, and a message is believed only when it comes from this frame's window.
 import { Button, Modal } from '@sideroom/ui';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import type { ShelfObjectPick } from '@sideroom/embedded-app-sdk';
 import { useT } from '../i18n';
 import { useUsers } from '../lounge/data';
 import { useVoiceParticipants } from '../voice/hooks';
@@ -28,6 +29,9 @@ import { useTestDeployment } from '../testdeploy/flag';
 
 type Ask = Parameters<HostEnv['confirm']>[0];
 
+// D-466: the picker is its own chunk; nothing loads until a game asks the member to choose a file.
+const ShelfPicker = lazy(() => import('./ShelfPicker'));
+
 /** The whole sandbox: scripts and pointer lock. Never add `allow-same-origin`; a test pins this string. */
 export const ACTIVITY_SANDBOX = 'allow-scripts allow-pointer-lock';
 
@@ -42,6 +46,11 @@ export function ActivityFrame({
   const users = useUsers();
   const frame = useRef<HTMLIFrameElement | null>(null);
   const [ask, setAsk] = useState<{ ask: Ask; answer: (ok: boolean) => void } | null>(null);
+  // D-466: the open shelf picker (one at a time; the host refuses a second call while this is set).
+  const [pick, setPick] = useState<{
+    req: { accept: string[]; maxSize: number | null };
+    done: (p: ShelfObjectPick | null) => void;
+  } | null>(null);
   // OPS-TDEP-001: a test deployment serves the Activity from a path on this host (same sandbox, opaque origin).
   const sameHost = useTestDeployment((s) => s.on);
   const origin = useMemo(
@@ -93,6 +102,20 @@ export function ActivityFrame({
         saveFile: downloadBytes,
         // D-389: the same per-object URL route the Study uses, with this member's own session.
         shelfObjectUrl: mintShelfObjectUrl,
+        // D-466: the member's choice in the app's own dialog is their yes for that one object. Closing the frame
+        // (the host aborts the signal) closes the dialog and answers "cancelled".
+        pickShelfObject: (req, signal) =>
+          new Promise<ShelfObjectPick | null>((resolve) => {
+            const done = (p: ShelfObjectPick | null) => {
+              signal.removeEventListener('abort', cancel);
+              setPick(null);
+              resolve(p);
+            };
+            const cancel = () => done(null);
+            if (signal.aborted) return cancel();
+            signal.addEventListener('abort', cancel);
+            setPick({ req, done });
+          }),
         proxyToken: mintProxyToken,
         guests: () => guestParticipants(latest.current.instance.id),
         selfId: () => useStore.getState().currentUserId ?? null,
@@ -178,6 +201,15 @@ export function ActivityFrame({
         allow="fullscreen"
         referrerPolicy="no-referrer"
       />
+      {pick && (
+        <Suspense fallback={null}>
+          <ShelfPicker
+            appName={instance.application_name}
+            req={pick.req}
+            onDone={(p) => pick.done(p)}
+          />
+        </Suspense>
+      )}
       {ask && (
         <Modal
           open

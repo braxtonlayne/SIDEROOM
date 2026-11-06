@@ -169,3 +169,63 @@
   margin: 0;
   flex: 1 1 12em;
 }
+
+/* The shelf picker an Activity opens with pickShelfObject (D-466): app-rendered, over the frame. */
+.act-pick {
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.act-pick-fields {
+  display: grid;
+  gap: 10px;
+}
+.act-pick-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.act-pick-note {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.act-pick-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-block-size: min(40vh, 320px);
+  overflow-y: auto;
+}
+.act-pick-row {
+  display: grid;
+  gap: 2px;
+  inline-size: 100%;
+  padding-block: 8px;
+  padding-inline: 12px;
+  border: 1px solid var(--ui-border, var(--sr-line, #2a2b24));
+  border-radius: var(--ui-radius, var(--sr-radius, 4px));
+  background: transparent;
+  color: var(--ui-text, inherit);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.act-pick-row:hover,
+.act-pick-row:focus-visible {
+  border-color: var(--ui-accent, var(--sr-gold, #c9a24d));
+}
+.act-pick-row:focus-visible {
+  outline: 2px solid var(--ui-focus, var(--sr-gold, #c9a24d));
+  outline-offset: 2px;
+}
+.act-pick-name {
+  overflow-wrap: anywhere;
+}
+.act-pick-meta {
+  color: var(--ui-text-muted, var(--sr-text-2, #a79f8f));
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}

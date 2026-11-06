@@ -92,6 +92,15 @@ describe('the guest capability set is an allow-list', () => {
     expect(r.sent).toHaveLength(0);
   });
 
+  it('refuses pickShelfObject (D-466) like the other shelf commands and sends nothing', async () => {
+    expect(GUEST_COMMANDS).not.toContain('pickShelfObject');
+    const r = rig();
+    await r.handshake();
+    const res = await r.call('pickShelfObject', { accept: ['.json'], max_size: 1000 });
+    expect(errCode(res)).toBe(RPC_ERRORS.notAuthorized);
+    expect(r.sent).toHaveLength(0);
+  });
+
   it('answers a command the protocol does not know with UNKNOWN_COMMAND, so a future command stays closed', async () => {
     const r = rig();
     await r.handshake();
