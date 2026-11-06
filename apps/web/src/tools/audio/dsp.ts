@@ -193,7 +193,8 @@ export function encodeWav(channels: Channels, sampleRate: number, mono = false):
   return out;
 }
 
-/** The Opus container this browser can record, preferring Ogg (what voice messages need), or null. */
+/** The Opus container this browser can record, or null. `preferOgg` true (voice messages) tries Ogg first; false (soundboard sounds, D-551: Safari
+ * never plays Ogg) tries WebM first. */
 export function opusMimeType(preferOgg = true): string | null {
   if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function')
     return null;

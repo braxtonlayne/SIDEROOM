@@ -1,8 +1,11 @@
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../api/client';
 import { useT } from '../../../i18n';
+import { browserAudioDeps } from '../../../voice/deps';
+import { LocalSoundPlayer } from '../../../voice/soundPlayer';
 import { parseSound, soundAudio, type Sound } from '../../../voice/soundboard';
+import { getVoiceSettings } from '../../../voice/settings';
 import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
 import { ActionStatus, Async, useAction } from '../ui';
@@ -70,16 +73,6 @@ export function audioSeconds(file: Blob): Promise<number> {
   });
 }
 
-/** The type of a sound file by its first bytes, so a blob URL plays in browsers that do not sniff (WebKit). */
-export function soundMime(buf: ArrayBuffer): string {
-  const b = new Uint8Array(buf.slice(0, 12));
-  const at = (s: string) => [...s].every((c, i) => b[i] === c.charCodeAt(0));
-  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'audio/webm';
-  if (at('OggS')) return 'audio/ogg';
-  if (at('RIFF')) return 'audio/wav';
-  return 'audio/mpeg';
-}
-
 const readDataUri = (file: Blob) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -101,6 +94,9 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
   const [uploading, setUploading] = useState(false);
   const [toDelete, setToDelete] = useState<SoundRow | null>(null);
   const action = useAction();
+  // One WebAudio player for every Play in the tab (D-552): the same decoder as the popover and the call.
+  const [player] = useState(() => new LocalSoundPlayer(browserAudioDeps));
+  useEffect(() => () => player.dispose(), [player]);
 
   const remove = async () => {
     if (!toDelete) return;
@@ -140,6 +136,7 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
                   key={s.id}
                   guildId={guildId}
                   sound={s}
+                  player={player}
                   onChanged={res.reload}
                   onDelete={() => setToDelete(s)}
                 />
@@ -175,11 +172,13 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
 function SoundItem({
   guildId,
   sound,
+  player,
   onChanged,
   onDelete,
 }: {
   guildId: string;
   sound: SoundRow;
+  player: LocalSoundPlayer;
   onChanged: () => Promise<void>;
   onDelete: () => void;
 }) {
@@ -187,21 +186,16 @@ function SoundItem({
   const [name, setName] = useState(sound.name);
   const [volume, setVolume] = useState(Math.round(sound.volume * 100));
   const action = useAction();
-  const playing = useRef<HTMLAudioElement | null>(null);
   const validName =
     name.trim().length >= SOUND_LIMITS.nameMin && name.trim().length <= SOUND_LIMITS.nameMax;
   const dirty = name.trim() !== sound.name || volume !== Math.round(sound.volume * 100);
 
   const play = () =>
     void action.run(async () => {
-      playing.current?.pause();
+      player.stop();
       const buf = await soundAudio(sound);
-      const url = URL.createObjectURL(new Blob([buf], { type: soundMime(buf) }));
-      const a = new Audio(url);
-      a.volume = volume / 100;
-      a.onended = () => URL.revokeObjectURL(url);
-      playing.current = a;
-      await a.play();
+      const ok = await player.play(buf, volume / 100, getVoiceSettings().outputDeviceId);
+      if (!ok) action.setError(t('settings.soundboard.cannotPlayHere'));
     });
   const save = async () => {
     const ok = await action.run(async () => {

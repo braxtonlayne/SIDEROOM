@@ -163,7 +163,7 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
     setMessage(null);
     void voiceController()
       .previewSound(s)
-      .then((ok) => setMessage(ok ? null : t('lounge.soundboard.previewFailed')));
+      .then((ok) => setMessage(ok ? null : t('settings.soundboard.cannotPlayHere')));
   };
   const rowProps = {
     disabled: blocked,
