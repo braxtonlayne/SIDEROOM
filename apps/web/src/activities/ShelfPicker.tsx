@@ -10,6 +10,7 @@ import { visibleShelves } from '../study/api';
 import type { VisibleShelf } from '../study/sources';
 import { shelfCatalogPage, type ShelfCatalogObject, type ShelfCatalogPage } from './api';
 import { contentTypeOf, fileName, pickable } from './shelfPick';
+import './activities.css';
 
 /** Most catalog pages (200 objects each) read for one shelf. */
 const MAX_PAGES = 15;
