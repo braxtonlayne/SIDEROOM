@@ -220,6 +220,7 @@ pub fn router() -> Router<AppState> {
             post(h::admin_decide),
         )
         .route("/activities", get(h::shelf))
+        .route("/users/@me/activity-lobbies", get(h::lobbies))
         .route("/activities/{application_id}/trust", get(h::get_trust))
         .route(
             "/activities/{application_id}/vouch",
@@ -263,6 +264,7 @@ pub fn router() -> Router<AppState> {
         handlers::admin_pending,
         handlers::admin_decide,
         handlers::shelf,
+        handlers::lobbies,
         handlers::get_trust,
         handlers::put_vouch,
         handlers::delete_vouch,
@@ -290,11 +292,13 @@ pub fn router() -> Router<AppState> {
         sr_activities::model::ShelfItem,
         sr_activities::model::ParticipantView,
         sr_activities::model::InstanceView,
+        sr_activities::model::LobbyView,
         handlers::ConfigResponse,
         handlers::DecisionBody,
         handlers::SubmitBody,
         handlers::LaunchBody,
         handlers::ShelfResponse,
+        handlers::LobbiesResponse,
         handlers::VouchBody,
         handlers::ProxyTokenResponse,
         sr_activities::guest::GuestLinkCreated,

@@ -584,6 +584,7 @@ GET	/tv/guide	authenticated	user	allow	-	-
 GET	/tv/reminders	authenticated	self	deny	-	-
 GET	/tv/timezones	authenticated	user	allow	-	-
 GET	/users/@me	authenticated	self	allow	identify	-
+GET	/users/@me/activity-lobbies	authenticated	self	deny	-	-
 GET	/users/@me/age-confirmation	authenticated	self	deny	-	-
 GET	/users/@me/birthday	authenticated	self	deny	-	-
 GET	/users/@me/bookmarks	authenticated	self	deny	-	-

@@ -1337,3 +1337,269 @@ async fn a_lobby_caps_its_links_and_its_guests() {
     ));
     r.db.cleanup().await.unwrap();
 }
+
+// ------------------------------------------------------------------ lobbies (ARC-LOB-001, D-483 to D-487)
+
+/// Guild `guild` named `name` with `channels` (`(id, type, name)`, Discord types: 0 text, 2 voice) and
+/// `members` in it.
+async fn server(r: &Rig, guild: i64, name: &str, channels: &[(i64, i16, &str)], members: &[i64]) {
+    let owner = account(r.db.pool()).await;
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, $2, $3)")
+        .bind(guild)
+        .bind(name)
+        .bind(owner)
+        .execute(r.db.pool())
+        .await
+        .unwrap();
+    for (id, kind, cname) in channels {
+        sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES ($1, $2, $3, $4)")
+            .bind(id)
+            .bind(guild)
+            .bind(kind)
+            .bind(cname)
+            .execute(r.db.pool())
+            .await
+            .unwrap();
+    }
+    for m in members {
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(guild)
+            .bind(m)
+            .execute(r.db.pool())
+            .await
+            .unwrap();
+    }
+}
+
+/// Guild 9 "Den": 1 a voice channel "Lounge", 3 a text channel "general", 5 a voice channel "Back room".
+async fn den(r: &Rig, members: &[i64]) {
+    server(
+        r,
+        9,
+        "Den",
+        &[(1, 2, "Lounge"), (3, 0, "general"), (5, 2, "Back room")],
+        members,
+    )
+    .await;
+}
+
+fn iid(v: &sr_activities::model::InstanceView) -> i64 {
+    v.id.parse().unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_lobby_in_a_channel_the_member_cannot_see_is_not_listed() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    den(&r, &[a, s]).await;
+    r.svc.launch(s, app, 1).await.unwrap();
+    r.svc.launch(s, app, 3).await.unwrap();
+    let hidden = ChannelPerms {
+        view: false,
+        ..r.chans.base(1).unwrap()
+    };
+    r.chans.set(a, 1, hidden);
+    let list = r.svc.lobbies(a).await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].channel_id, "3");
+    assert_eq!(list[0].channel_name, "general");
+    assert_eq!(list[0].guild_name, "Den");
+    assert_eq!(list[0].channel_type, "text");
+    assert_eq!(list[0].application_name, "Chess");
+    assert_eq!(list[0].player_count, 1);
+    assert!(!list[0].joined);
+    assert!(!list[0].development);
+    // The starter sees both.
+    assert_eq!(r.svc.lobbies(s).await.unwrap().len(), 2);
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_lobby_in_a_server_they_are_not_in_is_not_listed() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    den(&r, &[a]).await;
+    server(&r, 10, "Elsewhere", &[(6, 0, "general")], &[s]).await;
+    // Even a channel port that (wrongly) said `a` could see the other server's channel is never asked: the
+    // candidates come from `a`'s own memberships.
+    let other = ChannelPerms {
+        guild_id: 10,
+        ..r.chans.base(3).unwrap()
+    };
+    r.chans.set(s, 6, other);
+    r.chans.set(a, 6, other);
+    r.svc.launch(s, app, 6).await.unwrap();
+    assert!(r.svc.lobbies(a).await.unwrap().is_empty());
+    assert_eq!(r.svc.lobbies(s).await.unwrap().len(), 1);
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_voice_lobby_needs_connect_and_use_activities_a_text_lobby_use_activities() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let b = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    den(&r, &[a, b, s]).await;
+    r.svc.launch(s, app, 1).await.unwrap();
+    r.svc.launch(s, app, 3).await.unwrap();
+    let voice = r.chans.base(1).unwrap();
+    let text = r.chans.base(3).unwrap();
+    // `a`: no CONNECT anywhere. The voice lobby goes, the text lobby stays (CONNECT is a voice permission).
+    r.chans.set(
+        a,
+        1,
+        ChannelPerms {
+            connect: false,
+            ..voice
+        },
+    );
+    r.chans.set(
+        a,
+        3,
+        ChannelPerms {
+            connect: false,
+            ..text
+        },
+    );
+    let list = r.svc.lobbies(a).await.unwrap();
+    assert_eq!(
+        list.iter()
+            .map(|l| l.channel_id.as_str())
+            .collect::<Vec<_>>(),
+        ["3"]
+    );
+    // `b`: no USE_EMBEDDED_ACTIVITIES anywhere. Nothing.
+    for (ch, p) in [(1, voice), (3, text)] {
+        r.chans.set(
+            b,
+            ch,
+            ChannelPerms {
+                use_activities: false,
+                ..p
+            },
+        );
+    }
+    assert!(r.svc.lobbies(b).await.unwrap().is_empty());
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_lobby_item_names_nobody() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    den(&r, &[a, s]).await;
+    r.svc.launch(s, app, 1).await.unwrap();
+    let list = r.svc.lobbies(a).await.unwrap();
+    let v = serde_json::to_value(&list[0]).unwrap();
+    let mut keys: Vec<&str> = v.as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        [
+            "application_id",
+            "application_name",
+            "channel_id",
+            "channel_name",
+            "channel_type",
+            "created_at_ms",
+            "development",
+            "guild_id",
+            "guild_name",
+            "instance_id",
+            "joined",
+            "player_count",
+        ]
+    );
+    let raw = v.to_string();
+    for banned in [
+        "user_id",
+        "started_by",
+        "host",
+        "participants",
+        "lobby_token",
+    ] {
+        assert!(!raw.contains(banned), "{banned} in {raw}");
+    }
+    assert!(
+        !raw.contains(&s.to_string()),
+        "the starter's id leaked: {raw}"
+    );
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_callers_own_lobby_comes_first_then_the_fullest() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let b = account(r.db.pool()).await;
+    let c = account(r.db.pool()).await;
+    let d = account(r.db.pool()).await;
+    den(&r, &[a, b, c, d]).await;
+    r.svc.launch(a, app, 5).await.unwrap();
+    let full = r.svc.launch(c, app, 3).await.unwrap();
+    r.svc.join(d, iid(&full)).await.unwrap();
+    r.svc.launch(b, app, 1).await.unwrap();
+    let list = r.svc.lobbies(a).await.unwrap();
+    assert_eq!(
+        list.iter()
+            .map(|l| (l.channel_id.as_str(), l.player_count, l.joined))
+            .collect::<Vec<_>>(),
+        [("5", 1, true), ("3", 2, false), ("1", 1, false)]
+    );
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_ended_instance_is_not_a_lobby() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    den(&r, &[a, s]).await;
+    let inst = r.svc.launch(s, app, 3).await.unwrap();
+    assert_eq!(r.svc.lobbies(a).await.unwrap().len(), 1);
+    r.svc.end(s, iid(&inst)).await.unwrap();
+    assert!(r.svc.lobbies(a).await.unwrap().is_empty());
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_list_stops_at_twenty() {
+    let r = rig().await;
+    let app = approved_app(&r, "Chess").await;
+    let a = account(r.db.pool()).await;
+    let s = account(r.db.pool()).await;
+    let names: Vec<String> = (100..125).map(|i| format!("room-{i}")).collect();
+    let chans: Vec<(i64, i16, &str)> = names
+        .iter()
+        .enumerate()
+        .map(|(n, name)| (100 + n as i64, 0, name.as_str()))
+        .collect();
+    server(&r, 9, "Den", &chans, &[a, s]).await;
+    let text = r.chans.base(3).unwrap();
+    for (id, _, _) in &chans {
+        r.chans.default.lock().unwrap().insert(*id, text);
+        r.svc.launch(s, app, *id).await.unwrap();
+    }
+    assert_eq!(
+        r.svc.lobbies(a).await.unwrap().len(),
+        sr_activities::service::LOBBY_MAX
+    );
+    r.db.cleanup().await.unwrap();
+}

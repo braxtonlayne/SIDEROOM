@@ -793,6 +793,7 @@ async fn member_routes_need_a_session() {
     let app = build_router(state, super::router());
     for (m, uri) in [
         (Method::GET, "/activities"),
+        (Method::GET, "/users/@me/activity-lobbies"),
         (Method::GET, "/channels/1/activity"),
         (Method::POST, "/channels/1/activity"),
         (Method::POST, "/activity-instances/1/join"),
@@ -823,6 +824,56 @@ async fn member_routes_need_a_session() {
     }
 }
 
+/// D-485: with `[activities]` off, the lobby strip's route answers `{enabled: false, items: []}` to a session
+/// (like `GET /activities`), and bots are kept out of it by the policy.
+#[tokio::test]
+async fn the_lobby_list_is_off_with_activities_and_session_only() {
+    use sr_auth::{
+        repo::{SessionRecord, SessionRepository},
+        session::SessionToken,
+    };
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let sessions = Arc::new(MemorySessions::new());
+    let t = SessionToken::generate().unwrap();
+    sessions
+        .create(SessionRecord {
+            id: 7,
+            user_id: 42,
+            token_hash: t.hash(),
+            created_at: 0,
+            last_seen_at: i64::MAX / 4,
+            expires_at: i64::MAX / 4,
+            device_name: None,
+        })
+        .await
+        .unwrap();
+    let state = AppState::builder()
+        .settings(settings)
+        .sessions(sessions)
+        .extension(rig(false).await.0)
+        .build();
+    let app = build_router(state, super::router());
+    let r = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/users/@me/activity-lobbies")
+                .header("origin", "http://localhost:8080")
+                .header("cookie", format!("sr_session={}", t.expose()))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let (status, _, body) = text(r).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v, serde_json::json!({"enabled": false, "items": []}));
+    assert!(crate::auth::policy::bot_denied(
+        &Method::GET,
+        "/users/@me/activity-lobbies"
+    ));
+}
 #[tokio::test]
 async fn hosts_and_origins_come_from_the_public_url() {
     let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
