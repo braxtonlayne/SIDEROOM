@@ -703,7 +703,7 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     const length = 12 * rate;
     const left = new Float32Array(length).fill(0.5);
     const right = new Float32Array(length).fill(-0.5);
-    const played: { start: number; length: number }[] = [];
+    const played: number[] = [];
     class FakeContext {
       destination = {};
       decodeAudioData = async () => ({
@@ -712,12 +712,15 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
         numberOfChannels: 2,
         getChannelData: (c: number) => (c === 0 ? left : right),
       });
+      createBuffer(channels: number, len: number) {
+        return { length: len, numberOfChannels: channels, copyToChannel: () => undefined };
+      }
       createBufferSource() {
         const node = {
-          buffer: null as unknown,
+          buffer: null as { length: number } | null,
           onended: null as (() => void) | null,
           connect: () => undefined,
-          start: (_when: number, start: number, len: number) => played.push({ start, length: len }),
+          start: () => played.push(node.buffer?.length ?? 0),
           stop: () => node.onended?.(),
         };
         return node;
@@ -730,23 +733,27 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
       within(dialog).getByLabelText('Sound file'),
       new File(['abc'], 'long clip.mp3', { type: 'audio/mpeg' }),
     );
-    const trimmer = await within(dialog).findByRole('group', { name: 'Trim the sound' });
-    expect(within(trimmer).getByText(/12\.0 seconds long and the limit is 5/)).toBeVisible();
+    const trimmer = await within(dialog).findByRole('group', {
+      name: 'Audio trimmer and normalizer',
+    });
+    expect(within(trimmer).getByText(/12.0 seconds long and the limit is 5/)).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();
-    expect(within(trimmer).getByTestId('trim-range')).toHaveTextContent('0.00 s to 5.00 s');
+    expect(within(trimmer).getByTestId('audio-range')).toHaveTextContent('0.00 s to 5.00 s');
 
-    // Move the window to 4 s, preview it, then use it.
-    const slider = within(trimmer).getByLabelText('Start of the part to keep');
-    expect(slider).toHaveAttribute('max', '7');
-    fireEvent.change(slider, { target: { value: '4' } });
-    expect(within(trimmer).getByTestId('trim-range')).toHaveTextContent('4.00 s to 9.00 s');
-    await userEvent.click(within(trimmer).getByRole('button', { name: 'Play this part' }));
-    expect(played).toEqual([{ start: 4, length: 5 }]);
+    // Move the end to 9 s: the 5 s limit pushes the start to 4 s. Preview it, then use it.
+    const [startSlider, endSlider] = within(trimmer).getAllByRole('slider');
+    fireEvent.change(endSlider!, { target: { value: '9' } });
+    expect(startSlider).toHaveValue('4');
+    expect(within(trimmer).getByTestId('audio-range')).toHaveTextContent('4.00 s to 9.00 s');
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Play the result' }));
+    expect(played).toEqual([5 * rate]);
     await userEvent.click(within(trimmer).getByRole('button', { name: 'Stop' }));
-    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this part' }));
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this' }));
 
-    expect(await within(dialog).findByText('Ready to upload: long clip.wav')).toBeVisible();
-    expect(within(dialog).queryByRole('group', { name: 'Trim the sound' })).toBeNull();
+    expect(await within(dialog).findByText('Ready to upload: long clip-trimmed.wav')).toBeVisible();
+    expect(
+      within(dialog).queryByRole('group', { name: 'Audio trimmer and normalizer' }),
+    ).toBeNull();
     await waitFor(() => expect(within(dialog).getByLabelText('Name')).toHaveValue('long clip'));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Upload' }));
     await waitFor(() => expect(post.calls).toHaveLength(1));
@@ -793,11 +800,13 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
       within(dialog).getByLabelText('Sound file'),
       new File(['abc'], 'big.wav', { type: 'audio/wav' }),
     );
-    const trimmer = await within(dialog).findByRole('group', { name: 'Trim the sound' });
-    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this part' }));
+    const trimmer = await within(dialog).findByRole('group', {
+      name: 'Audio trimmer and normalizer',
+    });
+    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this' }));
     expect(
       await within(trimmer).findByText(
-        'This part would be 938 KiB as a WAV file; the limit is 512 KiB. Pick another file.',
+        'The result is 938 KB; the limit is 512 KB. Trim a shorter part.',
       ),
     ).toBeVisible();
     expect(within(dialog).getByRole('button', { name: 'Upload' })).toBeDisabled();

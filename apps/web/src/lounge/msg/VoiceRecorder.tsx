@@ -2,7 +2,7 @@ import { Button, Icon } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { formatDuration } from './format';
-import { decodeAudioFile, durationOf } from '../../settings/server/sections/soundTrim';
+import { decodeAudioFile, durationOf } from '../../tools/audio/pcm';
 import { AudioTool } from '../../tools/audio/AudioTool';
 import { FLAT_WAVEFORM, MAX_VOICE_SECS, voiceFileInfo, voiceMimeType, waveformOf } from './voice';
 

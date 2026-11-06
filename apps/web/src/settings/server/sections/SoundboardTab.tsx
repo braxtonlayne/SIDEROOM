@@ -6,8 +6,8 @@ import { parseSound, soundAudio, type Sound } from '../../../voice/soundboard';
 import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
 import { ActionStatus, Async, useAction } from '../ui';
-import { decodeAudioFile, type PcmSource } from './soundTrim';
-import { SoundTrimmer } from './SoundTrimmer';
+import { AudioTool } from '../../../tools/audio/AudioTool';
+import { decodeAudioFile } from '../../../tools/audio/pcm';
 
 /** Limits mirrored from crates/sr-chat/src/settings/soundboard.rs. */
 export const SOUND_LIMITS = { maxBytes: 512 * 1024, maxSeconds: 5, nameMin: 2, nameMax: 32 };
@@ -81,7 +81,7 @@ const readDataUri = (file: Blob) =>
 /**
  * Soundboard (LNG-SSET-025): the server's sounds with play, rename, volume and delete, and an upload dialog.
  * The server keeps files as uploaded (D-201), so a file over five seconds is trimmed in the browser first
- * (`SoundTrimmer`: a five second window re-encoded as WAV).
+ * (the shared audio tool in `tools/audio`, limited to five seconds and the size cap, exported as WAV).
  */
 export function SoundboardTab({ guildId }: { guildId: string }) {
   const t = useT();
@@ -272,7 +272,7 @@ function UploadDialog({
   const [volume, setVolume] = useState(100);
   const [fileError, setFileError] = useState<string | null>(null);
   /** A decoded sound longer than the limit, waiting for the person to pick a window (J-06). */
-  const [trim, setTrim] = useState<{ audio: PcmSource; fileName: string } | null>(null);
+  const [trim, setTrim] = useState<File | null>(null);
   /** The file made by the trimmer, while it is the chosen one. */
   const [cut, setCut] = useState<File | null>(null);
   const action = useAction();
@@ -304,8 +304,10 @@ function UploadDialog({
     }
     if (seconds > SOUND_LIMITS.maxSeconds) {
       // Too long: decode it and let the person pick a five second window (the server never transcodes, D-201).
+      // A file the browser cannot decode cannot be trimmed either: keep the plain "too long" refusal for it.
       try {
-        setTrim({ audio: await decodeAudioFile(f), fileName: f.name });
+        await decodeAudioFile(f);
+        setTrim(f);
       } catch {
         setFileError(
           t('settings.soundboard.tooLong', {
@@ -367,17 +369,19 @@ function UploadDialog({
         />
         {fileError && <ActionStatus error={fileError} />}
         {trim && (
-          <SoundTrimmer
-            audio={trim.audio}
-            fileName={trim.fileName}
-            maxSeconds={SOUND_LIMITS.maxSeconds}
-            maxBytes={SOUND_LIMITS.maxBytes}
+          <AudioTool
+            file={trim}
+            limits={{
+              maxSeconds: SOUND_LIMITS.maxSeconds,
+              maxBytes: SOUND_LIMITS.maxBytes,
+              format: 'wav',
+            }}
             onCancel={() => setTrim(null)}
             onUse={(made) => {
               setTrim(null);
               setCut(made);
               setFile(made);
-              nameFrom(trim.fileName);
+              nameFrom(trim.name);
             }}
           />
         )}
