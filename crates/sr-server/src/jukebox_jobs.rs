@@ -338,12 +338,14 @@ pub fn room_payload(
     mode: &str,
     seq: i64,
     at_ms: i64,
+    dj: Option<i64>,
     pos: Option<(&cursor::Position, &Lap)>,
 ) -> Value {
     let mut v = json!({
         "channel_id": channel.to_string(),
         "guild_id": guild.to_string(),
         "mode": mode,
+        "dj_id": dj.map(|d| d.to_string()),
         "seq": seq,
         "at_ms": at_ms,
         "position_ms": 0,
@@ -432,6 +434,14 @@ ORDER BY next_due_at \
 LIMIT $1 \
 FOR UPDATE SKIP LOCKED";
 
+/// A `cursor` room whose channel's jukebox has a live DJ freezes (D-511, D-512). "Live" is: the session is in
+/// `stream` mode, a DJ is seated and that DJ's listener heartbeat is inside the window
+/// (`sr_chat::jukebox::model::LISTENER_TTL_MS`, bound as `$1` in seconds: the number `rules::live` uses).
+const TO_STREAM_SQL: &str = "UPDATE listening_rooms r SET mode = 'stream',        stream_dj_id = (SELECT s.dj_user_id FROM jukebox_sessions s WHERE s.channel_id = r.channel_id) WHERE r.mode = 'cursor' AND EXISTS (SELECT 1 FROM jukebox_sessions s         JOIN jukebox_listeners l ON l.channel_id = s.channel_id AND l.user_id = s.dj_user_id         WHERE s.channel_id = r.channel_id AND s.mode = 'stream' AND s.dj_user_id IS NOT NULL           AND l.seen_at >= now() - make_interval(secs => $1)) RETURNING r.channel_id, r.guild_id, r.stream_dj_id, r.item_id, r.playlist_id, r.position_ms, r.seq";
+
+/// A `stream` room whose DJ left or whose jukebox left `stream` mode resumes in place (D-513).
+const TO_CURSOR_SQL: &str = "UPDATE listening_rooms r SET mode = 'cursor', stream_dj_id = NULL, cursor_at = now(), next_due_at = now() WHERE r.mode = 'stream' AND NOT EXISTS (SELECT 1 FROM jukebox_sessions s         JOIN jukebox_listeners l ON l.channel_id = s.channel_id AND l.user_id = s.dj_user_id         WHERE s.channel_id = r.channel_id AND s.mode = 'stream' AND s.dj_user_id IS NOT NULL           AND l.seen_at >= now() - make_interval(secs => $1)) RETURNING r.channel_id, r.guild_id, r.item_id, r.playlist_id, r.position_ms, r.seq";
+
 const SLOTS_SQL: &str = "\
 SELECT i.id AS item_id, i.track_id, t.duration_ms, t.title, t.artist \
 FROM music_playlist_items i \
@@ -470,12 +480,56 @@ pub async fn load_lap(pool: &PgPool, playlist: i64, guild: i64) -> Result<Lap, s
 /// One pass over the due rooms. Returns the events to publish (after the cursors are stored).
 pub async fn tick(pool: &PgPool) -> Result<Vec<DomainEvent>, sqlx::Error> {
     let mut tx = pool.begin().await?;
+    let mut events = Vec::new();
+    let window = sr_chat::jukebox::model::LISTENER_TTL_MS as f64 / 1000.0;
+    // Hand-overs first (D-512): a live DJ freezes the room, their leaving resumes it where it paused.
+    let frozen = sqlx::query(TO_STREAM_SQL)
+        .bind(window)
+        .fetch_all(&mut *tx)
+        .await?;
+    let resumed = sqlx::query(TO_CURSOR_SQL)
+        .bind(window)
+        .fetch_all(&mut *tx)
+        .await?;
+    let now_ms: i64 = sqlx::query_scalar("SELECT (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT")
+        .fetch_one(&mut *tx)
+        .await?;
+    for (rows, stream) in [(frozen, true), (resumed, false)] {
+        for r in rows {
+            let channel: i64 = r.try_get("channel_id")?;
+            let guild: i64 = r.try_get("guild_id")?;
+            let playlist: i64 = r.try_get("playlist_id")?;
+            let item: Option<i64> = r.try_get("item_id")?;
+            let position: i64 = r.try_get("position_ms")?;
+            let seq: i64 = r.try_get("seq")?;
+            let dj: Option<i64> = if stream {
+                r.try_get("stream_dj_id")?
+            } else {
+                None
+            };
+            let lap = load_lap(pool, playlist, guild).await?;
+            // The frozen cursor, unchanged: elapsed 0 (the arithmetic `read_room` uses for a stream room).
+            let pos = advance(&lap.slots, item, position, 0);
+            events.push(DomainEvent::ListeningRoomUpdated {
+                guild: GuildId::new(u64::try_from(guild).unwrap_or(0)),
+                channel: ChannelId::new(u64::try_from(channel).unwrap_or(0)),
+                payload: room_payload(
+                    channel,
+                    guild,
+                    if stream { "stream" } else { "cursor" },
+                    seq,
+                    now_ms,
+                    dj,
+                    pos.as_ref().map(|p| (p, &lap)),
+                ),
+            });
+        }
+    }
     let due = sqlx::query(DUE_SQL)
         .bind(MAX_ROOMS_PER_TICK)
         .bind(PUBLISH_EVERY_MS as f64 / 1000.0)
         .fetch_all(&mut *tx)
         .await?;
-    let mut events = Vec::new();
     for r in due {
         let channel: i64 = r.try_get("channel_id")?;
         let guild: i64 = r.try_get("guild_id")?;
@@ -507,6 +561,7 @@ pub async fn tick(pool: &PgPool) -> Result<Vec<DomainEvent>, sqlx::Error> {
                     "cursor",
                     st.seq,
                     now_ms,
+                    None,
                     pos.as_ref().map(|p| (p, &lap)),
                 ),
             });
@@ -552,7 +607,7 @@ pub async fn schedule(pool: &PgPool) -> DbResult<()> {
 /// read of `GET /channels/{id}/listening-room`). `None` when the channel is not a room.
 pub async fn read_room(pool: &PgPool, channel: i64) -> Result<Option<Value>, sqlx::Error> {
     let Some(r) = sqlx::query(
-        "SELECT guild_id, playlist_id, mode, item_id, position_ms, seq, \
+        "SELECT guild_id, playlist_id, mode, stream_dj_id, item_id, position_ms, seq, \
          (EXTRACT(EPOCH FROM (now() - cursor_at)) * 1000)::BIGINT AS elapsed_ms, \
          (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT AS now_ms \
          FROM listening_rooms WHERE channel_id = $1",
@@ -566,6 +621,7 @@ pub async fn read_room(pool: &PgPool, channel: i64) -> Result<Option<Value>, sql
     let guild: i64 = r.try_get("guild_id")?;
     let playlist: i64 = r.try_get("playlist_id")?;
     let mode: String = r.try_get("mode")?;
+    let dj: Option<i64> = r.try_get("stream_dj_id")?;
     let item: Option<i64> = r.try_get("item_id")?;
     let position: i64 = r.try_get("position_ms")?;
     let seq: i64 = r.try_get("seq")?;
@@ -576,14 +632,19 @@ pub async fn read_room(pool: &PgPool, channel: i64) -> Result<Option<Value>, sql
     let elapsed = if mode == "stream" { 0 } else { elapsed };
     let pos = advance(&lap.slots, item, position, elapsed);
     let seq = seq + i64::from(pos.as_ref().is_some_and(|p| p.changed));
-    Ok(Some(room_payload(
+    let mut v = room_payload(
         channel,
         guild,
         &mode,
         seq,
         now_ms,
+        dj,
         pos.as_ref().map(|p| (p, &lap)),
-    )))
+    );
+    // The page-load read also says which playlist the room plays (the settings card preselects it); the
+    // gateway payload does not carry it.
+    v["playlist_id"] = json!(playlist.to_string());
+    Ok(Some(v))
 }
 
 #[cfg(test)]
@@ -668,10 +729,23 @@ mod tests {
         let (s, p) = step(&l, Some(3), 5000, 0, 2, true);
         assert!(s.publish);
         let p = p.unwrap();
-        let v = room_payload(77, 5, "cursor", s.seq, 1_700_000_000_000, Some((&p, &l)));
+        let v = room_payload(
+            77,
+            5,
+            "cursor",
+            s.seq,
+            1_700_000_000_000,
+            None,
+            Some((&p, &l)),
+        );
         assert_eq!(v["channel_id"], "77");
         assert_eq!(v["guild_id"], "5");
         assert_eq!(v["position_ms"], 5000);
+        assert!(v["dj_id"].is_null());
+        assert_eq!(
+            room_payload(77, 5, "stream", 1, 1, Some(9), None)["dj_id"],
+            "9"
+        );
         assert_eq!(v["now_playing"]["title"], "Three");
         assert_eq!(v["now_playing"]["duration_ms"], 30_000);
         let next: Vec<_> = v["next"]
@@ -686,7 +760,7 @@ mod tests {
             "the item without a duration is not listed"
         );
         assert_eq!(v["skipped"], 1);
-        let idle = room_payload(77, 5, "cursor", 3, 1, None);
+        let idle = room_payload(77, 5, "cursor", 3, 1, None, None);
         assert!(idle["now_playing"].is_null() && idle["next"].as_array().unwrap().is_empty());
     }
 }

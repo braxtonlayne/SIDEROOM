@@ -30,6 +30,7 @@ const room = (over: Partial<RoomUpdate> = {}): RoomUpdate => ({
   channel_id: 'c1',
   guild_id: 'g1',
   mode: 'cursor',
+  djId: null,
   seq: 4,
   at_ms: 1_000_000,
   position_ms: 10_000,
@@ -227,6 +228,29 @@ describe('the channel card', () => {
       />,
     );
     expect(screen.getByText(/DJ is playing live/)).toBeInTheDocument();
+    // D-513: with the DJ's name the note names them; the parse reads `dj_id` only in stream mode.
+    rerender(
+      <RoomCardView
+        room={room({ mode: 'stream', djId: 'u9' })}
+        djName="Ada"
+        listening={false}
+        failed={false}
+        onJoin={noop}
+        onLeave={noop}
+      />,
+    );
+    expect(screen.getByText(/Ada is live in the voice channel/)).toBeInTheDocument();
+    expect(parseRoomUpdate({ ...wire(room({ mode: 'stream' })), dj_id: 'u9' })?.djId).toBe('u9');
+    expect(parseRoomUpdate({ ...wire(room()), dj_id: 'u9' })?.djId).toBeNull();
+    rerender(
+      <RoomCardView
+        room={room({ mode: 'stream' })}
+        listening={false}
+        failed={false}
+        onJoin={noop}
+        onLeave={noop}
+      />,
+    );
     rerender(
       <RoomCardView
         room={room({ now_playing: null, next: [], skipped: 2 })}

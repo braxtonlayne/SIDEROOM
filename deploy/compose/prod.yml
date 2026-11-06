@@ -119,6 +119,9 @@ services:
       # PeerTube instances whose links get "Play here" (PRF-UNF-001); read from the process environment by the unfurler.
       # Build the web app with the same list so the CSP allows them.
       SR_PEERTUBE_HOSTS: ${SR_PEERTUBE_HOSTS:-}
+      # Further hosts a listed PeerTube instance serves its files and HLS segments from (D-516, D-517): a party plays
+      # a resolved address only on the instance itself or on one of these. Build the web app with the same list.
+      SR_MEDIA_HOSTS: ${SR_MEDIA_HOSTS:-}
     # Voice media (the SFU's UDP range, voice.udp_port_min..max). The same numbers on both sides: ICE announces them.
     ports:
       - "50000-50099:50000-50099/udp"

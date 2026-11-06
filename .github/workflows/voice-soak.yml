@@ -75,6 +75,10 @@ jobs:
         run: pnpm --filter @sideroom/web build
         env:
           VITE_SR_E2E: "1"
+      # SEC-ENT-004 (D-385): the soak's dist is the one a visitor gets, so the static isolation check runs on it before
+      # anything starts (the log lists every public surface with "ok"), as in the Web and built-bundle jobs.
+      - name: Entrance isolation check on this dist
+        run: node scripts/check-entrance-isolation.mjs
       - name: Start sr-server
         run: |
           ./target/debug/sr-cli migrate
@@ -94,6 +98,15 @@ jobs:
             exit 1
           }
           echo "sr-server pid $(cat sr-server.pid)"
+      # SEC-ENT-004: the anonymous half of entrance-isolation.spec.ts against the server the soak is about to load: per
+      # public surface only its own files, the gate's status table, the plain-HTML pages. The signed-in cases stay with
+      # the built-bundle job of e2e.yml (they register accounts, and the soak needs its allowance of 20 per address and day).
+      - name: Entrance isolation, anonymous and gate cases (Chromium)
+        run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/entrance-isolation.spec.ts --grep-invert "signed in" --retries=0
+        env:
+          CI: "true"
+          SR_E2E_WEB: server
+          SR_E2E_BASE_URL: http://localhost:8080
       # Environment parity (RDY-VOX-002, run 40250340133): the pages' socket logs showed gateway heartbeats sent up
       # to 45 s late while the server never blocked a write, i.e. ten pages of the Vite dev server (React's
       # development build, unbundled modules) starved the runner's CPU. The soak runs the production build, served by

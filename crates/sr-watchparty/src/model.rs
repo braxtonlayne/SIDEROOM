@@ -100,9 +100,42 @@ pub struct MediaView {
     /// The embed address or the file, for `embed` and `direct`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// `youtube`, `vimeo` or `direct`.
+    /// `youtube`, `vimeo`, `peertube` or `direct`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    /// The link the party was started from, when `url` was resolved from it (a PeerTube page, D-516).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_url: Option<String>,
+    /// How a `direct` address loads: a plain `file` or an `hls` playlist (D-516). Absent for older parties and
+    /// embeds; a client treats a missing value on `direct` media as a file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<MediaFormat>,
+}
+
+/// How the browser loads `direct` media (migration 2360).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = WatchPartyMediaFormat)]
+pub enum MediaFormat {
+    File,
+    Hls,
+}
+
+impl MediaFormat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::File => "file",
+            Self::Hls => "hls",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "file" => Self::File,
+            "hls" => Self::Hls,
+            _ => return None,
+        })
+    }
 }
 
 /// Where a party's media comes from (migration 1700).

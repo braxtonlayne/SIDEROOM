@@ -52,17 +52,5 @@ export default {
   'settings.channelTabs.voiceStatusSaved': 'Status set.',
   'settings.channelTabs.voiceStatusCleared': 'Status cleared.',
 
-  // Soundboard trimmer (J-06, D-201)
-  'settings.soundboard.trimTitle': 'Trim the sound',
-  'settings.soundboard.trimIntro':
-    'This sound is {seconds} seconds long and the limit is {max}. Pick the part to keep.',
-  'settings.soundboard.trimStart': 'Start of the part to keep',
-  'settings.soundboard.trimRange': '{from} s to {to} s',
-  'settings.soundboard.trimPlay': 'Play this part',
-  'settings.soundboard.trimStop': 'Stop',
-  'settings.soundboard.trimUse': 'Use this part',
-  'settings.soundboard.trimCancel': 'Cancel trimming',
-  'settings.soundboard.trimTooBig':
-    'This part would be {kb} KiB as a WAV file; the limit is {max} KiB. Pick another file.',
   'settings.soundboard.ready': 'Ready to upload: {name}',
 } satisfies Record<string, string>;

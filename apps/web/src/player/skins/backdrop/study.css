@@ -1089,7 +1089,7 @@
   stroke-linejoin: round;
 }
 
-/* ---- Ambience mixer (painted; says it makes no sound yet) ---- */
+/* ---- Ambience mixer (synthesised in the browser, D-524; the sliders are real ranges) ---- */
 .st-mixer {
   --st-rim: var(--st-peach);
   --st-rim-lo: var(--st-peach-lo);
@@ -1098,7 +1098,6 @@
   gap: 0.375rem;
   align-content: start;
   background: linear-gradient(var(--st-peach-hi), var(--st-cream));
-  cursor: help;
 }
 .st-mixer-h {
   display: flex;
@@ -1134,10 +1133,30 @@
     inset 0 0 0 1.5px var(--st-peach),
     0 1px 0 var(--st-shine);
 }
+.st-slot:has(.st-slot-input:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
 .st-slot-track {
   position: relative;
   inline-size: 100%;
   block-size: 5.75rem;
+}
+.st-slot-art {
+  position: absolute;
+  inset: 0;
+}
+.st-slot-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ns-resize;
+  writing-mode: vertical-lr;
+  direction: rtl;
 }
 .st-slot-groove {
   position: absolute;

@@ -59,7 +59,7 @@ describe('a pasted link', () => {
     const start = await screen.findByRole('button', { name: 'Start party' });
     expect(start).toBeDisabled();
     await userEvent.type(
-      screen.getByRole('textbox', { name: /paste a YouTube or Vimeo link/i }),
+      screen.getByRole('textbox', { name: /paste a YouTube, Vimeo or PeerTube link/i }),
       'https://youtu.be/dQw4w9WgXcQ',
     );
     await userEvent.click(start);
@@ -76,7 +76,7 @@ describe('a pasted link', () => {
     onCreate(400, { code: 50035, message: 'Only plain https links can be watched together.' });
     mount(<StartPartyDialog open onClose={() => undefined} />);
     await userEvent.type(
-      await screen.findByRole('textbox', { name: /paste a YouTube or Vimeo link/i }),
+      await screen.findByRole('textbox', { name: /paste a YouTube, Vimeo or PeerTube link/i }),
       'http://example.org/a.mp4',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Start party' }));

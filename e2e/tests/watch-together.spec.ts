@@ -13,6 +13,9 @@ import { serveTone } from '../support/playerAudio';
  *   postMessage commands (`listening`, `playVideo`, `pauseVideo`, `seekTo`) and reports `infoDelivery` like the
  *   real iframe, so the app's real frame driver, origin checks and gate run unchanged.
  *
+ * - a PeerTube link (wave 50, D-515/D-516) is resolved by the server against a canned instance (`peertube.test`, see
+ *   deploy/compose/e2e-run.sh); the file it names is the same generated tone, fulfilled in the browser.
+ *
  * The spec asserts the two promises of the feature: nothing third-party loads before a click, and after the click
  * both members' players follow the one server-side playback state. A fixed port pair (8082/5175) is used by this
  * wave's agent (SR_E2E_BASE_URL / SR_SERVER__PUBLIC_URL as in docs/dev/e2e).
@@ -199,6 +202,81 @@ test.describe('Watch Together outside the Cinema catalog', () => {
         {
           timeout: 10_000,
         },
+      )
+      .toBe(true);
+  });
+  test('a PeerTube link is resolved by the server and both members play, seek and pause the one file', async ({
+    scenario,
+    browserName,
+  }) => {
+    test.skip(browserName !== 'chromium', 'Autoplay and media timing are asserted on Chromium.');
+    // D-515/D-516: the server asks the instance's API; e2e-run.sh starts a debug server whose resolver answers
+    // for `peertube.test` from a canned instance (SR_E2E_PEERTUBE_FIXTURE=1, SR_PEERTUBE_HOSTS=peertube.test).
+    test.skip(
+      process.env.SR_E2E_PEERTUBE_FIXTURE !== '1',
+      'Needs the server started with SR_E2E_PEERTUBE_FIXTURE=1 (deploy/compose/e2e-run.sh).',
+    );
+    const { a, b, channelId } = await scenario.ownerAndMember();
+    const fetched: string[] = [];
+    for (const m of [a, b]) {
+      await serveTone(m.page);
+      m.page.on('request', (r) => {
+        if (r.url().includes('peertube.test')) fetched.push(r.url());
+      });
+    }
+    const page = 'https://peertube.test/w/9c9de5e8-0a1e-484a-b099-e80766180a6d';
+    const party = await apiPost<{
+      id: string;
+      media: {
+        kind: string;
+        url: string;
+        provider: string;
+        page_url: string;
+        format: string;
+        title: string;
+      };
+    }>(a.context.request, '/watch-parties', { channel_id: channelId, external: { url: page } });
+    // No title is sent (D-532: the card passes one only if the unfurl carried it), so the party is named after the
+    // instance's video name (`Stub tone`). The answer named a web-video file on the instance itself; the page is kept.
+    expect(party.media).toMatchObject({
+      kind: 'direct',
+      provider: 'peertube',
+      format: 'file',
+      page_url: page,
+      title: 'Stub tone',
+      url: 'https://peertube.test/static/web-videos/e2e-tone-peertube.wav',
+    });
+
+    await a.page.goto(`/cinema/party/${party.id}`);
+    await b.page.goto(`/cinema/party/${party.id}`);
+    for (const m of [a, b]) {
+      await expect(m.page.getByRole('link', { name: 'Open on peertube.test' })).toBeVisible();
+      await expect(m.page.locator('.wp-ext video')).toHaveCount(0);
+    }
+    expect(fetched, 'no browser asked the instance before Load').toEqual([]);
+
+    for (const m of [a, b]) await m.page.getByRole('button', { name: 'Load' }).click();
+    for (const m of [a, b]) await expect(m.page.locator('.wp-ext video')).toHaveCount(1);
+
+    await a.page.getByRole('button', { name: 'Play for everyone' }).click();
+    await expect.poll(() => mediaTime(a.page), { timeout: 20_000 }).toBeGreaterThan(1);
+    await expect.poll(() => mediaTime(b.page), { timeout: 20_000 }).toBeGreaterThan(1);
+
+    // A seek by the host moves the guest's element too.
+    const before = await mediaTime(b.page);
+    await a.page.getByRole('button', { name: 'Forward 10 seconds' }).click();
+    await expect.poll(() => mediaTime(b.page), { timeout: 10_000 }).toBeGreaterThan(before + 7);
+    const [ta, tb] = await Promise.all([mediaTime(a.page), mediaTime(b.page)]);
+    expect(Math.abs(ta - tb), `positions ${ta} / ${tb}`).toBeLessThan(0.8);
+
+    await a.page.getByRole('button', { name: 'Pause for everyone' }).click();
+    await expect
+      .poll(
+        async () =>
+          (await b.page.evaluate(
+            () => document.querySelector<HTMLMediaElement>('.wp-ext video')?.paused,
+          )) ?? false,
+        { timeout: 10_000 },
       )
       .toBe(true);
   });

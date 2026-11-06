@@ -51,8 +51,8 @@ import {
   play,
   prev,
   removeAt,
-  seek,
   setEq,
+  stop,
   usePlayerStore,
 } from '../../store';
 import { Art, BackdropFrame, LedMeter } from './frame';
@@ -269,15 +269,7 @@ function MainWindow() {
           <button type="button" className="ss-key" aria-label={t('player.pause')} onClick={pause}>
             <IconPause />
           </button>
-          <button
-            type="button"
-            className="ss-key"
-            aria-label={t('player.stop')}
-            onClick={() => {
-              pause();
-              seek(0);
-            }}
-          >
+          <button type="button" className="ss-key" aria-label={t('player.stop')} onClick={stop}>
             <IconStop />
           </button>
           <button

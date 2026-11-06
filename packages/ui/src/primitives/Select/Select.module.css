@@ -68,7 +68,7 @@
 }
 
 .popup {
-  z-index: 960;
+  z-index: 1050; /* above dialogs and drawers (1000), below toasts (1100) */
   box-sizing: border-box;
   background: var(--ui-bg-overlay);
   color: var(--ui-text);

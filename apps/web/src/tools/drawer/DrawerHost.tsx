@@ -6,6 +6,7 @@ import { startLayoutSync } from '../gadgets/sync';
 import { PinRail } from '../rail/PinRail';
 import '../tools.css';
 import { Drawer } from './Drawer';
+import { ThemedOverlayRoot } from '../../settings/user/ThemedOverlayRoot';
 
 /**
  * The signed-in account's id. The store knows it once the Lounge has connected; on any other section after a
@@ -40,10 +41,10 @@ export default function DrawerHost() {
   const account = useAccountId();
   useEffect(() => (account ? startLayoutSync(account) : undefined), [account]);
   return (
-    <>
+    <ThemedOverlayRoot className="sr-tl-theme">
       <GadgetLayer />
       <PinRail />
       <Drawer />
-    </>
+    </ThemedOverlayRoot>
   );
 }

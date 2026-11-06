@@ -6,11 +6,12 @@
  *
  * Live: skin, dock and close in the title bar; the ticker and the big clock; the waveform is the seek bar (its
  * playhead is the range thumb); a real spectrum and two master meters from the player's analyser; four cue pads
- * (0, 25, 50 and 75 percent); SKIP / EXECUTE PLAY / HALT / SKIP; the gain fader (volume) and mute; three tone
+ * (0, 25, 50 and 75 percent); SKIP / EXECUTE PLAY / HALT / SKIP; the gain fader (volume), its tempo twin (the
+ * playback rate, -8% to +8% with the pitch kept, wave 50) and mute; three tone
  * knobs that set the equalizer's low, mid and high bands, a crossfade knob and the EQ switch; repeat, shuffle and
  * library; and the queue table, where each row plays its track.
  */
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useId, useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useT } from '../../../i18n';
 import { EQ_FREQS, EQ_MAX_DB } from '../../../music/eq/presets';
 import {
@@ -33,13 +34,14 @@ import {
   currentTrack,
   cycleRepeat,
   next,
-  pause,
   prev,
   seek,
   setCrossfade,
   setEq,
   setEqEnabled,
+  setRate,
   setVolume,
+  stop,
   toggle,
   toggleMute,
   toggleShuffle,
@@ -47,7 +49,7 @@ import {
 } from '../../store';
 import { CROSSFADE_MAX_SEC } from '../../types';
 import { Art, BackdropFrame, LedMeter, SpectrumBars } from './frame';
-import { EqSwitch, LibraryButton } from './parts';
+import { EqSwitch, LibraryButton, resetHandlers, snapDetent } from './parts';
 import './circuit.css';
 
 /* Painted readouts: made-up console jargon printed on the artwork, the way the old skins did. */
@@ -454,10 +456,7 @@ function Transport() {
           type="button"
           className="nc-tx-btn nc-tx-stop"
           aria-label={t('player.stop')}
-          onClick={() => {
-            pause();
-            seek(0);
-          }}
+          onClick={stop}
         >
           <span className="nc-tx-face" aria-hidden="true">
             <IconStop />
@@ -480,7 +479,58 @@ function Transport() {
   );
 }
 
-/** The gain fader: the player's volume as a vertical fader, with mute under it. */
+/** D-523: the tempo fader's range in percent. */
+const TEMPO_MAX = 8;
+
+/**
+ * The tempo fader, GAIN's twin (D-523): -8% to +8% around a detent at 0, the pitch preserved, the percentage read
+ * out beside it. It is the store's one playback rate (D-525).
+ */
+function TempoFader() {
+  const t = useT();
+  const id = useId();
+  const rate = usePlayerStore((s) => s.rate);
+  // D-531: the fader rests at its end stop when the rate is outside its range; the readout tells the truth.
+  const real = Math.round((rate - 1) * 200) / 2;
+  const pct = Math.max(-TEMPO_MAX, Math.min(TEMPO_MAX, real));
+  const shown = t('player.skinx.circuit.tempoValue', {
+    pct: `${real > 0 ? '+' : real < 0 ? '−' : '±'}${Math.abs(real).toFixed(1)}`,
+  });
+  return (
+    <div className="nc-fader-col nc-fader-tempo">
+      <label className="nc-fader-label" htmlFor={id}>
+        {t('player.skinx.circuit.tempo')}
+      </label>
+      <div
+        className="nc-fader-slot"
+        style={{ '--nc-vol': (pct + TEMPO_MAX) / (2 * TEMPO_MAX) } as CSSProperties}
+      >
+        <Art className="nc-fader-art">
+          <span className="nc-fader-detent" />
+          <span className="nc-fader-cap" />
+        </Art>
+        <input
+          id={id}
+          type="range"
+          className="nc-fader-input"
+          aria-orientation="vertical"
+          aria-valuetext={shown}
+          min={-TEMPO_MAX}
+          max={TEMPO_MAX}
+          step={0.5}
+          value={pct}
+          onChange={(e) =>
+            setRate(1 + snapDetent(Number(e.target.value), 0, 0.25) / 100, { pitchFollows: false })
+          }
+          {...resetHandlers(() => setRate(1, { pitchFollows: false }))}
+        />
+      </div>
+      <Art className="nc-fader-read">{shown}</Art>
+    </div>
+  );
+}
+
+/** The gain fader: the player's volume as a vertical fader, its tempo twin, and mute under both. */
 function Fader() {
   const t = useT();
   const volume = usePlayerStore((s) => s.volume);
@@ -488,25 +538,28 @@ function Fader() {
   const value = Math.round((muted ? 0 : volume) * 100);
   return (
     <Panel className="nc-fader" tone="steel">
-      <Art className="nc-fader-label">{t('player.skinx.circuit.gain')}</Art>
-      <div className="nc-fader-slot" style={{ '--nc-vol': value / 100 } as CSSProperties}>
-        <Art className="nc-fader-art">
-          <span className="nc-fader-fill" />
-          <span className="nc-fader-cap" />
-        </Art>
-        <input
-          type="range"
-          className="nc-fader-input"
-          aria-label={t('player.volume')}
-          aria-orientation="vertical"
-          min={0}
-          max={100}
-          step={1}
-          value={value}
-          onChange={(e) => setVolume(Number(e.target.value) / 100)}
-        />
+      <div className="nc-fader-col">
+        <Art className="nc-fader-label">{t('player.skinx.circuit.gain')}</Art>
+        <div className="nc-fader-slot" style={{ '--nc-vol': value / 100 } as CSSProperties}>
+          <Art className="nc-fader-art">
+            <span className="nc-fader-fill" />
+            <span className="nc-fader-cap" />
+          </Art>
+          <input
+            type="range"
+            className="nc-fader-input"
+            aria-label={t('player.volume')}
+            aria-orientation="vertical"
+            min={0}
+            max={100}
+            step={1}
+            value={value}
+            onChange={(e) => setVolume(Number(e.target.value) / 100)}
+          />
+        </div>
+        <Art className="nc-fader-read">{`${value}%`}</Art>
       </div>
-      <Art className="nc-fader-read">{`${value}%`}</Art>
+      <TempoFader />
       <button
         type="button"
         className="nc-mute"

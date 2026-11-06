@@ -2,14 +2,17 @@
 // the presence-driven "now" blocks. The pure blocks (and the new ones of PRF-PRO-001) live in
 // @sideroom/profile-blocks, which the public profile surface uses too (D-385); the app fills the slots here.
 import { Avatar, Button, TextArea } from '@sideroom/ui';
-import type { BlockSlots } from '@sideroom/profile-blocks';
+import { Face, type BlockSlots } from '@sideroom/profile-blocks';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
 import { formatDate, useT } from '../i18n';
 import { usePresence } from '../lounge/data';
 import { ActivityList } from '../lounge/profile/parts';
+import { RingAvatar } from '../lounge/rings/RingAvatar';
+import { openReport, useReportsEnabled } from '../moderation/reports';
 import { cdnUrl } from '../store/cdn';
 import { approveGuestbookEntry, listGuestbook, removeGuestbookEntry, signGuestbook } from './api';
+import { Showcase } from './showcase';
 import type { Block, GuestbookEntry, PageUser, ProfilePage } from './types';
 
 const text = (c: Record<string, unknown>, k: string): string => {
@@ -61,6 +64,11 @@ function NowPlaying({ page }: { page: ProfilePage }) {
 export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) {
   const t = useT();
   const owner = page.user.id;
+  const reports = useReportsEnabled();
+  // D-506: the owner may report any note of their page but one they wrote; another viewer an approved note that is
+  // not theirs (an author may remove their own note, which is how the entry says it is theirs).
+  const mayReport = (e: GuestbookEntry) =>
+    reports && (page.is_owner ? e.author?.id !== owner : !e.pending && !e.can_remove);
   const [entries, setEntries] = useState<GuestbookEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -174,10 +182,22 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
                 {t('profile.public.approve')}
               </Button>
             )}
+            {mayReport(e) && (
+              <Button
+                size="sm"
+                variant="secondary"
+                aria-label={t('profile.guestbook.reportNote', {
+                  name: e.author ? nameOf(e.author) : t('profile.public.visitor'),
+                })}
+                onClick={() => openReport({ kind: 'guestbook_note', id: e.id })}
+              >
+                {t('profile.guestbook.report')}
+              </Button>
+            )}
             {e.can_remove && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant="secondary"
                 aria-label={t('lounge.profilePage.guestbookRemove', {
                   name: e.author ? nameOf(e.author) : t('profile.public.visitor'),
                 })}
@@ -197,4 +217,20 @@ export const appSlots: BlockSlots = {
   now_watching: ({ page }) => <NowWatching page={page as ProfilePage} />,
   now_playing: ({ page }) => <NowPlaying page={page as ProfilePage} />,
   guestbook: ({ page, block }) => <Guestbook page={page as ProfilePage} block={block as Block} />,
+  media_showcase: ({ page, block }) => (
+    <Showcase page={page as ProfilePage} block={block as Block} />
+  ),
+  avatar: ({ page }) => <HeaderPicture page={page as ProfilePage} size={128} />,
 };
+
+/** The header picture: inside the status ring when the page says this viewer may see it (D-504). The ring itself
+ *  comes from the rings feed the app already holds, so the page reveals no ring the feed would not. */
+export function HeaderPicture({ page, size }: { page: ProfilePage; size: 64 | 128 }) {
+  const face = <Face name={nameOf(page.user)} src={avatarOf(page.user, size)} />;
+  if (!page.ring_visible) return face;
+  return (
+    <RingAvatar userId={page.user.id} name={nameOf(page.user)}>
+      {face}
+    </RingAvatar>
+  );
+}

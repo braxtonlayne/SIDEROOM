@@ -32,6 +32,10 @@ struct Env {
 }
 
 async fn env() -> Env {
+    env_with(|s| s).await
+}
+
+async fn env_with(f: impl FnOnce(PartyService) -> PartyService) -> Env {
     let sessions = Arc::new(MemorySessions::new());
     let t = SessionToken::generate().unwrap();
     sessions
@@ -51,7 +55,11 @@ async fn env() -> Env {
         .acquire_timeout(std::time::Duration::from_millis(100))
         .connect_lazy("postgres://nobody@127.0.0.1:1/none")
         .unwrap();
-    let service = PartyService::new(pool, Arc::new(SystemClock), Arc::new(|| 4242));
+    let service = f(PartyService::new(
+        pool,
+        Arc::new(SystemClock),
+        Arc::new(|| 4242),
+    ));
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
     let state = AppState::builder()
@@ -279,4 +287,35 @@ fn the_openapi_fragment_lists_every_route() {
     ] {
         assert!(paths.contains_key(p), "missing {p}");
     }
+}
+
+#[tokio::test]
+async fn a_peertube_link_is_resolved_and_its_refusal_is_the_start_dialogs_sentence() {
+    use sr_watchparty::external::{self, PeerTube, stub};
+    // A listed instance that answers "live": the 400 body carries the sentence the start dialog shows, and the
+    // server asked the instance's API once, before any query.
+    let mut t = stub::Canned::default();
+    t.routes.insert(
+        "https://tube.example.org/api/v1/videos/9c9de5e8-0a1e".to_owned(),
+        stub::json(200, r#"{"isLive":true,"files":[],"streamingPlaylists":[]}"#),
+    );
+    let t = Arc::new(t);
+    let pt = PeerTube::new(
+        stub::fetcher(t.clone()),
+        vec!["tube.example.org".to_owned()],
+        vec![],
+    );
+    let env = env_with(|s| s.with_peertube(pt)).await;
+    let (status, resp) = env
+        .call(
+            true,
+            Method::POST,
+            "/watch-parties",
+            Some(json!({ "external": { "url": "https://tube.example.org/w/9c9de5e8-0a1e" } })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{resp}");
+    assert_eq!(resp["code"], 50035);
+    assert_eq!(resp["message"], external::LIVE);
+    assert_eq!(t.seen.lock().unwrap().len(), 1);
 }

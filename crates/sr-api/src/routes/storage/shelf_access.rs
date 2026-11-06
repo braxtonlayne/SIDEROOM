@@ -458,15 +458,30 @@ pub async fn shelf_object_url(
     if r.mount.cors_ok_at.is_none() {
         return Err(super::cors_not_ready());
     }
-    let left = session_left(&state, &headers).await;
+    presign_object_url(&state, &d, &headers, &r.mount, &e.path)
+        .await
+        .map(Json)
+}
+
+/// The presign core of a per-object read: a `GET` on `path` of `mount` for ten minutes at most (less when the
+/// session ends sooner), signed with the mount's sealed credentials. The caller has already decided that the
+/// caller may read the object (a shelf grant, or a profile showcase, D-502) and that the mount's CORS is ready.
+pub(crate) async fn presign_object_url(
+    state: &AppState,
+    d: &ScopeDeps,
+    headers: &HeaderMap,
+    mount: &sr_storage::mounts::Mount,
+    path: &str,
+) -> MsgResult<ObjectUrl> {
+    let left = session_left(state, headers).await;
     let Some(secs) = presign_ttl_secs(URL_TTL_SECS, URL_TTL_SECS, left) else {
         return Err(ErrorCode::Unauthorized.into());
     };
-    let storage = storage_for(&d, &r.mount)?;
+    let storage = storage_for(d, mount)?;
     let url = storage
         .presign(
             PresignMethod::Get,
-            &r.mount.bucket_key(&e.path),
+            &mount.bucket_key(path),
             Duration::from_secs(secs),
         )
         .await
@@ -475,10 +490,10 @@ pub async fn shelf_object_url(
         .now_secs()
         .saturating_add(secs as i64)
         .saturating_mul(1000);
-    Ok(Json(ObjectUrl {
+    Ok(ObjectUrl {
         url,
         expires_at: iso(expires_ms),
-    }))
+    })
 }
 
 /// Edit the title, cover and note of one object (the shelf's owner; on a server shelf, a manager of it).

@@ -6,6 +6,7 @@ import { at, baseHandlers, seedLounge } from '../../lounge/__tests__/gapsHelpers
 import { closeDrawer } from '../drawer/openState';
 import { MAX_GADGETS, EMPTY_LAYOUT } from '../gadgets/layout';
 import { useToolsStore } from '../gadgets/store';
+import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 
 vi.mock('../../store/connect', () => ({
   connectGateway: vi.fn(),
@@ -128,6 +129,28 @@ describe('the utility drawer (UTL-SHL-001)', { timeout: 120_000 }, () => {
     await screen.findByRole('toolbar', { name: 'Pinned tools' });
     for (const sel of ['.sr-tl-gadgets', '.sr-tl-rail-wrap'])
       expect(await axeViolations(document.querySelector<HTMLElement>(sel)!)).toEqual([]);
+  });
+
+  it('renders the drawer, the gadgets and the rail inside one theme root wearing the Lounge theme (D-538)', async () => {
+    act(() => usePrefsStore.getState().adopt({ ...DEFAULT_PREFS, theme: 'lounge-light' }));
+    at('/channels/g1/c1');
+    const dialog = await openWithKeys();
+    const root = dialog.closest<HTMLElement>('.sr-tl-theme');
+    expect(root).not.toBeNull();
+    // Its own root (not the Lounge shell's), wearing the member's Lounge choice.
+    expect(root!.closest('.lng-root')).toBeNull();
+    expect(root!.dataset.theme).toBe('lounge-light');
+    expect(root!.dataset.section).toBe('lounge');
+    expect(root!.style.getPropertyValue('--ui-bg-raised')).not.toBe('');
+    await userEvent.keyboard('{Escape}');
+    act(() => {
+      useToolsStore.getState().popOut('guide');
+      useToolsStore.getState().pin('guide');
+    });
+    await screen.findByRole('toolbar', { name: 'Pinned tools' });
+    for (const sel of ['.sr-tl-gadgets', '.sr-tl-rail-wrap'])
+      expect(document.querySelector(sel)?.closest('.sr-tl-theme')).toBe(root);
+    act(() => usePrefsStore.getState().adopt(DEFAULT_PREFS));
   });
 });
 

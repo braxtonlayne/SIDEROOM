@@ -137,6 +137,67 @@ pub fn address_hash(ip: &str) -> String {
     data_encoding::HEXLOWER.encode(&h.finalize())
 }
 
+/// Where a signed-in `viewer` stands with `owner`: blocked, or a rank (the one rank query every reader uses).
+pub async fn signed_in_standing(
+    conn: &mut sqlx::PgConnection,
+    viewer: i64,
+    owner: i64,
+) -> Result<Standing, sqlx::Error> {
+    if viewer == owner {
+        return Ok(standing(Facts {
+            signed_in: true,
+            is_owner: true,
+            ..Facts::default()
+        }));
+    }
+    let row = sqlx::query(
+        "SELECT \
+           EXISTS(SELECT 1 FROM relationships WHERE type = 2 AND \
+             ((user_id = $1 AND target_id = $2) OR (user_id = $2 AND target_id = $1))) AS blocked, \
+           EXISTS(SELECT 1 FROM relationships WHERE user_id = $1 AND target_id = $2 AND type = 1) \
+             AND EXISTS(SELECT 1 FROM relationships WHERE user_id = $2 AND target_id = $1 AND type = 1) AS friends, \
+           EXISTS(SELECT 1 FROM guild_members x JOIN guild_members y ON x.guild_id = y.guild_id \
+             WHERE x.user_id = $1 AND y.user_id = $2) AS shares",
+    )
+    .bind(viewer)
+    .bind(owner)
+    .fetch_one(&mut *conn)
+    .await?;
+    Ok(standing(Facts {
+        signed_in: true,
+        is_owner: false,
+        blocked: row.try_get("blocked")?,
+        friends: row.try_get("friends")?,
+        shares_server: row.try_get("shares")?,
+    }))
+}
+
+/// D-506: whether the signed-in `viewer` may read the approved notes of `owner`'s guestbook: not blocked either
+/// way, and their rank admits the guestbook block (the same rule as `GET /users/{id}/guestbook`). For a signed-in
+/// viewer the operator's public switch makes no difference (every signed-in rank is at least `members`), so it
+/// is not read. The owner always may.
+pub async fn guestbook_visible_to(
+    conn: &mut sqlx::PgConnection,
+    viewer: i64,
+    owner: i64,
+) -> Result<bool, sqlx::Error> {
+    let Standing::Viewer(rank) = signed_in_standing(conn, viewer, owner).await? else {
+        return Ok(false);
+    };
+    if rank == Tier::OnlyMe {
+        return Ok(true);
+    }
+    let row = sqlx::query("SELECT * FROM profile_privacy WHERE user_id = $1")
+        .bind(owner)
+        .fetch_optional(&mut *conn)
+        .await?;
+    let policy = match row {
+        Some(r) => policy_of(&r)?.1,
+        None => PrivacyPolicy::default(),
+    };
+    Ok(policy.effective(false).visible(BlockKind::Guestbook, rank))
+}
+
 impl PackageService {
     // ------------------------------------------------------------ the policy row
 
@@ -228,33 +289,8 @@ impl PackageService {
         let Some(v) = viewer else {
             return Ok(standing(Facts::default()));
         };
-        if v == owner {
-            return Ok(standing(Facts {
-                signed_in: true,
-                is_owner: true,
-                ..Facts::default()
-            }));
-        }
-        let row = sqlx::query(
-            "SELECT \
-               EXISTS(SELECT 1 FROM relationships WHERE type = 2 AND \
-                 ((user_id = $1 AND target_id = $2) OR (user_id = $2 AND target_id = $1))) AS blocked, \
-               EXISTS(SELECT 1 FROM relationships WHERE user_id = $1 AND target_id = $2 AND type = 1) \
-                 AND EXISTS(SELECT 1 FROM relationships WHERE user_id = $2 AND target_id = $1 AND type = 1) AS friends, \
-               EXISTS(SELECT 1 FROM guild_members x JOIN guild_members y ON x.guild_id = y.guild_id \
-                 WHERE x.user_id = $1 AND y.user_id = $2) AS shares",
-        )
-        .bind(v)
-        .bind(owner)
-        .fetch_one(self.pool())
-        .await?;
-        Ok(standing(Facts {
-            signed_in: true,
-            is_owner: false,
-            blocked: row.try_get("blocked")?,
-            friends: row.try_get("friends")?,
-            shares_server: row.try_get("shares")?,
-        }))
+        let mut conn = self.pool().acquire().await?;
+        Ok(signed_in_standing(&mut conn, v, owner).await?)
     }
 
     // ------------------------------------------------------------ pages
@@ -316,7 +352,43 @@ impl PackageService {
     ) -> PackageResult<ProfilePage> {
         let owner: i64 = user.id.parse().unwrap_or(0);
         let mut doc = profile_doc::parse_doc(raw, false).unwrap_or_default();
-        doc.blocks.retain(|b| policy.visible(b.kind, rank));
+        // A hidden block is dropped before anything is loaded; the showcase also for any viewer without a
+        // session, whatever the tier says (D-503).
+        doc.blocks.retain(|b| {
+            policy.served(b.kind, rank) && (viewer.is_some() || b.kind != BlockKind::MediaShowcase)
+        });
+        let showcase = if doc
+            .blocks
+            .iter()
+            .any(|b| b.kind == BlockKind::MediaShowcase)
+        {
+            let views = self.showcase_views(owner, &doc).await?;
+            if !is_owner {
+                // Another viewer's copy of the block names only what the page can play now.
+                let items: Vec<Value> = views
+                    .iter()
+                    .map(|v| {
+                        serde_json::json!({
+                            "shelf_id": v.shelf_id,
+                            "object_hash": v.object_hash,
+                            "caption": v.caption,
+                        })
+                    })
+                    .collect();
+                for b in doc
+                    .blocks
+                    .iter_mut()
+                    .filter(|b| b.kind == BlockKind::MediaShowcase)
+                {
+                    b.config
+                        .insert("items".to_owned(), Value::Array(items.clone()));
+                }
+            }
+            views
+        } else {
+            Vec::new()
+        };
+        let ring_visible = viewer.is_some() && policy.visible_ring(rank);
         let mut friends = Vec::new();
         if doc.blocks.iter().any(|b| b.kind == BlockKind::TopFriends) {
             let named = profile_doc::top_friend_ids(&doc);
@@ -362,6 +434,8 @@ impl PackageService {
             featured_guilds,
             is_owner,
             can_sign,
+            ring_visible,
+            showcase,
         })
     }
 

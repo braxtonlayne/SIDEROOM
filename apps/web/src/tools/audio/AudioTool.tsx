@@ -4,12 +4,7 @@
 import { Button } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../../i18n';
-import {
-  decodeAudioFile,
-  durationOf,
-  peaks,
-  type PcmSource,
-} from '../../settings/server/sections/soundTrim';
+import { decodeAudioFile, durationOf, peaks, type PcmSource } from './pcm';
 import {
   DEFAULT_CEILING_DB,
   DEFAULT_TARGET_DB,
@@ -136,9 +131,13 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
 
   const setStartClamped = (v: number) => {
     stopRef.current?.();
-    const s = Math.min(Math.max(0, v), end - MIN_PART);
+    // D-533: with the kept part already at the limit, dragging the start forward carries the end along (a sliding
+    // window with a resizable front); the end stops at the file's end, where the part shrinks instead.
+    const slides = limits?.maxSeconds !== undefined && v > start && end - start >= maxPart - 1e-6;
+    const s = Math.min(Math.max(0, v), (slides ? total : end) - MIN_PART);
     setStart(s);
-    if (end - s > maxPart) setEnd(s + maxPart);
+    if (slides) setEnd(Math.min(total, s + maxPart));
+    else if (end - s > maxPart) setEnd(s + maxPart);
   };
   const setEndClamped = (v: number) => {
     stopRef.current?.();
@@ -172,9 +171,12 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
       let blob: Blob;
       let name: string;
       if (kind === 'wav') {
-        blob = new Blob([encodeWav(p.channels, p.sampleRate).buffer as ArrayBuffer], {
-          type: 'audio/wav',
-        });
+        let bytes = encodeWav(p.channels, p.sampleRate);
+        // Over the size limit: mix a stereo part down to mono before giving up (the soundboard's 512 KiB cap).
+        if (limits?.maxBytes && bytes.byteLength > limits.maxBytes && p.channels.length > 1) {
+          bytes = encodeWav(p.channels, p.sampleRate, true);
+        }
+        blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/wav' });
         name = `${baseName}-trimmed.wav`;
       } else {
         // Voice messages take Ogg Opus or (FU-7) WebM Opus; Ogg is preferred where the browser has it.
@@ -224,6 +226,14 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
       )}
       {source && (
         <>
+          {limits?.maxSeconds !== undefined && total > limits.maxSeconds && (
+            <p className="utl-aud-sub">
+              {t('tools.audio.longIntro', {
+                seconds: total.toFixed(1),
+                max: String(limits.maxSeconds),
+              })}
+            </p>
+          )}
           <svg
             className="utl-aud-wave"
             viewBox={`0 0 ${BINS} 40`}

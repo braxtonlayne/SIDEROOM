@@ -49,6 +49,30 @@ const show = (
   );
 
 describe('ShelfPicker (D-466)', () => {
+  it('states the cap when the 15th page still has a next page (D-537)', async () => {
+    let n = 0;
+    shelfCatalogPage.mockReset().mockImplementation(async () => {
+      n += 1;
+      return {
+        objects: [obj(String(n).padStart(64, '0'), `f${n}.json`, 10)],
+        next_cursor: `c${n}`,
+      };
+    });
+    show(vi.fn());
+    expect(
+      await screen.findByText(
+        'This shelf has more than 3,000 files; only the first 3,000 are listed.',
+      ),
+    ).toBeTruthy();
+    expect(shelfCatalogPage).toHaveBeenCalledTimes(15);
+  });
+
+  it('says nothing when the shelf ends inside the cap', async () => {
+    show(vi.fn());
+    await screen.findByText('pack.json');
+    expect(screen.queryByText(/more than 3,000/)).toBeNull();
+  });
+
   it('lists only the files the game can use, and says how many are hidden', async () => {
     show(vi.fn());
     expect(await screen.findByText('pack.json')).toBeTruthy();

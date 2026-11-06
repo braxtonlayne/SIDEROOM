@@ -5,8 +5,8 @@ use sqlx::{PgConnection, Row, postgres::PgRow};
 
 use crate::error::PartyResult;
 use crate::model::{
-    Binding, ControlMode, MediaKind, MediaView, ParticipantView, PartyView, PlaybackView,
-    QueueItemView, SettingsView, YouView,
+    Binding, ControlMode, MediaFormat, MediaKind, MediaView, ParticipantView, PartyView,
+    PlaybackView, QueueItemView, SettingsView, YouView,
 };
 use crate::state::Playback;
 
@@ -47,6 +47,9 @@ pub struct PartyRow {
     pub media_kind: MediaKind,
     pub media_url: Option<String>,
     pub media_provider: Option<String>,
+    /// The pasted link a `direct` address was resolved from (a PeerTube page, migration 2360).
+    pub media_page_url: Option<String>,
+    pub media_format: Option<MediaFormat>,
 }
 
 fn bad(what: &str) -> sqlx::Error {
@@ -95,6 +98,11 @@ impl PartyRow {
             media_kind: MediaKind::parse(&kind).ok_or_else(|| bad("media_kind"))?,
             media_url: r.try_get("media_url")?,
             media_provider: r.try_get("media_provider")?,
+            media_page_url: r.try_get("media_page_url")?,
+            media_format: match r.try_get::<Option<String>, _>("media_format")? {
+                Some(f) => Some(MediaFormat::parse(&f).ok_or_else(|| bad("media_format"))?),
+                None => None,
+            },
         })
     }
 
@@ -134,6 +142,8 @@ impl PartyRow {
             kind: self.media_kind,
             url: self.media_url.clone(),
             provider: self.media_provider.clone(),
+            page_url: self.media_page_url.clone(),
+            format: self.media_format,
         })
     }
 
@@ -225,6 +235,8 @@ pub async fn queue(c: &mut PgConnection, party: i64) -> PartyResult<Vec<QueueIte
                     kind: MediaKind::Cinema,
                     url: None,
                     provider: None,
+                    page_url: None,
+                    format: None,
                 },
                 added_by: r.try_get("added_by")?,
                 added_at_ms: r.try_get("added_at_ms")?,

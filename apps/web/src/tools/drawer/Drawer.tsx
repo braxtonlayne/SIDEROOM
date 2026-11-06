@@ -36,14 +36,20 @@ export function Drawer() {
 
   useRovingTabindex(tabsRef, { selector: '[role="tab"]', orientation: 'horizontal' });
 
-  useEffect(() => {
-    if (!req.open) return;
+  // Each open call starts fresh. Reset while rendering (React's "adjust state on a prop change"), not in an effect:
+  // with the effect the opening frame still showed the last search and tool, and keys typed straight after Mod+K
+  // (a member typing `>audio` at once, or a test) could land in that stale field ("guide>audio" on the Go to tab).
+  const [openedFor, setOpenedFor] = useState<number | null>(null);
+  if (req.open && openedFor !== req.nonce) {
+    setOpenedFor(req.nonce);
     setTab(req.tab);
     setQuery('');
     setActive(0);
     setViewId(null);
-    clearLimit();
-  }, [req.open, req.nonce, req.tab, clearLimit]);
+  }
+  useEffect(() => {
+    if (req.open) clearLimit();
+  }, [req.open, req.nonce, clearLimit]);
 
   // UTL-SRC-001: the wasm search loads the first time the Tools tab shows (the pure filter answers until then).
   const [index, setIndex] = useState<ToolSearchIndex | null>(null);

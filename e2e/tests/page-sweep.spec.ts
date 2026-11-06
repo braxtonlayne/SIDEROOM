@@ -78,6 +78,8 @@ interface Row {
   expect4xx?: RegExp;
   /** Mock the shelves API (no object storage here). */
   shelves?: boolean;
+  /** Show the page with a voice session connected (the section bar's status, D-536). */
+  voice?: boolean;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -159,7 +161,7 @@ const APP_TABS = ['general', 'oauth2', 'bot', 'installation', 'commands', 'revie
 const SIGNED_IN: Row[] = [
   { name: 'lounge-home', path: () => '/channels/@me' },
   { name: 'lounge-dm', path: (w) => (w.dmId ? `/channels/@me/${w.dmId}` : null) },
-  { name: 'lounge-channel', path: (w) => `/channels/${w.guildId}/${w.channelId}` },
+  { name: 'lounge-channel', path: (w) => `/channels/${w.guildId}/${w.channelId}`, voice: true },
   {
     name: 'lounge-message-link',
     path: (w) => `/channels/${w.guildId}/${w.channelId}/${w.messageId}`,
@@ -172,6 +174,7 @@ const SIGNED_IN: Row[] = [
   {
     name: 'lounge-voice',
     path: (w) => (w.voiceChannelId ? `/channels/${w.guildId}/${w.voiceChannelId}` : null),
+    voice: true,
   },
   { name: 'app-door', path: () => '/app' },
   ...USER_SETTINGS.map((s): Row => ({
@@ -183,6 +186,14 @@ const SIGNED_IN: Row[] = [
     name: `settings-server-${s}`,
     path: (w) => `/settings/server/${w.guildId}/${s}`,
   })),
+  {
+    name: 'settings-server-channel-voice',
+    path: (w) =>
+      w.voiceChannelId
+        ? `/settings/server/${w.guildId}/channels?channel=${w.voiceChannelId}&tab=voice`
+        : null,
+    expect4xx: /listening-room/,
+  },
   { name: 'cinema-home', path: () => '/cinema' },
   { name: 'cinema-movies', path: () => '/cinema/movies' },
   { name: 'cinema-series', path: () => '/cinema/series' },
@@ -354,10 +365,86 @@ async function decorate(page: Page) {
   await page.route(/\/cdn\/attachments\/sweep\//, (r) =>
     r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
   );
+  // PRF-PRO-001 (D-502): a media showcase names objects on a real bucket, which `memory:` storage cannot be, so the
+  // Owner's page and document get one here: two items as the server resolves them, and a mint that answers.
+  const SHOW = [
+    {
+      shelf_id: '9501',
+      object_hash: 'a'.repeat(64),
+      title: 'Blue Hour (live)',
+      duration_ms: 245_000,
+      media: 'audio',
+      caption: 'Recorded at the Back Booth',
+    },
+    {
+      shelf_id: '9501',
+      object_hash: 'b'.repeat(64),
+      title: 'Heat, opening night',
+      duration_ms: 5_400_000,
+      media: 'video',
+      caption: null,
+    },
+  ];
+  const showBlock = {
+    id: 'show',
+    type: 'media_showcase',
+    x: 6,
+    y: 9,
+    w: 6,
+    h: 5,
+    config: {
+      items: SHOW.map((i) => ({
+        shelf_id: i.shelf_id,
+        object_hash: i.object_hash,
+        ...(i.caption ? { caption: i.caption } : {}),
+      })),
+    },
+  };
+  await page.route(
+    /\/api\/v1\/(profile-pages\/owner|users\/[^/]+\/profile-page|users\/@me\/profile-doc)(\?.*)?$/,
+    async (route: Route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const res = await route.fetch();
+      let body: { user?: { username?: string }; doc?: { blocks: unknown[] }; blocks?: unknown[] };
+      try {
+        body = (await res.json()) as typeof body;
+      } catch {
+        return route.fulfill({ response: res });
+      }
+      const doc = route.request().url().includes('/profile-doc') ? body : body.doc;
+      const owners = !body.user || body.user.username === 'owner';
+      if (owners && doc && Array.isArray(doc.blocks)) {
+        doc.blocks = [...doc.blocks, showBlock];
+        if (body.doc) Object.assign(body, { showcase: SHOW });
+      }
+      return route.fulfill({ response: res, json: body });
+    },
+  );
+  await page.route(/\/api\/v1\/profile-pages\/owner\/showcase\/[0-9a-f]{64}\/url$/, (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/cdn/attachments/sweep/blue-hour.mp3', expires_at: '' }),
+    }),
+  );
   // Embed images go through the media proxy (/cdn/external/<sig>/<base64 url>), which cannot reach `.invalid`.
   await page.route(/sweep-preview\.invalid|\/cdn\/external\//, (r) =>
     r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
   );
+}
+
+/**
+ * A connected voice session for the shot (XC-VIS-004): the local stack has no SFU, so the session store is set
+ * through the dev server's module graph (Vite serves `/src/voice/session.ts` as the same module the app uses).
+ * On a production build the import fails and the note says so.
+ */
+async function connectVoiceForShot(page: Page, notes: string[]): Promise<void> {
+  await page
+    .evaluate(
+      "import('/src/voice/session.ts').then((m) => m.useVoiceSession.setState({ status: 'connected', channelName: 'General' }))",
+    )
+    .then(() => page.waitForTimeout(200))
+    .catch((e) => notes.push(`voice session not set: ${String(e).slice(0, 120)}`));
 }
 
 /** The shelves of The Study, as study-shelves.spec.ts fakes them (BYOS needs a real bucket). */
@@ -616,6 +703,7 @@ async function capture(
     await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => undefined);
     // Let lazy chunks, fonts and the catalog settle; skeletons fade.
     await page.waitForTimeout(900);
+    if (row.voice) await connectVoiceForShot(page, rec.notes);
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);
@@ -757,11 +845,22 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
         border: 'none',
       },
       blocks: [
+        // PRF-PRO-001 (wave 50): the header carries the ring; the guestbook holds a visitor's note.
+        {
+          id: 'head',
+          type: 'header',
+          x: 0,
+          y: 0,
+          w: 12,
+          h: 3,
+          config: { tagline: 'Night shift DJ' },
+        },
+        { id: 'book', type: 'guestbook', x: 0, y: 7, w: 6, h: 6, config: {} },
         {
           id: 'about',
           type: 'about',
           x: 0,
-          y: 0,
+          y: 3,
           w: 6,
           h: 4,
           config: { text: 'Plays late. Tips go to the coffee fund.' },
@@ -770,7 +869,7 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
           id: 'tips',
           type: 'linktree',
           x: 6,
-          y: 0,
+          y: 3,
           w: 6,
           h: 6,
           config: {
@@ -789,8 +888,49 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       ],
     }),
   );
+  // PRF-PRO-001 (wave 50, D-504, D-506): the Owner has a live ring (shown around the header picture), a public page
+  // whose guestbook takes held notes, one note waiting from a visitor and one approved from the member, so the
+  // profile shots show the ring and the Report items. The showcase needs a real bucket, so `decorate` adds it.
+  await step('profile ring, public guestbook and notes', async () => {
+    await apiPatch(o, '/admin/features/lounge.rings', { enabled: true, reason: 'page sweep' });
+    await apiPost(o, '/users/@me/rings', {
+      kind: 'text',
+      text: 'Spinning records at the Back Booth tonight',
+      audience: 'guilds',
+      guild_ids: [s.guildId],
+    });
+    await apiPatch(o, '/admin/features/platform.public_profiles', {
+      enabled: true,
+      reason: 'page sweep',
+    });
+    await apiPatch(o, '/admin/settings', {
+      values: { 'profiles.access': 'opt_in_public' },
+      reason: 'page sweep',
+    });
+    await apiPut(o, '/users/@me/profile-privacy', {
+      page_tier: 'public',
+      links_tier: 'public',
+      bio_tier: 'public',
+      guestbook_tier: 'public',
+      guestbook_accepts_public: true,
+      media_tier: 'members',
+      ring_tier: 'members',
+    });
+    const visitor = await browser.newContext({ baseURL: ORIGIN });
+    await visitor.request.post('/api/v1/public/profiles/owner/guestbook', {
+      headers: { Origin: ORIGIN },
+      data: { body: 'Loved the set last Friday! Same time next week?' },
+    });
+    await visitor.close();
+    const me = (await (await o.get('/api/v1/users/@me')).json()) as { id: string };
+    await apiPost(m, `/users/${me.id}/guestbook`, { body: 'Thanks for the playlist, Rowan.' });
+  });
   const voice = await step('voice channel', () =>
     apiPost<{ id: string }>(o, `/guilds/${s.guildId}/channels`, { name: 'Hangout', type: 2 }),
+  );
+  // MUS-JB-003 (D-509): the voice channel's "24/7 listening room" card offers the server's playlists.
+  await step('server playlist', () =>
+    apiPost(o, `/guilds/${s.guildId}/music/playlists`, { name: 'Night shift mix' }),
   );
   await step('second text channel', () =>
     apiPost(o, `/guilds/${s.guildId}/channels`, {
@@ -846,6 +986,11 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       ],
     });
     await post(m, { content: '[files] Photos from last week and the notes' });
+    // PRF-UNF-001 (wave 50, D-515): a PeerTube link. With SR_PEERTUBE_HOSTS=peertube.test (deploy/compose/e2e-run.sh)
+    // the unfurler makes it a card with "Play here" and "Watch together" from the address alone; otherwise plain text.
+    await post(m, {
+      content: 'Tonight on the tube: https://peertube.test/w/9c9de5e8-0a1e-484a-b099-e80766180a6d',
+    });
     await post(m, {
       content:
         'unbroken: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',

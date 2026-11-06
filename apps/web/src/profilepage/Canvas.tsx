@@ -22,6 +22,7 @@ export const KIND_LABEL: Record<BlockKind, MessageKey> = {
   linktree: 'profile.editor.kindLinks',
   featured_guilds: 'profile.editor.kindServers',
   now_playing: 'profile.editor.kindPlaying',
+  media_showcase: 'profile.editor.kindShowcase',
 };
 
 interface Drag {

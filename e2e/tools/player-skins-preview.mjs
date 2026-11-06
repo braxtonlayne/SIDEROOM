@@ -6,7 +6,9 @@
 //
 // For each backdrop skin, playing a generated tone with a queue of three tracks: a shot clipped around the player
 // and a full viewport at 1280x800, and both again at 360x740 (device scale factor 2). It also runs axe (with
-// colour contrast) on the dock of each skin at both sizes and prints what it finds.
+// colour contrast) on the dock of each skin at both sizes and prints what it finds. Then one shot of each working
+// extra in use (MUS-SKN-002, D-527): the Study mixer up, Valve's tape at 1.1x and balance, Circuit's tempo at +4%,
+// and Tidepool's Drift off at 30 minutes.
 import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -218,9 +220,56 @@ const shoot = async (skin, size) => {
   await audit(skin, size);
 };
 
+// MUS-SKN-002 (D-527): one shot per working extra in use, clipped around the player, at both sizes.
+const EXTRAS = [
+  [
+    'study',
+    'mixer-up',
+    async (p) => {
+      await p.getByRole('slider', { name: 'Rain' }).fill('65');
+      await p.getByRole('slider', { name: 'Crackle' }).fill('40');
+      await p.getByRole('slider', { name: 'Café' }).fill('15');
+    },
+  ],
+  ['valve', 'tape-1.1x', (p) => p.getByRole('slider', { name: 'Tape speed' }).fill('1.1')],
+  ['valve', 'balance-left-40', (p) => p.getByRole('slider', { name: 'Balance L/R' }).fill('-0.4')],
+  ['circuit', 'tempo-plus4', (p) => p.getByRole('slider', { name: 'Tempo' }).fill('4')],
+  [
+    'tidepool',
+    'drift-off-30',
+    async (p) => {
+      await p.getByRole('button', { name: 'Drift off: off' }).click();
+      await p.getByRole('button', { name: 'Drift off: 15 min' }).click();
+    },
+  ],
+];
+const shootExtra = async ([skin, name, use], size) => {
+  await page.evaluate((s) => window.__srPlayerActions.setSkin(s), skin);
+  await page.waitForSelector(`.sr-ply[data-skin="${skin}"]`);
+  await use(page);
+  await page.waitForTimeout(700);
+  const el = page.locator('.sr-ply');
+  await el.evaluate((e) => e.scrollIntoView({ block: 'nearest' }));
+  const path = join(out, `${skin}-${size}-extra-${name}.png`);
+  await el.screenshot({ path });
+  console.log('saved', path);
+  // Put the shared state back for the next shot.
+  if (skin === 'study')
+    for (const name of ['Rain', 'Crackle', 'Café'])
+      await page.getByRole('slider', { name }).fill('0');
+  await page.evaluate(() => {
+    const a = window.__srPlayerActions;
+    a.setRate(1);
+    a.setPan(0);
+    a.setSleep(null);
+  });
+};
+
 for (const skin of SKINS) await shoot(skin, '1280x800');
+for (const extra of EXTRAS) await shootExtra(extra, '1280x800');
 await page.setViewportSize({ width: 360, height: 740 });
 for (const skin of SKINS) await shoot(skin, '360x740');
+for (const extra of EXTRAS) await shootExtra(extra, '360x740');
 await browser.close();
 console.log(problems ? `${problems} problem(s)` : 'all skins fit and pass axe');
 process.exitCode = problems ? 1 : 0;

@@ -12,6 +12,24 @@ import type { PartyMedia } from '../types';
 const reapply = vi.fn(async () => undefined);
 vi.mock('../runtime', () => ({ partyController: () => ({ reapply }) }));
 
+// D-518: the HLS seam. The test build lists no media host, so the list is pinned here; native HLS is switchable.
+const hls = vi.hoisted(() => ({
+  native: false,
+  dispose: vi.fn(),
+  attach: vi.fn(),
+}));
+vi.mock('../../media/hlsAttach', async (orig) => {
+  const real = await orig<typeof import('../../media/hlsAttach')>();
+  return {
+    ...real,
+    nativeHls: () => hls.native,
+    canPlayListedHls: (url: string | null | undefined) =>
+      real.canPlayListedHls(url, ['tube.example.org', 'cdn.example.net']),
+    attachHls: (...args: unknown[]) =>
+      (hls.attach(...args) as Promise<() => void> | undefined) ?? Promise.resolve(hls.dispose),
+  };
+});
+
 const YT: PartyMedia = {
   title_id: '0',
   episode_id: '0',
@@ -179,5 +197,81 @@ describe('talking to the frame', () => {
     r.unmount();
     expect(host.store.getState().attached).toBe(false);
     expect(await host.player.play()).toBe(false);
+  });
+});
+
+describe('PeerTube parties and non-Safari HLS (D-516, D-518)', () => {
+  const PT_HLS: PartyMedia = {
+    ...YT,
+    title: 'Night walk',
+    kind: 'direct',
+    url: 'https://cdn.example.net/hls/a/master.m3u8',
+    provider: 'peertube',
+    page_url: 'https://tube.example.org/w/9c9de5e8-0a1e',
+    format: 'hls',
+  };
+  afterEach(() => {
+    hls.native = false;
+    hls.attach.mockClear();
+    hls.dispose.mockClear();
+  });
+
+  it('attaches the engine after Load and never before, and links the page', async () => {
+    host.setMedia(PT_HLS);
+    const { container, unmount } = render(<ExternalStage />);
+    expect(hls.attach).not.toHaveBeenCalled();
+    expect(container.querySelector('video')).toBeNull();
+    const link = screen.getByRole('link', { name: 'Open on tube.example.org' });
+    expect(link).toHaveAttribute('href', 'https://tube.example.org/w/9c9de5e8-0a1e');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    const el = container.querySelector('video')!;
+    await waitFor(() => expect(hls.attach).toHaveBeenCalledTimes(1));
+    expect(hls.attach.mock.calls[0]![0]).toBe(el);
+    expect(hls.attach.mock.calls[0]![1]).toBe(PT_HLS.url);
+    // hls.js feeds the element; it carries no src of its own.
+    expect(el.hasAttribute('src')).toBe(false);
+    await waitFor(() => expect(host.store.getState().attached).toBe(true));
+    unmount();
+    expect(hls.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('never attaches hls.js to an unlisted host', async () => {
+    host.setMedia({ ...PT_HLS, url: 'https://objects.elsewhere.example/a/master.m3u8' });
+    const { container } = render(<ExternalStage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(
+      'https://objects.elsewhere.example/a/master.m3u8',
+    );
+    expect(hls.attach).not.toHaveBeenCalled();
+  });
+
+  it('leaves the native path untouched (Safari)', async () => {
+    hls.native = true;
+    host.setMedia(PT_HLS);
+    const { container } = render(<ExternalStage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(PT_HLS.url);
+    expect(hls.attach).not.toHaveBeenCalled();
+  });
+
+  it('a file party is a plain element whatever the provider', async () => {
+    host.setMedia({ ...PT_HLS, url: 'https://tube.example.org/a-720.mp4', format: 'file' });
+    const { container } = render(<ExternalStage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(
+      'https://tube.example.org/a-720.mp4',
+    );
+    expect(hls.attach).not.toHaveBeenCalled();
+  });
+
+  it('shows the error line where hls.js cannot run', async () => {
+    hls.attach.mockImplementationOnce(() => Promise.reject(new Error('unsupported')));
+    host.setMedia(PT_HLS);
+    render(<ExternalStage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Load' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This file could not be played in your browser.',
+    );
   });
 });

@@ -1,8 +1,9 @@
 /** MUS-SKN-001: the backdrop skins. Each renders, its live controls work, its artwork is hidden and still. */
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+import { __resetAmbience, ambienceLevels } from '../ambience';
 import { EQ_PRESETS } from '../../music/eq/presets';
 import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import { createStorePort } from '../musicWiring';
@@ -182,6 +183,57 @@ describe('valve skin', () => {
     await user.click(screen.getByRole('button', { name: 'A-B loop: stop looping' }));
     expect(screen.getByRole('button', { name: 'A-B loop: mark A here' })).toBeTruthy();
   });
+
+  it('sets the tape speed with the pitch following it, snaps to 1.00x and resets on double-click', () => {
+    const { unmount } = render(<ValveSkin />);
+    // The skin in use sets the pitch policy: a tape.
+    expect(state().pitchFollowsRate).toBe(true);
+    const speed = screen.getByRole('slider', { name: 'Tape speed' });
+    fireEvent.change(speed, { target: { value: '1.1' } });
+    expect(state().rate).toBe(1.1);
+    expect(state().pitchFollowsRate).toBe(true);
+    expect(speed.getAttribute('aria-valuetext')).toBe('1.10x');
+    fireEvent.change(speed, { target: { value: '1.01' } });
+    expect(state().rate).toBe(1);
+    fireEvent.change(speed, { target: { value: '0.8' } });
+    fireEvent.doubleClick(speed);
+    expect(state().rate).toBe(1);
+    fireEvent.change(speed, { target: { value: '1.2' } });
+    fireEvent.keyDown(speed, { key: 'Enter' });
+    expect(state().rate).toBe(1);
+    // Another skin keeps the speed but preserves the pitch.
+    fireEvent.change(speed, { target: { value: '1.2' } });
+    unmount();
+    expect(state().rate).toBe(1.2);
+    expect(state().pitchFollowsRate).toBe(false);
+  });
+
+  it('reads the real speed when it is outside the tape range, and a touch brings it in (D-531)', () => {
+    act(() => usePlayerStore.setState({ rate: 1.5 }));
+    render(<ValveSkin />);
+    const speed = screen.getByRole('slider', { name: 'Tape speed' });
+    expect(speed.getAttribute('aria-valuetext')).toBe('1.50x');
+    expect((speed as HTMLInputElement).value).toBe('1.25');
+    expect(state().rate).toBe(1.5);
+    fireEvent.change(speed, { target: { value: '1.2' } });
+    expect(state().rate).toBe(1.2);
+  });
+
+  it('turns the balance knob, with a center detent and a reset', () => {
+    render(<ValveSkin />);
+    const knobs = screen.getByRole('group', { name: 'Tone controls' });
+    const balance = within(knobs).getByRole('slider', { name: 'Balance L/R' });
+    expect(balance.getAttribute('aria-valuetext')).toBe('Center');
+    fireEvent.change(balance, { target: { value: '-0.4' } });
+    expect(state().pan).toBe(-0.4);
+    expect(balance.getAttribute('aria-valuetext')).toBe('Left 40%');
+    fireEvent.change(balance, { target: { value: '0.05' } });
+    expect(state().pan).toBe(0.05);
+    fireEvent.change(balance, { target: { value: '0.6' } });
+    expect(balance.getAttribute('aria-valuetext')).toBe('Right 60%');
+    fireEvent.keyDown(balance, { key: 'Enter' });
+    expect(state().pan).toBe(0);
+  });
 });
 
 describe('tidepool skin', () => {
@@ -193,6 +245,38 @@ describe('tidepool skin', () => {
     expect(state().index).toBe(2);
     await user.click(screen.getByRole('button', { name: 'Open the music library' }));
     expect(isPlayerLibraryOpen()).toBe(true);
+  });
+
+  it('cycles the Drift off sleep timer through 15, 30 and 60 minutes and shows the minutes left', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    try {
+      vi.setSystemTime(1_000_000);
+      render(<TidepoolSkin />);
+      const pill = screen.getByRole('button', { name: 'Drift off: off' });
+      expect(pill.getAttribute('aria-pressed')).toBe('false');
+      fireEvent.click(pill);
+      expect(state().sleepAt).toBe(1_000_000 + 15 * 60_000);
+      expect(pill.textContent).toBe('Drift off: 15 min');
+      expect(pill.getAttribute('aria-pressed')).toBe('true');
+      fireEvent.click(pill);
+      expect(pill.textContent).toBe('Drift off: 30 min');
+      act(() => vi.advanceTimersByTime(2 * 60_000));
+      expect(pill.textContent).toBe('Drift off: 28 min');
+      fireEvent.click(pill);
+      expect(pill.textContent).toBe('Drift off: 30 min');
+      fireEvent.click(pill);
+      expect(pill.textContent).toBe('Drift off: 60 min');
+      fireEvent.click(pill);
+      expect(state().sleepAt).toBeNull();
+      expect(pill.textContent).toBe('Drift off: off');
+      // Stop turns it off too.
+      fireEvent.click(pill);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
+      expect(state().sleepAt).toBeNull();
+      expect(screen.getByRole('button', { name: 'Drift off: off' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -235,9 +319,56 @@ describe('circuit skin', () => {
     await user.click(screen.getByRole('button', { name: 'Mute' }));
     expect(state().muted).toBe(true);
   });
+
+  it('sets the tempo with the pitch kept, reads it out, and resets at the detent', () => {
+    render(<CircuitSkin />);
+    const tempo = screen.getByRole('slider', { name: 'Tempo' });
+    expect(tempo.getAttribute('aria-valuetext')).toBe('±0.0%');
+    fireEvent.change(tempo, { target: { value: '4' } });
+    expect(state().rate).toBeCloseTo(1.04);
+    expect(state().pitchFollowsRate).toBe(false);
+    expect(tempo.getAttribute('aria-valuetext')).toBe('+4.0%');
+    expect(screen.getByText('+4.0%')).toBeTruthy();
+    fireEvent.change(tempo, { target: { value: '-2.5' } });
+    expect(state().rate).toBeCloseTo(0.975);
+    expect(tempo.getAttribute('aria-valuetext')).toBe('−2.5%');
+    fireEvent.doubleClick(tempo);
+    expect(state().rate).toBe(1);
+  });
+
+  it('rests the tempo fader at its end stop and reads the real percentage (D-531)', () => {
+    act(() => usePlayerStore.setState({ rate: 1.25 }));
+    render(<CircuitSkin />);
+    const tempo = screen.getByRole('slider', { name: 'Tempo' });
+    expect((tempo as HTMLInputElement).value).toBe('8');
+    expect(tempo.getAttribute('aria-valuetext')).toBe('+25.0%');
+    expect(state().rate).toBe(1.25);
+    fireEvent.change(tempo, { target: { value: '6' } });
+    expect(state().rate).toBeCloseTo(1.06);
+  });
 });
 
 describe('study skin', () => {
+  it('has a real ambience mixer: labelled ranges that set the synthesised levels', () => {
+    const sets: [string, number][] = [];
+    __resetAmbience(() => ({ set: (k, v) => sets.push([k, v]), dispose: () => undefined }));
+    try {
+      render(<StudySkin />);
+      expect(screen.getByText('Made in your browser, nothing is downloaded.')).toBeTruthy();
+      const rain = screen.getByRole('slider', { name: 'Rain' });
+      expect(screen.getByRole('slider', { name: 'Crackle' })).toBeTruthy();
+      expect(screen.getByRole('slider', { name: 'Café' })).toBeTruthy();
+      fireEvent.change(rain, { target: { value: '65' } });
+      expect(sets).toEqual([['rain', 0.65]]);
+      expect(rain.getAttribute('aria-valuetext')).toBe('65%');
+      expect(ambienceLevels().rain).toBe(0.65);
+      fireEvent.doubleClick(rain);
+      expect(ambienceLevels().rain).toBe(0);
+    } finally {
+      act(() => __resetAmbience());
+    }
+  });
+
   it('runs the default focus timer: start, pause, break and reset', async () => {
     const user = userEvent.setup();
     render(<StudySkin />);

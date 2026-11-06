@@ -234,3 +234,46 @@
   font-size: 0.6875rem;
   overflow-wrap: anywhere;
 }
+
+/* PRF-PRO-001 (D-502): the media showcase block and its settings. Tokens and logical properties only. */
+.pp-showcase {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pp-showcase-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+.pp-showcase-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 8rem;
+  min-inline-size: 0;
+}
+.pp-showcase-name {
+  overflow-wrap: anywhere;
+}
+.pp-showcase-media {
+  display: block;
+  inline-size: 100%;
+  max-block-size: 320px;
+  margin-block-start: 6px;
+}
+.pp-showcase-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-showcase-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}

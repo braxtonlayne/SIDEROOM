@@ -23,7 +23,7 @@ export interface StartPartyDialogProps {
   /** A Live TV channel to watch together (G-16): no title is asked for; everyone follows the live edge. */
   liveChannel?: { channelId: string; label: string };
   /** A YouTube or Vimeo embed address or a media file from a link card (PRF-UNF-001): no title is asked for. */
-  external?: { url: string; label: string };
+  external?: { url: string; label?: string };
   /** Preselect a channel or DM (the voice call bar passes its voice channel). */
   channelId?: string | null;
 }
@@ -117,7 +117,10 @@ export function StartPartyDialog({
     const input = liveChannel
       ? { tv_channel_id: liveChannel.channelId, ...where }
       : external
-        ? { external: { url: external.url, title: external.label }, ...where }
+        ? {
+            external: { url: external.url, ...(external.label ? { title: external.label } : {}) },
+            ...where,
+          }
         : typedLink
           ? { external: { url: typedLink }, ...where }
           : {
@@ -162,7 +165,9 @@ export function StartPartyDialog({
       description={
         label
           ? t('watchparty.startDialog.descriptionTitle', { label })
-          : t('watchparty.startDialog.descriptionPick')
+          : external
+            ? t('watchparty.startDialog.descriptionExternal')
+            : t('watchparty.startDialog.descriptionPick')
       }
       footer={
         <>

@@ -156,8 +156,17 @@ export function createNativeEngine(video: HTMLVideoElement): PlaybackEngine {
 
 /* -------------------------------------------------------------- hls.js */
 
-export async function createHlsEngine(video: HTMLVideoElement): Promise<PlaybackEngine> {
+export interface HlsEngineOptions {
+  /** Send no cookies or other credentials with playlist and segment requests (another site's media, D-518). */
+  omitCredentials?: boolean;
+}
+
+export async function createHlsEngine(
+  video: HTMLVideoElement,
+  opts: HlsEngineOptions = {},
+): Promise<PlaybackEngine> {
   const { default: Hls, Events, ErrorTypes } = await import('hls.js');
+  const omit = opts.omitCredentials === true;
   const bus = new Emitter();
   let rewriter: UrlRewriter | null = null;
   let levels: QualityLevel[] = [];
@@ -171,8 +180,10 @@ export async function createHlsEngine(video: HTMLVideoElement): Promise<Playback
     xhrSetup: (xhr, url) => {
       const to = rewrite(url);
       if (to !== url) xhr.open('GET', to, true);
+      if (omit) xhr.withCredentials = false;
     },
-    fetchSetup: (context, init) => new Request(rewrite(context.url), init),
+    fetchSetup: (context, init) =>
+      new Request(rewrite(context.url), omit ? { ...init, credentials: 'omit' } : init),
   });
 
   const applyCap = () => {

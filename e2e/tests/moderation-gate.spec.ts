@@ -226,6 +226,79 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       expect(after.evidence[0]?.payload.text).toBe(`ring line ${stamp}`);
     });
 
+    await test.step('PRF-PRO-001 (D-506, D-507): B reports a held guestbook note, the case shows its text, staff remove it', async () => {
+      // A visitor's note needs a public page with a public guestbook that takes held notes.
+      await call(o, 'PATCH', '/admin/features/platform.public_profiles', {
+        enabled: true,
+        reason: 'e2e moderation gate',
+      });
+      await call(o, 'PATCH', '/admin/settings', {
+        values: { 'profiles.access': 'opt_in_public' },
+        reason: 'e2e moderation gate',
+      });
+      await call(b, 'PUT', '/users/@me/profile-doc', {
+        version: 1,
+        blocks: [{ id: 'gb', type: 'guestbook', x: 0, y: 0, w: 12, h: 4, config: {} }],
+      });
+      await call(b, 'PUT', '/users/@me/profile-privacy', {
+        page_tier: 'public',
+        guestbook_tier: 'public',
+        guestbook_accepts_public: true,
+      });
+      const visitor = await playwright.request.newContext({ baseURL: ORIGIN });
+      const posted = await visitor.post(`${API}/public/profiles/${userB.username}/guestbook`, {
+        headers: { Origin: ORIGIN },
+        data: { body: `visitor note ${stamp}` },
+      });
+      expect(posted.status(), 'the visitor note is held').toBe(204);
+      const book = await call<{ id: string; pending?: boolean; body: string }[]>(
+        b,
+        'GET',
+        `/users/${userB.id}/guestbook`,
+      );
+      const held = book.find((e) => e.pending && e.body === `visitor note ${stamp}`);
+      expect(held, 'the owner sees the held note').toBeTruthy();
+      const noteReport = {
+        target_kind: 'guestbook_note',
+        target_id: held!.id,
+        category: 'spam',
+        note: 'Spam left on my page.',
+        moderators_may_see_name: false,
+      };
+      // A cannot see a held note: the same answer as a note that does not exist.
+      await call(a, 'POST', '/moderation/reports', noteReport, [404]);
+      await call(b, 'POST', '/moderation/reports', noteReport);
+      const open = await call<{ items: { id: string; target_id: string | null }[] }>(
+        s,
+        'GET',
+        '/moderation/cases?open_only=true&limit=100',
+      );
+      const noteCase = open.items.find((c) => c.target_id === held!.id);
+      expect(noteCase, 'platform staff see the note case').toBeTruthy();
+      const detail = await call<{
+        evidence: { payload: { kind?: string; body?: string; status?: string } }[];
+        holds: unknown[];
+      }>(s, 'GET', `/moderation/cases/${noteCase!.id}`);
+      expect(detail.evidence[0]?.payload.kind).toBe('guestbook_note');
+      expect(detail.evidence[0]?.payload.body).toBe(`visitor note ${stamp}`);
+      expect(detail.evidence[0]?.payload.status).toBe('pending');
+      expect(JSON.stringify(detail.evidence)).not.toContain('ip_hash');
+      expect(detail.holds, 'a note report places no hold').toHaveLength(0);
+      // Remove: the note leaves B's book, and a second removal is the 404 of a missing note.
+      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}`, undefined, [400]);
+      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}?reason=e2e+removal`);
+      const after = await call<{ id: string }[]>(b, 'GET', `/users/${userB.id}/guestbook`);
+      expect(after.some((e) => e.id === held!.id)).toBe(false);
+      await call(
+        s,
+        'DELETE',
+        `/moderation/guestbook-notes/${held!.id}?reason=e2e+removal`,
+        undefined,
+        [404],
+      );
+      await visitor.dispose();
+    });
+
     await test.step('staff hold B’s messages and ban B from the case', async () => {
       const hold = await call<{ hold_id: string; messages: number }>(
         s,
@@ -615,11 +688,11 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
 
       // The Owner is the other reviewer; their rows since the start of this run.
       const ownerRows = await rows(ownerId);
-      // Two module switches: moderation reports, then status rings (both start off).
+      // Three switches: moderation reports, status rings, then public profiles for the guestbook step (all start off).
       expect(
         count(ownerRows, 'admin_action', 'features.patch', startUs),
         'Owner audit rows for features.patch',
-      ).toBe(2);
+      ).toBe(3);
       for (const action of [
         'moderation.appeal.decide',
         'person.unban',

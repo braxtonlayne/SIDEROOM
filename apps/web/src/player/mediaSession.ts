@@ -31,14 +31,15 @@ export function updatePlaybackState(status: PlayerStatus): void {
   ms.playbackState = status === 'playing' ? 'playing' : status === 'idle' ? 'none' : 'paused';
 }
 
-export function updatePosition(position: number, duration: number): void {
+/** `rate` is the store's playback rate (D-525), so the lock screen's clock runs at the real speed. */
+export function updatePosition(position: number, duration: number, rate = 1): void {
   const ms = session();
   if (!ms || !ms.setPositionState || !(duration > 0) || !Number.isFinite(duration)) return;
   try {
     ms.setPositionState({
       duration,
       position: Math.min(Math.max(0, position), duration),
-      playbackRate: 1,
+      playbackRate: rate > 0 && Number.isFinite(rate) ? rate : 1,
     });
   } catch {
     /* an out-of-range state is not worth a crash */

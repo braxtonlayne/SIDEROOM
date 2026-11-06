@@ -1381,6 +1381,18 @@ async fn seed(
             .await
             .unwrap();
     }
+    // The health pass (admin_jobs.rs, first run 60 s after start) raises a `disk_low` staff alert when the disk
+    // holding the working directory is `alerts.disk_percent` full (default 80). Whether it fires depends on the
+    // machine running the test, not on any route, and a slow group's refusal phase reaches past 60 s (wave 50
+    // gate: staff_alerts changed on a 89% full dev disk). The threshold goes to its catalog maximum; staff_alerts
+    // stays fingerprinted, so a refused call that raises an alert still fails.
+    sqlx::query("INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2::text::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
+        .bind(sr_admin::settings::ALERTS_DISK_PERCENT)
+        .bind("99")
+        .bind(SYSTEM_USER_ID)
+        .execute(&pool)
+        .await
+        .unwrap();
     // The server process.
     let port = {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1995,6 +2007,32 @@ async fn seed(
             sr_storage::shelf::path_hash("Series/Authz/Authz S01E01.mp4"),
         );
         ids_map.insert("shelf_grant_id", grant.to_string());
+    }
+    // PRF-PRO-001 (wave 50, D-502): the member's page shows the episode on their own mount in a media showcase, for
+    // friends, so `/profile-pages/{username}/showcase/{object_hash}/url` names a real item (`showcase_username`).
+    // The page owner is the rightful caller; a stranger, a blocked person and anonymous get the page's 404.
+    {
+        let doc = json!({"version": 1, "blocks": [
+            {"id": "show", "type": "media_showcase", "x": 0, "y": 0, "w": 12, "h": 3,
+             "config": {"items": [{"shelf_id": a["shelf_id"], "object_hash": a["object_hash"]}]}}
+        ]});
+        sqlx::query("UPDATE accounts SET profile_doc = $2 WHERE id = $1")
+            .bind(u("member"))
+            .bind(doc)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO profile_privacy (user_id, preset, page_tier, links_tier, top8_tier, now_playing_tier, \
+               bio_tier, guestbook_tier, media_tier, ring_tier) \
+             VALUES ($1, 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', \
+               'friends') ON CONFLICT (user_id) DO NOTHING",
+        )
+        .bind(u("member"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("showcase_username", "member".to_owned());
     }
     // MUS-IDX-001/MUS-LIB-001 (wave 30): a listed track on each tenant's user mount (`{track_id}`, the member's
     // own music) and on its guild mount (`guild_track_id`, what the guild owner puts in a playlist), and a guild
@@ -3671,6 +3709,19 @@ async fn seed(
             a.insert("pending_entry_id", id);
         }
         a.insert("handle", "victim".to_owned());
+        // PRF-PRO-001 (D-507): a second held note on the victim's page for the staff removal
+        // (`DELETE /moderation/guestbook-notes/{note_id}`), so the approve route keeps its own.
+        let staff_note = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO profile_guestbook (id, profile_id, body, status, anonymous) \
+             VALUES ($1, $2, 'authz note for staff', 'pending', TRUE)",
+        )
+        .bind(staff_note)
+        .bind(victim.parse::<i64>().unwrap_or_default())
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("staff_note_id", staff_note.to_string());
         // A guestbook entry the member wrote on the victim's board.
         if let Some(id) = mk(
             &srv,
@@ -4706,6 +4757,8 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
         // PRF-PRO-001: the owner of the page releases a held note; the victim owns the seeded public page.
         ("POST", "/users/@me/guestbook/{entry_id}/approve") => Some("victim"),
+        // PRF-PRO-001 (D-502): the showcase's owner plays their own item.
+        ("GET", "/profile-pages/{username}/showcase/{object_hash}/url") => Some("member"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
         // PRF-SCR-001: the copy is signed for the server's owner, who holds every storage grant on its shelf.
@@ -5271,6 +5324,18 @@ async fn run_group(
     let (reads, rest): (Vec<&Call>, Vec<&Call>) = others
         .into_iter()
         .partition(|c| class_of(&routes[c.route].method) == 0);
+    // Nobody in the matrix heartbeats a watch party, so `watchparty.sweep` (every 10 s) would drop the seeded
+    // party's members 90 s after they joined (`MEMBER_STALE_MS`) and hand the host role on, inside the refusal
+    // phase of a slow group (wave 50 gate: a stalled run took the admin group to 151 s and the sweep wrote
+    // watch_parties, watch_party_members and watch_party_audit). The members are marked seen a day ahead instead;
+    // the party tables stay fingerprinted, so a refused call that writes a party still fails.
+    sqlx::query(
+        "UPDATE watch_party_members \
+         SET last_seen_ms = (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT + 86400000",
+    )
+    .execute(&world.pool)
+    .await
+    .unwrap();
     // Let what the seed set going (a staff offer's direct message, a notification job) land first.
     let mut before = fingerprint(&world.pool).await;
     let mut steady = 0;
@@ -5373,6 +5438,14 @@ async fn run_group(
             }
         }
         if phase == 0 {
+            // SR_AUTHZ_REFUSAL_HOLD=<secs> keeps the refusal phase open that much longer before it is checked, to
+            // prove that no clock-driven job writes inside a slow run (the 60 s health pass, the 90 s party sweep).
+            if let Some(secs) = std::env::var("SR_AUTHZ_REFUSAL_HOLD")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+            {
+                tokio::time::sleep(Duration::from_secs(secs)).await;
+            }
             // RDY-SEC-002: refused calls write nothing.
             let after = fingerprint(&world.pool).await;
             let changed = diff(&before, &after);
@@ -5572,6 +5645,17 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "proxy_instance_id",
     ),
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
+    // PRF-PRO-001 (wave 50): the staff removal names its own held note; the showcase mint names the member's page.
+    (
+        &["/moderation/guestbook-notes/"],
+        "note_id",
+        "staff_note_id",
+    ),
+    (
+        &["/profile-pages/{username}/showcase/"],
+        "username",
+        "showcase_username",
+    ),
     // MOD-GRD-001: the seeded subtree case, its node, the sterilization request and the member's own warning.
     (
         &["/admin/moderation/subtree-cases/"],
@@ -6765,7 +6849,12 @@ pub mod harness {
     pub fn setting_value(s: &Value, flip: Flip) -> Option<Value> {
         let key = s["key"].as_str()?;
         let group = s["group"].as_str().unwrap_or("");
-        let to_max = flip == Flip::SettingsMax || throttle(key, group);
+        // `alerts.disk_percent` stays at its maximum in every state: at its minimum the health pass raises
+        // `disk_low` on any dev disk that is a little full, inside a refusal phase, which says nothing about a
+        // route (see the seed's note; the SettingsMin flip undid the seed's 99 on the wave 50 gate run).
+        let to_max = flip == Flip::SettingsMax
+            || throttle(key, group)
+            || key == sr_admin::settings::ALERTS_DISK_PERCENT;
         match s["kind"].as_str()? {
             "integer" => {
                 let v = if to_max { &s["max"] } else { &s["min"] };

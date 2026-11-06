@@ -128,4 +128,29 @@ mod tests {
             }
         }
     }
+
+    /// D-517: the PeerTube and media hosts reach the app policy's `connect-src` only (for hls.js), never the API,
+    /// public or no-script policies, and the app policy's base `connect-src` is `'self'` with no `https:`.
+    #[test]
+    fn no_other_policy_names_a_connect_host() {
+        assert!(!API_CSP.contains("connect-src"));
+        for name in ["PUBLIC_CSP", "NO_SCRIPT_CSP"] {
+            let at = WEB_RS
+                .find(&format!("pub const {name}: &str = \""))
+                .expect(name);
+            let line = WEB_RS[at..].lines().next().unwrap();
+            let connect = line
+                .split("; ")
+                .find(|d| d.starts_with("connect-src"))
+                .unwrap_or("connect-src 'self'");
+            assert_eq!(connect, "connect-src 'self'", "{name}");
+        }
+        // The app policy's base list, in front of the configured extras.
+        assert!(CSP_TS.contains(
+            "['connect-src', join(dev ? [\"'self'\", 'ws:', 'http:'] : [\"'self'\"], opts.extraConnect)]"
+        ));
+        // Both operator lists feed it, as https origins.
+        assert!(CSP_TS.contains("cfg.mediaHosts"));
+        assert!(CSP_TS.contains("extraConnect.push(`https://${host}`)"));
+    }
 }

@@ -35,10 +35,12 @@
 .lng-sectionbar {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 8px;
   height: 28px;
   padding: 0 12px;
   flex: none;
+  white-space: nowrap;
   font-size: 12px;
   letter-spacing: 0.04em;
   background: var(--bg-base-lowest);
@@ -67,7 +69,52 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
   color: var(--ui-status-online);
+}
+/* D-536: the voice status is one line with an ellipsis, never a second row of the bar. */
+.lng-sectionbar-voice > svg {
+  flex: none;
+}
+.lng-sectionbar-voice-long,
+.lng-sectionbar-voice-short {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lng-sectionbar-voice-short {
+  display: none;
+}
+@media (max-width: 768px) {
+  /* At 375 px the brand and the three rooms nearly fill the bar: tighter type leaves the channel name its room. */
+  .lng-sectionbar {
+    gap: 6px;
+    padding: 0 8px;
+    letter-spacing: 0;
+  }
+  .lng-sectionbar-brand {
+    letter-spacing: 0.08em;
+  }
+  .lng-sectionbar-nav {
+    gap: 10px;
+  }
+  /* D-539: no brand on phones (the bar is the three rooms and, in a call, the channel name; Study's phone nav agrees). */
+  .lng-sectionbar-brand,
+  .lng-sectionbar-sep {
+    display: none;
+  }
+  .lng-sectionbar-voice-short {
+    display: block;
+  }
+  /* Phones show the channel name only; the full sentence stays for screen readers. */
+  .lng-sectionbar-voice-long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    clip: rect(0 0 0 0);
+  }
 }
 .lng-titlestrip {
   display: grid;
