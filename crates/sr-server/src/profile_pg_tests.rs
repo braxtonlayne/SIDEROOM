@@ -259,8 +259,8 @@ async fn a_showcase_mint_is_the_owners_grant_and_dies_with_the_object() {
         account(&pool, id, name).await;
     }
     friends(&pool, owner, friend).await;
-    friends(&pool, owner, blocked).await;
-    rel(&pool, owner, blocked, 2).await; // blocked by the owner after being a friend
+    // Blocked by the owner (who never befriended them; a block replaces any friendship row).
+    rel(&pool, owner, blocked, 2).await;
     let (mount, song) = mount_with(&pool, 9001, owner, "Music/song.flac", "track").await;
     let (_, picture) = mount_with(&pool, 9101, owner, "Art/cover.png", "artwork").await;
     // The stranger's own mount: an object the owner may never put on their page.

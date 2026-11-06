@@ -500,7 +500,7 @@ async fn own_track(pool: &PgPool, owner: i64, title: &str) -> (i64, String) {
     let mount = uid();
     sqlx::query(
         "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, \
-           secret_key_enc) VALUES ($1, 'user', $2, $3, 's3', 'https://s3.example.test', 'b', 'AK', '\x00'::bytea)",
+           secret_key_enc) VALUES ($1, 'user', $2, $3, 's3', 'https://s3.example.test', 'b', 'AK', '\\x00'::bytea)",
     )
     .bind(mount)
     .bind(owner)

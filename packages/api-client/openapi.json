@@ -61155,6 +61155,75 @@
         ]
       }
     },
+    "/moderation/guestbook-notes/{note_id}": {
+      "delete": {
+        "tags": [
+          "guestbook"
+        ],
+        "summary": "Remove a guestbook note (platform staff with `MANAGE_CASES`). The access-log row\n`moderation.guestbook_note.delete` is written before the note is deleted. 404 when it is already gone.",
+        "operationId": "remove_note",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "description": "Guestbook note snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "description": "Why the note is removed",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/moderation/guilds/{guild_id}/cases": {
       "get": {
         "tags": [
@@ -64923,6 +64992,62 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfilePage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/profile-pages/{username}/showcase/{object_hash}/url": {
+      "get": {
+        "tags": [
+          "profile-pages"
+        ],
+        "summary": "A ten-minute address for one object of a profile's media showcase (D-502): the owner's grant for exactly the\nobjects the block names, to the audience `media_tier` admits. Session only. Every refusal (no page, blocked,\nbelow the tier, no block, a hash the document does not name, an object that is gone or delisted, a mount\nthat is not the owner's active one) is the page's 404. `Cache-Control: no-store`.",
+        "operationId": "showcase_url",
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "description": "Username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "object_hash",
+            "in": "path",
+            "description": "Object hash named by the showcase",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectUrl"
                 }
               }
             }
@@ -108895,7 +109020,8 @@
           "custom",
           "linktree",
           "featured_guilds",
-          "now_playing"
+          "now_playing",
+          "media_showcase"
         ]
       },
       "ProfileCatalogObject": {
@@ -109160,6 +109286,17 @@
             },
             "description": "The pictures the document names (a background image, gallery pictures), with their addresses."
           },
+          "ring_visible": {
+            "type": "boolean",
+            "description": "D-504: the owner's current ring may be drawn around the header avatar for this viewer (the profile's\n`ring_tier` and the ring's own audience both admit them). Only ever true on the signed-in page; the client\nreads the ring from the rings feed it already holds. Absent on the public page."
+          },
+          "showcase": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileShowcaseItem"
+            },
+            "description": "D-502: the media showcase as this viewer may play it (signed-in viewers the block admits; items that are\ngone, delisted or no longer audio or video are left out). Absent on the public page."
+          },
           "user": {
             "$ref": "#/components/schemas/ProfilePageUser"
           }
@@ -109418,6 +109555,45 @@
           "stored": {
             "$ref": "#/components/schemas/ProfilePrivacyFields",
             "description": "The member's choices after the clamp (no block looser than the page)."
+          }
+        }
+      },
+      "ProfileShowcaseItem": {
+        "type": "object",
+        "description": "One playable item of a profile's media showcase (D-502). The address is minted on play through\n`GET /profile-pages/{username}/showcase/{object_hash}/url`, never carried here.",
+        "required": [
+          "shelf_id",
+          "object_hash",
+          "title",
+          "media"
+        ],
+        "properties": {
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "media": {
+            "type": "string",
+            "description": "`audio` or `video`."
+          },
+          "object_hash": {
+            "type": "string"
+          },
+          "shelf_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "description": "The owner's title, the track's tag title, or the file name."
           }
         }
       },
@@ -117457,6 +117633,7 @@
           "cinema",
           "person",
           "status_ring",
+          "guestbook_note",
           "other"
         ]
       },
