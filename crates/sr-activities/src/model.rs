@@ -200,3 +200,25 @@ pub struct InstanceView {
     #[serde(default)]
     pub capabilities: Vec<String>,
 }
+
+/// A running Activity the caller could join now (D-483, D-484): the game, where it is and how many play. Names
+/// only: no user ids, host, participant list, guest count or token.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct LobbyView {
+    pub instance_id: String,
+    pub application_id: String,
+    pub application_name: String,
+    pub guild_id: String,
+    pub guild_name: String,
+    pub channel_id: String,
+    pub channel_name: String,
+    /// `voice` or `text`.
+    pub channel_type: String,
+    /// Running a development build.
+    pub development: bool,
+    /// Participants with `left_at IS NULL`. Guests are never participants (D-397).
+    pub player_count: i64,
+    pub created_at_ms: i64,
+    /// The caller is a participant already (the card says Return).
+    pub joined: bool,
+}

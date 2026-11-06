@@ -16,6 +16,8 @@ import {
   type SubscribeArgs,
   type ShelfObjectRef,
   type ShelfObjectBytes,
+  type ShelfObjectPick,
+  type PickShelfObjectArgs,
   type ShelfObjectUrl,
   STORAGE_LIMITS,
   STORAGE_CAPABILITY,
@@ -305,6 +307,13 @@ export class SideRoomSDK {
      */
     shelfObjectBytes: async (args: ShelfObjectRef): Promise<Uint8Array> =>
       unb64((await this.call<ShelfObjectBytes>('shelfObjectBytes', args)).b),
+    /**
+     * D-466: let the member choose one file from the shelves they can open, in the app's own picker (needs `byos_read`).
+     * The choice is their yes for that object: `shelfObjectBytes` or `shelfObjectUrl` on it asks nothing more.
+     * Resolves `null` when they cancel. Members only; the game never sees a listing.
+     */
+    pickShelfObject: (args: PickShelfObjectArgs = {}) =>
+      this.call<ShelfObjectPick | null>('pickShelfObject', args),
     /** Offer the person a file to save (png, jpeg, webp, json or text, at most 8 MiB). Resolves `{ saved }`. */
     saveFile: (args: { name: string; mime: string; bytes: Uint8Array }) =>
       this.call<{ saved: boolean }>('saveFile', {

@@ -15111,6 +15111,27 @@ export interface paths {
         patch: operations["edit_self"];
         trace?: never;
     };
+    "/users/@me/activity-lobbies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Arcade's "Active lobbies" (D-483 to D-485): running Activities in my servers that I could join now, in
+         *     channels I can see and take part in. My own first, then the fullest, then the newest; at most 20. Names and
+         *     a count only: never who plays.
+         */
+        get: operations["lobbies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users/@me/age-confirmation": {
         parameters: {
             query?: never;
@@ -23347,6 +23368,37 @@ export interface components {
         };
         ListsBody: {
             items: components["schemas"]["ListCard"][];
+        };
+        LobbiesResponse: {
+            /** @description `[activities] enabled`. */
+            enabled: boolean;
+            items: components["schemas"]["LobbyView"][];
+        };
+        /**
+         * @description A running Activity the caller could join now (D-483, D-484): the game, where it is and how many play. Names
+         *     only: no user ids, host, participant list, guest count or token.
+         */
+        LobbyView: {
+            application_id: string;
+            application_name: string;
+            channel_id: string;
+            channel_name: string;
+            /** @description `voice` or `text`. */
+            channel_type: string;
+            /** Format: int64 */
+            created_at_ms: number;
+            /** @description Running a development build. */
+            development: boolean;
+            guild_id: string;
+            guild_name: string;
+            instance_id: string;
+            /** @description The caller is a participant already (the card says Return). */
+            joined: boolean;
+            /**
+             * Format: int64
+             * @description Participants with `left_at IS NULL`. Guests are never participants (D-397).
+             */
+            player_count: number;
         };
         LockBody: {
             /** @description `true` closes the doors: no registration succeeds, even with a valid invite. `false` opens them. */
@@ -78731,6 +78783,33 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    lobbies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LobbiesResponse"];
+                };
+            };
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

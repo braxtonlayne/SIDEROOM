@@ -21,7 +21,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sr_activities::guest::{GuestJoined, GuestLinkCreated};
 use sr_activities::model::{
-    BundleDetail, ConfigInput, ConfigView, InstanceView, PendingView, ShelfItem,
+    BundleDetail, ConfigInput, ConfigView, InstanceView, LobbyView, PendingView, ShelfItem,
 };
 use sr_core::{ApiError, ErrorCode, PlatformPermissions};
 use utoipa::ToSchema;
@@ -384,6 +384,37 @@ pub async fn shelf(
     Ok(Json(ShelfResponse {
         enabled: true,
         items: deps.service.shelf(p.user_id).await.map_err(act)?,
+    }))
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct LobbiesResponse {
+    /// `[activities] enabled`.
+    pub enabled: bool,
+    pub items: Vec<LobbyView>,
+}
+
+/// The Arcade's "Active lobbies" (D-483 to D-485): running Activities in my servers that I could join now, in
+/// channels I can see and take part in. My own first, then the fullest, then the newest; at most 20. Names and
+/// a count only: never who plays.
+#[utoipa::path(
+    get, path = "/users/@me/activity-lobbies", tag = "activities",
+    responses((status = 200, body = LobbiesResponse), (status = 401, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn lobbies(
+    SessionOnly(p): SessionOnly,
+    Ext(deps): Ext<ActivitiesDeps>,
+) -> MsgResult<Json<LobbiesResponse>> {
+    if !deps.enabled {
+        return Ok(Json(LobbiesResponse {
+            enabled: false,
+            items: Vec::new(),
+        }));
+    }
+    Ok(Json(LobbiesResponse {
+        enabled: true,
+        items: deps.service.lobbies(p.user_id).await.map_err(act)?,
     }))
 }
 

@@ -1,0 +1,21 @@
+// ARC-LOB-001 (wave 49): the Arcade's "Active lobbies" strip, D-483 to D-487.
+export default {
+  'arcade.lobbies.heading': 'Active lobbies',
+  'arcade.lobbies.note': 'Games running in your servers right now.',
+  'arcade.lobbies.list': 'Games you can join',
+  'arcade.lobbies.whereText': '{server} · #{channel}',
+  'arcade.lobbies.whereVoice': '{server} · {channel}',
+  'arcade.lobbies.whereVoiceAria': '{server} · {channel}, a voice channel',
+  'arcade.lobbies.players': '{n, plural, one {# playing} other {# playing}}',
+  'arcade.lobbies.since': '{m, plural, =0 {just started} one {for # min} other {for # min}}',
+  'arcade.lobbies.sinceHours': '{h, plural, one {for # hour} other {for # hours}}',
+  'arcade.lobbies.development': 'Development',
+  'arcade.lobbies.join': 'Join',
+  'arcade.lobbies.joinAria': 'Join {game} in {channel}',
+  'arcade.lobbies.return': 'Return',
+  'arcade.lobbies.returnAria': 'Return to {game} in {channel}',
+  'arcade.lobbies.ended': 'This game has ended.',
+  'arcade.lobbies.failed': 'This game could not be joined.',
+  'arcade.lobbies.live': '{n} live',
+  'arcade.lobbies.liveAria': '{n, plural, one {# lobby running now} other {# lobbies running now}}',
+} satisfies Record<string, string>;

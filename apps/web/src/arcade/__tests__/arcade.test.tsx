@@ -11,7 +11,7 @@ import {
   FeaturedSection,
   PlayableSection,
 } from '../ArcadeSections';
-import { builtinsByStatus, heroSlots, type BuiltinGame } from '../builtins';
+import { builtinsByStatus, heroSlots, pickArt, type BuiltinGame } from '../builtins';
 import { memberFlags } from '../GameCard';
 import { sandboxTrust } from '../sandboxTrust';
 import { http, HttpResponse, server } from '../../test/server';
@@ -584,6 +584,41 @@ describe('D-477: the two large cards', () => {
     expect(screen.getByRole('article', { name: 'Land.io' })).toHaveAttribute('data-size', 'hero');
     expect(screen.queryByRole('article', { name: 'Arena 3D' })).toBeNull();
   });
+
+  it('ARC-ART-001: a pick that is a built-in keeps its own cover; any other pick gets the generic one', () => {
+    expect(pickArt({ application_id: '9', name: 'Land.io' })).toBe('landio');
+    expect(pickArt({ application_id: '9', name: "Card table: Texas Hold'em" })).toBe('holdem');
+    expect(pickArt({ application_id: '9', name: 'Orbit' })).toBe('featured');
+    // With the shelf known the match is by application id, not by name.
+    expect(
+      pickArt({ application_id: '42', name: 'Renamed' }, undefined, { 'Arena 3D': '42' }),
+    ).toBe('arena3d');
+    expect(
+      pickArt({ application_id: '7', name: 'Arena 3D' }, undefined, { 'Arena 3D': '42' }),
+    ).toBe('featured');
+
+    const artOf = (name: string) =>
+      screen.getByRole('article', { name }).querySelector('svg')?.getAttribute('data-art');
+    const picks = [
+      pick({ application_id: '1', name: 'Land.io', position: 0 }),
+      pick({ application_id: '2', name: 'Orbit', position: 1 }),
+    ];
+    const { unmount } = render(<ArcadeHero flags={flags} featured={picks} />);
+    expect(artOf('Land.io')).toBe('landio');
+    expect(artOf('Orbit')).toBe('featured');
+    unmount();
+    render(
+      <FeaturedSection
+        featured={[
+          featured({ application_id: '1', name: 'Land.io' }),
+          featured({ application_id: '2', name: 'Orbit' }),
+        ]}
+        flags={flags}
+      />,
+    );
+    expect(artOf('Land.io')).toBe('landio');
+    expect(artOf('Orbit')).toBe('featured');
+  });
 });
 
 describe('D-479: what a member card says', () => {
@@ -671,6 +706,15 @@ describe('ARC-UI-010: the cover art', () => {
     expect(artKind('holdem')).toBe('holdem');
   });
 
+  it('D-493: folds the olive band (45 to 75) onto gold and leaves other hues alone', () => {
+    // "Lantern Keep" hashes to 48 and "Snake" to 43, "Orbit" to 89 before the fold.
+    expect(hueOf('Lantern Keep')).toBe(37);
+    expect(hueOf('Snake')).toBe(43);
+    expect(hueOf('Orbit')).toBe(89);
+    for (const seed of ['Lantern Keep', 'Pong', 'Tetris', 'Orbit', 'Tempest', 'Qix', 'Galaga'])
+      expect(hueOf(seed) >= 45 && hueOf(seed) <= 75).toBe(false);
+  });
+
   it('is decorative and keeps its gradient ids unique per card', () => {
     const { container } = render(
       <>
@@ -683,5 +727,47 @@ describe('ARC-UI-010: the cover art', () => {
     svgs.forEach((s) => expect(s).toHaveAttribute('aria-hidden', 'true'));
     const ids = [...container.querySelectorAll('[id]')].map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('ARC-ART-001: paints every kind as a still, decorative scene with at most one filter', () => {
+    const kinds = [
+      'landio',
+      'arena3d',
+      'holdem',
+      'whiteboard',
+      'tabletop',
+      'sketch',
+      'emulator',
+      'featured',
+      'cartridge',
+      'workshop',
+    ];
+    for (const kind of kinds) {
+      const { container, unmount } = render(<GameArt kind={kind} seed="Lantern Keep" />);
+      const svg = container.querySelector('svg')!;
+      expect(svg).toHaveAttribute('aria-hidden', 'true');
+      expect(svg).toHaveAttribute('data-art', kind);
+      expect(svg.querySelectorAll('filter').length).toBeLessThanOrEqual(1);
+      expect(svg.querySelectorAll('animate, animateTransform, animateMotion, set')).toHaveLength(0);
+      // Every url(#…) a painting uses points at a gradient or pattern inside the same painting.
+      const refs = [...svg.outerHTML.matchAll(/url\(#([^)]+)\)/g)].map((m) => m[1]!);
+      expect(refs.length).toBeGreaterThan(0);
+      for (const ref of refs) expect(svg.querySelector(`[id="${ref}"]`)).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('ARC-ART-001: colours a generic scene by its title, the same on every visit', () => {
+    const colours = (kind: string, seed: string) => {
+      const { container, unmount } = render(<GameArt kind={kind} seed={seed} />);
+      const found = [...new Set(container.innerHTML.match(/hsl\([^)]*\)/g) ?? [])].sort().join();
+      unmount();
+      return found;
+    };
+    for (const kind of ['featured', 'cartridge', 'workshop']) {
+      expect(colours(kind, 'Lantern Keep')).toBe(colours(kind, 'Lantern Keep'));
+      expect(colours(kind, 'Lantern Keep')).not.toBe(colours(kind, 'Moonfall Rally'));
+      expect(colours(kind, 'Lantern Keep')).toContain(`hsl(${hueOf('Lantern Keep')} `);
+    }
   });
 });

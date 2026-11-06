@@ -20,6 +20,9 @@ import { apiPatch } from '../support/fixtures';
  * Shelves need a storage mount, which the e2e stack does not set up: the mint route and the bucket are played by
  * routes in the member's context. The bucket answers on the app's own origin (`/e2e-bucket/...`), which is where an
  * operator's same-host storage proxy sits; what is proven is who asked for what, not the storage service itself.
+ * D-466 (wave 49): the first pack is chosen with "Choose a file..." in the app's own shelf picker (no second dialog: the
+ * pick is the member's yes); the second is pasted as a shelf id and hash, which asks (the fallback).
+ *
  * Needs the guest relay, activities and the voice stack: SR_E2E_GUEST=1 SR_E2E_ACTIVITIES=1 SR_E2E_VOICE=1.
  */
 
@@ -27,6 +30,11 @@ const GUEST = process.env.SR_E2E_GUEST === '1';
 const ACTIVITIES = process.env.SR_E2E_ACTIVITIES === '1';
 const SHELF = '424242';
 const HASH = 'e4'.repeat(32);
+const HASH2 = '7c'.repeat(32);
+const PICKED = {
+  name: 'Picked pack',
+  prompts: ['sleepy volcano', 'angry toaster', 'polite shark', 'wobbly bridge', 'jazz octopus'],
+};
 const PACK = {
   name: 'E2E pack',
   prompts: ['purple giraffe', 'melting clock', 'rocket sandwich', 'grumpy cloud', 'dancing cactus'],
@@ -89,22 +97,63 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       // The pack: the mint route (the member's own session) and the bucket, played here.
       const minted: string[] = [];
       const bucket: { url: string; fromGame: boolean }[] = [];
-      await a.context.route(`**/api/v1/shelves/${SHELF}/objects/${HASH}/url`, (route) => {
+      await a.context.route(`**/api/v1/shelves/${SHELF}/objects/*/url`, (route) => {
         minted.push(route.request().url());
+        const hash = route.request().url().split('/objects/')[1]?.split('/')[0] ?? '';
         return route.fulfill({
           json: {
-            url: `${base}/e2e-bucket/${SHELF}/${HASH}?X-Amz-Expires=600&X-Amz-Signature=e2e`,
+            url: `${base}/e2e-bucket/${SHELF}/${hash}?X-Amz-Expires=600&X-Amz-Signature=e2e`,
             expires_at: new Date(Date.now() + 600_000).toISOString(),
           },
         });
       });
+      // D-466: what the app's picker lists (the shelves the member can open and one shelf's catalog).
+      const entry = (object_hash: string, path: string, size: number) => ({
+        object_hash,
+        path,
+        size,
+        class: 'text',
+        title: '',
+        cover: '',
+        note: '',
+        updated_at: new Date().toISOString(),
+      });
+      await a.context.route('**/api/v1/shelves/visible', (route) =>
+        route.fulfill({
+          json: {
+            shelves: [
+              {
+                shelf_id: SHELF,
+                label: 'Home bucket',
+                via: 'own',
+                object_count: 4,
+                can_manage: true,
+              },
+            ],
+          },
+        }),
+      );
+      await a.context.route(new RegExp(`/api/v1/shelves/${SHELF}/objects(\\?.*)?$`), (route) =>
+        route.fulfill({
+          json: {
+            objects: [
+              entry(HASH2, 'games/sketch/picked.json', 300),
+              entry(HASH, 'games/sketch/e2e-pack.json', 280),
+              entry('11'.repeat(32), 'pictures/cat.png', 5000),
+              entry('22'.repeat(32), 'games/sketch/huge.json', 900_000),
+            ],
+            next_cursor: null,
+            can_edit: false,
+          },
+        }),
+      );
       await a.context.route('**/e2e-bucket/**', (route) => {
         const req = route.request();
         bucket.push({ url: req.url(), fromGame: req.frame() !== a.page.mainFrame() });
         return route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify(PACK),
+          body: JSON.stringify(req.url().includes(HASH2) ? PICKED : PACK),
         });
       });
       const memberFrameRequests: string[] = [];
@@ -175,12 +224,51 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
         await a.page.setViewportSize({ width: 1280, height: 1000 });
       }
 
-      // The host loads the pack: the bridge asks, the member allows, the member's page fetches the URL.
+      // D-466: "Choose a file..." opens the app's own picker over the frame; the pick is the member's yes.
+      await expect(fa.locator('#pack-choose')).toBeVisible();
+      await fa.locator('#pack-panel').scrollIntoViewIfNeeded();
+      await shot(a.page, 'desktop-panel-choose');
+      if (SHOTS) {
+        await a.page.setViewportSize({ width: 375, height: 812 });
+        await fa.locator('#pack-panel').scrollIntoViewIfNeeded();
+        await shot(a.page, 'phone-panel-choose');
+        await a.page.setViewportSize({ width: 1280, height: 1000 });
+      }
+      await fa.locator('#pack-choose').click();
+      const picker = a.page.getByRole('dialog', { name: 'Choose a file for', exact: false });
+      await expect(picker).toBeVisible();
+      await expect(picker.getByRole('button', { name: /picked.json/ })).toBeVisible();
+      await expect(picker.getByRole('button', { name: /e2e-pack.json/ })).toBeVisible();
+      // The picker lists only what the game asked for (.json or .txt, one pack's size): not the picture, not the big file.
+      await expect(picker.getByRole('button', { name: /cat.png/ })).toHaveCount(0);
+      await expect(picker.getByRole('button', { name: /huge.json/ })).toHaveCount(0);
+      await expect(picker.getByText('2 files are hidden', { exact: false })).toBeVisible();
+      await shot(a.page, 'desktop-picker');
+      if (SHOTS) {
+        await a.page.setViewportSize({ width: 375, height: 812 });
+        await shot(a.page, 'phone-picker');
+        await a.page.setViewportSize({ width: 1280, height: 1000 });
+      }
+      await picker.getByRole('button', { name: /picked.json/ }).click();
+      await expect
+        .poll(() => fa.evaluate(() => (window as any).__sketch.state()?.packs ?? []))
+        .toEqual([{ name: PICKED.name, count: PICKED.prompts.length }]);
+      // No second dialog: the app never asked "Allow" for the object the member picked.
+      await expect(a.page.getByRole('button', { name: 'Allow' })).toHaveCount(0);
+      expect(minted).toHaveLength(1);
+      await fa.locator('#pack-list').scrollIntoViewIfNeeded();
+      await shot(a.page, 'desktop-panel-picked');
+
+      // The host loads a second pack by pasting its reference (the fallback): the bridge asks, the member allows,
+      // the member's page fetches the URL.
       void fa.evaluate((ref) => (window as any).__sketch.loadPack(ref), `${SHELF}/${HASH}`);
       await a.page.getByRole('button', { name: 'Allow' }).click();
       await expect
         .poll(() => fa.evaluate(() => (window as any).__sketch.state()?.packs ?? []))
-        .toEqual([{ name: PACK.name, count: PACK.prompts.length }]);
+        .toEqual([
+          { name: PICKED.name, count: PICKED.prompts.length },
+          { name: PACK.name, count: PACK.prompts.length },
+        ]);
       await fa.evaluate(() =>
         (window as any).__sketch.send({ t: 'settings', rounds: 1, drawSecs: 60, builtIn: false }),
       );
@@ -203,7 +291,7 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
         .toBe(3);
       const choices: string[] = await fd.evaluate(() => (window as any).__sketch.secret().choices);
       const prompt = choices[0] ?? '';
-      for (const c of choices) expect(PACK.prompts).toContain(c);
+      for (const c of choices) expect([...PACK.prompts, ...PICKED.prompts]).toContain(c);
       if (guestDraws) await gl.getByRole('button', { name: prompt }).tap();
       else await fa.evaluate(() => (window as any).__sketch.send({ t: 'pick', i: 0 }));
       await expect
@@ -269,10 +357,12 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
 
       // The pack: one mint through the per-object route, one fetch of the presigned URL from the member's page,
       // nothing from the game's frame.
-      expect(minted).toHaveLength(1);
-      expect(bucket).toHaveLength(1);
-      expect(bucket[0]?.url).toContain('X-Amz-Signature=');
-      expect(bucket[0]?.fromGame).toBe(false);
+      expect(minted).toHaveLength(2);
+      expect(bucket).toHaveLength(2);
+      for (const b of bucket) {
+        expect(b.url).toContain('X-Amz-Signature=');
+        expect(b.fromGame).toBe(false);
+      }
       expect(memberFrameRequests.filter((u) => /e2e-bucket|\/shelves\//.test(u))).toEqual([]);
       await phone.close();
     } finally {

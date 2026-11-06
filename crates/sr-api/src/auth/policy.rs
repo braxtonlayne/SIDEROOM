@@ -63,6 +63,8 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
         || p.starts_with("/push/")
         || p.starts_with("/gifs/")
         || p.starts_with("/users/@me/mentions")
+        // The Arcade's lobby strip is a signed-in member's view of their own servers (D-485).
+        || p.starts_with("/users/@me/activity-lobbies")
         // User-scope feature routes (D-189): a bot has no reminders, bookmarks or birthday.
         // Bucket mounts and shelves belong to people: a bot has none (BYOS).
         || p.starts_with("/users/@me/storage")

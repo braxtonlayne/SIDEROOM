@@ -87,7 +87,8 @@ jobs:
   # (roadmap change 11); never switch engines or skip it.
   arena3d-replay:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 20: a stalled browser install now retries (scripts/playwright-install.sh caps each attempt at 6 minutes).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

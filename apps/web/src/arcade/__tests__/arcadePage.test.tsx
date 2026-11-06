@@ -32,8 +32,11 @@ const pick: FeaturedCard = {
   featured_at_ms: 1,
 };
 
-function serve(front: ArcadeFront) {
+function serve(front: ArcadeFront, lobbies: unknown[] = []) {
   server.use(
+    http.get('*/api/v1/users/@me/activity-lobbies', () =>
+      HttpResponse.json({ enabled: true, items: lobbies }),
+    ),
     http.get('*/api/v1/users/@me', () => HttpResponse.json({ id: '1', username: 'me' })),
     http.get('*/api/v1/arcade', () => HttpResponse.json(front)),
     http.get('*/api/v1/guilds/:id/arcade/cartridges', () => HttpResponse.json([])),
@@ -99,6 +102,38 @@ describe('the Arcade page', () => {
         name: 'Orbit',
       }),
     ).toBeInTheDocument();
+  });
+
+  it('puts Active lobbies between the hero and Playable now once a game runs (ARC-LOB-001)', async () => {
+    serve({ featured: [], coming_soon: [], flags: [] }, [
+      {
+        instance_id: '501',
+        application_id: '42',
+        application_name: 'Land.io',
+        guild_id: '70',
+        guild_name: 'Club',
+        channel_id: '9',
+        channel_name: 'general',
+        channel_type: 'text',
+        development: false,
+        player_count: 2,
+        created_at_ms: Date.now(),
+        joined: false,
+      },
+    ]);
+    open();
+    const lobbies = await screen.findByRole('heading', { name: 'Active lobbies' });
+    const hero = screen.getByRole('heading', { level: 1, name: 'The Arcade.' });
+    const playable = screen.getByRole('heading', { name: 'Playable now' });
+    expect(hero.compareDocumentPosition(lobbies) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      lobbies.compareDocumentPosition(playable) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const nav = screen.getByRole('navigation', { name: 'Arcade sections' });
+    expect(within(nav).getByRole('link', { name: 'Active lobbies' })).toHaveAttribute(
+      'href',
+      '#lobbies',
+    );
   });
 
   it('wraps the page in the arcade section (D-476)', async () => {

@@ -151,8 +151,7 @@ Arcade page with the Lounge not mounted.
 
 ## Not done
 
-- **Active lobbies strip**: needs a server route listing the running instances a member can join across their
-  servers (owner or integrator: new API).
+- **Active lobbies strip**: built in wave 49 (ARC-LOB-001, D-483 to D-487): see `docs/dev/handoff/feat-p49-lobbies.md`.
 - **Copy guest link on cards**: guest links belong to running instances; this could come with the lobbies route.
 - **No inventory row** for ARC-UI-010 or ARC-UI-011: add them to the Wave 47 section the sketch branch creates.
 - **Richer cover scenes**: the paintings are graded for low light but are still simple vector scenes. Painting

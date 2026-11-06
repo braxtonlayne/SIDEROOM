@@ -73,6 +73,9 @@ export function createSideRoomPlatform(win, opt = {}) {
     get canLoadPacks() {
       return !guest && !!config?.capabilities?.includes(BYOS_READ) && typeof sdk?.commands?.shelfObjectBytes === 'function';
     },
+    get canPickPacks() {
+      return this.canLoadPacks && typeof sdk?.commands?.pickShelfObject === 'function';
+    },
     get channel() {
       return channel;
     },
@@ -118,6 +121,14 @@ export function createSideRoomPlatform(win, opt = {}) {
       lastActivityAt = performance.now();
       lastActivity = text;
       sdk.commands.setActivity({ activity: { details: 'Playing Sketch & Slander', state: text || 'In the lobby' } }).catch(() => {});
+    },
+    async pickPack() {
+      if (!this.canPickPacks) throw new Error('the file picker needs a member and the byos_read capability');
+      // D-466: the member's page opens the app's own shelf picker (never inside this frame) and answers with the one
+      // object they chose, or null. The choice is their yes: the shelfObjectBytes that follows asks nothing more.
+      const pick = await sdk.commands.pickShelfObject({ accept: ['.json', '.txt'], max_size: PACK_MAX_BYTES });
+      if (!pick) return null;
+      return { shelf_id: pick.shelf_id, object_hash: pick.object_hash, name: String(pick.name ?? '') };
     },
     async loadPack(ref) {
       if (!this.canLoadPacks) throw new Error('packs need a member and the byos_read capability');
