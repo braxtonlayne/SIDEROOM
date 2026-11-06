@@ -524,7 +524,7 @@
 
 /* ---------- programme popover ---------- */
 .tv-pop {
-  z-index: 60;
+  z-index: 1050; /* a popover: above dialogs (1000), below toasts (1100) */
   box-sizing: border-box;
   width: min(380px, calc(100vw - 24px));
   max-height: min(70vh, 560px);

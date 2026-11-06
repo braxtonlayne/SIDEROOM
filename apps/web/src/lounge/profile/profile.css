@@ -1,6 +1,6 @@
 /* Profile popout and full profile (LNG-SHL-012) */
 .lng-pop {
-  z-index: 60;
+  z-index: 1050; /* a popover: above dialogs (1000), below toasts (1100) */
   width: 340px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);

@@ -21,3 +21,22 @@ describe("overlay layers (XC-VIS-004)", () => {
     expect(popup).toBeLessThan(layer("Feedback/Feedback.module.css", ".region"));
   });
 });
+
+describe("menus and popovers above dialogs (wave 51, the Select fix of wave 50 for the rest)", () => {
+  const backdrop = () => Math.max(layer("Modal/Modal.module.css", ".backdrop"), layer("Drawer/Drawer.module.css", ".backdrop"));
+  const toasts = () => layer("Feedback/Feedback.module.css", ".region");
+
+  it("a Menu (dropdown, context menu, submenu) opened inside a dialog shows above its backdrop", () => {
+    const menu = layer("Menu/Menu.module.css", ".menu");
+    expect(menu).toBeGreaterThan(backdrop());
+    expect(menu).toBeLessThan(toasts());
+    // The same layer as the Select list, so a Select inside a menu or the other way round never hides.
+    expect(menu).toBe(layer("Select/Select.module.css", ".popup"));
+  });
+
+  it("a Tooltip and a Popover opened inside a dialog show above its backdrop, below toasts", () => {
+    const pop = layer("Overlay/Overlay.module.css", ".tooltip,\n.popover");
+    expect(pop).toBeGreaterThan(backdrop());
+    expect(pop).toBeLessThan(toasts());
+  });
+});

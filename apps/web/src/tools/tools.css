@@ -148,7 +148,7 @@
 .sr-tl-gadgets {
   position: fixed;
   inset: 0;
-  z-index: 909; /* under the player (910), above full-screen Settings (900) and the Lounge; menus (950) and modals (1000) stay above */
+  z-index: 909; /* under the player (910), above full-screen Settings (900) and the Lounge; modals (1000) and menus (1050) stay above */
   pointer-events: none;
 }
 .sr-tl-gadget {

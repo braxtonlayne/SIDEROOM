@@ -6,7 +6,7 @@
 .sr-ply-dock {
   position: fixed;
   min-inline-size: 0;
-  z-index: 910; /* above the full-screen Settings (900), below menus (950) and modals (1000) */
+  z-index: 910; /* above the full-screen Settings (900), below modals (1000) and menus and popovers (1050) */
   inline-size: max-content;
   max-inline-size: calc(100vw - 1rem);
 }
