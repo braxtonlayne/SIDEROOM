@@ -6849,7 +6849,12 @@ pub mod harness {
     pub fn setting_value(s: &Value, flip: Flip) -> Option<Value> {
         let key = s["key"].as_str()?;
         let group = s["group"].as_str().unwrap_or("");
-        let to_max = flip == Flip::SettingsMax || throttle(key, group);
+        // `alerts.disk_percent` stays at its maximum in every state: at its minimum the health pass raises
+        // `disk_low` on any dev disk that is a little full, inside a refusal phase, which says nothing about a
+        // route (see the seed's note; the SettingsMin flip undid the seed's 99 on the wave 50 gate run).
+        let to_max = flip == Flip::SettingsMax
+            || throttle(key, group)
+            || key == sr_admin::settings::ALERTS_DISK_PERCENT;
         match s["kind"].as_str()? {
             "integer" => {
                 let v = if to_max { &s["max"] } else { &s["min"] };
