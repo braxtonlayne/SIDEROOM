@@ -112,6 +112,32 @@ export function builtinsByStatus(list: readonly BuiltinGame[] = BUILTIN_GAMES): 
   };
 }
 
+/**
+ * Whether a Featured pick is the same game as a built-in (D-477): the same application id as the shelf entry the
+ * built-in's `shelfName` names when the shelf is known, else the same name.
+ */
+function sameGame(
+  g: BuiltinGame,
+  p: { application_id: string; name: string },
+  shelfIds: Readonly<Record<string, string>>,
+): boolean {
+  return shelfIds[g.shelfName]
+    ? shelfIds[g.shelfName] === p.application_id
+    : g.shelfName === p.name;
+}
+
+/**
+ * The cover for a Featured pick (ARC-ART-001): a pick that is a built-in (D-477) keeps that built-in's own painting;
+ * any other pick gets the generic `featured` scene.
+ */
+export function pickArt(
+  pick: { application_id: string; name: string },
+  games: readonly BuiltinGame[] = BUILTIN_GAMES,
+  shelfIds: Readonly<Record<string, string>> = {},
+): string {
+  return games.find((g) => sameGame(g, pick, shelfIds))?.art ?? 'featured';
+}
+
 /** One of the two large cards at the top of the Arcade (D-477). */
 export type HeroSlot<P> = { kind: 'pick'; pick: P } | { kind: 'builtin'; game: BuiltinGame };
 
@@ -137,12 +163,10 @@ export function heroSlots<
     .sort((a, b) => a.position - b.position)
     .slice(0, 2)
     .filter((p) => p.eligibility.browser_play);
-  const sameGame = (g: BuiltinGame, p: P) =>
-    shelfIds[g.shelfName] ? shelfIds[g.shelfName] === p.application_id : g.shelfName === p.name;
   const slots: HeroSlot<P>[] = picks.map((pick) => ({ kind: 'pick', pick }));
   for (const game of games.filter((g) => g.hero && g.status === 'live')) {
     if (slots.length >= 2) break;
-    if (picks.some((p) => sameGame(game, p))) continue;
+    if (picks.some((p) => sameGame(game, p, shelfIds))) continue;
     slots.push({ kind: 'builtin', game });
   }
   return slots;
