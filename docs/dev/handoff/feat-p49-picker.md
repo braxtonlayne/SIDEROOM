@@ -30,7 +30,7 @@ Not shot: Editorial. An Activity frame, and so the picker, exists only in the Lo
 - The test stack has no real bucket: the picker's two routes and the mint/bucket routes are played by Playwright routes in the gate spec (as the spec already did for the mint and bucket).
 - No Rust touched; no cargo run. Migrations: none.
 
-## Owner questions (for Fable)
+## Owner questions (answered by Fable: D-495 flat catalog, D-496 no expiry timer, D-497 `<input accept>` grammar; no behavior change)
 
 1. The picker lists a flat, searchable catalog (the catalog route has no folders) of one shelf at a time. Discord-like default; would the owner rather have folders (the Study's directory listing, which has no content hashes and would need one extra hash lookup per file)?
 2. The pick lasts for the frame's life, like a consent dialog's yes (D-466 says "for that one object"; the host keeps it in `shelfAllowed`). Should it also expire after a few minutes, or when the member reloads the page (it does today)?

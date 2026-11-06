@@ -296,7 +296,11 @@ export interface ShelfObjectUrl {
 
 /** `pickShelfObject` arguments (D-466): what the picker lists. Both are optional filters, never a way to name a file. */
 export interface PickShelfObjectArgs {
-  /** File extensions (".json", "json") or media types ("text/plain", "image/*") the picker lists; none: every file. */
+  /**
+   * What the picker lists, in the `<input accept>` grammar: `.json` or `json`, an exact `text/plain`, or a family `image/*`;
+   * at most 16 entries. The type is guessed from the extension with a fixed table in the app, so a type the table does not
+   * know is `application/octet-stream`: ask for such files by extension. None: every file.
+   */
   accept?: string[];
   /** Files over this many bytes are not listed. */
   max_size?: number;
