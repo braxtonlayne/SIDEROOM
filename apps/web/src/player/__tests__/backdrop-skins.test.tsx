@@ -208,6 +208,17 @@ describe('valve skin', () => {
     expect(state().pitchFollowsRate).toBe(false);
   });
 
+  it('reads the real speed when it is outside the tape range, and a touch brings it in (D-531)', () => {
+    act(() => usePlayerStore.setState({ rate: 1.5 }));
+    render(<ValveSkin />);
+    const speed = screen.getByRole('slider', { name: 'Tape speed' });
+    expect(speed.getAttribute('aria-valuetext')).toBe('1.50x');
+    expect((speed as HTMLInputElement).value).toBe('1.25');
+    expect(state().rate).toBe(1.5);
+    fireEvent.change(speed, { target: { value: '1.2' } });
+    expect(state().rate).toBe(1.2);
+  });
+
   it('turns the balance knob, with a center detent and a reset', () => {
     render(<ValveSkin />);
     const knobs = screen.getByRole('group', { name: 'Tone controls' });
@@ -323,6 +334,17 @@ describe('circuit skin', () => {
     expect(tempo.getAttribute('aria-valuetext')).toBe('−2.5%');
     fireEvent.doubleClick(tempo);
     expect(state().rate).toBe(1);
+  });
+
+  it('rests the tempo fader at its end stop and reads the real percentage (D-531)', () => {
+    act(() => usePlayerStore.setState({ rate: 1.25 }));
+    render(<CircuitSkin />);
+    const tempo = screen.getByRole('slider', { name: 'Tempo' });
+    expect((tempo as HTMLInputElement).value).toBe('8');
+    expect(tempo.getAttribute('aria-valuetext')).toBe('+25.0%');
+    expect(state().rate).toBe(1.25);
+    fireEvent.change(tempo, { target: { value: '6' } });
+    expect(state().rate).toBeCloseTo(1.06);
   });
 });
 
