@@ -10,6 +10,7 @@ export default {
   'settings.rooms.playlist': 'Playlist',
   'settings.rooms.playlistPlaceholder': 'Choose a playlist',
   'settings.rooms.noPlaylists': 'Create a server playlist in the music library first.',
+  'settings.rooms.openLibrary': 'Open the music library',
   'settings.rooms.noPermission':
     'You need the Manage Channels permission to change the listening room.',
   'settings.rooms.loading': 'Loading the listening room',

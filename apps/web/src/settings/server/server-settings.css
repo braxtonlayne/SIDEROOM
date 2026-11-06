@@ -314,6 +314,12 @@
 .ss-link[aria-current='true'] {
   color: var(--text-link, var(--ui-accent));
 }
+/* A link-styled button inside a sentence (the listening room card's library hint, D-535). */
+.ss-link.ss-link-inline {
+  display: inline;
+  color: var(--ui-accent);
+  text-decoration: underline;
+}
 
 .ss-sr {
   position: absolute;

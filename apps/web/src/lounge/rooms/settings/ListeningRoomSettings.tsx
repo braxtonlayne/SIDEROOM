@@ -2,6 +2,7 @@ import { Button, Select, Switch } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '../../../api/client';
 import { useT } from '../../../i18n';
+import { openPlayerLibrary } from '../../../player/presence';
 import { listGuildPlaylists, type PlaylistView } from '../../../music/playlists/api';
 import { ActionStatus, useAction } from '../../../settings/server/ui';
 import { useStore } from '../../../store';
@@ -172,7 +173,13 @@ export function ListeningRoomSettings({
         onChange={(e) => setOn(e.target.checked)}
       />
       {noLists ? (
-        <p className="ss-na">{t('settings.rooms.noPlaylists')}</p>
+        <p className="ss-na">
+          {t('settings.rooms.noPlaylists')}{' '}
+          {/* D-535: the library is the player's Library panel; the settings dialog stays open behind it. */}
+          <button type="button" className="ss-link ss-link-inline" onClick={openPlayerLibrary}>
+            {t('settings.rooms.openLibrary')}
+          </button>
+        </p>
       ) : (
         <div>
           <label className="ss-field-label" htmlFor="ss-room-playlist">

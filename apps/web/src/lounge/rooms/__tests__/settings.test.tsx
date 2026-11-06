@@ -4,6 +4,7 @@ import { http, HttpResponse, server } from '../../../test/server';
 import { emitDispatch } from '../../../store/events';
 import { ListeningRoomSettings } from '../settings/ListeningRoomSettings';
 import { __resetListeningRooms } from '../store';
+import { closePlayerLibrary, isPlayerLibraryOpen } from '../../../player/presence';
 
 // MUS-JB-003 (wave 50, D-509 / D-510): the "24/7 listening room" card of the voice channel editor.
 
@@ -111,6 +112,15 @@ describe('the listening room card', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('switch')).toBeDisabled();
     expect(screen.getByRole('switch')).not.toBeChecked();
+  });
+
+  it('the empty-list hint opens the music library (D-535)', async () => {
+    api({ room: null, lists: [] });
+    closePlayerLibrary();
+    card();
+    await userEvent.click(await screen.findByRole('button', { name: 'Open the music library' }));
+    expect(isPlayerLibraryOpen()).toBe(true);
+    closePlayerLibrary();
   });
 
   it('without Manage Channels everything is disabled and the sentence says why', async () => {
