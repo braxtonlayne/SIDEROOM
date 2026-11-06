@@ -30365,13 +30365,16 @@ export interface components {
             /** @description `"0"` for a movie. */
             episode_id: string;
             episode_label?: string | null;
+            format?: null | components["schemas"]["WatchPartyMediaFormat"];
             /**
              * @description `cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in
              *     the browser's own player). The last two carry `url` and no catalog ids (they read "0").
              */
             kind?: components["schemas"]["WatchPartyMediaKind"];
             live: boolean;
-            /** @description `youtube`, `vimeo` or `direct`. */
+            /** @description The link the party was started from, when `url` was resolved from it (a PeerTube page, D-516). */
+            page_url?: string | null;
+            /** @description `youtube`, `vimeo`, `peertube` or `direct`. */
             provider?: string | null;
             title: string;
             title_id: string;
@@ -30379,6 +30382,11 @@ export interface components {
             url?: string | null;
             variant_id?: string | null;
         };
+        /**
+         * @description How the browser loads `direct` media (migration 2360).
+         * @enum {string}
+         */
+        WatchPartyMediaFormat: "file" | "hls";
         /**
          * @description Where a party's media comes from (migration 1700).
          * @enum {string}

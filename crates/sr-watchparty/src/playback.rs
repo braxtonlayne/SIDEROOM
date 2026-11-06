@@ -4,10 +4,10 @@ use serde_json::json;
 use sqlx::PgConnection;
 
 use crate::error::{PartyError, PartyResult};
-use crate::external::{self, ExternalMedia};
+use crate::external::ExternalMedia;
 use crate::model::{
-    Action, ChangeMediaInput, CommandInput, MediaKind, PartyView, PlaybackView, QueueAddInput,
-    QueueMoveInput, Viewer,
+    Action, ChangeMediaInput, CommandInput, MediaFormat, MediaKind, PartyView, PlaybackView,
+    QueueAddInput, QueueMoveInput, Viewer,
 };
 use crate::ports::Resolved;
 use crate::rules::{self, BufferDecision, BufferReport};
@@ -128,7 +128,26 @@ impl PartyService {
         input: ChangeMediaInput,
     ) -> PartyResult<PartyView> {
         self.limit(v.user_id, "command", 5_000, 12)?;
-        let ext = input.external.as_ref().map(external::resolve).transpose()?;
+        // A PeerTube link makes the server ask the instance (D-516): only someone who may change the media can
+        // cause that request. The same check runs again under the row lock below.
+        if self.fetches(input.external.as_ref()) {
+            let mut c = self.inner.pool.acquire().await?;
+            let row = match store::get_party(&mut c, id, false).await? {
+                Some(r) if r.ended_at_ms.is_none() => r,
+                _ => return Err(PartyError::NotFound("watch party")),
+            };
+            let members = store::members(&mut c, id).await?;
+            drop(c);
+            let mem = members.iter().find(|m| m.user_id == v.user_id);
+            let standing = self.standing(v.user_id, &row, mem).await?;
+            if !standing.member {
+                return Err(PartyError::NotFound("watch party"));
+            }
+            if !rules::allowed(row.shared_control, standing) {
+                return Err(PartyError::Forbidden);
+            }
+        }
+        let ext = self.resolve_external(input.external.as_ref()).await?;
         let media = match &ext {
             Some(_)
                 if input.title_id > 0
@@ -213,7 +232,8 @@ impl PartyService {
         sqlx::query(
             "UPDATE watch_parties SET title_id = $2, episode_id = $3, variant_id = $4, asset_id = $5, \
              title_name = $6, episode_label = $7, duration_ms = $8, age_restricted = $9, live = $10, \
-             media_kind = $11, media_url = $12, media_provider = $13 WHERE id = $1",
+             media_kind = $11, media_url = $12, media_provider = $13, media_page_url = $14, \
+             media_format = $15 WHERE id = $1",
         )
         .bind(row.id)
         // External media carries no catalog ids (the columns are NULL, the view reads 0).
@@ -229,6 +249,8 @@ impl PartyService {
         .bind(ext.map_or(MediaKind::Cinema, |e| e.kind).as_str())
         .bind(ext.map(|e| e.url.as_str()))
         .bind(ext.map(|e| e.provider.as_str()))
+        .bind(ext.and_then(|e| e.page_url.as_deref()))
+        .bind(ext.and_then(|e| e.format).map(MediaFormat::as_str))
         .execute(&mut *c)
         .await?;
         store::save_playback(c, row.id, &state, None, now).await?;
@@ -250,6 +272,8 @@ impl PartyService {
         row.media_kind = ext.map_or(MediaKind::Cinema, |e| e.kind);
         row.media_url = ext.map(|e| e.url.clone());
         row.media_provider = ext.map(|e| e.provider.clone());
+        row.media_page_url = ext.and_then(|e| e.page_url.clone());
+        row.media_format = ext.and_then(|e| e.format);
         row.set_playback(&state, None);
         self.audit(
             c,

@@ -30,6 +30,25 @@ use sr_watchparty::{
     Resolved,
 };
 
+/// Environment variable that swaps the PeerTube resolver's network for the canned e2e instance
+/// (`sr_watchparty::external::stub::e2e_fetcher`). Honoured by debug builds only; a release build ignores it.
+pub const PEERTUBE_E2E_FIXTURE_ENV: &str = "SR_E2E_PEERTUBE_FIXTURE";
+
+/// The PeerTube resolver for parties (D-515, D-516): `SR_PEERTUBE_HOSTS` and `SR_MEDIA_HOSTS`, fetched under the
+/// link-preview SSRF `policy`.
+pub fn peertube_resolver(policy: sr_unfurl::Policy) -> sr_watchparty::external::PeerTube {
+    #[cfg(debug_assertions)]
+    if std::env::var(PEERTUBE_E2E_FIXTURE_ENV).is_ok_and(|v| v == "1") {
+        tracing::warn!(
+            "PeerTube parties answer from the canned e2e instance ({PEERTUBE_E2E_FIXTURE_ENV}=1)"
+        );
+        return sr_watchparty::external::PeerTube::from_env(
+            sr_watchparty::external::stub::e2e_fetcher(policy),
+        );
+    }
+    sr_watchparty::external::PeerTube::from_env(sr_unfurl::production_fetcher(policy))
+}
+
 /// The catalog play check for parties.
 pub struct CinemaPlayGate {
     service: CinemaService,

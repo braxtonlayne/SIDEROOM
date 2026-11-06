@@ -17,8 +17,8 @@ use crate::error::{PartyError, PartyResult};
 use crate::external;
 use crate::model::{
     AuditEntry, Binding, ControlMode, CreateInput, HeartbeatInput, HeartbeatResult, JoinInput,
-    MediaKind, MessageInput, PartyView, PlaybackView, ReactionInput, SettingsInput, TimeView,
-    Viewer, YouView,
+    MediaFormat, MediaKind, MessageInput, PartyView, PlaybackView, ReactionInput, SettingsInput,
+    TimeView, Viewer, YouView,
 };
 use crate::ports::{
     AgeLookup, Announcement, AnnouncementKind, ChannelAccess, ChannelKind, ChannelPerms, ChatHook,
@@ -82,6 +82,8 @@ pub(crate) struct Inner {
     pub chat: Arc<dyn ChatHook>,
     pub clock: Arc<dyn Clock>,
     pub ids: IdSource,
+    /// The PeerTube resolver (D-516); without it a PeerTube link is refused.
+    pub peertube: Option<Arc<external::PeerTube>>,
     windows: Mutex<HashMap<(i64, &'static str), Window>>,
     timer_tx: tokio::sync::mpsc::UnboundedSender<i64>,
     timer_rx: Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<i64>>>,
@@ -107,6 +109,7 @@ impl PartyService {
                 chat: Arc::new(NoChat),
                 clock,
                 ids,
+                peertube: None,
                 windows: Mutex::new(HashMap::new()),
                 timer_tx,
                 timer_rx: Mutex::new(Some(timer_rx)),
@@ -128,6 +131,7 @@ impl PartyService {
                 chat: shared.chat.clone(),
                 clock: shared.clock.clone(),
                 ids: shared.ids.clone(),
+                peertube: shared.peertube.clone(),
                 windows: Mutex::new(HashMap::new()),
                 timer_tx: shared.timer_tx.clone(),
                 timer_rx: Mutex::new(
@@ -171,6 +175,29 @@ impl PartyService {
     /// Where the channel announcement goes.
     pub fn with_chat(self, c: Arc<dyn ChatHook>) -> Self {
         self.rebuild(|i| i.chat = c)
+    }
+
+    /// Resolve PeerTube links through the instance's API (D-515, D-516).
+    pub fn with_peertube(self, p: external::PeerTube) -> Self {
+        self.rebuild(|i| i.peertube = Some(Arc::new(p)))
+    }
+
+    /// Check and canonicalise external media; a listed PeerTube link is resolved through its instance.
+    pub(crate) async fn resolve_external(
+        &self,
+        input: Option<&crate::model::ExternalInput>,
+    ) -> PartyResult<Option<external::ExternalMedia>> {
+        match input {
+            Some(e) => Ok(Some(
+                external::resolve_external(e, self.inner.peertube.as_deref()).await?,
+            )),
+            None => Ok(None),
+        }
+    }
+
+    /// Whether resolving `input` would make an outgoing request (a listed PeerTube link).
+    pub(crate) fn fetches(&self, input: Option<&crate::model::ExternalInput>) -> bool {
+        input.is_some_and(|e| external::fetches(e, self.inner.peertube.as_deref()))
     }
 
     /// Start the worker that settles buffering waits when their deadline passes. Call once from the
@@ -520,7 +547,7 @@ impl PartyService {
                 "Only a server channel party can be persistent.".to_owned(),
             ));
         }
-        let ext = input.external.as_ref().map(external::resolve).transpose()?;
+        let ext = self.resolve_external(input.external.as_ref()).await?;
         if ext.is_some()
             && (input.empty
                 || input.title_id > 0
@@ -610,8 +637,8 @@ impl PartyService {
              episode_id, variant_id, asset_id, title_name, episode_label, duration_ms, age_restricted, live, \
              playing, position_ms, rate_milli, at_ms, version, shared_control, queue_policy, \
              auto_pause_buffering, max_wait_ms, persistent, max_participants, created_at_ms, updated_at_ms, \
-             media_kind, media_url, media_provider) \
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$27,$28,$29,$30)",
+             media_kind, media_url, media_provider, media_page_url, media_format) \
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$27,$28,$29,$30,$31,$32)",
         )
         .bind(id)
         .bind(v.user_id)
@@ -643,6 +670,8 @@ impl PartyService {
         .bind(ext.as_ref().map_or(MediaKind::Cinema, |e| e.kind).as_str())
         .bind(ext.as_ref().map(|e| e.url.as_str()))
         .bind(ext.as_ref().map(|e| e.provider.as_str()))
+        .bind(ext.as_ref().and_then(|e| e.page_url.as_deref()))
+        .bind(ext.as_ref().and_then(|e| e.format).map(MediaFormat::as_str))
         .execute(&mut *tx)
         .await;
         if let Err(e) = inserted {
