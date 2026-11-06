@@ -1,7 +1,7 @@
 // Typed fetchers for the Activities routes. Components and the host never build URLs.
 import { apiFetch } from '../api/client';
 import type { AuthenticateResult } from '@sideroom/embedded-app-sdk';
-import type { ActivityInstance, ChannelActivity, Shelf } from './types';
+import type { ActivityInstance, ChannelActivity, Lobbies, Shelf } from './types';
 import { isTestDeployment } from '../testdeploy/flag';
 
 const enc = encodeURIComponent;
@@ -16,7 +16,14 @@ export interface ActivityApi {
   end(instanceId: string): Promise<void>;
 }
 
-export const httpActivityApi: ActivityApi = {
+/** The Arcade's lobby strip (ARC-LOB-001): the lobbies, and the join every Activity uses. */
+export interface LobbyApi {
+  lobbies(): Promise<Lobbies>;
+  join(instanceId: string): Promise<ActivityInstance>;
+}
+
+export const httpActivityApi: ActivityApi & LobbyApi = {
+  lobbies: () => apiFetch('/users/@me/activity-lobbies', NO_RETRY),
   shelf: () => apiFetch('/activities', NO_RETRY),
   inChannel: (c) => apiFetch(`/channels/${enc(c)}/activity`, NO_RETRY),
   launch: (c, application_id) =>

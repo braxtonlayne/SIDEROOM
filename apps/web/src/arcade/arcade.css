@@ -661,6 +661,114 @@
   font-size: 0.8125rem;
 }
 
+/* --- Active lobbies (ARC-LOB-001, D-486): one row of compact cards, scrolling sideways with snap and an edge fade -- */
+.arc-lobbies {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, var(--ui-text) calc(100% - 24px), transparent);
+}
+.arc-lobbies::-webkit-scrollbar {
+  display: none;
+}
+.arc-lobbies:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.arc-lobby {
+  flex: none;
+  inline-size: clamp(16rem, 22vw, 20rem);
+  scroll-snap-align: start;
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  min-inline-size: 0;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-bg-raised, var(--ui-bg));
+}
+.arc-lobby:last-child {
+  margin-inline-end: 24px;
+}
+.arc-lobby:hover {
+  border-color: color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border));
+}
+.arc-lobby:focus-within:has(:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.arc-lobby-art {
+  position: relative;
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+.arc-lobby-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+  padding: 10px 12px 12px;
+}
+.arc-lobby-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 1rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arc-lobby-where {
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+.arc-lobby-where > svg {
+  flex: none;
+  margin-block-start: 2px;
+}
+/* The server and channel names may be long: two lines, then an ellipsis (the aria-label keeps the whole). */
+.arc-lobby-where-text {
+  display: -webkit-box;
+  min-inline-size: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.arc-lobby-join {
+  margin-block-start: auto;
+}
+.arc-lobby-body > .arc-meta:last-of-type {
+  margin-block-end: 6px;
+}
+.arc-lobby-error {
+  margin: 0;
+  padding-inline: 0;
+}
+/* The "N live" chip on a game card (D-487): a link up to the strip, in the meta line, never a second corner tag. */
+.arc-live {
+  color: var(--ui-text);
+  text-decoration: none;
+}
+.arc-live:hover {
+  text-decoration: underline;
+}
+.arc-live:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.arc-live-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--ui-success, var(--ui-accent));
+}
+
 /* --- The Start in... dialog --------------------------------------------------------------------------------- */
 .arc-start {
   display: grid;

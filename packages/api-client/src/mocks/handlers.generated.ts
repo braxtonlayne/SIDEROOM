@@ -1069,6 +1069,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"get_vouches","method":"get","path":"/users/:user_id/vouches","status":200,"body":{"can_vouch":false,"count":0,"elder_min":0,"elder_multiplier":0,"is_self":false,"multiplier":0,"pillar_min":0,"pillar_multiplier":0,"tier":"citizen","viewer_vouched":false}},
   {"id":"current_user","method":"get","path":"/users/@me","status":200,"body":{"auth":"string","bot":false,"discriminator":"string","id":"1"}},
   {"id":"edit_self","method":"patch","path":"/users/@me","status":200,"body":{"user":{"id":"1","sr_patron":false}}},
+  {"id":"lobbies","method":"get","path":"/users/@me/activity-lobbies","status":200,"body":{"enabled":false,"items":[{}]}},
   {"id":"get_age_confirmation","method":"get","path":"/users/@me/age-confirmation","status":200,"body":{}},
   {"id":"reset_age_confirmation","method":"delete","path":"/users/@me/age-confirmation","status":204,"body":null},
   {"id":"get_birthday","method":"get","path":"/users/@me/birthday","status":200,"body":{"day":0,"month":0,"visibility":"string"}},
