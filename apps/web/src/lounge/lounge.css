@@ -88,8 +88,22 @@
   display: none;
 }
 @media (max-width: 768px) {
+  /* At 375 px the brand and the three rooms nearly fill the bar: tighter type leaves the channel name its room. */
+  .lng-sectionbar {
+    gap: 6px;
+    padding: 0 8px;
+    letter-spacing: 0;
+  }
+  .lng-sectionbar-brand {
+    letter-spacing: 0.08em;
+  }
   .lng-sectionbar-nav {
     gap: 10px;
+  }
+  /* Even then the channel name got only "Ge…": while voice is connected the brand gives way (the rooms stay). */
+  .lng-sectionbar:has(.lng-sectionbar-voice) > .lng-sectionbar-brand,
+  .lng-sectionbar:has(.lng-sectionbar-voice) > .lng-sectionbar-sep {
+    display: none;
   }
   .lng-sectionbar-voice-short {
     display: block;

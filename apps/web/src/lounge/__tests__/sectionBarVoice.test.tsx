@@ -43,4 +43,8 @@ it('never lets the status wrap the bar, and swaps to the short form under the ph
   );
   expect(phone).toMatch(/\.lng-sectionbar-voice-short \{\s*display: block;/);
   expect(phone).toMatch(/\.lng-sectionbar-nav \{\s*gap: 10px;/);
+  // While voice is connected the brand gives way on phones, so the channel name fits at 375 px.
+  expect(phone).toMatch(
+    /\.lng-sectionbar:has\(\.lng-sectionbar-voice\) > \.lng-sectionbar-brand[^{]*\{\s*display: none;/,
+  );
 });

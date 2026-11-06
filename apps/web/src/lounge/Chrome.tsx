@@ -15,7 +15,9 @@ export function SectionBar() {
   return (
     <header className="lng-sectionbar" aria-label={t('lounge.chrome.sections')}>
       <span className="lng-sectionbar-brand">{t('lounge.chrome.brand')}</span>
-      <span aria-hidden="true">/</span>
+      <span className="lng-sectionbar-sep" aria-hidden="true">
+        /
+      </span>
       <RoomsNav
         current="lounge"
         className="lng-sectionbar-nav"
