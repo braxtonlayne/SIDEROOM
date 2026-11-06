@@ -748,7 +748,7 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     await userEvent.click(within(trimmer).getByRole('button', { name: 'Play the result' }));
     expect(played).toEqual([5 * rate]);
     await userEvent.click(within(trimmer).getByRole('button', { name: 'Stop' }));
-    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this' }));
+    await userEvent.click(await within(trimmer).findByRole('button', { name: 'Use this' }));
 
     expect(await within(dialog).findByText('Ready to upload: long clip-trimmed.wav')).toBeVisible();
     expect(
@@ -803,7 +803,7 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
     const trimmer = await within(dialog).findByRole('group', {
       name: 'Audio trimmer and normalizer',
     });
-    await userEvent.click(within(trimmer).getByRole('button', { name: 'Use this' }));
+    await userEvent.click(await within(trimmer).findByRole('button', { name: 'Use this' }));
     expect(
       await within(trimmer).findByText(
         'The result is 938 KB; the limit is 512 KB. Trim a shorter part.',
