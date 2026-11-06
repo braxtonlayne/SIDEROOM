@@ -21,5 +21,7 @@ Commit: `UTL-AUD-001: soundboard upload uses the shared audio tool; old D-201 tr
 vitest: `src/tools`, `src/settings/server`, `src/lounge/msg`, `src/lounge/__tests__` (maxWorkers 2); web `tsc --noEmit`; eslint and prettier on changed files; `check-css-tokens`, `i18n-audit` clean; Playwright `audio-trim.spec.ts` 3/3 on Chromium; `playwright test --list --project chromium` loads all 906 tests in 68 files. No Rust touched, no build/entrance check needed (no public-surface code).
 
 ## Owner questions
+
+**Answered: D-533 (keep the handles; the start handle slides the window at the limit: built) and D-534 (Opus for soundboard sounds: next round, not built).** Questions below are kept for the record.
 - Soundboard part selection now uses start and end handles (shared tool) rather than a fixed 5 s window slider; keep, or add a "fixed window" mode?
 - WAV is the only soundboard output (as before); should the soundboard accept Opus too (D-201 says sounds are stored as uploaded MP3/Ogg/WAV)?
