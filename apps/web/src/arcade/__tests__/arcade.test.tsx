@@ -684,4 +684,46 @@ describe('ARC-UI-010: the cover art', () => {
     const ids = [...container.querySelectorAll('[id]')].map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  it('ARC-ART-001: paints every kind as a still, decorative scene with at most one filter', () => {
+    const kinds = [
+      'landio',
+      'arena3d',
+      'holdem',
+      'whiteboard',
+      'tabletop',
+      'sketch',
+      'emulator',
+      'featured',
+      'cartridge',
+      'workshop',
+    ];
+    for (const kind of kinds) {
+      const { container, unmount } = render(<GameArt kind={kind} seed="Lantern Keep" />);
+      const svg = container.querySelector('svg')!;
+      expect(svg).toHaveAttribute('aria-hidden', 'true');
+      expect(svg).toHaveAttribute('data-art', kind);
+      expect(svg.querySelectorAll('filter').length).toBeLessThanOrEqual(1);
+      expect(svg.querySelectorAll('animate, animateTransform, animateMotion, set')).toHaveLength(0);
+      // Every url(#…) a painting uses points at a gradient or pattern inside the same painting.
+      const refs = [...svg.outerHTML.matchAll(/url\(#([^)]+)\)/g)].map((m) => m[1]!);
+      expect(refs.length).toBeGreaterThan(0);
+      for (const ref of refs) expect(svg.querySelector(`[id="${ref}"]`)).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it('ARC-ART-001: colours a generic scene by its title, the same on every visit', () => {
+    const colours = (kind: string, seed: string) => {
+      const { container, unmount } = render(<GameArt kind={kind} seed={seed} />);
+      const found = [...new Set(container.innerHTML.match(/hsl\([^)]*\)/g) ?? [])].sort().join();
+      unmount();
+      return found;
+    };
+    for (const kind of ['featured', 'cartridge', 'workshop']) {
+      expect(colours(kind, 'Lantern Keep')).toBe(colours(kind, 'Lantern Keep'));
+      expect(colours(kind, 'Lantern Keep')).not.toBe(colours(kind, 'Moonfall Rally'));
+      expect(colours(kind, 'Lantern Keep')).toContain(`hsl(${hueOf('Lantern Keep')} `);
+    }
+  });
 });
