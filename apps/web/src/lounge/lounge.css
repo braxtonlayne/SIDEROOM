@@ -100,9 +100,9 @@
   .lng-sectionbar-nav {
     gap: 10px;
   }
-  /* Even then the channel name got only "Ge…": while voice is connected the brand gives way (the rooms stay). */
-  .lng-sectionbar:has(.lng-sectionbar-voice) > .lng-sectionbar-brand,
-  .lng-sectionbar:has(.lng-sectionbar-voice) > .lng-sectionbar-sep {
+  /* D-539: no brand on phones (the bar is the three rooms and, in a call, the channel name; Study's phone nav agrees). */
+  .lng-sectionbar-brand,
+  .lng-sectionbar-sep {
     display: none;
   }
   .lng-sectionbar-voice-short {

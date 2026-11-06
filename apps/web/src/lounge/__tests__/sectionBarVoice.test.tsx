@@ -11,9 +11,12 @@ vi.mock('../../study/RoomsNav', () => ({ RoomsNav: () => <nav aria-label="Rooms"
 
 afterEach(() => resetSession());
 
-it('shows nothing about voice until a session is connected', () => {
-  render(<SectionBar />);
+it('shows nothing about voice until a session is connected; the brand is still in the DOM for desktop', () => {
+  const { container } = render(<SectionBar />);
   expect(screen.queryByTestId('sectionbar-voice')).toBeNull();
+  // The phone rule hides these by class alone, so it applies with and without voice.
+  expect(container.querySelector('.lng-sectionbar-brand')).not.toBeNull();
+  expect(container.querySelector('.lng-sectionbar-sep')).not.toBeNull();
 });
 
 it('names the channel in the status, with the full sentence as its accessible name', () => {
@@ -23,6 +26,7 @@ it('names the channel in the status, with the full sentence as its accessible na
   expect(status.querySelector('.lng-sectionbar-voice-long')?.textContent).toBe(
     'Voice connected: General',
   );
+  expect(document.querySelector('.lng-sectionbar-brand')).not.toBeNull();
   const short = status.querySelector('.lng-sectionbar-voice-short');
   expect(short?.textContent).toBe('General');
   expect(short?.getAttribute('aria-hidden')).toBe('true');
@@ -43,8 +47,7 @@ it('never lets the status wrap the bar, and swaps to the short form under the ph
   );
   expect(phone).toMatch(/\.lng-sectionbar-voice-short \{\s*display: block;/);
   expect(phone).toMatch(/\.lng-sectionbar-nav \{\s*gap: 10px;/);
-  // While voice is connected the brand gives way on phones, so the channel name fits at 375 px.
-  expect(phone).toMatch(
-    /\.lng-sectionbar:has\(\.lng-sectionbar-voice\) > \.lng-sectionbar-brand[^{]*\{\s*display: none;/,
-  );
+  // D-539: the brand and its slash are hidden on phones always, with or without voice (no :has() condition).
+  expect(phone).toMatch(/\.lng-sectionbar-brand,\s*\.lng-sectionbar-sep \{\s*display: none;/);
+  expect(css).not.toMatch(/:has\(\.lng-sectionbar-voice\)/);
 });
