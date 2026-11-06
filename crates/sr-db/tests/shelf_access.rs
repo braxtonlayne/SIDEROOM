@@ -11,7 +11,7 @@ use sr_db::social_repo::PgSocialRepo;
 use sr_db::testing::TestDb;
 use sr_storage::mounts::{Mount, MountOwner, MountStatus, Provider, SealedSecret};
 use sr_storage::scopes::{self, Refused, ResolveError, Scope, Viewer};
-use sr_storage::shelf::{GrantError, GrantRow, ShelfAccessStore, path_hash};
+use sr_storage::shelf::{CatalogEntry, GrantError, GrantRow, ShelfAccessStore, path_hash};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -316,7 +316,7 @@ async fn the_catalog_follows_the_index_and_keeps_owner_edits() {
     object(pool, 2, 900, "Films/b.mkv", "cinema").await;
     let shelf = store(pool);
 
-    let page = shelf.catalog_page(900, None, 10).await.unwrap();
+    let page = shelf.catalog_page(900, None, None, 10).await.unwrap();
     assert_eq!(page.len(), 2);
     assert!(page.windows(2).all(|w| w[0].object_hash < w[1].object_hash));
     let h = path_hash("Music/a.mp3");
@@ -358,7 +358,7 @@ async fn the_catalog_follows_the_index_and_keeps_owner_edits() {
         .execute(pool)
         .await
         .unwrap();
-    let page = shelf.catalog_page(900, None, 10).await.unwrap();
+    let page = shelf.catalog_page(900, None, None, 10).await.unwrap();
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].object_hash, path_hash("Music/renamed.mp3"));
     assert!(!shelf.catalog_object(900, &h).await.unwrap().unwrap().listed);
@@ -424,7 +424,7 @@ async fn a_delisted_object_refuses_for_everyone_and_logs_the_strike() {
         staff,
         Err(ResolveError::Refused(Refused::Delisted))
     ));
-    let page = shelf.catalog_page(900, None, 10).await.unwrap();
+    let page = shelf.catalog_page(900, None, None, 10).await.unwrap();
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].path, "Music/b.mp3");
     assert!(
@@ -474,4 +474,109 @@ async fn a_delisted_object_refuses_for_everyone_and_logs_the_strike() {
     .await
     .unwrap();
     assert!(restored);
+}
+
+/// P51 (ACT-SDK-001): the catalog search is a case-insensitive substring over the same listing: it never adds a
+/// row, never matches a delisted or unlisted object, treats LIKE wildcards literally, and paginates on the hash.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_catalog_search_narrows_the_same_listing() {
+    let db = TestDb::new().await.expect("db");
+    let pool = db.pool();
+    account(pool, 1).await;
+    mount_row(pool, 900, "user", 1).await;
+    mount_row(pool, 901, "user", 1).await;
+    object(pool, 1, 900, "Music/Alpha Song.mp3", "music").await;
+    object(pool, 2, 900, "Music/beta.mp3", "music").await;
+    object(pool, 3, 900, "Music/100%_real.mp3", "music").await;
+    object(pool, 4, 900, "Music/secret song.mp3", "music").await;
+    object(pool, 5, 901, "Music/other song.mp3", "music").await;
+    for i in 10..15 {
+        object(pool, i, 900, &format!("Many/track{i}.mp3"), "music").await;
+    }
+    let shelf = store(pool);
+    let paths = |p: &[CatalogEntry]| {
+        let mut v: Vec<String> = p.iter().map(|e| e.path.clone()).collect();
+        v.sort();
+        v
+    };
+
+    // Case-insensitive substring; only this shelf.
+    let page = shelf
+        .catalog_page(900, None, Some("SONG"), 50)
+        .await
+        .unwrap();
+    assert_eq!(
+        paths(&page),
+        vec!["Music/Alpha Song.mp3", "Music/secret song.mp3"]
+    );
+    // Wildcards are literal.
+    let page = shelf
+        .catalog_page(900, None, Some("100%_"), 50)
+        .await
+        .unwrap();
+    assert_eq!(paths(&page), vec!["Music/100%_real.mp3"]);
+    assert!(
+        shelf
+            .catalog_page(900, None, Some("%"), 50)
+            .await
+            .unwrap()
+            .len()
+            == 1
+    );
+    assert!(
+        shelf
+            .catalog_page(900, None, Some("a_c"), 50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // A delisted object never matches, and an owner-hidden (unlisted) one neither.
+    let h = path_hash("Music/secret song.mp3");
+    let mut tx = pool.begin().await.unwrap();
+    delist_object(&mut tx, 8_010, 900, &h, None, "notice", 1)
+        .await
+        .unwrap()
+        .expect("delisted");
+    tx.commit().await.unwrap();
+    let page = shelf
+        .catalog_page(900, None, Some("song"), 50)
+        .await
+        .unwrap();
+    assert_eq!(paths(&page), vec!["Music/Alpha Song.mp3"]);
+    sqlx::query("UPDATE storage_objects SET state = 'vanished' WHERE id = 1")
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(
+        shelf
+            .catalog_page(900, None, Some("song"), 50)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    // The search is a subset of the unfiltered listing, in the same order, and pages by the hash cursor.
+    let all = shelf.catalog_page(900, None, None, 50).await.unwrap();
+    let hits = shelf
+        .catalog_page(900, None, Some("track"), 50)
+        .await
+        .unwrap();
+    assert_eq!(hits.len(), 5);
+    assert!(hits.iter().all(|h| all.iter().any(|a| a.path == h.path)));
+    let first = shelf
+        .catalog_page(900, None, Some("track"), 3)
+        .await
+        .unwrap();
+    let rest = shelf
+        .catalog_page(900, Some(&first[2].object_hash), Some("track"), 3)
+        .await
+        .unwrap();
+    let joined: Vec<_> = first.iter().chain(rest.iter()).collect();
+    assert_eq!(joined.len(), 5);
+    assert_eq!(
+        joined.iter().map(|e| &e.object_hash).collect::<Vec<_>>(),
+        hits.iter().map(|e| &e.object_hash).collect::<Vec<_>>()
+    );
 }

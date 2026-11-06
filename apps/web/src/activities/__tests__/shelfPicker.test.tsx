@@ -114,6 +114,37 @@ describe('ShelfPicker (D-466)', () => {
     expect(await screen.findByText('No file matches that search.')).toBeTruthy();
   });
 
+  it('P51: asks the server to search once typing pauses, and starts over from page one', async () => {
+    show(vi.fn(), { accept: [], maxSize: null });
+    await screen.findByText('pack.json');
+    expect(shelfCatalogPage).toHaveBeenLastCalledWith('55', null, undefined);
+    shelfCatalogPage.mockClear();
+    shelfCatalogPage.mockResolvedValue({
+      objects: [obj(H2, 'pictures/cat.png', 500)],
+      next_cursor: null,
+    });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search files' }), 'cat');
+    await waitFor(() => expect(shelfCatalogPage).toHaveBeenCalledWith('55', null, 'cat'));
+    // One request for the finished word, not one per key.
+    expect(shelfCatalogPage.mock.calls.filter((c) => c[2] === 'ca' || c[2] === 'c')).toHaveLength(
+      0,
+    );
+    expect(await screen.findByText('cat.png')).toBeTruthy();
+  });
+
+  it('P51: a search that still has more pages says so, with its own note', async () => {
+    show(vi.fn(), { accept: [], maxSize: null });
+    await screen.findByText('pack.json');
+    let n = 0;
+    shelfCatalogPage.mockReset().mockImplementation(async () => {
+      n += 1;
+      return { objects: [obj(String(n).padStart(64, '0'), `s${n}.json`, 10)], next_cursor: `c${n}` };
+    });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search files' }), 's');
+    expect(await screen.findByText(/More than 3,000 files match/)).toBeTruthy();
+    expect(screen.queryByText(/This shelf has more than/)).toBeNull();
+  });
+
   it('says so when there are no shelves, and when a shelf cannot be read', async () => {
     visibleShelves.mockResolvedValue([]);
     const a = show(vi.fn());

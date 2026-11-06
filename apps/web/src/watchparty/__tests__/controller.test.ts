@@ -389,6 +389,33 @@ describe('leaving and being removed', () => {
     expect(c.state.error?.kind).toBe('removed');
   });
 
+  it('P51: a lapsed host reopens their party with no code: the read is a non-member view, then a join', async () => {
+    await c.open('900');
+    server.member = false;
+    await tick(HEARTBEAT_MS + 10);
+    expect(c.state.error?.kind).toBe('removed');
+    const api = server.api();
+    const full = { ...server.party, playback: server.view() };
+    api.get = vi.fn(() =>
+      Promise.resolve({ ...full, you: { ...full.you!, member: false, host: false } }),
+    );
+    const join = vi.fn(() => Promise.resolve(full));
+    api.join = join;
+    server.member = true;
+    c = new PartyController({ ...d, api });
+    await c.open('900');
+    expect(join).toHaveBeenCalledWith('900', undefined);
+    expect(c.state.status).toBe('active');
+  });
+
+  it('P51: a stranger is still refused when the join answers 404', async () => {
+    const api = server.api();
+    api.get = vi.fn(() => Promise.reject(new ApiError(404, 'nope')));
+    c = new PartyController({ ...d, api });
+    await c.open('900');
+    expect(c.state.status).toBe('error');
+  });
+
   it('ends on a removal event and says why for the age gate', async () => {
     await c.open('900');
     server.emit('WATCH_PARTY_UPDATE', {

@@ -117,11 +117,14 @@ pub trait ShelfAccessStore: Send + Sync {
     /// Names of the guilds.
     async fn guild_names(&self, guild_ids: &[i64]) -> Result<Vec<(i64, String)>, FactsError>;
     /// One page of the catalog, ordered by `object_hash`: listed objects that are not delisted (neither by
-    /// the shelf-object flag nor by an upheld takedown item).
+    /// the shelf-object flag nor by an upheld takedown item). `name` narrows to objects whose path or owner
+    /// title contains it, case-insensitively (a plain substring: `%`, `_` and `\` are literal); it only ever
+    /// removes rows, never adds one the unfiltered listing would not show.
     async fn catalog_page(
         &self,
         shelf_id: i64,
         after: Option<&str>,
+        name: Option<&str>,
         limit: i64,
     ) -> Result<Vec<CatalogEntry>, FactsError>;
     /// One object, delisted or not.
