@@ -246,6 +246,7 @@
 }
 .pp-showcase-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   justify-content: space-between;
@@ -254,12 +255,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 8rem;
   min-inline-size: 0;
 }
 .pp-showcase-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .pp-showcase-media {
   display: block;

@@ -185,7 +185,7 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
             {mayReport(e) && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant="secondary"
                 aria-label={t('profile.guestbook.reportNote', {
                   name: e.author ? nameOf(e.author) : t('profile.public.visitor'),
                 })}
@@ -197,7 +197,7 @@ export function Guestbook({ page, block }: { page: ProfilePage; block: Block }) 
             {e.can_remove && (
               <Button
                 size="sm"
-                variant="ghost"
+                variant="secondary"
                 aria-label={t('lounge.profilePage.guestbookRemove', {
                   name: e.author ? nameOf(e.author) : t('profile.public.visitor'),
                 })}

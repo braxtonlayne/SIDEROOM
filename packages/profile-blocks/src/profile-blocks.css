@@ -200,13 +200,15 @@
 }
 .pp-entries li {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
   padding-block: 6px;
   border-block-start: 1px solid color-mix(in srgb, var(--pp-text) 18%, transparent);
 }
 .pp-entries li > div {
-  flex: 1;
+  /* A narrow column keeps the text readable: the entry's buttons wrap under it instead. */
+  flex: 1 1 9rem;
   min-inline-size: 0;
 }
 .pp-sign {
@@ -374,4 +376,37 @@
   display: flex;
   justify-content: center;
   margin-block: 6px;
+}
+/* The public page's own note form (plain elements; the app's form uses the UI kit). */
+.pp-sign > label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pp-sign > label > textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 4.5em;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--pp-text);
+  background: color-mix(in srgb, var(--pp-text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pp-text) 30%, transparent);
+  border-radius: 6px;
+  resize: vertical;
+}
+.pp-sign > button.pp-link {
+  align-self: flex-start;
+  padding: 6px 14px;
+  font: inherit;
+  color: var(--pp-text);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--pp-accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pp-sign > button.pp-link:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
