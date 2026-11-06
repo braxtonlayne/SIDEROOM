@@ -25,6 +25,13 @@ vi.mock('../../media/hlsAttach', async (orig) => {
   };
 });
 
+// D-532: what the card hands the start dialog.
+vi.mock('../../watchparty/StartPartyDialog', () => ({
+  StartPartyDialog: ({ external }: { external?: unknown }) => (
+    <div data-testid="start-party">{JSON.stringify(external)}</div>
+  ),
+}));
+
 const YT = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ';
 
 const youtube: Embed = {
@@ -152,6 +159,37 @@ describe('the click', () => {
     // An older server that says it cannot: no offer.
     render(<EmbedList embeds={[peertube(false)]} />);
     expect(screen.queryByRole('button', { name: 'Watch together' })).toBeNull();
+  });
+});
+
+describe('the party title (D-532)', () => {
+  const peertube = (title?: string): Embed => {
+    const { title: _drop, ...rest } = youtube;
+    return {
+      ...rest,
+      ...(title ? { title } : {}),
+      sr_play: {
+        mode: 'embed',
+        provider: 'peertube',
+        src: 'https://tube.example.org/videos/embed/9c9de5e8-0a1e',
+        sync: true,
+      },
+    };
+  };
+
+  it('passes the title the unfurl carried, and nothing when it only has its generic label', async () => {
+    const a = render(<EmbedList embeds={[peertube('My talk')]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Watch together' }));
+    expect(JSON.parse((await screen.findByTestId('start-party')).textContent ?? '')).toEqual({
+      url: 'https://tube.example.org/videos/embed/9c9de5e8-0a1e',
+      label: 'My talk',
+    });
+    a.unmount();
+    render(<EmbedList embeds={[peertube()]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Watch together' }));
+    expect(JSON.parse((await screen.findByTestId('start-party')).textContent ?? '')).toEqual({
+      url: 'https://tube.example.org/videos/embed/9c9de5e8-0a1e',
+    });
   });
 });
 

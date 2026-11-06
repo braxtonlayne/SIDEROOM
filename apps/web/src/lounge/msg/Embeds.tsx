@@ -211,6 +211,7 @@ export function EmbedView({
           <PlayHere
             play={play}
             title={e.title ?? t('lounge.embeds.videoFrom', { provider })}
+            partyTitle={e.title}
             channelId={channelId}
           />
         )}
