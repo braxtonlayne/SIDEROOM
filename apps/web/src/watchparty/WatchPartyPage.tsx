@@ -53,7 +53,7 @@ export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
           title={title}
           description={description}
           action={
-            <>
+            <div className="wp-msg-actions">
               {error?.kind === 'removed' ? (
                 // P51: a lapsed member (a sleeping laptop, a dropped connection) comes back in one tap; the
                 // server decides again whether they may (a bound channel's viewers, the host of an empty party).
@@ -64,7 +64,7 @@ export function WatchPartyPage({ id, code }: WatchPartyPageProps) {
               <Button onClick={back} variant="secondary">
                 {t('watchparty.page.back')}
               </Button>
-            </>
+            </div>
           }
         />
       </div>
