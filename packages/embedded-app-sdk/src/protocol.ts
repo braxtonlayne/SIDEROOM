@@ -40,6 +40,12 @@
 //     after the same member yes, but the MEMBER'S PAGE mints the per-object URL, fetches it (no credentials) and hands
 //     the frame the bytes (base64, at most SHELF_OBJECT_BYTES_MAX). The game's CSP is never widened to the storage
 //     host. Never for a guest (D-397).
+//   pickShelfObject { accept?, max_size? } -> ShelfObjectPick | null   D-466 (wave 49), needs `byos_read`: the member's
+//     page opens ITS OWN shelf picker (never inside the frame) over the shelves the member can open, filtered by
+//     `accept` (file extensions such as ".json" or media types such as "text/*") and `max_size` (bytes). The pick is the
+//     member's yes for that one object, so a following `shelfObjectBytes`/`shelfObjectUrl` for it asks nothing more.
+//     `null` when the member cancels. The game learns the picked object only, never a listing. One picker at a time.
+//     Never for a guest (D-397).
 //   dataSend { b } -> { sent }          ACT-CH-001, needs the `datachannel` capability: `b` is base64 bytes (an
 //     SDK data envelope), sealed by the host page with the room's key and relayed by the SFU to the instance
 //
@@ -73,6 +79,7 @@ export const COMMANDS = [
   'saveFile',
   'shelfObjectUrl',
   'shelfObjectBytes',
+  'pickShelfObject',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -285,6 +292,59 @@ export interface ShelfObjectRef {
 export interface ShelfObjectUrl {
   url: string;
   expires_at: string;
+}
+
+/** `pickShelfObject` arguments (D-466): what the picker lists. Both are optional filters, never a way to name a file. */
+export interface PickShelfObjectArgs {
+  /** File extensions (".json", "json") or media types ("text/plain", "image/*") the picker lists; none: every file. */
+  accept?: string[];
+  /** Files over this many bytes are not listed. */
+  max_size?: number;
+}
+
+/** `pickShelfObject` result (D-466): the one object the member chose, as `shelfObjectBytes` and `shelfObjectUrl` take it. */
+export interface ShelfObjectPick extends ShelfObjectRef {
+  /** The file's name (the last part of its path in the shelf). */
+  name: string;
+  /** Its size in bytes. */
+  size: number;
+  /** A media type guessed from the extension; `application/octet-stream` when unknown. */
+  content_type: string;
+}
+
+/** Most `accept` entries (a pick filter is a short list). */
+export const PICK_ACCEPT_MAX = 16;
+
+/** Whether `a` is a valid `pickShelfObject` argument object (absent filters are fine). */
+export function isPickShelfObjectArgs(a: unknown): a is PickShelfObjectArgs {
+  if (a === undefined || a === null) return true;
+  if (typeof a !== 'object' || Array.isArray(a)) return false;
+  const o = a as Record<string, unknown>;
+  if (o.accept !== undefined && o.accept !== null) {
+    if (!Array.isArray(o.accept) || o.accept.length > PICK_ACCEPT_MAX) return false;
+    for (const e of o.accept) {
+      if (typeof e !== 'string' || !/^[\w.+*/-]{1,64}$/.test(e)) return false;
+    }
+  }
+  if (o.max_size !== undefined && o.max_size !== null) {
+    if (typeof o.max_size !== 'number' || !Number.isSafeInteger(o.max_size) || o.max_size < 1) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Whether `r` is a well-formed pick (what the host hands a frame). */
+export function isShelfObjectPick(r: unknown): r is ShelfObjectPick {
+  if (!isShelfObjectRef(r)) return false;
+  const o = r as unknown as Record<string, unknown>;
+  return (
+    typeof o.name === 'string' &&
+    typeof o.size === 'number' &&
+    Number.isSafeInteger(o.size) &&
+    o.size >= 0 &&
+    typeof o.content_type === 'string'
+  );
 }
 
 /** Whether `r` names a shelf object: a snowflake id and a lowercase hex SHA-256. */
