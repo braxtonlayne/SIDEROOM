@@ -6,16 +6,18 @@
  * tubes with the format and length strip; the reel window's green LCD (artist, album, track n of total) and its
  * tape packs, which wind from the left reel to the right as the track plays; the brass seek rail and its time
  * scale; the parchment queue ("next on the reel"), each line plays its track; five brass EQ knobs (62 Hz, 250 Hz,
- * 1 kHz, 4 kHz, 16 kHz of the player's ten-band equalizer) and the master gain knob (volume), each a real slider
- * that also turns by dragging; the chrome piano keys (previous, play or pause, stop, next); the toggle bank:
+ * 1 kHz, 4 kHz, 16 kHz of the player's ten-band equalizer), the master gain knob (volume) and the balance knob
+ * (a stereo panner, wave 50), each a real slider that also turns by dragging; the tape-speed plate's slider
+ * (0.75x to 1.25x, the pitch moving with the speed, wave 50); the chrome piano keys (previous, play or pause, stop, next); the toggle bank:
  * tube tone (the equalizer on or off), an A-B loop, shuffle, repeat and mute; skin, dock and close on the mains
  * plate.
  *
  * Painted: the walnut cheeks, the iron panel, screws, the glowing valve (it follows the level), the reels'
- * rotation, the sleeve card (the cover when the track has one), the phones jack and the tape-speed plate.
+ * rotation, the sleeve card (the cover when the track has one) and the phones jack.
  */
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -42,16 +44,28 @@ import {
   cycleRepeat,
   seek,
   setEq,
+  setPan,
+  setRate,
   setVolume,
   toggleMute,
   usePlayerStore,
 } from '../../store';
 import { Art, BackdropFrame } from './frame';
-import { EqSwitch, QueueButtons, ShuffleButton } from './parts';
+import {
+  EqSwitch,
+  QueueButtons,
+  resetHandlers,
+  ShuffleButton,
+  snapDetent,
+  usePitchPolicy,
+} from './parts';
 import './valve.css';
 
 /** The five bands of the ten-band equalizer the brass knobs turn. */
 const KNOB_BANDS = [1, 3, 5, 7, 9] as const;
+/** D-521: the tape-speed range. */
+const TAPE_MIN = 0.75;
+const TAPE_MAX = 1.25;
 const hzLabel = (hz: number) => (hz >= 1000 ? `${hz / 1000}K` : String(hz));
 
 /** Four slotted screw heads, one in each corner of the positioned parent. */
@@ -366,6 +380,7 @@ function Knob({
   value,
   valueText,
   onValue,
+  reset,
   big = false,
 }: {
   label: string;
@@ -376,6 +391,8 @@ function Knob({
   value: number;
   valueText: string;
   onValue: (v: number) => void;
+  /** Puts the knob back on its detent (double-click or Enter, D-525). */
+  reset?: () => void;
   big?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -389,10 +406,12 @@ function Knob({
     const next = Math.min(max, Math.max(min, snapped));
     if (next !== value) onValue(next);
   };
+  const resets = reset ? resetHandlers(reset) : null;
   return (
     <div
       className={big ? 'v-knob v-knob-big' : 'v-knob'}
       style={{ '--turn': frac } as CSSProperties}
+      onDoubleClick={resets?.onDoubleClick}
       onPointerDown={(e) => {
         input.current?.focus();
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -418,6 +437,7 @@ function Knob({
         step={step}
         value={value}
         onChange={(e) => onValue(Number(e.target.value))}
+        onKeyDown={resets?.onKeyDown}
       />
       <Art className="v-knob-art">
         <span className="v-knob-ticks" />
@@ -473,6 +493,79 @@ function Knobs() {
         valueText={`${vol}%`}
         onValue={(v) => setVolume(v / 100)}
       />
+      <BalanceKnob />
+    </div>
+  );
+}
+
+/** D-521: the balance, a stereo panner in the player's graph (-1 left .. 1 right), detent at the centre. */
+function BalanceKnob() {
+  const t = useT();
+  const pan = usePlayerStore((s) => s.pan);
+  const pct = Math.round(Math.abs(pan) * 100);
+  return (
+    <Knob
+      big
+      label={t('player.skinx.valve.balance')}
+      legend={t('player.skinx.valve.balance')}
+      min={-1}
+      max={1}
+      step={0.05}
+      value={pan}
+      valueText={
+        pct === 0
+          ? t('player.skinx.valve.balanceCenter')
+          : t(pan < 0 ? 'player.skinx.valve.balanceLeft' : 'player.skinx.valve.balanceRight', {
+              n: pct,
+            })
+      }
+      onValue={(v) => setPan(snapDetent(Math.round(v * 100) / 100, 0, 0.04))}
+      reset={() => setPan(0)}
+    />
+  );
+}
+
+/**
+ * D-521: the tape-speed plate as a real control: 0.75x to 1.25x, detent at 1.0x, and the pitch moves with the
+ * speed, as a tape does. The plate's readout shows the speed.
+ */
+function TapeSpeed() {
+  const t = useT();
+  const rate = usePlayerStore((s) => s.rate);
+  const shown = Math.min(TAPE_MAX, Math.max(TAPE_MIN, rate));
+  const text = t('player.skinx.valve.speedValue', { rate: shown.toFixed(2) });
+  const id = useId();
+  const set = (v: number) => setRate(snapDetent(v, 1, 0.015), { pitchFollows: true });
+  return (
+    <div className="v-speed-ctl">
+      <label className="v-speed" htmlFor={id}>
+        <span>{t('player.skinx.valve.speed')}</span>
+        <span className="v-speed-val" aria-hidden="true">
+          {text}
+        </span>
+      </label>
+      <span
+        className="v-speed-slot"
+        style={{ '--v-speed': (shown - TAPE_MIN) / (TAPE_MAX - TAPE_MIN) } as CSSProperties}
+      >
+        <Art className="v-speed-art">
+          <span className="v-speed-groove" />
+          <span className="v-speed-detent" />
+          <span className="v-speed-cap" />
+        </Art>
+        <input
+          id={id}
+          type="range"
+          className="v-speed-input"
+          min={TAPE_MIN}
+          max={TAPE_MAX}
+          step={0.01}
+          value={shown}
+          aria-valuetext={text}
+          onChange={(e) => set(Number(e.target.value))}
+          {...resetHandlers(() => setRate(1, { pitchFollows: true }))}
+        />
+      </span>
     </div>
   );
 }
@@ -783,6 +876,7 @@ function Cheek({ side }: { side: 'start' | 'end' }) {
 
 export function ValveSkin() {
   const t = useT();
+  usePitchPolicy(true);
   const text = useNowPlayingText();
   return (
     <BackdropFrame skin="valve" scheme="dark" art={<CabinetArt />}>
@@ -811,11 +905,13 @@ export function ValveSkin() {
         <Knobs />
         <Keys />
         <ToggleBank />
-        <Art className="v-jackplate">
-          <span className="v-jack" />
-          <span className="v-engrave">{t('player.skinx.valve.phones')}</span>
-          <span className="v-speed">{t('player.skinx.valve.speed')}</span>
-        </Art>
+        <div className="v-jackplate">
+          <Art className="v-jack-art">
+            <span className="v-jack" />
+            <span className="v-engrave">{t('player.skinx.valve.phones')}</span>
+          </Art>
+          <TapeSpeed />
+        </div>
       </div>
     </BackdropFrame>
   );

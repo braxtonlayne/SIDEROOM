@@ -23,6 +23,8 @@ export interface DeckAudio {
   currentTime: number;
   readonly duration: number;
   readonly paused: boolean;
+  /** Optional so test fakes may leave it out; absent means 1. */
+  readonly playbackRate?: number;
   preload: string;
   load(): void;
   play(): Promise<void> | void;
@@ -257,7 +259,9 @@ export class GaplessDecks {
     const a = this.deck(this.active).audio;
     const dur = this.lengthOf(this.active);
     if (dur === null) return;
-    const remaining = dur - a.currentTime;
+    // Media seconds left, in clock seconds: a deck at 1.1x (MUS-SKN-002's tape speed) ends sooner.
+    const rate = a.playbackRate && a.playbackRate > 0 ? a.playbackRate : 1;
+    const remaining = (dur - a.currentTime) / rate;
     const boundary = now + remaining;
     const fade = this.fadeFor(dur, this.lengthOf(this.other(this.active)));
     if (now >= boundary - fade - this.latency) this.fire(now, boundary, fade);

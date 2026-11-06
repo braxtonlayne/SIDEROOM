@@ -25,7 +25,8 @@ export default {
   'player.skinx.valve.on': 'On',
   'player.skinx.valve.off': 'Off',
   'player.skinx.valve.phones': 'Phones',
-  'player.skinx.valve.speed': 'Tape 7½ ips',
+  // MUS-SKN-002 (D-521): the tape-speed plate is a real control now; this is its label.
+  'player.skinx.valve.speed': 'Tape speed',
   'player.skinx.valve.rew': 'Rew',
   'player.skinx.valve.playKey': 'Play',
   'player.skinx.valve.stopKey': 'Stop',

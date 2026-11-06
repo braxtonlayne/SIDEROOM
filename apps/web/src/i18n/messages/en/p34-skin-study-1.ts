@@ -10,15 +10,12 @@ export default {
   'player.skinx.study.capNext': 'Next',
   'player.skinx.study.capShuffle': 'Shuffle',
   'player.skinx.study.capLoop': 'Loop',
-  // The ambience mixer is a picture for now: there are no ambience sound files yet, and it says so.
+  // The ambience mixer (synthesised in the browser since wave 50, D-524; its caption is in p50-skins-1.ts).
   'player.skinx.study.mixer': 'Cozy ambience',
   'player.skinx.study.rain': 'Rain',
   'player.skinx.study.crackle': 'Crackle',
   'player.skinx.study.cafe': 'Café',
   'player.skinx.study.pct': '{n}%',
-  'player.skinx.study.mixerNote': 'Just a picture for now: no ambience sounds yet.',
-  'player.skinx.study.mixerSoon':
-    'Decorative for now: these sliders make no sound until ambience sound files are added.',
   // The now-playing screen and the queue card.
   'player.skinx.study.trackOf': 'Track {n} of {total}',
   'player.skinx.study.tracks': '({n, plural, one {# track} other {# tracks}})',

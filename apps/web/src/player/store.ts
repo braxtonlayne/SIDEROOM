@@ -54,6 +54,17 @@ export interface PlayerState {
    */
   shuffle: boolean;
   unshuffled: PlayerTrack[] | null;
+  /**
+   * MUS-SKN-002 (D-525): the playback rate, 0.5..2. Valve's tape speed and Circuit's tempo fader are this one
+   * value with a different pitch policy: `pitchFollowsRate` is true while a tape-style control (pitch moves with
+   * the speed) is in use, false otherwise (pitch preserved). Tab memory only: neither is persisted.
+   */
+  rate: number;
+  pitchFollowsRate: boolean;
+  /** Stereo balance, -1 (left) .. 1 (right). Tab memory only. */
+  pan: number;
+  /** When the sleep timer pauses the player (epoch ms), or null. `player/sleep.ts` owns the fade. */
+  sleepAt: number | null;
 }
 
 export const initialPlayerState: PlayerState = {
@@ -75,7 +86,15 @@ export const initialPlayerState: PlayerState = {
   error: null,
   shuffle: false,
   unshuffled: null,
+  rate: 1,
+  pitchFollowsRate: false,
+  pan: 0,
+  sleepAt: null,
 };
+
+/** D-525: the bounds of `rate`. */
+export const RATE_MIN = 0.5;
+export const RATE_MAX = 2;
 
 const clamp = (n: number, lo: number, hi: number) =>
   Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;
@@ -242,7 +261,18 @@ export function clear(): void {
     error: null,
     shuffle: false,
     unshuffled: null,
+    sleepAt: null,
   });
+}
+
+/**
+ * Stop: pause and go back to the start of the track; the queue stays. It also turns the sleep timer off
+ * (D-525): there is nothing left for it to fade.
+ */
+export function stop(): void {
+  pause();
+  seek(0);
+  set({ sleepAt: null });
 }
 
 /** Where a queue parked for an app-update reload waits (see engine.ts). */
@@ -376,6 +406,35 @@ export function setEqEnabled(on: boolean): void {
 
 export function setCrossfade(seconds: number): void {
   set({ crossfadeSec: clamp(seconds, 0, CROSSFADE_MAX_SEC) });
+}
+
+/**
+ * MUS-SKN-002 (D-525): the playback rate (0.5..2). `pitchFollows` true is a tape (the pitch moves with the
+ * speed), false keeps the pitch. A new queue keeps the rate; nothing persists it beyond the tab.
+ */
+export function setRate(rate: number, opts: { pitchFollows?: boolean } = {}): void {
+  set({
+    rate: Number.isFinite(rate) ? clamp(rate, RATE_MIN, RATE_MAX) : 1,
+    pitchFollowsRate: opts.pitchFollows ?? false,
+  });
+}
+
+/** The pitch policy of the skin in use, rate untouched (a skin switch mid-track keeps the speed). */
+export function setPitchFollowsRate(on: boolean): void {
+  if (get().pitchFollowsRate !== on) set({ pitchFollowsRate: on });
+}
+
+/** Stereo balance, -1 (left) .. 1 (right). */
+export function setPan(pan: number): void {
+  set({ pan: Number.isFinite(pan) ? clamp(pan, -1, 1) : 0 });
+}
+
+/** The sleep timer: pause in `minutes` (the last 30 seconds fade out), or off with null. */
+export function setSleep(minutes: number | null, now: number = Date.now()): void {
+  set({
+    sleepAt:
+      minutes !== null && Number.isFinite(minutes) && minutes > 0 ? now + minutes * 60_000 : null,
+  });
 }
 
 /**

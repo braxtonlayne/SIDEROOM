@@ -7,13 +7,14 @@
  * height follows the level), the liquid seek tube, prev, play/pause, next, the shuffle orb, the chrome mute ball
  * and the volume tube (with its percentage), the wing's Library, Equalizer and Skin pills, the playlist wing (the
  * real queue: a click plays the track), the status strip's Repeat and Stop chips and its level meter (from the
- * analyser), dock and close.
+ * analyser), the "Drift off" sleep timer (wave 50: 15, 30 or 60 minutes, the last 30 seconds fade out), dock
+ * and close.
  *
  * Painted: the pearl shell and its iridescence, the chrome rims, water droplets and sparkles, the screen glare,
  * the title capsule, the LED dots and the engraved labels under the buttons (the LEDs follow the real state),
  * and the sea picture shown when a track has no cover art.
  */
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { useT } from '../../../i18n';
 import {
   CloseButton,
@@ -31,7 +32,7 @@ import {
   isBusy,
   useNowPlayingText,
 } from '../../controls';
-import { currentTrack, cycleRepeat, pause, seek, setSkin, usePlayerStore } from '../../store';
+import { currentTrack, cycleRepeat, setSkin, setSleep, stop, usePlayerStore } from '../../store';
 import { PLAYER_SKINS } from '../../types';
 import { Art, BackdropFrame, LedMeter } from './frame';
 import { EqSwitch, LibraryButton, QueueButtons, ShuffleButton, useQueueCount } from './parts';
@@ -233,17 +234,55 @@ function RepeatChip() {
 function StopChip() {
   const t = useT();
   return (
-    <button
-      type="button"
-      className="tp-chip"
-      aria-label={t('player.stop')}
-      onClick={() => {
-        pause();
-        seek(0);
-      }}
-    >
+    <button type="button" className="tp-chip" aria-label={t('player.stop')} onClick={stop}>
       <IconStop />
       <span>{t('player.skinx.tidepool.stop')}</span>
+    </button>
+  );
+}
+
+/** D-522: the sleep timer's steps, cycled by the "Drift off" pill. */
+export const SLEEP_STEPS = [15, 30, 60] as const;
+/** The countdown ticks once a minute (D-501's clock pattern); nothing else depends on it. */
+export const SLEEP_CLOCK_MS = 60_000;
+
+/** Whole minutes left until `at` (at least 1 while it runs). */
+export const sleepMinutesLeft = (at: number, now: number) =>
+  Math.max(1, Math.ceil((at - now) / 60_000));
+
+/**
+ * The sleep timer as a pearl pill in the status bar (D-522): off, 15, 30, 60 minutes, then off again, each click
+ * the next step above the minutes still left. While it runs it reads the minutes left.
+ */
+function SleepPill() {
+  const t = useT();
+  const sleepAt = usePlayerStore((s) => s.sleepAt);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (sleepAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), SLEEP_CLOCK_MS);
+    return () => clearInterval(id);
+  }, [sleepAt]);
+  const left = sleepAt === null ? null : sleepMinutesLeft(sleepAt, now);
+  const label =
+    left === null
+      ? t('player.skinx.tidepool.sleep')
+      : t('player.skinx.tidepool.sleepIn', { n: left });
+  return (
+    <button
+      type="button"
+      className="tp-chip tp-sleep"
+      aria-pressed={sleepAt !== null}
+      data-on={sleepAt !== null}
+      onClick={() => {
+        const step = SLEEP_STEPS.find((m) => left === null || m > left);
+        const at = Date.now();
+        setNow(at);
+        setSleep(step ?? null, at);
+      }}
+    >
+      <span className="tp-chip-led" aria-hidden="true" />
+      <span>{label}</span>
     </button>
   );
 }
@@ -399,6 +438,7 @@ export function TidepoolSkin() {
           <div className="tp-strip">
             <RepeatChip />
             <StopChip />
+            <SleepPill />
             <span className="tp-chip tp-chip-meter" aria-hidden="true">
               <span className="tp-chip-label">{t('player.skinx.tidepool.level')}</span>
               <LedMeter className="tp-meter" segments={12} />

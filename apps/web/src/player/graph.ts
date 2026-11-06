@@ -3,7 +3,11 @@
  *
  *   deck A `<audio>` -> MediaElementSource -> deck gain A --+
  *   deck B `<audio>` -> MediaElementSource -> deck gain B --+-> EQ chain (preamp, ten bands) -> master volume
- *                                                               -> analyser -> destination
+ *                                                               -> balance (stereo panner) -> analyser
+ *                                                               -> destination
+ *
+ * MUS-SKN-002 (D-525): the balance is a `StereoPannerNode` driven by the store's `pan`; a browser without
+ * `createStereoPanner` keeps the old chain (master straight into the analyser) and the balance does nothing.
  *
  * The two decks are the gapless/crossfade pair of `music/queue/gapless.ts`: the deck gains are the only nodes
  * a track change moves (a cut on the audio clock, or the equal-power crossfade). The EQ is music-lib's chain
@@ -20,6 +24,8 @@ export interface AudioGraph {
   deckGains: GainNode[];
   eq: EqChain;
   master: GainNode;
+  /** Balance between master and analyser; null where the browser has no stereo panner. */
+  panner: StereoPannerNode | null;
   analyser: AnalyserNode;
 }
 
@@ -50,9 +56,21 @@ export function buildGraph(ctx: AudioContext, decks: readonly HTMLAudioElement[]
   analyser.fftSize = 64;
   analyser.smoothingTimeConstant = 0.8;
   (eq.output as unknown as AudioNode).connect(master);
-  master.connect(analyser);
+  let panner: StereoPannerNode | null = null;
+  if (typeof ctx.createStereoPanner === 'function') {
+    panner = ctx.createStereoPanner();
+    master.connect(panner);
+    panner.connect(analyser);
+  } else {
+    master.connect(analyser);
+  }
   analyser.connect(ctx.destination);
-  return { ctx, deckGains, eq, master, analyser };
+  return { ctx, deckGains, eq, master, panner, analyser };
+}
+
+/** The balance, -1 (left) .. 1 (right). */
+export function applyPan(graph: AudioGraph, pan: number): void {
+  if (graph.panner) graph.panner.pan.value = pan;
 }
 
 /** Apply EQ gains from the store; a disabled EQ is flat (and its preamp back at 0 dB). */

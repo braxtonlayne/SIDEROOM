@@ -16,6 +16,7 @@ import { GaplessDecks, type GaplessTrack } from '../music/queue/gapless';
 import { flushDeferredUpdate, isUpdateDeferred, setUpdateGuard } from '../pwa/state';
 import {
   applyEq,
+  applyPan,
   applyVolume,
   buildGraph,
   defaultContextFactory,
@@ -124,6 +125,26 @@ function setCors(el: HTMLAudioElement, src: string): void {
 
 const keyOf = (index: number, track: PlayerTrack) => `${index}:${track.id}`;
 
+/**
+ * MUS-SKN-002 (D-525): the store's rate and pitch policy on an element. `defaultPlaybackRate` is set too, because
+ * loading a new source (a deck prefetch, a plain cut) puts `playbackRate` back to it.
+ */
+export function applyRate(el: HTMLAudioElement, rate: number, pitchFollows: boolean): void {
+  const e = el as HTMLAudioElement & {
+    webkitPreservesPitch?: boolean;
+    mozPreservesPitch?: boolean;
+  };
+  try {
+    e.defaultPlaybackRate = rate;
+    e.playbackRate = rate;
+  } catch {
+    /* a rate the browser refuses leaves the element at its old one */
+  }
+  e.preservesPitch = !pitchFollows;
+  e.webkitPreservesPitch = !pitchFollows; // Safari before 16.4
+  if ('mozPreservesPitch' in e) e.mozPreservesPitch = !pitchFollows;
+}
+
 export function createPlayerEngine(
   audio: HTMLAudioElement,
   opts: EngineOptions = {},
@@ -162,6 +183,7 @@ export function createPlayerEngine(
         const s = store.getState();
         applyEq(graph, s.eq, s.eqEnabled);
         applyVolume(graph, s.volume, s.muted);
+        applyPan(graph, s.pan);
         for (const el of elements) el.volume = 1;
         const [a, b] = elements;
         const [ga, gb] = graph.deckGains;
@@ -193,6 +215,11 @@ export function createPlayerEngine(
   const syncVolume = (s: PlayerState) => {
     if (graph) applyVolume(graph, s.volume, s.muted);
     else audio.volume = s.muted ? 0 : s.volume;
+  };
+
+  /** D-525: every deck plays at the store's rate, so the next deck of a hand-over starts at it too. */
+  const syncRate = (s: PlayerState = store.getState()) => {
+    for (const el of elements) applyRate(el, s.rate, s.pitchFollowsRate);
   };
 
   const flushUpdate = (s: PlayerState, resumeIndex: number): boolean => {
@@ -270,6 +297,7 @@ export function createPlayerEngine(
         // `start` plays on the active deck; the bucket must allow GET with Range from the app origin.
         setCors(playing(), src);
         const started = decks.start(asGapless(track, src), 0, { paused });
+        syncRate();
         deckKey = loadedKey;
         refreshNext();
         await started;
@@ -277,6 +305,7 @@ export function createPlayerEngine(
       }
       setCors(audio, src);
       audio.src = src;
+      syncRate();
       if (paused) {
         audio.load();
         return;
@@ -297,6 +326,7 @@ export function createPlayerEngine(
     const to = nextIndex(s.index, s.queue.length, s.repeat, true);
     const t = to === null ? undefined : s.queue[to];
     nextKey = null;
+    syncRate(s); // the incoming deck keeps the member's speed
     if (to === null || !t || t.id !== track.id) {
       // The queue changed under the hand-over: play what the store says instead.
       next(true);
@@ -340,6 +370,11 @@ export function createPlayerEngine(
     if (s.volume !== prev.volume || s.muted !== prev.muted) syncVolume(s);
     if (graph && (s.eq !== prev.eq || s.eqEnabled !== prev.eqEnabled))
       applyEq(graph, s.eq, s.eqEnabled);
+    if (graph && s.pan !== prev.pan) applyPan(graph, s.pan);
+    if (s.rate !== prev.rate || s.pitchFollowsRate !== prev.pitchFollowsRate) {
+      syncRate(s);
+      updatePosition(playing().currentTime, s.duration, s.rate);
+    }
     if (s.seekRequest !== null && s.seekRequest !== prev.seekRequest) {
       try {
         if (decks) decks.seek(s.seekRequest);
@@ -417,7 +452,7 @@ export function createPlayerEngine(
     const el = playing();
     const d = Number.isFinite(el.duration) ? el.duration : 0;
     engineReport.time(el.currentTime, d);
-    updatePosition(el.currentTime, d);
+    updatePosition(el.currentTime, d, store.getState().rate);
   });
   const onMeta = fromPlaying(() => {
     const el = playing();
@@ -454,6 +489,7 @@ export function createPlayerEngine(
     return !atBoundary && (st === 'playing' || st === 'loading');
   });
   for (const el of elements) el.preload = 'auto';
+  syncRate();
   // A queue parked by an update reload comes back paused; its first Play loads it.
   if (store.getState().queue.length > 0) updateMetadata(currentTrack());
 

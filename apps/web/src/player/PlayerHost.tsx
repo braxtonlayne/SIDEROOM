@@ -17,6 +17,7 @@ import './skins.css';
 import { LibrarySkin } from './skins/LibrarySkin';
 import { PillSkin } from './skins/PillSkin';
 import { RetroSkin } from './skins/RetroSkin';
+import { startSleepWatcher } from './sleep';
 import * as actions from './store';
 import { usePlayerStore } from './store';
 import type { PlayerSkin } from './types';
@@ -97,6 +98,8 @@ export default function PlayerHost() {
     void import('./toolsWiring').then((m) => m.wireSkinTools());
     restoreResume();
     const engine = createPlayerEngine(audio, nextRef.current ? { nextAudio: nextRef.current } : {});
+    // MUS-SKN-002: the sleep timer's fade and pause (the store only holds when).
+    const stopSleep = startSleepWatcher(() => engine.graph());
     // Browser tests (and only they) drive the player through this handle; `audio` is the deck playing now.
     const dev = import.meta.env.DEV || import.meta.env.MODE === 'test';
     if (dev)
@@ -108,6 +111,7 @@ export default function PlayerHost() {
         gapless: () => engine.gapless(),
       };
     return () => {
+      stopSleep();
       engine.destroy();
       if (dev) delete (window as unknown as { __srPlayer?: unknown }).__srPlayer;
     };
