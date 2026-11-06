@@ -4,13 +4,20 @@
  * of feature modules (docs/11) are the separate Modules tab (`ChannelModules.tsx`).
  */
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { MAX_STATUS, setChannelStatus, useChannelStatus } from '../../../voice/channelStatus';
 import { expiryLabel, inviteUrl } from '../../../lounge/inviteFlow';
 import * as api from '../api';
 import { useResource } from '../hooks';
 import { ActionStatus, Async, formatDate, useAction } from '../ui';
+
+/** D-509: the listening-room card is its own lazy chunk. */
+const ListeningRoomSettings = lazy(() =>
+  import('../../../lounge/rooms/settings/ListeningRoomSettings').then((m) => ({
+    default: m.ListeningRoomSettings,
+  })),
+);
 
 const origin = () => globalThis.location?.origin ?? '';
 
@@ -348,7 +355,15 @@ const slow = (s: number) =>
  * name, over `PUT /channels/{id}/voice-status` (clearing it sends null). The server also ends a status when
  * the last person leaves, and pushes `VOICE_CHANNEL_STATUS_UPDATE`, which the store applies.
  */
-export function ChannelVoice({ channel }: { channel: api.ChannelObject }) {
+export function ChannelVoice({
+  channel,
+  guildId,
+  canManage = true,
+}: {
+  channel: api.ChannelObject;
+  guildId?: string;
+  canManage?: boolean;
+}) {
   const t = useT();
   const action = useAction();
   const current = useChannelStatus((s) => s.byChannel[channel.id] ?? '');
@@ -402,6 +417,15 @@ export function ChannelVoice({ channel }: { channel: api.ChannelObject }) {
           {t('settings.channelTabs.voiceStatusClear')}
         </Button>
       </div>
+      {channel.type === 2 && (guildId ?? channel.guild_id) ? (
+        <Suspense fallback={null}>
+          <ListeningRoomSettings
+            channelId={channel.id}
+            guildId={(guildId ?? channel.guild_id) as string}
+            canManage={canManage}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
