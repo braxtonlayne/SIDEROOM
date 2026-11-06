@@ -34,8 +34,12 @@ export interface PartyMedia {
   kind?: MediaKind;
   /** The provider's privacy-enhanced embed address, or the media file, for `embed` and `direct`. */
   url?: string | null;
-  /** `youtube`, `vimeo` or `direct`. */
+  /** `youtube`, `vimeo`, `peertube` or `direct`. */
   provider?: string | null;
+  /** The link the party was started from when `url` was resolved from it (a PeerTube page, D-516). */
+  page_url?: string | null;
+  /** How `direct` media loads: a `file` (also when absent) or an `hls` playlist (D-516). */
+  format?: 'file' | 'hls' | null;
 }
 
 export type MediaKind = 'cinema' | 'embed' | 'direct';

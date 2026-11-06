@@ -12,6 +12,7 @@ import {
   PERMISSIONS_POLICY,
   EMBED_FRAME_ORIGINS,
   parsePeertubeHosts,
+  listedMediaHosts,
   renderCaddyfile,
   securityHeaders,
 } from './csp';
@@ -198,7 +199,46 @@ describe('CSP', () => {
         peertubeHosts: 'tube.example.org',
       });
       expect(directive(buildCsp(some), 'frame-src')).toContain('https://tube.example.org');
-      expect(directive(buildCsp(some), 'connect-src')).toEqual(["'self'"]);
+      // D-517: hls.js may fetch from the instance, so connect-src names its exact origin.
+      expect(directive(buildCsp(some), 'connect-src')).toEqual([
+        "'self'",
+        'https://tube.example.org',
+      ]);
+    });
+
+    it('connect-src names exactly the PeerTube and media hosts, never https: (D-517)', () => {
+      expect(
+        listedMediaHosts(
+          'tube.example.org, cdn.example.net',
+          'CDN.example.net, s3.example.com:443/',
+        ),
+      ).toEqual(['tube.example.org', 'cdn.example.net', 's3.example.com']);
+      const cfg = cspOptionsFromConfig({
+        publicUrl: 'https://chat.example.org',
+        peertubeHosts: 'tube.example.org',
+        mediaHosts: 'cdn.example.net, bad host, localhost',
+      });
+      const app = buildCsp(cfg);
+      expect(directive(app, 'connect-src')).toEqual([
+        "'self'",
+        'https://tube.example.org',
+        'https://cdn.example.net',
+      ]);
+      expect(directive(app, 'connect-src')).not.toContain('https:');
+      // A media host is fetched from, never framed; media-src is unchanged (P34-UNF-1).
+      expect(directive(app, 'frame-src')).not.toContain('https://cdn.example.net');
+      expect(directive(app, 'media-src')).toEqual(["'self'", 'blob:', 'https:']);
+      // Nothing without the lists.
+      const none = cspOptionsFromConfig({ publicUrl: 'https://chat.example.org' });
+      expect(directive(buildCsp(none), 'connect-src')).toEqual(["'self'"]);
+    });
+
+    it('the public and no-script policies name no host in connect-src (D-517)', () => {
+      expect(directive(PUBLIC_CSP, 'connect-src')).toEqual(["'self'"]);
+      expect(NO_SCRIPT_CSP).not.toContain('connect-src');
+      for (const csp of [PUBLIC_CSP, NO_SCRIPT_CSP]) {
+        expect(csp).not.toMatch(/https:|tube\.|cdn\./);
+      }
     });
   });
 

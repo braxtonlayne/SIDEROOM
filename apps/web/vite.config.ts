@@ -3,7 +3,12 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
-import { buildCsp, cspOptionsFromConfig, securityHeaders } from './src/security/csp';
+import {
+  buildCsp,
+  cspOptionsFromConfig,
+  listedMediaHosts,
+  securityHeaders,
+} from './src/security/csp';
 import { activityHostProxy } from './vite/activityHosts';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
 import { appContractPlugin } from './vite/appContract';
@@ -22,6 +27,8 @@ const fromConfig = cspOptionsFromConfig({
   voicePublicUrl: process.env.VITE_VOICE_PUBLIC_URL,
   // PRF-UNF-001: the same list the server reads at run time to offer Play here for PeerTube links.
   peertubeHosts: process.env.SR_PEERTUBE_HOSTS,
+  // D-517: the extra hosts hls.js may fetch playlists and segments from; the server reads the same variable.
+  mediaHosts: process.env.SR_MEDIA_HOSTS,
 });
 const extra = {
   extraConnect: [...(fromConfig.extraConnect ?? []), ...list(process.env.SR_CSP_CONNECT)],
@@ -91,6 +98,10 @@ export default defineConfig(({ command }) => ({
   define: {
     __SR_VERSION__: JSON.stringify(changelogVersion()),
     __SR_COMMIT__: JSON.stringify(commitSha()),
+    // D-518: the hosts the client may attach hls.js to (the same lists as connect-src above).
+    __SR_MEDIA_HOSTS__: JSON.stringify(
+      listedMediaHosts(process.env.SR_PEERTUBE_HOSTS, process.env.SR_MEDIA_HOSTS),
+    ),
     // RDY-I18N-002: the pseudo-locales ship only in a build made with SR_PSEUDO_LOCALE=1 (src/i18n/runtime.ts).
     'import.meta.env.VITE_SR_PSEUDO_LOCALE': JSON.stringify(
       process.env.SR_PSEUDO_LOCALE === '1' ? 'true' : 'false',

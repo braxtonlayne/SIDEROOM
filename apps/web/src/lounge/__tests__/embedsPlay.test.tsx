@@ -1,6 +1,7 @@
 // "Play here" on link cards (PRF-UNF-001): nothing third-party loads on render, the click creates the
 // privacy-enhanced frame or the native player, and the remembered "Load embeds" setting is the standing click.
 import { render, screen, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import type { Embed } from '../data';
 import { EmbedList } from '../msg/Embeds';
@@ -9,6 +10,20 @@ import { usablePlay } from '../msg/EmbedsPlay';
 import { resetStore, useStore } from '../../store';
 import { http, HttpResponse, server } from '../../test/server';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
+
+// D-518: the HLS seam. The test build lists no media host, so the list is pinned here; native HLS is switchable.
+const hls = vi.hoisted(() => ({ native: false, dispose: vi.fn(), attach: vi.fn() }));
+vi.mock('../../media/hlsAttach', async (orig) => {
+  const real = await orig<typeof import('../../media/hlsAttach')>();
+  return {
+    ...real,
+    nativeHls: () => hls.native,
+    canPlayListedHls: (url: string | null | undefined) =>
+      real.canPlayListedHls(url, ['tube.example.org', 'cdn.example.net']),
+    attachHls: (...args: unknown[]) =>
+      (hls.attach(...args) as Promise<() => void> | undefined) ?? Promise.resolve(hls.dispose),
+  };
+});
 
 const YT = 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ';
 
@@ -117,20 +132,25 @@ describe('the click', () => {
   });
 
   it('offers Watch together only where a party can drive the player', async () => {
-    const peertube: Embed = {
+    const peertube = (sync: boolean): Embed => ({
       ...youtube,
       sr_play: {
         mode: 'embed',
         provider: 'peertube',
         src: 'https://tube.example.org/videos/embed/9c9de5e8-0a1e',
-        sync: false,
+        sync,
       },
-    };
+    });
     const { unmount } = render(<EmbedList embeds={[youtube]} />);
     expect(screen.getByRole('button', { name: 'Watch together' })).toBeInTheDocument();
     unmount();
-    render(<EmbedList embeds={[peertube]} />);
+    // D-515: the server resolves a PeerTube video for the party, so the card offers it (sync from the server).
+    const pt = render(<EmbedList embeds={[peertube(true)]} />);
     expect(screen.getByRole('button', { name: 'Play here' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Watch together' })).toBeInTheDocument();
+    pt.unmount();
+    // An older server that says it cannot: no offer.
+    render(<EmbedList embeds={[peertube(false)]} />);
     expect(screen.queryByRole('button', { name: 'Watch together' })).toBeNull();
   });
 });
@@ -208,5 +228,52 @@ describe('"Load embeds" (default ask, then remember)', () => {
     expect(sw).toBeChecked();
     await userEvent.click(sw);
     await waitFor(() => expect(patches).toEqual([{ settings: { load_embeds: 'ask' } }]));
+  });
+});
+
+describe('HLS on the card (D-518)', () => {
+  const playlist = (src: string): Embed => ({
+    type: 'video',
+    url: src,
+    provider: { name: 'cdn.example.net' },
+    sr_play: { mode: 'direct', provider: 'direct', src, media: 'hls', sync: true },
+  });
+  afterEach(() => {
+    hls.native = false;
+    hls.attach.mockClear();
+    hls.dispose.mockClear();
+  });
+
+  it('a listed host plays through hls.js after the click, never before', async () => {
+    const src = 'https://cdn.example.net/hls/a/master.m3u8';
+    const { container, unmount } = render(<EmbedList embeds={[playlist(src)]} />);
+    expect(container.querySelector('video')).toBeNull();
+    expect(hls.attach).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Play here' }));
+    const video = container.querySelector('video')!;
+    await waitFor(() => expect(hls.attach).toHaveBeenCalledTimes(1));
+    expect(hls.attach.mock.calls[0]![0]).toBe(video);
+    expect(hls.attach.mock.calls[0]![1]).toBe(src);
+    expect(video.hasAttribute('src')).toBe(false);
+    unmount();
+    expect(hls.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unlisted host keeps the sentence and never attaches hls.js', async () => {
+    render(<EmbedList embeds={[playlist('https://live.elsewhere.example/a.m3u8')]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Play here' }));
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This browser cannot play this live stream',
+    );
+    expect(hls.attach).not.toHaveBeenCalled();
+  });
+
+  it('a browser with native HLS keeps the element src', async () => {
+    hls.native = true;
+    const src = 'https://cdn.example.net/hls/a/master.m3u8';
+    const { container } = render(<EmbedList embeds={[playlist(src)]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Play here' }));
+    expect(container.querySelector('video')!.getAttribute('src')).toBe(src);
+    expect(hls.attach).not.toHaveBeenCalled();
   });
 });

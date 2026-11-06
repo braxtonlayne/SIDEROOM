@@ -18,6 +18,9 @@
  *   `frame-src`; a PeerTube instance only when the operator names it (`SR_PEERTUBE_HOSTS`). The iframe is created
  *   only after the reader clicks, so the origin is allowed but nothing loads on render. `media-src` allows
  *   `https:` for the native player of a direct media link, also only after a click.
+ * - PRF-UNF-001 wave 50 (D-517, app policy only): hls.js fetches playlists and segments, so `connect-src` lists
+ *   `https://<host>` for every PeerTube instance (`SR_PEERTUBE_HOSTS`) and every extra media host (`SR_MEDIA_HOSTS`).
+ *   Exact operator-listed origins only: `connect-src` never gains `https:`.
  */
 
 /** The embed origins of the providers Play here supports. `crates/sr-api/src/security_headers.rs` pins them. */
@@ -106,6 +109,8 @@ export interface CspConfig {
   voicePublicUrl?: string;
   /** `SR_PEERTUBE_HOSTS`: comma separated PeerTube instances whose embeds may be framed (PRF-UNF-001). */
   peertubeHosts?: string;
+  /** `SR_MEDIA_HOSTS`: comma separated hosts hls.js may fetch playlists and segments from (D-517). */
+  mediaHosts?: string;
 }
 
 /** `a.example, https://B.example:443/` -> `['a.example', 'b.example']`; the same rules as `sr_unfurl::embed::parse_hosts`. */
@@ -120,6 +125,16 @@ export function parsePeertubeHosts(raw: string | undefined): string[] {
     if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) && !hosts.includes(host)) hosts.push(host);
   }
   return hosts;
+}
+
+/** The hosts hls.js may fetch from (D-517, D-518): the PeerTube instances and the extra media hosts, deduplicated. */
+export function listedMediaHosts(
+  peertubeHosts: string | undefined,
+  mediaHosts: string | undefined,
+): string[] {
+  const out = parsePeertubeHosts(peertubeHosts);
+  for (const h of parsePeertubeHosts(mediaHosts)) if (!out.includes(h)) out.push(h);
+  return out;
 }
 
 const originOf = (url: string | undefined): URL | null => {
@@ -139,6 +154,9 @@ export function cspOptionsFromConfig(cfg: CspConfig): CspOptions {
     extraFrame.push(`https://*.activities.${site.host}`);
   for (const host of parsePeertubeHosts(cfg.peertubeHosts)) extraFrame.push(`https://${host}`);
   const extraConnect: string[] = [];
+  // D-517: hls.js fetches from the listed PeerTube instances and media hosts, exact https origins only.
+  for (const host of listedMediaHosts(cfg.peertubeHosts, cfg.mediaHosts))
+    extraConnect.push(`https://${host}`);
   const voice = originOf(cfg.voicePublicUrl);
   if (voice && /^(https?|wss?):$/.test(voice.protocol)) {
     const secure = voice.protocol === 'https:' || voice.protocol === 'wss:';

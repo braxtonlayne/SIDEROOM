@@ -578,6 +578,13 @@
 .wp-ext-gate p {
   margin: 0;
 }
+/* The page a PeerTube party was started from (D-516): a plain link, opened in a new tab. */
+.wp-ext-page {
+  font-size: 0.875rem;
+  color: var(--sr-text, #f1ede4);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
 .wp-ext-remember {
   font-size: 0.875rem;
   color: var(--sr-muted, #b9b2a3);
