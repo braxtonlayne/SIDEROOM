@@ -533,7 +533,8 @@ function TapeSpeed() {
   const t = useT();
   const rate = usePlayerStore((s) => s.rate);
   const shown = Math.min(TAPE_MAX, Math.max(TAPE_MIN, rate));
-  const text = t('player.skinx.valve.speedValue', { rate: shown.toFixed(2) });
+  // D-531: the plate reads the real speed even when the slider rests at its end stop.
+  const text = t('player.skinx.valve.speedValue', { rate: rate.toFixed(2) });
   const id = useId();
   const set = (v: number) => setRate(snapDetent(v, 1, 0.015), { pitchFollows: true });
   return (

@@ -101,6 +101,8 @@ delete when done). Results from the shared target this wave may not belong to th
 
 ## Owner questions (for Fable)
 
+**Answered: D-528 (reason required, built in the answers round), D-529 (popout without showcase, `public` shown as `members`, Remove learns on the press: built).** Questions below are kept for the record.
+
 1. The staff removal takes an optional `reason` (written to the access log); should it be required like the held
    ring read?
 2. The showcase is not drawn in the compact popout (it shows at most five blocks and no stateful ones); fine?

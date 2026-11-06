@@ -16,6 +16,7 @@ use sr_core::PlatformPermissions as P;
 
 use crate::error::{ModError, ModResult, invalid};
 use crate::model::Who;
+use crate::rules;
 use crate::service::{Moderation, log_staff, require_staff};
 
 /// What the report path needs of a note the reporter may see.
@@ -115,6 +116,8 @@ impl Moderation {
         reason: &str,
     ) -> ModResult<()> {
         require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
+        // D-528: taking content off a member's page needs a reason; checked before anything is logged or read.
+        let reason = rules::reason(Some(reason))?;
         let mut tx = self.pool.begin().await?;
         let profile: i64 =
             sqlx::query_scalar("SELECT profile_id FROM profile_guestbook WHERE id = $1 FOR UPDATE")
@@ -128,7 +131,7 @@ impl Moderation {
             AccessKind::AdminAction,
             "moderation.guestbook_note.delete",
             ("guestbook_note", note),
-            reason.trim(),
+            &reason,
             json!({ "profile_id": profile.to_string() }),
         )
         .await?;

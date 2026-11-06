@@ -61,6 +61,8 @@ was left for later beyond what D-526 already defers.
 
 ## Owner questions (for Fable)
 
+**Answered: D-530 (the mixer stops with the player; closing resets rate, pitch policy and balance: built) and D-531 (no clamp on a skin switch; the readout shows the real rate: built).** Questions below are kept for the record.
+
 1. Closing the player (its queue emptied) stops the ambience mixer and puts the sliders back to zero; a skin change
    keeps it playing. Should the mixer instead survive a close for as long as the tab lives?
 2. Rate and balance are kept when the player is closed and reopened in the same tab (like volume, but not persisted).

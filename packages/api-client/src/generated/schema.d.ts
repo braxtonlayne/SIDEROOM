@@ -70050,9 +70050,9 @@ export interface operations {
     };
     remove_note: {
         parameters: {
-            query?: {
-                /** @description Why the note is removed */
-                reason?: string;
+            query: {
+                /** @description Why the note is removed (required) */
+                reason: string;
             };
             header?: never;
             path: {
@@ -70068,6 +70068,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
             401: {
                 headers: {

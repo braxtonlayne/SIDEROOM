@@ -10,9 +10,14 @@ import { visibleShelves } from '../study/api';
 import type { VisibleShelf } from '../study/sources';
 import { shelfCatalogPage, type ShelfCatalogObject, type ShelfCatalogPage } from './api';
 import { contentTypeOf, fileName, pickable } from './shelfPick';
+import './activities.css';
 
 /** Most catalog pages (200 objects each) read for one shelf. */
 const MAX_PAGES = 15;
+/** Objects in one catalog page. */
+const PAGE_SIZE = 200;
+/** D-537: the stated cap; a shelf past it lists only this many. */
+export const MAX_LISTED = MAX_PAGES * PAGE_SIZE;
 /** Most rows drawn at once; the search narrows the rest. */
 const MAX_ROWS = 200;
 
@@ -50,6 +55,7 @@ export default function ShelfPicker({
   const [shelf, setShelf] = useState('');
   const [files, setFiles] = useState<ShelfCatalogObject[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [truncated, setTruncated] = useState(false);
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -77,6 +83,7 @@ export default function ShelfPicker({
     let dead = false;
     setFiles(null);
     setFailed(false);
+    setTruncated(false);
     void (async () => {
       try {
         const all: ShelfCatalogObject[] = [];
@@ -88,7 +95,11 @@ export default function ShelfPicker({
           cursor = page.next_cursor;
           if (!cursor) break;
         }
-        if (!dead) setFiles(all);
+        if (!dead) {
+          setFiles(all);
+          // The last page still had a next page: the shelf is longer than the picker reads (D-537).
+          setTruncated(cursor !== null);
+        }
       } catch {
         if (!dead) {
           setFiles([]);
@@ -216,6 +227,11 @@ export default function ShelfPicker({
             {files !== null && !failed && shown.length > MAX_ROWS ? (
               <p className="act-muted act-pick-note">
                 {t('activities.pick.more', { count: MAX_ROWS })}
+              </p>
+            ) : null}
+            {files !== null && !failed && truncated ? (
+              <p className="act-muted act-pick-note" role="note">
+                {t('activities.pick.truncated', { count: MAX_LISTED.toLocaleString() })}
               </p>
             ) : null}
             {files !== null && !failed && hidden > 0 ? (

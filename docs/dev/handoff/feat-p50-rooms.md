@@ -20,5 +20,7 @@ Branch `feat/p50-rooms`, based on main `7ad12261`. Nothing pushed.
 `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p50-rooms/` (`settings-server-channel-voice-{desktop,phone}-{light,dark}.png`, `lounge-voice-*`) and `.../p50-rooms/flow-{1..4}-*.png`: a scripted click flow (turn on, pick playlist, save -> "On, nothing is playing yet"; a jukebox DJ in stream mode -> "Rowan (owner) is live, the playlist resumes when they finish"; DJ lets go -> back to On; switch off -> Off). Only console finding: the expected 404 of `GET .../listening-room` on a non-room (row has `expect4xx`).
 
 ## Owner questions
+
+**Answered: D-535 (the hint opens the player's Library panel: built; the card stays visible and disabled, its check is the channel-level Manage Channels: built).** Questions below are kept for the record.
 - Should the hint link to the music library once a route to it exists?
 - Should the card be hidden (not just disabled) for members without `MANAGE_CHANNELS`? (Default here: visible, disabled, with the sentence.)

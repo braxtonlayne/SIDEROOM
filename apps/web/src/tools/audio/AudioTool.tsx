@@ -131,9 +131,13 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
 
   const setStartClamped = (v: number) => {
     stopRef.current?.();
-    const s = Math.min(Math.max(0, v), end - MIN_PART);
+    // D-533: with the kept part already at the limit, dragging the start forward carries the end along (a sliding
+    // window with a resizable front); the end stops at the file's end, where the part shrinks instead.
+    const slides = limits?.maxSeconds !== undefined && v > start && end - start >= maxPart - 1e-6;
+    const s = Math.min(Math.max(0, v), (slides ? total : end) - MIN_PART);
     setStart(s);
-    if (end - s > maxPart) setEnd(s + maxPart);
+    if (slides) setEnd(Math.min(total, s + maxPart));
+    else if (end - s > maxPart) setEnd(s + maxPart);
   };
   const setEndClamped = (v: number) => {
     stopRef.current?.();

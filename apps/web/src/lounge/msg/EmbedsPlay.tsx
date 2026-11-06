@@ -119,10 +119,13 @@ function DirectPlayer({ play, title }: { play: Play; title: string }) {
 export function PlayHere({
   play,
   title,
+  partyTitle,
   channelId,
 }: {
   play: Play;
   title: string;
+  /** The title the unfurl really carried (D-532); without it the party takes the video's own name. */
+  partyTitle?: string | undefined;
   channelId?: string | undefined;
 }) {
   const t = useT();
@@ -207,7 +210,7 @@ export function PlayHere({
           <StartPartyDialog
             open
             onClose={() => setParty(false)}
-            external={{ url: play.src, label: title }}
+            external={{ url: play.src, ...(partyTitle ? { label: partyTitle } : {}) }}
             channelId={channelId ?? null}
           />
         </Suspense>

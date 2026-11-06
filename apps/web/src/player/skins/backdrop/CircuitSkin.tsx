@@ -490,9 +490,11 @@ function TempoFader() {
   const t = useT();
   const id = useId();
   const rate = usePlayerStore((s) => s.rate);
-  const pct = Math.max(-TEMPO_MAX, Math.min(TEMPO_MAX, Math.round((rate - 1) * 200) / 2));
+  // D-531: the fader rests at its end stop when the rate is outside its range; the readout tells the truth.
+  const real = Math.round((rate - 1) * 200) / 2;
+  const pct = Math.max(-TEMPO_MAX, Math.min(TEMPO_MAX, real));
   const shown = t('player.skinx.circuit.tempoValue', {
-    pct: `${pct > 0 ? '+' : pct < 0 ? '−' : '±'}${Math.abs(pct).toFixed(1)}`,
+    pct: `${real > 0 ? '+' : real < 0 ? '−' : '±'}${Math.abs(real).toFixed(1)}`,
   });
   return (
     <div className="nc-fader-col nc-fader-tempo">

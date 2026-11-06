@@ -61175,8 +61175,8 @@
           {
             "name": "reason",
             "in": "query",
-            "description": "Why the note is removed",
-            "required": false,
+            "description": "Why the note is removed (required)",
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -61185,6 +61185,16 @@
         "responses": {
           "204": {
             "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "401": {
             "description": "",

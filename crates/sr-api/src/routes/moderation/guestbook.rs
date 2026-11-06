@@ -9,7 +9,7 @@ use sr_moderation::model::Who;
 /// Query of the staff removal.
 #[derive(Debug, Default, Deserialize)]
 pub struct RemoveQuery {
-    /// Why the note is removed (optional; written to the access log).
+    /// Why the note is removed (required, up to 500 characters; written to the access log). Missing or blank is a 400.
     #[serde(default)]
     pub reason: String,
 }
@@ -21,10 +21,11 @@ pub struct RemoveQuery {
     path = "/moderation/guestbook-notes/{note_id}",
     params(
         ("note_id" = String, Path, description = "Guestbook note snowflake"),
-        ("reason" = Option<String>, Query, description = "Why the note is removed"),
+        ("reason" = String, Query, description = "Why the note is removed (required)"),
     ),
     responses(
         (status = 204),
+        (status = 400, body = ErrorBody),
         (status = 401, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),

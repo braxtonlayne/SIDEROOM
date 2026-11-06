@@ -85,6 +85,8 @@ Shots in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p50-unfurl/`:
 
 ## Owner questions (for Fable)
 
+**Answered: D-532 (the card passes the title only when the unfurl carried one: built; both added sentences and the privacy-id refusal stand).** Questions below are kept for the record.
+
 1. The card's "Watch together" passes the card title as the party title, so a party started from a card is called
    "Video from peertube.test" rather than the instance's video name. Prefer the API's `name` when the label is only
    the generic card title?

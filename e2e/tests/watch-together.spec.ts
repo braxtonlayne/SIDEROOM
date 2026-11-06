@@ -236,7 +236,8 @@ test.describe('Watch Together outside the Cinema catalog', () => {
         title: string;
       };
     }>(a.context.request, '/watch-parties', { channel_id: channelId, external: { url: page } });
-    // The instance's answer named a web-video file on the instance itself; the page is kept for the link.
+    // No title is sent (D-532: the card passes one only if the unfurl carried it), so the party is named after the
+    // instance's video name (`Stub tone`). The answer named a web-video file on the instance itself; the page is kept.
     expect(party.media).toMatchObject({
       kind: 'direct',
       provider: 'peertube',
