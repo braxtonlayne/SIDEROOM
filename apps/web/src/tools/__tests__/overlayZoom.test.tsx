@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { baseHandlers } from '../../lounge/__tests__/gapsHelpers';
-import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
+import { DEFAULT_PREFS, applyPrefs, usePrefsStore } from '../../settings/user/prefs';
 import { ThemedOverlayRoot } from '../../settings/user/ThemedOverlayRoot';
 import { overlayZoom, zoomFactor } from '../../settings/user/overlayZoom';
 import { GadgetLayer } from '../gadgets/GadgetLayer';
@@ -104,6 +104,8 @@ describe('the overlay root carries the zoom (D-540)', () => {
     expect(root().style.getPropertyValue('--sr-overlay-zoom')).toBe('1');
     setZoom(150);
     expect(root().style.getPropertyValue('--sr-overlay-zoom')).toBe('1.5');
+    // The kit's token too (D-555), for the dialogs and menus in the zoomed children.
+    expect(root().style.getPropertyValue('--ui-zoom')).toBe('1.5');
     // No real zoom: on the box-less root it would do nothing, and a box would restack the overlays.
     expect(root().getAttribute('style') ?? '').not.toMatch(/(^|;)\s*zoom:/);
     expect(root().style.display).toBe('contents');
@@ -112,6 +114,23 @@ describe('the overlay root carries the zoom (D-540)', () => {
   it('applies the property to every positioned child of the root, and only through it', () => {
     const css = readFileSync(join(__dirname, '../../settings/user/overlay-root.css'), 'utf8');
     expect(css).toMatch(/\.sr-overlay-root > \*\s*\{\s*zoom: var\(--sr-overlay-zoom, 1\);\s*\}/);
+    // The dialog and menu maxima live in the kit now (D-555), not as copies here.
+    expect(css).not.toMatch(/role=|max-block-size/);
+  });
+
+  it('the Lounge theme root sets --ui-zoom beside its zoom (D-555), and nothing at 100 %', () => {
+    expect(applyPrefs({ ...DEFAULT_PREFS, zoom: 150 }, false).style).toMatchObject({
+      zoom: 1.5,
+      '--ui-zoom': '1.5',
+    });
+    const plain = applyPrefs(DEFAULT_PREFS, false).style;
+    expect(plain).not.toHaveProperty('zoom');
+    expect(plain).not.toHaveProperty('--ui-zoom');
+  });
+
+  it('the rail wrap is marked open while its panel shows (D-554)', () => {
+    const css = readFileSync(join(__dirname, '../tools.css'), 'utf8');
+    expect(css).toMatch(/\.sr-tl-rail-wrap\[data-open\]\s*\{\s*z-index: 911;/);
   });
 
   it('a gadget dragged at 150 % stores the delta in the layer pixels', async () => {

@@ -1,4 +1,4 @@
-import { ThemeProvider, useTheme } from '@sideroom/ui';
+import { ThemeProvider, useTheme, zoomVars } from '@sideroom/ui';
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { useAppliedTheme } from './useAppliedTheme';
 import { OVERLAY_ZOOM_VAR } from './overlayZoom';
@@ -41,6 +41,8 @@ export function ThemedOverlayRoot({
     return {
       ...rest,
       [OVERLAY_ZOOM_VAR]: String(zoom),
+      // The kit's own token (D-555): its dialogs and menus in the zoomed children divide viewport maxima by it.
+      ...zoomVars(zoom),
       background: 'transparent',
       display: 'contents',
     } as CSSProperties;

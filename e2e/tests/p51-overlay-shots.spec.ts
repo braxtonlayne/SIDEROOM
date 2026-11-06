@@ -197,6 +197,19 @@ test('overlays at 100 % and 150 % across themes, and a menu inside a dialog', as
         else await rail.getByRole('button').first().click();
         await page.waitForTimeout(400);
         await page.screenshot({ path: resolve(OUT, `rail-panel-${tag}.png`) });
+        // D-554: the panel just opened is on top of the gadgets and the dock.
+        const panelOnTop = await page.evaluate(() => {
+          const p = document.querySelector('.sr-tl-rail-panel');
+          if (!p) return null;
+          const r = p.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.75);
+          return {
+            onTop: !!hit && p.contains(hit),
+            z: getComputedStyle(document.querySelector('.sr-tl-rail-wrap')!).zIndex,
+          };
+        });
+        report.push(`${tag} rail-panel ${JSON.stringify(panelOnTop)}`);
+        expect.soft(panelOnTop?.onTop).toBe(true);
         // clean up for the next round (the layout is synced per account): unpin and close
         await clearTools(page);
         await page.waitForTimeout(1500);
@@ -209,6 +222,10 @@ test('overlays at 100 % and 150 % across themes, and a menu inside a dialog', as
         await page.getByRole('button', { name: 'View Full Profile' }).click();
         const dialog = page.getByRole('dialog').filter({ hasText: 'zoommate' }).last();
         await expect(dialog).toBeVisible();
+        // D-555: a Lounge dialog fits the screen at any zoom (the kit divides its max-height by --ui-zoom).
+        const box = await dialog.boundingBox();
+        report.push(`${tag} lounge-dialog ${JSON.stringify(box)}`);
+        expect.soft(box!.y + box!.height).toBeLessThanOrEqual(size.height + 1);
         await dialog.getByRole('button', { name: /More actions for/ }).click();
         const menu = page.getByRole('menu');
         await expect(menu).toBeVisible();
