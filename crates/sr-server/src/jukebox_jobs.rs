@@ -434,23 +434,13 @@ ORDER BY next_due_at \
 LIMIT $1 \
 FOR UPDATE SKIP LOCKED";
 
-/// The jukebox's DJ is a live listener (D-511): `stream` mode, a DJ seated, and that DJ's heartbeat inside the
-/// listener window (`sr_chat::jukebox::model::LISTENER_TTL_MS`, bound as `$1` in seconds, the number `rules::live` uses).
-const LIVE_DJ: &str = "EXISTS (SELECT 1 FROM jukebox_sessions s         JOIN jukebox_listeners l ON l.channel_id = s.channel_id AND l.user_id = s.dj_user_id         WHERE s.channel_id = r.channel_id AND s.mode = 'stream' AND s.dj_user_id IS NOT NULL           AND l.seen_at >= now() - make_interval(secs => $1))";
-
-/// A `cursor` room whose jukebox has a live DJ freezes (D-512).
-fn to_stream_sql() -> String {
-    format!(
-        "UPDATE listening_rooms r SET mode = 'stream',                 stream_dj_id = (SELECT s.dj_user_id FROM jukebox_sessions s WHERE s.channel_id = r.channel_id)          WHERE r.mode = 'cursor' AND {LIVE_DJ}          RETURNING r.channel_id, r.guild_id, r.stream_dj_id, r.item_id, r.playlist_id, r.position_ms, r.seq"
-    )
-}
+/// A `cursor` room whose channel's jukebox has a live DJ freezes (D-511, D-512). "Live" is: the session is in
+/// `stream` mode, a DJ is seated and that DJ's listener heartbeat is inside the window
+/// (`sr_chat::jukebox::model::LISTENER_TTL_MS`, bound as `$1` in seconds: the number `rules::live` uses).
+const TO_STREAM_SQL: &str = "UPDATE listening_rooms r SET mode = 'stream',        stream_dj_id = (SELECT s.dj_user_id FROM jukebox_sessions s WHERE s.channel_id = r.channel_id) WHERE r.mode = 'cursor' AND EXISTS (SELECT 1 FROM jukebox_sessions s         JOIN jukebox_listeners l ON l.channel_id = s.channel_id AND l.user_id = s.dj_user_id         WHERE s.channel_id = r.channel_id AND s.mode = 'stream' AND s.dj_user_id IS NOT NULL           AND l.seen_at >= now() - make_interval(secs => $1)) RETURNING r.channel_id, r.guild_id, r.stream_dj_id, r.item_id, r.playlist_id, r.position_ms, r.seq";
 
 /// A `stream` room whose DJ left or whose jukebox left `stream` mode resumes in place (D-513).
-fn to_cursor_sql() -> String {
-    format!(
-        "UPDATE listening_rooms r SET mode = 'cursor', stream_dj_id = NULL, cursor_at = now(), next_due_at = now()          WHERE r.mode = 'stream' AND NOT {LIVE_DJ}          RETURNING r.channel_id, r.guild_id, r.item_id, r.playlist_id, r.position_ms, r.seq"
-    )
-}
+const TO_CURSOR_SQL: &str = "UPDATE listening_rooms r SET mode = 'cursor', stream_dj_id = NULL, cursor_at = now(), next_due_at = now() WHERE r.mode = 'stream' AND NOT EXISTS (SELECT 1 FROM jukebox_sessions s         JOIN jukebox_listeners l ON l.channel_id = s.channel_id AND l.user_id = s.dj_user_id         WHERE s.channel_id = r.channel_id AND s.mode = 'stream' AND s.dj_user_id IS NOT NULL           AND l.seen_at >= now() - make_interval(secs => $1)) RETURNING r.channel_id, r.guild_id, r.item_id, r.playlist_id, r.position_ms, r.seq";
 
 const SLOTS_SQL: &str = "\
 SELECT i.id AS item_id, i.track_id, t.duration_ms, t.title, t.artist \
@@ -493,11 +483,11 @@ pub async fn tick(pool: &PgPool) -> Result<Vec<DomainEvent>, sqlx::Error> {
     let mut events = Vec::new();
     let window = sr_chat::jukebox::model::LISTENER_TTL_MS as f64 / 1000.0;
     // Hand-overs first (D-512): a live DJ freezes the room, their leaving resumes it where it paused.
-    let frozen = sqlx::query(&to_stream_sql())
+    let frozen = sqlx::query(TO_STREAM_SQL)
         .bind(window)
         .fetch_all(&mut *tx)
         .await?;
-    let resumed = sqlx::query(&to_cursor_sql())
+    let resumed = sqlx::query(TO_CURSOR_SQL)
         .bind(window)
         .fetch_all(&mut *tx)
         .await?;
