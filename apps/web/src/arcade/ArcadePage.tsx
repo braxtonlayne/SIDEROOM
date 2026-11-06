@@ -1,12 +1,18 @@
 import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useEmulatorOn } from '../emu/SwitchedOff';
 import { useGuilds } from '../store/hooks';
 import { apiFetch } from '../api/client';
 import type { Guild } from '../store/types';
 import { useShowroomActive } from '../showroom/state';
-import { httpActivityApi } from '../activities/api';
+import { httpActivityApi, type LobbyApi } from '../activities/api';
+import { useLobbies } from '../activities/hooks';
+import type { Lobby } from '../activities/types';
+import { ApiError } from '../api/client';
+import type { JoinTarget } from '../voice/controller';
+import { useVoiceSession } from '../voice/session';
 import { httpArcadeApi, type ArcadeApi } from './api';
 import { ArcadeShell } from './ArcadeShell';
 import {
@@ -14,10 +20,12 @@ import {
   CartridgesSection,
   ComingSoonSection,
   FeaturedSection,
+  LobbiesSection,
   PlayableSection,
+  type LobbyError,
 } from './ArcadeSections';
 import { sandboxTrust } from './sandboxTrust';
-import { StartInDialog, type PlayTarget } from './StartInDialog';
+import { joinCall, StartInDialog, type PlayTarget } from './StartInDialog';
 import { TrustProvider, type TrustSource } from './trust';
 import type { ArcadeFront } from './types';
 import './arcade.css';
@@ -73,7 +81,12 @@ function useShelfIds(need: boolean): Record<string, string> {
   return ids;
 }
 
-export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
+export function ArcadePage(props: {
+  api?: ArcadeApi;
+  trust?: TrustSource;
+  lobbyApi?: LobbyApi;
+  callJoin?: (target: JoinTarget) => Promise<boolean>;
+}) {
   const preview = useShowroomActive();
   if (preview)
     return (
@@ -84,13 +97,90 @@ export function ArcadePage(props: { api?: ArcadeApi; trust?: TrustSource }) {
   return <RealArcadePage {...props} />;
 }
 
+/** How long "This game has ended." stays on its card before the strip is fetched again without it (D-486). */
+export const ENDED_REFETCH_MS = 2500;
+
+/**
+ * Join from the Active lobbies strip (D-486), as Play does after a start (D-478): a voice lobby joins that call first
+ * (a failed join stops there), then the instance (unless the member is in it already: Return), then the channel opens
+ * with the Activity in its full-size slot. A 404 says the game ended and fetches the strip again; a 403 says it could
+ * not be joined.
+ */
+function useLobbyJoin(
+  api: LobbyApi,
+  join: (t: JoinTarget) => Promise<boolean>,
+  refetch: () => void,
+) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, LobbyError>>({});
+  const later = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (later.current) clearTimeout(later.current);
+    },
+    [],
+  );
+  const fail = (id: string, e: LobbyError) => setErrors((m) => ({ ...m, [id]: e }));
+  const onJoin = async (l: Lobby) => {
+    if (busy) return;
+    setBusy(l.instance_id);
+    setErrors((m) => {
+      const rest = { ...m };
+      delete rest[l.instance_id];
+      return rest;
+    });
+    try {
+      const s = useVoiceSession.getState();
+      const inCall = s.status === 'connected' && s.channelId === l.channel_id;
+      if (l.channel_type === 'voice' && !inCall) {
+        const ok = await join({
+          guildId: l.guild_id,
+          channelId: l.channel_id,
+          name: l.channel_name,
+        });
+        if (!ok) return fail(l.instance_id, 'call');
+      }
+      if (!l.joined) {
+        try {
+          await api.join(l.instance_id);
+        } catch (e) {
+          const status = e instanceof ApiError ? e.status : 0;
+          if (status === 404) {
+            fail(l.instance_id, 'ended');
+            if (later.current) clearTimeout(later.current);
+            later.current = setTimeout(refetch, ENDED_REFETCH_MS);
+          } else {
+            fail(l.instance_id, 'failed');
+            if (status === 403) refetch();
+          }
+          return;
+        }
+      }
+      void navigate({
+        to: '/channels/$guildId/$channelId',
+        params: { guildId: l.guild_id, channelId: l.channel_id },
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return { busy, errors, onJoin: (l: Lobby) => void onJoin(l) };
+}
+
 function RealArcadePage({
   api = httpArcadeApi,
   trust = sandboxTrust,
+  lobbyApi = httpActivityApi,
+  callJoin = joinCall,
 }: {
   api?: ArcadeApi;
   /** The build-trust badges on the cards (ARC-SBX-001); tests pass their own. */
   trust?: TrustSource;
+  /** The Active lobbies strip's list and join (ARC-LOB-001); tests pass their own. */
+  lobbyApi?: LobbyApi;
+  /** Joins a call and resolves once connected (false when it could not); tests pass their own. */
+  callJoin?: (target: JoinTarget) => Promise<boolean>;
 }) {
   const t = useT();
   const guilds = useServerList();
@@ -101,6 +191,8 @@ function RealArcadePage({
   const [playing, setPlaying] = useState<PlayTarget | null>(null);
   const [listSignal, setListSignal] = useState(0);
   const shelfIds = useShelfIds(!!front && front.featured.length > 0);
+  const lobbies = useLobbies(true, lobbyApi);
+  const lobbyJoin = useLobbyJoin(lobbyApi, callJoin, lobbies.refetch);
 
   useEffect(() => {
     let live = true;
@@ -115,6 +207,8 @@ function RealArcadePage({
   }, [api, attempt]);
 
   const links = [
+    // D-486: the lobbies link only while the strip has items (the D-474 pattern).
+    ...(lobbies.items.length > 0 ? [{ href: '#lobbies', label: t('arcade.lobbies.heading') }] : []),
     { href: '#playable', label: t('arcade.playable.heading') },
     // D-474: no Featured link while there are no picks (the section is not on the page).
     ...(front && front.featured.length > 0
@@ -146,7 +240,18 @@ function RealArcadePage({
         featured={front?.featured ?? []}
         shelfIds={shelfIds}
       />
-      <PlayableSection flags={front?.flags ?? []} emulatorOn={emulatorOn} onPlay={setPlaying} />
+      <LobbiesSection
+        items={lobbies.items}
+        onJoin={lobbyJoin.onJoin}
+        busy={lobbyJoin.busy}
+        errors={lobbyJoin.errors}
+      />
+      <PlayableSection
+        flags={front?.flags ?? []}
+        emulatorOn={emulatorOn}
+        onPlay={setPlaying}
+        lobbies={lobbies.items}
+      />
       {failed && (
         <div className="arc-section">
           <EmptyState
@@ -175,7 +280,12 @@ function RealArcadePage({
       )}
       {front && (
         <TrustProvider source={trust}>
-          <FeaturedSection featured={front.featured} flags={front.flags} onPlay={setPlaying} />
+          <FeaturedSection
+            featured={front.featured}
+            flags={front.flags}
+            onPlay={setPlaying}
+            lobbies={lobbies.items}
+          />
           <CartridgesSection
             guilds={guilds}
             flags={front.flags}

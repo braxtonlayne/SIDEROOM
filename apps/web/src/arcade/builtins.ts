@@ -147,3 +147,26 @@ export function heroSlots<
   }
   return slots;
 }
+
+/** The painting of a running game (D-484, D-470): the built-in's whose `shelfName` matches, else the generic art. */
+export function builtinArtFor(
+  applicationName: string,
+  games: readonly BuiltinGame[] = BUILTIN_GAMES,
+): string {
+  return games.find((g) => g.shelfName === applicationName)?.art ?? 'featured';
+}
+
+/**
+ * How many of the Arcade's lobbies run a game (D-487): by the shelf name for a built-in, by the application id for a
+ * Featured pick. Counted on the client from the strip's own list; no API carries it.
+ */
+export function liveCount(
+  lobbies: readonly { application_name: string; application_id: string }[],
+  game: { name?: string; applicationId?: string },
+): number {
+  return lobbies.filter(
+    (l) =>
+      (game.applicationId !== undefined && l.application_id === game.applicationId) ||
+      (game.name !== undefined && l.application_name === game.name),
+  ).length;
+}
