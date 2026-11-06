@@ -152,7 +152,8 @@ The voice jukebox adds no media storage: listeners play files from the mount the
 | `lounge.rings` (platform switch) | off | Status rings. A ring is a 24-hour photo, clip, line or track on the avatar; files go to the author's own bucket or, without one, to the instance bucket under `rings/`. |
 | `lounge.scrapbook` (platform switch, then per server) | off | The scrapbook vault. Offer it at platform scope and each server owner chooses a shelf for it. |
 | `platform.public_profiles` and `profiles.access` | off and `walled` | Both are needed for any public profile page (P39-FLG-1). Pages are never indexed. |
-| `SR_PEERTUBE_HOSTS` | empty | Comma-separated PeerTube hosts that get a "Play here" button; set the same value for `sr-server` and for the web build (it widens the page policy's `frame-src`). YouTube and Vimeo (privacy-enhanced) are always the two embed hosts. |
+| `SR_PEERTUBE_HOSTS` | empty | Comma-separated PeerTube hosts that get a "Play here" button; set the same value for `sr-server` and for the web build (it widens the page policy's `frame-src` and `connect-src`). YouTube and Vimeo (privacy-enhanced) are always the two embed hosts. Watch Together resolves a PeerTube video through the instance's API (D-515). |
+| `SR_MEDIA_HOSTS` | empty | Comma-separated hosts a listed PeerTube instance serves files and HLS segments from (object storage, a CDN). Same value for `sr-server` (a party plays a resolved address only on the instance or one of these) and the web build (`connect-src`, for hls.js). |
 
 #### The Discord bridge (D-381, D-386)
 
