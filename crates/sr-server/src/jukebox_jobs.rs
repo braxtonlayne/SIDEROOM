@@ -739,12 +739,23 @@ mod tests {
         let (s, p) = step(&l, Some(3), 5000, 0, 2, true);
         assert!(s.publish);
         let p = p.unwrap();
-        let v = room_payload(77, 5, "cursor", s.seq, 1_700_000_000_000, None, Some((&p, &l)));
+        let v = room_payload(
+            77,
+            5,
+            "cursor",
+            s.seq,
+            1_700_000_000_000,
+            None,
+            Some((&p, &l)),
+        );
         assert_eq!(v["channel_id"], "77");
         assert_eq!(v["guild_id"], "5");
         assert_eq!(v["position_ms"], 5000);
         assert!(v["dj_id"].is_null());
-        assert_eq!(room_payload(77, 5, "stream", 1, 1, Some(9), None)["dj_id"], "9");
+        assert_eq!(
+            room_payload(77, 5, "stream", 1, 1, Some(9), None)["dj_id"],
+            "9"
+        );
         assert_eq!(v["now_playing"]["title"], "Three");
         assert_eq!(v["now_playing"]["duration_ms"], 30_000);
         let next: Vec<_> = v["next"]
