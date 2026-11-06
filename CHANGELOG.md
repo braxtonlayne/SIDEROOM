@@ -8,6 +8,16 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 49 - 2026-11-05
+
+- **Active lobbies on the Arcade.** A row at the top of the Arcade shows the games running right now in your servers,
+  only in channels you could join: the game, where it is, how many play and for how long, never who. Join takes you
+  there (into the call first for a voice channel); Return goes back to one you are in. Game cards show "N live".
+- **New Arcade covers.** Featured picks, server cartridges and games still in development get painted scenes instead
+  of placeholders, and the house games have more depth. A featured house game keeps its own cover.
+- **Choose a prompt pack from your shelf.** In Sketch & Slander, "Choose a file..." opens the app's own shelf picker:
+  only the file you pick is shared with the game. Pasting a link still works.
+
 ## Phase 47 - 2026-11-05
 
 - **Sketch & Slander, a party game.** One player draws a secret prompt and everyone else races to guess it. Start it
