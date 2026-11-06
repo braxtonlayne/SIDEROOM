@@ -8,6 +8,22 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 50 - 2026-11-06
+
+- **Profile pages grew.** Your profile ring now shows around your picture on your page for the people you chose. A
+  new Showcase block plays up to six songs or videos from your own shelves, for signed-in visitors only. Profile
+  owners and visitors can report a guestbook note, and staff can remove it from the case.
+- **24/7 listening rooms in channel settings.** A voice channel's Voice tab has a "24/7 listening room" card: turn it
+  on and pick a server playlist. When someone goes live as the channel's DJ the room pauses for them, and picks up
+  where it stopped when they finish.
+- **Watch PeerTube together.** Links from the PeerTube instances your operator lists offer "Watch together", and HLS
+  streams from listed hosts now play in Chrome and Firefox too. Operators: the new `SR_MEDIA_HOSTS` setting lists
+  extra hosts that may serve those videos.
+- **Player skins got real extras.** Valve has tape speed and a balance knob, Circuit a tempo fader, Tidepool a
+  "Drift off" sleep timer, and Study an ambience mixer (rain, crackle, café) made in your browser.
+- **One audio trimmer everywhere.** Soundboard uploads now use the same trimmer as voice messages and the Audio tool:
+  pick the start and end, and long sounds are cut to fit.
+
 ## Phase 49 - 2026-11-05
 
 - **Active lobbies on the Arcade.** A row at the top of the Arcade shows the games running right now in your servers,
