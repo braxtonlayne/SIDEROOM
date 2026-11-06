@@ -1381,6 +1381,18 @@ async fn seed(
             .await
             .unwrap();
     }
+    // The health pass (admin_jobs.rs, first run 60 s after start) raises a `disk_low` staff alert when the disk
+    // holding the working directory is `alerts.disk_percent` full (default 80). Whether it fires depends on the
+    // machine running the test, not on any route, and a slow group's refusal phase reaches past 60 s (wave 50
+    // gate: staff_alerts changed on a 89% full dev disk). The threshold goes to its catalog maximum; staff_alerts
+    // stays fingerprinted, so a refused call that raises an alert still fails.
+    sqlx::query("INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2::text::jsonb, $3) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
+        .bind(sr_admin::settings::ALERTS_DISK_PERCENT)
+        .bind("99")
+        .bind(SYSTEM_USER_ID)
+        .execute(&pool)
+        .await
+        .unwrap();
     // The server process.
     let port = {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -5312,6 +5324,18 @@ async fn run_group(
     let (reads, rest): (Vec<&Call>, Vec<&Call>) = others
         .into_iter()
         .partition(|c| class_of(&routes[c.route].method) == 0);
+    // Nobody in the matrix heartbeats a watch party, so `watchparty.sweep` (every 10 s) would drop the seeded
+    // party's members 90 s after they joined (`MEMBER_STALE_MS`) and hand the host role on, inside the refusal
+    // phase of a slow group (wave 50 gate: a stalled run took the admin group to 151 s and the sweep wrote
+    // watch_parties, watch_party_members and watch_party_audit). The members are marked seen a day ahead instead;
+    // the party tables stay fingerprinted, so a refused call that writes a party still fails.
+    sqlx::query(
+        "UPDATE watch_party_members \
+         SET last_seen_ms = (EXTRACT(EPOCH FROM now()) * 1000)::BIGINT + 86400000",
+    )
+    .execute(&world.pool)
+    .await
+    .unwrap();
     // Let what the seed set going (a staff offer's direct message, a notification job) land first.
     let mut before = fingerprint(&world.pool).await;
     let mut steady = 0;
@@ -5414,6 +5438,14 @@ async fn run_group(
             }
         }
         if phase == 0 {
+            // SR_AUTHZ_REFUSAL_HOLD=<secs> keeps the refusal phase open that much longer before it is checked, to
+            // prove that no clock-driven job writes inside a slow run (the 60 s health pass, the 90 s party sweep).
+            if let Some(secs) = std::env::var("SR_AUTHZ_REFUSAL_HOLD")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+            {
+                tokio::time::sleep(Duration::from_secs(secs)).await;
+            }
             // RDY-SEC-002: refused calls write nothing.
             let after = fingerprint(&world.pool).await;
             let changed = diff(&before, &after);
