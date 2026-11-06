@@ -137,7 +137,7 @@ test('the soundboard upload trims a long sound with the shared tool and uploads 
   expect((await res.request().postDataJSON()).sound).toMatch(/^data:audio\/webm;base64,/);
   await expect(dialog).toBeHidden();
   // The sound is listed and its file comes back with the type it was stored as.
-  const play = page.getByRole('button', { name: 'Play long tone-trimmed' });
+  const play = page.getByRole('button', { name: 'Play long tone' });
   await expect(play).toBeVisible();
   const audio = page.waitForResponse((r) => /soundboard-sounds\/\d+\/audio$/.test(r.url()));
   await play.click();

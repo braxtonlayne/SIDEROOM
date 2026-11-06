@@ -436,7 +436,11 @@ async fn webm_opus_sounds_are_accepted_and_served_with_their_own_type() {
     // Both stored as .webm.
     let keys = e.storage.list("sound/").await.unwrap();
     assert_eq!(keys.len(), 2);
-    assert!(keys.iter().all(|k| k.key.ends_with(".webm")), "{:?}", keys.iter().map(|k| &k.key).collect::<Vec<_>>());
+    assert!(
+        keys.iter().all(|k| k.key.ends_with(".webm")),
+        "{:?}",
+        keys.iter().map(|k| &k.key).collect::<Vec<_>>()
+    );
 }
 
 #[tokio::test]

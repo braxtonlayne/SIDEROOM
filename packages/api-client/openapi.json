@@ -49643,7 +49643,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The stored type: audio/mpeg, audio/ogg, audio/webm or audio/wav",
             "content": {
               "audio/mpeg": {
                 "schema": {
@@ -92815,7 +92815,7 @@
           },
           "sound": {
             "type": "string",
-            "description": "`data:audio/ogg;base64,...` (MP3, Ogg or WAV; at most 5 seconds and 512 KiB)."
+            "description": "`data:audio/ogg;base64,...` (MP3, Ogg, WebM/Opus or WAV; at most 5 seconds and 512 KiB)."
           },
           "volume": {
             "type": [
