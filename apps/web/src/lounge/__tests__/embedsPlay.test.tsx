@@ -164,7 +164,8 @@ describe('the click', () => {
 
 describe('the party title (D-532)', () => {
   const peertube = (title?: string): Embed => {
-    const { title: _drop, ...rest } = youtube;
+    const rest: Embed = { ...youtube };
+    delete rest.title;
     return {
       ...rest,
       ...(title ? { title } : {}),
