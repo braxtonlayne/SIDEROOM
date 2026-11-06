@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect, test } from '@playwright/test';
 
 /**
@@ -129,4 +132,101 @@ test('a worker update is offered, not forced', async ({ page }) => {
   expect(src).toContain('SKIP_WAITING');
   expect(src).toContain('PURGE_APP');
   expect(src).not.toContain('__SR_BUILD__');
+});
+
+// ---- SEC-ENT-002 (D-385): scope, caches, the two manifests and "no app code before sign-in" ----
+
+const dist = resolve(dirname(fileURLToPath(import.meta.url)), '../../apps/web/dist');
+const isAppPath = (pathname: string) =>
+  pathname === '/app' || pathname.startsWith('/app/') || pathname === '/app.html';
+
+test('the worker is scoped to the origin and an anonymous visitor has exactly one cache, sr-static-<build>', async ({
+  page,
+}) => {
+  await page.goto('/login');
+  const reg = await page.evaluate(async () => {
+    const r = await navigator.serviceWorker.ready;
+    return { scope: r.scope, script: r.active?.scriptURL ?? '' };
+  });
+  expect(reg.scope).toBe(`${new URL(page.url()).origin}/`);
+  expect(new URL(reg.script).pathname).toBe('/sw.js');
+  const names = await page.evaluate(() => caches.keys());
+  expect(names).toHaveLength(1);
+  expect(names[0]).toMatch(/^sr-static-[0-9a-f]+$/);
+});
+
+test('the precache list of the worker holds public files only', async ({ request }) => {
+  const sw = await (await request.get('/sw.js')).text();
+  const list = /const PRECACHE = (\[[^\]]*\])/.exec(sw)?.[1];
+  expect(list, 'the finished worker has a precache list').toBeTruthy();
+  const urls = JSON.parse(list!.replace(/,\s*\]$/, ']')) as string[];
+  expect(urls.length).toBeGreaterThan(0);
+  for (const u of urls) {
+    expect(isAppPath(new URL(u, 'http://x').pathname), u).toBe(false);
+    expect(u, u).not.toMatch(/\.wasm$/);
+  }
+});
+
+test('public pages request and cache no file of the app', async ({ page }) => {
+  const requested: string[] = [];
+  page.on('request', (r) => requested.push(new URL(r.url()).pathname));
+  for (const route of ['/', '/join/abcd1234', '/login', '/register', '/no-invitation']) {
+    await page.goto(route);
+    await page.waitForLoadState('networkidle');
+  }
+  // A second pass under the worker, so what it fetches and stores on its own is seen too.
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  expect(requested.filter(isAppPath)).toEqual([]);
+  expect(requested.filter((p) => p.endsWith('.wasm'))).toEqual([]);
+  const stored = await page.evaluate(async () => {
+    const urls: string[] = [];
+    for (const name of await caches.keys()) {
+      for (const r of await (await caches.open(name)).keys()) urls.push(new URL(r.url).pathname);
+    }
+    return urls;
+  });
+  expect(stored.filter(isAppPath)).toEqual([]);
+});
+
+test('the signed-in manifest sits under /app, shares the id and scope of the public one and adds the shortcuts; the shell links it', async ({
+  request,
+}) => {
+  const publicManifest = (await (await request.get('/manifest.webmanifest')).json()) as Record<
+    string,
+    unknown
+  >;
+  const res = await request.get('/app/manifest.webmanifest');
+  expect(res.ok()).toBe(true);
+  const appManifest = (await res.json()) as Record<string, unknown>;
+  expect(appManifest.id).toBe(publicManifest.id);
+  expect(appManifest.scope).toBe(publicManifest.scope);
+  expect(appManifest.start_url).toBe(publicManifest.start_url);
+  expect(Array.isArray(appManifest.shortcuts) && appManifest.shortcuts.length > 0).toBe(true);
+  expect(publicManifest.shortcuts).toBeUndefined();
+  // The shells: every public one links the public manifest, the app shell links the signed-in one.
+  const surfaces = JSON.parse(readFileSync(resolve(dist, 'surfaces.json'), 'utf8')) as {
+    surfaces: { shell?: string }[];
+  };
+  for (const s of surfaces.surfaces) {
+    if (!s.shell) continue;
+    expect(readFileSync(resolve(dist, s.shell), 'utf8'), s.shell).toContain(
+      'href="/manifest.webmanifest"',
+    );
+  }
+  expect(readFileSync(resolve(dist, 'app.html'), 'utf8')).toContain(
+    'href="/app/manifest.webmanifest"',
+  );
+});
+
+test('the plain error pages are standalone: no script, no link to the app, a way back', async ({
+  request,
+}) => {
+  for (const f of ['/404.html', '/50x.html', '/offline.html']) {
+    const body = await (await request.get(f)).text();
+    expect(body, f).not.toMatch(/<script/i);
+    expect(body, f).not.toMatch(/href="\/app[/"]|src="\/app\//);
+    expect(body, f).toMatch(/<a [^>]*href=/i);
+  }
 });
