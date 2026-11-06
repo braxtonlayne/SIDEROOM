@@ -81,3 +81,12 @@ is not touched here.
    the icon). Keep, or prefer the name ellipsised to "Ge…" with the brand kept?
 2. The overlay root leaves out the member's zoom setting (sections apply it to their own layout). Should the drawer and
    the dock follow the Lounge's zoom too? That needs a real box, which conflicts with the z-index order above.
+
+## Follow-up after Fable's answers (F1, D-539; F2 not built)
+- Owner question 1 answered (D-539): the brand and slash are hidden on phones **always**, not only during a call; the
+  `:has(.lng-sectionbar-voice)` condition is gone, and `sectionBarVoice.test.tsx` covers the bar with and without voice.
+  Commit `da3963ab`. Desktop unchanged.
+- Shots in `visual-sweep-shots/p50-ans-b/f1-lounge-dark/` (reseeded world): `lounge-message-link-phone-{light,dark}` is
+  the bar at rest (no voice): "The Lounge The Arcade The Study", no brand; `lounge-channel-phone-*` is the same bar
+  with "General" in a call; desktop still shows "SIDE ROOM / ..." and the full status. Looked at, Lounge Light and Dark.
+- Owner question 2 (zoom on the overlays, F2) is next round per the commander; not built here.
