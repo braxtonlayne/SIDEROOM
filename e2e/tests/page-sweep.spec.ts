@@ -846,6 +846,11 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       ],
     });
     await post(m, { content: '[files] Photos from last week and the notes' });
+    // PRF-UNF-001 (wave 50, D-515): a PeerTube link. With SR_PEERTUBE_HOSTS=peertube.test (deploy/compose/e2e-run.sh)
+    // the unfurler makes it a card with "Play here" and "Watch together" from the address alone; otherwise plain text.
+    await post(m, {
+      content: 'Tonight on the tube: https://peertube.test/w/9c9de5e8-0a1e-484a-b099-e80766180a6d',
+    });
     await post(m, {
       content:
         'unbroken: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
