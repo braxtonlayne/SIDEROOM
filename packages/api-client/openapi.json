@@ -74393,6 +74393,42 @@
         ]
       }
     },
+    "/users/@me/activity-lobbies": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The Arcade's \"Active lobbies\" (D-483 to D-485): running Activities in my servers that I could join now, in\nchannels I can see and take part in. My own first, then the fullest, then the newest; at most 20. Names and\na count only: never who plays.",
+        "operationId": "lobbies",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LobbiesResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/users/@me/age-confirmation": {
       "get": {
         "tags": [
@@ -101444,6 +101480,87 @@
             "items": {
               "$ref": "#/components/schemas/ListCard"
             }
+          }
+        }
+      },
+      "LobbiesResponse": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "items"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "`[activities] enabled`."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LobbyView"
+            }
+          }
+        }
+      },
+      "LobbyView": {
+        "type": "object",
+        "description": "A running Activity the caller could join now (D-483, D-484): the game, where it is and how many play. Names\nonly: no user ids, host, participant list, guest count or token.",
+        "required": [
+          "instance_id",
+          "application_id",
+          "application_name",
+          "guild_id",
+          "guild_name",
+          "channel_id",
+          "channel_name",
+          "channel_type",
+          "development",
+          "player_count",
+          "created_at_ms",
+          "joined"
+        ],
+        "properties": {
+          "application_id": {
+            "type": "string"
+          },
+          "application_name": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "channel_name": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "string",
+            "description": "`voice` or `text`."
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "development": {
+            "type": "boolean",
+            "description": "Running a development build."
+          },
+          "guild_id": {
+            "type": "string"
+          },
+          "guild_name": {
+            "type": "string"
+          },
+          "instance_id": {
+            "type": "string"
+          },
+          "joined": {
+            "type": "boolean",
+            "description": "The caller is a participant already (the card says Return)."
+          },
+          "player_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Participants with `left_at IS NULL`. Guests are never participants (D-397)."
           }
         }
       },
