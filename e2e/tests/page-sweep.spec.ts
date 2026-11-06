@@ -78,6 +78,8 @@ interface Row {
   expect4xx?: RegExp;
   /** Mock the shelves API (no object storage here). */
   shelves?: boolean;
+  /** Show the page with a voice session connected (the section bar's status, D-536). */
+  voice?: boolean;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -159,7 +161,7 @@ const APP_TABS = ['general', 'oauth2', 'bot', 'installation', 'commands', 'revie
 const SIGNED_IN: Row[] = [
   { name: 'lounge-home', path: () => '/channels/@me' },
   { name: 'lounge-dm', path: (w) => (w.dmId ? `/channels/@me/${w.dmId}` : null) },
-  { name: 'lounge-channel', path: (w) => `/channels/${w.guildId}/${w.channelId}` },
+  { name: 'lounge-channel', path: (w) => `/channels/${w.guildId}/${w.channelId}`, voice: true },
   {
     name: 'lounge-message-link',
     path: (w) => `/channels/${w.guildId}/${w.channelId}/${w.messageId}`,
@@ -172,6 +174,7 @@ const SIGNED_IN: Row[] = [
   {
     name: 'lounge-voice',
     path: (w) => (w.voiceChannelId ? `/channels/${w.guildId}/${w.voiceChannelId}` : null),
+    voice: true,
   },
   { name: 'app-door', path: () => '/app' },
   ...USER_SETTINGS.map((s): Row => ({
@@ -430,6 +433,20 @@ async function decorate(page: Page) {
   );
 }
 
+/**
+ * A connected voice session for the shot (XC-VIS-004): the local stack has no SFU, so the session store is set
+ * through the dev server's module graph (Vite serves `/src/voice/session.ts` as the same module the app uses).
+ * On a production build the import fails and the note says so.
+ */
+async function connectVoiceForShot(page: Page, notes: string[]): Promise<void> {
+  await page
+    .evaluate(
+      "import('/src/voice/session.ts').then((m) => m.useVoiceSession.setState({ status: 'connected', channelName: 'General' }))",
+    )
+    .then(() => page.waitForTimeout(200))
+    .catch((e) => notes.push(`voice session not set: ${String(e).slice(0, 120)}`));
+}
+
 /** The shelves of The Study, as study-shelves.spec.ts fakes them (BYOS needs a real bucket). */
 async function fakeShelves(page: Page) {
   const json = (r: Route, body: unknown) =>
@@ -686,6 +703,7 @@ async function capture(
     await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => undefined);
     // Let lazy chunks, fonts and the catalog settle; skeletons fade.
     await page.waitForTimeout(900);
+    if (row.voice) await connectVoiceForShot(page, rec.notes);
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);

@@ -4,11 +4,10 @@
  * renders nothing visible until something is queued or the rail's music button opens the library. Loaded on demand (see `PlayerGate` in router.tsx), and the
  * music library is connected to the player when it first mounts (`musicWiring.ts`).
  */
-import { ThemeProvider } from '@sideroom/ui';
 import { lazy, Suspense, useEffect, useRef, type ComponentType } from 'react';
 import { isPlayerShortcut, matchCustomShortcut } from '../lounge/shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
-import { useAppliedTheme } from '../settings/user/useAppliedTheme';
+import { ThemedOverlayRoot } from '../settings/user/ThemedOverlayRoot';
 import { createPlayerEngine, restoreResume } from './engine';
 import { wireMusicLibrary } from './musicWiring';
 import { isPlayerLibraryOpen, usePlayerLibraryNonce, usePlayerLibraryOpen } from './presence';
@@ -53,27 +52,6 @@ function usePlayerKeys() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
-}
-
-/**
- * The dock is fixed and sits outside every section's shell, and each shell (Lounge, Cinema, Library, Admin)
- * defines the `--ui-*` tokens on its own wrapper, not on the page. So the dock brings its own theme root, the
- * member's Lounge theme and appearance settings, instead of borrowing a shell's variables.
- */
-function ThemedDock({ children }: { children: React.ReactNode }) {
-  const theme = useAppliedTheme(undefined, 'lounge');
-  return (
-    <ThemeProvider
-      section="lounge"
-      perSection={theme.perSection}
-      appearance={theme.appearance}
-      style={{ background: 'transparent', display: 'contents' }}
-      {...theme.data}
-      className="sr-ply-theme"
-    >
-      {children}
-    </ThemeProvider>
-  );
 }
 
 export default function PlayerHost() {
@@ -124,14 +102,15 @@ export default function PlayerHost() {
       <audio ref={audioRef} data-testid="player-audio" preload="auto" />
       <audio ref={nextRef} data-testid="player-audio-next" preload="auto" />
       {(queued || libraryOpen) && (
-        <ThemedDock>
+        // The member's Lounge theme in every section (shared with the drawer, D-538).
+        <ThemedOverlayRoot className="sr-ply-theme">
           <div className="sr-ply-dock" data-dock={dock} data-skin={skin}>
             {/* While a skin's chunk loads, the default skin stands in so the controls never vanish. */}
             <Suspense fallback={<RetroSkin />}>
               <Skin />
             </Suspense>
           </div>
-        </ThemedDock>
+        </ThemedOverlayRoot>
       )}
     </>
   );

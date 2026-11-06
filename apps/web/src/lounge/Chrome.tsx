@@ -15,15 +15,30 @@ export function SectionBar() {
   return (
     <header className="lng-sectionbar" aria-label={t('lounge.chrome.sections')}>
       <span className="lng-sectionbar-brand">{t('lounge.chrome.brand')}</span>
-      <span aria-hidden="true">/</span>
+      <span className="lng-sectionbar-sep" aria-hidden="true">
+        /
+      </span>
       <RoomsNav
         current="lounge"
         className="lng-sectionbar-nav"
         linkClassName="lng-sectionbar-link"
       />
       {voiceName && (
-        <span className="lng-sectionbar-voice" role="status">
-          <Icon name="volume" size={16} /> {t('lounge.chrome.voiceConnected', { name: voiceName })}
+        // D-536: one line that never wraps the bar. Phones show the icon and the channel name only; the full
+        // sentence is the status's accessible name and stays readable to screen readers there.
+        <span
+          className="lng-sectionbar-voice"
+          role="status"
+          aria-label={t('lounge.chrome.voiceConnected', { name: voiceName })}
+          data-testid="sectionbar-voice"
+        >
+          <Icon name="volume" size={16} />
+          <span className="lng-sectionbar-voice-long">
+            {t('lounge.chrome.voiceConnected', { name: voiceName })}
+          </span>
+          <span className="lng-sectionbar-voice-short" aria-hidden="true">
+            {voiceName}
+          </span>
         </span>
       )}
     </header>
