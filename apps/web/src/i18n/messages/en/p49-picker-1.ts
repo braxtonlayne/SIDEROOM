@@ -15,6 +15,8 @@ export default {
   'activities.pick.hidden':
     '{count, plural, one {# file is hidden because it is not the right kind or is too big.} other {# files are hidden because they are not the right kind or are too big.}}',
   'activities.pick.more': 'Showing the first {count}. Type to narrow the list.',
+  'activities.pick.truncated':
+    'This shelf has more than {count} files; only the first {count} are listed.',
   'activities.pick.files': 'Files',
   'activities.pick.cancel': 'Cancel',
   'activities.pick.mine': 'My files',
