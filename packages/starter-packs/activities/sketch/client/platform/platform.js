@@ -21,6 +21,9 @@ import { createSideRoomPlatform, isSideRoom } from './sideroom-platform.js';
  * @property {string} kind                                  'fake' | 'sideroom'
  * @property {boolean} guest                                a guest on a /play/<token> link (data channel, storage, ready only)
  * @property {boolean} canLoadPacks                         a member whose bundle declares byos_read: Guild Prompt Packs
+ * @property {boolean} canPickPacks                         canLoadPacks and the host has the app's own file picker (D-466, pickShelfObject)
+ * @property {() => Promise<{ shelf_id: string, object_hash: string, name: string } | null>} pickPack
+ *   the member chooses a pack file in the app's picker (JSON or text, at most one pack's size); null when they cancel. That choice is their yes for that object
  * @property {(ref: { shelf_id: string, object_hash: string }) => Promise<Uint8Array>} loadPack
  *   the bytes of one shelf object, fetched by the member page through its per-object URL (D-389, D-460); rejects for a guest or without byos_read
  * @property {import('../net/channel.js').Channel | null} channel   the data channel (after ready)

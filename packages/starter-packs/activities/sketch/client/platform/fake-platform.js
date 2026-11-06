@@ -22,6 +22,11 @@ export function createFakePlatform(win) {
     kind: 'fake',
     guest,
     canLoadPacks: !guest,
+    // The stand-in has no app to open a picker in: packs are named by hand (`packs/<hash>.json`).
+    canPickPacks: false,
+    async pickPack() {
+      return null;
+    },
     get channel() {
       return channel;
     },
