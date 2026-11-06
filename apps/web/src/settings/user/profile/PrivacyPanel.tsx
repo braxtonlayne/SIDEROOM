@@ -250,8 +250,15 @@ export function PrivacyPanel() {
                     <Select
                       aria-labelledby={labelId}
                       disabled={busy}
-                      options={tierOptions(stored.page_tier, view.public_possible)}
-                      value={stored[f]}
+                      options={
+                        f === 'ring_tier'
+                          ? // D-505: no ring is ever visible to a visitor without an account.
+                            tierOptions(stored.page_tier, view.public_possible).filter(
+                              (o) => o.value !== 'public',
+                            )
+                          : tierOptions(stored.page_tier, view.public_possible)
+                      }
+                      value={f === 'ring_tier' && stored[f] === 'public' ? 'members' : stored[f]}
                       onValueChange={(v) => void save({ [f]: v as Tier })}
                     />
                   )}

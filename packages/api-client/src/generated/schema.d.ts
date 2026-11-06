@@ -11978,6 +11978,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/moderation/guestbook-notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a guestbook note (platform staff with `MANAGE_CASES`). The access-log row
+         *     `moderation.guestbook_note.delete` is written before the note is deleted. 404 when it is already gone.
+         */
+        delete: operations["remove_note"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/moderation/guilds/{guild_id}/cases": {
         parameters: {
             query?: never;
@@ -12818,6 +12838,28 @@ export interface paths {
         };
         /** A person's profile page by username. */
         get: operations["page_by_name"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profile-pages/{username}/showcase/{object_hash}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A ten-minute address for one object of a profile's media showcase (D-502): the owner's grant for exactly the
+         *     objects the block names, to the audience `media_tier` admits. Session only. Every refusal (no page, blocked,
+         *     below the tier, no block, a hash the document does not name, an object that is gone or delisted, a mount
+         *     that is not the owner's active one) is the page's 404. `Cache-Control: no-store`.
+         */
+        get: operations["showcase_url"];
         put?: never;
         post?: never;
         delete?: never;
@@ -25764,7 +25806,7 @@ export interface components {
             y: number;
         };
         /** @enum {string} */
-        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom" | "linktree" | "featured_guilds" | "now_playing";
+        ProfileBlockKind: "header" | "about" | "top_friends" | "now_watching" | "favorites" | "gallery" | "guestbook" | "song" | "custom" | "linktree" | "featured_guilds" | "now_playing" | "media_showcase";
         /** @description What a profile may use (G-48). */
         ProfileCatalogObject: {
             /** @description Avatar decorations; empty until artwork is approved. */
@@ -25860,6 +25902,17 @@ export interface components {
             is_owner: boolean;
             /** @description The pictures the document names (a background image, gallery pictures), with their addresses. */
             media: components["schemas"]["ProfileMedia"][];
+            /**
+             * @description D-504: the owner's current ring may be drawn around the header avatar for this viewer (the profile's
+             *     `ring_tier` and the ring's own audience both admit them). Only ever true on the signed-in page; the client
+             *     reads the ring from the rings feed it already holds. Absent on the public page.
+             */
+            ring_visible?: boolean;
+            /**
+             * @description D-502: the media showcase as this viewer may play it (signed-in viewers the block admits; items that are
+             *     gone, delisted or no longer audio or video are left out). Absent on the public page.
+             */
+            showcase?: components["schemas"]["ProfileShowcaseItem"][];
             user: components["schemas"]["ProfilePageUser"];
         };
         /** @description A person on a profile page. */
@@ -25925,6 +25978,21 @@ export interface components {
             public_possible: boolean;
             /** @description The member's choices after the clamp (no block looser than the page). */
             stored: components["schemas"]["ProfilePrivacyFields"];
+        };
+        /**
+         * @description One playable item of a profile's media showcase (D-502). The address is minted on play through
+         *     `GET /profile-pages/{username}/showcase/{object_hash}/url`, never carried here.
+         */
+        ProfileShowcaseItem: {
+            caption?: string | null;
+            /** Format: int64 */
+            duration_ms?: number | null;
+            /** @description `audio` or `video`. */
+            media: string;
+            object_hash: string;
+            shelf_id: string;
+            /** @description The owner's title, the track's tag title, or the file name. */
+            title: string;
         };
         ProfileStyle: {
             background?: null | components["schemas"]["ProfileBackground"];
@@ -28700,7 +28768,7 @@ export interface components {
          * @description What a report or a case is about.
          * @enum {string}
          */
-        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "status_ring" | "other";
+        TargetKind: "message" | "user" | "channel" | "guild" | "library" | "cinema" | "person" | "status_ring" | "guestbook_note" | "other";
         /** @description What a teardown did. */
         TeardownObject: {
             /** @description Webhooks still on Discord, to remove by hand. */
@@ -69980,6 +70048,53 @@ export interface operations {
             };
         };
     };
+    remove_note: {
+        parameters: {
+            query?: {
+                /** @description Why the note is removed */
+                reason?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Guestbook note snowflake */
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     guild_cases: {
         parameters: {
             query?: {
@@ -72425,6 +72540,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProfilePage"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    showcase_url: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Username */
+                username: string;
+                /** @description Object hash named by the showcase */
+                object_hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ObjectUrl"];
                 };
             };
             404: {

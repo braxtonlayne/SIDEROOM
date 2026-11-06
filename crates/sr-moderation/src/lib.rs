@@ -21,6 +21,7 @@ pub mod error;
 mod graduated;
 pub mod graduated_model;
 pub mod graduated_rules;
+pub mod guestbook;
 pub mod holds;
 pub mod model;
 mod reports;

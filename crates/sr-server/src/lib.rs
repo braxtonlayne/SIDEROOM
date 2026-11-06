@@ -111,6 +111,8 @@ mod jukebox_pg_tests;
 #[cfg(test)]
 mod party_cards_pg_tests;
 #[cfg(test)]
+mod profile_pg_tests;
+#[cfg(test)]
 mod rings_pg_tests;
 #[cfg(test)]
 mod staff_feed_pg_tests;

@@ -362,6 +362,68 @@ async function decorate(page: Page) {
   await page.route(/\/cdn\/attachments\/sweep\//, (r) =>
     r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
   );
+  // PRF-PRO-001 (D-502): a media showcase names objects on a real bucket, which `memory:` storage cannot be, so the
+  // Owner's page and document get one here: two items as the server resolves them, and a mint that answers.
+  const SHOW = [
+    {
+      shelf_id: '9501',
+      object_hash: 'a'.repeat(64),
+      title: 'Blue Hour (live)',
+      duration_ms: 245_000,
+      media: 'audio',
+      caption: 'Recorded at the Back Booth',
+    },
+    {
+      shelf_id: '9501',
+      object_hash: 'b'.repeat(64),
+      title: 'Heat, opening night',
+      duration_ms: 5_400_000,
+      media: 'video',
+      caption: null,
+    },
+  ];
+  const showBlock = {
+    id: 'show',
+    type: 'media_showcase',
+    x: 6,
+    y: 9,
+    w: 6,
+    h: 5,
+    config: {
+      items: SHOW.map((i) => ({
+        shelf_id: i.shelf_id,
+        object_hash: i.object_hash,
+        ...(i.caption ? { caption: i.caption } : {}),
+      })),
+    },
+  };
+  await page.route(
+    /\/api\/v1\/(profile-pages\/owner|users\/[^/]+\/profile-page|users\/@me\/profile-doc)(\?.*)?$/,
+    async (route: Route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const res = await route.fetch();
+      let body: { user?: { username?: string }; doc?: { blocks: unknown[] }; blocks?: unknown[] };
+      try {
+        body = (await res.json()) as typeof body;
+      } catch {
+        return route.fulfill({ response: res });
+      }
+      const doc = route.request().url().includes('/profile-doc') ? body : body.doc;
+      const owners = !body.user || body.user.username === 'owner';
+      if (owners && doc && Array.isArray(doc.blocks)) {
+        doc.blocks = [...doc.blocks, showBlock];
+        if (body.doc) Object.assign(body, { showcase: SHOW });
+      }
+      return route.fulfill({ response: res, json: body });
+    },
+  );
+  await page.route(/\/api\/v1\/profile-pages\/owner\/showcase\/[0-9a-f]{64}\/url$/, (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ url: '/cdn/attachments/sweep/blue-hour.mp3', expires_at: '' }),
+    }),
+  );
   // Embed images go through the media proxy (/cdn/external/<sig>/<base64 url>), which cannot reach `.invalid`.
   await page.route(/sweep-preview\.invalid|\/cdn\/external\//, (r) =>
     r.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
@@ -765,11 +827,22 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
         border: 'none',
       },
       blocks: [
+        // PRF-PRO-001 (wave 50): the header carries the ring; the guestbook holds a visitor's note.
+        {
+          id: 'head',
+          type: 'header',
+          x: 0,
+          y: 0,
+          w: 12,
+          h: 3,
+          config: { tagline: 'Night shift DJ' },
+        },
+        { id: 'book', type: 'guestbook', x: 0, y: 7, w: 6, h: 6, config: {} },
         {
           id: 'about',
           type: 'about',
           x: 0,
-          y: 0,
+          y: 3,
           w: 6,
           h: 4,
           config: { text: 'Plays late. Tips go to the coffee fund.' },
@@ -778,7 +851,7 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
           id: 'tips',
           type: 'linktree',
           x: 6,
-          y: 0,
+          y: 3,
           w: 6,
           h: 6,
           config: {
@@ -797,6 +870,43 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       ],
     }),
   );
+  // PRF-PRO-001 (wave 50, D-504, D-506): the Owner has a live ring (shown around the header picture), a public page
+  // whose guestbook takes held notes, one note waiting from a visitor and one approved from the member, so the
+  // profile shots show the ring and the Report items. The showcase needs a real bucket, so `decorate` adds it.
+  await step('profile ring, public guestbook and notes', async () => {
+    await apiPatch(o, '/admin/features/lounge.rings', { enabled: true, reason: 'page sweep' });
+    await apiPost(o, '/users/@me/rings', {
+      kind: 'text',
+      text: 'Spinning records at the Back Booth tonight',
+      audience: 'guilds',
+      guild_ids: [s.guildId],
+    });
+    await apiPatch(o, '/admin/features/platform.public_profiles', {
+      enabled: true,
+      reason: 'page sweep',
+    });
+    await apiPatch(o, '/admin/settings', {
+      values: { 'profiles.access': 'opt_in_public' },
+      reason: 'page sweep',
+    });
+    await apiPut(o, '/users/@me/profile-privacy', {
+      page_tier: 'public',
+      links_tier: 'public',
+      bio_tier: 'public',
+      guestbook_tier: 'public',
+      guestbook_accepts_public: true,
+      media_tier: 'members',
+      ring_tier: 'members',
+    });
+    const visitor = await browser.newContext({ baseURL: ORIGIN });
+    await visitor.request.post('/api/v1/public/profiles/owner/guestbook', {
+      headers: { Origin: ORIGIN },
+      data: { body: 'Loved the set last Friday! Same time next week?' },
+    });
+    await visitor.close();
+    const me = (await (await o.get('/api/v1/users/@me')).json()) as { id: string };
+    await apiPost(m, `/users/${me.id}/guestbook`, { body: 'Thanks for the playlist, Rowan.' });
+  });
   const voice = await step('voice channel', () =>
     apiPost<{ id: string }>(o, `/guilds/${s.guildId}/channels`, { name: 'Hangout', type: 2 }),
   );

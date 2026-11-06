@@ -219,3 +219,75 @@ pub async fn public_sign(
         .map_err(pkg)?;
     Ok(no_store(StatusCode::NO_CONTENT.into_response()))
 }
+
+/// D-504: the page says `ring_visible` only when the service's tier check passed AND the ring's own audience
+/// admits the viewer (`status_ring_visible_to`, through `sr_userfeat::rings::viewer_may_see_a_ring_of`). The only
+/// audience rule stays the ring's; this is a cap on top of it. Without the rings module the flag is false.
+pub(crate) async fn gate_ring(
+    page: &mut ProfilePage,
+    viewer: i64,
+    uf: Option<&crate::routes::userfeat::UserFeatDeps>,
+) {
+    if !page.ring_visible {
+        return;
+    }
+    let owner: i64 = page.user.id.parse().unwrap_or(0);
+    page.ring_visible = match uf {
+        Some(uf) => sr_userfeat::rings::viewer_may_see_a_ring_of(&uf.uf.pool, viewer, owner)
+            .await
+            .unwrap_or(false),
+        None => false,
+    };
+}
+
+/// A ten-minute address for one object of a profile's media showcase (D-502): the owner's grant for exactly the
+/// objects the block names, to the audience `media_tier` admits. Session only. Every refusal (no page, blocked,
+/// below the tier, no block, a hash the document does not name, an object that is gone or delisted, a mount
+/// that is not the owner's active one) is the page's 404. `Cache-Control: no-store`.
+#[utoipa::path(
+    get, path = "/profile-pages/{username}/showcase/{object_hash}/url", tag = "profile-pages",
+    params(("username" = String, Path, description = "Username"),
+           ("object_hash" = String, Path, description = "Object hash named by the showcase")),
+    responses((status = 200, body = crate::routes::storage::shelf_access::ObjectUrl),
+              (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn showcase_url(
+    SessionOnly(p): SessionOnly,
+    State(state): State<AppState>,
+    Ext(deps): Ext<PackagesDeps>,
+    MaybeExt(scope): MaybeExt<crate::routes::storage::ScopeDeps>,
+    headers: axum::http::HeaderMap,
+    Path((username, object_hash)): Path<(String, String)>,
+) -> MsgResult<Response> {
+    let nf = || pkg(sr_packages::PackageError::NotFound("profile"));
+    let obj = deps
+        .service
+        .showcase_object(
+            p.user_id,
+            &username,
+            &object_hash,
+            public_possible(&state).await,
+        )
+        .await
+        .map_err(pkg)?;
+    let Some(scope) = scope else {
+        return Err(nf());
+    };
+    let mount = match scope.mounts.by_id(obj.mount_id).await {
+        Ok(Some(m)) => m,
+        _ => return Err(nf()),
+    };
+    // Re-checked on the mount itself at this moment: the owner's, active, its CORS ready.
+    if mount.owner != sr_storage::mounts::MountOwner::User(obj.owner_id)
+        || mount.status != sr_storage::mounts::MountStatus::Active
+        || mount.cors_ok_at.is_none()
+    {
+        return Err(nf());
+    }
+    let url = crate::routes::storage::shelf_access::presign_object_url(
+        &state, &scope, &headers, &mount, &obj.path,
+    )
+    .await?;
+    Ok(no_store(Json(url).into_response()))
+}

@@ -12,6 +12,7 @@ use utoipa::ToSchema;
 
 pub mod media;
 pub mod privacy;
+pub mod showcase;
 
 use crate::error::{PackageError, PackageResult};
 use crate::profile_doc::{self, ProfileDoc};
@@ -193,6 +194,34 @@ pub struct ProfilePage {
     /// only, D-232). Empty when the block is absent or hidden.
     #[serde(default)]
     pub featured_guilds: Vec<FeaturedGuild>,
+    /// D-504: the owner's current ring may be drawn around the header avatar for this viewer (the profile's
+    /// `ring_tier` and the ring's own audience both admit them). Only ever true on the signed-in page; the client
+    /// reads the ring from the rings feed it already holds. Absent on the public page.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ring_visible: bool,
+    /// D-502: the media showcase as this viewer may play it (signed-in viewers the block admits; items that are
+    /// gone, delisted or no longer audio or video are left out). Absent on the public page.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub showcase: Vec<ShowcaseView>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// One playable item of a profile's media showcase (D-502). The address is minted on play through
+/// `GET /profile-pages/{username}/showcase/{object_hash}/url`, never carried here.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+#[schema(as = ProfileShowcaseItem)]
+pub struct ShowcaseView {
+    pub shelf_id: String,
+    pub object_hash: String,
+    /// The owner's title, the track's tag title, or the file name.
+    pub title: String,
+    pub duration_ms: Option<i64>,
+    /// `audio` or `video`.
+    pub media: String,
+    pub caption: Option<String>,
 }
 
 /// A server on a profile's Featured servers block.
@@ -1166,6 +1195,7 @@ impl PackageService {
                 "Top friends can only be people on your friends list.".to_owned(),
             ));
         }
+        self.check_showcase(user, &doc).await?;
         sqlx::query("UPDATE accounts SET profile_doc = $2, updated_at = now() WHERE id = $1 AND state <> 'deleted'")
             .bind(user)
             .bind(serde_json::to_value(&doc).unwrap_or(Value::Null))

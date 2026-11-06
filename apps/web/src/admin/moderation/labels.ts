@@ -32,6 +32,7 @@ export const TARGET_KEYS: Record<TargetKind, MessageKey> = {
   cinema: 'admin.moderation.target.cinema',
   person: 'admin.moderation.target.person',
   status_ring: 'admin.moderation.target.statusRing',
+  guestbook_note: 'admin.moderation.target.guestbookNote',
   other: 'admin.moderation.target.other',
 };
 

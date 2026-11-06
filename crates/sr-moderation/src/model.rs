@@ -54,6 +54,7 @@ text_enum! {
         Cinema => "cinema",
         Person => "person",
         StatusRing => "status_ring",
+        GuestbookNote => "guestbook_note",
         Other => "other",
     }
 }

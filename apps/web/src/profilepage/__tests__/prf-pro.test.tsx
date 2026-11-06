@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';
 import { createAppRouter } from '../../router';
 import { resetStore } from '../../store';
+import { useRingFeedStore } from '../../lounge/rings/store';
+import { setReportsEnabled } from '../../moderation/reports';
 import { http, HttpResponse, server } from '../../test/server';
 import { signedIn } from '../../settings/user/__tests__/helpers';
 import { Inspector } from '../Inspector';
@@ -171,5 +173,177 @@ describe('tip QR codes in the signed-in profile view (FU-18)', () => {
     expect(
       screen.getByText('bitcoin:bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('the ring on the profile page (D-504)', () => {
+  const header = blk('h', 'header');
+  const feed = () =>
+    useRingFeedStore.setState({
+      entries: [{ author_id: '2', all_seen: false, rings: [] }],
+      loadedAt: Date.now(),
+    });
+  // A fresh empty feed, so no avatar left on screen asks the server for one.
+  afterEach(() => useRingFeedStore.setState({ entries: null, loadedAt: Date.now() }));
+
+  it('wraps the header picture in the ring when the page says the viewer may see it', () => {
+    feed();
+    render(<ProfileRenderer page={page([header], { ring_visible: true })} />);
+    expect(screen.getByRole('button', { name: 'Bob has a new ring' })).toBeInTheDocument();
+  });
+
+  it('draws the plain picture when the page does not say so, even with a ring in the feed', () => {
+    feed();
+    render(<ProfileRenderer page={page([header])} />);
+    expect(screen.queryByRole('button', { name: /has a (new )?ring/ })).toBeNull();
+  });
+
+  it('wraps the popout picture the same way', () => {
+    feed();
+    const { unmount } = render(
+      <ProfileRenderer page={page([header], { ring_visible: true })} compact />,
+    );
+    expect(screen.getByRole('button', { name: 'Bob has a new ring' })).toBeInTheDocument();
+    unmount();
+    render(<ProfileRenderer page={page([header])} compact />);
+    expect(screen.queryByRole('button', { name: /has a (new )?ring/ })).toBeNull();
+  });
+});
+
+describe('the media showcase (D-502, D-503)', () => {
+  const hash = 'a'.repeat(64);
+  const block = blk('s', 'media_showcase', { items: [{ shelf_id: '9', object_hash: hash }] });
+  const views = [
+    {
+      shelf_id: '9',
+      object_hash: hash,
+      title: 'Live at the Roxy',
+      duration_ms: 185_000,
+      media: 'audio' as const,
+      caption: 'Our first show',
+    },
+  ];
+
+  it('lists what the server resolved and mints the address only on Play', async () => {
+    let minted = 0;
+    server.use(
+      http.get(`*/api/v1/profile-pages/bob/showcase/${hash}/url`, () => {
+        minted += 1;
+        return HttpResponse.json({ url: 'https://bucket.example/x.mp3?sig=1', expires_at: '' });
+      }),
+    );
+    const { container } = render(<ProfileRenderer page={page([block], { showcase: views })} />);
+    expect(screen.getByText('Live at the Roxy')).toBeInTheDocument();
+    expect(screen.getByText('Our first show')).toBeInTheDocument();
+    expect(screen.getByText('Audio · 3:05')).toBeInTheDocument();
+    expect(container.querySelector('audio')).toBeNull();
+    expect(minted).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Play Live at the Roxy' }));
+    await waitFor(() => expect(container.querySelector('audio')).not.toBeNull());
+    expect(minted).toBe(1);
+    const audio = container.querySelector('audio');
+    expect(audio?.getAttribute('controlsList')).toContain('nodownload');
+    expect(audio?.getAttribute('src')).toBe('https://bucket.example/x.mp3?sig=1');
+  });
+
+  it('says so when nothing can be played', () => {
+    render(<ProfileRenderer page={page([block])} />);
+    expect(screen.getByText('Nothing to play here right now.')).toBeInTheDocument();
+  });
+
+  it('is not drawn in the popout', () => {
+    render(<ProfileRenderer page={page([block], { showcase: views })} compact />);
+    expect(screen.queryByText('Live at the Roxy')).toBeNull();
+  });
+
+  it('edits captions, order and removal in the block settings', () => {
+    const onConfig = vi.fn();
+    const other = 'b'.repeat(64);
+    const two = blk('s', 'media_showcase', {
+      items: [
+        { shelf_id: '9', object_hash: hash },
+        { shelf_id: '9', object_hash: other },
+      ],
+    });
+    render(<Inspector block={two} friends={[]} onConfig={onConfig} showcase={views} />);
+    expect(screen.getByLabelText('Caption for Live at the Roxy')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Move Live at the Roxy down' }));
+    expect(onConfig).toHaveBeenLastCalledWith({
+      items: [
+        { shelf_id: '9', object_hash: other },
+        { shelf_id: '9', object_hash: hash },
+      ],
+    });
+    fireEvent.change(screen.getByLabelText('Caption for Live at the Roxy'), {
+      target: { value: 'Encore' },
+    });
+    expect(onConfig).toHaveBeenLastCalledWith({
+      items: [
+        { shelf_id: '9', object_hash: hash, caption: 'Encore' },
+        { shelf_id: '9', object_hash: other },
+      ],
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Live at the Roxy from the showcase' }),
+    );
+    expect(onConfig).toHaveBeenLastCalledWith({ items: [{ shelf_id: '9', object_hash: other }] });
+    expect(screen.getByRole('button', { name: 'Add from my shelf' })).toBeEnabled();
+  });
+});
+
+describe('reporting a guestbook note (D-506)', () => {
+  const book = blk('g', 'guestbook');
+  const cat = {
+    id: '3',
+    username: 'cat',
+    display_name: 'Cat',
+    avatar: null,
+    banner: null,
+    accent_color: null,
+  };
+  const held = {
+    id: '100',
+    author: null,
+    pending: true,
+    body: 'held note',
+    created_at_ms: 0,
+    can_remove: true,
+  };
+  const approved = {
+    id: '101',
+    author: cat,
+    pending: false,
+    body: 'approved note',
+    created_at_ms: 0,
+    can_remove: false,
+  };
+  beforeEach(() => setReportsEnabled(true));
+  afterEach(() => setReportsEnabled(false));
+
+  it('offers the owner Report on a held note next to Approve, and on an approved one', async () => {
+    server.use(http.get('*/api/v1/users/2/guestbook', () => HttpResponse.json([held, approved])));
+    render(<ProfileRenderer page={page([book], { is_owner: true })} />);
+    expect(await screen.findByText('held note')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Report the note from A visitor' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Report the note from Cat' })).toBeInTheDocument();
+  });
+
+  it('offers another viewer Report on an approved note that is not theirs, never on their own', async () => {
+    const mine = { ...approved, id: '102', body: 'my note', can_remove: true };
+    server.use(http.get('*/api/v1/users/2/guestbook', () => HttpResponse.json([approved, mine])));
+    render(<ProfileRenderer page={page([book])} />);
+    expect(await screen.findByText('my note')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Report the note/ })).toHaveLength(1);
+  });
+
+  it('shows no Report item while reporting is off', async () => {
+    setReportsEnabled(false);
+    server.use(http.get('*/api/v1/users/2/guestbook', () => HttpResponse.json([held, approved])));
+    render(<ProfileRenderer page={page([book], { is_owner: true })} />);
+    expect(await screen.findByText('held note')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Report the note/ })).toBeNull();
   });
 });

@@ -19,6 +19,7 @@ export const BLOCK_KINDS = [
   'linktree',
   'featured_guilds',
   'now_playing',
+  'media_showcase',
 ] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 
@@ -31,6 +32,7 @@ export const SINGLETONS: readonly BlockKind[] = [
   'linktree',
   'featured_guilds',
   'now_playing',
+  'media_showcase',
 ];
 
 export const FONTS = ['inter', 'newsreader', 'hanken-grotesk', 'plex-mono'] as const;
@@ -118,6 +120,27 @@ export interface ProfilePage {
   /** Entries on the guestbook; only the owner is told (K-18). */
   guestbook_count?: number | null;
   guestbook_limit?: number;
+  /** D-504: the owner's current ring may be drawn around the header picture (signed-in page only). */
+  ring_visible?: boolean;
+  /** D-502: the media showcase as this viewer may play it (signed-in viewers the block admits). */
+  showcase?: ShowcaseView[];
+}
+
+/** One item of a showcase block in the document (D-502). */
+export interface ShowcaseItem {
+  shelf_id: string;
+  object_hash: string;
+  caption?: string | null;
+}
+
+/** One playable item of a showcase as the page serves it; the address is minted on play. */
+export interface ShowcaseView {
+  shelf_id: string;
+  object_hash: string;
+  title: string;
+  duration_ms?: number | null;
+  media: 'audio' | 'video';
+  caption?: string | null;
 }
 
 /** A gallery entry: an address on the web or one of my uploaded pictures (K-16, K-17). */
@@ -185,4 +208,5 @@ export const DEFAULT_SIZE: Record<BlockKind, [number, number]> = {
   linktree: [6, 4],
   featured_guilds: [6, 3],
   now_playing: [6, 3],
+  media_showcase: [6, 4],
 };

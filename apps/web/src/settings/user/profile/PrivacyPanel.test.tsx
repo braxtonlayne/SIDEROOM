@@ -158,3 +158,35 @@ describe('Who can see my profile (PRF-PRO-001)', () => {
     expect(asked).toEqual(['public', 'member']);
   });
 });
+
+describe('the ring cap (D-505)', () => {
+  it('offers no "Anyone on the web" for rings, while the other parts still may', async () => {
+    const open = policy({ page_tier: 'public', links_tier: 'public', ring_tier: 'members' });
+    server.use(
+      http.get('*/api/v1/users/@me/profile-privacy', () =>
+        HttpResponse.json(
+          view({ preset: 'custom', stored: open, effective: open, public_possible: true }),
+        ),
+      ),
+      http.get(
+        '*/api/v1/users/@me/profile-page/preview',
+        () => new HttpResponse(null, { status: 404 }),
+      ),
+    );
+    render(<PrivacyPanel />);
+    const u = userEvent.setup();
+    expect(
+      await screen.findByText(
+        'Who sees your current ring on your profile page, on top of who the ring was shared with.',
+      ),
+    ).toBeInTheDocument();
+    await u.click(screen.getByRole('combobox', { name: 'Status rings' }));
+    const rings = await screen.findByRole('listbox');
+    expect(within(rings).queryByRole('option', { name: 'Anyone on the web' })).toBeNull();
+    expect(within(rings).getByRole('option', { name: 'Friends' })).toBeInTheDocument();
+    await u.keyboard('{Escape}');
+    await u.click(screen.getByRole('combobox', { name: 'Links' }));
+    const links = await screen.findByRole('listbox');
+    expect(within(links).getByRole('option', { name: 'Anyone on the web' })).toBeInTheDocument();
+  });
+});

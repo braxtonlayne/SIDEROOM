@@ -12,6 +12,7 @@ sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio",
 sr-admin = { path = "../sr-admin" }
 sr-core = { path = "../sr-core", default-features = false }
 sr-db = { path = "../sr-db" }
+sr-packages = { path = "../sr-packages" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing = "0.1"

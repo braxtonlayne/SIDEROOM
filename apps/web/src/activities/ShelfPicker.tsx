@@ -31,9 +31,17 @@ export default function ShelfPicker({
   appName,
   req,
   onDone,
+  ownOnly = false,
+  title,
+  description,
 }: {
   appName: string;
   req: PickRequest;
+  /** List only the member's own shelves (a profile showcase names only their own mounts, D-502). */
+  ownOnly?: boolean;
+  /** Replaces the Activity wording of the dialog's title and description. */
+  title?: string;
+  description?: string;
   /** The chosen object, or `null` for cancel / closing the dialog. */
   onDone: (pick: ShelfObjectPick | null) => void;
 }) {
@@ -47,8 +55,9 @@ export default function ShelfPicker({
   useEffect(() => {
     let dead = false;
     visibleShelves().then(
-      (s) => {
+      (all) => {
         if (dead) return;
+        const s = ownOnly ? all.filter((x) => x.kind === 'own') : all;
         setShelves(s);
         setShelf((cur) => cur || (s[0]?.shelf_id ?? ''));
       },
@@ -61,7 +70,7 @@ export default function ShelfPicker({
     return () => {
       dead = true;
     };
-  }, []);
+  }, [ownOnly]);
 
   useEffect(() => {
     if (!shelf) return;
@@ -142,8 +151,8 @@ export default function ShelfPicker({
     <Modal
       open
       onClose={() => onDone(null)}
-      title={t('activities.pick.title', { name: appName })}
-      description={t('activities.pick.description')}
+      title={title ?? t('activities.pick.title', { name: appName })}
+      description={description ?? t('activities.pick.description')}
       size="md"
       footer={
         <Button variant="ghost" onClick={() => onDone(null)}>

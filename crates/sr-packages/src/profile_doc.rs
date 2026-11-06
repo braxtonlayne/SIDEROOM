@@ -43,6 +43,7 @@ const SINGLETONS: &[&str] = &[
     "linktree",
     "featured_guilds",
     "now_playing",
+    "media_showcase",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -64,6 +65,8 @@ pub enum BlockKind {
     FeaturedGuilds,
     /// PRF-PRO-001: what the member is playing now (through presence, or typed by hand).
     NowPlaying,
+    /// PRF-PRO-001 (D-502): up to six audio or video objects from the member's own shelf.
+    MediaShowcase,
 }
 
 impl BlockKind {
@@ -81,6 +84,7 @@ impl BlockKind {
             Self::Linktree => "linktree",
             Self::FeaturedGuilds => "featured_guilds",
             Self::NowPlaying => "now_playing",
+            Self::MediaShowcase => "media_showcase",
         }
     }
 }
@@ -374,6 +378,40 @@ struct GalleryCfg {
     #[serde(default)]
     items: Vec<GalleryItem>,
 }
+/// The most objects a `media_showcase` block names (D-502).
+pub const MAX_SHOWCASE_ITEMS: usize = 6;
+
+/// One object of a `media_showcase` block: a shelf (one of the member's own mounts) and an object hash from its
+/// catalog, with an optional caption. The server fills `title`, `duration_ms` and `media` on a served page and
+/// never accepts them in a document (like a gallery item's `proxy_url`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShowcaseItem {
+    pub shelf_id: String,
+    pub object_hash: String,
+    #[serde(default)]
+    pub caption: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    duration_ms: Option<i64>,
+    #[serde(default)]
+    media: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ShowcaseCfg {
+    #[serde(default)]
+    items: Vec<ShowcaseItem>,
+}
+
+/// An object hash of a shelf catalog: 64 lowercase hex characters.
+pub fn is_object_hash(s: &str) -> bool {
+    s.len() == 64
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GuestbookCfg {
@@ -658,6 +696,38 @@ fn block_config(out: &mut Vec<DocProblem>, i: usize, b: &Block, media: Option<&M
                 }
             }
         }
+        BlockKind::MediaShowcase => {
+            if let Some(c) = parse::<ShowcaseCfg>(out, &path, &b.config) {
+                if c.items.len() > MAX_SHOWCASE_ITEMS {
+                    problem(out, p("items"), "at most 6 items");
+                }
+                let mut seen = BTreeSet::new();
+                for (j, it) in c.items.iter().enumerate() {
+                    let at = |f: &str| format!("{path}.items[{j}].{f}");
+                    if it.title.is_some() || it.duration_ms.is_some() || it.media.is_some() {
+                        problem(
+                            out,
+                            format!("{path}.items[{j}]"),
+                            "title, duration_ms and media are set by the server",
+                        );
+                    }
+                    if !media_id_ok(&it.shelf_id) {
+                        problem(out, at("shelf_id"), "must be a shelf id");
+                    }
+                    if !is_object_hash(&it.object_hash) {
+                        problem(out, at("object_hash"), "must be an object hash");
+                    } else if !seen.insert((it.shelf_id.as_str(), it.object_hash.as_str())) {
+                        problem(out, at("object_hash"), "lists an item twice");
+                    }
+                    if let Some(cap) = &it.caption {
+                        check_text(out, &at("caption"), cap, 80);
+                        if cap.contains('\n') {
+                            problem(out, at("caption"), "must be one line");
+                        }
+                    }
+                }
+            }
+        }
         BlockKind::Custom => {
             if let Some(c) = parse::<CustomCfg>(out, &path, &b.config) {
                 if let Some(t) = &c.title {
@@ -900,6 +970,17 @@ pub fn featured_guild_ids(doc: &ProfileDoc) -> Vec<i64> {
         .filter_map(|b| b.config.get("guild_ids")?.as_array())
         .flatten()
         .filter_map(|v| v.as_str()?.parse().ok())
+        .collect()
+}
+
+/// The items of a document's `media_showcase` block, in the member's order (empty when there is none or its
+/// config does not parse).
+pub fn showcase_items(doc: &ProfileDoc) -> Vec<ShowcaseItem> {
+    doc.blocks
+        .iter()
+        .filter(|b| b.kind == BlockKind::MediaShowcase)
+        .filter_map(|b| serde_json::from_value::<ShowcaseCfg>(Value::Object(b.config.clone())).ok())
+        .flat_map(|c| c.items)
         .collect()
 }
 
@@ -1147,5 +1228,61 @@ mod tests {
         );
         assert!(parse_doc(&json!({"style": {"background": {"kind": "video"}}}), false).is_err());
         assert!(parse_doc(&json!({"style": {"background": {"kind": "image"}}}), false).is_err());
+    }
+
+    #[test]
+    fn a_showcase_names_up_to_six_shelf_objects_with_short_captions() {
+        let h = "a".repeat(64);
+        let doc = |items: Value| json!({"blocks": [block("s", "media_showcase", 0, 0, 6, 3, json!({"items": items}))]});
+        let ok = parse_doc(
+            &doc(json!([{"shelf_id": "12", "object_hash": h, "caption": "Live at the Roxy"}])),
+            false,
+        )
+        .unwrap();
+        let items = showcase_items(&ok);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].object_hash, h);
+        // Server-filled fields are never accepted.
+        assert!(
+            parse_doc(
+                &doc(json!([{"shelf_id": "12", "object_hash": h, "title": "x"}])),
+                false
+            )
+            .is_err()
+        );
+        // Not a hash, not a shelf id, a long caption, a twice-listed item, a seventh item.
+        assert!(
+            parse_doc(
+                &doc(json!([{"shelf_id": "12", "object_hash": "ABC"}])),
+                false
+            )
+            .is_err()
+        );
+        assert!(parse_doc(&doc(json!([{"shelf_id": "x", "object_hash": h}])), false).is_err());
+        let long = "x".repeat(81);
+        assert!(
+            parse_doc(
+                &doc(json!([{"shelf_id": "12", "object_hash": h, "caption": long}])),
+                false
+            )
+            .is_err()
+        );
+        assert!(
+            parse_doc(
+                &doc(json!([{"shelf_id": "12", "object_hash": h}, {"shelf_id": "12", "object_hash": h}])),
+                false
+            )
+            .is_err()
+        );
+        let seven: Vec<Value> = (0..7)
+            .map(|i| json!({"shelf_id": "12", "object_hash": format!("{i}").repeat(64)}))
+            .collect();
+        assert!(parse_doc(&doc(Value::Array(seven)), false).is_err());
+        // One showcase per page.
+        let two = json!({"blocks": [
+            block("a", "media_showcase", 0, 0, 6, 3, json!({})),
+            block("b", "media_showcase", 6, 0, 6, 3, json!({})),
+        ]});
+        assert!(parse_doc(&two, false).is_err());
     }
 }

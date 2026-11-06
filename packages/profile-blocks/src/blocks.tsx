@@ -35,7 +35,15 @@ export function Face({ name, src }: { name: string; src: string | null }) {
   );
 }
 
-function Header({ page, block }: { page: PageLike; block: BlockLike }) {
+function Header({
+  page,
+  block,
+  avatar,
+}: {
+  page: PageLike;
+  block: BlockLike;
+  avatar?: BlockSlots['avatar'];
+}) {
   const { t, cdn } = useEnv();
   const u = page.user;
   const tagline = text(block.config, 'tagline');
@@ -44,7 +52,7 @@ function Header({ page, block }: { page: PageLike; block: BlockLike }) {
     <div className="pp-header">
       {banner && <img className="pp-banner" src={banner} alt="" />}
       <div className="pp-header-row">
-        <Face name={nameOf(u)} src={cdn('avatars', u.id, u.avatar, 128)} />
+        {avatar?.({ page }) ?? <Face name={nameOf(u)} src={cdn('avatars', u.id, u.avatar, 128)} />}
         <div>
           <h2 className="pp-name">{nameOf(u)}</h2>
           <p className="pp-muted">{t('profile.blocks.handle', { username: u.username })}</p>
@@ -366,7 +374,18 @@ export interface BlockSlots {
   now_watching?: (ctx: { block: BlockLike; page: PageLike }) => ReactNode;
   now_playing?: (ctx: { block: BlockLike; page: PageLike }) => ReactNode;
   guestbook?: (ctx: { block: BlockLike; page: PageLike }) => ReactNode;
+  /** The header's picture (the app wraps it in the status ring, D-504). Absent: the plain picture. */
+  avatar?: (ctx: { page: PageLike }) => ReactNode;
+  /**
+   * D-502/D-503: the media showcase. The package has no rendering of its own for it: without this slot the block
+   * draws nothing, and the public surface never fills it.
+   */
+  media_showcase?: (ctx: { block: BlockLike; page: PageLike }) => ReactNode;
 }
+
+/** The slots that draw a whole block, looked up by block type for the blocks only a host renders. */
+type HostedSlot = (ctx: { block: BlockLike; page: PageLike }) => ReactNode;
+const SLOT_KEYS_NOT_BLOCKS = new Set(['avatar']);
 
 export function BlockView({
   block,
@@ -385,7 +404,7 @@ export function BlockView({
   const manual = text(block.config, 'mode') === 'manual';
   switch (block.type) {
     case 'header':
-      return <Header page={page} block={block} />;
+      return <Header page={page} block={block} avatar={slots?.avatar} />;
     case 'about':
       return <About block={block} />;
     case 'top_friends':
@@ -410,7 +429,12 @@ export function BlockView({
       return <Linktree block={block} />;
     case 'featured_guilds':
       return <FeaturedGuilds page={page} />;
-    default:
-      return null;
+    default: {
+      // Blocks only a host renders (the media showcase) are found by their type, so a bundle without the slot
+      // carries no name for them.
+      if (compact || SLOT_KEYS_NOT_BLOCKS.has(block.type)) return null;
+      const hosted = (slots as Record<string, HostedSlot | undefined> | undefined)?.[block.type];
+      return hosted ? <>{hosted({ block, page })}</> : null;
+    }
   }
 }
