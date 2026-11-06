@@ -589,6 +589,21 @@
   font-size: 0.875rem;
   color: var(--sr-muted, #b9b2a3);
 }
+/* On a phone the stage is short: the gate (with the PeerTube page link) must fit above the party bar. */
+@media (max-width: 600px) {
+  .wp-ext-gate {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .wp-ext-gate p,
+  .wp-ext-page,
+  .wp-ext-remember {
+    font-size: 0.8125rem;
+  }
+  .wp-ext-gate-title {
+    font-size: 1rem;
+  }
+}
 
 /* The party's video could not be loaded (XC-VIS-002): a message in the middle of the stage. */
 .wp-media-error {

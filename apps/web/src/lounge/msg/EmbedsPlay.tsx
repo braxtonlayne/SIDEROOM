@@ -138,7 +138,9 @@ export function PlayHere({
         ? 'YouTube'
         : play.provider === 'vimeo'
           ? 'Vimeo'
-          : host
+          : play.provider === 'peertube'
+            ? 'PeerTube'
+            : host
       : host;
   // The two providers whose message API the party drives, and PeerTube, which the server resolves to the file the
   // party plays (D-515), can be watched together.
