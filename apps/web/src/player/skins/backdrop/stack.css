@@ -21,7 +21,7 @@
   --bd-led-hot: var(--ui-danger);
 
   container-type: inline-size;
-  inline-size: min(29rem, calc(100vw - 1rem));
+  inline-size: min(29rem, calc(100vw / var(--sr-overlay-zoom, 1) - 1rem));
   display: grid;
   gap: 0.25rem;
   padding: 0.25rem;

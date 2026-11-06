@@ -7,3 +7,16 @@
 .sr-overlay-root > * {
   zoom: var(--sr-overlay-zoom, 1);
 }
+
+/*
+ * Viewport units inside a zoomed box are zoomed as well, so "100vw" there is wider than the window at 150 %. The
+ * overlays divide them back by the zoom (the player skins, the rail panel), and so do the kit's dialogs and menus
+ * when they are portalled into this root.
+ */
+.sr-overlay-root > * > [role='dialog'][aria-modal='true'] {
+  max-block-size: calc(100dvh / var(--sr-overlay-zoom, 1) - 32px);
+}
+.sr-overlay-root > [role='menu'] {
+  max-inline-size: min(320px, calc(100vw / var(--sr-overlay-zoom, 1) - 16px));
+  max-block-size: calc(100vh / var(--sr-overlay-zoom, 1) - 16px);
+}

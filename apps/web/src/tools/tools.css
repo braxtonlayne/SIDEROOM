@@ -253,8 +253,8 @@
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  inline-size: min(22rem, calc(100vw - 4rem));
-  block-size: min(26rem, 70vh);
+  inline-size: min(22rem, calc(100vw / var(--sr-overlay-zoom, 1) - 4rem));
+  block-size: min(26rem, 70vh / var(--sr-overlay-zoom, 1));
   color: var(--ui-text);
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
