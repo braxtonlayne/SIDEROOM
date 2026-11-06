@@ -4,14 +4,15 @@
 #
 #   scripts/playwright-install.sh chromium firefox webkit
 #
-# Three attempts, 15 s then 45 s apart; the last failure is the exit status. Needs pnpm and the installed workspace.
+# Four attempts, 15 s, 45 s then 135 s apart; the last failure is the exit status. Needs pnpm and the installed workspace.
 #
 # Each attempt is also capped (PLAYWRIGHT_INSTALL_ATTEMPT_SECS, default 360 s): `--with-deps` runs apt-get, and an
 # Ubuntu mirror that stopped answering mid-download hung the step until the job's own timeout cancelled it
 # (arena3d-replay on PRs #88 and #91: "The operation was canceled" in the middle of the package list), so the retry
-# never ran. An attempt that hangs is now killed and retried like a failed one.
+# never ran. An attempt that hangs is now killed and retried like a failed one. apt keeps every package it finished in
+# its archive cache, so on a slow mirror (40 KB/s on PR #92) each retry carries on where the last one stopped.
 set -u
-attempts=3
+attempts=4
 delay=15
 cap="${PLAYWRIGHT_INSTALL_ATTEMPT_SECS:-360}"
 for ((i = 1; i <= attempts; i++)); do
