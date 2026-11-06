@@ -3,8 +3,9 @@
 // privacy-enhanced iframe (youtube-nocookie.com, Vimeo with dnt=1) or the browser's own player for a direct file.
 // "Watch together" starts a party with the same link, driven through the provider frame's own message API.
 import { Button } from '@sideroom/ui';
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
+import { attachHls, canPlayListedHls, nativeHls } from '../../media/hlsAttach';
 import type { Embed } from '../data';
 import { cardEmbedSrc, isCardEmbedSrc, providerOfSrc } from '../../watchparty/frameProtocol';
 import { setLoadEmbeds, useLoadEmbeds } from './EmbedsPrefs';
@@ -39,15 +40,59 @@ export function playHost(play: Play): string {
   }
 }
 
-/** Whether the browser can play an HLS playlist itself (Safari). Other browsers would need a script and connect-src. */
-function nativeHls(): boolean {
-  if (typeof document === 'undefined') return false;
-  return document.createElement('video').canPlayType('application/vnd.apple.mpegurl') !== '';
+/**
+ * D-518: a playlist on a listed host (the PeerTube instances and `SR_MEDIA_HOSTS`) plays through hls.js in a browser
+ * without native HLS. Mounted only after the click; the engine and hls.js load then, credentials omitted.
+ */
+function ListedHlsPlayer({ src, title }: { src: string; title: string }) {
+  const t = useT();
+  const ref = useRef<HTMLVideoElement>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let gone = false;
+    let dispose: (() => void) | null = null;
+    attachHls(el, src, { onError: () => setFailed(true) }).then(
+      (d) => {
+        if (gone) d();
+        else dispose = d;
+      },
+      () => {
+        if (!gone) setFailed(true);
+      },
+    );
+    return () => {
+      gone = true;
+      dispose?.();
+    };
+  }, [src]);
+  if (failed) {
+    return (
+      <p className="lng-muted" role="status">
+        {t('lounge.embedPlay.hlsUnsupported')}
+      </p>
+    );
+  }
+  return (
+    <video
+      ref={ref}
+      className="lng-embed-media"
+      controls
+      controlsList="nodownload noremoteplayback"
+      preload="metadata"
+      aria-label={title}
+      playsInline
+      disablePictureInPicture
+      onContextMenu={(e) => e.preventDefault()}
+    />
+  );
 }
 
 function DirectPlayer({ play, title }: { play: Play; title: string }) {
   const t = useT();
   if (play.media === 'hls' && !nativeHls()) {
+    if (canPlayListedHls(play.src)) return <ListedHlsPlayer src={play.src} title={title} />;
     return (
       <p className="lng-muted" role="status">
         {t('lounge.embedPlay.hlsUnsupported')}
@@ -93,11 +138,15 @@ export function PlayHere({
         ? 'YouTube'
         : play.provider === 'vimeo'
           ? 'Vimeo'
-          : host
+          : play.provider === 'peertube'
+            ? 'PeerTube'
+            : host
       : host;
-  // Only the two providers whose message API the party drives can be watched together.
+  // The two providers whose message API the party drives, and PeerTube, which the server resolves to the file the
+  // party plays (D-515), can be watched together.
   const canParty =
-    play.sync === true && (play.mode === 'direct' || providerOfSrc(play.src) !== null);
+    play.sync === true &&
+    (play.mode === 'direct' || providerOfSrc(play.src) !== null || play.provider === 'peertube');
 
   return (
     <div className="lng-embed-play">

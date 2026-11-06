@@ -938,7 +938,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     PgChatRepo::new(pool.clone()),
                     bus.clone(),
                 )),
-            ])));
+            ])))
+            // PeerTube parties (D-516): the instance's API, under the link-preview SSRF policy.
+            .with_peertube(crate::watchparty::peertube_resolver(
+                unfurl_policy_for_feeds.clone(),
+            ));
     watchparty_service.spawn_timers();
     let watchparty_deps = Arc::new(routes::watchparty::WatchPartyDeps::new(
         watchparty_service.clone(),

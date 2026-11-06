@@ -3,9 +3,10 @@
 // the remembered "Load embeds" setting); then the frame or element is created and registered with the external
 // host, and the sync controller drives it like the Cinema player.
 import { Button } from '@sideroom/ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore as useZustand } from 'zustand';
 import { useT } from '../i18n';
+import { attachHls, canPlayListedHls, nativeHls } from '../media/hlsAttach';
 import { setLoadEmbeds, useLoadEmbeds } from '../lounge/msg/EmbedsPrefs';
 import { externalHost } from './externalHost';
 import { FramePlayer, MediaElementPlayer, frameOrigin } from './externalPlayers';
@@ -78,15 +79,38 @@ function DirectMedia({ media }: { media: PartyMedia }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState(false);
   const audio = /\.(mp3|ogg|oga|opus|m4a|aac|wav|flac)(\?|$)/i.test(media.url ?? '');
+  // D-518: an HLS party on a browser without native HLS plays through hls.js, only for a listed host. This component
+  // mounts after the Load click, so the engine is never attached before it. Anything else keeps the element's src.
+  const viaHls = useMemo(
+    () => media.format === 'hls' && !nativeHls() && canPlayListedHls(media.url ?? null),
+    [media.format, media.url],
+  );
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let dispose: (() => void) | null = null;
+    let gone = false;
+    if (viaHls && media.url) {
+      attachHls(el, media.url, { onError: () => setFailed(true) }).then(
+        (d) => {
+          if (gone) d();
+          else dispose = d;
+        },
+        () => {
+          if (!gone) setFailed(true);
+        },
+      );
+    }
     const host = externalHost();
     const player = new MediaElementPlayer(el, () => void partyController().reapply());
     host.attach(player);
-    return () => host.detach(player);
-  }, [media.url]);
+    return () => {
+      gone = true;
+      host.detach(player);
+      dispose?.();
+    };
+  }, [media.url, viaHls]);
 
   return (
     <>
@@ -94,7 +118,7 @@ function DirectMedia({ media }: { media: PartyMedia }) {
       <video
         ref={ref}
         className={audio ? 'wp-ext-audio' : 'wp-ext-frame'}
-        src={media.url ?? undefined}
+        src={viaHls ? undefined : (media.url ?? undefined)}
         preload="auto"
         playsInline
         disablePictureInPicture
@@ -137,6 +161,7 @@ export function ExternalStage() {
   }
   if (!allowed) {
     const from = hostOf(media.url);
+    const page = media.page_url && /^https:\/\//i.test(media.page_url) ? media.page_url : null;
     return (
       <div className="wp-ext-gate">
         <h2 className="wp-ext-gate-title">{media.title}</h2>
@@ -145,6 +170,11 @@ export function ExternalStage() {
             ? t('watchparty.external.gateEmbed', { host: from })
             : t('watchparty.external.gateDirect', { host: from })}
         </p>
+        {page && (
+          <a className="wp-ext-page" href={page} target="_blank" rel="noopener noreferrer">
+            {t('watchparty.external.pageLink', { host: hostOf(page) })}
+          </a>
+        )}
         <Button
           onClick={() => {
             if (remember) void setLoadEmbeds('always').catch(() => undefined);

@@ -2036,3 +2036,101 @@ async fn a_channel_party_with_external_media_follows_the_channel_rules() {
     assert!(seen.invite_code.is_none());
     e.db.cleanup().await.unwrap();
 }
+
+// ---- wave 50: PeerTube parties (D-515, D-516) -------------------------------------------------------------
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_peertube_party_stores_the_resolved_playlist_and_the_page() {
+    use sr_watchparty::external::{PeerTube, stub};
+    let e = env().await;
+    let api = "https://tube.example.org/api/v1/videos/9c9de5e8-0a1e-484a-b099-e80766180a6d";
+    let page = "https://tube.example.org/w/9c9de5e8-0a1e-484a-b099-e80766180a6d";
+    let mut t = stub::Canned::default();
+    t.routes.insert(
+        api.to_owned(),
+        stub::json(
+            200,
+            serde_json::json!({
+                "name": "Night walk", "isLive": false, "privacy": { "id": 1 }, "files": [],
+                "streamingPlaylists": [{ "playlistUrl": "https://tube.example.org/hls/a/master.m3u8" }]
+            })
+            .to_string(),
+        ),
+    );
+    let t = Arc::new(t);
+    let svc = e.svc.clone().with_peertube(PeerTube::new(
+        stub::fetcher(t.clone()),
+        vec!["tube.example.org".to_owned()],
+        vec![],
+    ));
+    let (host, outsider) = (e.user().await, e.user().await);
+    let party = svc
+        .create(e.v(host).await, create_external(page, None))
+        .await
+        .unwrap();
+    let m = party.media.as_ref().unwrap();
+    assert_eq!(
+        (m.kind, m.provider.as_deref(), m.format),
+        (MediaKind::Direct, Some("peertube"), Some(MediaFormat::Hls))
+    );
+    assert_eq!(
+        m.url.as_deref(),
+        Some("https://tube.example.org/hls/a/master.m3u8")
+    );
+    assert_eq!(m.page_url.as_deref(), Some(page));
+    assert_eq!(m.title, "Night walk");
+    let row: (String, Option<String>, Option<String>, Option<String>) = sqlx::query_as(
+        "SELECT media_kind, media_provider, media_format, media_page_url FROM watch_parties WHERE id = $1",
+    )
+    .bind(party.id)
+    .fetch_one(e.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        row,
+        (
+            "direct".to_owned(),
+            Some("peertube".to_owned()),
+            Some("hls".to_owned()),
+            Some(page.to_owned())
+        )
+    );
+    // Read back through the row mapping.
+    let got = svc.get(e.v(host).await, party.id).await.unwrap();
+    assert_eq!(got.media.unwrap().format, Some(MediaFormat::Hls));
+
+    // Someone outside the party cannot make the server ask the instance.
+    let asked = t.seen.lock().unwrap().len();
+    assert!(
+        svc.change_media(e.v(outsider).await, party.id, change_external(page))
+            .await
+            .is_err()
+    );
+    assert_eq!(t.seen.lock().unwrap().len(), asked);
+
+    // Changing to a plain file clears the format and the page.
+    let plain = svc
+        .change_media(
+            e.v(host).await,
+            party.id,
+            change_external("https://cdn.example.org/b.mp4"),
+        )
+        .await
+        .unwrap();
+    let pm = plain.media.unwrap();
+    assert_eq!(
+        (pm.provider.as_deref(), pm.format, pm.page_url),
+        (Some("direct"), None, None)
+    );
+
+    // The migration refuses a format on an embed.
+    let bad = sqlx::query(
+        "UPDATE watch_parties SET media_kind = 'embed', media_format = 'hls' WHERE id = $1",
+    )
+    .bind(party.id)
+    .execute(e.pool())
+    .await;
+    assert!(bad.is_err());
+    e.db.cleanup().await.unwrap();
+}

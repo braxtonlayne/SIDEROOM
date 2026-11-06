@@ -700,7 +700,8 @@ mod tests {
             .unwrap();
         let p = e.play.unwrap();
         assert_eq!(p.provider, "peertube");
-        assert!(!p.sync);
+        // D-515: the card offers Watch together; the party resolves the video through the instance's API.
+        assert!(p.sync);
     }
 
     #[tokio::test]

@@ -19,6 +19,11 @@ export SR_STORAGE__BUCKET="${SR_STORAGE__BUCKET:-${GARAGE_BUCKET:-sideroom}}"
 export SR_STORAGE__ACCESS_KEY="${SR_STORAGE__ACCESS_KEY:-$GARAGE_ACCESS_KEY}"
 export SR_STORAGE__SECRET_KEY="${SR_STORAGE__SECRET_KEY:-$GARAGE_SECRET_KEY}"
 
+# PRF-UNF-001 (D-515): PeerTube parties resolve against a canned instance, `peertube.test`; the debug build answers
+# its API from crates/sr-watchparty/src/external.rs (stub::e2e_fetcher) and the browser side is fulfilled by the spec.
+export SR_PEERTUBE_HOSTS="${SR_PEERTUBE_HOSTS:-peertube.test}"
+export SR_E2E_PEERTUBE_FIXTURE="${SR_E2E_PEERTUBE_FIXTURE:-1}"
+
 ./target/debug/sr-server >server.log 2>&1 &
 server_pid=$!
 # Wait for the server to exit as well: the next step's server needs its locks (the library search index refused

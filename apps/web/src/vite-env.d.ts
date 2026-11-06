@@ -3,6 +3,8 @@
 declare const __SR_VERSION__: string;
 /** The commit the build was made from (vite.config.ts), lowercase hex, or empty outside a checkout (OPS-CRASH-001). */
 declare const __SR_COMMIT__: string;
+/** The hosts hls.js may be attached to (D-518): `SR_PEERTUBE_HOSTS` and `SR_MEDIA_HOSTS` at build time (vite.config.ts). */
+declare const __SR_MEDIA_HOSTS__: string[];
 declare module '*.module.css' {
   const classes: Record<string, string>;
   export default classes;

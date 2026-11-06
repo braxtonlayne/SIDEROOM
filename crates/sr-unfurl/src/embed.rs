@@ -15,6 +15,11 @@ use url::Url;
 /// `apps/web/src/security/csp.ts`), so a PeerTube link is offered only for a host the browser may frame.
 pub const PEERTUBE_HOSTS_ENV: &str = "SR_PEERTUBE_HOSTS";
 
+/// Environment variable naming further hosts a member's browser may fetch HLS playlists and segments from
+/// (D-517): object storage or a CDN a listed PeerTube instance serves its videos from. Comma separated, parsed like
+/// [`PEERTUBE_HOSTS_ENV`], empty by default. The web build reads the same value for the app policy's `connect-src`.
+pub const MEDIA_HOSTS_ENV: &str = "SR_MEDIA_HOSTS";
+
 pub const YOUTUBE_EMBED_HOST: &str = "www.youtube-nocookie.com";
 pub const VIMEO_EMBED_HOST: &str = "player.vimeo.com";
 
@@ -56,6 +61,11 @@ pub struct Play {
 /// The configured PeerTube hosts, lower-cased, without ports or paths.
 pub fn peertube_hosts_from_env() -> Vec<String> {
     parse_hosts(&std::env::var(PEERTUBE_HOSTS_ENV).unwrap_or_default())
+}
+
+/// The extra media hosts ([`MEDIA_HOSTS_ENV`]), lower-cased, without ports or paths.
+pub fn media_hosts_from_env() -> Vec<String> {
+    parse_hosts(&std::env::var(MEDIA_HOSTS_ENV).unwrap_or_default())
 }
 
 /// `a.example, B.example:443` -> `["a.example", "b.example"]`. Entries that are not plain host names are dropped.
@@ -184,8 +194,17 @@ fn vimeo(url: &Url, host: &str) -> Option<Play> {
     })
 }
 
-fn peertube(url: &Url, host: &str, hosts: &[String]) -> Option<Play> {
-    if !hosts.iter().any(|h| h == host) {
+/// The host and video id of a link to a configured PeerTube instance (`/w/<id>`, `/videos/watch/<id>`,
+/// `/videos/embed/<id>`), for the party path (D-516). Only plain https links on port 443 qualify.
+pub fn peertube_video_id(url: &Url, hosts: &[String]) -> Option<(String, String)> {
+    if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+        return None;
+    }
+    if url.port().is_some_and(|p| p != 443) {
+        return None;
+    }
+    let host = url.host_str()?.to_ascii_lowercase();
+    if !hosts.contains(&host) {
         return None;
     }
     let segs: Vec<&str> = url.path_segments()?.collect();
@@ -193,16 +212,18 @@ fn peertube(url: &Url, host: &str, hosts: &[String]) -> Option<Play> {
         ["w", id] | ["videos", "watch", id] | ["videos", "embed", id] => *id,
         _ => return None,
     };
-    if !is_id(id, 8..=40) {
-        return None;
-    }
+    is_id(id, 8..=40).then(|| (host, id.to_owned()))
+}
+
+fn peertube(url: &Url, hosts: &[String]) -> Option<Play> {
+    let (host, id) = peertube_video_id(url, hosts)?;
     Some(Play {
         mode: PlayMode::Embed,
         provider: "peertube".into(),
         src: format!("https://{host}/videos/embed/{id}"),
         media: None,
-        // PeerTube's embed API is a separate channel protocol; the card can play, a party cannot drive it.
-        sync: false,
+        // D-515: a party resolves the video through the instance's API and plays the file itself.
+        sync: true,
     })
 }
 
@@ -218,7 +239,7 @@ pub fn detect_embed(url: &Url, peertube_hosts: &[String]) -> Option<Play> {
     let host = url.host_str()?.to_ascii_lowercase();
     youtube(url, &host)
         .or_else(|| vimeo(url, &host))
-        .or_else(|| peertube(url, &host, peertube_hosts))
+        .or_else(|| peertube(url, peertube_hosts))
 }
 
 /// The direct-media kind of a content type, `None` for anything else. HLS playlists have several
@@ -355,12 +376,59 @@ mod tests {
             "https://tube.example.org/videos/embed/9c9de5e8-0a1e-484a-b099-e80766180a6d"
         );
         let p = d("https://tube.example.org/w/9c9de5e8").unwrap();
-        assert!(!p.sync);
+        // D-515: Watch together is offered; the party resolves the video through the instance's API.
+        assert!(p.sync);
         assert!(d("https://other.example.org/w/9c9de5e8-0a1e").is_none());
         assert!(d("https://tube.example.org/about").is_none());
         // No configured instance at all: nothing is a PeerTube link.
         let u = Url::parse("https://tube.example.org/w/9c9de5e8-0a1e").unwrap();
         assert!(detect_embed(&u, &[]).is_none());
+    }
+
+    #[test]
+    fn peertube_video_ids_for_the_party_path() {
+        let hosts = ["tube.example.org".to_owned()];
+        let id = |raw: &str| peertube_video_id(&Url::parse(raw).unwrap(), &hosts);
+        let want = Some((
+            "tube.example.org".to_owned(),
+            "9c9de5e8-0a1e-484a-b099-e80766180a6d".to_owned(),
+        ));
+        for raw in [
+            "https://tube.example.org/w/9c9de5e8-0a1e-484a-b099-e80766180a6d",
+            "https://Tube.Example.org/videos/watch/9c9de5e8-0a1e-484a-b099-e80766180a6d",
+            "https://tube.example.org/videos/embed/9c9de5e8-0a1e-484a-b099-e80766180a6d",
+            "https://tube.example.org:443/w/9c9de5e8-0a1e-484a-b099-e80766180a6d?start=10",
+        ] {
+            assert_eq!(id(raw), want, "{raw}");
+        }
+        for raw in [
+            "http://tube.example.org/w/9c9de5e8-0a1e",
+            "https://tube.example.org:8443/w/9c9de5e8-0a1e",
+            "https://u:p@tube.example.org/w/9c9de5e8-0a1e",
+            "https://other.example.org/w/9c9de5e8-0a1e",
+            "https://tube.example.org/w/short",
+            "https://tube.example.org/w/9c9de5e8-0a1e/extra",
+            "https://tube.example.org/api/v1/videos/9c9de5e8-0a1e",
+            "https://tube.example.org/w/9c9de5e8%2F..%2Fx",
+        ] {
+            assert_eq!(id(raw), None, "{raw}");
+        }
+        let u = Url::parse("https://tube.example.org/w/9c9de5e8-0a1e").unwrap();
+        assert_eq!(peertube_video_id(&u, &[]), None);
+    }
+
+    #[test]
+    fn the_media_hosts_list_is_its_own_variable_parsed_like_the_peertube_one() {
+        assert_eq!(MEDIA_HOSTS_ENV, "SR_MEDIA_HOSTS");
+        assert_ne!(MEDIA_HOSTS_ENV, PEERTUBE_HOSTS_ENV);
+        // Unset in the test environment: nothing is listed.
+        if std::env::var_os(MEDIA_HOSTS_ENV).is_none() {
+            assert!(media_hosts_from_env().is_empty());
+        }
+        assert_eq!(
+            parse_hosts("https://cdn.Example.net/, segments.example.org:443"),
+            vec!["cdn.example.net", "segments.example.org"]
+        );
     }
 
     #[test]

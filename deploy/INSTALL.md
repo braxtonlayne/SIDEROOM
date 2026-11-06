@@ -85,7 +85,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 - Voice: the SFU runs inside `sr-server`. Set `SR_VOICE_ENABLED=true` and `SR_VOICE_ANNOUNCE_IPS` to the host's public IP (comma-separated for several), and open UDP 50000-50099 on the firewall (Compose publishes that range). Members whose network blocks direct UDP need the TURN relay: copy `deploy/compose/coturn/turnserver.prod.conf.example` to `turnserver.prod.conf` and fill it in, put the certificate and key for port 5349 in `SR_TURN_TLS_DIR`, set `SR_VOICE_TURN_URLS` and `SR_VOICE_TURN_SECRET` (the `static-auth-secret`), open 3478 udp+tcp, 5349 tcp and 49152-49999 udp, and start with `--profile turn`.
 - Activities and the Arcade's house games: `SR_ACTIVITIES_ENABLED=true`, plus the web build and Caddy changes in doc 12 "Switching Activities on".
-- PeerTube "Play here": `SR_PEERTUBE_HOSTS` (comma-separated host names), and build the web app with the same list.
+- PeerTube "Play here" and Watch Together: `SR_PEERTUBE_HOSTS` (comma-separated host names), and build the web app with the same list. When an instance serves its files or HLS segments from another host (object storage, a CDN), list that host in `SR_MEDIA_HOSTS` for both as well; without it, parties of that instance's videos are refused with a clear reason.
 
 ## 5. Install walkthrough
 

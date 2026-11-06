@@ -122618,6 +122618,17 @@
               "null"
             ]
           },
+          "format": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WatchPartyMediaFormat",
+                "description": "How a `direct` address loads: a plain `file` or an `hls` playlist (D-516). Absent for older parties and\nembeds; a client treats a missing value on `direct` media as a file."
+              }
+            ]
+          },
           "kind": {
             "$ref": "#/components/schemas/WatchPartyMediaKind",
             "description": "`cinema` (the ids above), `embed` (a provider's privacy-enhanced iframe) or `direct` (a media file in\nthe browser's own player). The last two carry `url` and no catalog ids (they read \"0\")."
@@ -122625,12 +122636,19 @@
           "live": {
             "type": "boolean"
           },
+          "page_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The link the party was started from, when `url` was resolved from it (a PeerTube page, D-516)."
+          },
           "provider": {
             "type": [
               "string",
               "null"
             ],
-            "description": "`youtube`, `vimeo` or `direct`."
+            "description": "`youtube`, `vimeo`, `peertube` or `direct`."
           },
           "title": {
             "type": "string"
@@ -122652,6 +122670,14 @@
             ]
           }
         }
+      },
+      "WatchPartyMediaFormat": {
+        "type": "string",
+        "description": "How the browser loads `direct` media (migration 2360).",
+        "enum": [
+          "file",
+          "hls"
+        ]
       },
       "WatchPartyMediaKind": {
         "type": "string",
