@@ -262,6 +262,10 @@ export function clear(): void {
     shuffle: false,
     unshuffled: null,
     sleepAt: null,
+    // D-530: closing the player also resets the per-listening adjustments (volume is a device setting).
+    rate: 1,
+    pitchFollowsRate: false,
+    pan: 0,
   });
 }
 

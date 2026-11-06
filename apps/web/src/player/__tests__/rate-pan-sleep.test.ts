@@ -320,4 +320,16 @@ describe('sleep timer', () => {
     expect(state().sleepAt).toBeNull();
     expect(pending).toHaveLength(0);
   });
+
+  it('close resets the speed, the pitch policy and the balance, a new queue keeps them (D-530)', () => {
+    setRate(1.25, { pitchFollows: true });
+    setPan(-0.5);
+    play([track(1), track(2)]);
+    expect(state().rate).toBe(1.25);
+    expect(state().pan).toBe(-0.5);
+    clear();
+    expect(state().rate).toBe(1);
+    expect(state().pitchFollowsRate).toBe(false);
+    expect(state().pan).toBe(0);
+  });
 });
