@@ -5,15 +5,25 @@
 #   scripts/playwright-install.sh chromium firefox webkit
 #
 # Three attempts, 15 s then 45 s apart; the last failure is the exit status. Needs pnpm and the installed workspace.
+#
+# Each attempt is also capped (PLAYWRIGHT_INSTALL_ATTEMPT_SECS, default 360 s): `--with-deps` runs apt-get, and an
+# Ubuntu mirror that stopped answering mid-download hung the step until the job's own timeout cancelled it
+# (arena3d-replay on PRs #88 and #91: "The operation was canceled" in the middle of the package list), so the retry
+# never ran. An attempt that hangs is now killed and retried like a failed one.
 set -u
 attempts=3
 delay=15
+cap="${PLAYWRIGHT_INSTALL_ATTEMPT_SECS:-360}"
 for ((i = 1; i <= attempts; i++)); do
-  if pnpm --filter @sideroom/e2e exec playwright install --with-deps "$@"; then
+  if timeout --kill-after=15 "$cap" pnpm --filter @sideroom/e2e exec playwright install --with-deps "$@"; then
     exit 0
   fi
+  # A killed attempt can leave its apt-get (started under sudo) holding the package lock: stop it and let dpkg finish
+  # anything half-configured. CI runners have passwordless sudo; elsewhere `sudo -n` fails quietly and nothing happens.
+  sudo -n pkill -x apt-get 2>/dev/null || true
+  sudo -n dpkg --configure -a 2>/dev/null || true
   if ((i < attempts)); then
-    echo "playwright install failed (attempt $i of $attempts); retrying in ${delay}s" >&2
+    echo "playwright install failed or ran over ${cap}s (attempt $i of $attempts); retrying in ${delay}s" >&2
     sleep "$delay"
     delay=$((delay * 3))
   fi
