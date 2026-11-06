@@ -12,6 +12,16 @@ function anchorBox(a: NonNullable<FloatingAnchor>): Box {
   return { x: a.x, y: a.y, width: 0, height: 0 };
 }
 
+/**
+ * The CSS `zoom` in effect on an element (its own times its ancestors'; 1 where the browser has no `zoom` or does
+ * not report it). Pointer and `getBoundingClientRect` values are viewport pixels, but a zoomed element's own
+ * lengths (its `translate`, its `offsetWidth`) are in its zoomed pixels, so the two are converted with this.
+ */
+export function effectiveZoom(el: Element | null): number {
+  const z = (el as { currentCSSZoom?: unknown } | null)?.currentCSSZoom;
+  return typeof z === "number" && Number.isFinite(z) && z > 0 ? z : 1;
+}
+
 export interface UseFloatingOptions extends PositionOptions {
   open: boolean;
   anchor: FloatingAnchor;
@@ -34,6 +44,9 @@ export function useFloating({ open, anchor, placement, offset, padding, flip, sh
   const elRef = useRef<HTMLElement | null>(null);
   const [el, setEl] = useState<HTMLElement | null>(null);
   const [position, setPosition] = useState<PositionResult | null>(null);
+  // The floating element may sit inside a zoomed box (the member's zoom, D-540): measure in viewport pixels,
+  // place in its own.
+  const [zoom, setZoom] = useState(1);
 
   const ref = useCallback((node: HTMLElement | null) => {
     elRef.current = node;
@@ -43,9 +56,11 @@ export function useFloating({ open, anchor, placement, offset, padding, flip, sh
   const update = useCallback(() => {
     const node = elRef.current;
     if (!node || !anchor) return;
+    const z = effectiveZoom(node);
+    setZoom(z);
     const next = computePosition(
       anchorBox(anchor),
-      { width: node.offsetWidth, height: node.offsetHeight },
+      { width: node.offsetWidth * z, height: node.offsetHeight * z },
       { width: document.documentElement.clientWidth || window.innerWidth, height: document.documentElement.clientHeight || window.innerHeight },
       { placement, offset, padding, flip, shift },
     );
@@ -74,7 +89,9 @@ export function useFloating({ open, anchor, placement, offset, padding, flip, sh
     position: "fixed",
     left: 0,
     top: 0,
-    transform: position ? `translate(${Math.round(position.x)}px, ${Math.round(position.y)}px)` : undefined,
+    transform: position
+      ? `translate(${Math.round(position.x / zoom)}px, ${Math.round(position.y / zoom)}px)`
+      : undefined,
     visibility: position ? undefined : "hidden",
   };
   return { ref, style, position, update };
