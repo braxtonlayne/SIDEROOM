@@ -2,7 +2,19 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { overwriteApplies } from '../sections/Channels';
 import { bits, capture, http, HttpResponse, MANAGE, openSettings, seed, server } from './helpers';
-import { useStore } from '../../../store';
+
+// The Lounge's per-channel permissions (overwrites applied) come from its data hook; one voice channel is added here.
+const loungeVoice = vi.hoisted(() => ({ channel: null as null | object }));
+vi.mock('../../../lounge/data', async (orig) => {
+  const real = await orig<typeof import('../../../lounge/data')>();
+  return {
+    ...real,
+    useChannels: (g: string | undefined) => {
+      const list = real.useChannels(g);
+      return loungeVoice.channel ? [...list, loungeVoice.channel as never] : list;
+    },
+  };
+});
 
 vi.mock('../../../store/connect', () => ({
   connectGateway: vi.fn(),
@@ -32,6 +44,10 @@ const channels = (over: Record<string, object> = {}) => [
   ch('c1', 'general', 0, { parent_id: 'cat', position: 0, ...over.c1 }),
   ch('c2', 'random', 0, { parent_id: 'cat', position: 1, ...over.c2 }),
 ];
+
+afterEach(() => {
+  loungeVoice.channel = null;
+});
 
 describe('Channels', () => {
   it('shows the tree and reorders siblings with contiguous positions', async () => {
@@ -267,39 +283,32 @@ describe('Channel editor extra tabs (LNG-CHN-017)', () => {
   });
 });
 
-  it('the listening room card follows the channel-level Manage Channels (D-535)', async () => {
-    seed({ perms: [MANAGE.channels] });
-    useStore.setState((s) => ({
-      channels: {
-        ...s.channels,
-        v1: {
-          id: 'v1',
-          type: 2,
-          guild_id: 'g1',
-          name: 'Lounge',
-          position: 2,
-          permissions: { manageChannels: false },
-        } as never,
-      },
-    }));
-    server.use(
-      http.get('*/api/v1/guilds/g1/channels', () =>
-        HttpResponse.json([...channels(), ch('v1', 'Lounge', 2, { position: 2 })]),
-      ),
-      http.get('*/api/v1/guilds/g1/music/playlists', () => HttpResponse.json([])),
-      http.get('*/api/v1/channels/v1/listening-room', () =>
-        HttpResponse.json({ code: 'SR_NOT_FOUND', message: 'no' }, { status: 404 }),
-      ),
-    );
-    await openSettings('channels');
-    await userEvent.click(await screen.findByRole('button', { name: '🔊 Lounge' }));
-    await userEvent.click(await screen.findByRole('tab', { name: 'Voice' }));
-    expect(
-      await screen.findByText(
-        'You need the Manage Channels permission to change the listening room.',
-      ),
-    ).toBeInTheDocument();
-  });
+it('the listening room card follows the channel-level Manage Channels (D-535)', async () => {
+  seed({ perms: [MANAGE.channels] });
+  loungeVoice.channel = {
+    id: 'v1',
+    type: 2,
+    name: 'Lounge',
+    permissions: { manageChannels: false },
+  };
+  server.use(
+    http.get('*/api/v1/guilds/g1/channels', () =>
+      HttpResponse.json([...channels(), ch('v1', 'Lounge', 2, { position: 2 })]),
+    ),
+    http.get('*/api/v1/guilds/g1/music/playlists', () => HttpResponse.json([])),
+    http.get('*/api/v1/channels/v1/listening-room', () =>
+      HttpResponse.json({ code: 'SR_NOT_FOUND', message: 'no' }, { status: 404 }),
+    ),
+  );
+  await openSettings('channels');
+  await userEvent.click(await screen.findByRole('button', { name: '🔊 Lounge' }));
+  await userEvent.click(await screen.findByRole('tab', { name: 'Voice' }));
+  expect(
+    await screen.findByText(
+      'You need the Manage Channels permission to change the listening room.',
+    ),
+  ).toBeInTheDocument();
+});
 
 describe('Forum settings', () => {
   it('edits tags, sort and layout on the Features tab of a forum channel', async () => {

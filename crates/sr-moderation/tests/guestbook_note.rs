@@ -260,6 +260,23 @@ async fn staff_removal_is_logged_before_the_delete_and_a_second_one_is_404() {
     let s = staff(staff_id, P::MANAGE_CASES | P::STAFF_BASIC);
     let who = Who::Staff(&s);
     let before = log_count(&pool, "moderation.guestbook_note.delete").await;
+    // D-528: no reason, no removal and no log row; the note is still there.
+    for blank in ["", "   "] {
+        assert_eq!(
+            m.remove_guestbook_note(&who, held, blank).await.err(),
+            Some(ModError::ReasonRequired)
+        );
+    }
+    assert_eq!(
+        log_count(&pool, "moderation.guestbook_note.delete").await,
+        before
+    );
+    let still: i64 = sqlx::query_scalar("SELECT count(*) FROM profile_guestbook WHERE id = $1")
+        .bind(held)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(still, 1);
     m.remove_guestbook_note(&who, held, "spam").await.unwrap();
     assert_eq!(
         log_count(&pool, "moderation.guestbook_note.delete").await,

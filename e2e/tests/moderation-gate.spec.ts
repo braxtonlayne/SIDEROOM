@@ -285,10 +285,17 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       expect(JSON.stringify(detail.evidence)).not.toContain('ip_hash');
       expect(detail.holds, 'a note report places no hold').toHaveLength(0);
       // Remove: the note leaves B's book, and a second removal is the 404 of a missing note.
-      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}`);
+      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}`, undefined, [400]);
+      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}?reason=e2e+removal`);
       const after = await call<{ id: string }[]>(b, 'GET', `/users/${userB.id}/guestbook`);
       expect(after.some((e) => e.id === held!.id)).toBe(false);
-      await call(s, 'DELETE', `/moderation/guestbook-notes/${held!.id}`, undefined, [404]);
+      await call(
+        s,
+        'DELETE',
+        `/moderation/guestbook-notes/${held!.id}?reason=e2e+removal`,
+        undefined,
+        [404],
+      );
       await visitor.dispose();
     });
 
