@@ -13,7 +13,14 @@ import { noteClientFlags } from '../testdeploy/flag';
 export const REPORTS_FLAG = 'moderation.reports';
 
 export type ReportKind =
-  'message' | 'user' | 'channel' | 'guild' | 'library' | 'cinema' | 'status_ring';
+  | 'message'
+  | 'user'
+  | 'channel'
+  | 'guild'
+  | 'library'
+  | 'cinema'
+  | 'status_ring'
+  | 'guestbook_note';
 
 export interface ReportTarget {
   kind: ReportKind;

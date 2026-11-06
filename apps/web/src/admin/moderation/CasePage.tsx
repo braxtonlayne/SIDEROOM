@@ -7,6 +7,7 @@ import { useT, type MessageKey } from '../../i18n';
 import { CATEGORY_KEYS } from '../../moderation/ReportDialog';
 import * as api from '../../moderation/api';
 import { BanReasonFields } from './BanReasonFields';
+import { GuestbookNoteEvidence } from './GuestbookNoteEvidence';
 import { TakedownBadge } from './TakedownBadge';
 import { Link } from '@tanstack/react-router';
 import { Async, FormDialog, ReasonDialog, fmtMs, useAdminViewer, useResource } from '../ui';
@@ -410,9 +411,18 @@ export function CasePage({
 
               <h3 className="ss-subtitle">{t('admin.moderation.case.evidenceHeading')}</h3>
               {d.evidence.length === 0 && <p>{t('admin.moderation.case.noEvidence')}</p>}
-              {d.evidence.map((ev) => (
-                <Evidence key={ev.id} ev={ev} />
-              ))}
+              {d.evidence.map((ev) =>
+                ev.payload.kind === 'guestbook_note' ? (
+                  <GuestbookNoteEvidence
+                    key={ev.id}
+                    payload={ev.payload as Record<string, unknown>}
+                    canRemove={work}
+                    run={run}
+                  />
+                ) : (
+                  <Evidence key={ev.id} ev={ev} />
+                ),
+              )}
 
               <h3 className="ss-subtitle">{t('admin.moderation.case.holdsHeading')}</h3>
               {d.holds.length === 0 && <p>{t('admin.moderation.case.noHolds')}</p>}

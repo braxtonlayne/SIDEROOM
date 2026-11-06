@@ -213,6 +213,24 @@ async fn resolve(conn: &mut PgConnection, reporter: i64, req: &NewReport) -> Mod
                 label: "status ring".to_owned(),
             })
         }
+        TargetKind::GuestbookNote => {
+            // D-506: the owner for any note of their page, an admitted viewer for an approved one, never the
+            // author; everyone else gets the missing-note 404.
+            let note = crate::guestbook::resolve_report(conn, req.target_id, reporter).await?;
+            let person = match note.author_id {
+                Some(a) => account_of(conn, a).await?.map(|(p, _)| p),
+                None => None,
+            };
+            Ok(Resolved {
+                guild_id: None,
+                channel_id: None,
+                subject_account_id: note.author_id,
+                subject_person_id: person,
+                // A profile belongs to no server: only platform staff read it (D-507).
+                private: true,
+                label: "guestbook note".to_owned(),
+            })
+        }
         TargetKind::Person | TargetKind::Other => Err(invalid("That cannot be reported")),
     }
 }
@@ -388,6 +406,11 @@ impl Moderation {
             (
                 "target_summary",
                 crate::rings::ring_snapshot(&mut tx, req.target_id).await?,
+            )
+        } else if req.target_kind == TargetKind::GuestbookNote {
+            (
+                "target_summary",
+                crate::guestbook::note_snapshot(&mut tx, req.target_id).await?,
             )
         } else {
             (

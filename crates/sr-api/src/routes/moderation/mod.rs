@@ -16,6 +16,7 @@ mod age;
 mod cases;
 mod dashboard;
 mod graduated;
+mod guestbook;
 mod holds;
 mod reports;
 mod suspicion;
@@ -242,6 +243,10 @@ pub fn router() -> Router<AppState> {
         .route("/moderation/cases/{case_id}/ban", post(cases::ban))
         .route("/moderation/cases/{case_id}/holds", post(holds::place))
         .route("/moderation/holds", get(holds::list))
+        .route(
+            "/moderation/guestbook-notes/{note_id}",
+            axum::routing::delete(guestbook::remove_note),
+        )
         .route("/moderation/holds/{hold_id}/release", post(holds::release))
         .route(
             "/moderation/holds/{hold_id}/reviewed",
@@ -504,6 +509,7 @@ pub fn router() -> Router<AppState> {
         graduated::approve_request,
         graduated::reject_request,
         graduated::branch_action,
+        guestbook::remove_note,
     ),
     components(schemas(
         sr_moderation::model::NewReport,
