@@ -8,7 +8,8 @@
 //!
 //! # Limits
 //!
-//! * At most 5 seconds and 512 KiB, MP3, Ogg (Opus or Vorbis) or WAV. The spec's
+//! * At most 5 seconds and 512 KiB, MP3, Ogg (Opus or Vorbis), WebM (one Opus track, D-534) or
+//!   WAV. The spec's
 //!   "-> Opus" transcode is not done on the server (no codec library in the build);
 //!   browsers decode all three formats with `decodeAudioData`.
 //! * 48 sounds per server for everyone (`ExpressionLimits::max_soundboard_sounds`, D-044).
@@ -40,6 +41,8 @@ pub enum SoundFormat {
     Mp3,
     Ogg,
     Wav,
+    /// D-534: one Opus track in a WebM container (what Chromium's `MediaRecorder` writes).
+    Webm,
 }
 
 impl SoundFormat {
@@ -48,6 +51,7 @@ impl SoundFormat {
             Self::Mp3 => 1,
             Self::Ogg => 2,
             Self::Wav => 3,
+            Self::Webm => 4,
         }
     }
 
@@ -56,6 +60,7 @@ impl SoundFormat {
             1 => Self::Mp3,
             2 => Self::Ogg,
             3 => Self::Wav,
+            4 => Self::Webm,
             _ => return None,
         })
     }
@@ -65,6 +70,7 @@ impl SoundFormat {
             Self::Mp3 => "mp3",
             Self::Ogg => "ogg",
             Self::Wav => "wav",
+            Self::Webm => "webm",
         }
     }
 
@@ -73,6 +79,7 @@ impl SoundFormat {
             Self::Mp3 => "audio/mpeg",
             Self::Ogg => "audio/ogg",
             Self::Wav => "audio/wav",
+            Self::Webm => "audio/webm",
         }
     }
 }
@@ -201,6 +208,14 @@ pub fn inspect_sound(data: &[u8]) -> Option<SoundInfo> {
         return wav_duration(data).map(|d| SoundInfo {
             format: SoundFormat::Wav,
             duration_ms: d,
+        });
+    }
+    if data.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
+        // D-534: the voice-message reader (FU-7) walks the EBML tree and the Opus packets; nothing
+        // is decoded. Its duration is the sum of the packets, so a header cannot shorten a file.
+        return crate::voice_meta::analyze_webm_opus(data).map(|m| SoundInfo {
+            format: SoundFormat::Webm,
+            duration_ms: m.duration_ms,
         });
     }
     if data.starts_with(b"OggS") {

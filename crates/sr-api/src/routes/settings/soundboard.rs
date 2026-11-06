@@ -7,7 +7,7 @@
 //! * `POST /channels/{channel_id}/send-soundboard-sound`
 //!
 //! Uploads arrive as data URIs (`data:audio/ogg;base64,...`) like emoji and stickers. The
-//! bytes are kept as uploaded (MP3, Ogg or WAV, at most 5 s and 512 KiB) and served from
+//! bytes are kept as uploaded (MP3, Ogg, WebM/Opus or WAV, at most 5 s and 512 KiB) and served from
 //! `.../audio`; the client decodes them and mixes them into its microphone stream, so the
 //! server never decodes, transcodes or hears a sound. Playing one only announces it
 //! (`VOICE_CHANNEL_EFFECT_SEND`) after the permission, voice-state and cooldown checks.
@@ -71,7 +71,7 @@ pub fn routes() -> Router<AppState> {
 pub struct CreateSoundBody {
     /// 2 to 32 characters.
     pub name: String,
-    /// `data:audio/ogg;base64,...` (MP3, Ogg or WAV; at most 5 seconds and 512 KiB).
+    /// `data:audio/ogg;base64,...` (MP3, Ogg, WebM/Opus or WAV; at most 5 seconds and 512 KiB).
     pub sound: String,
     /// 0 to 1, default 1.
     pub volume: Option<f64>,
@@ -321,7 +321,7 @@ pub async fn get_sound(
         ("guild_id" = String, Path, description = "Guild snowflake"),
         ("sound_id" = String, Path, description = "Sound snowflake"),
     ),
-    responses((status = 200, content_type = "audio/mpeg", body = Vec<u8>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
+    responses((status = 200, content_type = "audio/mpeg", description = "The stored type: audio/mpeg, audio/ogg, audio/webm or audio/wav", body = Vec<u8>), (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("authorization" = []), ("session" = []))
 )]
 pub async fn sound_audio(
@@ -384,7 +384,7 @@ pub async fn create_sound(
         invalid(
             "sound",
             "SOUND_INVALID",
-            "Must be an MP3, Ogg (Opus or Vorbis) or WAV file.",
+            "Must be an MP3, Ogg (Opus or Vorbis), WebM (Opus) or WAV file.",
         )
     })?;
     let (emoji_id, emoji_name) =

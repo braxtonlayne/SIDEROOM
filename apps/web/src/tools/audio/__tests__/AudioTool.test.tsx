@@ -15,6 +15,11 @@ vi.mock('../pcm', async (orig) => ({
   }),
 }));
 
+const { encodeOpus } = vi.hoisted(() => ({
+  encodeOpus: vi.fn(async () => new Blob([new Uint8Array(2000)], { type: 'audio/webm' })),
+}));
+vi.mock('../dsp', async (orig) => ({ ...(await orig<object>()), encodeOpus }));
+
 import { AudioTool } from '../AudioTool';
 
 describe('AudioTool (UTL-AUD-001)', () => {
@@ -55,5 +60,45 @@ describe('AudioTool (UTL-AUD-001)', () => {
     // At the end of the file the window stops sliding and the part shrinks.
     fireEvent.change(startHandle!, { target: { value: '3.5' } });
     expect(Number(endHandle!.value)).toBe(4);
+  });
+
+  it('saves a soundboard part as Opus where the browser records it (D-534)', async () => {
+    vi.stubGlobal('MediaRecorder', {
+      isTypeSupported: (t: string) => t === 'audio/webm;codecs=opus',
+    });
+    const onUse = vi.fn();
+    render(
+      <AudioTool
+        file={new File(['x'], 'tone.mp3', { type: 'audio/mpeg' })}
+        limits={{ maxSeconds: 5, maxBytes: 512 * 1024, format: 'opus' }}
+        onUse={onUse}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('audio-format')).toBeTruthy());
+    expect(screen.getByTestId('audio-format').textContent).toContain('saved as Opus');
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+    await waitFor(() => expect(onUse).toHaveBeenCalled());
+    const made = onUse.mock.calls[0]![0] as File;
+    expect(made.name).toBe('tone-trimmed.webm');
+    expect(made.type).toBe('audio/webm');
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to WAV for a soundboard part when the browser cannot record Opus (D-534)', async () => {
+    vi.stubGlobal('MediaRecorder', undefined);
+    const onUse = vi.fn();
+    render(
+      <AudioTool
+        file={new File(['x'], 'tone.mp3', { type: 'audio/mpeg' })}
+        limits={{ maxSeconds: 5, maxBytes: 512 * 1024, format: 'opus' }}
+        onUse={onUse}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('audio-format')).toBeTruthy());
+    expect(screen.getByTestId('audio-format').textContent).toContain('saved as WAV');
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+    await waitFor(() => expect(onUse).toHaveBeenCalled());
+    expect((onUse.mock.calls[0]![0] as File).name).toBe('tone-trimmed.wav');
+    vi.unstubAllGlobals();
   });
 });
