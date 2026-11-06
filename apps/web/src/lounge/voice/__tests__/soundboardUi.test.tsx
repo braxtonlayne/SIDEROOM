@@ -138,7 +138,9 @@ describe('soundboard popover (VOX-SB-002)', () => {
     expect(previewSound).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }));
     expect(play).not.toHaveBeenCalled();
     await user.click(within(body).getByRole('button', { name: /Preview Ding/ }));
-    expect(await within(body).findByRole('alert')).toHaveTextContent('could not be played');
+    expect(await within(body).findByRole('alert')).toHaveTextContent(
+      'Your browser cannot play this sound',
+    );
   });
 
   it('changes the volume of what you play', async () => {

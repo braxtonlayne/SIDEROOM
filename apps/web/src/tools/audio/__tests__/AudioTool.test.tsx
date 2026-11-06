@@ -84,6 +84,53 @@ describe('AudioTool (UTL-AUD-001)', () => {
     vi.unstubAllGlobals();
   });
 
+  it('prefers WebM for soundboard sounds and Ogg for voice messages (D-551)', async () => {
+    vi.stubGlobal('MediaRecorder', { isTypeSupported: () => true });
+    const sound = vi.fn();
+    const { unmount } = render(
+      <AudioTool
+        file={new File(['x'], 'tone.mp3', { type: 'audio/mpeg' })}
+        limits={{ maxSeconds: 5, maxBytes: 512 * 1024, format: 'opus' }}
+        onUse={sound}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('audio-format')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+    await waitFor(() => expect(sound).toHaveBeenCalled());
+    expect((sound.mock.calls[0]![0] as File).name).toBe('tone-trimmed.webm');
+    unmount();
+    const voice = vi.fn();
+    render(
+      <AudioTool
+        file={new File(['x'], 'tone.mp3', { type: 'audio/mpeg' })}
+        limits={{ maxSeconds: 60, format: 'ogg' }}
+        onUse={voice}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Use this' }).length).toBe(1));
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+    await waitFor(() => expect(voice).toHaveBeenCalled());
+    expect((voice.mock.calls[0]![0] as File).name).toBe('tone-trimmed.ogg');
+    vi.unstubAllGlobals();
+  });
+
+  it('saves Ogg for a soundboard part when only Ogg can be recorded (D-551)', async () => {
+    vi.stubGlobal('MediaRecorder', { isTypeSupported: (t: string) => t.startsWith('audio/ogg') });
+    const onUse = vi.fn();
+    render(
+      <AudioTool
+        file={new File(['x'], 'tone.mp3', { type: 'audio/mpeg' })}
+        limits={{ maxSeconds: 5, maxBytes: 512 * 1024, format: 'opus' }}
+        onUse={onUse}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('audio-format')).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+    await waitFor(() => expect(onUse).toHaveBeenCalled());
+    expect((onUse.mock.calls[0]![0] as File).name).toBe('tone-trimmed.ogg');
+    vi.unstubAllGlobals();
+  });
+
   it('falls back to WAV for a soundboard part when the browser cannot record Opus (D-534)', async () => {
     vi.stubGlobal('MediaRecorder', undefined);
     const onUse = vi.fn();

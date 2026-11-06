@@ -23,3 +23,9 @@ cargo `sr-chat --test sound_hygiene` (10), `sr-chat --lib soundboard` (13), `sr-
 
 ## Owner questions (decided as the Discord-like default)
 1. A WebM sound the sender's browser cannot play shows an error on the settings preview only. Should the preview fall back to decoding through WebAudio (as in-call play does)? Default: not built.
+
+## D-551 / D-552 (Fable's answer, `p51-fable-sound.md`): built
+- Soundboard prefers WebM over Ogg (`AudioTool` `opusMimeType(false)` for `format: 'opus'`, both call sites; voice messages stay Ogg-first; comment in `dsp.ts`). Vitest: WebM when both are recordable, Ogg-only gives Ogg, voice stays Ogg, neither gives WAV.
+- The settings tab Play and the popover preview use `LocalSoundPlayer` only (one player per tab, disposed on unmount, chosen output device); the `<audio>` path and `soundMime` are removed. A sound the browser cannot decode shows `settings.soundboard.cannotPlayHere` (settings row and popover; the popover's old `previewFailed` key is gone). Vitest for both outcomes (plays at the row volume, no `Audio` element created; decode failure shows the sentence).
+- Rows D-551 and D-552 pasted after D-540 in the decisions log (the commander sorts).
+- Browser matrix: Chromium DONE (records WebM, decodes, plays, full flow green). Firefox OPEN (would not launch under Playwright here, `spawn UNKNOWN`; run by hand: dialog saves WebM, settings Play and popover decode it, an Ogg/Opus file from the picker plays). Safari macOS 17.4+ and iOS OPEN, human to verify: (a) settings Play on a Chrome-uploaded WebM/Opus sound plays (`decodeAudioData` on WebM/Opus), (b) another member hears it when pressed in a call, (c) dialog shows the "saved as WAV" line and uploads a WAV under 512 KiB, (d) an Ogg/Opus file shows the sentence (acceptable). If (a) fails: the dialog's default button goes back to WAV with Opus second, as a new decision row. Playwright WebKit's WebM result is not Safari evidence.

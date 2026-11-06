@@ -22,7 +22,6 @@ export default {
   'lounge.soundboard.loadFailed': 'Could not load the sounds. Try again in a moment.',
   'lounge.soundboard.noPermission': 'You cannot use the soundboard in this channel.',
   'lounge.soundboard.muted': 'Unmute and undeafen to play a sound.',
-  'lounge.soundboard.previewFailed': 'That sound could not be played.',
   'voice.soundboard.notInCall': 'Join a server voice channel to play a sound.',
   'voice.soundboard.notMixed': 'The sound could not be added to your microphone.',
   'voice.soundboard.errPermission': 'You cannot use the soundboard in this channel.',

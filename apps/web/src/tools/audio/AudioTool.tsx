@@ -183,8 +183,8 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
         blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/wav' });
         name = `${baseName}-trimmed.wav`;
       } else {
-        // Voice messages take Ogg Opus or (FU-7) WebM Opus; Ogg is preferred where the browser has it.
-        const mime = opusMimeType(limits?.format === 'ogg' || limits?.format === 'opus');
+        // Voice messages take Ogg Opus or (FU-7) WebM Opus, Ogg first; the soundboard prefers WebM (D-551).
+        const mime = opusMimeType(limits?.format === 'ogg');
         if (!mime) {
           if (limits?.format === 'opus') {
             return await run('wav', true);
@@ -217,7 +217,7 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
   };
 
   const embeddedKind = limits?.format === 'wav' ? 'wav' : 'opus';
-  const opusHere = limits?.format === 'opus' ? opusMimeType(true) !== null : null;
+  const opusHere = limits?.format === 'opus' ? opusMimeType(false) !== null : null;
   const x = total ? (start / total) * BINS : 0;
   const w = total ? ((end - start) / total) * BINS : 0;
   return (
