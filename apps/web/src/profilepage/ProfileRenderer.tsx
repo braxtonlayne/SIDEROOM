@@ -7,12 +7,19 @@ import {
   ProfileRenderer as Renderer,
   pageVars,
   reading,
+  type BlockSlots,
 } from '@sideroom/profile-blocks';
 import { useT } from '../i18n';
 import { cdnUrl } from '../store/cdn';
 import { QrBox } from '../tips/QrBox';
-import { appSlots } from './blocks';
+import { HeaderPicture, appSlots } from './blocks';
 import type { ProfileDoc, ProfileMedia, ProfilePage } from './types';
+
+/** The popout's header picture is the 64 px one, in the same ring (D-504). */
+const compactSlots: BlockSlots = {
+  ...appSlots,
+  avatar: ({ page }) => <HeaderPicture page={page as ProfilePage} size={64} />,
+};
 
 export { pageVars, reading };
 
@@ -51,7 +58,7 @@ export function ProfileRenderer({
         compact={compact}
         bannerUrl={bannerUrl}
         media={media}
-        slots={appSlots}
+        slots={compact ? compactSlots : appSlots}
         profileHref={profileHref}
       />
     </BlocksEnv>

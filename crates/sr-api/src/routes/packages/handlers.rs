@@ -772,6 +772,7 @@ pub async fn page_by_name(
     UserOnly(p): UserOnly,
     State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
+    MaybeExt(uf): MaybeExt<crate::routes::userfeat::UserFeatDeps>,
     MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(name): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
@@ -785,6 +786,7 @@ pub async fn page_by_name(
         )
         .await
         .map_err(pkg)?;
+    super::profiles::gate_ring(&mut page, p.user_id, uf.as_deref()).await;
     proxy_gallery(&mut page, proxy.as_deref());
     Ok(Json(page))
 }
@@ -800,6 +802,7 @@ pub async fn page_by_id(
     UserOnly(p): UserOnly,
     State(state): State<AppState>,
     Ext(deps): Ext<PackagesDeps>,
+    MaybeExt(uf): MaybeExt<crate::routes::userfeat::UserFeatDeps>,
     MaybeExt(proxy): MaybeExt<ExternalImageDeps>,
     Path(user): Path<String>,
 ) -> MsgResult<Json<ProfilePage>> {
@@ -814,6 +817,7 @@ pub async fn page_by_id(
         )
         .await
         .map_err(pkg)?;
+    super::profiles::gate_ring(&mut page, p.user_id, uf.as_deref()).await;
     proxy_gallery(&mut page, proxy.as_deref());
     Ok(Json(page))
 }
@@ -1170,6 +1174,8 @@ mod tests {
             guestbook_limit: 500,
             media: Vec::new(),
             featured_guilds: Vec::new(),
+            ring_visible: false,
+            showcase: Vec::new(),
         }
     }
 

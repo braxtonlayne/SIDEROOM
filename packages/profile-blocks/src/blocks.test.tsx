@@ -101,6 +101,38 @@ describe('the shared profile block renderer', () => {
     const { container } = draw(page([block('x', 'hologram', { text: 'secret' })]));
     expect(container.textContent).not.toContain('secret');
   });
+
+  it('draws the plain picture in the header when the host fills no avatar slot (the public page)', () => {
+    const { container } = draw(page([block('h', 'header')]));
+    expect(container.querySelector('.pp-header .pp-initial')?.textContent).toBe('B');
+  });
+
+  it('lets the host draw the header picture through the avatar slot', () => {
+    render(
+      <BlocksEnv t={t} cdn={cdn}>
+        <ProfileRenderer
+          page={page([block('h', 'header')])}
+          slots={{ avatar: () => <span data-testid="ringed">ring</span> }}
+        />
+      </BlocksEnv>,
+    );
+    expect(screen.getByTestId('ringed')).toBeTruthy();
+  });
+
+  it('draws no media showcase without a host slot, and the slot when the host fills it', () => {
+    const items = [{ shelf_id: '1', object_hash: 'a'.repeat(64), caption: 'Hidden caption' }];
+    const { container } = draw(page([block('s', 'media_showcase', { items })]));
+    expect(container.textContent).not.toContain('Hidden caption');
+    render(
+      <BlocksEnv t={t} cdn={cdn}>
+        <ProfileRenderer
+          page={page([block('s', 'media_showcase', { items })])}
+          slots={{ media_showcase: () => <p>host showcase</p> }}
+        />
+      </BlocksEnv>,
+    );
+    expect(screen.getByText('host showcase')).toBeTruthy();
+  });
 });
 
 describe('tip entries of the Links block (ARC-ROOM-001)', () => {

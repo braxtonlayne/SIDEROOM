@@ -206,6 +206,9 @@ impl PrivacyPolicy {
             }
             p.guestbook_accepts_public = false;
         }
+        // D-505: a visitor has no account and no ring is ever visible to one, so `public` is accepted for
+        // compatibility but never effective for the ring.
+        p.ring_tier = p.ring_tier.max(Tier::Members);
         p
     }
 
@@ -218,7 +221,7 @@ impl PrivacyPolicy {
             BlockKind::About => self.bio_tier,
             BlockKind::TopFriends | BlockKind::FeaturedGuilds => self.top8_tier,
             BlockKind::NowWatching | BlockKind::NowPlaying => self.now_playing_tier,
-            BlockKind::Gallery => self.media_tier,
+            BlockKind::Gallery | BlockKind::MediaShowcase => self.media_tier,
             BlockKind::Guestbook => self.guestbook_tier,
             BlockKind::Linktree => self.links_tier,
         }
@@ -232,6 +235,20 @@ impl PrivacyPolicy {
     /// A block of this kind is visible to this rank: at least the block's tier and at least the page's.
     pub fn visible(&self, kind: BlockKind, rank: Rank) -> bool {
         rank >= self.block_tier(kind).max(self.page_tier)
+    }
+
+    /// A block of this kind may be served to this rank. Like [`Self::visible`], except that the media showcase
+    /// is never served without a session whatever the tier says (D-503): a presign needs a session.
+    pub fn served(&self, kind: BlockKind, rank: Rank) -> bool {
+        self.visible(kind, rank) && !(kind == BlockKind::MediaShowcase && rank == Tier::Public)
+    }
+
+    /// The owner's current ring may show on the page and the popout for this rank (D-504, D-505): at or above
+    /// `ring_tier` (which the clamp keeps at or above the page tier), the owner always, never without a session.
+    /// A cap on top of the ring's own audience, which the caller still checks; it never widens who sees a ring.
+    pub fn visible_ring(&self, rank: Rank) -> bool {
+        rank == Tier::OnlyMe
+            || (rank >= Tier::Members && rank >= self.ring_tier.max(self.page_tier))
     }
 
     /// The guestbook may be signed by a signed-in viewer of this rank (the owner always may).
@@ -280,7 +297,7 @@ pub fn standing(f: Facts) -> Standing {
 }
 
 /// The kinds of block the document model has, for walks over "every block".
-pub const ALL_KINDS: [BlockKind; 12] = [
+pub const ALL_KINDS: [BlockKind; 13] = [
     BlockKind::Header,
     BlockKind::About,
     BlockKind::TopFriends,
@@ -293,6 +310,7 @@ pub const ALL_KINDS: [BlockKind; 12] = [
     BlockKind::Linktree,
     BlockKind::FeaturedGuilds,
     BlockKind::NowPlaying,
+    BlockKind::MediaShowcase,
 ];
 
 #[cfg(test)]
@@ -458,5 +476,49 @@ mod tests {
         let f = f.clamped();
         assert!(!f.may_sign(Tier::MutualServers));
         assert!(f.may_sign(Tier::Friends));
+    }
+
+    #[test]
+    fn the_ring_column_follows_ring_tier_and_never_reaches_a_visitor() {
+        for page in Tier::ALL {
+            for ring in Tier::ALL {
+                let mut p = policy_with(page, Tier::Public);
+                p.ring_tier = ring;
+                for public_possible in [true, false] {
+                    let p = p.clone().effective(public_possible);
+                    // `public` is accepted but never effective for the ring (D-505).
+                    assert!(p.ring_tier >= Tier::Members);
+                    for rank in Tier::ALL {
+                        let want = rank == Tier::OnlyMe
+                            || (rank > Tier::Public && rank >= ring.max(page).max(Tier::Members));
+                        assert_eq!(p.visible_ring(rank), want, "p={page:?} r={ring:?} {rank:?}");
+                    }
+                    assert!(!p.visible_ring(Tier::Public));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_showcase_follows_the_gallery_but_never_without_a_session() {
+        for page in Tier::ALL {
+            for block in Tier::ALL {
+                let p = policy_with(page, block).effective(true);
+                for rank in Tier::ALL {
+                    assert_eq!(
+                        p.visible(BlockKind::MediaShowcase, rank),
+                        p.visible(BlockKind::Gallery, rank)
+                    );
+                    assert_eq!(
+                        p.served(BlockKind::MediaShowcase, rank),
+                        rank != Tier::Public && p.visible(BlockKind::Gallery, rank)
+                    );
+                    assert_eq!(
+                        p.served(BlockKind::Gallery, rank),
+                        p.visible(BlockKind::Gallery, rank)
+                    );
+                }
+            }
+        }
     }
 }
