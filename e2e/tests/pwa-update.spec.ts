@@ -177,7 +177,41 @@ async function serve(outDir: string): Promise<void> {
   }
 }
 
-const cacheNames = (page: Page) => page.evaluate(() => caches.keys());
+/**
+ * Runs a read on the page again when a navigation cut it short. An app page in this drill has no API behind it, so the
+ * app leaves for the sign-in page on its own (its 401 exit) at a moment no event announces; a read that was in flight
+ * then fails with "Execution context was destroyed". Every read here is idempotent, so it is repeated on the page it
+ * landed on, after that page has loaded (the right event, not a longer sleep).
+ */
+async function steady<T>(page: Page, read: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.waitForLoadState('load');
+      return await read();
+    } catch (e) {
+      if (attempt >= 4 || !/context was destroyed|navigat|detached/i.test(String(e))) throw e;
+    }
+  }
+}
+
+/**
+ * Opens a page of the app. With no API behind it the app may leave for the sign-in page by itself shortly after it
+ * starts; a navigation of ours that commits at that moment is reported as "interrupted by another navigation" although
+ * nothing is wrong, so it is simply made again (the second one has nothing left to race).
+ */
+async function visitApp(page: Page): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(`${ORIGIN}/channels`);
+      return;
+    } catch (e) {
+      if (attempt >= 3 || !/interrupted by another navigation|ERR_ABORTED/i.test(String(e)))
+        throw e;
+    }
+  }
+}
+
+const cacheNames = (page: Page) => steady(page, () => page.evaluate(() => caches.keys()));
 
 /** The ledger the app uses (`sideroom-uploads`, version 2, store `chat`): one row with a file in it. */
 async function putLedgerRow(page: Page, id: string): Promise<void> {
@@ -266,6 +300,32 @@ async function controlled(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Waits until the new build's worker is installed and waiting. Polled, not awaited on one event: the browser's own
+ * update check (it schedules one after a navigation) may already be installing the new build before a listener could be
+ * attached, and an update() that races the new server's start rejects. Each poll reads the registration and, when
+ * nothing is installing yet, runs the same check the app runs when the tab becomes visible again.
+ */
+async function waitForWaitingWorker(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        steady(page, () =>
+          page.evaluate(async () => {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (!reg) return 'no registration';
+            if (reg.waiting) return reg.waiting.state;
+            if (!reg.installing) await reg.update().catch(() => undefined);
+            // Read again: update() may have finished installing the new build while it was awaited.
+            const after = reg.waiting as ServiceWorker | null;
+            return after?.state ?? (reg.installing ? 'installing' : 'none');
+          }),
+        ),
+      { timeout: 60_000, message: 'the new build is installed and waiting' },
+    )
+    .toBe('installed');
+}
+
 // Service worker timing is the risk: no retry in CI either, so a flake is seen (roadmap-p25 section 4, Risks).
 test.describe.configure({ mode: 'serial', retries: 0 });
 
@@ -311,10 +371,12 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
   const appCaches = (page: Page) =>
     cacheNames(page).then((names) => names.filter((n) => n.startsWith('sr-app-')));
   const cached = (page: Page, cache: string, key: string) =>
-    page.evaluate(async ([c, k]) => !!(await (await caches.open(c!)).match(k!)), [
-      cache,
-      key,
-    ] as const);
+    steady(page, () =>
+      page.evaluate(async ([c, k]) => !!(await (await caches.open(c!)).match(k!)), [
+        cache,
+        key,
+      ] as const),
+    );
 
   test('build A installs, works offline, then build B is offered, accepted and shown; the signed-in cache of A is purged and the upload ledger survives', async ({
     page,
@@ -346,7 +408,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
     // A page of the app is stored as the signed-in shell the first time it is visited online, in its own cache.
     // There is no API here, so the app ends on its signed-out or error screen; what matters is that the shell ran.
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     await page.waitForLoadState('networkidle');
     await expect.poll(() => appCaches(page)).toEqual([`sr-app-${buildA}`]);
     expect(await cached(page, `sr-app-${buildA}`, '/app.html')).toBe(true);
@@ -359,7 +421,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     expect(staticKeys).toContain('/offline.html');
 
     await context.setOffline(true);
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     await expect(page.locator('#root > *').first()).toBeAttached();
     await expect(page.getByRole('heading', { name: "You're offline" })).toHaveCount(0);
     await expect(page).toHaveTitle(/SIDE ROOM/);
@@ -370,11 +432,11 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
       await (await caches.open(name)).delete('/app.html');
     }, `sr-app-${buildA}`);
     await context.setOffline(true);
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
     await context.setOffline(false);
     // Online again: the next navigation stores the shell again.
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     await controlled(page);
     await expect.poll(() => cached(page, `sr-app-${buildA}`, '/app.html')).toBe(true);
 
@@ -389,25 +451,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
 
     // ---- 3. Deploy B: the new worker installs and waits; the page offers it.
     await serve(dirB);
-    // Polled, not awaited on one event: the browser's own update check (it schedules one after a navigation) may
-    // already be installing B before a listener could be attached, and an update() racing B's server start rejects.
-    // Each poll reads the registration and, when nothing is installing yet, runs the same check the app runs when
-    // the tab becomes visible again.
-    await expect
-      .poll(
-        () =>
-          page.evaluate(async () => {
-            const reg = await navigator.serviceWorker.getRegistration();
-            if (!reg) return 'no registration';
-            if (reg.waiting) return reg.waiting.state;
-            if (!reg.installing) await reg.update().catch(() => undefined);
-            // Read again: update() may have finished installing B while it was awaited.
-            const after = reg.waiting as ServiceWorker | null;
-            return after?.state ?? (reg.installing ? 'installing' : 'none');
-          }),
-        { timeout: 60_000, message: 'build B is installed and waiting' },
-      )
-      .toBe('installed');
+    await waitForWaitingWorker(page);
     const banner = page.getByTestId('pwa-host');
     await expect(banner.getByText('A new version is ready')).toBeVisible();
     // The old release keeps running until the member accepts: A's caches are still there, signed-in one included.
@@ -451,7 +495,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
     // The purge took A's signed-in shell. B has its own only if step 5 visited an app page: otherwise an app page
     // offline is the offline page, never a stale app of the old build.
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     const offlineHeading = page.getByRole('heading', { name: "You're offline" });
     if (synthesized) await expect(offlineHeading).toHaveCount(0);
     else await expect(offlineHeading).toBeVisible();
@@ -473,7 +517,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     expect(await cacheNames(page)).toEqual([`sr-static-${buildA}`]);
 
     await serve(dirB);
-    await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r?.update()));
+    await waitForWaitingWorker(page);
     const banner = page.getByTestId('pwa-host');
     await expect(banner.getByText('A new version is ready')).toBeVisible();
     // Whatever the second worker did while installing, it made no signed-in cache.
@@ -496,7 +540,7 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     await serve(dirA);
     await page.goto(`${ORIGIN}/login`);
     await controlled(page);
-    await page.goto(`${ORIGIN}/channels`);
+    await visitApp(page);
     await expect
       .poll(() => appCaches(page).catch(() => ['(navigating)']))
       .toEqual([`sr-app-${buildA}`]);
