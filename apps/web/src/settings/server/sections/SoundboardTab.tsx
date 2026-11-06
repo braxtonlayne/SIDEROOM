@@ -70,6 +70,16 @@ export function audioSeconds(file: Blob): Promise<number> {
   });
 }
 
+/** The type of a sound file by its first bytes, so a blob URL plays in browsers that do not sniff (WebKit). */
+export function soundMime(buf: ArrayBuffer): string {
+  const b = new Uint8Array(buf.slice(0, 12));
+  const at = (s: string) => [...s].every((c, i) => b[i] === c.charCodeAt(0));
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'audio/webm';
+  if (at('OggS')) return 'audio/ogg';
+  if (at('RIFF')) return 'audio/wav';
+  return 'audio/mpeg';
+}
+
 const readDataUri = (file: Blob) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
@@ -81,7 +91,8 @@ const readDataUri = (file: Blob) =>
 /**
  * Soundboard (LNG-SSET-025): the server's sounds with play, rename, volume and delete, and an upload dialog.
  * The server keeps files as uploaded (D-201), so a file over five seconds is trimmed in the browser first
- * (the shared audio tool in `tools/audio`, limited to five seconds and the size cap, exported as WAV).
+ * (the shared audio tool in `tools/audio`, limited to five seconds and the size cap, exported as Opus where the
+ * browser can record it and as WAV otherwise, D-534).
  */
 export function SoundboardTab({ guildId }: { guildId: string }) {
   const t = useT();
@@ -185,7 +196,7 @@ function SoundItem({
     void action.run(async () => {
       playing.current?.pause();
       const buf = await soundAudio(sound);
-      const url = URL.createObjectURL(new Blob([buf]));
+      const url = URL.createObjectURL(new Blob([buf], { type: soundMime(buf) }));
       const a = new Audio(url);
       a.volume = volume / 100;
       a.onended = () => URL.revokeObjectURL(url);
@@ -297,12 +308,13 @@ function UploadDialog({
     if (!f) return;
     let seconds: number;
     try {
+      // A WebM from MediaRecorder reports an unknown (infinite) length until it is decoded.
       seconds = await audioSeconds(f);
     } catch {
       setFileError(t('settings.soundboard.unreadable'));
       return;
     }
-    if (seconds > SOUND_LIMITS.maxSeconds) {
+    if (!Number.isFinite(seconds) || seconds > SOUND_LIMITS.maxSeconds) {
       // Too long: decode it and let the person pick a five second window (the server never transcodes, D-201).
       // A file the browser cannot decode cannot be trimmed either: keep the plain "too long" refusal for it.
       try {
@@ -310,16 +322,26 @@ function UploadDialog({
         setTrim(f);
       } catch {
         setFileError(
-          t('settings.soundboard.tooLong', {
-            seconds: seconds.toFixed(1),
-            max: String(SOUND_LIMITS.maxSeconds),
-          }),
+          Number.isFinite(seconds)
+            ? t('settings.soundboard.tooLong', {
+                seconds: seconds.toFixed(1),
+                max: String(SOUND_LIMITS.maxSeconds),
+              })
+            : t('settings.soundboard.unreadable'),
         );
       }
       return;
     }
     if (f.size > SOUND_LIMITS.maxBytes) {
-      setFileError(t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }));
+      // Short but big (a stereo WAV): the tool re-encodes it as Opus or mono WAV, which is what fits (D-534).
+      try {
+        await decodeAudioFile(f);
+        setTrim(f);
+      } catch {
+        setFileError(
+          t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }),
+        );
+      }
       return;
     }
     setFile(f);
@@ -364,7 +386,7 @@ function UploadDialog({
         <input
           id="ss-sound-file"
           type="file"
-          accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
+          accept=".mp3,.ogg,.opus,.webm,.wav,audio/mpeg,audio/ogg,audio/webm,audio/wav"
           onChange={(e) => void choose(e.target.files?.[0])}
         />
         {fileError && <ActionStatus error={fileError} />}
@@ -374,7 +396,7 @@ function UploadDialog({
             limits={{
               maxSeconds: SOUND_LIMITS.maxSeconds,
               maxBytes: SOUND_LIMITS.maxBytes,
-              format: 'wav',
+              format: 'opus',
             }}
             onCancel={() => setTrim(null)}
             onUse={(made) => {

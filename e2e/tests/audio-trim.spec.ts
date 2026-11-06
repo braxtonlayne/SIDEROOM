@@ -6,7 +6,8 @@ import { expect, test } from '../support/world';
  *
  *   1. drawer tool: open a generated 12 s WAV, cut it to the first 3 s and export a WAV of that length.
  *   2. voice message: record a moment, trim it, and send it; the message shows as a voice message.
- *   3. soundboard: upload the 12 s WAV; the same tool cuts it to the five second limit and the upload goes through.
+ *   3. soundboard (D-534): upload the 12 s WAV; the same tool cuts it to the five second limit, saves the part as
+ *      WebM Opus (what Chromium records), the server takes it, and the sound is listed and served as audio/webm.
  *
  * The WAV is written here (no downloaded files). The Owner's one-person server is the `solo` fixture's.
  */
@@ -121,8 +122,9 @@ test('the soundboard upload trims a long sound with the shared tool and uploads 
   await tool.getByLabel('End').fill('9');
   await expect(tool.getByTestId('audio-range')).toContainText('4.00 s to 9.00 s');
   await expect(dialog.getByRole('button', { name: 'Upload' })).toBeDisabled();
+  await expect(tool.getByTestId('audio-format')).toContainText('saved as Opus');
   await tool.getByRole('button', { name: 'Use this' }).click();
-  await expect(dialog.getByText('Ready to upload: long tone-trimmed.wav')).toBeVisible();
+  await expect(dialog.getByText('Ready to upload: long tone-trimmed.webm')).toBeVisible();
 
   const posted = page.waitForResponse(
     (r) =>
@@ -132,6 +134,12 @@ test('the soundboard upload trims a long sound with the shared tool and uploads 
   await dialog.getByRole('button', { name: 'Upload' }).click();
   const res = await posted;
   expect(res.status()).toBe(201);
-  expect((await res.request().postDataJSON()).sound).toMatch(/^data:audio\/wav;base64,/);
+  expect((await res.request().postDataJSON()).sound).toMatch(/^data:audio\/webm;base64,/);
   await expect(dialog).toBeHidden();
+  // The sound is listed and its file comes back with the type it was stored as.
+  const play = page.getByRole('button', { name: 'Play long tone-trimmed' });
+  await expect(play).toBeVisible();
+  const audio = page.waitForResponse((r) => /soundboard-sounds\/\d+\/audio$/.test(r.url()));
+  await play.click();
+  expect((await audio).headers()['content-type']).toBe('audio/webm');
 });

@@ -357,3 +357,110 @@ async fn the_soundboard_needs_its_permissions() {
     assert_eq!(code_of(&r), (StatusCode::FORBIDDEN, Some(50013)));
     assert!(plays.seen.lock().unwrap().is_empty());
 }
+
+/// A MediaRecorder-style WebM/Opus file of `packets` 20 ms packets (D-534).
+fn webm_bytes(codec: &[u8], packets: usize) -> Vec<u8> {
+    fn el(id: &[u8], body: &[u8]) -> Vec<u8> {
+        let mut o = id.to_vec();
+        o.extend_from_slice(&(0x1000_0000u32 | body.len() as u32).to_be_bytes());
+        o.extend_from_slice(body);
+        o
+    }
+    let mut f = el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"webm"));
+    f.extend_from_slice(&[
+        0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ]);
+    let mut entry = el(&[0xD7], &[1]);
+    entry.extend(el(&[0x83], &[2]));
+    entry.extend(el(&[0x86], codec));
+    f.extend(el(&[0x16, 0x54, 0xAE, 0x6B], &el(&[0xAE], &entry)));
+    f.extend_from_slice(&[
+        0x1F, 0x43, 0xB6, 0x75, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ]);
+    f.extend(el(&[0xE7], &[0]));
+    for i in 0..packets {
+        let mut b = vec![0x81, 0, (i % 200) as u8, 0x80, 0xF8];
+        b.extend(vec![1u8; 40]);
+        f.extend(el(&[0xA3], &b));
+    }
+    f
+}
+
+fn webm_uri(codec: &[u8], packets: usize) -> String {
+    format!(
+        "data:audio/webm;base64,{}",
+        BASE64.encode(&webm_bytes(codec, packets))
+    )
+}
+
+#[tokio::test]
+async fn webm_opus_sounds_are_accepted_and_served_with_their_own_type() {
+    let e = env().await;
+    let base = e.g("/soundboard-sounds");
+    // 1 s of WebM/Opus (50 packets of 20 ms); the declared MIME type is not trusted, the bytes are.
+    let (s, v) = e
+        .post(
+            &base,
+            "mod",
+            json!({"name": "clip", "sound": webm_uri(b"A_OPUS", 50)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let sid = v["sound_id"].as_str().unwrap().to_owned();
+    let req = Request::builder()
+        .uri(format!("/api/v1{base}/{sid}/audio"))
+        .header("authorization", "Bot bob")
+        .body(Body::empty())
+        .unwrap();
+    let resp = e.app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.headers()["content-type"], "audio/webm");
+    assert_eq!(
+        resp.into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .to_vec(),
+        webm_bytes(b"A_OPUS", 50)
+    );
+    // Exactly five seconds is the limit and is kept.
+    let (s, _) = e
+        .post(
+            &base,
+            "mod",
+            json!({"name": "five", "sound": webm_uri(b"A_OPUS", 250)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED);
+    // Both stored as .webm.
+    let keys = e.storage.list("sound/").await.unwrap();
+    assert_eq!(keys.len(), 2);
+    assert!(keys.iter().all(|k| k.key.ends_with(".webm")), "{:?}", keys.iter().map(|k| &k.key).collect::<Vec<_>>());
+}
+
+#[tokio::test]
+async fn webm_that_is_too_long_or_not_opus_is_refused_before_storage() {
+    let e = env().await;
+    let base = e.g("/soundboard-sounds");
+    let mut truncated = webm_bytes(b"A_OPUS", 20);
+    truncated.truncate(truncated.len() - 4);
+    for body in [
+        // 5.02 s.
+        json!({"name": "long", "sound": webm_uri(b"A_OPUS", 251)}),
+        // Vorbis in WebM, and a video track.
+        json!({"name": "vorbis", "sound": webm_uri(b"A_VORBIS", 20)}),
+        // The EBML magic and nothing sensible after it.
+        json!({"name": "junk", "sound": format!("data:audio/webm;base64,{}", BASE64.encode(b"\x1a\x45\xdf\xa3 junk"))}),
+        // Cut in the middle of a packet.
+        json!({"name": "cut", "sound": format!("data:audio/webm;base64,{}", BASE64.encode(&truncated))}),
+    ] {
+        let r = e.post(&base, "mod", body.clone()).await;
+        assert_eq!(
+            code_of(&r),
+            (StatusCode::BAD_REQUEST, Some(50035)),
+            "{body} -> {r:?}"
+        );
+    }
+    assert!(e.storage.list("sound/").await.unwrap().is_empty());
+}

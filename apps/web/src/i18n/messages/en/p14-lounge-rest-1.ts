@@ -128,7 +128,7 @@ export default {
   // Soundboard (LNG-SSET-025)
   'settings.soundboard.tab': 'Soundboard',
   'settings.soundboard.rules':
-    'Sounds are MP3, Ogg or WAV files of at most {seconds} seconds and {kb} KiB.',
+    'Sounds are MP3, Ogg, WebM or WAV files of at most {seconds} seconds and {kb} KiB.',
   'settings.soundboard.upload': 'Upload a sound',
   'settings.soundboard.loading': 'Loading sounds',
   'settings.soundboard.emptyTitle': 'No sounds yet',

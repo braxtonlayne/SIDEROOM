@@ -307,3 +307,71 @@ fn opus_packet_lengths_follow_the_toc_byte() {
     ));
     assert_eq!(measure(&v).map(|i| i.duration_ms), Some(40 + 60));
 }
+
+// ---- D-534: WebM/Opus -----------------------------------------------------------------------------------------
+
+fn el(id: &[u8], body: &[u8]) -> Vec<u8> {
+    let mut o = id.to_vec();
+    o.extend_from_slice(&(0x1000_0000u32 | body.len() as u32).to_be_bytes());
+    o.extend_from_slice(body);
+    o
+}
+
+/// A MediaRecorder-style WebM (unknown-size segment and cluster) of `packets` Opus packets of 20 ms each.
+fn webm(codec: &[u8], packets: usize) -> Vec<u8> {
+    let mut f = el(&[0x1A, 0x45, 0xDF, 0xA3], &el(&[0x42, 0x82], b"webm"));
+    f.extend_from_slice(&[
+        0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ]);
+    let mut entry = el(&[0xD7], &[1]);
+    entry.extend(el(&[0x83], &[2]));
+    entry.extend(el(&[0x86], codec));
+    f.extend(el(&[0x16, 0x54, 0xAE, 0x6B], &el(&[0xAE], &entry)));
+    f.extend_from_slice(&[
+        0x1F, 0x43, 0xB6, 0x75, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    ]);
+    f.extend(el(&[0xE7], &[0]));
+    for i in 0..packets {
+        // Track 1, relative time, flags, then a 20 ms packet (TOC 0xF8).
+        let mut b = vec![0x81, 0, (i % 200) as u8, 0x80, 0xF8];
+        b.extend(vec![1u8; 40]);
+        f.extend(el(&[0xA3], &b));
+    }
+    f
+}
+
+#[test]
+fn webm_opus_is_measured_by_its_packets_and_a_header_cannot_shorten_it() {
+    let w = webm(b"A_OPUS", 250);
+    assert_eq!(
+        inspect_sound(&w).map(|i| (i.format, i.duration_ms)),
+        Some((SoundFormat::Webm, 5000))
+    );
+    assert!(check_new_sound(&[], w.len() as u64, 5000, &lim()).is_ok());
+    // One packet more is 5020 ms: over the limit.
+    let long = webm(b"A_OPUS", 251);
+    assert_eq!(ms(&long), Some(5020));
+    assert!(check_new_sound(&[], long.len() as u64, 5020, &lim()).is_err());
+    assert_eq!(SoundFormat::Webm.mime(), "audio/webm");
+    assert_eq!(
+        SoundFormat::from_code(SoundFormat::Webm.code()),
+        Some(SoundFormat::Webm)
+    );
+}
+
+#[test]
+fn webm_that_is_malformed_or_not_opus_is_refused() {
+    assert_eq!(ms(&webm(b"A_VORBIS", 10)), None);
+    assert_eq!(ms(&webm(b"V_VP8", 10)), None);
+    assert_eq!(ms(&webm(b"A_OPUS", 0)), None);
+    assert_eq!(ms(&[0x1A, 0x45, 0xDF, 0xA3]), None);
+    assert_eq!(ms(b"\x1a\x45\xdf\xa3 not a webm at all"), None);
+    let mut cut = webm(b"A_OPUS", 10);
+    cut.truncate(cut.len() - 5);
+    assert_eq!(ms(&cut), None);
+    // Every prefix of a valid file is either refused or measured, and nothing panics.
+    let w = webm(b"A_OPUS", 30);
+    for n in 0..w.len() {
+        let _ = inspect_sound(&w[..n]);
+    }
+}
