@@ -311,6 +311,7 @@ export function ProfileEditor() {
                   uploading={uploading}
                   onUploadGallery={(f) => upload('gallery', f)}
                   onRemoveMedia={dropMedia}
+                  showcase={page.data?.showcase ?? []}
                   onConfig={(config) =>
                     setDoc({
                       ...doc,

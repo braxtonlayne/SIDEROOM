@@ -115,6 +115,8 @@ const CUSTOM: &str = "SEEDCUSTOM-zq6";
 const SONG: &str = "SEEDSONG-zq7";
 const PIC: &str = "SEEDGALLERYCAPTION-zq8";
 const FRIEND: &str = "seedfriendnamezq9";
+const SHOW: &str = "SEEDSHOWCAPTION-zqa";
+const SHOW_TITLE: &str = "SEEDSHOWTITLE-zqb";
 
 /// Distinctive string per block kind that carries one (the guestbook is read through its own route).
 const SECRETS: &[(BlockKind, &str)] = &[
@@ -125,6 +127,8 @@ const SECRETS: &[(BlockKind, &str)] = &[
     (BlockKind::Custom, CUSTOM),
     (BlockKind::Song, SONG),
     (BlockKind::Gallery, PIC),
+    (BlockKind::MediaShowcase, SHOW),
+    (BlockKind::MediaShowcase, SHOW_TITLE),
 ];
 
 fn doc_with_secrets(friend_ids: &[String]) -> Value {
@@ -145,7 +149,8 @@ fn doc_with_secrets(friend_ids: &[String]) -> Value {
     ]})
 }
 
-const IN_DOC: [BlockKind; 10] = [
+const IN_DOC: [BlockKind; 11] = [
+    BlockKind::MediaShowcase,
     BlockKind::Header,
     BlockKind::About,
     BlockKind::Linktree,
@@ -165,10 +170,13 @@ async fn every_tier_and_rank_shows_only_what_the_member_allowed() {
     let owner = account(&r.pool, None).await;
     let named = account(&r.pool, Some(FRIEND)).await;
     befriend(&r.pool, owner, named).await;
-    r.svc
-        .set_doc(owner, &doc_with_secrets(&[named.to_string()]))
-        .await
-        .unwrap();
+    let (shelf, hash) = own_track(&r.pool, owner, SHOW_TITLE).await;
+    let mut doc = doc_with_secrets(&[named.to_string()]);
+    doc["blocks"].as_array_mut().unwrap().push(json!({
+        "id": "show", "type": "media_showcase", "x": 0, "y": 12, "w": 12, "h": 3,
+        "config": {"items": [{"shelf_id": shelf.to_string(), "object_hash": hash, "caption": SHOW}]}
+    }));
+    r.svc.set_doc(owner, &doc).await.unwrap();
     sqlx::query(
         "INSERT INTO profile_guestbook (id, profile_id, author_id, body) VALUES ($1,$2,$3,$4)",
     )
@@ -240,14 +248,15 @@ async fn every_tier_and_rank_shows_only_what_the_member_allowed() {
                     let out = got.unwrap_or_else(|| panic!("page must be visible: {tag}"));
                     let kinds: Vec<BlockKind> = out.doc.blocks.iter().map(|b| b.kind).collect();
                     for kind in ALL_KINDS {
-                        let want = IN_DOC.contains(&kind) && policy.visible(kind, rank);
+                        // D-503: the showcase also never without a session, whatever the tier says.
+                        let want = IN_DOC.contains(&kind) && policy.served(kind, rank);
                         assert_eq!(kinds.contains(&kind), want, "{kind:?}: {tag}");
                     }
                     let body = serde_json::to_string(&out).unwrap();
                     for (kind, secret) in SECRETS {
                         assert_eq!(
                             body.contains(secret),
-                            policy.visible(*kind, rank),
+                            policy.served(*kind, rank),
                             "{kind:?} {secret}: {tag}"
                         );
                     }
@@ -257,6 +266,19 @@ async fn every_tier_and_rank_shows_only_what_the_member_allowed() {
                         "top8: {tag}"
                     );
                     assert!(!body.contains(GUEST), "guestbook body in the page: {tag}");
+                    // D-504/D-505: the ring column. The service says yes only to a signed-in rank at or above the
+                    // ring tier (the owner always); the route then ANDs the ring's own audience.
+                    assert_eq!(
+                        out.ring_visible,
+                        viewer.is_some() && policy.visible_ring(rank),
+                        "ring: {tag}"
+                    );
+                    if viewer.is_none() {
+                        assert!(!policy.visible_ring(rank), "no ring for a visitor: {tag}");
+                        for word in ["ring_visible", "showcase", hash.as_str()] {
+                            assert!(!body.contains(word), "{word} on the public page: {tag}");
+                        }
+                    }
                     if let Some(v) = viewer {
                         let gb = r.svc.guestbook(v, owner, None, public_possible).await;
                         match (policy.visible(BlockKind::Guestbook, rank), gb) {
@@ -471,4 +493,65 @@ async fn the_public_guestbook_holds_posts_until_the_owner_approves() {
             .await
             .is_err()
     );
+}
+
+/// A mount of `owner` with one indexed track, titled by the owner: `(shelf id, object hash)`.
+async fn own_track(pool: &PgPool, owner: i64, title: &str) -> (i64, String) {
+    let mount = uid();
+    sqlx::query(
+        "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, \
+           secret_key_enc) VALUES ($1, 'user', $2, $3, 's3', 'https://s3.example.test', 'b', 'AK', '\x00'::bytea)",
+    )
+    .bind(mount)
+    .bind(owner)
+    .bind(format!("m{mount}"))
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO storage_objects (id, mount_id, key, kind, class) VALUES ($1, $2, 'Music/a.flac', 'music', 'track')",
+    )
+    .bind(uid())
+    .bind(mount)
+    .execute(pool)
+    .await
+    .unwrap();
+    let hash: String = sqlx::query_scalar(
+        "UPDATE shelf_objects SET owner_title = $2 WHERE shelf_id = $1 RETURNING object_hash",
+    )
+    .bind(mount)
+    .bind(title)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    (mount, hash)
+}
+
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn a_showcase_names_only_audio_or_video_on_the_members_own_shelf() {
+    let r = rig().await;
+    let owner = account(&r.pool, None).await;
+    let other = account(&r.pool, None).await;
+    let (shelf, hash) = own_track(&r.pool, owner, "mine").await;
+    let (their_shelf, their_hash) = own_track(&r.pool, other, "theirs").await;
+    let doc = |s: i64, h: &str| {
+        json!({"version": 1, "blocks": [{"id": "show", "type": "media_showcase", "x": 0, "y": 0, "w": 12, "h": 3,
+            "config": {"items": [{"shelf_id": s.to_string(), "object_hash": h}]}}]})
+    };
+    r.svc.set_doc(owner, &doc(shelf, &hash)).await.unwrap();
+    // Someone else's shelf, even a real object on it, is refused with the field path.
+    match r.svc.set_doc(owner, &doc(their_shelf, &their_hash)).await {
+        Err(PackageError::Refused(p)) => {
+            assert!(p[0].starts_with("blocks[0].config.items[0]"), "{p:?}")
+        }
+        other => panic!("{other:?}"),
+    }
+    // A picture is not audio or video.
+    sqlx::query("UPDATE storage_objects SET class = 'artwork' WHERE mount_id = $1")
+        .bind(shelf)
+        .execute(&r.pool)
+        .await
+        .unwrap();
+    assert!(r.svc.set_doc(owner, &doc(shelf, &hash)).await.is_err());
 }

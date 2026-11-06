@@ -140,6 +140,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/@me/profile-doc", get(h::own_doc).put(h::set_doc))
         .route("/users/@me/profile-doc/layout", post(h::use_layout))
         .route("/profile-pages/{username}", get(h::page_by_name))
+        .route(
+            "/profile-pages/{username}/showcase/{object_hash}/url",
+            get(profiles::showcase_url),
+        )
         .route("/users/{user_id}/profile-page", get(h::page_by_id))
         .route(
             "/users/{user_id}/guestbook",
@@ -210,6 +214,7 @@ pub fn router() -> Router<AppState> {
         profiles::approve_entry,
         profiles::public_profile,
         profiles::public_sign,
+        profiles::showcase_url,
         handlers::admin_pending,
         handlers::admin_download,
         handlers::admin_decide,
@@ -233,6 +238,7 @@ pub fn router() -> Router<AppState> {
         sr_packages::service::ProfilePage,
         sr_packages::service::GuestbookEntry,
         sr_packages::service::FeaturedGuild,
+        sr_packages::service::ShowcaseView,
         sr_packages::service::privacy::PrivacyView,
         sr_packages::service::privacy::PrivacyUpdate,
         sr_packages::service::privacy::PublicProfile,

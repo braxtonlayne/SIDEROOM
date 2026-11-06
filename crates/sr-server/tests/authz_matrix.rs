@@ -1996,6 +1996,32 @@ async fn seed(
         );
         ids_map.insert("shelf_grant_id", grant.to_string());
     }
+    // PRF-PRO-001 (wave 50, D-502): the member's page shows the episode on their own mount in a media showcase, for
+    // friends, so `/profile-pages/{username}/showcase/{object_hash}/url` names a real item (`showcase_username`).
+    // The page owner is the rightful caller; a stranger, a blocked person and anonymous get the page's 404.
+    {
+        let doc = json!({"version": 1, "blocks": [
+            {"id": "show", "type": "media_showcase", "x": 0, "y": 0, "w": 12, "h": 3,
+             "config": {"items": [{"shelf_id": a["shelf_id"], "object_hash": a["object_hash"]}]}}
+        ]});
+        sqlx::query("UPDATE accounts SET profile_doc = $2 WHERE id = $1")
+            .bind(u("member"))
+            .bind(doc)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO profile_privacy (user_id, preset, page_tier, links_tier, top8_tier, now_playing_tier, \
+               bio_tier, guestbook_tier, media_tier, ring_tier) \
+             VALUES ($1, 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', 'friends', \
+               'friends') ON CONFLICT (user_id) DO NOTHING",
+        )
+        .bind(u("member"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("showcase_username", "member".to_owned());
+    }
     // MUS-IDX-001/MUS-LIB-001 (wave 30): a listed track on each tenant's user mount (`{track_id}`, the member's
     // own music) and on its guild mount (`guild_track_id`, what the guild owner puts in a playlist), and a guild
     // playlist holding the guild track (`{playlist_id}`, `playlist_item_id`), for the `/music/*` routes and
@@ -3671,6 +3697,19 @@ async fn seed(
             a.insert("pending_entry_id", id);
         }
         a.insert("handle", "victim".to_owned());
+        // PRF-PRO-001 (D-507): a second held note on the victim's page for the staff removal
+        // (`DELETE /moderation/guestbook-notes/{note_id}`), so the approve route keeps its own.
+        let staff_note = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO profile_guestbook (id, profile_id, body, status, anonymous) \
+             VALUES ($1, $2, 'authz note for staff', 'pending', TRUE)",
+        )
+        .bind(staff_note)
+        .bind(victim.parse::<i64>().unwrap_or_default())
+        .execute(&pool)
+        .await
+        .unwrap();
+        a.insert("staff_note_id", staff_note.to_string());
         // A guestbook entry the member wrote on the victim's board.
         if let Some(id) = mk(
             &srv,
@@ -4706,6 +4745,8 @@ fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/developers/tester-invites/{invite_id}/respond") => Some("victim"),
         // PRF-PRO-001: the owner of the page releases a held note; the victim owns the seeded public page.
         ("POST", "/users/@me/guestbook/{entry_id}/approve") => Some("victim"),
+        // PRF-PRO-001 (D-502): the showcase's owner plays their own item.
+        ("GET", "/profile-pages/{username}/showcase/{object_hash}/url") => Some("member"),
         // Owner-only routes of a server (the AUTHZ cell `owner` also names application owners).
         ("POST", "/guilds/{guild_id}/mfa") => Some("owner_a"),
         // PRF-SCR-001: the copy is signed for the server's owner, who holds every storage grant on its shelf.
@@ -5572,6 +5613,17 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         "proxy_instance_id",
     ),
     (&["/users/@me/guestbook/"], "entry_id", "pending_entry_id"),
+    // PRF-PRO-001 (wave 50): the staff removal names its own held note; the showcase mint names the member's page.
+    (
+        &["/moderation/guestbook-notes/"],
+        "note_id",
+        "staff_note_id",
+    ),
+    (
+        &["/profile-pages/{username}/showcase/"],
+        "username",
+        "showcase_username",
+    ),
     // MOD-GRD-001: the seeded subtree case, its node, the sterilization request and the member's own warning.
     (
         &["/admin/moderation/subtree-cases/"],

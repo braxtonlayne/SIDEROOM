@@ -55,6 +55,14 @@
     { "token": "libretro" },
     { "token": "EmuPage" },
     { "token": "retroarch" },
-    { "token": "view_games" }
+    { "token": "view_games" },
+    {
+      "token": "media_showcase",
+      "note": "wave 50 (D-503): the profile showcase is signed-in only; the public page fills no slot"
+    },
+    { "token": "showcase", "note": "wave 50 (D-503)" },
+    { "token": "presign", "note": "wave 50 (D-503): no storage code before sign-in" },
+    { "token": "status_ring", "note": "wave 50 (D-504): the ring on a profile is signed-in only" },
+    { "token": "RingAvatar", "note": "wave 50 (D-504)" }
   ]
 }

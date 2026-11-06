@@ -4,7 +4,8 @@ import { Button, Checkbox, Select, Switch, TextArea, TextInput } from '@sideroom
 import { useRef } from 'react';
 import { useT } from '../i18n';
 import { QrBox } from '../tips/QrBox';
-import type { Block, GalleryItem, ProfileMedia } from './types';
+import { ShowcaseInspector } from './ShowcaseInspector';
+import type { Block, GalleryItem, ProfileMedia, ShowcaseItem, ShowcaseView } from './types';
 
 /** Most pictures one gallery holds. */
 export const MAX_GALLERY = 12;
@@ -119,6 +120,7 @@ export function Inspector({
   onUploadGallery,
   onRemoveMedia,
   uploading = false,
+  showcase = [],
 }: {
   block: Block;
   friends: FriendChoice[];
@@ -131,6 +133,8 @@ export function Inspector({
   /** Delete an uploaded picture (and take it out of the saved document on the server). */
   onRemoveMedia?: (id: string) => void;
   uploading?: boolean;
+  /** The showcase as the server last resolved it (titles for the media showcase block). */
+  showcase?: ShowcaseView[];
 }) {
   const t = useT();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -404,6 +408,14 @@ export function Inspector({
         </div>
       );
     }
+    case 'media_showcase':
+      return (
+        <ShowcaseInspector
+          items={arr<ShowcaseItem>(c, 'items')}
+          known={showcase}
+          onItems={(items) => set({ items })}
+        />
+      );
     case 'guestbook':
       return (
         <TextInput
