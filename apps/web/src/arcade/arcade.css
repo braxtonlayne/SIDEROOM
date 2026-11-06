@@ -724,13 +724,21 @@
 .arc-lobby-where {
   flex-wrap: nowrap;
   gap: 6px;
-  align-items: center;
+  align-items: flex-start;
 }
+.arc-lobby-where > svg {
+  flex: none;
+  margin-block-start: 2px;
+}
+/* The server and channel names may be long: two lines, then an ellipsis (the aria-label keeps the whole). */
 .arc-lobby-where-text {
+  display: -webkit-box;
   min-inline-size: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .arc-lobby-join {
   margin-block-start: auto;
