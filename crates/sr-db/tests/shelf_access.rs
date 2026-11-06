@@ -485,7 +485,8 @@ async fn the_catalog_search_narrows_the_same_listing() {
     let pool = db.pool();
     account(pool, 1).await;
     mount_row(pool, 900, "user", 1).await;
-    mount_row(pool, 901, "user", 1).await;
+    account(pool, 2).await;
+    mount_row(pool, 901, "user", 2).await;
     object(pool, 1, 900, "Music/Alpha Song.mp3", "music").await;
     object(pool, 2, 900, "Music/beta.mp3", "music").await;
     object(pool, 3, 900, "Music/100%_real.mp3", "music").await;
