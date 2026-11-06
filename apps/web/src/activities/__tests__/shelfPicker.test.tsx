@@ -138,7 +138,10 @@ describe('ShelfPicker (D-466)', () => {
     let n = 0;
     shelfCatalogPage.mockReset().mockImplementation(async () => {
       n += 1;
-      return { objects: [obj(String(n).padStart(64, '0'), `s${n}.json`, 10)], next_cursor: `c${n}` };
+      return {
+        objects: [obj(String(n).padStart(64, '0'), `s${n}.json`, 10)],
+        next_cursor: `c${n}`,
+      };
     });
     await userEvent.type(screen.getByRole('textbox', { name: 'Search files' }), 's');
     expect(await screen.findByText(/More than 3,000 files match/)).toBeTruthy();

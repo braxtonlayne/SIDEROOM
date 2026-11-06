@@ -73545,6 +73545,8 @@ export interface operations {
             query?: {
                 /** @description next_cursor of the previous page */
                 cursor?: string;
+                /** @description Only objects whose file name contains this (case-insensitive, at most 100 characters) */
+                q?: string;
             };
             header?: never;
             path: {
