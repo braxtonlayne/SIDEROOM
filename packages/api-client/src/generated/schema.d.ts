@@ -19235,10 +19235,17 @@ export interface components {
             language?: string | null;
         };
         CinemaComment: {
-            author_id: string;
+            /** @description `null` for a deleted comment kept for its replies (D-572). */
+            author_id?: string | null;
+            /** @description `""` for a deleted comment. */
             body: string;
             /** Format: int64 */
             created_at_ms: number;
+            /**
+             * @description A tombstone (D-572): the author deleted a comment that has replies; it shows as "Comment deleted" with
+             *     its replies, and cannot be edited, liked, reported or replied to.
+             */
+            deleted: boolean;
             /** Format: int64 */
             edited_at_ms?: number | null;
             /** @description `"0"` for a comment on the title itself. */
@@ -23137,13 +23144,21 @@ export interface components {
         };
         /** @description A comment on a series or one of its chapters. Replies are one level deep. */
         LibraryComment: {
-            author_id: string;
+            /** @description `null` for a deleted comment kept for its replies (D-572). */
+            author_id?: string | null;
+            /** @description `""` for a deleted comment. */
             author_name: string;
+            /** @description `""` for a deleted comment. */
             body: string;
             /** @description `"0"` for a comment on the series itself. */
             chapter_id: string;
             /** Format: int64 */
             created_at_ms: number;
+            /**
+             * @description A tombstone (D-572): the author deleted a comment that has replies; it shows as "Comment deleted" with
+             *     its replies, and cannot be edited, liked, reported or replied to.
+             */
+            deleted: boolean;
             /** Format: int64 */
             edited_at_ms?: number | null;
             id: string;

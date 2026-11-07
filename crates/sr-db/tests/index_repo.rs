@@ -8,7 +8,7 @@ use sqlx::Row;
 use sr_db::index_repo::PgIndexStore;
 use sr_db::testing::TestDb;
 use sr_storage::index::{
-    IndexStore, NameParser, Options, RunReport, SidecarMap, VideoFacts, classify_all,
+    IndexStore, NameParser, Options, RunReport, SidecarMap, TaggedObject, VideoFacts, classify_all,
 };
 
 /// `Show S01E02.mkv` style names only; the real parser is exercised in sr-server.
@@ -507,4 +507,61 @@ async fn roms_under_emu_roms_are_filed_as_games_and_nothing_else_under_emu() {
         count(&db, "SELECT count(*) FROM music_tracks WHERE mount_id = 42").await,
         0
     );
+}
+
+/// D-571 (migration 2450): the indexer keeps each object's content tag, and a re-index with another tag (new
+/// bytes under the same name) replaces it; with no standing takedown nothing matches the bytes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_index_keeps_the_content_tag_of_each_object() {
+    let db = TestDb::new().await.expect("db");
+    let s = store(&db);
+    let tagged = |tag: &str| {
+        let mut all: Vec<_> = classify_all(
+            &listing(&["Movies/Alien (1979)/Alien.mp4"]),
+            &Fake,
+            &SidecarMap::new(),
+            Options::default(),
+        )
+        .into_iter()
+        .filter(|c| !c.ignored && c.class.kind().is_some())
+        .collect();
+        for c in &mut all {
+            c.content_tag = Some(tag.to_owned());
+        }
+        all
+    };
+    let tag_of = || async {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT content_tag FROM storage_objects WHERE mount_id = 77",
+        )
+        .fetch_one(db.pool())
+        .await
+        .unwrap()
+    };
+    let first = "9e107d9d372bb6826bd81d3542a419d6";
+    let r = s.begin(77, 0).await.unwrap();
+    s.apply(77, r, &tagged(first)).await.unwrap();
+    s.finish(77, r, &RunReport::default(), true, None, 0)
+        .await
+        .unwrap();
+    assert_eq!(tag_of().await.as_deref(), Some(first));
+    let second = "e4d909c290d0fb1ca068ffaddf22cbd0-3";
+    let r = s.begin(77, 0).await.unwrap();
+    s.apply(77, r, &tagged(second)).await.unwrap();
+    s.finish(77, r, &RunReport::default(), true, None, 0)
+        .await
+        .unwrap();
+    assert_eq!(tag_of().await.as_deref(), Some(second));
+    let probe = [TaggedObject {
+        key: "Movies/Alien (1979)/Alien.mp4".into(),
+        tag: second.into(),
+        size: 100,
+    }];
+    assert!(s.byte_matches(77, &probe).await.unwrap().is_empty());
+    // A tag that is not a content digest never reaches the table.
+    let mut bad = tagged(second);
+    bad[0].content_tag = Some("17".into());
+    let r = s.begin(77, 0).await.unwrap();
+    assert!(s.apply(77, r, &bad).await.is_err());
 }

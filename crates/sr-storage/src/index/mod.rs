@@ -35,6 +35,36 @@ pub const DEFAULT_MAX_OBJECTS: u64 = 200_000;
 /// How many classified objects the store takes in one call.
 pub const APPLY_BATCH: usize = 500;
 
+/// One listed object with the fingerprint of its bytes (D-571).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaggedObject {
+    /// Mount-relative key.
+    pub key: String,
+    /// [`content_tag`] of the listing's entity tag.
+    pub tag: String,
+    /// Size in bytes.
+    pub size: u64,
+}
+
+/// The fingerprint of an object's bytes from the entity tag a listing gives (D-571), or `None` when the tag is not
+/// a content digest. S3-compatible stores (AWS, Garage, MinIO, R2, B2) tag a single-part upload with the MD5 of
+/// its bytes and a multipart upload with the MD5 of the part digests and `-<parts>`; both are kept, lower-cased
+/// and unquoted (a weak `W/` tag is refused). Anything else (an in-memory counter, a file system's inode and
+/// time) says nothing about the bytes and must never match another object, so it is `None`. A takedown matches on
+/// the tag AND the size.
+pub fn content_tag(etag: &str) -> Option<String> {
+    let t = etag.trim().trim_matches('"').to_ascii_lowercase();
+    let (digest, parts) = match t.split_once('-') {
+        Some((d, p)) => (d, Some(p)),
+        None => (t.as_str(), None),
+    };
+    let digest_ok = digest.len() == 32 && digest.bytes().all(|b| b.is_ascii_hexdigit());
+    let parts_ok = parts.is_none_or(|p| {
+        (1..=5).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()) && !p.starts_with('0')
+    });
+    (digest_ok && parts_ok).then_some(t)
+}
+
 /// What one run did.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RunReport {
@@ -62,6 +92,16 @@ pub trait IndexStore: Send + Sync {
     /// object never gets a catalog row and one indexed earlier is hidden as vanished. Fails closed: an error stops
     /// the run.
     async fn delisted(&self, _mount_id: i64, _keys: &[String]) -> Result<Vec<String>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// D-571: which of `objects` carry the same bytes (content tag and size) as an object a standing takedown
+    /// delisted, on any mount. The store records each match as delisted under the same notice (so the notice's
+    /// restore lifts it) and the indexer leaves it out like a delisted key. Fails closed like [`Self::delisted`].
+    async fn byte_matches(
+        &self,
+        _mount_id: i64,
+        _objects: &[TaggedObject],
+    ) -> Result<Vec<String>, StoreError> {
         Ok(Vec::new())
     }
     /// End a run. With `complete` the objects of the mount that `run` did not see are marked vanished and their
@@ -122,4 +162,33 @@ pub trait IndexControl: Send + Sync {
     async fn request(&self, mount_id: i64) -> Result<bool, StoreError>;
     /// The last run of the mount; `None` before the first.
     async fn status(&self, mount_id: i64) -> Result<Option<RunStatus>, StoreError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::content_tag;
+
+    #[test]
+    fn only_content_digests_are_content_tags() {
+        let md5 = "9e107d9d372bb6826bd81d3542a419d6";
+        assert_eq!(content_tag(&format!("\"{md5}\"")).as_deref(), Some(md5));
+        assert_eq!(
+            content_tag("\"9E107D9D372BB6826BD81D3542A419D6-12\"").as_deref(),
+            Some("9e107d9d372bb6826bd81d3542a419d6-12")
+        );
+        for not in [
+            "",
+            "0",
+            "17",
+            "W/\"9e107d9d372bb6826bd81d3542a419d6\"",
+            "9e107d9d372bb6826bd81d3542a419d",
+            "9e107d9d372bb6826bd81d3542a419d6-",
+            "9e107d9d372bb6826bd81d3542a419d6-0",
+            "9e107d9d372bb6826bd81d3542a419d6-123456",
+            "9e107d9d372bb6826bd81d3542a419zz",
+            "2b0c-5f1e2d3c-1a",
+        ] {
+            assert_eq!(content_tag(not), None, "{not:?}");
+        }
+    }
 }

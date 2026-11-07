@@ -91,6 +91,45 @@ describe('comments tab (LIB-SOC-003)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('shows a deleted comment with replies as a tombstone with its replies (D-572)', async () => {
+    useLibraryApi();
+    server.use(
+      http.get('*/api/v1/library/series/1/comments', () =>
+        HttpResponse.json({
+          items: [
+            comment('30', {
+              deleted: true,
+              author_id: null,
+              author_name: '',
+              body: '',
+              reply_count: 1,
+            }),
+          ],
+          next_before: null,
+          total: 1,
+        }),
+      ),
+      http.get('*/api/v1/library/comments/30/replies', () =>
+        HttpResponse.json({
+          items: [comment('31', { parent_id: '30', body: 'Still here', author_name: 'Cy' })],
+          next_before: null,
+          total: 1,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { container } = renderAt('/library/s/1');
+    await user.click(await screen.findByRole('tab', { name: 'Comments' }));
+    const tomb = (await screen.findByText('Comment deleted')).closest('li')!;
+    // No author, body or actions on the tombstone: only its replies.
+    expect(within(tomb).queryByRole('button', { name: /like/i })).not.toBeInTheDocument();
+    expect(within(tomb).queryByRole('button', { name: 'Reply' })).not.toBeInTheDocument();
+    expect(within(tomb).queryByRole('button', { name: 'Report' })).not.toBeInTheDocument();
+    await user.click(within(tomb).getByRole('button', { name: 'Show 1 reply' }));
+    expect(await screen.findByText('Still here')).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('shows the empty state', async () => {
     useLibraryApi();
     server.use(

@@ -620,9 +620,22 @@ async fn disable_item(
         // Delisted, not deleted: the bucket is the member's. A `/cdn/mount` link minted before the takedown is
         // blocked by its `mount/<id>/<key>` path (wave 53), which is how that route consults the blocklist; the
         // notice's restore lifts it with the other blocks.
+        // D-571 (migration 2450): the item also records the fingerprint of the bytes from the catalog row, so the
+        // indexer delists the same bytes under another name or in another bucket under this notice.
         ItemKind::StorageObject => {
             if let Some(key) = &item.object_key {
                 block(conn, ids, notice_id, "key", &format!("mount/{id}/{key}")).await?;
+                sqlx::query(
+                    "UPDATE takedown_items i SET object_hash = o.content_tag, object_size = o.size_bytes \
+                     FROM storage_objects o \
+                     WHERE i.id = $1 AND i.object_hash IS NULL AND o.mount_id = $2 AND o.key = $3 \
+                       AND o.content_tag IS NOT NULL",
+                )
+                .bind(item.id)
+                .bind(id)
+                .bind(key)
+                .execute(&mut *conn)
+                .await?;
             }
             json!({})
         }

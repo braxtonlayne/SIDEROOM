@@ -880,6 +880,17 @@
   padding: 16px 0;
   border-bottom: 1px solid var(--sr-line);
 }
+/* D-572: replies under a comment (or under "Comment deleted"), indented on the reading side. */
+.cin-replies {
+  padding-inline-start: 16px;
+  border-inline-start: 2px solid var(--sr-line);
+}
+.cin-replies > .cin-post {
+  padding-block: 10px;
+}
+.cin-replies > .cin-post:last-child {
+  border-block-end: 0;
+}
 .cin-post-head,
 .cin-post-actions {
   display: flex;

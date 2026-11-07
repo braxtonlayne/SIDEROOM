@@ -89136,25 +89136,34 @@
           "id",
           "title_id",
           "episode_id",
-          "author_id",
           "body",
           "spoiler",
           "like_count",
           "reply_count",
           "liked",
           "mine",
-          "created_at_ms"
+          "created_at_ms",
+          "deleted"
         ],
         "properties": {
           "author_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` for a deleted comment kept for its replies (D-572)."
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "A tombstone (D-572): the author deleted a comment that has replies; it shows as \"Comment deleted\" with\nits replies, and cannot be edited, liked, reported or replied to."
           },
           "edited_at_ms": {
             "type": [
@@ -100694,7 +100703,6 @@
           "id",
           "series_id",
           "chapter_id",
-          "author_id",
           "author_name",
           "body",
           "spoiler",
@@ -100702,17 +100710,24 @@
           "reply_count",
           "liked",
           "mine",
-          "created_at_ms"
+          "created_at_ms",
+          "deleted"
         ],
         "properties": {
           "author_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` for a deleted comment kept for its replies (D-572)."
           },
           "author_name": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "chapter_id": {
             "type": "string",
@@ -100721,6 +100736,10 @@
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "A tombstone (D-572): the author deleted a comment that has replies; it shows as \"Comment deleted\" with\nits replies, and cannot be edited, liked, reported or replied to."
           },
           "edited_at_ms": {
             "type": [

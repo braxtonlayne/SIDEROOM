@@ -635,3 +635,244 @@ async fn a_bare_shelf_delisting_never_counts_toward_the_repeat_infringer_counter
         "one strike is below the review threshold"
     );
 }
+
+/// (mount, key, state, subject, derived_from) of a takedown item.
+type DerivedRow = (i64, String, String, Option<i64>, Option<i64>);
+
+const LEAK_TAG: &str = "9e107d9d372bb6826bd81d3542a419d6";
+const LEAK_SIZE: i64 = 734_003_200;
+
+/// A catalog row of the indexer with the fingerprint of its bytes (migration 2450).
+async fn catalogued(pool: &PgPool, mount: i64, key: &str, tag: &str, size: i64) {
+    sqlx::query(
+        "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, content_tag)
+         VALUES ($1, $2, $3, $4, 'cinema', 'movie', $5)",
+    )
+    .bind(uid())
+    .bind(mount)
+    .bind(key)
+    .bind(size)
+    .bind(tag)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+fn listed(objects: &[(&str, &str, i64)]) -> Vec<(String, String, i64)> {
+    objects
+        .iter()
+        .map(|(k, t, s)| ((*k).to_owned(), (*t).to_owned(), *s))
+        .collect()
+}
+
+/// SEC-AUD-048 (D-571): a takedown follows the bytes. The upheld item records the fingerprint from the catalog;
+/// the same bytes listed under another name, or in another member's bucket, are delisted under the same notice
+/// (no strike, no message); the notice's restore lifts them with the rest; the path block stays.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches() {
+    let w = world().await;
+    let other = account(w.pool(), "reuploader").await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let theirs = mount(w.pool(), "user", other, "Their shelf").await;
+    catalogued(w.pool(), mnt, "films/leak.mkv", LEAK_TAG, LEAK_SIZE).await;
+    let ids = uid;
+    let probe = listed(&[
+        ("x/renamed.mkv", LEAK_TAG, LEAK_SIZE),
+        // The same digest with another size, and another digest with the same size, are other bytes.
+        ("x/short.mkv", LEAK_TAG, LEAK_SIZE - 1),
+        ("x/other.mkv", "0123456789abcdef0123456789abcdef", LEAK_SIZE),
+    ]);
+
+    // Named but not upheld: nothing matches yet.
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    assert!(
+        storage_legal::delist_byte_matches(w.pool(), &ids, theirs, &probe)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let (hash, size): (Option<String>, Option<i64>) = sqlx::query_as(
+        "SELECT object_hash, object_size FROM takedown_items WHERE notice_id = $1 AND object_key = 'films/leak.mkv'",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        hash.as_deref(),
+        Some(LEAK_TAG),
+        "the upheld item records the bytes"
+    );
+    assert_eq!(size, Some(LEAK_SIZE));
+    let dms_before = w.dms.0.lock().unwrap().len();
+
+    // Another member's bucket: only the same bytes match.
+    let got = storage_legal::delist_byte_matches(w.pool(), &ids, theirs, &probe)
+        .await
+        .unwrap();
+    assert_eq!(got, vec!["x/renamed.mkv".to_owned()]);
+    let all = ["x/renamed.mkv", "x/short.mkv", "x/other.mkv"].map(str::to_owned);
+    assert_eq!(
+        storage_legal::delisted_keys(w.pool(), theirs, &all)
+            .await
+            .unwrap(),
+        vec!["x/renamed.mkv".to_owned()],
+        "every reader of the register now delists it"
+    );
+    // The owner's own bucket under a new name, too; asking again records nothing twice.
+    let renamed = listed(&[("films/renamed.mkv", LEAK_TAG, LEAK_SIZE)]);
+    for _ in 0..2 {
+        assert_eq!(
+            storage_legal::delist_byte_matches(w.pool(), &ids, mnt, &renamed)
+                .await
+                .unwrap(),
+            vec!["films/renamed.mkv".to_owned()]
+        );
+    }
+    let derived: Vec<DerivedRow> = sqlx::query_as(
+        "SELECT target_id, object_key, state, subject_account_id, derived_from FROM takedown_items
+         WHERE notice_id = $1 AND derived_from IS NOT NULL ORDER BY object_key",
+    )
+    .bind(id)
+    .fetch_all(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(derived.len(), 2, "{derived:?}");
+    let source: i64 = sqlx::query_scalar(
+        "SELECT id FROM takedown_items WHERE notice_id = $1 AND derived_from IS NULL",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        derived[0],
+        (
+            mnt,
+            "films/renamed.mkv".into(),
+            "disabled".into(),
+            None,
+            Some(source)
+        )
+    );
+    assert_eq!(
+        derived[1],
+        (
+            theirs,
+            "x/renamed.mkv".into(),
+            "disabled".into(),
+            None,
+            Some(source)
+        )
+    );
+    // A match of a match still points at the item staff upheld.
+    let again = listed(&[("y/third.mkv", LEAK_TAG, LEAK_SIZE)]);
+    storage_legal::delist_byte_matches(w.pool(), &ids, theirs, &again)
+        .await
+        .unwrap();
+    let from: Option<i64> = sqlx::query_scalar(
+        "SELECT derived_from FROM takedown_items WHERE notice_id = $1 AND object_key = 'y/third.mkv'",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(from, Some(source));
+    // The CDN paths are blocked under the notice, the timeline says so, and nobody was struck or messaged.
+    let mut blocked: Vec<String> =
+        sqlx::query_scalar("SELECT value FROM blocked_objects WHERE notice_id = $1 ORDER BY value")
+            .bind(id)
+            .fetch_all(w.pool())
+            .await
+            .unwrap();
+    blocked.sort();
+    let mut want = vec![
+        format!("mount/{mnt}/films/leak.mkv"),
+        format!("mount/{mnt}/films/renamed.mkv"),
+        format!("mount/{theirs}/x/renamed.mkv"),
+        format!("mount/{theirs}/y/third.mkv"),
+    ];
+    want.sort();
+    assert_eq!(blocked, want);
+    let events: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM takedown_events WHERE notice_id = $1 AND kind = 'byte_match'",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(events, 3);
+    let struck: i64 = sqlx::query_scalar(
+        "SELECT count(DISTINCT subject_person_id) FROM takedown_items WHERE notice_id = $1",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(struck, 1, "only the owner staff named");
+    assert_eq!(w.dms.0.lock().unwrap().len(), dms_before);
+
+    // The restore lifts the matches with the rest, and the bytes no longer match.
+    w.m.restore_notice(&who, id, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    let standing: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM takedown_items WHERE notice_id = $1 AND state <> 'restored'",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(standing, 0);
+    assert!(
+        storage_legal::delisted_keys(w.pool(), theirs, &all)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let blocks: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM blocked_objects WHERE notice_id = $1")
+            .bind(id)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert_eq!(blocks, 0);
+    assert!(
+        storage_legal::delist_byte_matches(w.pool(), &ids, theirs, &probe)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+/// An object the indexer never catalogued (or whose provider gives no content digest) is taken down by path only.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn an_uncatalogued_object_is_taken_down_by_path_only() {
+    let w = world().await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let id = w.notice_with(mnt, "notes/scan.pdf").await;
+    let c = w.caller();
+    w.m.uphold_notice(&Who::Staff(&c), id, Some("valid"))
+        .await
+        .unwrap();
+    let hash: Option<String> =
+        sqlx::query_scalar("SELECT object_hash FROM takedown_items WHERE notice_id = $1")
+            .bind(id)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert_eq!(hash, None);
+    assert_eq!(
+        storage_legal::delisted_keys(w.pool(), mnt, &["notes/scan.pdf".to_owned()])
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+}

@@ -17,6 +17,7 @@ use serde_json::json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use sr_storage::index::{
     Class, Classified, IndexControl, IndexStore, JOB_KIND, RunReport, RunStatus, StoreError,
+    TaggedObject,
 };
 
 /// Source of snowflake ids.
@@ -162,7 +163,7 @@ impl IndexStore for PgIndexStore {
             // needs signed segments, so it is not a direct key). Shelves play COALESCE(playable_key, key).
             sqlx::query(
                 "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, container, \
-                    web_native, parsed, state, seen_run, playable_key, converter, converted_at) \
+                    web_native, parsed, state, seen_run, playable_key, converter, converted_at, content_tag) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'indexed', $10, \
                     COALESCE($12::text, (SELECT t.prefix || t.entry FROM storage_object_transcodes t \
                         WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4')), \
@@ -171,11 +172,11 @@ impl IndexStore for PgIndexStore {
                             WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') THEN 'worker' END, \
                     CASE WHEN $12::text IS NOT NULL THEN now() \
                          ELSE (SELECT t.finished_at FROM storage_object_transcodes t \
-                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') END) \
+                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') END, $13) \
                  ON CONFLICT (mount_id, key) DO UPDATE SET size_bytes = EXCLUDED.size_bytes, \
                     kind = EXCLUDED.kind, class = EXCLUDED.class, container = EXCLUDED.container, \
                     web_native = EXCLUDED.web_native, parsed = EXCLUDED.parsed, state = 'indexed', \
-                    seen_run = EXCLUDED.seen_run, vanished_at = NULL, \
+                    seen_run = EXCLUDED.seen_run, vanished_at = NULL, content_tag = EXCLUDED.content_tag, \
                     indexed_at = CASE WHEN $11 THEN now() ELSE storage_objects.indexed_at END, \
                     playable_key = EXCLUDED.playable_key, \
                     converter = CASE WHEN EXCLUDED.playable_key IS NULL THEN NULL \
@@ -199,6 +200,7 @@ impl IndexStore for PgIndexStore {
             .bind(run)
             .bind(changed)
             .bind(c.playable_key.as_deref())
+            .bind(c.content_tag.as_deref())
             .execute(&mut *tx)
             .await
             .map_err(se)?;
@@ -220,6 +222,27 @@ impl IndexStore for PgIndexStore {
         // P28 integration: the one query of the takedown register (byos-legal, migration 1460). Any failure stops
         // the run (fail closed).
         crate::storage_legal::delisted_keys(&self.pool, mount_id, keys)
+            .await
+            .map_err(|e| StoreError(e.to_string()))
+    }
+
+    async fn byte_matches(
+        &self,
+        mount_id: i64,
+        objects: &[TaggedObject],
+    ) -> Result<Vec<String>, StoreError> {
+        // D-571: the same bytes as a taken-down object, under any name on any mount (migration 2450).
+        let rows: Vec<(String, String, i64)> = objects
+            .iter()
+            .map(|o| {
+                (
+                    o.key.clone(),
+                    o.tag.clone(),
+                    i64::try_from(o.size).unwrap_or(i64::MAX),
+                )
+            })
+            .collect();
+        crate::storage_legal::delist_byte_matches(&self.pool, &*self.ids, mount_id, &rows)
             .await
             .map_err(|e| StoreError(e.to_string()))
     }

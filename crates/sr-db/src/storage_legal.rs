@@ -3,6 +3,8 @@
 //!
 //! * [`delisted_keys`] answers `ScopeFacts::delisted` from the takedown register (items of kind `storage_object`
 //!   whose state is `disabled`; a restored or withdrawn notice leaves them `restored`, which ends the delisting).
+//! * [`delist_byte_matches`] is the indexer's hook (D-571): the same bytes under another name or in another bucket
+//!   are delisted under the notice that took them down.
 //! * [`delist_mount`] / [`relist_mount`] switch a whole mount to the status `delisted` and back.
 //! * [`admin_list`] is the Admin > Storage table: every mount, its owner and status. It never carries the endpoint
 //!   credentials, only the key hint.
@@ -27,6 +29,106 @@ pub async fn delisted_keys(pool: &PgPool, mount_id: i64, keys: &[String]) -> DbR
     .bind(keys)
     .fetch_all(pool)
     .await?)
+}
+
+/// D-571 (migration 2450): which of the listed objects of `mount_id` carry the same bytes as an object a standing
+/// takedown delisted (same `object_hash` and `object_size` on a `disabled` storage item, on any mount). Each match
+/// is recorded, in one transaction, as a new item of the SAME notice, already `disabled`, with `derived_from` the
+/// item it matched; the mount's CDN path of the key is blocked under that notice and the notice's timeline says
+/// so. Every reader of disabled items then delists it, and the notice's restore lifts it with the rest. The match
+/// names no subject: no strike and no message (staff add the item by hand for that).
+/// `objects` are `(key, content tag, size)`. Returns the matched keys.
+pub async fn delist_byte_matches(
+    pool: &PgPool,
+    ids: &(dyn Fn() -> i64 + Send + Sync),
+    mount_id: i64,
+    objects: &[(String, String, i64)],
+) -> DbResult<Vec<String>> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let keys: Vec<&str> = objects.iter().map(|o| o.0.as_str()).collect();
+    let tags: Vec<&str> = objects.iter().map(|o| o.1.as_str()).collect();
+    let sizes: Vec<i64> = objects.iter().map(|o| o.2).collect();
+    let mut tx = pool.begin().await?;
+    let rows = sqlx::query(
+        "SELECT DISTINCT ON (c.key, i.notice_id) c.key, c.tag, c.size, i.notice_id,
+                COALESCE(i.derived_from, i.id) AS source, i.label AS source_label
+         FROM unnest($1::text[], $2::text[], $3::bigint[]) AS c(key, tag, size)
+         JOIN takedown_items i ON i.kind = 'storage_object' AND i.state = 'disabled'
+                              AND i.object_hash = c.tag AND i.object_size = c.size
+         ORDER BY c.key, i.notice_id, COALESCE(i.derived_from, i.id)",
+    )
+    .bind(&keys)
+    .bind(&tags)
+    .bind(&sizes)
+    .fetch_all(&mut *tx)
+    .await?;
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mount_label: String = sqlx::query_scalar("SELECT label FROM storage_mounts WHERE id = $1")
+        .bind(mount_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or_default();
+    let mut matched: Vec<String> = Vec::new();
+    for r in &rows {
+        let key: String = r.try_get("key")?;
+        let tag: String = r.try_get("tag")?;
+        let size: i64 = r.try_get("size")?;
+        let notice: i64 = r.try_get("notice_id")?;
+        let source: i64 = r.try_get("source")?;
+        let source_label: String = r.try_get("source_label")?;
+        let label: String =
+            format!("Object {key} in bucket {mount_label} (the same bytes as: {source_label})")
+                .chars()
+                .take(300)
+                .collect();
+        let inserted = sqlx::query(
+            "INSERT INTO takedown_items (id, notice_id, kind, target_id, label, object_key, state, disabled_at,
+                                         object_hash, object_size, derived_from)
+             VALUES ($1, $2, 'storage_object', $3, $4, $5, 'disabled', now(), $6, $7, $8)
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(ids())
+        .bind(notice)
+        .bind(mount_id)
+        .bind(&label)
+        .bind(&key)
+        .bind(&tag)
+        .bind(size)
+        .bind(source)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+        if inserted > 0 {
+            sqlx::query(
+                "INSERT INTO blocked_objects (id, kind, value, notice_id) VALUES ($1, 'key', $2, $3)
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(ids())
+            .bind(format!("mount/{mount_id}/{key}"))
+            .bind(notice)
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "INSERT INTO takedown_events (id, notice_id, actor_id, kind, detail)
+                 VALUES ($1, $2, NULL, 'byte_match', $3)",
+            )
+            .bind(ids())
+            .bind(notice)
+            .bind(json!({ "mount_id": mount_id.to_string(), "key": &key,
+                          "derived_from": source.to_string() }))
+            .execute(&mut *tx)
+            .await?;
+        }
+        if !matched.contains(&key) {
+            matched.push(key);
+        }
+    }
+    tx.commit().await?;
+    Ok(matched)
 }
 
 /// A mount as the legal paths see it.

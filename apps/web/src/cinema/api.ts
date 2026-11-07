@@ -363,6 +363,13 @@ export const postComment = (id: string, body: { body: string; spoiler: boolean }
     json: body,
     retries: 0,
   });
+/** Replies to a top-level comment, oldest first (D-572: a tombstone keeps its replies on show). */
+export const getCommentReplies = async (commentId: string) => {
+  const r = await apiFetch<{ items?: Comment[] }>(
+    `/cinema/comments/${enc(commentId)}/replies?limit=50`,
+  );
+  return r.items ?? [];
+};
 export const deleteComment = (commentId: string) =>
   apiFetch<void>(`/cinema/comments/${enc(commentId)}`, { method: 'DELETE', retries: 0 });
 export const setCommentLike = (commentId: string, on: boolean) =>
@@ -384,5 +391,6 @@ export const keys = {
   ratings: (id: string) => ['cinema', 'ratings', id] as const,
   reviews: (id: string, sort: string) => ['cinema', 'reviews', id, sort] as const,
   comments: (id: string) => ['cinema', 'comments', id] as const,
+  replies: (commentId: string) => ['cinema', 'comments', 'replies', commentId] as const,
   me: () => ['cinema', 'session'] as const,
 };

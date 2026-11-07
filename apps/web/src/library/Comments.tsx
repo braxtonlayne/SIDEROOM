@@ -168,6 +168,28 @@ function CommentItem({
       setReason('');
     },
   });
+  const replies = !reply && comment.reply_count > 0 && (
+    <>
+      <button type="button" className="lib-linklike" onClick={() => setOpen((v) => !v)}>
+        {open
+          ? t('library.comments.hideReplies')
+          : t('library.comments.showReplies', { n: comment.reply_count })}
+      </button>
+      {open && <Replies commentId={comment.id} target={target} />}
+    </>
+  );
+  if (comment.deleted) {
+    // D-572: the author deleted it but others replied; the replies keep their place under this marker.
+    return (
+      <li className="lib-comment" data-reply={reply || undefined} data-deleted="true">
+        <header className="lib-review-head">
+          <em className="lib-muted">{t('library.comments.deleted')}</em>
+          <span className="lib-muted">{timeAgo(comment.created_at_ms)}</span>
+        </header>
+        {replies}
+      </li>
+    );
+  }
   return (
     <li className="lib-comment" data-reply={reply || undefined}>
       <header className="lib-review-head">
@@ -266,16 +288,7 @@ function CommentItem({
           }}
         />
       )}
-      {!reply && comment.reply_count > 0 && (
-        <>
-          <button type="button" className="lib-linklike" onClick={() => setOpen((v) => !v)}>
-            {open
-              ? t('library.comments.hideReplies')
-              : t('library.comments.showReplies', { n: comment.reply_count })}
-          </button>
-          {open && <Replies commentId={comment.id} target={target} />}
-        </>
-      )}
+      {replies}
     </li>
   );
 }

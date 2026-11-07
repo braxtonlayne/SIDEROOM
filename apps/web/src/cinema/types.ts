@@ -180,7 +180,8 @@ export interface Review {
 export interface Comment {
   id: string;
   parent_id?: string | null;
-  author_id: string;
+  /** `null` for a deleted comment kept for its replies (D-572). */
+  author_id?: string | null;
   body: string;
   spoiler: boolean;
   like_count: number;
@@ -188,6 +189,8 @@ export interface Comment {
   liked: boolean;
   mine: boolean;
   created_at_ms: number;
+  /** A tombstone (D-572): shown as "Comment deleted"; no body, author or actions. */
+  deleted?: boolean;
 }
 
 export interface RatingSummary {

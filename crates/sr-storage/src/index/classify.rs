@@ -245,6 +245,9 @@ pub struct Classified {
     pub platform: Option<&'static str>,
     /// The emulator core that plays it (a directory name under `/emu/cores/`).
     pub core: Option<&'static str>,
+    /// The bytes' fingerprint from the listing's entity tag ([`crate::index::content_tag`]); `None` when the
+    /// provider's tag is not a content digest. Set by the walker, not the classifier (D-571).
+    pub content_tag: Option<String>,
 }
 
 impl Classified {

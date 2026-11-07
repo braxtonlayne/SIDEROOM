@@ -1452,7 +1452,7 @@ async fn comments_thread_one_level_with_likes_and_reports() {
     let t = seen.items.iter().find(|x| x.id == top.id).unwrap();
     assert!(t.liked && t.like_count == 1);
 
-    // Only the author edits and deletes; deleting a parent removes the replies.
+    // Only the author edits and deletes; deleting a parent keeps the replies (D-572).
     assert!(
         e.svc
             .edit_comment(
@@ -1484,7 +1484,7 @@ async fn comments_thread_one_level_with_likes_and_reports() {
     // Blocked authors disappear from the viewer's listing.
     e.block(c.user_id, b.user_id).await;
     let for_c = e.svc.comments(c, 2, 22, None, None).await.unwrap();
-    assert!(for_c.items.iter().all(|x| x.author_id != b.user_id));
+    assert!(for_c.items.iter().all(|x| x.author_id != Some(b.user_id)));
     assert!(
         e.svc
             .replies(c, top.id, None, None)
@@ -1545,13 +1545,157 @@ async fn comments_thread_one_level_with_likes_and_reports() {
         SocialError::NotFound("comment")
     );
 
+    // D-572: deleting a parent keeps the replies of others (the parent becomes a tombstone).
     assert!(e.svc.delete_comment(a, top.id).await.unwrap());
     let n: i64 = sqlx::query_scalar("SELECT count(*) FROM cinema_comments WHERE parent_id = $1")
         .bind(top.id)
         .fetch_one(e.pool())
         .await
         .unwrap();
-    assert_eq!(n, 0);
+    assert_eq!(n, 1);
+    e.db.cleanup().await.unwrap();
+}
+
+/// SEC-AUD-049 (D-572): deleting a comment that has replies keeps it as a tombstone (body and author cleared,
+/// likes dropped) so the replies of others stay; one without replies is deleted; the tombstone goes with its last
+/// reply and takes no likes, edits, reports or new replies.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_deleted_comment_with_replies_becomes_a_tombstone() {
+    let e = Env::new().await;
+    let a = e.user().await;
+    let b = e.user().await;
+    let c = e.user().await;
+    let say = |body: &str, parent: Option<i64>| CommentInput {
+        body: body.into(),
+        spoiler: Some(true),
+        parent_id: parent,
+    };
+    let top = e
+        .svc
+        .post_comment(a, 2, 22, say("Opening words", None))
+        .await
+        .unwrap();
+    let r1 = e
+        .svc
+        .post_comment(b, 2, 22, say("A reply by b", Some(top.id)))
+        .await
+        .unwrap();
+    let r2 = e
+        .svc
+        .post_comment(c, 2, 22, say("A reply by c", Some(top.id)))
+        .await
+        .unwrap();
+    e.svc.set_like(b, top.id, true).await.unwrap();
+    e.svc
+        .report(
+            b,
+            ContentKind::Comment,
+            top.id,
+            ReportInput {
+                reason: "spam".into(),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(e.svc.delete_comment(a, top.id).await.unwrap());
+    let page = e.svc.comments(b, 2, 22, None, None).await.unwrap();
+    assert_eq!(page.items.len(), 1);
+    let t = &page.items[0];
+    assert!(t.deleted);
+    assert_eq!((t.author_id, t.body.as_str()), (None, ""));
+    assert!(!t.spoiler && !t.liked && !t.mine && t.like_count == 0);
+    assert_eq!(t.reply_count, 2);
+    let replies = e.svc.replies(c, top.id, None, None).await.unwrap();
+    assert_eq!(
+        replies
+            .items
+            .iter()
+            .map(|r| r.body.as_str())
+            .collect::<Vec<_>>(),
+        ["A reply by b", "A reply by c"]
+    );
+    // The report queue shows no content for it (the text is gone).
+    let queue = e.svc.reports(None, None, None).await.unwrap();
+    assert!(
+        queue
+            .items
+            .iter()
+            .any(|r| r.target_id == top.id && r.content.is_none())
+    );
+    // Nothing more happens to a tombstone.
+    assert_eq!(
+        e.svc.set_like(c, top.id, true).await.unwrap_err(),
+        SocialError::NotFound("comment")
+    );
+    assert!(
+        e.svc
+            .report(
+                c,
+                ContentKind::Comment,
+                top.id,
+                ReportInput { reason: "x".into() }
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .edit_comment(
+                a,
+                top.id,
+                CommentPatch {
+                    body: Some("back".into()),
+                    spoiler: None
+                }
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .post_comment(c, 2, 22, say("late", Some(top.id)))
+            .await
+            .is_err()
+    );
+    assert!(!e.svc.delete_comment(a, top.id).await.unwrap());
+
+    // A comment with no replies is deleted outright; the last reply takes the tombstone with it.
+    assert!(e.svc.delete_comment(b, r1.id).await.unwrap());
+    assert_eq!(
+        e.svc
+            .comments(b, 2, 22, None, None)
+            .await
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    assert!(e.svc.delete_comment(c, r2.id).await.unwrap());
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM cinema_comments WHERE id = $1")
+        .bind(top.id)
+        .fetch_one(e.pool())
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    // The database refuses a raw delete of a comment that still has replies (no cascade any more).
+    let top2 = e
+        .svc
+        .post_comment(a, 2, 22, say("Second thread", None))
+        .await
+        .unwrap();
+    e.svc
+        .post_comment(b, 2, 22, say("Kept", Some(top2.id)))
+        .await
+        .unwrap();
+    assert!(
+        sqlx::query("DELETE FROM cinema_comments WHERE id = $1")
+            .bind(top2.id)
+            .execute(e.pool())
+            .await
+            .is_err()
+    );
     e.db.cleanup().await.unwrap();
 }
 
