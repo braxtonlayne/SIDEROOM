@@ -132,6 +132,16 @@ describe('ShelfPicker (D-466)', () => {
     expect(await screen.findByText('cat.png')).toBeTruthy();
   });
 
+  it('P52: a server search that finds nothing says "no match", not that the shelf is empty', async () => {
+    show(vi.fn(), { accept: [], maxSize: null });
+    await screen.findByText('pack.json');
+    shelfCatalogPage.mockResolvedValue({ objects: [], next_cursor: null });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search files' }), 'zzzz');
+    await waitFor(() => expect(shelfCatalogPage).toHaveBeenCalledWith('55', null, 'zzzz'));
+    expect(await screen.findByText('No file matches that search.')).toBeTruthy();
+    expect(screen.queryByText('No files here that this Activity can use.')).toBeNull();
+  });
+
   it('P51: a search that still has more pages says so, with its own note', async () => {
     show(vi.fn(), { accept: [], maxSize: null });
     await screen.findByText('pack.json');
