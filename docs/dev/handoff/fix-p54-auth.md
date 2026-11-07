@@ -65,6 +65,35 @@ regenerated.
   requirement off (`900123`).
 - The `audit.purge` audit row is skipped with a warning when the system user (id 1) does not exist yet.
 
+## Commits
+`cb5a4767` (016), `5681a9a2` (017), `26caac8b` (018), `2ee5ecaa` (019), `f0414fbb` (020), `17ce1301` (021),
+`cd57fe56` (022), `5eb8e893` (sweep console filter), then this handoff. Shared files made a clean split impossible:
+doc 05 rides with 016, the Person-ban test and the settings-patch rule share `sr-admin` hunks with 018/021, and
+`sr-api/src/routes/auth/tests.rs` (the 017 and 018 tests) is in the 022 commit.
+
+## Audit findings checked
+Every theme-5 item was confirmed in code before the fix; none was false. The other step-up items in the same reports
+are listed under "Not done".
+
+## Tests run
+Rust: `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-core -p sr-gateway -p sr-admin -p sr-db -p sr-api
+-p sr-server -p sr-moderation --all-targets -- -D warnings` clean; `cargo test -p sr-core -p sr-gateway -p sr-admin
+--lib` (78/55/217), `-p sr-api --lib` (832), `--test lounge --test route_matrix` (31/6); `sr-db` `settings_repo` and
+`invite_controls` ignored tests for purge and lock (4); `sr-moderation --test deadline_windows` (3). Web: tsc, eslint +
+prettier on changed files, vitest `src/routes/entrance src/settings/user src/public firstRun admin.test` (53 files),
+css-tokens, i18n-audit (0), `pnpm build`, `check-entrance-isolation`, `check-bundle-budget` (all ok), `playwright
+test --list` (931 tests in 73 files), `install.test.mjs`/`upgrade-drill.test.mjs`, `check-doc-links`,
+`check-ops-files`. Not run: the full authorization matrix and `immutable_rules` (integration; the new rows answer
+900004, which the matrix counts as allowed).
+
+## Shots and flows (`C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p54-auth/`)
+Own stack (ports 8213/5213, DB `sr_p54_auth_ui`, dropped). `SR_SWEEP_ONLY='^(pub-login-2fa|pub-login-2fa-passkey|settings-user-account)$'`,
+desktop and phone, Lounge Light and Lounge Dark, looked at: the 2FA pages look as before (code boxes; the passkey page
+leads with "Your passkey."). The only flag was the browser's console line for the expected 401 of
+`/sr/auth/2fa/methods` on `pub-login-2fa`; the sweep now drops that line for a row whose `expect4xx` covers it.
+Flows clicked by Playwright on the same stack: `entrance-journey` (Settings: password prompt, QR, code, recovery
+codes, TOTP sign-in), `first-run` ("Set it up here": password prompt, then QR), `keyboard-2-sign-in`; all pass.
+
 ## Owner questions (defaults chosen)
 1. Staff email change notice: it does not name the new address (the self-made "changed" notice does not either). OK?
 2. Erasure two-person rule counts the Owner and `MANAGE_TAKEDOWNS` holders as "somebody else". OK?

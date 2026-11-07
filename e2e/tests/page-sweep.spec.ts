@@ -688,7 +688,11 @@ async function capture(
     // The browser's own line for an expected 4xx (the row's `expect4xx`) names no URL; the response itself is
     // checked against `expect4xx` below.
     const url = m.location().url;
-    if (row.expect4xx && /^Failed to load resource/.test(m.text()) && (!url || row.expect4xx.test(url)))
+    if (
+      row.expect4xx &&
+      /^Failed to load resource/.test(m.text()) &&
+      (!url || row.expect4xx.test(url))
+    )
       return;
     rec.consoleErrors.push(m.text().slice(0, 300));
   });
