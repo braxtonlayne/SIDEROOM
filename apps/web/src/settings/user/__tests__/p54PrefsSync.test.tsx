@@ -2,7 +2,7 @@
 // change made in this browser, and the Activity Privacy switches stay locked until the real values are known.
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { resetStore } from '../../../store';
+import { resetStore, useStore } from '../../../store';
 import { http, HttpResponse, server } from '../../../test/server';
 import { DEFAULT_PREFS, usePrefsStore } from '../prefs';
 import { PREFS_KEY, startPrefsSync, UNSYNCED_KEY } from '../prefsSync';
@@ -57,6 +57,39 @@ describe('preferences sync after a failed first read', () => {
 
   it('a change still waiting from an earlier page is pushed, not overwritten, on the next load', async () => {
     localStorage.setItem(UNSYNCED_KEY, '1');
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, dmToasts: changed } });
+    server.use(
+      http.get('*/api/v1/users/@me/settings', () =>
+        HttpResponse.json({ version: 3, settings: { [PREFS_KEY]: { ...DEFAULT_PREFS } } }),
+      ),
+    );
+    const stop = startPrefsSync();
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(usePrefsStore.getState().prefs.dmToasts).toBe(changed);
+    stop();
+  });
+
+  it("another account's waiting change on a shared browser is dropped, and this account's copy wins", async () => {
+    localStorage.setItem(UNSYNCED_KEY, '111');
+    useStore.setState({ currentUserId: '222' });
+    usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, dmToasts: changed } });
+    server.use(
+      http.get('*/api/v1/users/@me/settings', () =>
+        HttpResponse.json({ version: 3, settings: { [PREFS_KEY]: { ...DEFAULT_PREFS } } }),
+      ),
+    );
+    const stop = startPrefsSync();
+    await waitFor(() =>
+      expect(usePrefsStore.getState().prefs.dmToasts).toBe(DEFAULT_PREFS.dmToasts),
+    );
+    expect(patches).toEqual([]);
+    expect(localStorage.getItem(UNSYNCED_KEY)).toBeNull();
+    stop();
+  });
+
+  it("this account's own waiting change is pushed, and the mark names the account", async () => {
+    useStore.setState({ currentUserId: '222' });
+    localStorage.setItem(UNSYNCED_KEY, '222');
     usePrefsStore.setState({ prefs: { ...DEFAULT_PREFS, dmToasts: changed } });
     server.use(
       http.get('*/api/v1/users/@me/settings', () =>

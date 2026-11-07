@@ -38,20 +38,27 @@ export function prefsPatch(before: unknown, next: UserPrefs): Record<string, unk
 /**
  * Set while this browser holds a change the account copy has not taken yet (made before the blob loaded, or
  * whose write failed). It survives a reload, so the next load pushes the browser copy up instead of letting
- * the older account copy overwrite it (SEC-AUD-037).
+ * the older account copy overwrite it (SEC-AUD-037). The mark names the account it was made under ('1' while
+ * the account is not known yet): on a shared browser one account's waiting change never reaches another's.
  */
 export const UNSYNCED_KEY = 'sr.user.prefs.unsynced';
 function markUnsynced(on: boolean): void {
   try {
-    if (on) localStorage.setItem(UNSYNCED_KEY, '1');
+    if (on) localStorage.setItem(UNSYNCED_KEY, useStore.getState().currentUserId ?? '1');
     else localStorage.removeItem(UNSYNCED_KEY);
   } catch {
     /* private mode: the in-memory flag still covers this page */
   }
 }
+/** Whether the mark is this account's. Another account's mark is dropped: its change is not this account's. */
 function wasUnsynced(): boolean {
   try {
-    return localStorage.getItem(UNSYNCED_KEY) === '1';
+    const mark = localStorage.getItem(UNSYNCED_KEY);
+    if (mark === null) return false;
+    const me = useStore.getState().currentUserId;
+    if (mark === '1' || !me || mark === me) return true;
+    localStorage.removeItem(UNSYNCED_KEY);
+    return false;
   } catch {
     return false;
   }
@@ -70,6 +77,8 @@ export function startPrefsSync(): () => void {
   let fetching = false;
   /** A save happened before the blob loaded (in this page or an earlier one): push it over what the server has. */
   let pendingLocal = wasUnsynced();
+  /** A change was made in this page before the blob loaded (always this account's). */
+  let changedHere = false;
 
   const flush = async (): Promise<void> => {
     if (stopped || !loaded) return;
@@ -113,7 +122,9 @@ export function startPrefsSync(): () => void {
     const raw = settings[PREFS_KEY];
     known = raw;
     loaded = true;
-    if (pendingLocal) {
+    // A change made in this page counts; a mark from an earlier page counts only if it is this account's (the
+    // account is known by now, it may not have been when the sync started).
+    if (pendingLocal && (changedHere || wasUnsynced())) {
       pendingLocal = false;
       void flush();
       return;
@@ -138,6 +149,7 @@ export function startPrefsSync(): () => void {
     if (adopting || s.prefs === prev.prefs) return;
     if (!loaded) {
       pendingLocal = true;
+      changedHere = true;
       markUnsynced(true);
       fetchBlob();
     } else void flush();
