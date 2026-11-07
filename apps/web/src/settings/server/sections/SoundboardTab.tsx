@@ -393,6 +393,7 @@ function UploadDialog({
               format: 'opus',
             }}
             onCancel={() => setTrim(null)}
+            hideCancel
             onUse={(made) => {
               setTrim(null);
               setCut(made);

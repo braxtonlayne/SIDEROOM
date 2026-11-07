@@ -38,6 +38,8 @@ export interface AudioToolProps {
   limits?: AudioLimits;
   onUse?: (file: File) => void;
   onCancel?: () => void;
+  /** The host (a dialog) already has its own Cancel: do not show a second one. */
+  hideCancel?: boolean;
 }
 
 function playPart(p: Processed, onEnd: () => void): () => void {
@@ -85,7 +87,7 @@ function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolProps) {
+export function AudioTool({ file: initial, limits, onUse, onCancel, hideCancel }: AudioToolProps) {
   const t = useT();
   const [source, setSource] = useState<{ audio: PcmSource; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -359,7 +361,7 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
                 </Button>
               </>
             )}
-            {onCancel && (
+            {onCancel && !hideCancel && (
               <Button variant="ghost" onClick={onCancel}>
                 {t('tools.audio.cancel')}
               </Button>
