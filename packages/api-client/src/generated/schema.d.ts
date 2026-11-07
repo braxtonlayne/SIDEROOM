@@ -1908,7 +1908,10 @@ export interface paths {
         /** Entitlement grants (from invoices, staff, or the legacy download table), newest first. */
         get: operations["admin_donations_entitlements"];
         put?: never;
-        /** Grant Patron time or a server pool contribution by hand. */
+        /**
+         * Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused
+         *     with 403 for every staff member, the Owner included (D-574).
+         */
         post: operations["admin_donations_grant"];
         delete?: never;
         options?: never;
