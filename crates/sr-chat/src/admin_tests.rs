@@ -180,6 +180,76 @@ async fn channel_edit_move_and_delete() {
     assert_eq!(after.channel.parent_id, None);
 }
 
+/// D-570 (SEC-AUD-026): channel edit and delete evaluate `MANAGE_CHANNELS` with the channel's overwrites, as on
+/// Discord: a deny in the channel stops a guild-level holder, an allow in the channel lets a member without it in.
+#[tokio::test]
+async fn channel_edit_and_delete_follow_the_channels_overwrites() {
+    let f = fx().await;
+    let managers = role_with(&f, Permissions::MANAGE_CHANNELS).await;
+    f.svc
+        .assign_role(OWNER, f.guild, BOB, managers, true)
+        .await
+        .unwrap();
+    let rename = || ChannelPatch {
+        name: Some("renamed".into()),
+        ..Default::default()
+    };
+    f.svc
+        .set_overwrite(
+            OWNER,
+            f.general,
+            Overwrite {
+                id: managers.snowflake(),
+                kind: OverwriteKind::Role,
+                allow: Permissions::empty(),
+                deny: Permissions::MANAGE_CHANNELS,
+            },
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc
+            .edit_channel(BOB, f.general, rename(), ChannelMove::default())
+            .await,
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(matches!(
+        f.svc.delete_channel(BOB, f.general).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    // Elsewhere the guild-level bit still works.
+    f.svc
+        .edit_channel(BOB, f.text_cat, rename(), ChannelMove::default())
+        .await
+        .unwrap();
+
+    // Carol has no MANAGE_CHANNELS in the server; a member overwrite on the channel grants it there.
+    f.svc
+        .set_overwrite(
+            OWNER,
+            f.general,
+            Overwrite {
+                id: CAROL.snowflake(),
+                kind: OverwriteKind::Member,
+                allow: Permissions::MANAGE_CHANNELS,
+                deny: Permissions::empty(),
+            },
+        )
+        .await
+        .unwrap();
+    let edited = f
+        .svc
+        .edit_channel(CAROL, f.general, rename(), ChannelMove::default())
+        .await
+        .unwrap();
+    assert_eq!(edited.channel.name.as_deref(), Some("renamed"));
+    assert!(matches!(
+        f.svc.delete_channel(CAROL, f.voice_cat).await,
+        Err(ChatError::MissingPermissions)
+    ));
+    f.svc.delete_channel(CAROL, f.general).await.unwrap();
+}
+
 #[tokio::test]
 async fn overwrites_hide_channels_and_sync_with_category() {
     let f = fx().await;
