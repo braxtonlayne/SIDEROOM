@@ -22,7 +22,14 @@ Branch `fix/p53-web` (based on main `491aad85`). Nothing pushed.
 ## Not done / caveats
 - Emulator save-status shot: the emulator cores are not installed (no downloads allowed) so the page never reaches the running state; the `readFailed` line is covered by the `prepareGame` unit test only.
 - No UI test of `NotesTool` itself for the "Not saved" label (needs key setup); the store contract is tested.
-- See the bottom of this file for the visual check result.
+- Pre-existing vitest failures (also fail on untouched main): `admin/__tests__/p11client.test.tsx` "retries a refused action after the dialog (set staff roles)" and `settings/user/__tests__/passkeys.test.tsx` "lists passkeys, and says when there are none" (find-timeouts). `src/admin/features/__fixtures__/registry.json` and `embedded-app-sdk/src/sdk.test.ts` fail `prettier --check` on main too.
+- Birthday card, NotesTool "Not saved" label and the pop-out note box were not shot except the pop-out note box (all three themes, desktop and phone).
+
+## Visual check
+Shots in `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p53-web/` (27 PNGs, all looked at): staff-removal and invite-revoke reason dialogs, per-server profile dialog (failed load), note dialog (failed load, desktop only: the member-list menu does not exist on a phone), profile pop-out note box (failed load); Editorial, Lounge Light, Lounge Dark; desktop 1280x800 and phone 375x812. Two things changed because of what the shots showed: the profile-dialog error moved to the top of the dialog (it was below the fold) and the pop-out Try again became a link button. Spec: `e2e/tests/p53-web-shots.spec.ts` (`SR_P53_WEB=1`). Stack: p53-bin binaries, DB `sr_p53_web` (dropped), ports 8253/5253 (stopped).
+
+## Tests run
+vitest (web): emu, admin, tools, i18n, settings/user, lounge p53FailedLoad/p12FeatUi/p11ShellProfile/shellFlows (all pass except the two pre-existing above); embedded-app-sdk 47 pass; whiteboard 72 pass. tsc, eslint on changed files, prettier, i18n-audit, check-css-tokens clean; `playwright test --list` loads 927 tests.
 
 ## Owner questions
 - `getSave` treats 403 like 404 ("no save yet"). Some S3 buckets without list permission answer 403 for a missing key, so I left it. If a bucket answers 403 for a real save the autosave could still overwrite it; say if 403 should count as "could not read" (then first-time saves on such buckets would run with saving off).

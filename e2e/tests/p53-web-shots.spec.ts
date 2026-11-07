@@ -1,7 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { apiPost, bootstrapState, expect, loginApi, registerUser, test } from '../support/fixtures';
+import {
+  apiPatch,
+  apiPost,
+  bootstrapState,
+  expect,
+  loginApi,
+  registerUser,
+  test,
+} from '../support/fixtures';
 
 /**
  * SEC-AUD-013 / 014 (wave 53): the two admin reason dialogs (staff removal, invite revoke) and the profile and
@@ -63,8 +71,12 @@ test('admin reason dialogs and failed-load dialogs', async ({ browser }) => {
   await loginApi(mctx.request, member);
   const invite = await apiPost<{ code: string }>(o, `/channels/${channelId}/invites`, {});
   await apiPost(mctx.request, `/invites/${invite.code}`);
+  await apiPost(mctx.request, `/channels/${channelId}/messages`, {
+    content: 'a line to right-click',
+  });
 
-  for (const theme of THEMES)
+  for (const theme of THEMES) {
+    await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: { theme, zoom: 100 } } });
     for (const [vp, size] of Object.entries(VIEWPORTS)) {
       const tag = `${vp}-${theme}`;
       const c = await context(browser, octx, size, theme);
@@ -87,7 +99,7 @@ test('admin reason dialogs and failed-load dialogs', async ({ browser }) => {
       ]);
       await page.goto('/admin/staff');
       await page.getByRole('button', { name: 'Remove bob from staff' }).click();
-      let dialog = page.getByRole('dialog');
+      let dialog = page.getByRole('dialog', { name: /Remove @bob/ });
       await expect(dialog).toBeVisible();
       await dialog.getByRole('textbox').fill('left the team');
       await page.waitForTimeout(400);
@@ -111,7 +123,7 @@ test('admin reason dialogs and failed-load dialogs', async ({ browser }) => {
       });
       await page.goto('/admin/invites');
       await page.getByRole('button', { name: 'Revoke invite ABCDE-FGHJK' }).click();
-      dialog = page.getByRole('dialog');
+      dialog = page.getByRole('dialog', { name: 'Revoke this invite' });
       await expect(dialog).toBeVisible();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `admin-invite-revoke-${tag}.png`) });
@@ -127,10 +139,20 @@ test('admin reason dialogs and failed-load dialogs', async ({ browser }) => {
           ? r.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"boom"}' })
           : r.fallback(),
       );
-      await page.goto(`/channels/${guild.id}/${channelId}`);
-      await page.waitForTimeout(2500);
-      const rail = page.getByRole('navigation', { name: 'Servers' });
-      await rail.getByRole('link', { name: /Failed Load Booth/ }).click({ button: 'right' });
+      if (vp === 'phone') {
+        // No rail on a phone: the guild's channel list has the server menu.
+        await page.goto(`/channels/${guild.id}`);
+        await page.waitForTimeout(2500);
+        await page
+          .getByRole('button', { name: /^Failed Load Booth/ })
+          .first()
+          .click();
+      } else {
+        await page.goto(`/channels/${guild.id}/${channelId}`);
+        await page.waitForTimeout(2500);
+        const rail = page.getByRole('navigation', { name: 'Servers' });
+        await rail.locator(`a[href^="/channels/${guild.id}"]`).click({ button: 'right' });
+      }
       await page.getByRole('menuitem', { name: 'Edit Per-server Profile' }).click();
       dialog = page.getByRole('dialog', { name: 'Edit Per-server Profile' });
       await expect(dialog.getByText(/saving is off/)).toBeVisible();
@@ -138,14 +160,34 @@ test('admin reason dialogs and failed-load dialogs', async ({ browser }) => {
       await page.screenshot({ path: resolve(OUT, `profile-load-failed-${tag}.png`) });
       await page.keyboard.press('Escape');
 
-      // Note dialog, failed load.
-      const members = page.getByRole('list', { name: 'Members' });
-      await members.getByRole('button', { name: /^notemate,/ }).click({ button: 'right' });
-      await page.getByRole('menuitem', { name: 'Add Note' }).click();
-      dialog = page.getByRole('dialog', { name: /Note for/ });
-      await expect(dialog.getByText(/saving is off/)).toBeVisible();
+      // The note box of the profile pop-out, failed load (left click on the author's name).
+      await page.goto(`/channels/${guild.id}/${channelId}`);
+      await page.waitForTimeout(2500);
+      await page
+        .locator('.lng-name-btn', { hasText: 'notemate_' })
+        .first()
+        .evaluate((b) => (b as HTMLButtonElement).click());
+      await expect(page.getByText(/could not be loaded, so it is locked/)).toBeVisible();
       await page.waitForTimeout(400);
-      await page.screenshot({ path: resolve(OUT, `note-load-failed-${tag}.png`) });
+      await page.screenshot({ path: resolve(OUT, `popout-note-load-failed-${tag}.png`) });
+      await page.keyboard.press('Escape');
+
+      // Note dialog, failed load (the member list's menu; not reachable on a phone).
+      if (vp === 'desktop') {
+        await page
+          .getByRole('list', { name: 'Members' })
+          .getByRole('button', { name: /^notemate_/ })
+          .click({ button: 'right' });
+        await page.getByRole('menuitem', { name: 'Add Note' }).click();
+        dialog = page.getByRole('dialog', { name: /Note for/ });
+        await expect(dialog.getByText(/saving is off/)).toBeVisible();
+        await page.waitForTimeout(400);
+        await page.screenshot({ path: resolve(OUT, `note-load-failed-${tag}.png`) });
+      }
       await c.close();
     }
+  }
+  await apiPatch(o, '/users/@me/settings', {
+    settings: { user_prefs: { theme: 'lounge-editorial', zoom: 100 } },
+  });
 });

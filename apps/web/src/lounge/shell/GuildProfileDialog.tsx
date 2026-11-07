@@ -218,6 +218,14 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
       description={t('lounge.guildProfile.subtitle', { name: guild.name })}
     >
       <form className="lng-form" onSubmit={(e) => void save(e)}>
+        {loadFailed && (
+          <p role="alert" className="lng-failed">
+            {t('lounge.guildProfile.loadError')}{' '}
+            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+              {t('lounge.guildProfile.retry')}
+            </Button>
+          </p>
+        )}
         <TraitChips
           traits={guild.traits}
           label={t('lounge.guildProfile.traits', { name: guild.name })}
@@ -295,14 +303,6 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
           onError={setError}
         />
         <ServerDmToggle guildId={guildId} />
-        {loadFailed && (
-          <p role="alert" className="lng-failed">
-            {t('lounge.guildProfile.loadError')}{' '}
-            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
-              {t('lounge.guildProfile.retry')}
-            </Button>
-          </p>
-        )}
         {error && (
           <p role="alert" className="lng-failed">
             {error}

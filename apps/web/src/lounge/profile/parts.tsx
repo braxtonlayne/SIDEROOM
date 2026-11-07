@@ -125,7 +125,7 @@ export function NoteField({ userId }: { userId: string }) {
       {loadFailed && (
         <p role="alert" className="lng-failed">
           {t('lounge.profilePopout.noteLoadError')}{' '}
-          <button type="button" onClick={() => setAttempt((n) => n + 1)}>
+          <button type="button" className="lng-link-btn" onClick={() => setAttempt((n) => n + 1)}>
             {t('lounge.profilePopout.noteRetry')}
           </button>
         </p>
