@@ -7,6 +7,7 @@ import { formatDate, useT } from '../i18n';
 import {
   deleteComment,
   deleteReview,
+  getCommentReplies,
   getComments,
   getReviews,
   keys,
@@ -168,15 +169,52 @@ export function Reviews({ titleId }: { titleId: string }) {
   );
 }
 
-function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
+/** The replies under a top-level comment, oldest first, read-only here (D-572). */
+function Replies({ commentId, titleId }: { commentId: string; titleId: string }) {
+  const t = useT();
+  const q = useQuery({
+    queryKey: keys.replies(commentId),
+    queryFn: () => getCommentReplies(commentId),
+  });
+  if (q.isPending) return <Skeleton height={48} />;
+  if (q.isError) return <Notice variant="danger">{t('cinema.social.commentsUnavailable')}</Notice>;
+  return (
+    <ul className="cin-posts cin-replies">
+      {q.data.map((r) => (
+        <CommentItem key={r.id} c={r} titleId={titleId} reply />
+      ))}
+    </ul>
+  );
+}
+
+function CommentItem({ c, titleId, reply }: { c: Comment; titleId: string; reply?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
-  const refresh = () => void qc.invalidateQueries({ queryKey: keys.comments(titleId) });
+  const [open, setOpen] = useState(false);
+  // The title's thread and every replies list under it.
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['cinema', 'comments'] });
   const like = useMutation({
     mutationFn: (on: boolean) => setCommentLike(c.id, on),
     onSuccess: refresh,
   });
   const remove = useMutation({ mutationFn: () => deleteComment(c.id), onSuccess: refresh });
+  const replies = !reply && c.reply_count > 0 && (
+    <>
+      <p className="cin-post-actions">
+        <button
+          type="button"
+          className="cin-link-btn"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open
+            ? t('cinema.social.hideReplies')
+            : t('cinema.social.showReplies', { n: c.reply_count })}
+        </button>
+      </p>
+      {open && <Replies commentId={c.id} titleId={titleId} />}
+    </>
+  );
   if (c.deleted) {
     // D-572: the author deleted it but others replied; the replies keep their place under this marker.
     return (
@@ -185,14 +223,12 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
           <em className="cin-muted">{t('cinema.social.commentDeleted')}</em>
           <span className="cin-muted">{when(c.created_at_ms)}</span>
         </p>
-        {c.reply_count > 0 && (
-          <p className="cin-muted">{t('cinema.social.replyCount', { n: c.reply_count })}</p>
-        )}
+        {replies}
       </li>
     );
   }
   return (
-    <li className="cin-post">
+    <li className="cin-post" data-reply={reply || undefined}>
       <p className="cin-post-head">
         <strong>{c.mine ? t('cinema.social.you') : t('cinema.social.member')}</strong>
         <span className="cin-muted">{when(c.created_at_ms)}</span>
@@ -213,6 +249,7 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
           </button>
         )}
       </p>
+      {replies}
     </li>
   );
 }

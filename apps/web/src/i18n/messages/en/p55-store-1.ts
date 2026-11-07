@@ -3,5 +3,6 @@
 export default {
   'library.comments.deleted': 'Comment deleted',
   'cinema.social.commentDeleted': 'Comment deleted',
-  'cinema.social.replyCount': '{n, plural, one {# reply} other {# replies}}',
+  'cinema.social.showReplies': '{n, plural, one {Show # reply} other {Show # replies}}',
+  'cinema.social.hideReplies': 'Hide replies',
 } satisfies Record<string, string>;

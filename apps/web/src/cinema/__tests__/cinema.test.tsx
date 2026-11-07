@@ -590,12 +590,37 @@ describe('Title page', () => {
         },
       ],
     });
+    const reply = (id: string, body: string) => ({
+      id,
+      parent_id: 'c2',
+      author_id: '7',
+      body,
+      spoiler: false,
+      like_count: 0,
+      reply_count: 0,
+      liked: false,
+      mine: false,
+      created_at_ms: 1_700_000_100_000,
+      deleted: false,
+    });
+    server.use(
+      http.get('*/api/v1/cinema/comments/c2/replies', () =>
+        HttpResponse.json({
+          items: [reply('r1', 'Filmed in Lisbon.'), reply('r2', 'And Porto.')],
+          next_before: null,
+        }),
+      ),
+    );
     const user = userEvent.setup();
-    renderAt('/cinema/t/1');
+    const { container } = renderAt('/cinema/t/1');
     await user.click(await screen.findByRole('tab', { name: 'Comments' }));
     const tomb = (await screen.findByText('Comment deleted')).closest('li')!;
-    expect(within(tomb).getByText('2 replies')).toBeInTheDocument();
-    expect(within(tomb).queryByRole('button')).not.toBeInTheDocument();
+    // No author, body, like or delete on the tombstone: only its replies.
+    expect(within(tomb).getAllByRole('button')).toHaveLength(1);
+    await user.click(within(tomb).getByRole('button', { name: 'Show 2 replies' }));
+    expect(await within(tomb).findByText('Filmed in Lisbon.')).toBeInTheDocument();
+    expect(within(tomb).getByText('And Porto.')).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
   });
 
   it('shows Resume when the title is started, and a friendly message for a missing title', async () => {
