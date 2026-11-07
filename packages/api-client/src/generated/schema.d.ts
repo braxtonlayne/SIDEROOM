@@ -13385,9 +13385,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The
-         *     answer sets the state cookie; the browser then goes to `url` and Discord returns to the
-         *     callback, which sends it back to Settings.
+         * `POST /sr/auth/discord/link {password, mfa?}`: start linking a Discord identity to the
+         *     signed-in account. A new sign-in method takes the password and, when the account has one,
+         *     the second factor (D-573). The answer sets the state cookie; the browser then goes to `url`
+         *     and Discord returns to the callback, which sends it back to Settings.
          */
         post: operations["link_start"];
         delete?: never;
@@ -13542,8 +13543,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /sr/auth/passkeys/register/begin {password}`: re-check the password and
-         *     start a registration ceremony for the signed-in account.
+         * `POST /sr/auth/passkeys/register/begin {password, mfa?}`: re-check the password and
+         *     start a registration ceremony for the signed-in account. An account that already has a
+         *     second factor (TOTP or a passkey) proves it too (`mfa`, or a check on this session in the
+         *     last 15 minutes; D-573).
          */
         post: operations["register_begin"];
         delete?: never;
@@ -13602,8 +13605,8 @@ export interface paths {
         put?: never;
         post?: never;
         /**
-         * `DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).
-         *     Removing the last second factor also drops the recovery codes.
+         * `DELETE /sr/auth/passkeys/{id} {password, mfa?}`: remove a passkey (password re-check and
+         *     the second factor, D-573). Removing the last second factor also drops the recovery codes.
          */
         delete: operations["remove"];
         options?: never;
@@ -13622,9 +13625,10 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:
+         * `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?, mfa?}`:
          *     change the password of the signed-in account. The current password is checked
-         *     first (and counts toward the login lockout). By default every other session and
+         *     first (and counts toward the login lockout); an account with a second factor proves it
+         *     too (`mfa`, D-573), after the new password passed its checks. By default every other session and
          *     every trusted device is revoked; the current session always stays. A notice goes
          *     to the account's email.
          */
@@ -19005,6 +19009,7 @@ export interface components {
         ChangePasswordBody: {
             /** @description The password in use now. */
             current_password: string;
+            mfa?: null | components["schemas"]["MfaProof"];
             /** @description At least 10 characters and not easy to guess (zxcvbn score 3 or more). */
             new_password: string;
             /**
@@ -21194,6 +21199,12 @@ export interface components {
         DiscordChannelObject: {
             id: string;
             name: string;
+        };
+        /** @description Body of the link call. */
+        DiscordLinkBody: {
+            mfa?: null | components["schemas"]["MfaProof"];
+            /** @description The account password (re-authentication). */
+            password: string;
         };
         /** @description The authorize URL to send the browser to. */
         DiscordLinkStart: {
@@ -25106,6 +25117,7 @@ export interface components {
         };
         /** @description Documentation stand-in for [`PasswordBody`]. */
         PasswordBodyDoc: {
+            mfa?: null | components["schemas"]["MfaProof"];
             /** @description The current password. */
             password: string;
         };
@@ -73909,7 +73921,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscordLinkBody"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -73917,6 +73933,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscordLinkStart"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             403: {
