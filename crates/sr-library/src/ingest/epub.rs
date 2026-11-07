@@ -23,7 +23,7 @@ use quick_xml::{
 use zip::ZipArchive;
 
 use super::IngestError;
-use super::archive::{ArchiveLimits, safe_name, zip_archive};
+use super::archive::{ArchiveLimits, check_zip_directory, safe_name, zip_archive};
 
 const MIMETYPE: &str = "application/epub+zip";
 const MAX_XML_BYTES: u64 = 4 * 1024 * 1024;
@@ -334,6 +334,8 @@ pub fn inspect<R: Read + Seek>(
     if len > limits.max_archive_bytes {
         return Err(IngestError::TooLarge("archive file"));
     }
+    // The entry cap from the end-of-central-directory record, before the zip crate parses the directory.
+    check_zip_directory(&mut reader, limits.max_entries)?;
     reader.seek(SeekFrom::Start(0)).map_err(zip_err)?;
     let mut zip = zip_archive(reader).map_err(zip_err)?;
     if zip.len() > limits.max_entries {
