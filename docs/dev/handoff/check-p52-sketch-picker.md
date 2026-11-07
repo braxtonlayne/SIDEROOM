@@ -29,3 +29,9 @@ Branch `check/p52-sketch-picker` (from main 2b727dbc). No product code changed; 
 - Keep a permanent shot of this? Not added: the stack needs guest relay + voice, and `sketch-gate.spec.ts` already runs it in CI.
 
 Stack stopped by PID, DB dropped, lock released. No fix commits.
+
+## Re-shoot after 319b87b6
+The empty-search wording was changed by the coordinator in `319b87b6`: a server search with no rows now says "No file matches
+that search." instead of the empty-shelf sentence. Re-shot the 3-nomatch stage (3 themes x desktop and phone, 6 PNGs, same
+folder, overwritten) with the same stack and a re-created temporary spec (deleted again). Verdict: all six show "No file matches
+that search.", themed, nothing overflows on the phone, picker above the Activity. The earlier owner question is closed.
