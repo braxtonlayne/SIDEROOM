@@ -1,7 +1,7 @@
 import { Button, Notice, useToast } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT, type MessageKey } from '../../../i18n';
-import { discordLinkStart, discordStatus, discordUnlink, errorText, useResource } from '../api';
+import { discordLinkStart, discordStatus, discordUnlink, useResource } from '../api';
 import { Card, Loaded } from '../parts';
 import { PasswordPrompt } from './Account';
 
@@ -27,20 +27,8 @@ export function DiscordCard() {
   const toast = useToast();
   const status = useResource(discordStatus);
   const [unlinking, setUnlinking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [linking, setLinking] = useState(false);
   const returned = returnError();
-  const start = async () => {
-    setError(null);
-    setBusy(true);
-    try {
-      const { url } = await discordLinkStart();
-      window.location.assign(url);
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(false);
-    }
-  };
   return (
     <Loaded res={status} what={t('settings.discord.what')}>
       {(s) =>
@@ -56,9 +44,7 @@ export function DiscordCard() {
                   {t('settings.discord.unlink')}
                 </Button>
               ) : (
-                <Button onClick={() => void start()} disabled={busy}>
-                  {t('settings.discord.link')}
-                </Button>
+                <Button onClick={() => setLinking(true)}>{t('settings.discord.link')}</Button>
               )
             }
           >
@@ -73,11 +59,18 @@ export function DiscordCard() {
                 {t(returned)}
               </Notice>
             )}
-            {error && (
-              <Notice variant="danger" role="alert">
-                {error}
-              </Notice>
-            )}
+            {/* D-573: a new way to sign in takes the password, then the second factor when the account has one. */}
+            <PasswordPrompt
+              open={linking}
+              title={t('settings.discord.linkTitle')}
+              description={t('settings.discord.linkDesc')}
+              confirmLabel={t('settings.discord.linkContinue')}
+              onClose={() => setLinking(false)}
+              onSubmit={async (pw) => {
+                const { url } = await discordLinkStart(pw);
+                window.location.assign(url);
+              }}
+            />
             <PasswordPrompt
               open={unlinking}
               danger

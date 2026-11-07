@@ -7,7 +7,7 @@ import { useT } from '../i18n';
 import { passkeyVerifyBegin } from '../api/passkeys';
 import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 import * as api from './api';
-import { onEnrollmentRequired, registerReauthPrompt } from './reauth';
+import { onEnrollmentRequired, registerReauthPrompt, type ReauthReason } from './reauth';
 import { useOpenUserSettings } from '../settings/user/nav';
 
 type Method = 'totp' | 'recovery';
@@ -22,6 +22,8 @@ export function ReauthHost() {
   const [error, setError] = useState<string | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
   const [enrol, setEnrol] = useState(false);
+  // D-573: the same dialog collects the second factor for a change to how the account signs in.
+  const [reason, setReason] = useState<ReauthReason>('action');
   const openSettings = useOpenUserSettings();
   useEffect(() => onEnrollmentRequired(() => setEnrol(true)), []);
 
@@ -40,9 +42,10 @@ export function ReauthHost() {
   useEffect(
     () =>
       registerReauthPrompt(
-        () =>
+        (why) =>
           new Promise<boolean>((resolve) => {
             resolver.current = resolve;
+            setReason(why);
             setStatus(null);
             setOpen(true);
             api
@@ -120,7 +123,11 @@ export function ReauthHost() {
         open={open}
         onClose={() => (busy ? undefined : finish(false))}
         title={t('admin.reauth.title')}
-        description={t('admin.reauth.description', { minutes })}
+        description={
+          reason === 'signIn'
+            ? t('settings.reauth.description', { minutes })
+            : t('admin.reauth.description', { minutes })
+        }
         size="sm"
         footer={
           <>
