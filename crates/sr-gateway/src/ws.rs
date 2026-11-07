@@ -2,7 +2,7 @@
 
 use axum::Router;
 use axum::extract::ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
+use axum::extract::{Extension, Query, State};
 use axum::http::header::{COOKIE, ORIGIN};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -12,8 +12,20 @@ use serde::Deserialize;
 use tokio::sync::mpsc;
 
 use crate::compress::Compression;
-use crate::conn::{ConnectParams, Frame, run_connection};
-use crate::hub::Gateway;
+use crate::conn::{ConnectParams, Frame, run_admitted};
+use crate::hub::{Gateway, UnidentifiedSlot};
+
+/// Largest client message and frame on `/gateway` (SEC-AUD-010; the axum default is 64 MiB). The
+/// largest legitimate client op is an E2EE `commit` (op 101): `data` and `welcome` of up to
+/// `voice_e2ee::MAX_MLS_CHARS` (96 KiB) each, plus up to 100 recipient ids and the JSON
+/// envelope, under 200 KiB. Everything else a client sends (IDENTIFY, presence with at most six
+/// activities, member requests, watch-party sync) is a few KiB. 256 KiB leaves headroom.
+pub const MAX_MESSAGE: usize = 256 * 1024;
+
+/// The client's address, set by the embedder as a request extension (behind a trusted proxy, the
+/// forwarded one). Sockets that have not identified yet are capped per address (SEC-AUD-010).
+#[derive(Debug, Clone, Copy)]
+pub struct PeerIp(pub std::net::IpAddr);
 
 #[derive(Debug, Deserialize)]
 pub struct GatewayQuery {
@@ -30,6 +42,7 @@ pub struct GatewayQuery {
 pub async fn gateway_handler(
     State(gw): State<Gateway>,
     Query(q): Query<GatewayQuery>,
+    peer: Option<Extension<PeerIp>>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
@@ -49,8 +62,14 @@ pub async fn gateway_handler(
             .get(ORIGIN)
             .and_then(|v| v.to_str().ok())
             .map(str::to_owned),
+        peer: peer.map(|Extension(PeerIp(ip))| ip),
     };
-    ws.on_upgrade(move |socket| serve_socket(gw, params, socket))
+    let Some(slot) = gw.admit(params.peer) else {
+        return (StatusCode::TOO_MANY_REQUESTS, "too many connections").into_response();
+    };
+    ws.max_message_size(MAX_MESSAGE)
+        .max_frame_size(MAX_MESSAGE)
+        .on_upgrade(move |socket| serve_socket(gw, params, slot, socket))
 }
 
 /// Name of the browser session cookie (matches the REST API).
@@ -74,7 +93,12 @@ pub fn routes() -> Router<Gateway> {
     Router::new().route("/gateway", get(gateway_handler))
 }
 
-async fn serve_socket(gw: Gateway, params: ConnectParams, socket: WebSocket) {
+async fn serve_socket(
+    gw: Gateway,
+    params: ConnectParams,
+    slot: UnidentifiedSlot,
+    socket: WebSocket,
+) {
     let (mut sink, mut stream) = socket.split();
     let (in_tx, in_rx) = mpsc::channel::<Frame>(64);
     let (out_tx, mut out_rx) = mpsc::channel::<Frame>(64);
@@ -113,7 +137,7 @@ async fn serve_socket(gw: Gateway, params: ConnectParams, socket: WebSocket) {
         let _ = sink.close().await;
     });
 
-    run_connection(gw, params, in_rx, out_tx).await;
+    run_admitted(gw, params, slot, in_rx, out_tx).await;
     // out_tx dropped: writer drains remaining frames (including Close) then ends.
     let _ = writer.await;
     reader.abort();

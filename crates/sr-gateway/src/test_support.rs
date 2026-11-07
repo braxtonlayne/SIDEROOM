@@ -37,9 +37,20 @@ use crate::{
 /// How long [`TestClient`] waits for a frame before failing the test.
 pub const FRAME_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Authenticator for tests. Tokens are `user:<id>` or `bot:<id>[:<allowed privileged bits>]`;
-/// anything else is rejected. [`token_for`] builds them.
-pub struct TestAuth;
+/// Authenticator for tests. Tokens are `user:<id>` or `bot:<id>[:<allowed privileged bits>]`, with
+/// anything after a further `:` naming one of several sessions of the same user; anything else,
+/// and any token passed to [`TestAuth::revoke`], is rejected. [`token_for`] builds them.
+#[derive(Default)]
+pub struct TestAuth {
+    revoked: Mutex<HashSet<String>>,
+}
+
+impl TestAuth {
+    /// Revoke `token` (a logout): it no longer authenticates.
+    pub fn revoke(&self, token: &str) {
+        lock(&self.revoked).insert(token.to_owned());
+    }
+}
 
 /// Token for a human test user.
 pub fn token_for(user: u64) -> String {
@@ -49,6 +60,9 @@ pub fn token_for(user: u64) -> String {
 #[async_trait]
 impl Authenticator for TestAuth {
     async fn authenticate(&self, token: &str) -> Result<AuthedUser, AuthError> {
+        if lock(&self.revoked).contains(token) {
+            return Err(AuthError::Invalid);
+        }
         let parts: Vec<&str> = token.split(':').collect();
         let id = parts.get(1).and_then(|s| s.parse::<u64>().ok());
         match (parts.first().copied(), id) {
@@ -132,6 +146,7 @@ pub struct TestWorld {
     pub gw: Gateway,
     pub bus: Arc<InProcessBus>,
     pub dir: Arc<TestDirectory>,
+    pub auth: Arc<TestAuth>,
 }
 
 impl TestWorld {
@@ -139,9 +154,10 @@ impl TestWorld {
     pub fn new(cfg: GatewayConfig) -> Self {
         let bus = Arc::new(InProcessBus::new());
         let dir = Arc::new(TestDirectory::default());
-        let gw = Gateway::new(cfg, Arc::new(TestAuth), dir.clone(), bus.clone());
+        let auth = Arc::new(TestAuth::default());
+        let gw = Gateway::new(cfg, auth.clone(), dir.clone(), bus.clone());
         gw.start();
-        Self { gw, bus, dir }
+        Self { gw, bus, dir, auth }
     }
 
     /// Make `user` a member of `guild` (takes effect for sessions identified afterwards).
@@ -218,27 +234,32 @@ pub struct TestClient {
 
 impl TestClient {
     pub fn connect(gw: &Gateway, compression: Compression) -> Self {
-        let (tx, in_rx) = mpsc::channel(64);
-        let (out_tx, rx) = mpsc::channel(256);
-        tokio::spawn(run_connection(
-            gw.clone(),
+        Self::connect_with(
+            gw,
             ConnectParams {
                 compression,
                 ..Default::default()
             },
-            in_rx,
-            out_tx,
-        ));
-        Self {
-            tx,
-            rx,
-            zstd: compression == Compression::ZstdStream,
-        }
+        )
+    }
+
+    /// Connect with explicit upgrade parameters (cookie, origin, client address).
+    pub fn connect_with(gw: &Gateway, params: ConnectParams) -> Self {
+        let (tx, in_rx) = mpsc::channel(64);
+        let (out_tx, rx) = mpsc::channel(256);
+        let zstd = params.compression == Compression::ZstdStream;
+        tokio::spawn(run_connection(gw.clone(), params, in_rx, out_tx));
+        Self { tx, rx, zstd }
     }
 
     /// Send a JSON payload as a text frame.
     pub async fn send(&self, v: Value) {
         self.send_raw(Frame::Text(v.to_string())).await;
+    }
+
+    /// Like [`Self::send`], but `false` (no panic) once the server has ended the connection.
+    pub async fn try_send(&self, v: Value) -> bool {
+        self.tx.send(Frame::Text(v.to_string())).await.is_ok()
     }
 
     pub async fn send_raw(&self, f: Frame) {

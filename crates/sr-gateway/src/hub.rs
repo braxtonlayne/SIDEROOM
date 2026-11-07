@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::net::IpAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
@@ -55,6 +56,17 @@ pub struct GatewayConfig {
     pub handlers: Vec<Arc<dyn OpHandler>>,
     /// Voice (op 4, `VOICE_SERVER_UPDATE`). `None` disables joining voice channels.
     pub voice: Option<VoiceConfig>,
+    /// How often an identified connection re-checks its token or cookie (SEC-AUD-002): 60 s. The
+    /// `SessionsRevoked` bus event closes a revoked session's socket at once; this is the backstop for
+    /// revocations that publish nothing (a Person ban, the moderation sweep) or an event that was lost.
+    pub session_recheck: Duration,
+    /// How long a socket may stay open without a successful IDENTIFY or RESUME (SEC-AUD-010): 30 s.
+    /// Heartbeats do not extend it. Closed with 4009, which a client answers by reconnecting.
+    pub identify_timeout: Duration,
+    /// Most sockets one client address may hold open before IDENTIFY/RESUME succeeds (SEC-AUD-010):
+    /// 32. Further upgrades from that address get 429. The address comes from the embedder
+    /// ([`crate::PeerIp`]); without one there is no per-address cap.
+    pub max_unidentified_per_ip: usize,
 }
 
 impl fmt::Debug for GatewayConfig {
@@ -71,6 +83,9 @@ impl fmt::Debug for GatewayConfig {
             .field("allowed_origins", &self.allowed_origins)
             .field("handlers", &self.handlers.len())
             .field("voice", &self.voice.is_some())
+            .field("session_recheck", &self.session_recheck)
+            .field("identify_timeout", &self.identify_timeout)
+            .field("max_unidentified_per_ip", &self.max_unidentified_per_ip)
             .finish()
     }
 }
@@ -89,6 +104,9 @@ impl Default for GatewayConfig {
             allowed_origins: Vec::new(),
             handlers: Vec::new(),
             voice: None,
+            session_recheck: Duration::from_secs(60),
+            identify_timeout: Duration::from_secs(30),
+            max_unidentified_per_ip: 32,
         }
     }
 }
@@ -138,6 +156,42 @@ pub(crate) struct Inner {
     next_conn: AtomicU64,
     /// Users seen since the last [`Gateway::drain_seen`] (D-166).
     seen: Mutex<HashSet<UserId>>,
+    /// Sockets that have not identified yet (SEC-AUD-010).
+    unidentified: Mutex<Unidentified>,
+}
+
+/// Open sockets without a session yet: in total and per client address.
+#[derive(Default)]
+struct Unidentified {
+    total: usize,
+    by_ip: HashMap<IpAddr, usize>,
+}
+
+/// One socket counted in [`Gateway::unidentified_count`] until it identifies (dropped) or closes.
+pub(crate) struct UnidentifiedSlot {
+    inner: Weak<Inner>,
+    peer: Option<IpAddr>,
+}
+
+impl Drop for UnidentifiedSlot {
+    fn drop(&mut self) {
+        let Some(inner) = self.inner.upgrade() else {
+            return;
+        };
+        let mut u = inner
+            .unidentified
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        u.total = u.total.saturating_sub(1);
+        if let Some(ip) = self.peer
+            && let Some(n) = u.by_ip.get_mut(&ip)
+        {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                u.by_ip.remove(&ip);
+            }
+        }
+    }
 }
 
 /// Cheap-to-clone handle; mount [`crate::ws::routes`] with it as router state.
@@ -542,7 +596,9 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         | DomainEvent::PackageCard { .. }
         // Merged with the live sessions by `Gateway::on_user_event`.
         | DomainEvent::PresenceChanged { .. }
-        | DomainEvent::UserScoped { .. } => return None,
+        | DomainEvent::UserScoped { .. }
+        // Handled by `Gateway::on_user_event`: never sent to a client.
+        | DomainEvent::SessionsRevoked { .. } => return None,
     })
 }
 
@@ -562,6 +618,7 @@ impl Gateway {
                 state: Mutex::new(State::default()),
                 next_conn: AtomicU64::new(1),
                 seen: Mutex::new(HashSet::new()),
+                unidentified: Mutex::new(Unidentified::default()),
             }),
         }
     }
@@ -633,6 +690,38 @@ impl Gateway {
 
     pub fn session_count(&self) -> usize {
         self.st().sessions.len()
+    }
+
+    fn unidentified(&self) -> MutexGuard<'_, Unidentified> {
+        self.inner
+            .unidentified
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Open sockets that have not identified yet; the embedder's connection cap counts them with
+    /// [`Self::session_count`] (SEC-AUD-010).
+    pub fn unidentified_count(&self) -> usize {
+        self.unidentified().total
+    }
+
+    /// Count a new socket from `peer` until it identifies, unless that address already holds
+    /// [`GatewayConfig::max_unidentified_per_ip`] such sockets (`None`: refuse it).
+    pub(crate) fn admit(&self, peer: Option<IpAddr>) -> Option<UnidentifiedSlot> {
+        let max = self.inner.cfg.max_unidentified_per_ip;
+        let mut u = self.unidentified();
+        if let Some(ip) = peer {
+            let n = u.by_ip.entry(ip).or_insert(0);
+            if *n >= max {
+                return None;
+            }
+            *n += 1;
+        }
+        u.total += 1;
+        Some(UnidentifiedSlot {
+            inner: Arc::downgrade(&self.inner),
+            peer,
+        })
     }
 
     // ---- session registry -------------------------------------------------
@@ -893,6 +982,15 @@ impl Gateway {
 
     async fn on_user_event(&self, user: UserId, ev: DomainEvent) {
         self.note_typing(&ev);
+        // SEC-AUD-002: some of the user's sessions were revoked (logout, logout-all, password change,
+        // staff action). Every socket of the user re-checks its credential now; a revoked one closes
+        // with 4004, the others carry on. Other users' sockets are untouched.
+        if let DomainEvent::SessionsRevoked { .. } = &ev {
+            for s in self.user_sessions(user) {
+                s.send_recheck();
+            }
+            return;
+        }
         if let DomainEvent::PresenceChanged {
             user: changed,
             status,
@@ -919,6 +1017,17 @@ impl Gateway {
                 }
             }
             self.dispatch_user(user, name, payload.clone()).await;
+            // A group DM the user was removed from (or left): out of its call too (SEC-AUD-GDM).
+            if name == "CHANNEL_DELETE"
+                && payload.get("guild_id").is_none_or(Value::is_null)
+                && let Some(channel) = payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<u64>().ok())
+            {
+                self.call_recipient_removed(user, ChannelId::new(channel))
+                    .await;
+            }
             return;
         }
         if let Some(d) = to_dispatch(&ev) {

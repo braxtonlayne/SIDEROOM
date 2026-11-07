@@ -90,6 +90,10 @@ let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(handler: (() => void) | null): void {
   onUnauthorized = handler;
 }
+/** Report a session that looks gone from outside `apiFetch` (the gateway closed with 4004, SEC-AUD-002). */
+export function reportUnauthorized(): void {
+  onUnauthorized?.();
+}
 
 export async function apiFetch<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const { json, raw, retries = 2, headers, csrfRetried = false, ...init } = opts;

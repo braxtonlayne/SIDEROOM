@@ -19,7 +19,8 @@
 //! stays, so the identity is not freed for another account (D-030).
 //! Every flow uses PKCE (S256) on top of the state cookie.
 
-use super::common::{AuthRouteError, R, Svc, mfa_cookie, user_agent};
+use super::common::{AuthRouteError, AuthService, R, Svc, user_agent};
+use super::login::second_factor_step;
 use super::mfa::{current_account, reauthenticate};
 use super::sessions::session_id;
 use crate::{auth::UserOnly, openapi::ErrorBody};
@@ -334,6 +335,46 @@ async fn fetch_user(http: &oauth2::reqwest::Client, access: &str) -> Result<Disc
     serde_json::from_str(&body).map_err(|e| e.to_string())
 }
 
+/// Sign-in for the account linked to `discord_id`, once Discord vouched for it. The same
+/// second-factor rule as a password login applies (SEC-AUD-001): a TOTP or passkey, on a device
+/// not trusted, sends the browser to `/login/2fa` with the pending `sr_mfa` cookie and the methods
+/// to offer (`?methods=passkey,totp,recovery`: method names only, never a secret).
+pub(super) async fn sign_in_linked(
+    state: &AppState,
+    svc: &AuthService,
+    headers: &HeaderMap,
+    discord_id: &str,
+    next: Option<&str>,
+    clear_state: String,
+) -> R<Response> {
+    let account = svc
+        .store
+        .find_by_discord(discord_id)
+        .await?
+        .filter(|a| a.state == AccountState::Active);
+    let Some(account) = account else {
+        return Ok(redirect_with(
+            "/login?error=discord_unlinked",
+            vec![clear_state],
+        ));
+    };
+    if let Some(step) = second_factor_step(svc, state, headers, account.id).await? {
+        let mut to = format!("/login/2fa?methods={}", step.methods.join(","));
+        if let Some(next) = next {
+            to.push_str("&next=");
+            to.extend(url::form_urlencoded::byte_serialize(next.as_bytes()));
+        }
+        return Ok(redirect_with(&to, vec![clear_state, step.cookie]));
+    }
+    let (_, cookie) = svc
+        .start_session(state, account.id, user_agent(headers))
+        .await?;
+    Ok(redirect_with(
+        next.unwrap_or("/"),
+        vec![clear_state, cookie],
+    ))
+}
+
 /// Handles the redirect back from Discord.
 pub async fn callback(
     State(state): State<AppState>,
@@ -408,35 +449,15 @@ pub async fn callback(
             Ok(redirect_with(&back, vec![clear_state]))
         }
         Intent::Login => {
-            let account = svc
-                .store
-                .find_by_discord(&user.id)
-                .await?
-                .filter(|a| a.state == AccountState::Active);
-            let Some(account) = account else {
-                return Ok(redirect_with(
-                    "/login?error=discord_unlinked",
-                    vec![clear_state],
-                ));
-            };
-            let has_totp = svc
-                .store
-                .totp_get(account.id)
-                .await?
-                .is_some_and(|t| t.confirmed);
-            if has_totp {
-                // The second factor still applies; the web app shows /login/2fa.
-                let mfa = SessionToken::generate()?;
-                svc.pending
-                    .insert(&mfa.hash(), account.id, now + svc.cfg.mfa_ttl_secs, now);
-                let cookie = mfa_cookie(&mfa, secure, svc.cfg.mfa_ttl_secs);
-                return Ok(redirect_with("/login/2fa", vec![clear_state, cookie]));
-            }
-            let (_, cookie) = svc
-                .start_session(&state, account.id, user_agent(&headers))
-                .await?;
-            let to = flow.next.as_deref().unwrap_or("/");
-            Ok(redirect_with(to, vec![clear_state, cookie]))
+            sign_in_linked(
+                &state,
+                &svc,
+                &headers,
+                &user.id,
+                flow.next.as_deref(),
+                clear_state,
+            )
+            .await
         }
         Intent::Register => {
             let link = SessionToken::generate()?.expose().to_owned();

@@ -154,12 +154,21 @@ pub async fn serve_until(
 struct ConnectionCap {
     gateway: Gateway,
     max: usize,
+    trust_forwarded_for: bool,
 }
 
 /// Refuse new gateway upgrades with 503 once `gateway.max_connections`
-/// sessions are open (open question 107).
-async fn connection_cap(State(cap): State<ConnectionCap>, req: Request, next: Next) -> Response {
-    if cap.gateway.session_count() >= cap.max {
+/// sessions are open (open question 107). Sockets that have not identified yet count too, and the
+/// client address goes to the gateway for its per-address cap on them (SEC-AUD-010).
+async fn connection_cap(
+    State(cap): State<ConnectionCap>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    if let Some(ip) = sr_api::rate_limit::client_ip(&req, cap.trust_forwarded_for) {
+        req.extensions_mut().insert(sr_gateway::PeerIp(ip));
+    }
+    if cap.gateway.session_count() + cap.gateway.unidentified_count() >= cap.max {
         tracing::warn!(max = cap.max, "gateway connection cap reached");
         return (StatusCode::SERVICE_UNAVAILABLE, "gateway is at capacity").into_response();
     }
@@ -2016,6 +2025,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ConnectionCap {
                 gateway: gateway.clone(),
                 max: cfg.gateway.max_connections,
+                trust_forwarded_for: cfg.server.trust_forwarded_for,
             },
             connection_cap,
         ));

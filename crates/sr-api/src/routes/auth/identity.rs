@@ -112,6 +112,7 @@ pub async fn change_password(
         svc.store
             .revoke_sessions_except(account.id, Some(current_session))
             .await?;
+        svc.notify_sessions_revoked(account.id).await;
         svc.store.trusted_devices_revoke_all(account.id).await?;
     }
     svc.store
@@ -370,6 +371,7 @@ pub async fn cancel_change_email(
             .await?;
     } else {
         svc.store.revoke_sessions_except(user_id, None).await?;
+        svc.notify_sessions_revoked(user_id).await;
         svc.store.trusted_devices_revoke_all(user_id).await?;
         svc.store
             .audit(

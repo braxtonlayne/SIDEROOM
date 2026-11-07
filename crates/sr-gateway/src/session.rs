@@ -17,6 +17,8 @@ use crate::protocol::{Payload, op};
 pub(crate) enum Out {
     Frame(Arc<str>),
     Reconnect,
+    /// Re-check the connection's credential now: the account's sessions were revoked (SEC-AUD-002).
+    Recheck,
 }
 
 struct Buffered {
@@ -204,6 +206,14 @@ impl Session {
     pub fn send_reconnect(&self) {
         if let Some(l) = &self.lock().link {
             let _ = l.tx.try_send(Out::Reconnect);
+        }
+    }
+
+    /// Ask the attached connection to re-check its credential now (SEC-AUD-002). A connection whose
+    /// session was revoked closes with 4004; one whose session is still live carries on.
+    pub fn send_recheck(&self) {
+        if let Some(l) = &self.lock().link {
+            let _ = l.tx.try_send(Out::Recheck);
         }
     }
 

@@ -1,5 +1,6 @@
 // Wires the gateway client to the store. One connection per page.
-import { GatewayClient, type GatewayOptions } from '../gateway';
+import { reportUnauthorized } from '../api/client';
+import { CloseCode, GatewayClient, type GatewayOptions } from '../gateway';
 import { useStore } from './store';
 
 let client: GatewayClient | null = null;
@@ -60,6 +61,12 @@ export function connectGateway(opts: ConnectOptions = {}): GatewayClient {
     ...opts,
     onDispatch: (event, data) => receiveDispatch(event, data),
     onStatus: setConnection,
+    onFatal: (code) => {
+      opts.onFatal?.(code);
+      // SEC-AUD-002: the server closes a revoked session's socket with 4004. Same exit as a REST 401: the app's
+      // handler asks who the session is and leaves for the sign-in page when that says "nobody".
+      if (code === CloseCode.AUTHENTICATION_FAILED) reportUnauthorized();
+    },
   });
   client.connect();
   return client;

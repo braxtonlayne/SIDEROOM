@@ -567,6 +567,8 @@ Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDAT
 
 `GUILD_CREATE` also carries `stage_instances` (the live stages whose channel the recipient can see) and `soundboard_sounds` (the server's sounds, the `SOUNDBOARD_SOUNDS` shape), so clients seed those stores without a boot fetch (G-38). Members who are the system user are left out of its `members` and of every member list, count and prune (D-188); message objects the system user wrote carry the SIDE ROOM message flag `SYSTEM_TAG` (`1 << 30`).
 
+**Limits and revocation (wave 53).** A client message or frame larger than 256 KiB closes the socket (the largest client op, an op 101 commit, is under 200 KiB). A socket must IDENTIFY or RESUME within 30 s of HELLO, heartbeats or not, or it is closed with `4009`; one client address may hold 32 sockets that have not identified yet (more get HTTP 429), and they count toward `gateway.max_connections`. An identified socket re-checks its token or `sr_session` cookie every 60 s and at once when the account's sessions are revoked (logout, logout everywhere, a session ended from the device list, a password change, a staff suspend, force-logout or reset): a revoked session, a deactivated account or a reset bot token closes it with `4004`, which the web client treats as signed out.
+
 ### 6.5 Voice (gateway ops, dispatches, REST)
 The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` section 4. This section is the gateway and REST side.
 

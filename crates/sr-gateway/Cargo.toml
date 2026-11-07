@@ -31,7 +31,9 @@ tokio = { workspace = true, features = ["sync", "time", "rt"] }
 tracing = "0.1"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util", "net", "io-util"] }
+# SEC-AUD-010: a real /gateway over TCP to test the message-size limit (features only, no new crate).
+axum = { version = "0.8", default-features = false, features = ["ws", "query", "http1", "tokio"] }
 sr-memcount = { path = "../sr-memcount" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "std"] }
 

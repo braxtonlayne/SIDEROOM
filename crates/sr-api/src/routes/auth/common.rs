@@ -283,6 +283,25 @@ impl AuthService {
         }
     }
 
+    /// Tell the gateway that some of `user_id`'s sessions were revoked, so their open sockets close
+    /// now instead of at the next periodic re-check (SEC-AUD-002). Call after the rows are revoked.
+    /// Best effort: the gateway's 60 s re-check is the backstop.
+    pub(super) async fn notify_sessions_revoked(&self, user_id: i64) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(user_id)) else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        if let Err(e) = bus
+            .publish(
+                sr_events::Topic::User(user),
+                sr_events::DomainEvent::SessionsRevoked { user },
+            )
+            .await
+        {
+            tracing::warn!(error = %e, "failed to publish SessionsRevoked");
+        }
+    }
+
     /// `SR_USER_UPDATE` to the user own sessions (account facts the gateway caches, such as
     /// the age-gate answer). Best effort.
     pub(super) async fn notify_user_update(&self, user_id: i64, payload: serde_json::Value) {

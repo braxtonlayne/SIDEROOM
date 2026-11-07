@@ -385,6 +385,44 @@ async fn reset_2fa_and_delete_request_are_logged() {
     assert!(actions.contains(&"account.delete_request".to_owned()));
 }
 
+/// SEC-AUD-002: a staff suspend or force-logout tells the gateway, which closes that account's sockets.
+#[tokio::test]
+async fn suspend_and_force_logout_tell_the_gateway() {
+    let e = env();
+    let m = appointed(&e, MOD, R_MOD).await;
+    let user = |id: i64| sr_core::UserId::new(u64::try_from(id).unwrap());
+    let mut alice = e.bus.subscribe(Topic::User(user(ALICE)));
+    let mut carol = e.bus.subscribe(Topic::User(user(CAROL)));
+    async fn next(s: &mut futures::stream::BoxStream<'static, DomainEvent>) -> Option<DomainEvent> {
+        tokio::time::timeout(std::time::Duration::from_secs(1), s.next())
+            .await
+            .ok()
+            .flatten()
+    }
+    e.svc
+        .set_suspended(&m, ALICE, true, Some("spam"))
+        .await
+        .unwrap();
+    assert_eq!(
+        next(&mut alice).await,
+        Some(DomainEvent::SessionsRevoked { user: user(ALICE) })
+    );
+    e.svc
+        .force_logout(&m, CAROL, Some("lost phone"))
+        .await
+        .unwrap();
+    assert_eq!(
+        next(&mut carol).await,
+        Some(DomainEvent::SessionsRevoked { user: user(CAROL) })
+    );
+    // Unsuspending ends nothing.
+    e.svc
+        .set_suspended(&m, ALICE, false, Some("sorry"))
+        .await
+        .unwrap();
+    assert_eq!(next(&mut alice).await, None);
+}
+
 #[tokio::test]
 async fn serious_ban_raises_inviter_suspicion_and_standard_does_not() {
     let e = env();
