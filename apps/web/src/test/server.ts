@@ -12,6 +12,10 @@ export const server = setupServer(
     HttpResponse.json({ message: 'Unknown emoji' }, { status: 404 }),
   ),
   http.get('*/api/v1/sr/auth/discord/pending', () => HttpResponse.json(null)),
+  // No sign-in waiting on a second factor (D-557): the 2FA page falls back to the default methods.
+  http.get('*/api/v1/sr/auth/2fa/methods', () =>
+    HttpResponse.json({ message: "That doesn't match our list." }, { status: 401 }),
+  ),
   http.get('*/api/v1/sr/auth/passkeys', () => HttpResponse.json([])),
   // Settings > Devices: new-device sign-in alerts start on.
   http.get('*/api/v1/sr/auth/login-alerts', () => HttpResponse.json({ enabled: true })),

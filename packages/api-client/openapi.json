@@ -1123,7 +1123,7 @@
         "tags": [
           "accounts_ext"
         ],
-        "summary": "Replace an account's email; it becomes unverified and links sent to the old address\nstop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor.",
+        "summary": "Replace an account's email; it becomes unverified and links sent to the old address\nstop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor. The old address is told that\nstaff changed it, with a \"This wasn't me\" link that signs every device out (D-561).",
         "operationId": "change_email",
         "parameters": [
           {
@@ -66909,6 +66909,35 @@
         }
       }
     },
+    "/sr/auth/2fa/methods": {
+      "get": {
+        "tags": [],
+        "summary": "`GET /sr/auth/2fa/methods`: the methods of the sign-in waiting on the `sr_mfa` cookie (D-557).\nThe 2FA page asks this when it has no list of its own (after a Discord sign-in), so which\nfactors an account has never rides in a URL. No pending sign-in: 401.",
+        "operationId": "pending_methods",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecondFactorMethods"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sr/auth/account/delete": {
       "post": {
         "tags": [],
@@ -113583,6 +113612,22 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "SecondFactorMethods": {
+        "type": "object",
+        "description": "The second-factor methods a pending sign-in offers.",
+        "required": [
+          "methods"
+        ],
+        "properties": {
+          "methods": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Method names in the order to offer them: `passkey`, `totp`, then always `recovery`."
           }
         }
       },

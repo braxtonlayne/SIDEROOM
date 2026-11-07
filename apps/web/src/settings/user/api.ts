@@ -131,7 +131,9 @@ export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;
 }
-export const totpEnroll = () => apiPost<TotpEnrollment>('/sr/auth/totp/enroll');
+/** SEC-AUD-022: enrolment re-checks the password first (a session alone cannot add an authenticator). */
+export const totpEnroll = (password: string) =>
+  apiPost<TotpEnrollment>('/sr/auth/totp/enroll', { password });
 export const totpVerify = (code: string) =>
   apiPost<{ recovery_codes: string[] }>('/sr/auth/totp/verify', { code });
 export const totpDisable = (password: string) =>

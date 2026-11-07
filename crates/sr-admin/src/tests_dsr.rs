@@ -273,8 +273,10 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
         .create_data_request(&c, DataRequestKind::Erasure, SUBJECT, None, None, 30)
         .await
         .unwrap();
+    // The Owner verifies; the senior runs it (D-562).
+    let o = e.svc.resolve(OWNER, None).await.unwrap();
     e.svc
-        .verify_data_request(&c, r.id, Some("signed form"))
+        .verify_data_request(&o, r.id, Some("signed form"))
         .await
         .unwrap();
     e.reqs.block_erasure(SUBJECT, "The account owns 1 server");
@@ -294,8 +296,9 @@ async fn erasure_names_the_retained_records_and_a_blocked_account_stays_verified
         .create_data_request(&c2, DataRequestKind::Erasure, SUBJECT, None, None, 30)
         .await
         .unwrap();
+    let o2 = e2.svc.resolve(OWNER, None).await.unwrap();
     e2.svc
-        .verify_data_request(&c2, r2.id, Some("signed form"))
+        .verify_data_request(&o2, r2.id, Some("signed form"))
         .await
         .unwrap();
     let run = e2.svc.run_data_erasure(&c2, r2.id, OPTS).await.unwrap();
@@ -434,7 +437,10 @@ fn dates_in_the_notice_are_utc_calendar_days() {
 
 // ---- N-06, N-07, N-09, N-13 ----------------------------------------------------------------
 
-async fn erased(delete_messages: bool, years: u8) -> String {
+/// SEC-AUD-020 (D-562): the staff member who verified an erasure does not run it; the Owner may when nobody
+/// else holds `MANAGE_TAKEDOWNS`.
+#[tokio::test]
+async fn the_verifier_of_an_erasure_does_not_run_it() {
     let e = env();
     let c = staff(&e, SENIOR, 2).await;
     let r = e
@@ -444,6 +450,69 @@ async fn erased(delete_messages: bool, years: u8) -> String {
         .unwrap();
     e.svc
         .verify_data_request(&c, r.id, Some("signed form"))
+        .await
+        .unwrap();
+    let err = e.svc.run_data_erasure(&c, r.id, OPTS).await.unwrap_err();
+    assert!(
+        matches!(&err, AdminError::Forbidden(m) if m.contains("another staff member")),
+        "{err:?}"
+    );
+    assert_eq!(
+        e.svc.get_data_request(&c, r.id).await.unwrap().state,
+        DataRequestState::Verified,
+        "nothing ran"
+    );
+    // Somebody else (here the Owner) runs it.
+    let o = e.svc.resolve(OWNER, None).await.unwrap();
+    let run = e.svc.run_data_erasure(&o, r.id, OPTS).await.unwrap();
+    assert_eq!(run.request.state, DataRequestState::Completed);
+
+    // The Owner verified, and a senior holds the bit: the Owner may not run it either.
+    let e = env();
+    let o = e.svc.resolve(OWNER, None).await.unwrap();
+    staff(&e, SENIOR, 2).await;
+    let r = e
+        .svc
+        .create_data_request(&o, DataRequestKind::Erasure, SUBJECT, None, None, 30)
+        .await
+        .unwrap();
+    e.svc
+        .verify_data_request(&o, r.id, Some("signed form"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        e.svc.run_data_erasure(&o, r.id, OPTS).await,
+        Err(AdminError::Forbidden(_))
+    ));
+
+    // The Owner alone holds the bit (a moderator without it does not count): the Owner runs their own.
+    let e = env();
+    let o = e.svc.resolve(OWNER, None).await.unwrap();
+    staff(&e, MODR, 3).await;
+    let r = e
+        .svc
+        .create_data_request(&o, DataRequestKind::Erasure, SUBJECT, None, None, 30)
+        .await
+        .unwrap();
+    e.svc
+        .verify_data_request(&o, r.id, Some("signed form"))
+        .await
+        .unwrap();
+    let run = e.svc.run_data_erasure(&o, r.id, OPTS).await.unwrap();
+    assert_eq!(run.request.state, DataRequestState::Completed);
+}
+
+async fn erased(delete_messages: bool, years: u8) -> String {
+    let e = env();
+    let c = staff(&e, SENIOR, 2).await;
+    let r = e
+        .svc
+        .create_data_request(&c, DataRequestKind::Erasure, SUBJECT, None, None, 30)
+        .await
+        .unwrap();
+    let o = e.svc.resolve(OWNER, None).await.unwrap();
+    e.svc
+        .verify_data_request(&o, r.id, Some("signed form"))
         .await
         .unwrap();
     let run = e

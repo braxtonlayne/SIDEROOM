@@ -104,6 +104,9 @@ services:
       # The built web app, mounted read-only below: sr-server serves /app and /app/* from it to a signed-in session only
       # (D-385). It refuses to start when this is set and app/csp.txt is missing. Caddy serves the public files only.
       SR_WEB__ROOT: /srv/web
+      # Gateway sockets one client address may hold before they IDENTIFY (D-556); raise it when many members share
+      # one address (a NAT).
+      SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP: ${SR_GATEWAY_MAX_UNIDENTIFIED_PER_IP:-32}
       # Voice (docs/12 section 1, docs/specs/lounge-voice-video.md section 4). The SFU runs inside sr-server; it is off
       # until SR_VOICE_ENABLED=true. Then SR_VOICE_ANNOUNCE_IPS must be this host's public IP (comma-separated for
       # more than one) and UDP 50000-50099 (published below) open on the firewall. Calls that cannot reach the host

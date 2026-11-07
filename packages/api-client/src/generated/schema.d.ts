@@ -290,7 +290,8 @@ export interface paths {
         put?: never;
         /**
          * Replace an account's email; it becomes unverified and links sent to the old address
-         *     stop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor.
+         *     stop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor. The old address is told that
+         *     staff changed it, with a "This wasn't me" link that signs every device out (D-561).
          */
         post: operations["change_email"];
         delete?: never;
@@ -13302,6 +13303,27 @@ export interface paths {
          *     before sign-in). Theme ids are not secret.
          */
         get: operations["appearance_defaults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sr/auth/2fa/methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * `GET /sr/auth/2fa/methods`: the methods of the sign-in waiting on the `sr_mfa` cookie (D-557).
+         *     The 2FA page asks this when it has no list of its own (after a Discord sign-in), so which
+         *     factors an account has never rides in a URL. No pending sign-in: 401.
+         */
+        get: operations["pending_methods"];
         put?: never;
         post?: never;
         delete?: never;
@@ -27410,6 +27432,11 @@ export interface components {
             number: number;
             poster_key?: string | null;
             synopsis?: string | null;
+        };
+        /** @description The second-factor methods a pending sign-in offers. */
+        SecondFactorMethods: {
+            /** @description Method names in the order to offer them: `passkey`, `totp`, then always `recovery`. */
+            methods: string[];
         };
         SelfObject: {
             /** Format: int32 */
@@ -73766,6 +73793,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppearanceDefaultsObject"];
+                };
+            };
+        };
+    };
+    pending_methods: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecondFactorMethods"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

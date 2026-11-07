@@ -75,6 +75,9 @@ test('invite, register, verify, TOTP login, passkey login', async ({ page }) => 
   await page.goto('/settings/user/account');
   await page.getByRole('button', { name: 'Enable authenticator app' }).click();
   const wizard = page.getByRole('dialog', { name: 'Enable authenticator app' });
+  // SEC-AUD-022: the password first.
+  await wizard.getByLabel('Current password').fill(me.password);
+  await wizard.getByRole('button', { name: 'Continue' }).click();
   const secret = ((await wizard.getByLabel('Manual entry key').textContent()) ?? '').replace(
     /\s+/g,
     '',

@@ -363,8 +363,36 @@ impl AuditRepository for PgSettingsRepo {
                 break;
             }
         }
+        if total > 0 {
+            record_audit_purge(&self.pool, cutoff_ms, total).await?;
+        }
         Ok(total)
     }
+}
+
+/// D-563: a run of the guild audit-log retention that removed rows leaves one platform-audit row (actor: the system
+/// user), naming the cutoff and the count. Deleting audit history is itself audited. Skipped (with a warning) only
+/// when the system user does not exist yet, which `sr-cli bootstrap` creates.
+async fn record_audit_purge(pool: &PgPool, cutoff_ms: i64, removed: u64) -> RepoResult<()> {
+    let r = sqlx::query(
+        "INSERT INTO platform_audit_log (id, actor_id, action, target_id, note) \
+         SELECT sr_snowflake_floor(clock_timestamp()) + floor(random() * 4194304)::bigint, a.id, \
+                'audit.purge', NULL, \
+                format('guild audit-log rows created before %s removed: %s', \
+                       to_char(to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC', \
+                               'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), $3::bigint) \
+         FROM accounts a WHERE a.id = $1",
+    )
+    .bind(crate::accounts::SYSTEM_USER_ID)
+    .bind(cutoff_ms)
+    .bind(i64::try_from(removed).unwrap_or(i64::MAX))
+    .execute(pool)
+    .await
+    .map_err(db)?;
+    if r.rows_affected() == 0 {
+        tracing::warn!(removed, "audit purge not recorded: there is no system user");
+    }
+    Ok(())
 }
 
 // ---- emoji and stickers --------------------------------------------------------

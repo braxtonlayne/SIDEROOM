@@ -80,6 +80,8 @@ interface Row {
   shelves?: boolean;
   /** Show the page with a voice session connected (the section bar's status, D-536). */
   voice?: boolean;
+  /** Answer `GET /sr/auth/2fa/methods` with these methods (a pending Discord sign-in, D-557). */
+  mfaMethods?: string[];
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -266,9 +268,15 @@ const SIGNED_OUT: Row[] = [
   { name: 'pub-landing', path: () => '/' },
   { name: 'pub-join', path: () => '/join/abcd1234' },
   { name: 'pub-login', path: () => '/login' },
-  { name: 'pub-login-2fa', path: () => '/login/2fa' },
-  // SEC-AUD-001: after a Discord sign-in the methods come in the URL; a passkey account leads with the passkey.
-  { name: 'pub-login-2fa-passkey', path: () => '/login/2fa?methods=passkey,recovery' },
+  // No sign-in is waiting on a second factor here, so the methods route answers 401 and the page shows the default set.
+  { name: 'pub-login-2fa', path: () => '/login/2fa', expect4xx: /\/sr\/auth\/2fa\/methods$/ },
+  // SEC-AUD-001, D-557: after a Discord sign-in the page asks the server for the methods (the pending sr_mfa
+  // cookie); a passkey account leads with the passkey.
+  {
+    name: 'pub-login-2fa-passkey',
+    path: () => '/login/2fa',
+    mfaMethods: ['passkey', 'recovery'],
+  },
   { name: 'pub-login-link', path: () => '/login/link' },
   { name: 'pub-register', path: () => '/register' },
   { name: 'pub-forgot', path: () => '/forgot' },
@@ -676,7 +684,17 @@ async function capture(
   );
   const page = await context.newPage();
   page.on('console', (m) => {
-    if (m.type() === 'error') rec.consoleErrors.push(m.text().slice(0, 300));
+    if (m.type() !== 'error') return;
+    // The browser's own line for an expected 4xx (the row's `expect4xx`) names no URL; the response itself is
+    // checked against `expect4xx` below.
+    const url = m.location().url;
+    if (
+      row.expect4xx &&
+      /^Failed to load resource/.test(m.text()) &&
+      (!url || row.expect4xx.test(url))
+    )
+      return;
+    rec.consoleErrors.push(m.text().slice(0, 300));
   });
   page.on('pageerror', (e) => rec.pageErrors.push(String(e).slice(0, 300)));
   page.on('response', (r) => {
@@ -700,6 +718,12 @@ async function capture(
   try {
     if (opts.signedIn) await decorate(page);
     if (row.shelves) await fakeShelves(page);
+    const mfaMethods = row.mfaMethods;
+    if (mfaMethods) {
+      await page.route('**/api/v1/sr/auth/2fa/methods', (r) =>
+        r.fulfill({ json: { methods: mfaMethods } }),
+      );
+    }
     const res = await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     rec.status = res?.status() ?? null;
     await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => undefined);

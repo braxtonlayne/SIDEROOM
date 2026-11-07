@@ -113,6 +113,13 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 
 `voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress".
 
+**Gateway (configuration file or environment, not Admin)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `gateway.max_connections` (`SR_GATEWAY__MAX_CONNECTIONS`) | 10000 | Gateway sockets at once, identified or not; further upgrades get 503. |
+| `gateway.max_unidentified_per_ip` (`SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP`) | 32 | Sockets one client address may hold before they sign in (IDENTIFY, within 30 s); further upgrades get 429 (D-556). Raise it when many members reach the server from one address: a shared NAT, or a proxy whose forwarded address the server does not trust. |
+
 **Environment you will meet:** `SR_BACKUP_DIR`, `SR_BACKUP_KEEP` (default 14,8,12), `SR_DRILL_MAX_AGE_HOURS`, `SR_BASEBACKUP_KEEP`; secrets are `server.secret_key` (rotation: [BACKUP.md](BACKUP.md)), database and storage credentials. Secrets go in the environment or a mode-0600 file, never on a command line.
 
 ### The feature phase: settings, switches and jobs (waves 27 to 40)

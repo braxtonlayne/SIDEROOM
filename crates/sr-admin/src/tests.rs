@@ -423,6 +423,30 @@ async fn suspend_and_force_logout_tell_the_gateway() {
     assert_eq!(next(&mut alice).await, None);
 }
 
+/// SEC-AUD-018 (D-558): a Person ban drops the banned accounts' sockets at once, not at the 60 s re-check.
+#[tokio::test]
+async fn a_person_ban_tells_the_gateway() {
+    let e = env();
+    let m = appointed(&e, MOD, R_MOD).await;
+    let user = |id: i64| sr_core::UserId::new(u64::try_from(id).unwrap());
+    let mut bob = e.bus.subscribe(Topic::User(user(BOB)));
+    e.svc
+        .ban_person(
+            &m,
+            BOB + 500_000,
+            Some(BOB),
+            BanCategory::Standard,
+            Some("rude"),
+        )
+        .await
+        .unwrap();
+    let got = tokio::time::timeout(std::time::Duration::from_secs(1), bob.next())
+        .await
+        .ok()
+        .flatten();
+    assert_eq!(got, Some(DomainEvent::SessionsRevoked { user: user(BOB) }));
+}
+
 #[tokio::test]
 async fn serious_ban_raises_inviter_suspicion_and_standard_does_not() {
     let e = env();
@@ -821,6 +845,71 @@ async fn settings_are_validated_and_thresholds_ordered() {
             .await
             .is_err()
     );
+}
+
+/// SEC-AUD-021 (D-563): the guild audit-log retention and the invite lock need a reason through the settings
+/// patch, as the dedicated lock path does; other keys keep an optional reason.
+#[tokio::test]
+async fn retention_and_lock_need_a_reason_in_the_settings_patch() {
+    let e = env();
+    let owner = e.svc.resolve(OWNER, None).await.unwrap();
+    for key in ["moderation.audit_retention_days", "invites.locked"] {
+        let value = if key == "invites.locked" {
+            json!(true)
+        } else {
+            json!(1)
+        };
+        for reason in [None, Some("  ")] {
+            assert_eq!(
+                e.svc
+                    .patch_settings(&owner, &[(key.into(), value.clone())], reason)
+                    .await
+                    .unwrap_err(),
+                AdminError::ReasonRequired,
+                "{key}"
+            );
+        }
+        // Mixed with a key that needs none, still refused, and nothing is stored.
+        assert_eq!(
+            e.svc
+                .patch_settings(
+                    &owner,
+                    &[
+                        ("accounts.cap".into(), json!(321)),
+                        (key.into(), value.clone())
+                    ],
+                    None,
+                )
+                .await
+                .unwrap_err(),
+            AdminError::ReasonRequired
+        );
+        let view = e.svc.settings_view(&owner).await.unwrap();
+        assert!(
+            view.iter().find(|s| s.key == key).unwrap().is_default,
+            "{key}"
+        );
+        e.svc
+            .patch_settings(&owner, &[(key.into(), value)], Some("policy change"))
+            .await
+            .unwrap();
+    }
+    assert_ne!(
+        e.svc
+            .settings_view(&owner)
+            .await
+            .unwrap()
+            .iter()
+            .find(|s| s.key == "accounts.cap")
+            .unwrap()
+            .value,
+        json!(321)
+    );
+    // Other keys: a reason stays optional.
+    e.svc
+        .patch_settings(&owner, &[("accounts.cap".into(), json!(400))], None)
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
