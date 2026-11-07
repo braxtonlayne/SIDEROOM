@@ -90,6 +90,8 @@ describe('putSave and getSave', () => {
     const key = saveKey('mgba', HASH, 'sram');
     await expect(putSave('7', key, new Uint8Array(1), io(403))).rejects.toThrow('403');
     expect(await getSave('7', key, io(404))).toBeNull();
+    // D-560: a refused read is not "no save yet".
+    await expect(getSave('7', key, io(403))).rejects.toThrow('403');
     expect([...((await getSave('7', key, io(200))) ?? [])]).toEqual([1, 2, 3]);
   });
 });

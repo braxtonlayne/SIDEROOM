@@ -93,7 +93,9 @@ export async function getSave(
   if (!parseSaveKey(key)) throw new Error('not a save key');
   const { url } = await io.presign(mountId, key, 'GET');
   const res = await io.fetch(url, { cache: 'no-store' });
-  if (res.status === 404 || res.status === 403) return null;
+  // D-560: only 404 means "no save yet". A 403 is a refused read; reading it as "none" would let the first
+  // autosave overwrite a save that exists, so it throws and the caller runs the session with saving off.
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(`the bucket did not answer (${res.status})`);
   return new Uint8Array(await res.arrayBuffer());
 }

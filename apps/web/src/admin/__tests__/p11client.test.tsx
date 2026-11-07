@@ -176,6 +176,8 @@ describe('re-auth on other admin actions', () => {
       await screen.findByRole('button', { name: 'Remove sam from staff' }, { timeout: 4000 }),
     );
     const confirm = await screen.findByRole('dialog', { name: /Remove @sam from staff/ });
+    // SEC-AUD-013: the removal needs a reason.
+    await userEvent.type(within(confirm).getByRole('textbox'), 'left the team');
     await userEvent.click(within(confirm).getByRole('button', { name: 'Remove from staff' }));
     const dialog = await screen.findByRole(
       'dialog',
