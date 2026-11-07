@@ -9,7 +9,7 @@ use super::notifications::{
 };
 use super::presence::{self, CustomStatus, PresencePrefs, Status};
 use super::profile::{self, Connection, Profile, ProfileEdit};
-use super::read_state::{self, ReadState};
+use super::read_state::{self, ReadState, ReadStateOp};
 use super::relationships::{self, PairCounts, PairState, Plan, Relationship, RelationshipKind};
 use super::repo::{SocialRepository, kind_of};
 use super::{SocialError, SocialLimits, SocialResult};
@@ -832,16 +832,17 @@ impl<R: SocialRepository> SocialService<R> {
 
     // ---- read states ---------------------------------------------------
 
+    /// Acknowledge up to `up_to`; the marker only moves forward, also against a concurrent ack (SEC-AUD-027).
     pub async fn ack(
         &self,
         user: UserId,
         channel: ChannelId,
         up_to: MessageId,
     ) -> SocialResult<ReadState> {
-        let prev = self.repo.get_read_state(user, channel).await?;
-        let s = read_state::ack(prev, user, channel, up_to);
-        self.repo.put_read_state(&s).await?;
-        Ok(s)
+        Ok(self
+            .repo
+            .apply_read_state(user, channel, ReadStateOp::Ack(up_to))
+            .await?)
     }
 
     /// Mark many channels read at once ("mark server as read").
@@ -863,17 +864,18 @@ impl<R: SocialRepository> SocialService<R> {
         previous_message: Option<MessageId>,
         mention_count: u32,
     ) -> SocialResult<ReadState> {
-        let prev = self.repo.get_read_state(user, channel).await?;
-        let s = read_state::mark_unread(prev, user, channel, previous_message, mention_count);
-        self.repo.put_read_state(&s).await?;
-        Ok(s)
+        let op = ReadStateOp::Unread {
+            previous_message,
+            mention_count,
+        };
+        Ok(self.repo.apply_read_state(user, channel, op).await?)
     }
 
     pub async fn ack_pins(&self, user: UserId, channel: ChannelId) -> SocialResult<ReadState> {
-        let prev = self.repo.get_read_state(user, channel).await?;
-        let s = read_state::ack_pins(prev, user, channel, self.now());
-        self.repo.put_read_state(&s).await?;
-        Ok(s)
+        Ok(self
+            .repo
+            .apply_read_state(user, channel, ReadStateOp::Pins(self.now()))
+            .await?)
     }
 
     /// Bump mention counts for the recipients of a new message (never the author).

@@ -540,7 +540,7 @@ pub async fn modify_channel(
         user,
         cid,
         sr_core::permissions::Permissions::MANAGE_CHANNELS,
-        false,
+        true, // D-570: with the channel's overwrites, as the service checks it
     )
     .await?;
     let kind = match body.kind {
@@ -603,7 +603,7 @@ pub async fn delete_channel(
         user,
         cid,
         sr_core::permissions::Permissions::MANAGE_CHANNELS,
-        false,
+        true, // D-570: with the channel's overwrites, as the service checks it
     )
     .await?;
     let view = api.delete_channel(user, cid).await.map_err(ce)?;

@@ -33,8 +33,10 @@ pub trait ThreadRepository: Send + Sync {
     /// Insert the thread channel, its metadata and its creator's membership atomically.
     async fn insert_thread(&self, thread: &Channel, creator: UserId, now_ms: i64)
     -> RepoResult<()>;
-    /// Persist name, slowmode, flags and all thread metadata of `thread`.
-    async fn update_thread(&self, thread: &Channel) -> RepoResult<()>;
+    /// Persist what an edit changed from `before` to `thread` (name, slowmode, flag bits, thread metadata), and
+    /// only that: a concurrent message's activity time, a pin or a slowmode change made since `before` was read
+    /// is never written back (SEC-AUD-027). The activity time only moves forward.
+    async fn update_thread(&self, before: &Channel, thread: &Channel) -> RepoResult<()>;
 
     /// Returns true when the user was not a member yet.
     async fn add_thread_member(

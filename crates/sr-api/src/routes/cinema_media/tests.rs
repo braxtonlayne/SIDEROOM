@@ -326,7 +326,7 @@ impl DownloadRepository for Stub {
     ) -> MediaResult<Option<CacheEntry>> {
         Ok(None)
     }
-    async fn create_download(&self, _: &DownloadRow) -> MediaResult<()> {
+    async fn create_download(&self, _: &DownloadRow, _: i64, _: u32) -> MediaResult<bool> {
         unsupported()
     }
     async fn download(&self, _: i64) -> MediaResult<Option<(DownloadRow, Option<CacheEntry>)>> {

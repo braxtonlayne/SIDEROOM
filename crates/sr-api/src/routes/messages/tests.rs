@@ -2274,3 +2274,134 @@ async fn a_finished_call_becomes_a_call_message_with_its_details() {
         .await;
     assert!(s.is_client_error(), "call records are not editable");
 }
+
+/// A restriction gate that holds Bob back from posting (a timeout or a case freeze, MOD-GRD-001).
+struct BobRestricted;
+
+#[async_trait]
+impl crate::auth::AccountRestrictions for BobRestricted {
+    async fn restricted_from_posting(&self, user_id: i64) -> bool {
+        user_id == i64::try_from(BOB).unwrap()
+    }
+}
+
+/// D-566 (SEC-AUD-024): a restricted member edits no new content, crossposts nothing and votes in no poll; an
+/// edit of the flags only and deleting their own message stay open.
+#[tokio::test]
+async fn the_posting_gate_covers_edits_crossposts_and_votes_but_not_deletes() {
+    use sr_auth::{
+        repo::{SessionRecord, SessionRepository},
+        session::SessionToken,
+    };
+    let e = env().await;
+    let own = e.say("bob", "before the freeze").await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let gone = e.say("bob", "delete me").await["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // The same backend, reached by Bob's browser session, with the restriction gate registered.
+    let sessions = Arc::new(crate::auth::memory::MemorySessions::new());
+    let t = SessionToken::generate().unwrap();
+    sessions
+        .create(SessionRecord {
+            id: 7,
+            user_id: i64::try_from(BOB).unwrap(),
+            token_hash: t.hash(),
+            created_at: 0,
+            last_seen_at: i64::MAX / 4,
+            expires_at: i64::MAX / 4,
+            device_name: None,
+        })
+        .await
+        .unwrap();
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let state = AppState::builder()
+        .settings(settings)
+        .sessions(sessions)
+        .extension(e.deps.clone())
+        .extension(Arc::new(crate::auth::RestrictionGate(Arc::new(
+            BobRestricted,
+        ))))
+        .build();
+    let app = build_router(state, router());
+    let call = |method: Method, path: String, body: Option<Value>| {
+        let app = app.clone();
+        let raw = t.expose().to_owned();
+        let uri = format!("/api/v1/channels/{}{path}", e.ch);
+        async move {
+            let req = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("cookie", format!("sr_session={raw}"))
+                .header(
+                    crate::auth::csrf::CSRF_HEADER,
+                    crate::auth::csrf::token_for(&raw),
+                )
+                .header("content-type", "application/json");
+            let body = body.map_or_else(Body::empty, |v| Body::from(v.to_string()));
+            let resp = app.oneshot(req.body(body).unwrap()).await.unwrap();
+            let status = resp.status();
+            let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+            (status, String::from_utf8_lossy(&bytes).into_owned())
+        }
+    };
+    let refused = |(s, b): (StatusCode, String), what: &str| {
+        assert_eq!(s, StatusCode::FORBIDDEN, "{what}: {b}");
+        assert!(
+            b.contains("900124"),
+            "{what} answers SrAccountRestricted: {b}"
+        );
+    };
+
+    refused(
+        call(
+            Method::PATCH,
+            format!("/messages/{own}"),
+            Some(json!({"content": "after the freeze"})),
+        )
+        .await,
+        "an edit with new content",
+    );
+    refused(
+        call(Method::POST, format!("/messages/{own}/crosspost"), None).await,
+        "a crosspost",
+    );
+    refused(
+        call(
+            Method::PUT,
+            format!("/polls/{own}/answers/1/voters/@me"),
+            None,
+        )
+        .await,
+        "a poll vote",
+    );
+    refused(
+        call(
+            Method::POST,
+            "/messages".into(),
+            Some(json!({"content": "new"})),
+        )
+        .await,
+        "a new message",
+    );
+    // Unchanged: the content is still the old one.
+    let (s, v) = e.get(&format!("/messages/{own}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["content"], "before the freeze");
+
+    // Suppressing embeds publishes nothing; removing one's own words is not publishing.
+    let (s, b) = call(
+        Method::PATCH,
+        format!("/messages/{own}"),
+        Some(json!({"flags": 4})),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK, "a flags-only edit: {b}");
+    let (s, b) = call(Method::DELETE, format!("/messages/{gone}"), None).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "deleting one's own message: {b}");
+}

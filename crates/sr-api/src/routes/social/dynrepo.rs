@@ -7,7 +7,7 @@ use sr_chat::social::dm::{DmChannel, GroupInvite, RequestReason, RequestState, S
 use sr_chat::social::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::PresencePrefs;
 use sr_chat::social::profile::{Connection, Profile};
-use sr_chat::social::read_state::ReadState;
+use sr_chat::social::read_state::{ReadState, ReadStateOp};
 use sr_chat::social::relationships::{RelOp, Relationship, RelationshipCounts};
 use sr_chat::social::repo::*;
 use sr_chat::social::user_settings::UserSettings;
@@ -68,6 +68,14 @@ impl RelationshipRepository for DynRepo {
     }
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()> {
         self.0.put_privacy(user, privacy).await
+    }
+    async fn replace_privacy(
+        &self,
+        user: UserId,
+        expected: &Privacy,
+        privacy: &Privacy,
+    ) -> RepoResult<bool> {
+        self.0.replace_privacy(user, expected, privacy).await
     }
     async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool> {
         self.0.is_ignoring(user, target).await
@@ -201,6 +209,14 @@ impl ReadStateRepository for DynRepo {
     }
     async fn add_mentions(&self, users: &[UserId], channel: ChannelId, n: u32) -> RepoResult<()> {
         self.0.add_mentions(users, channel, n).await
+    }
+    async fn apply_read_state(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+        op: ReadStateOp,
+    ) -> RepoResult<ReadState> {
+        self.0.apply_read_state(user, channel, op).await
     }
 }
 

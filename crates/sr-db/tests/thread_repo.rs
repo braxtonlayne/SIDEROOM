@@ -589,3 +589,53 @@ async fn deleting_a_text_channel_deletes_its_threads() {
         0
     );
 }
+
+/// SEC-AUD-027: an edit planned from an older read writes only what it changed; a message's activity time and a
+/// flag set in between stay.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_thread_edit_from_an_older_read_keeps_concurrent_changes() {
+    use sr_chat::threads::ThreadRepository;
+    let f = fx().await;
+    let m = f
+        .chat
+        .send_message(f.bob, f.general, say("plan"))
+        .await
+        .unwrap();
+    let tid = f
+        .threads
+        .start_from_message(f.bob, f.general, m.id, start("Planning"))
+        .await
+        .unwrap()
+        .view
+        .channel
+        .id;
+    // The edit's read.
+    let before = f.threads.view(f.bob, tid).await.unwrap().channel;
+    // Meanwhile: a message an hour later, and another writer sets a flag bit.
+    f.clock.advance_ms(60 * MIN);
+    let later = f
+        .chat
+        .send_message(f.bob, tid, say("still here"))
+        .await
+        .unwrap();
+    f.threads.record_message(&later).await.unwrap();
+    sqlx::query("UPDATE channels SET flags = flags | 2 WHERE id = $1")
+        .bind(tid.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    let fresh = f.threads.view(f.bob, tid).await.unwrap().channel;
+    let active_ms = fresh.thread.as_ref().unwrap().last_activity_ms;
+    assert!(active_ms > before.thread.as_ref().unwrap().last_activity_ms);
+
+    // The rename lands on top of them.
+    let mut renamed = before.clone();
+    renamed.name = Some("Renamed".into());
+    let repo = PgChatRepo::new(f.pool.clone());
+    repo.update_thread(&before, &renamed).await.unwrap();
+    let after = f.threads.view(f.bob, tid).await.unwrap().channel;
+    assert_eq!(after.name.as_deref(), Some("Renamed"));
+    assert_eq!(after.thread.unwrap().last_activity_ms, active_ms);
+    assert_eq!(after.flags & 2, 2, "the flag set in between stays");
+}

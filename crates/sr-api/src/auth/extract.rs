@@ -122,13 +122,24 @@ async fn restrict(state: &AppState, parts: &Parts, p: &Principal) -> Result<(), 
     if !super::policy::posting_route(&parts.method, matched.as_str()) {
         return Ok(());
     }
-    let Some(gate) = state.extension::<RestrictionGate>() else {
-        return Ok(());
-    };
-    if gate.0.restricted_from_posting(p.user_id).await {
-        return Err(ErrorCode::SrAccountRestricted.into());
+    p.ensure_may_post(state).await
+}
+
+impl Principal {
+    /// The posting gate (MOD-GRD-001) for a route whose body decides whether it publishes: a message edit with
+    /// new content (D-566). Bots are not restricted.
+    pub async fn ensure_may_post(&self, state: &AppState) -> Result<(), HttpError> {
+        if matches!(self.kind, AuthKind::Bot { .. }) {
+            return Ok(());
+        }
+        let Some(gate) = state.extension::<RestrictionGate>() else {
+            return Ok(());
+        };
+        if gate.0.restricted_from_posting(self.user_id).await {
+            return Err(ErrorCode::SrAccountRestricted.into());
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 impl Principal {

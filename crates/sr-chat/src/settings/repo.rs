@@ -121,7 +121,17 @@ pub trait TemplateRepository: Send + Sync {
 pub trait CommunityRepository: Send + Sync {
     /// Defaults when nothing was saved yet.
     async fn get_community(&self, guild: GuildId) -> RepoResult<CommunitySettings>;
+    /// Save the settings. The timed pauses and `raid_detected_at` are written only when the row is created;
+    /// later they change through [`Self::set_incident_pauses`], [`Self::mark_raid`] and
+    /// [`Self::clear_invite_pause`] alone, so a save from an older read never reverts them (SEC-AUD-027).
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()>;
+    /// Set or clear the two timed pauses (D-243), and nothing else.
+    async fn set_incident_pauses(
+        &self,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> RepoResult<()>;
     /// Record a join-rate alert (D-243) unless one fired within `cooldown_ms`: sets
     /// `raid_detected_at` and, when `raid_auto_pause_invites` is on, `invites_disabled_until`
     /// to `pause_until_ms`. `None` when nothing fired (cooldown, or no row); otherwise whether

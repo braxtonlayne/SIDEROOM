@@ -496,7 +496,33 @@ impl CommunityRepository for MemorySettingsRepo {
     }
 
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()> {
-        self.with(|s| s.community.insert(settings.guild_id, settings.clone()));
+        self.with(|s| {
+            let mut new = settings.clone();
+            // As in Postgres: the timed columns of an existing row are not the save's to write.
+            if let Some(old) = s.community.get(&settings.guild_id) {
+                new.invites_disabled_until_ms = old.invites_disabled_until_ms;
+                new.dms_disabled_until_ms = old.dms_disabled_until_ms;
+                new.raid_detected_at_ms = old.raid_detected_at_ms;
+            }
+            s.community.insert(settings.guild_id, new)
+        });
+        Ok(())
+    }
+
+    async fn set_incident_pauses(
+        &self,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> RepoResult<()> {
+        self.with(|s| {
+            let c = s
+                .community
+                .entry(guild)
+                .or_insert_with(|| CommunitySettings::new(guild));
+            c.invites_disabled_until_ms = invites_until_ms;
+            c.dms_disabled_until_ms = dms_until_ms;
+        });
         Ok(())
     }
 

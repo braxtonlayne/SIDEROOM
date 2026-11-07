@@ -1265,6 +1265,9 @@ impl CommunityRepository for PgSettingsRepo {
     }
 
     async fn put_community(&self, s: &CommunitySettings) -> RepoResult<()> {
+        // The timed pauses and the raid alert time are written only when the row is created; afterwards they
+        // belong to `set_incident_pauses`, `mark_raid` and `clear_invite_pause`, so a settings save from an
+        // older read never reverts a raid auto-pause (SEC-AUD-027).
         let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
             "UPDATE guilds SET rules_channel_id = $2, public_updates_channel_id = $3 WHERE id = $1",
@@ -1303,9 +1306,6 @@ impl CommunityRepository for PgSettingsRepo {
                explicit_media_filter_dms = EXCLUDED.explicit_media_filter_dms, \
                hide_suspicious_links = EXCLUDED.hide_suspicious_links, \
                warn_new_account_days = EXCLUDED.warn_new_account_days, \
-               invites_disabled_until = EXCLUDED.invites_disabled_until, \
-               dms_disabled_until = EXCLUDED.dms_disabled_until, \
-               raid_detected_at = EXCLUDED.raid_detected_at, \
                raid_auto_pause_invites = EXCLUDED.raid_auto_pause_invites, \
                updated_at = now()",
         )
@@ -1361,6 +1361,28 @@ impl CommunityRepository for PgSettingsRepo {
         .fetch_optional(&self.pool)
         .await
         .map_err(db)
+    }
+
+    async fn set_incident_pauses(
+        &self,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_community (guild_id, invites_disabled_until, dms_disabled_until) \
+             VALUES ($1, to_timestamp($2::bigint / 1000.0), to_timestamp($3::bigint / 1000.0)) \
+             ON CONFLICT (guild_id) DO UPDATE SET \
+               invites_disabled_until = EXCLUDED.invites_disabled_until, \
+               dms_disabled_until = EXCLUDED.dms_disabled_until, updated_at = now()",
+        )
+        .bind(i(guild.get()))
+        .bind(invites_until_ms)
+        .bind(dms_until_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
     }
 
     async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool> {

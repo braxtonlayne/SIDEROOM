@@ -235,7 +235,31 @@ impl DownloadRepository for PgMediaRepo {
         self.live_cache(asset_id, rendition).await
     }
 
-    async fn create_download(&self, row: &DownloadRow) -> MediaResult<()> {
+    async fn create_download(
+        &self,
+        row: &DownloadRow,
+        since_ms: i64,
+        per_day: u32,
+    ) -> MediaResult<bool> {
+        // The member's account row serialises their starts, so the count below sees every committed one.
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        sqlx::query("SELECT 1 FROM accounts WHERE id = $1 FOR NO KEY UPDATE")
+            .bind(row.user_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(be)?;
+        let used: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM cinema_downloads WHERE user_id = $1 \
+               AND created_at > to_timestamp($2::double precision / 1000.0)",
+        )
+        .bind(row.user_id)
+        .bind(since_ms)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+        if used >= i64::from(per_day) {
+            return Ok(false);
+        }
         sqlx::query(
             "INSERT INTO cinema_downloads (id, user_id, title_id, episode_id, asset_id, rendition, cache_id) \
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -247,10 +271,11 @@ impl DownloadRepository for PgMediaRepo {
         .bind(row.asset_id)
         .bind(&row.rendition)
         .bind(row.cache_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(be)?;
-        Ok(())
+        tx.commit().await.map_err(be)?;
+        Ok(true)
     }
 
     async fn download(&self, id: i64) -> MediaResult<Option<(DownloadRow, Option<CacheEntry>)>> {

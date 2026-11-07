@@ -182,7 +182,14 @@ pub trait DownloadRepository: Send + Sync {
         rendition: &str,
         job: NewJob,
     ) -> MediaResult<Option<CacheEntry>>;
-    async fn create_download(&self, row: &DownloadRow) -> MediaResult<()>;
+    /// Insert the request unless the member already made `per_day` since `since_ms`; the count and the insert
+    /// are one step per member (SEC-AUD-027). `false` when over the allowance.
+    async fn create_download(
+        &self,
+        row: &DownloadRow,
+        since_ms: i64,
+        per_day: u32,
+    ) -> MediaResult<bool>;
     async fn download(&self, id: i64) -> MediaResult<Option<(DownloadRow, Option<CacheEntry>)>>;
     /// Ready entries past their expiry, marked `expired`; the caller deletes the objects.
     async fn expire_cache(&self, now_ms: i64, limit: u32) -> MediaResult<Vec<CacheEntry>>;
@@ -342,7 +349,7 @@ impl DownloadService {
                     "The original is not available for download.".into(),
                 ));
             }
-            self.repo.create_download(&row).await?;
+            self.record(&row, allowance.per_day).await?;
             return self.view(&row, None).await;
         }
         let cache = match self.repo.live_cache(asset_id, rendition).await? {
@@ -350,8 +357,24 @@ impl DownloadService {
             None => self.prepare(asset_id, rendition).await?,
         };
         row.cache_id = Some(cache.id);
-        self.repo.create_download(&row).await?;
+        self.record(&row, allowance.per_day).await?;
         self.view(&row, Some(&cache)).await
+    }
+
+    /// Record the request, counted against the day's allowance in the same step: parallel starts cannot all
+    /// pass the count read above (SEC-AUD-027).
+    async fn record(&self, row: &DownloadRow, per_day: u32) -> MediaResult<()> {
+        if self
+            .repo
+            .create_download(row, day_ago_ms(self.now()), per_day)
+            .await?
+        {
+            Ok(())
+        } else {
+            Err(MediaError::RateLimited(
+                "You have used today's downloads. Try again tomorrow.".into(),
+            ))
+        }
     }
 
     async fn prepare(&self, asset_id: i64, rendition: &str) -> MediaResult<CacheEntry> {
