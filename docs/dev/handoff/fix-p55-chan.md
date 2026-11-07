@@ -36,7 +36,14 @@ Branch `fix/p55-chan`, based on `integration/phase54`.
   wanted: compute the switch's disabled state from channel-level permissions.
 
 ## Tests run
-RESULTS_PLACEHOLDER
+All under the heavy lock (14:05), green:
+- `cargo fmt --all -- --check`
+- `cargo clippy -j 4 -p sr-chat --all-targets -- -D warnings`
+- `cargo test -j 4 -p sr-chat` (392 unit tests plus the other suites; both new tests pass)
+- `cargo test -j 4 -p sr-api --test guilds` (23 passed; includes the HTTP bulk cross-category move by the owner)
+- `node scripts/check-doc-links.mjs`
+
+Commits: `39da06c3` (code + tests), plus the handoff commits.
 
 ## Owner questions (for Fable)
 1. Moving a channel out of its category to the top level (`parent_id: null`) needs only the channel's
