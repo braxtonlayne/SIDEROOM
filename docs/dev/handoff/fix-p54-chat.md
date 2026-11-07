@@ -94,8 +94,16 @@ Caps:
 - None of the findings in this task were wrong. Every one above was confirmed in the code first (the bridge seed
   HIGH included). The test of SEC-AUD-023 is in the SEC-AUD-027 commit (same test file as the report-limit test).
 
-## Tests run
-- (fill in)
+## Tests run (all green, scratch DB `sr_p54_chat`, dropped afterwards)
+- `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-chat -p sr-db -p sr-moderation -p sr-bridge -p sr-api
+  -p sr-server -p sr-gateway -p sr-media --all-targets -- -D warnings`.
+- `cargo test`: sr-chat (389 + 10), sr-gateway (216), sr-media (123), sr-bridge lib (81), sr-api lib filtered to
+  `auth:: routes::messages routes::social routes::settings routes::guilds routes::cinema_media routes::threads` (373),
+  sr-server lib with `--include-ignored` (278).
+- Postgres (`--ignored --test-threads=1`): sr-moderation `db` (14); sr-db `held_channel_delete`, `p14_j_lounge`,
+  `social_repo`, `thread_repo`, `settings_repo`, `lounge_repo` (37); sr-bridge `inbound` (15), `sync_engine` (24);
+  sr-server `authz_matrix graduated_moderation_holds_over_http` (1).
+- Not run: the full authorization matrix and `immutable_rules` (no route, permission row or setting changed).
 
 ## Owner questions
 1. Channel edit with a `MANAGE_CHANNELS` allow overwrite in one channel (no guild-level bit) now also lets that
