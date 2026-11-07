@@ -434,12 +434,24 @@ test.describe.serial('signed in', () => {
     await apiPost(b.request, '/sr/auth/logout-all');
     await b.close();
 
-    const status = await page.evaluate(async () => (await fetch('/app/assets/anything.js')).status);
+    // Asked through the context (same cookies as the page): since SEC-AUD-002 the gateway closes the
+    // revoked socket with 4004 and the page signs itself out, and WebKit aborts a page fetch that is in
+    // flight when the page navigates ("Load failed").
+    const r = await a.request.get('/app/assets/anything.js', noRedirect);
+    expect(r.status()).toBe(401);
+    // The page's own fetch goes through the service worker, which purges the app caches on a 401; the
+    // client's sign-out on 4004 purges them too, so an aborted fetch is fine.
+    const status = await page
+      .evaluate(async () => (await fetch('/app/assets/anything.js')).status)
+      .catch(() => 401);
     expect(status).toBe(401);
     await expect
       .poll(
         async () =>
-          page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('sr-app-'))),
+          page
+            .evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('sr-app-')))
+            // The page may be navigating to the sign-in page: ask again.
+            .catch(() => ['navigating']),
         { timeout: 15_000 },
       )
       .toEqual([]);
