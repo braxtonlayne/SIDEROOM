@@ -209,6 +209,17 @@ pub async fn add_cartridge(
 /// right before the bucket is called (as for every member mount read), one ranged `GET` of the catalog size.
 struct ShelfFiles<'a>(&'a ScopeDeps);
 
+/// [`ShelfFiles`] for a background job: the one-off manifest re-check of cartridges listed before D-568
+/// (D-579, `arcade.manifest_recheck` in sr-server) reads each file the same way a listing does.
+pub struct ShelfCartridgeFiles(pub std::sync::Arc<ScopeDeps>);
+
+#[async_trait::async_trait]
+impl CartridgeObjects for ShelfCartridgeFiles {
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
+        ShelfFiles(&self.0).read(shelf, path, len).await
+    }
+}
+
 #[async_trait::async_trait]
 impl CartridgeObjects for ShelfFiles<'_> {
     async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {

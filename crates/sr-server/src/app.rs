@@ -991,6 +991,13 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         gate: dm_gate.clone(),
         public_url: cfg.server.public_url.trim_end_matches('/').to_owned(),
     });
+    // D-579: the one-off manifest re-check of cartridges listed before D-568 reads files like a listing does.
+    let arcade_recheck = (
+        arcade_deps.service.clone(),
+        Arc::new(routes::arcade::ShelfCartridgeFiles(
+            storage_scope_deps.clone(),
+        )) as Arc<dyn sr_activities::arcade::CartridgeObjects>,
+    );
     // Declarative packages and customised profiles (EXT-PKG, EXT-PRF).
     let packages_deps = Arc::new(routes::packages::PackagesDeps {
         service: sr_packages::service::PackageService::new(pool.clone(), id_src.clone())
@@ -1952,6 +1959,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
+    let runner =
+        crate::arcade_jobs::register(runner, arcade_recheck.0, arcade_recheck.1, bus.clone());
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     // The event clock is a leased singleton job: one node advances events (G-92).
     let runner = crate::events_jobs::register(runner, &pool, events_deps.clone());
@@ -2008,6 +2017,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::takedown_jobs::schedule(&pool).await?;
     crate::suspicion_jobs::schedule(&pool).await?;
     crate::apps_jobs::schedule(&pool).await?;
+    crate::arcade_jobs::schedule(&pool).await?;
     crate::watchparty::schedule(&pool).await?;
     crate::events_jobs::schedule(&pool).await?;
     crate::userfeat::schedule(&pool).await?;
