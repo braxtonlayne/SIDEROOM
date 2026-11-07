@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 55 - 2026-11-07
+
+- **Your sign-in is harder to change behind your back.** Changing your password, removing an authenticator or passkey, regenerating recovery codes or linking Discord asks for your password and your second factor.
+- **Encrypted calls know your devices.** Each person can have several known privacy codes (one per device), so joining from your phone no longer warns everyone; a code nobody has seen before shows a one-time "new device or new sign-in" notice.
+- **Deleted comments keep their replies.** A deleted Cinema or Library comment that has replies shows "Comment deleted" instead of taking the replies with it, and Cinema comments have a replies view.
+- **Quieter failures.** A channel or member list that can't load says so in place with Try again, instead of a pop-up.
+- **Photos stay upright.** Very large photos keep their rotation.
+- **For staff.** Every restriction, suspension and perk action asks for a second factor, and nobody can grant a perk to their own account. Takedowns follow a file's contents across renames and shelves.
+
 ## Phase 54 - 2026-11-07
 
 - **You hear about failures.** When deleting, pinning, voting, blocking or another action fails, SIDE ROOM tells you and puts things back the way they really are. A channel that can't load says so instead of looking empty.

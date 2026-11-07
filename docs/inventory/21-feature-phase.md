@@ -478,3 +478,11 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-039** [FE] Sign-out and a session that ended clear the app caches, shared files and the Library offline cache (D-570); the service worker never stores an app page under a public shell. Handoff `fix-p54-webb.md`.
 - [x] **SEC-AUD-040** [FE] Rule slips: hard-coded English translated (sign-in, kit, OAuth, menus, cinema rows), "server" not "Guild" in UI, undefined and raw colour tokens, physical CSS. Handoff `fix-p54-webb.md`.
 - [x] **SEC-AUD-041** [BE/FE] Every self-service sign-in change (password, TOTP or passkey removal, recovery codes, Discord link, a second factor added to an account that has one) takes the password and the D-167 second factor; the web opens the re-auth dialog after the password prompt (D-573). Handoff `fix-p55-signin.md`.
+- [x] **SEC-AUD-042** [BE/FE] Every staff route that places, changes or ends a restriction, suspension or perk needs a fresh second factor; nobody may grant a perk to their own account (D-574). Handoff `fix-p55-staff.md`.
+- [x] **SEC-AUD-043** [BE] Moving a channel into another category needs `MANAGE_CHANNELS` there; sync with the category needs `MANAGE_ROLES` in the channel (D-575). Handoff `fix-p55-chan.md`.
+- [x] **SEC-AUD-044** [BE] An oriented image over the 50 Mpx budget keeps an Orientation-only EXIF instead of being stored sideways (D-576). Handoff `fix-p55-media.md`.
+- [x] **SEC-AUD-045** [BE] Cartridges listed before D-568 are re-checked against their `sideroom.json` at boot (D-579). Handoff `fix-p55-media.md`.
+- [x] **SEC-AUD-046** [FE] Server, channel-list and member-list load failures are inline with Try again, the soundboard favourites sync is quiet, and themes have a contrast-tested `--ui-danger-text` (D-577). Handoff `fix-p55-webui.md`.
+- [x] **SEC-AUD-047** [FE] E2EE key pins are a set per person; only an unseen key shows the new-device notice (D-578). Handoff `fix-p55-webui.md`.
+- [x] **SEC-AUD-048** [BE] Storage-object takedowns follow the bytes (entity tag and size) across names and mounts (D-571). Handoff `fix-p55-store.md`.
+- [x] **SEC-AUD-049** [BE/FE] A deleted Cinema or Library comment with replies becomes a "Comment deleted" tombstone; Cinema comments gained a replies view (D-572). Handoff `fix-p55-store.md`.
