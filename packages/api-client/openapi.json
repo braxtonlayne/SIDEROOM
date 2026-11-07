@@ -9416,7 +9416,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "Grant Patron time or a server pool contribution by hand.",
+        "summary": "Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused\nwith 403 for every staff member, the Owner included (D-574).",
         "operationId": "admin_donations_grant",
         "requestBody": {
           "content": {

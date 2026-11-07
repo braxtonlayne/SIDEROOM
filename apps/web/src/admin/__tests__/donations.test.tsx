@@ -411,6 +411,38 @@ describe('Donation entitlements', () => {
     await userEvent.click(within(rdlg).getByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(revoked).toEqual({ reason: 'mistake' }));
   });
+
+  it('does not offer a Patron grant to the staff member’s own account (D-574)', async () => {
+    let posted = 0;
+    server.use(
+      http.get('*/api/v1/admin/donations/entitlements', () =>
+        HttpResponse.json({ items: [grant()], next_before: null }),
+      ),
+      http.post('*/api/v1/admin/donations/entitlements', () => {
+        posted += 1;
+        return HttpResponse.json(grant());
+      }),
+    );
+    openAdmin('donation-entitlements');
+    expect(await screen.findByText('Patron, 14 days')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Grant' }));
+    const dlg = await screen.findByRole('dialog', { name: 'Grant an entitlement' });
+    const ok = within(dlg).getByRole('button', { name: 'Grant' });
+    // asStaff serves user_id '1' for /admin/me.
+    await userEvent.type(within(dlg).getByLabelText('Account id'), '1');
+    await userEvent.type(within(dlg).getByLabelText(/Reason/), 'testing my perk');
+    expect(
+      await within(dlg).findByText(
+        'You cannot grant a perk to your own account. Another staff member has to do it.',
+      ),
+    ).toBeInTheDocument();
+    expect(ok).toBeDisabled();
+    // Somebody else's account is fine again.
+    await userEvent.type(within(dlg).getByLabelText('Account id'), '2');
+    expect(ok).toBeEnabled();
+    expect(within(dlg).queryByText(/your own account/)).not.toBeInTheDocument();
+    expect(posted).toBe(0);
+  });
 });
 
 describe('Pricing and perks', () => {
