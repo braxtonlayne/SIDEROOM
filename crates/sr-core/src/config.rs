@@ -56,6 +56,9 @@ pub struct ServerConfig {
     pub process_id: u8,
     /// Loopback listener for `/internal/metrics`.
     pub metrics_bind: String,
+    /// When set, `/internal/metrics` answers only `Authorization: Bearer <token>` (SEC-AUD-028). A release build
+    /// refuses to start with a non-loopback `metrics_bind` while this is empty.
+    pub metrics_token: Secret,
     /// 64 hex chars (32 bytes): encrypts TOTP secrets at rest. Empty means an
     /// ephemeral random key is used (development only).
     pub secret_key: Secret,
@@ -77,6 +80,7 @@ impl Default for ServerConfig {
             worker_id: 0,
             process_id: 0,
             metrics_bind: "127.0.0.1:9100".into(),
+            metrics_token: Secret::default(),
             secret_key: Secret::default(),
             shutdown_grace_secs: 25,
             secret_key_previous: Vec::new(),
@@ -618,6 +622,7 @@ fn is_hex_key(key: &str) -> bool {
 /// Kubernetes secrets, systemd credentials). `server.secret_key_previous` is a list.
 pub const SECRET_FILE_KEYS: &[&str] = &[
     "server.secret_key",
+    "server.metrics_token",
     "database.url",
     "smtp.password",
     "voice.token_secret",

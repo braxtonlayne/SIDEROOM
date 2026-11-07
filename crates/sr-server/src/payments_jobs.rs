@@ -95,13 +95,16 @@ pub async fn build(pool: &PgPool, ids: IdSource, bus: Arc<dyn EventBus>) -> Paym
     let clock: Arc<dyn Fn() -> i64 + Send + Sync> = Arc::new(now_ms);
     let allow_private = std::env::var("SR_PAYMENTS_ALLOW_PRIVATE_HOSTS")
         .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
-    let http: Option<Arc<dyn HttpGet>> = Some(Arc::new(ReqwestGet::new(allow_private)));
+    // SEC-AUD-028: the private-host opt-in is for the self-hosted Esplora node only (D-358); the price sources are
+    // public APIs and always go through the strict policy.
+    let esplora_http: Arc<dyn HttpGet> = Arc::new(ReqwestGet::new(allow_private));
+    let http: Option<Arc<dyn HttpGet>> = Some(Arc::new(ReqwestGet::new(false)));
     let esplora = std::env::var("SR_PAYMENTS_ESPLORA_URL")
         .ok()
         .filter(|u| !u.trim().is_empty());
-    let chain: Arc<dyn ChainSource> = match (&esplora, &http) {
-        (Some(url), Some(http)) => Arc::new(EsploraChain::new(url.trim(), http.clone())),
-        _ => Arc::new(NoChain),
+    let chain: Arc<dyn ChainSource> = match &esplora {
+        Some(url) => Arc::new(EsploraChain::new(url.trim(), esplora_http)),
+        None => Arc::new(NoChain),
     };
     let mut sources: Vec<Arc<dyn RateSource>> = Vec::new();
     if let (Some(raw), Some(http)) = (

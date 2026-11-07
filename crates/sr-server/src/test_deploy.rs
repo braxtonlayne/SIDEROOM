@@ -9,7 +9,7 @@
 use sr_core::config::Config;
 
 /// Whether `bind` (`host:port`) listens on loopback only.
-fn loopback_only(bind: &str) -> bool {
+pub(crate) fn loopback_only(bind: &str) -> bool {
     if let Ok(a) = bind.parse::<std::net::SocketAddr>() {
         return a.ip().is_loopback();
     }
