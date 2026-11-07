@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import type { FloatingPlacement } from "../../util/position";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import { useOverlayStack } from "../Overlay/overlayStack";
 import { useFloating, type FloatingAnchor } from "../Overlay/useFloating";
 import styles from "./Menu.module.css";
@@ -105,6 +106,7 @@ interface PanelProps {
 }
 
 function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCloseAll, onCloseSelf, id }: PanelProps) {
+  const ui = useUiStrings();
   const portalTarget = usePortalTarget();
   const floating = useFloating({ open: true, anchor, placement, offset: onCloseSelf ? 2 : 4 });
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -358,7 +360,7 @@ function MenuPanel({ entries, label, rootId, anchor, placement, focusFirst, onCl
             {openSub?.index === idx && (
               <MenuPanel
                 entries={s.items}
-                label={typeof s.label === "string" ? s.label : "Submenu"}
+                label={typeof s.label === "string" ? s.label : ui.submenu}
                 rootId={rootId}
                 anchor={openSub.anchor}
                 placement="right-start"

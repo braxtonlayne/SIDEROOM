@@ -2,6 +2,7 @@ import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
 import styles from "./Drawer.module.css";
 
@@ -34,6 +35,7 @@ export function Drawer({
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  const ui = useUiStrings();
   const { isTopmost } = useOverlayStack({ open, lockScroll: true, onEscape: () => onCloseRef.current() });
   useFocusTrap({ open, containerRef: ref, isTopmost });
 
@@ -53,7 +55,7 @@ export function Drawer({
           <h2 id={titleId} className={styles.title}>
             {title}
           </h2>
-          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
+          <button type="button" className={styles.close} aria-label={ui.close} onClick={onClose}>
             <span aria-hidden="true">×</span>
           </button>
         </header>

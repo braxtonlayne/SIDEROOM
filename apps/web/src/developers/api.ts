@@ -2,6 +2,7 @@
 // Paths follow docs/specs/developer-platform.md section 3. Secrets (client secret, bot token) come back from
 // create/reset calls only and must never be stored by callers beyond the reveal dialog.
 import { ApiError, apiFetch, apiPost, getCsrf } from '../api/client';
+import { t } from '../i18n/runtime';
 import type {
   ActivityBundleDetail,
   ActivityConfig,
@@ -160,12 +161,12 @@ export const isUnavailable = (e: unknown) =>
 /** 900004: the password re-confirmation was wrong. */
 export const isWrongPassword = (e: unknown) => e instanceof ApiError && e.body?.code === 900004;
 
-export function errorText(e: unknown, fallback = 'Something went wrong. Try again.'): string {
+export function errorText(e: unknown, fallback = t('developers.errors.generic')): string {
   if (e instanceof ApiError) {
     if (e.status === 429)
       return e.retryAfter
-        ? `You are doing that too fast. Try again in ${Math.ceil(e.retryAfter)}s.`
-        : 'You are doing that too fast. Try again in a moment.';
+        ? t('developers.errors.slowDownIn', { seconds: Math.ceil(e.retryAfter) })
+        : t('developers.errors.slowDown');
     const fieldMsgs = Object.values(e.body?.errors ?? {}).flatMap((f) =>
       (f._errors ?? []).map((x) => x.message),
     );
@@ -223,12 +224,13 @@ export async function uploadActivityBundle(
         reject(
           new ApiError(
             xhr.status,
-            (body as { message?: string } | null)?.message ?? `Upload failed (${xhr.status}).`,
+            (body as { message?: string } | null)?.message ??
+              t('developers.errors.uploadFailed', { status: xhr.status }),
             body as ConstructorParameters<typeof ApiError>[2],
           ),
         );
     };
-    xhr.onerror = () => reject(new Error('The upload could not be completed.'));
+    xhr.onerror = () => reject(new Error(t('developers.errors.uploadIncomplete')));
     xhr.send(file);
   });
 }

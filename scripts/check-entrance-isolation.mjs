@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, '..');
 
 /** Core catalog fragments (the public build registers these only). */
-export const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa'];
+export const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa', 'p54-webb-2'];
 /** Chunk names too generic to be evidence of anything. */
 const GENERIC_CHUNKS = new Set([
   'index',

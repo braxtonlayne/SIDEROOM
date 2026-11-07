@@ -10,6 +10,7 @@
  * has not already answered for it.
  */
 import { create } from 'zustand';
+import { t } from '../../i18n';
 import { apiFetch } from '../../api/client';
 
 export interface MuteInfo {
@@ -80,13 +81,19 @@ export function isMuted(m: MuteInfo | undefined, now = Date.now()): boolean {
 }
 
 /** Seconds offered by "Mute Server" / "Mute Channel"; -1 = until I turn it back on. */
+const duration = (key: string, seconds: number) => ({
+  get label() {
+    return t(key);
+  },
+  seconds,
+});
 export const MUTE_DURATIONS: { label: string; seconds: number }[] = [
-  { label: 'For 15 Minutes', seconds: 900 },
-  { label: 'For 1 Hour', seconds: 3600 },
-  { label: 'For 3 Hours', seconds: 10800 },
-  { label: 'For 8 Hours', seconds: 28800 },
-  { label: 'For 24 Hours', seconds: 86400 },
-  { label: 'Until I turn it back on', seconds: -1 },
+  duration('lounge.menus.mute15m', 900),
+  duration('lounge.menus.mute1h', 3600),
+  duration('lounge.menus.mute3h', 10800),
+  duration('lounge.menus.mute8h', 28800),
+  duration('lounge.menus.mute24h', 86400),
+  duration('lounge.menus.muteUntil', -1),
 ];
 
 export type MutePatch = { muted: false } | { muted: true; seconds: number };

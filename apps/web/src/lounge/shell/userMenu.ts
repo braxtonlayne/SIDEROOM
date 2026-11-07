@@ -1,4 +1,5 @@
 import type { MenuEntry } from '@sideroom/ui';
+import { t } from '../../i18n';
 import { rest } from '../../store';
 import { isTextLike } from '../channels';
 import { useAllChannels, useGuilds } from '../data';
@@ -49,31 +50,31 @@ export function useUserMenuEntries(
     .filter((t): t is { g: (typeof guilds)[number]; ch: NonNullable<typeof t.ch> } => !!t.ch);
 
   const note: MenuEntry = {
-    label: 'Add Note',
+    label: t('lounge.menus.addNote'),
     onSelect: () => openDialog({ kind: 'note', userId: user.id, name: user.name }),
   };
   const invite: MenuEntry = {
     type: 'submenu',
-    label: 'Invite to Server',
+    label: t('lounge.menus.inviteToServer'),
     items: targets.length
       ? targets.map(({ g, ch }) => ({
           label: g.name,
           onSelect: () => void sendServerInvite(ch.id, user.id).catch(() => undefined),
         }))
-      : [{ label: 'No servers to invite to', disabled: true }],
+      : [{ label: t('lounge.menus.noServersToInvite'), disabled: true }],
   };
   const relationship: MenuEntry[] = [
     ...(isFriend
       ? [
           {
-            label: 'Remove Friend',
+            label: t('lounge.menus.removeFriend'),
             danger: true,
             onSelect: () => after(removeRelationship(user.id)),
           } as MenuEntry,
         ]
       : []),
-    { label: 'Ignore', onSelect: () => after(ignoreUser(user.id)) },
-    { label: 'Block', danger: true, onSelect: () => after(blockUser(user.id)) },
+    { label: t('lounge.menus.ignore'), onSelect: () => after(ignoreUser(user.id)) },
+    { label: t('lounge.menus.block'), danger: true, onSelect: () => after(blockUser(user.id)) },
     ...entryList(reportEntry({ kind: 'user', id: user.id, authorId: user.id, guildId })),
   ];
   return { note, invite, relationship };

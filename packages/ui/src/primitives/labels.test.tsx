@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { PosterRow } from "../sideroom/Poster";
 import { UiStringsProvider } from "../util/uiStrings";
 import { Notice } from "./Feedback/Feedback";
+import { PasswordInput } from "./Input/TextInput";
+import { Spinner } from "./Loading/Spinner";
+import { ConfirmDialog } from "./Modal/Modal";
+import { ErrorPage } from "./State/State";
 import { SettingsLayout } from "./Settings/SettingsLayout";
 
 // The words the primitives speak on their own can be translated by the app (XC-VIS-002); English stays the default.
@@ -60,5 +64,37 @@ describe("translated built-in words", () => {
     expect(screen.getByText("Ungespeichert!")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeInTheDocument();
+  });
+
+  it("SEC-AUD-040: the dialog, password, error and spinner words come from UiStringsProvider", () => {
+    render(
+      <UiStringsProvider
+        value={{
+          close: "Schließen",
+          confirm: "Bestätigen",
+          cancel: "Abbrechen",
+          typeToConfirm: (x) => "Tippe " + x,
+          showPassword: "Passwort zeigen",
+          show: "Zeigen",
+          passwordStrength: "Stärke",
+          strengthLevels: ["Sehr schwach", "Schwach", "Mittel", "Gut", "Stark"],
+          errorTitle: "Fehler",
+          loading: "Lädt",
+        }}
+      >
+        <ConfirmDialog open title="T" requireText="weg" onConfirm={() => {}} onCancel={() => {}} />
+        <PasswordInput label="P" showStrength defaultValue="" />
+        <ErrorPage />
+        <Spinner />
+      </UiStringsProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Schließen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Tippe weg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Passwort zeigen" })).toHaveTextContent("Zeigen");
+    expect(screen.getByText("Sehr schwach")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fehler" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Lädt" })).toBeInTheDocument();
   });
 });

@@ -40,7 +40,9 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const [purpose, setPurpose] = useState<Purpose>(null);
   const me = useCurrentUser();
   const goto = useGotoGuild();
-  const [name, setName] = useState(me.displayName ? `${me.displayName}'s server` : '');
+  const [name, setName] = useState(
+    me.displayName ? t('lounge.addServer.defaultName', { name: me.displayName }) : '',
+  );
   const [link, setLink] = useState('');
   // The server icon picked in the customise step (LNG-GLD-017): cropped to a square, GIFs kept as they are.
   const [icon, setIcon] = useState<string | null>(null);

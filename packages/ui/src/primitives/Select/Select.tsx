@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import { observeRectWithFallback } from "../../util/virtual";
 import { useFloating } from "../Overlay/useFloating";
 import styles from "./Select.module.css";
@@ -166,7 +167,7 @@ function Core({
   onRemoveLast,
   searchable = false,
   filter = defaultFilter,
-  emptyText = "No results",
+  emptyText,
   rowHeight = 36,
   maxListHeight = 280,
   placeholder,
@@ -177,6 +178,7 @@ function Core({
   name,
   ...aria
 }: CoreProps) {
+  const ui = useUiStrings();
   const auto = useId();
   const id = idProp ?? auto;
   const listId = `${id}-list`;
@@ -319,7 +321,7 @@ function Core({
             type="button"
             tabIndex={-1}
             disabled={disabled}
-            aria-label={`Remove ${byValue.get(v)?.label ?? v}`}
+            aria-label={ui.removeOption(String(byValue.get(v)?.label ?? v))}
             className={styles.chipRemove}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onToggle(v)}
@@ -332,7 +334,7 @@ function Core({
 
   const summary = multiple
     ? selected.length
-      ? `${selected.length} selected`
+      ? ui.selectedCount(selected.length)
       : ""
     : selectedLabel;
 
@@ -442,7 +444,7 @@ function Core({
             />
             {visible.length === 0 && (
               <div role="status" className={styles.empty}>
-                {emptyText}
+                {emptyText ?? ui.noResults}
               </div>
             )}
           </div>,
