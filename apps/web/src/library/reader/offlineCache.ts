@@ -153,7 +153,7 @@ export async function cachedImageUrl(url: string): Promise<string | null> {
   }
 }
 
-/** Forget everything (the settings panel offers it). */
+/** Forget everything. Runs at sign-out and when the session is found gone (SEC-AUD-039, D-570: pwa/signOutPurge.ts). */
 export async function clearOfflineCache() {
   writeRegistry([]);
   if (supported()) await caches.delete(OFFLINE_CACHE);

@@ -37,7 +37,11 @@ setUnauthorizedHandler(() => {
       if (res.status !== 401 || leaving) return;
       leaving = true;
       forgetSection(); // FU-16: a session that ends without a sign-out forgets its last section too
-      exitToLogin();
+      // SEC-AUD-039: and what it kept on this device (app files, shared files, Library offline chapters).
+      void import('../pwa/signOutPurge')
+        .then((m) => m.purgeOnSignOut())
+        .catch(() => undefined)
+        .finally(exitToLogin);
     })
     .catch(() => undefined);
 });
