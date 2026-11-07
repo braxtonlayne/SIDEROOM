@@ -1006,6 +1006,10 @@
   color: var(--danger);
   font-size: 13px;
 }
+.lng-history-failed {
+  padding-block: 16px;
+  padding-inline: 16px;
+}
 .lng-reply {
   display: flex;
   align-items: center;

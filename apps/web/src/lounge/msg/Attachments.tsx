@@ -436,8 +436,11 @@ export function Lightbox({
           type="button"
           className="lng-link-btn"
           onClick={() => {
-            void navigator.clipboard?.writeText(abs);
-            setCopied(true);
+            // "Copied" only when the browser really copied (SEC-AUD-036).
+            void navigator.clipboard?.writeText(abs).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            );
           }}
         >
           {copied ? t('lounge.attachments.copied') : t('lounge.attachments.copyLink')}

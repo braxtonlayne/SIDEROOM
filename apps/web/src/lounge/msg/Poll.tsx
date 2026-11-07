@@ -28,25 +28,30 @@ export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: P
   const closed =
     poll.finalized || (!!poll.expiresAt && new Date(poll.expiresAt).getTime() <= Date.now());
   const [showResults, setShowResults] = useState(false);
-  const [voters, setVoters] = useState<{ answer: number; users: Voter[] } | null>(null);
+  const [voters, setVoters] = useState<{
+    answer: number;
+    /** null while loading; 'failed' when the list could not be read (not "nobody", SEC-AUD-036). */
+    users: Voter[] | null | 'failed';
+  } | null>(null);
   const voted = poll.answers.some((a) => a.me);
   const reveal = closed || voted || showResults;
 
   useEffect(() => setShowResults(false), [messageId]);
 
   const openVoters = async (answerId: number) => {
-    setVoters({ answer: answerId, users: [] });
+    setVoters({ answer: answerId, users: null });
     try {
       const res = await apiFetch<{ users: Voter[] }>(
         `/channels/${channelId}/polls/${messageId}/answers/${answerId}`,
       );
       setVoters({ answer: answerId, users: res.users });
     } catch {
-      setVoters({ answer: answerId, users: [] });
+      setVoters({ answer: answerId, users: 'failed' });
     }
   };
 
   const left = closed ? t('lounge.poll.closed') : timeLeft(poll.expiresAt);
+  const voterList = voters && Array.isArray(voters.users) ? voters.users : null;
   const vlabel = voters ? (poll.answers.find((a) => a.id === voters.answer)?.text ?? '') : '';
   return (
     <section
@@ -121,11 +126,19 @@ export function PollView({ poll, channelId, messageId, isOwn, onVote, onEnd }: P
         title={t('lounge.poll.votersTitle', { answer: vlabel })}
         size="sm"
       >
-        {voters && voters.users.length === 0 ? (
+        {voters?.users === 'failed' ? (
+          <p role="alert" className="lng-failed">
+            {t('lounge.poll.votersFailed')}
+          </p>
+        ) : voters && !Array.isArray(voters.users) ? (
+          <p role="status" className="lng-muted">
+            {t('lounge.poll.votersLoading')}
+          </p>
+        ) : voterList?.length === 0 ? (
           <p className="lng-muted">{t('lounge.poll.nobody')}</p>
         ) : (
           <ul className="lng-voter-list">
-            {voters?.users.map((u) => (
+            {(voterList ?? []).map((u) => (
               <li key={u.id}>{u.global_name || u.username}</li>
             ))}
           </ul>

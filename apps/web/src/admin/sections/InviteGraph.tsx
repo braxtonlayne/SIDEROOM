@@ -81,7 +81,8 @@ export function InviteGraphSection() {
       if (hit) reroot(hit.id);
       else setLookupError(t('admin.graph.noMatch'));
     } catch {
-      setLookupError(t('admin.graph.noMatch'));
+      // A failed search is not "no match" (SEC-AUD-036): staff would look for a typo instead of retrying.
+      setLookupError(t('admin.graph.lookupFailed'));
     }
   };
 

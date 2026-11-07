@@ -6,6 +6,7 @@ import { useReportEntry } from '../../moderation/reports';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
+import { failWith } from '../actionError';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
 
 /**
@@ -34,7 +35,10 @@ export function useMuteEntry(guildId: string): MenuEntry {
   if (isMuted(notif))
     return {
       label: 'Unmute Server',
-      onSelect: () => void patch(guildId, { mute: { muted: false } }).catch(() => undefined),
+      onSelect: () =>
+        void patch(guildId, { mute: { muted: false } }).catch(
+          failWith('lounge.actionError.unmute'),
+        ),
     };
   return {
     type: 'submenu',
@@ -42,7 +46,9 @@ export function useMuteEntry(guildId: string): MenuEntry {
     items: MUTE_DURATIONS.map((d) => ({
       label: d.label,
       onSelect: () =>
-        void patch(guildId, { mute: { muted: true, seconds: d.seconds } }).catch(() => undefined),
+        void patch(guildId, { mute: { muted: true, seconds: d.seconds } }).catch(
+          failWith('lounge.actionError.mute'),
+        ),
     })),
   };
 }

@@ -15,6 +15,7 @@ import { NoteField, ProfileAvatar, ProfileBanner, StatusBubble, Themed } from '.
 import { useProfileView } from './profileView';
 import { BridgedCard } from '../bridge/BridgedMemberViews';
 import { useBridgedMember } from '../bridge/members';
+import { reportActionError } from '../actionError';
 import './profile.css';
 import './profile-p11.css';
 
@@ -41,7 +42,8 @@ function RoleChips({ target }: { target: ProfileTarget }) {
         on,
       );
     } catch {
-      /* the chip simply stays as it was */
+      // The chip stays as it was; say why (SEC-AUD-036).
+      reportActionError(on ? 'lounge.actionError.addRole' : 'lounge.actionError.removeRole');
     } finally {
       setBusy(null);
     }

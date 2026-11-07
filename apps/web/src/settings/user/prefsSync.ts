@@ -35,6 +35,28 @@ export function prefsPatch(before: unknown, next: UserPrefs): Record<string, unk
   return out;
 }
 
+/**
+ * Set while this browser holds a change the account copy has not taken yet (made before the blob loaded, or
+ * whose write failed). It survives a reload, so the next load pushes the browser copy up instead of letting
+ * the older account copy overwrite it (SEC-AUD-037).
+ */
+export const UNSYNCED_KEY = 'sr.user.prefs.unsynced';
+function markUnsynced(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(UNSYNCED_KEY, '1');
+    else localStorage.removeItem(UNSYNCED_KEY);
+  } catch {
+    /* private mode: the in-memory flag still covers this page */
+  }
+}
+function wasUnsynced(): boolean {
+  try {
+    return localStorage.getItem(UNSYNCED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** Starts the sync; returns the stop function. Exported for tests (components use `usePrefsSync`). */
 export function startPrefsSync(): () => void {
   /** The raw `user_prefs` the server is known to hold (undefined: none yet / not loaded). */
@@ -45,8 +67,9 @@ export function startPrefsSync(): () => void {
   let ownWrite = false;
   let inflight = false;
   let again = false;
-  /** A save happened before the blob loaded: push it over whatever the server has. */
-  let pendingLocal = false;
+  let fetching = false;
+  /** A save happened before the blob loaded (in this page or an earlier one): push it over what the server has. */
+  let pendingLocal = wasUnsynced();
 
   const flush = async (): Promise<void> => {
     if (stopped || !loaded) return;
@@ -55,12 +78,19 @@ export function startPrefsSync(): () => void {
       return;
     }
     const local = usePrefsStore.getState().prefs;
-    if (isRecord(known) && prefsEqual(sanitizePrefs(known), local)) return;
-    if (known === undefined && prefsEqual(local, DEFAULT_PREFS)) return;
+    if (
+      (isRecord(known) && prefsEqual(sanitizePrefs(known), local)) ||
+      (known === undefined && prefsEqual(local, DEFAULT_PREFS))
+    ) {
+      markUnsynced(false);
+      return;
+    }
     inflight = true;
+    markUnsynced(true);
     try {
       const saved = await rest.patchUserSettings({ [PREFS_KEY]: prefsPatch(known, local) });
       known = saved.settings[PREFS_KEY];
+      if (prefsEqual(usePrefsStore.getState().prefs, local)) markUnsynced(false);
       ownWrite = true;
       try {
         if (!stopped) useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved);
@@ -106,8 +136,11 @@ export function startPrefsSync(): () => void {
 
   const unPrefs = usePrefsStore.subscribe((s, prev) => {
     if (adopting || s.prefs === prev.prefs) return;
-    if (!loaded) pendingLocal = true;
-    else void flush();
+    if (!loaded) {
+      pendingLocal = true;
+      markUnsynced(true);
+      fetchBlob();
+    } else void flush();
   });
   let last = useStore.getState().userSettings;
   const unStore = useStore.subscribe((s) => {
@@ -115,11 +148,11 @@ export function startPrefsSync(): () => void {
     last = s.userSettings;
     if (!ownWrite) adopt(s.userSettings?.settings);
   });
-  const onOnline = () => void flush();
-  window.addEventListener('online', onOnline);
-
-  if (last) adopt(last.settings);
-  else
+  // A load that failed (offline at page load) is tried again when the network returns or the member changes
+  // something; until it succeeds nothing is written, and the change waits in the browser copy (SEC-AUD-037).
+  function fetchBlob(): void {
+    if (stopped || loaded || fetching) return;
+    fetching = true;
     rest
       .fetchUserSettings()
       .then((blob) => {
@@ -129,7 +162,19 @@ export function startPrefsSync(): () => void {
       })
       .catch(() => {
         /* signed out or offline: the browser copy is used */
+      })
+      .finally(() => {
+        fetching = false;
       });
+  }
+  const onOnline = () => {
+    if (loaded) void flush();
+    else fetchBlob();
+  };
+  window.addEventListener('online', onOnline);
+
+  if (last) adopt(last.settings);
+  else fetchBlob();
 
   return () => {
     stopped = true;

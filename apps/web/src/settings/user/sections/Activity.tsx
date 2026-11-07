@@ -1,9 +1,10 @@
-import { Select, Switch } from '@sideroom/ui';
+import { Button, Notice, Select, Switch } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import {
   saveActivity,
   saveShareReading,
+  useActivityLoad,
   useActivitySettings,
   useShareReading,
   type ActivitySettings,
@@ -28,6 +29,9 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
   const t = useT();
   const activity = useActivitySettings();
   const shareReading = useShareReading();
+  // Until the account copy has loaded the switches would show the defaults as if they were your choices.
+  const load = useActivityLoad();
+  const off = !load.loaded;
   const [failed, setFailed] = useState(false);
   const toggle = (key: keyof ActivitySettings) => (e: { target: { checked: boolean } }) => {
     setFailed(false);
@@ -42,19 +46,30 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
         description={t('settings.activity.shareDesc')}
       >
         <div className="us-stack">
+          {load.failed && (
+            <Notice variant="danger" role="alert">
+              {t('settings.activity.loadError')}{' '}
+              <Button variant="secondary" size="sm" onClick={load.retry}>
+                {t('settings.activity.retry')}
+              </Button>
+            </Notice>
+          )}
           <Switch
             label={t('settings.activity.shareWatching')}
             checked={activity.share_cinema}
+            disabled={off}
             onChange={toggle('share_cinema')}
           />
           <Switch
             label={t('settings.activity.shareTv')}
             checked={activity.share_tv}
+            disabled={off}
             onChange={toggle('share_tv')}
           />
           <Switch
             label={t('settings.activity.shareReading')}
             checked={activity.share_library}
+            disabled={off}
             onChange={toggle('share_library')}
           />
           <label className="us-muted" id="us-share-reading-label">
@@ -63,7 +78,7 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
           <Select
             aria-labelledby="us-share-reading-label"
             value={shareReading}
-            disabled={!activity.share_library}
+            disabled={off || !activity.share_library}
             options={[
               { value: 'off', label: t('settings.activity.readingOff') },
               { value: 'friends', label: t('settings.activity.readingFriends') },
@@ -87,6 +102,7 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
             label={t('settings.activity.hideAge')}
             description={t('settings.activity.hideAgeDesc')}
             checked={activity.hide_age_restricted}
+            disabled={off}
             onChange={toggle('hide_age_restricted')}
           />
           {failed && <p role="alert">{t('settings.activity.saveFailed')}</p>}
@@ -112,6 +128,7 @@ export function ActivitySection({ prefs, setPrefs }: PrefsFormProps) {
           label={t('settings.activity.pause')}
           description={t('settings.activity.pauseDesc')}
           checked={activity.paused}
+          disabled={off}
           onChange={toggle('paused')}
         />
         <Unavailable>{t('settings.activity.unavailable')}</Unavailable>

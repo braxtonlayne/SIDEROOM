@@ -18,6 +18,7 @@ import { useVoiceMenuEntries } from './voice/useVoiceMenu';
 import { ServerTagChip } from './components/ServerTagChip';
 import { BridgedMemberRow } from './bridge/BridgedMemberViews';
 import { useGuildBridgedMembers } from './bridge/members';
+import { failWith } from './actionError';
 
 const OFFLINE_HIDE_THRESHOLD = 1000;
 
@@ -64,7 +65,7 @@ function MemberRowView({
       { userId: u.id, nick: member.nick, roleIds: member.roleIds },
       roleId,
       on,
-    ).catch(() => undefined);
+    ).catch(failWith(on ? 'lounge.actionError.addRole' : 'lounge.actionError.removeRole'));
   };
   const assignable = roles.filter((r) => r.id !== guildId && viewer.canManageRole(r.position));
 
@@ -83,7 +84,7 @@ function MemberRowView({
     {
       label: t('lounge.memberList.message'),
       disabled: isSelf || !!u.bot,
-      onSelect: () => void openDm([u.id]).catch(() => undefined),
+      onSelect: () => void openDm([u.id]).catch(failWith('lounge.actionError.openDm')),
     },
     ...(userEntries.note ? [userEntries.note] : []),
     {

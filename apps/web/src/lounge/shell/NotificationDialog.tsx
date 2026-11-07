@@ -32,10 +32,17 @@ export function NotificationDialog({
   const patchChannel = useNotifSettings((s) => s.patchChannel);
   const [error, setError] = useState<string | null>(null);
   const [duration, setDuration] = useState('3600');
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    void load(guildId, true);
-  }, [guildId, load]);
+    let live = true;
+    setLoadFailed(false);
+    void load(guildId, true).then((ok) => live && setLoadFailed(!ok));
+    return () => {
+      live = false;
+    };
+  }, [guildId, load, attempt]);
 
   if (!guild) return null;
   const scope = channelId ? notif?.channels[channelId] : notif;
@@ -80,7 +87,14 @@ export function NotificationDialog({
       description={guild.name}
       footer={<Button onClick={onClose}>{t('lounge.notificationDialog.done')}</Button>}
     >
-      {!notif ? (
+      {!notif && loadFailed ? (
+        <p role="alert" className="lng-failed">
+          {t('lounge.notificationDialog.loadError')}{' '}
+          <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            {t('lounge.notificationDialog.retry')}
+          </Button>
+        </p>
+      ) : !notif ? (
         <p role="status">
           <Spinner label={t('lounge.notificationDialog.loading')} />
         </p>

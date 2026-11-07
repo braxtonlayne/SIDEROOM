@@ -540,16 +540,24 @@ export const useStore = create<StoreState>()((set, get) => {
 
     deleteMessage: async (channelId, messageId) => {
       const before = get().messages[messageId];
-      const win = get().windows[channelId];
+      const wasListed = get().windows[channelId]?.ids.includes(messageId) ?? false;
       set((s) => removeFromWindowState(s, channelId, messageId));
       try {
         await rest.deleteMessage(channelId, messageId);
       } catch (e) {
+        // Put the one message back into the window as it is now (SEC-AUD-036): restoring the whole
+        // earlier window would drop messages that arrived while the request was out.
         if (before)
-          set((s) => ({
-            messages: { ...s.messages, [messageId]: before },
-            windows: win ? { ...s.windows, [channelId]: win } : s.windows,
-          }));
+          set((s) => {
+            const cur = s.windows[channelId];
+            return {
+              messages: { ...s.messages, [messageId]: s.messages[messageId] ?? before },
+              windows:
+                cur && wasListed
+                  ? { ...s.windows, [channelId]: { ...cur, ids: mergeIds(cur.ids, [messageId]) } }
+                  : s.windows,
+            };
+          });
         throw e;
       }
     },
@@ -562,7 +570,13 @@ export const useStore = create<StoreState>()((set, get) => {
         if (pinned) await rest.pinMessage(channelId, messageId);
         else await rest.unpinMessage(channelId, messageId);
       } catch (e) {
-        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+        // Undo only the pin flag; edits and reactions that arrived meanwhile stay.
+        set((s) => {
+          const cur = s.messages[messageId];
+          return cur
+            ? { messages: { ...s.messages, [messageId]: { ...cur, pinned: before.pinned } } }
+            : {};
+        });
         throw e;
       }
     },
@@ -577,7 +591,12 @@ export const useStore = create<StoreState>()((set, get) => {
         if (add) await rest.votePoll(channelId, messageId, answerId);
         else await rest.unvotePoll(channelId, messageId, answerId);
       } catch (e) {
-        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+        set((s) => {
+          const cur = s.messages[messageId];
+          return cur
+            ? { messages: { ...s.messages, [messageId]: { ...cur, poll: before.poll } } }
+            : {};
+        });
         throw e;
       }
     },
@@ -647,8 +666,15 @@ export const useStore = create<StoreState>()((set, get) => {
       try {
         if (mine) await rest.removeReaction(channelId, messageId, emoji);
         else await rest.addReaction(channelId, messageId, emoji);
-      } catch {
-        set((s) => ({ messages: { ...s.messages, [messageId]: before } }));
+      } catch (e) {
+        // Undo the reactions on the message as it is now (edits stay), then let the caller tell the member.
+        set((s) => {
+          const cur = s.messages[messageId];
+          return cur
+            ? { messages: { ...s.messages, [messageId]: { ...cur, reactions: before.reactions } } }
+            : {};
+        });
+        throw e;
       }
     },
 

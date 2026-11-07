@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import type { Message } from '../data';
+import { reactorName } from './Reactions';
 
 interface Reactor {
   id: string;
-  username: string;
+  username?: string;
   global_name?: string | null;
 }
 
@@ -30,6 +31,7 @@ export function ReactorsModal({
   const [emoji, setEmoji] = useState<string | undefined>(initialEmoji);
   const [users, setUsers] = useState<Reactor[] | null>(null);
   const [error, setError] = useState(false);
+  const [removeFailed, setRemoveFailed] = useState(false);
   const active = emoji ?? reactions[0]?.emoji;
 
   useEffect(() => setEmoji(initialEmoji), [initialEmoji, message?.id]);
@@ -49,11 +51,13 @@ export function ReactorsModal({
 
   const remove = async (u: Reactor) => {
     if (!message || !active) return;
+    setRemoveFailed(false);
     try {
       await apiFetch<void>(`${path(message, active)}/${u.id}`, { method: 'DELETE', retries: 0 });
       setUsers((list) => list?.filter((x) => x.id !== u.id) ?? null);
     } catch {
-      setError(true);
+      // The list did load; it is the removal that failed (SEC-AUD-036).
+      setRemoveFailed(true);
     }
   };
 
@@ -78,17 +82,22 @@ export function ReactorsModal({
       </div>
       <div role="tabpanel" aria-label={t('lounge.reactors.panelLabel', { emoji: active ?? '' })}>
         {error && <p className="lng-failed">{t('lounge.reactors.loadError')}</p>}
+        {removeFailed && (
+          <p role="alert" className="lng-failed">
+            {t('lounge.reactors.removeError')}
+          </p>
+        )}
         {!error && users === null && <p className="lng-muted">{t('lounge.reactors.loading')}</p>}
         <ul className="lng-voter-list">
           {users?.map((u) => (
             <li key={u.id} className="lng-reactor-row">
-              <span>{u.global_name || u.username}</span>
+              <span>{reactorName(u)}</span>
               {canManage && (
                 <button
                   type="button"
                   className="lng-link-btn lng-danger"
                   aria-label={t('lounge.reactors.removeReaction', {
-                    name: u.global_name || u.username,
+                    name: reactorName(u),
                   })}
                   onClick={() => void remove(u)}
                 >

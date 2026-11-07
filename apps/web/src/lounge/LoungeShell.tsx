@@ -7,6 +7,7 @@ import { useT } from '../i18n';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
 import { DmToasts } from './shell/DmToasts';
+import { ActionErrorToasts } from './shell/ActionErrorToasts';
 import { JoinGate } from './shell/JoinGate';
 import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
@@ -309,6 +310,7 @@ function Shell() {
       <ToastProvider>
         <SkipLink />
         <DmToasts />
+        <ActionErrorToasts />
         <Welcome />
         <JoinGate />
         <SectionBar />

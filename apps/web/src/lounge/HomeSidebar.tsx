@@ -22,6 +22,7 @@ import {
   type DmChannel,
 } from './data';
 import { useLoungeRoute } from './nav';
+import { failWith } from './actionError';
 import { closeDm } from './shell/api';
 import { startDmCall } from './shell/dmCall';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './shell/notifSettings';
@@ -57,7 +58,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
         useStore.getState().applyDispatch('CHANNEL_DELETE', { id: dm.id });
         if (selected) void navigate({ to: '/channels/$guildId', params: { guildId: HOME } });
       })
-      .catch(() => undefined);
+      .catch(failWith('lounge.actionError.closeDm'));
   };
 
   const menu: MenuEntry[] = [
@@ -91,7 +92,9 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
       ? {
           label: t('lounge.homeSidebar.unmute'),
           onSelect: () =>
-            void patchChannel(HOME, dm.id, { mute: { muted: false } }).catch(() => undefined),
+            void patchChannel(HOME, dm.id, { mute: { muted: false } }).catch(
+              failWith('lounge.actionError.unmute'),
+            ),
         }
       : {
           type: 'submenu',
@@ -100,7 +103,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
             label: d.label,
             onSelect: () =>
               void patchChannel(HOME, dm.id, { mute: { muted: true, seconds: d.seconds } }).catch(
-                () => undefined,
+                failWith('lounge.actionError.mute'),
               ),
           })),
         },

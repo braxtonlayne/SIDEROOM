@@ -29,10 +29,14 @@ export function RemovalList({
 }) {
   const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const act = async (id: string, fn: () => Promise<unknown>) => {
     setBusy(id);
+    setFailed(false);
     try {
       await fn();
+    } catch {
+      setFailed(true);
     } finally {
       setBusy(null);
       onChanged();
@@ -45,32 +49,39 @@ export function RemovalList({
       </p>
     );
   return (
-    <ul className="lng-scr-removals" data-testid="scr-removals">
-      {removals.map((r) => (
-        <li key={r.id}>
-          <p className="lng-scr-removal-key">{r.key}</p>
-          <p className="lng-scr-note">
-            {t('lounge.scrapbook.removalFailed', { n: r.attempts, error: r.last_error })}
-          </p>
-          <div className="lng-scr-actions">
-            <Button
-              variant="secondary"
-              disabled={busy === r.id}
-              onClick={() => void act(r.id, () => retryRemoval(guildId, r.id))}
-            >
-              {t('lounge.scrapbook.retry')}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={busy === r.id}
-              onClick={() => void act(r.id, () => dismissRemoval(guildId, r.id))}
-            >
-              {t('lounge.scrapbook.dismiss')}
-            </Button>
-          </div>
-        </li>
-      ))}
-    </ul>
+    <>
+      {failed && (
+        <p className="lng-scr-note lng-failed" role="alert">
+          {t('lounge.scrapbook.removalActionFailed')}
+        </p>
+      )}
+      <ul className="lng-scr-removals" data-testid="scr-removals">
+        {removals.map((r) => (
+          <li key={r.id}>
+            <p className="lng-scr-removal-key">{r.key}</p>
+            <p className="lng-scr-note">
+              {t('lounge.scrapbook.removalFailed', { n: r.attempts, error: r.last_error })}
+            </p>
+            <div className="lng-scr-actions">
+              <Button
+                variant="secondary"
+                disabled={busy === r.id}
+                onClick={() => void act(r.id, () => retryRemoval(guildId, r.id))}
+              >
+                {t('lounge.scrapbook.retry')}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy === r.id}
+                onClick={() => void act(r.id, () => dismissRemoval(guildId, r.id))}
+              >
+                {t('lounge.scrapbook.dismiss')}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -82,6 +93,7 @@ export function ShelfPanel({ guildId }: { guildId: string }) {
   const [removals, setRemovals] = useState<ScrapbookRemoval[]>([]);
   const [pick, setPick] = useState('');
   const [error, setError] = useState(false);
+  const [clearFailed, setClearFailed] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -148,12 +160,25 @@ export function ShelfPanel({ guildId }: { guildId: string }) {
           {t('lounge.scrapbook.shelfSet')}
         </Button>
         {target ? (
-          <Button variant="ghost" onClick={() => void clearTarget(guildId).then(() => reload())}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setClearFailed(false);
+              void clearTarget(guildId)
+                .then(() => reload())
+                .catch(() => setClearFailed(true));
+            }}
+          >
             {t('lounge.scrapbook.shelfClear')}
           </Button>
         ) : null}
       </div>
       <p className="lng-scr-note">{t('lounge.scrapbook.shelfHelp')}</p>
+      {clearFailed && (
+        <p className="lng-scr-note lng-failed" role="alert">
+          {t('lounge.scrapbook.shelfClearFailed')}
+        </p>
+      )}
       {error ? (
         <p className="lng-scr-note" role="alert">
           {t('lounge.scrapbook.shelfFailed')}

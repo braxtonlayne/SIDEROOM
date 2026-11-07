@@ -115,6 +115,10 @@ function setup(profile: Record<string, unknown> = base) {
         lists: [{ id: 'l1', name: 'Slow burn', description: '', item_count: 3, kind: 'custom' }],
       }),
     ),
+    // The reviews route is not built yet: the server answers 404, which is "no reviews" (an error is not).
+    http.get('*/api/v1/cinema/users/2/reviews', () =>
+      HttpResponse.json({ message: 'Not found' }, { status: 404 }),
+    ),
   );
 }
 

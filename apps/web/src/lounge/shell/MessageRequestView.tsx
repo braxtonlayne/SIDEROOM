@@ -25,8 +25,16 @@ export function useAnswerRequest() {
     setError(null);
     try {
       await respondToMessageRequest(dm.id, state);
-      if (alsoBlock) await blockUser(alsoBlock);
+      // The answer is stored now: the request leaves the list even when the block after it fails.
       forget(dm.id);
+      if (alsoBlock) {
+        try {
+          await blockUser(alsoBlock);
+        } catch {
+          setError(t('lounge.friends.blockError'));
+          return false;
+        }
+      }
       if (state === 'accepted') {
         rememberDm({ ...dm, is_message_request: false });
         goto(HOME, dm.id);

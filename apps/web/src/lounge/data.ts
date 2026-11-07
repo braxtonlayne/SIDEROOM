@@ -383,6 +383,8 @@ export interface MessagesState {
   loading: boolean;
   /** The loaded window ends at the newest message (live appends are shown). Mock data: always true. */
   atLatest?: boolean;
+  /** The last history request failed (SEC-AUD-036); with no messages loaded the list says so instead of "the start". */
+  error?: string | null;
 }
 
 export interface LoungeActions {
@@ -424,6 +426,8 @@ export interface LoungeActions {
   revealMessage?(channelId: Snowflake, messageId: Snowflake): void;
   /** Leave a jumped-to history window and reload the newest messages. */
   jumpToPresent?(channelId: Snowflake): void;
+  /** Ask again for a channel's newest messages after the first load failed. */
+  reloadMessages?(channelId: Snowflake): void;
 }
 
 /** The whole readable surface. Real store: build the same shape from normalized selectors. */
