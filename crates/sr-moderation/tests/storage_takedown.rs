@@ -636,6 +636,9 @@ async fn a_bare_shelf_delisting_never_counts_toward_the_repeat_infringer_counter
     );
 }
 
+/// (mount, key, state, subject, derived_from) of a takedown item.
+type DerivedRow = (i64, String, String, Option<i64>, Option<i64>);
+
 const LEAK_TAG: &str = "9e107d9d372bb6826bd81d3542a419d6";
 const LEAK_SIZE: i64 = 734_003_200;
 
@@ -731,7 +734,7 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
             vec!["films/renamed.mkv".to_owned()]
         );
     }
-    let derived: Vec<(i64, String, String, Option<i64>, Option<i64>)> = sqlx::query_as(
+    let derived: Vec<DerivedRow> = sqlx::query_as(
         "SELECT target_id, object_key, state, subject_account_id, derived_from FROM takedown_items
          WHERE notice_id = $1 AND derived_from IS NOT NULL ORDER BY object_key",
     )
