@@ -688,12 +688,31 @@ impl DmRepository for PgSocialRepo {
     }
 
     async fn delete_dm(&self, id: ChannelId) -> RepoResult<()> {
-        sqlx::query("DELETE FROM channels WHERE id = $1 AND type IN (1, 3)")
+        // A conversation holding evidence under a moderation hold (D-122) is not deleted: the held messages and
+        // attachments would cascade with it (wave 53, SEC-AUD-006). Its last members still leave, so nobody
+        // sees it any more; the rows stay for staff until the hold is released.
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let held: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM messages m WHERE m.hold_id IS NOT NULL AND m.channel_id = $1) \
+                 OR EXISTS (SELECT 1 FROM attachments a JOIN messages m ON m.id = a.message_id \
+                            WHERE a.hold_id IS NOT NULL AND m.channel_id = $1)",
+        )
+        .bind(i(id.get()))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        let sql = if held {
+            "DELETE FROM channel_recipients WHERE channel_id = $1 \
+               AND EXISTS (SELECT 1 FROM channels WHERE id = $1 AND type IN (1, 3))"
+        } else {
+            "DELETE FROM channels WHERE id = $1 AND type IN (1, 3)"
+        };
+        sqlx::query(sql)
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        tx.commit().await.map_err(db)
     }
 
     async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool> {

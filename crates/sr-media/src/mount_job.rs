@@ -203,12 +203,27 @@ impl MountBucket {
             .map_err(|e| format!("mount client: {e}"))?;
         Ok((mount, storage))
     }
+
+    /// Check a member's endpoint against the address policy right before its URL is used. The operator's own
+    /// bucket (the platform mount) is not vetted, as in the storage routes: it is the instance's configuration,
+    /// and on a self-hosted box it often sits on a loopback or private address.
+    async fn vet(&self, mount: &sr_storage::mounts::Mount) -> Result<(), String> {
+        if let Some(g) = &self.guard
+            && mount.owner != sr_storage::mounts::MountOwner::Platform
+        {
+            g.validated_addrs(&mount.endpoint).await?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
 impl MountTransfer for MountBucket {
     async fn presign_get(&self, mount_id: i64, key: &str, ttl_secs: u64) -> Result<String, String> {
         let (mount, storage) = self.open(mount_id, key).await?;
+        // Re-checked at every claim, not only when the job was queued: the endpoint's name may point elsewhere
+        // by now (wave 53). The worker does not follow a redirect the bucket answers with.
+        self.vet(&mount).await?;
         storage
             .presign(
                 PresignMethod::Get,
@@ -221,6 +236,7 @@ impl MountTransfer for MountBucket {
 
     async fn presign_put(&self, mount_id: i64, key: &str, ttl_secs: u64) -> Result<String, String> {
         let (mount, storage) = self.open(mount_id, key).await?;
+        self.vet(&mount).await?;
         storage
             .presign(
                 PresignMethod::Put,
@@ -233,13 +249,7 @@ impl MountTransfer for MountBucket {
 
     async fn head_size(&self, mount_id: i64, key: &str) -> Result<Option<u64>, String> {
         let (mount, storage) = self.open(mount_id, key).await?;
-        // The operator's own bucket (the platform mount) is not vetted, as in the storage routes: it is the
-        // instance's configuration, and on a self-hosted box it often sits on a loopback or private address.
-        if let Some(g) = &self.guard
-            && mount.owner != sr_storage::mounts::MountOwner::Platform
-        {
-            g.validated_addrs(&mount.endpoint).await?;
-        }
+        self.vet(&mount).await?;
         match tokio::time::timeout(Duration::from_secs(8), storage.head(&mount.bucket_key(key)))
             .await
         {

@@ -499,7 +499,7 @@ async fn serve(
     content_type: &str,
     headers: &HeaderMap,
 ) -> MsgResult<Response> {
-    let storage = deps.storages.for_mount(mount_id).await.map_err(|e| {
+    let storage = deps.storages.for_serving(mount_id).await.map_err(|e| {
         tracing::warn!(error = %e, mount_id, "a ring's storage is not reachable");
         unknown_ring()
     })?;

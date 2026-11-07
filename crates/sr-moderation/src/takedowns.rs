@@ -462,11 +462,13 @@ struct ItemRow {
     state: ItemState,
     hold_id: Option<i64>,
     prior: Value,
+    /// For a `storage_object`: the mount-relative key.
+    object_key: Option<String>,
 }
 
 async fn item_rows(conn: &mut PgConnection, notice_id: i64) -> ModResult<Vec<ItemRow>> {
     let rows = sqlx::query(
-        "SELECT id, kind, target_id, state, hold_id, prior FROM takedown_items WHERE notice_id = $1 ORDER BY id",
+        "SELECT id, kind, target_id, state, hold_id, prior, object_key FROM takedown_items WHERE notice_id = $1 ORDER BY id",
     )
     .bind(notice_id)
     .fetch_all(&mut *conn)
@@ -484,6 +486,7 @@ async fn item_rows(conn: &mut PgConnection, notice_id: i64) -> ModResult<Vec<Ite
                     .ok_or_else(|| ModError::Storage("item state".into()))?,
                 hold_id: r.try_get("hold_id")?,
                 prior: r.try_get("prior")?,
+                object_key: r.try_get("object_key")?,
             })
         })
         .collect()
@@ -614,8 +617,15 @@ async fn disable_item(
 ) -> ModResult<Value> {
     let id = item.target_id;
     let prior = match item.kind {
-        // Delisted, not deleted, and never blocked on /cdn: its key means nothing in the instance's namespace.
-        ItemKind::StorageObject => json!({}),
+        // Delisted, not deleted: the bucket is the member's. A `/cdn/mount` link minted before the takedown is
+        // blocked by its `mount/<id>/<key>` path (wave 53), which is how that route consults the blocklist; the
+        // notice's restore lifts it with the other blocks.
+        ItemKind::StorageObject => {
+            if let Some(key) = &item.object_key {
+                block(conn, ids, notice_id, "key", &format!("mount/{id}/{key}")).await?;
+            }
+            json!({})
+        }
         ItemKind::Message => {
             let channel: Option<i64> = sqlx::query_scalar(
                 "UPDATE messages SET visibility = 'staff_removed', deleted_at = now(), pinned = FALSE, \

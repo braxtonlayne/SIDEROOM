@@ -804,7 +804,7 @@ fn move_refusal(e: MoveError) -> MsgError {
         (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
-        (status = 409, body = ErrorBody, description = "TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE"),
+        (status = 409, body = ErrorBody, description = "TARGET_EXISTS, OBJECT_TOO_LARGE, OBJECT_TAKEN_DOWN or BUCKET_UNREACHABLE"),
     ),
     security(("session" = []))
 )]
@@ -837,6 +837,25 @@ pub async fn move_objects(
     let cap = if folder { FOLDER_OP_CAP } else { 1 };
     let found = within(u.io.list_under(&mount, &body.from, cap)).await?;
     let plan = plan_move(&body.from, &body.to, &found).map_err(move_refusal)?;
+    // A legal takedown is keyed by the object's path (`takedown_items.object_key`): a moved or renamed file
+    // would come back under its new name, so a file under one stays where it is (wave 53).
+    let keys: Vec<String> = plan
+        .iter()
+        .filter(|(from, ..)| !from.ends_with('/'))
+        .map(|(from, ..)| from.clone())
+        .collect();
+    if !d
+        .store
+        .delisted(mount.id, &keys)
+        .await
+        .map_err(facts_failed)?
+        .is_empty()
+    {
+        return Err(super::mounts::conflict(
+            "OBJECT_TAKEN_DOWN",
+            "A file here was removed after a legal notice and cannot be moved or renamed.",
+        ));
+    }
     let taken = within(u.io.list_under(&mount, &body.to, 1)).await?;
     let clash = if folder {
         !taken.is_empty()

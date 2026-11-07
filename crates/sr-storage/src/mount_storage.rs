@@ -68,7 +68,20 @@ impl MountStorages {
     }
 
     /// The storage for `mount_id`. Keys passed to it are mount-relative: a mount's prefix is applied inside.
+    /// A disabled mount is `NotFound`. This is the handle of the jobs that maintain a mount (index, removals);
+    /// whatever hands a mount's bytes to a viewer uses [`Self::for_serving`].
     pub async fn for_mount(&self, mount_id: i64) -> Result<Arc<dyn ObjectStorage>> {
+        self.resolve(mount_id, false).await
+    }
+
+    /// [`Self::for_mount`] for serving bytes to a viewer (the `/cdn/mount` redirect, ring playback): a mount
+    /// delisted whole by a takedown is `NotFound` as well, so a link minted before the takedown stops working
+    /// with it (wave 53; `scopes::access` refuses the same mount for listings and presigns).
+    pub async fn for_serving(&self, mount_id: i64) -> Result<Arc<dyn ObjectStorage>> {
+        self.resolve(mount_id, true).await
+    }
+
+    async fn resolve(&self, mount_id: i64, serving: bool) -> Result<Arc<dyn ObjectStorage>> {
         if mount_id == INSTANCE_MOUNT_ID {
             return Ok(self.instance.clone());
         }
@@ -80,7 +93,9 @@ impl MountStorages {
             .await
             .map_err(|e| StorageError::Backend(e.to_string()))?
             .ok_or_else(not_found)?;
-        if mount.status == MountStatus::Disabled {
+        if mount.status == MountStatus::Disabled
+            || (serving && mount.status == MountStatus::Delisted)
+        {
             return Err(not_found());
         }
         {
