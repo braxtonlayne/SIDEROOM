@@ -1,19 +1,10 @@
-import { Badge, Button, Checkbox, ConfirmDialog, Notice, TextInput } from '@sideroom/ui';
+import { Badge, Button, Checkbox, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
 import { canAssignRole, parsePerms, permNames } from '../permissions';
 import { DelegationsCard, OffersCard } from './StaffOffers';
-import {
-  ActionStatus,
-  Async,
-  ReasonDialog,
-  SectionHeader,
-  fmtMs,
-  useAction,
-  useAdminViewer,
-  useResource,
-} from '../ui';
+import { Async, ReasonDialog, SectionHeader, fmtMs, useAdminViewer, useResource } from '../ui';
 
 function RolePicker({
   roles,
@@ -75,7 +66,6 @@ export function StaffSection() {
   const [editRoles, setEditRoles] = useState<string[]>([]);
   const [revoking, setRevoking] = useState<api.StaffMember | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const action = useAction();
 
   const openAppoint = () => {
     setAccountId('');
@@ -104,7 +94,6 @@ export function StaffSection() {
           {notice}
         </Notice>
       )}
-      <ActionStatus error={action.error} />
       <Async res={staff} label={t('admin.staff.loading')}>
         {(list) => (
           <ul className="ss-list" aria-label={t('admin.staff.listLabel')}>
@@ -268,30 +257,19 @@ export function StaffSection() {
         </Async>
       </ReasonDialog>
 
-      <ConfirmDialog
+      <ReasonDialog
         open={!!revoking}
         danger
         title={t('admin.staff.removeTitle', { username: revoking?.username ?? '' })}
         description={t('admin.staff.removeDescription')}
         confirmLabel={t('admin.staff.removeConfirm')}
-        loading={action.busy}
         onCancel={() => setRevoking(null)}
-        onConfirm={() => {
+        onConfirm={async (reason) => {
           if (!revoking) return;
-          void action
-            .run(async () => {
-              await api.revokeStaff(revoking.account_id);
-              return true;
-            })
-            .then(async (ok) => {
-              if (ok) {
-                setNotice(t('admin.staff.removedNotice', { username: revoking.username }));
-                setRevoking(null);
-                await staff.reload();
-              } else {
-                setRevoking(null);
-              }
-            });
+          await api.revokeStaff(revoking.account_id, reason);
+          setNotice(t('admin.staff.removedNotice', { username: revoking.username }));
+          setRevoking(null);
+          await staff.reload();
         }}
       />
     </>
