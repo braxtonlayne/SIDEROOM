@@ -703,6 +703,48 @@ async fn contributor_boards_rank_cache_and_honour_the_opt_out() {
     );
 }
 
+/// SEC-AUD-042 (D-574): a perk grant to the caller's own account is 403 for every staff member, the Owner
+/// included, and nothing is granted; the same grant to somebody else goes through.
+#[tokio::test]
+async fn a_staff_member_never_grants_a_perk_to_their_own_account() {
+    let e = env(false).await;
+    for (who, own) in [(MONEY, "11"), (OWNER, "10")] {
+        for body in [
+            json!({ "kind": "patron", "user_id": own, "days": 30, "reason": "testing the perk" }),
+            json!({ "kind": "patron", "user_id": own, "permanent": true, "reason": "forever" }),
+        ] {
+            let (s, r) = e.post(who, "/admin/donations/entitlements", body).await;
+            assert_eq!(
+                (s, r["code"].as_u64()),
+                (StatusCode::FORBIDDEN, Some(50_001)),
+                "{who}: {r}"
+            );
+            assert!(
+                r["message"].as_str().unwrap_or("").contains("own account"),
+                "{r}"
+            );
+        }
+        let (_, lst) = e
+            .get(
+                MONEY,
+                &format!("/admin/donations/entitlements?kind=patron&user_id={own}"),
+            )
+            .await;
+        assert_eq!(lst["items"].as_array().map(Vec::len), Some(0), "{lst}");
+    }
+    // Each grants the other: allowed.
+    for (who, other) in [(MONEY, "10"), (OWNER, "11")] {
+        let (s, g) = e
+            .post(
+                who,
+                "/admin/donations/entitlements",
+                json!({ "kind": "patron", "user_id": other, "days": 7, "reason": "thanks" }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{who} -> {other}: {g}");
+    }
+}
+
 #[tokio::test]
 async fn staff_wallet_config_invoices_resolution_and_grants() {
     let e = env(false).await;

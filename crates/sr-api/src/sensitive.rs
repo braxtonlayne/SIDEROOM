@@ -148,6 +148,120 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban",
         "Platform-ban one account of an invite subtree case",
     ),
+    // SEC-AUD-042 (D-574): every staff route that places, changes or ends a member restriction, suspension or
+    // perk. An overturned appeal is an unban, a lift is an unfreeze, a revoke is a grant in reverse.
+    row(
+        "restrict.warn",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/members/{account_id}/warn",
+        "Warn a member (a step on the graduated ladder)",
+    ),
+    row(
+        "restrict.timeout",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/members/{account_id}/timeout",
+        "Time a member out across the platform",
+    ),
+    row(
+        "restrict.invite_freeze",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/members/{account_id}/invite-freeze",
+        "Freeze a member's invites",
+    ),
+    row(
+        "restrict.revoke_invites",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/members/{account_id}/revoke-invites",
+        "Revoke every open invite a member made",
+    ),
+    row(
+        "restrict.lift",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/restrictions/{restriction_id}/lift",
+        "Lift a member restriction early",
+    ),
+    row(
+        "restrict.node_freeze",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/freeze",
+        "Freeze one account of an invite subtree case",
+    ),
+    row(
+        "restrict.node_clear",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/clear",
+        "Clear one account of an invite subtree case",
+    ),
+    row(
+        "restrict.appeal",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/moderation/restrictions/{restriction_id}/appeal-decision",
+        "Uphold or overturn a restriction appeal",
+    ),
+    row(
+        "ban.appeal",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/moderation/appeals/{appeal_id}/decision",
+        "Uphold or overturn a ban appeal (an overturn unbans)",
+    ),
+    row(
+        "suspend.account",
+        "Account suspension",
+        Staff,
+        "POST",
+        "/admin/accounts/{account_id}/suspend",
+        "Suspend an account",
+    ),
+    row(
+        "suspend.lift",
+        "Account suspension",
+        Staff,
+        "POST",
+        "/admin/accounts/{account_id}/unsuspend",
+        "Lift an account suspension",
+    ),
+    row(
+        "age.underage",
+        "Age tools",
+        Staff,
+        "POST",
+        "/moderation/age/underage",
+        "Lock an account's age confirmation (and suspend one under the minimum age)",
+    ),
+    row(
+        "age.lift",
+        "Age tools",
+        Staff,
+        "POST",
+        "/moderation/age/underage/{account_id}/lift",
+        "Lift an underage lock",
+    ),
+    row(
+        "age.restrictions",
+        "Age tools",
+        Staff,
+        "POST",
+        "/moderation/age/restrictions",
+        "Mark or unmark a channel, series or title as age-restricted",
+    ),
     row(
         "data.run",
         "Data-request outcome",
@@ -252,7 +366,15 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         Staff,
         "POST",
         "/admin/donations/entitlements",
-        "Grant a Patron or server perk by hand",
+        "Grant a Patron or server perk by hand (never to the caller's own account, D-574)",
+    ),
+    row(
+        "entitlement.revoke",
+        "Perk grant",
+        Staff,
+        "DELETE",
+        "/admin/donations/entitlements/{grant_id}",
+        "Revoke a perk grant",
     ),
     row(
         "account.reset2fa",
@@ -479,6 +601,41 @@ mod tests {
             );
         }
         assert!(SENSITIVE_ACTIONS.len() >= 20);
+    }
+
+    /// D-574: every staff route that places, changes or ends a member restriction, suspension or perk is gated.
+    /// The rule is read off the route matrix by family, so a new write route in one of these families fails here
+    /// until it is listed.
+    #[test]
+    fn every_restriction_suspension_and_perk_write_is_gated() {
+        const FAMILIES: &[&str] = &[
+            "/admin/moderation/members/{account_id}/",
+            "/admin/moderation/restrictions/{restriction_id}/",
+            "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/",
+            "/moderation/appeals/{appeal_id}/",
+            "/moderation/age/",
+            "/admin/donations/entitlements",
+            "/admin/accounts/{account_id}/suspend",
+            "/admin/accounts/{account_id}/unsuspend",
+        ];
+        let matrix = include_str!("../tests/route_matrix.tsv");
+        let mut checked = 0;
+        for line in matrix.lines().filter(|l| !l.starts_with('#')) {
+            let mut c = line.split('\t');
+            let (Some(method), Some(path)) = (c.next(), c.next()) else {
+                continue;
+            };
+            if method == "GET" || !FAMILIES.iter().any(|f| path.starts_with(f)) {
+                continue;
+            }
+            let m = Method::from_bytes(method.as_bytes()).unwrap();
+            assert!(
+                gated(&m, path),
+                "{method} {path} needs the second factor (D-574)"
+            );
+            checked += 1;
+        }
+        assert!(checked >= 17, "only {checked} routes in the D-574 families");
     }
 
     #[test]

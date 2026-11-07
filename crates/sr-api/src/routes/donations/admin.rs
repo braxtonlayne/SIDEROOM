@@ -482,7 +482,8 @@ pub async fn entitlements(
     Ok(Json(GrantPage { items, next_before }))
 }
 
-/// Grant Patron time or a server pool contribution by hand.
+/// Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused
+/// with 403 for every staff member, the Owner included (D-574).
 #[utoipa::path(
     post, path = "/admin/donations/entitlements", operation_id = "admin_donations_grant",
     request_body = GrantBody,
@@ -499,6 +500,7 @@ pub async fn grant(ctx: MoneyCtx, Json(b): Json<GrantBody>) -> ApiResult<Json<Gr
     let spec = match kind {
         GrantKind::Patron => {
             let user = id(b.user_id.as_deref().unwrap_or(""), "account")?;
+            ctx.refuse_self_grant(user).await?;
             if !permanent && !b.days.is_some_and(|d| (1..=3650).contains(&d)) {
                 return Err(bad("days", "Give 1 to 3650 days, or make it permanent."));
             }

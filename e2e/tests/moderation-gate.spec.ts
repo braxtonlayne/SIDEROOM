@@ -9,8 +9,8 @@ import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
  *
  *  1. Member A reports member B's message. Staff open the case, claim it, hold B's messages, ban B from the case
  *     and decide it.
- *  2. B appeals; a second reviewer (the Owner, because the staff member who banned may not decide the appeal)
- *     overturns it.
+ *  2. B appeals; a second reviewer (R, a second staff member with a second factor, because the staff member who
+ *     banned may not decide the appeal and the decision needs a fresh second factor, D-574) overturns it.
  *  3. A takedown notice is registered against a Library chapter, upheld (the chapter leaves the reader for a
  *     member), a counter-notice is filed, and staff restore the chapter (it is back).
  *  3b. (BYOS-LEG-001) A takedown notice against one object in B's own bucket delists it (the bucket stays), staff
@@ -72,40 +72,52 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
     const userA = await registerUser(anon, 'repa');
     const userB = await registerUser(anon, 'repb');
     const userS = await registerUser(anon, 'staff');
+    // R: the second reviewer of the appeal (the staff member who banned may not decide it). An appeal decision
+    // needs a fresh second factor (D-574), which the Owner of the e2e run has not enrolled.
+    const userR = await registerUser(anon, 'review');
     const A = await signedIn(userA);
     const B = await signedIn(userB);
     const S = await signedIn(userS);
+    const R = await signedIn(userR);
     const O = await signedIn(owner);
     const ownerId = (await call<{ id: string }>(O.context.request, 'GET', '/users/@me')).id;
     const a = A.context.request;
     const b = B.context.request;
     const s = S.context.request;
+    const rv = R.context.request;
     const o = O.context.request;
 
-    // The Owner is the other reviewer; S is appointed through the host command (no second factor needed for it).
-    runCli([
-      'staff',
-      'appoint',
-      userS.username,
-      '--role',
-      'Senior Staff',
-      '--reason',
-      'e2e moderation gate',
-    ]);
-    // S enrols TOTP; the second-factor window then opens with the next code (a code is spent once).
-    const enroll = await call<{ otpauth_uri: string }>(s, 'POST', '/sr/auth/totp/enroll', {
-      password: userS.password,
-    });
-    const secret = secretFromOtpauth(enroll.otpauth_uri);
-    await call(s, 'POST', '/sr/auth/totp/verify', { code: totp(secret) });
-    const reauth = async () => {
-      const st = await call<{ fresh: boolean }>(s, 'GET', '/admin/reauth');
-      if (st.fresh) return;
-      await call(s, 'POST', '/admin/reauth', {
-        method: 'totp',
-        code: await nextWindowCode(secret),
+    // S and R are appointed through the host command (no second factor needed for it), then each enrols TOTP;
+    // the second-factor window then opens with the next code (a code is spent once).
+    const withSecondFactor = async (
+      who: APIRequestContext,
+      user: { username: string; password: string },
+    ) => {
+      runCli([
+        'staff',
+        'appoint',
+        user.username,
+        '--role',
+        'Senior Staff',
+        '--reason',
+        'e2e moderation gate',
+      ]);
+      const enroll = await call<{ otpauth_uri: string }>(who, 'POST', '/sr/auth/totp/enroll', {
+        password: user.password,
       });
+      const secret = secretFromOtpauth(enroll.otpauth_uri);
+      await call(who, 'POST', '/sr/auth/totp/verify', { code: totp(secret) });
+      return async () => {
+        const st = await call<{ fresh: boolean }>(who, 'GET', '/admin/reauth');
+        if (st.fresh) return;
+        await call(who, 'POST', '/admin/reauth', {
+          method: 'totp',
+          code: await nextWindowCode(secret),
+        });
+      };
     };
+    const reauth = await withSecondFactor(s, userS);
+    const reauthR = await withSecondFactor(rv, userR);
     await reauth();
 
     // ---- a server with A and B, one message of B reported, one more of B to hold
@@ -404,7 +416,8 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       );
       expect(appeals.length).toBeGreaterThan(0);
       appealId = appeals[0]!.id;
-      await call(o, 'POST', `/moderation/appeals/${appealId}/decision`, {
+      await reauthR();
+      await call(rv, 'POST', `/moderation/appeals/${appealId}/decision`, {
         decision: 'overturned',
         reason: 'First offence on record; a warning is enough.',
       });
@@ -690,7 +703,13 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         expect(count(staffRows, 'read', action), `access rows for ${action}`).toBeGreaterThan(0);
       }
 
-      // The Owner is the other reviewer; their rows since the start of this run.
+      // R decided the appeal with a fresh second factor (D-574); R is a fresh account too.
+      const reviewerRows = await rows(userR.id);
+      for (const action of ['moderation.appeal.decide', 'person.unban']) {
+        expect(count(reviewerRows, 'admin_action', action), `R audit rows for ${action}`).toBe(1);
+      }
+
+      // The Owner is the other reviewer of the rest; their rows since the start of this run.
       const ownerRows = await rows(ownerId);
       // Three switches: moderation reports, status rings, then public profiles for the guestbook step (all start off).
       expect(
@@ -698,8 +717,6 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         'Owner audit rows for features.patch',
       ).toBe(3);
       for (const action of [
-        'moderation.appeal.decide',
-        'person.unban',
         'person.link',
         'library.series.create',
         'library.chapter.publish',

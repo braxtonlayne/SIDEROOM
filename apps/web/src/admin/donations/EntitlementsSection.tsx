@@ -1,9 +1,10 @@
 // Admin > Donations > Entitlements (DON-ADM-004): grants from invoices, staff and the legacy download table;
 // manual grant and revoke, each with a reason that goes to the access log.
 import { Badge, Button, EmptyState, Notice, TextInput } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { t, useT } from '../../i18n';
 import { usd } from '../../support/api';
+import { getMe } from '../api';
 import { LoadMore, ReasonDialog, SectionHeader, fmtMs, usePaged } from '../ui';
 import * as api from './api';
 import './donations.css';
@@ -35,8 +36,25 @@ export function EntitlementsSection() {
     return { items: p.items, next: p.next_before };
   });
 
+  // D-574: nobody grants a perk to their own account (the server refuses it with 403, the Owner included); the
+  // dialog says so before the request.
+  const [myId, setMyId] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    getMe()
+      .then((m) => {
+        if (live) setMyId(m.user_id);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  const ownAccount = gKind === 'patron' && myId !== null && who.trim() === myId;
+
   const validGrant =
     /^\d+$/.test(who.trim()) &&
+    !ownAccount &&
     (gKind === 'patron' ? forever || /^\d+$/.test(days.trim()) : /^\d+$/.test(cents.trim()));
 
   return (
@@ -174,6 +192,7 @@ export function EntitlementsSection() {
           inputMode="numeric"
           value={who}
           onChange={(e) => setWho(e.target.value)}
+          error={ownAccount ? t('admin.entitlements.grantDialog.ownAccount') : undefined}
         />
         {gKind === 'patron' ? (
           <>
