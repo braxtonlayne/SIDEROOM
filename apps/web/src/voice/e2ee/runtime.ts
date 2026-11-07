@@ -87,7 +87,7 @@ export function engineHooks(
 
 /**
  * Publish the call's state to the UI store, with the D-250 pairwise codes, and check every member's identity
- * key against the key pinned on this device (SEC-AUD-038, D-564).
+ * key against the keys pinned on this device (SEC-AUD-038, D-564; a set per person, SEC-AUD-047, D-578).
  */
 export function bindToStore(
   call: E2eeCall,
@@ -105,7 +105,8 @@ export function bindToStore(
     viewer: me,
     keyChanged: [],
   });
-  let seq = 0;
+  // One check at a time, so two rosters never both read a person's key set before either has written it.
+  let checks: Promise<void> = Promise.resolve();
   let live = true;
   const unsubscribe = call.subscribe((s) => {
     const pairwise: Record<string, string> = {};
@@ -114,14 +115,19 @@ export function bindToStore(
         pairwise[m.userId] = api.pairwiseCode(me, selfKey, m.userId, unhex(m.identityKey));
     }
     setE2ee({ call: s, pairwise });
-    const mine = ++seq;
-    void checkKeys(pins, me, s.members, verified).then(
-      (changed) => {
-        // Only the newest roster's answer counts, and none after the call ended.
-        if (live && mine === seq) setE2ee({ keyChanged: changed });
-      },
-      () => undefined,
-    );
+    checks = checks
+      .then(() => checkKeys(pins, me, s.members, verified))
+      .then(
+        (changed) => {
+          // D-578: a new key is reported once (it joins the pinned set), so every answer is kept for the rest of
+          // this call; marking the person verified takes them off the notice (PrivacyCodes).
+          if (!live || changed.length === 0) return;
+          const shown = useE2ee.getState().keyChanged ?? [];
+          const added = changed.filter((u) => !shown.includes(u));
+          if (added.length) setE2ee({ keyChanged: [...shown, ...added] });
+        },
+        () => undefined,
+      );
   });
   return () => {
     live = false;
