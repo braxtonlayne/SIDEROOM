@@ -48,14 +48,18 @@ pub use voice_sound::{SoundPlay, SoundPlayError};
 pub use voice_stage::{SelfStagePatch, StageError, StageInstance};
 pub use voice_status::{ChannelStatus, MAX_STATUS_CHARS, StatusError};
 pub use voice_stream::{PreviewError, stream_key};
-pub use ws::{GatewayQuery, SESSION_COOKIE, gateway_handler, routes};
+pub use ws::{GatewayQuery, MAX_MESSAGE, PeerIp, SESSION_COOKIE, gateway_handler, routes};
 
 #[cfg(test)]
 mod guest_tests;
 #[cfg(test)]
+mod limits_tests;
+#[cfg(test)]
 mod members_request_tests;
 #[cfg(test)]
 mod memory_budget_tests;
+#[cfg(test)]
+mod session_revoke_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

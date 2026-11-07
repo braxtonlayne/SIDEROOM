@@ -220,6 +220,8 @@ pub async fn guest_handler(
             .get(ORIGIN)
             .and_then(|v| v.to_str().ok())
             .map(str::to_owned),
+        // The guest socket keeps its own limits (one per lobby seat).
+        peer: None,
     };
     ws.max_message_size(MAX_FRAME)
         .on_upgrade(move |socket| serve_socket(gg, params, socket))

@@ -167,6 +167,18 @@ impl AdminService {
             .await;
     }
 
+    /// After a staff action revoked an account's sessions: the gateway closes that account's open
+    /// sockets at once (SEC-AUD-002). Best effort; the gateway's periodic re-check is the backstop.
+    pub(crate) async fn push_sessions_revoked(&self, account_id: i64) {
+        let (Some(bus), Ok(uid)) = (&self.bus, u64::try_from(account_id)) else {
+            return;
+        };
+        let user = sr_core::UserId::new(uid);
+        let _ = bus
+            .publish(Topic::User(user), DomainEvent::SessionsRevoked { user })
+            .await;
+    }
+
     /// The most a delegate of the Owner may hand out; `None` for the Owner and for staff
     /// whose appointment right comes from their own roles.
     pub(crate) async fn ceiling_of(&self, c: &Caller) -> AdminResult<Option<P>> {
@@ -667,7 +679,11 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.repo.set_account_state(id, to, cap, &audit).await
+        let out = self.repo.set_account_state(id, to, cap, &audit).await?;
+        if suspend {
+            self.push_sessions_revoked(id).await;
+        }
+        Ok(out)
     }
 
     pub async fn force_logout(
@@ -688,7 +704,9 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.repo.revoke_sessions(id, &audit).await
+        let n = self.repo.revoke_sessions(id, &audit).await?;
+        self.push_sessions_revoked(id).await;
+        Ok(n)
     }
 
     pub async fn reset_2fa(
@@ -709,7 +727,9 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.repo.reset_2fa(id, &audit).await
+        let report = self.repo.reset_2fa(id, &audit).await?;
+        self.push_sessions_revoked(id).await;
+        Ok(report)
     }
 
     /// Stub of the deletion flow (doc 06 section 2): records a pending request only.

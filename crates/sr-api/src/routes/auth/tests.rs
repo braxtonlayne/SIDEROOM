@@ -1466,6 +1466,82 @@ async fn logout_all_revokes_everything_and_sessions_are_user_scoped() {
     );
 }
 
+/// The next `SessionsRevoked` on `stream` within a second (other events are skipped), if any.
+async fn next_revoked(
+    stream: &mut futures::stream::BoxStream<'static, sr_events::DomainEvent>,
+) -> Option<sr_events::DomainEvent> {
+    let wait = async {
+        while let Some(e) = futures::StreamExt::next(stream).await {
+            if matches!(e, sr_events::DomainEvent::SessionsRevoked { .. }) {
+                return Some(e);
+            }
+        }
+        None
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(1), wait)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// SEC-AUD-002: every way a member ends sessions tells the gateway, so open sockets close at once.
+#[tokio::test]
+async fn ending_sessions_tells_the_gateway() {
+    use sr_events::{DomainEvent, EventBus, Topic};
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bob", "bob@x.test", AccountState::Active);
+    let alice = sr_core::UserId::new(1);
+    let mut alice_topic = h.bus.subscribe(Topic::User(alice));
+    let mut bob_topic = h.bus.subscribe(Topic::User(sr_core::UserId::new(2)));
+    let a1 = h.login("alice").await;
+    let a2 = h.login("alice").await;
+    let a3 = h.login("alice").await;
+    h.login("bob").await;
+
+    // One session ended from the device list.
+    let list = h.get("/api/v1/sr/auth/sessions").session(&a1).send().await;
+    let other = list.body.as_array().unwrap()[1]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = h
+        .call(Method::DELETE, &format!("/api/v1/sr/auth/sessions/{other}"))
+        .session(&a1)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    let want = DomainEvent::SessionsRevoked { user: alice };
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want.clone()));
+
+    // Logout of this session.
+    let mut still = None;
+    for s in [&a2, &a3] {
+        if h.get("/api/v1/users/@me").session(s).send().await.status == StatusCode::OK {
+            still = Some(s.clone());
+        }
+    }
+    let still = still.expect("one of the other two sessions is live");
+    let r = h
+        .post("/api/v1/sr/auth/logout", json!({}))
+        .session(&a1)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want.clone()));
+
+    // Logout everywhere.
+    let r = h
+        .post("/api/v1/sr/auth/logout-all", json!({}))
+        .session(&still)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want));
+    // Bob's topic heard nothing.
+    assert_eq!(next_revoked(&mut bob_topic).await, None);
+}
+
 // ---- password reset -------------------------------------------------------
 
 #[tokio::test]

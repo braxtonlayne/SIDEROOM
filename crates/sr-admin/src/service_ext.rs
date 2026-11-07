@@ -693,7 +693,9 @@ impl AdminService {
             &reason,
             json!({}),
         );
-        self.repo().force_password_reset(id, &audit).await
+        let n = self.repo().force_password_reset(id, &audit).await?;
+        self.push_sessions_revoked(id).await;
+        Ok(n)
     }
 
     // ===== private content ================================================
