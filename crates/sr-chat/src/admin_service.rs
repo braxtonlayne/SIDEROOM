@@ -332,6 +332,16 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         let (channel, gid) = self.guild_channel(id).await?;
         let c = self.ctx(actor, gid).await?;
         channel_rules::check_delete_channel(&c.actor, &channel)?;
+        // Held evidence outlives a channel delete (D-122, D-213: only platform staff release a hold). The
+        // database refuses the cascade as well; this check turns it into an answer the server admin can read.
+        if self.repo.holds_evidence(id).await? {
+            return Err(ChatError::invalid(
+                "channel_id",
+                "CHANNEL_UNDER_MODERATION_HOLD",
+                "This channel holds messages that platform staff are keeping for a moderation case, so it \
+                 cannot be deleted yet. Contact the staff of this instance.",
+            ));
+        }
         self.repo.delete_channel(id).await?;
         Ok(channel)
     }

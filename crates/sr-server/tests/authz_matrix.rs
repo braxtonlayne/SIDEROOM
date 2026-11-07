@@ -4741,7 +4741,12 @@ const WRITE_OBSERVED_LEN: usize = 40;
 /// Wave 34 integration raised `rest` from 45 to 46 for one new route, `POST /users/@me/rings/media` (PRF-RNG-001):
 /// its body is a raw photo or clip that the matrix's JSON bodies cannot carry, so it is refused as malformed (400)
 /// once the session and self checks passed. Its refusals for every other actor are asserted as usual.
-const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 46];
+///
+/// Wave 53 integration raised `rest` from 46 to 47 for `DELETE /channels/{channel_id}` (SEC-AUD-006): the seeded
+/// moderation hold keeps a message of the seed channel, so the Owner's delete is refused with 400
+/// `CHANNEL_UNDER_MODERATION_HOLD` after the permission check passed. Its refusals for every other actor are
+/// asserted as usual.
+const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 47];
 
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {

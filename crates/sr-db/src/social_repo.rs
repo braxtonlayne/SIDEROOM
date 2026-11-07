@@ -417,6 +417,23 @@ impl RelationshipRepository for PgSocialRepo {
         .map_err(db)
     }
 
+    async fn muted_towards(
+        &self,
+        author: UserId,
+        candidates: &[UserId],
+    ) -> RepoResult<Vec<UserId>> {
+        let ids: Vec<i64> = candidates.iter().map(|u| i(u.get())).collect();
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT c FROM unnest($2::bigint[]) AS c WHERE \n             EXISTS (SELECT 1 FROM relationships WHERE type = 2 AND \n                     ((user_id = $1 AND target_id = c) OR (user_id = c AND target_id = $1))) \n             OR EXISTS (SELECT 1 FROM user_ignores WHERE user_id = c AND target_id = $1)",
+        )
+        .bind(i(author.get()))
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(uid).collect())
+    }
+
     async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>> {
         let ids: Vec<i64> = sqlx::query_scalar(
             "SELECT target_id FROM user_ignores WHERE user_id = $1 ORDER BY created_at, target_id",
@@ -671,12 +688,31 @@ impl DmRepository for PgSocialRepo {
     }
 
     async fn delete_dm(&self, id: ChannelId) -> RepoResult<()> {
-        sqlx::query("DELETE FROM channels WHERE id = $1 AND type IN (1, 3)")
+        // A conversation holding evidence under a moderation hold (D-122) is not deleted: the held messages and
+        // attachments would cascade with it (wave 53, SEC-AUD-006). Its last members still leave, so nobody
+        // sees it any more; the rows stay for staff until the hold is released.
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let held: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM messages m WHERE m.hold_id IS NOT NULL AND m.channel_id = $1) \
+                 OR EXISTS (SELECT 1 FROM attachments a JOIN messages m ON m.id = a.message_id \
+                            WHERE a.hold_id IS NOT NULL AND m.channel_id = $1)",
+        )
+        .bind(i(id.get()))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(db)?;
+        let sql = if held {
+            "DELETE FROM channel_recipients WHERE channel_id = $1 \
+               AND EXISTS (SELECT 1 FROM channels WHERE id = $1 AND type IN (1, 3))"
+        } else {
+            "DELETE FROM channels WHERE id = $1 AND type IN (1, 3)"
+        };
+        sqlx::query(sql)
             .bind(i(id.get()))
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(db)?;
-        Ok(())
+        tx.commit().await.map_err(db)
     }
 
     async fn set_hidden(&self, user: UserId, id: ChannelId, hidden: bool) -> RepoResult<bool> {

@@ -9,9 +9,13 @@ import { TwoFactor } from '../../routes/entrance/TwoFactor';
 import { VerifyEmail } from '../../routes/entrance/VerifyEmail';
 import { createSurfaceRouter } from '../surface';
 
-const validateLoginSearch = (s: Record<string, unknown>): { next?: string; error?: string } => ({
+const validateLoginSearch = (
+  s: Record<string, unknown>,
+): { next?: string; error?: string; methods?: string } => ({
   ...(typeof s.next === 'string' ? { next: s.next } : {}),
   ...(typeof s.error === 'string' ? { error: s.error } : {}),
+  // SEC-AUD-001: the Discord sign-in names the second-factor methods here (no sessionStorage hop).
+  ...(typeof s.methods === 'string' ? { methods: s.methods } : {}),
 });
 const validateToken = (s: Record<string, unknown>): { token?: string } =>
   typeof s.token === 'string' ? { token: s.token } : {};

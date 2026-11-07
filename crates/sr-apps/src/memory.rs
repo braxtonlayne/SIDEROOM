@@ -285,6 +285,7 @@ impl AppsRepository for MemoryAppsRepo {
             suspended_reason: None,
             intents_requested: 0,
             intents_approved: 0,
+            was_released: false,
             client_secret_hash: new.secret_hash,
             client_secret_hint: new.secret_hint.clone(),
             created_at_ms: new.now_ms,
@@ -1034,6 +1035,9 @@ impl AppsRepository for MemoryAppsRepo {
             .apps
             .get_mut(&app_id)
             .ok_or(AppsError::NotFound("application"))?;
+        if state == "approved" {
+            a.was_released = true;
+        }
         if a.release_state != ReleaseState::Suspended {
             a.release_state = if state == "approved" || had_release {
                 ReleaseState::Released

@@ -146,6 +146,7 @@ pub async fn reset(
     let hash = svc.hash_password(&body.password).await?;
     svc.store.set_password_hash(user_id, &hash).await?;
     svc.store.revoke_sessions_except(user_id, None).await?;
+    svc.notify_sessions_revoked(user_id).await;
     // A changed password also ends "trust this device" on every browser.
     svc.store.trusted_devices_revoke_all(user_id).await?;
     Ok(StatusCode::NO_CONTENT)

@@ -142,6 +142,28 @@ impl WorkerApi for HttpWorkerApi {
     }
 }
 
+/// Redirects are followed only when the server itself answers with one (a signed `/cdn/...` path that sends the
+/// worker on to the bucket), at most three. A redirect answered by anything else, a member's bucket above all, is
+/// not followed (wave 53): the worker runs inside the operator's network and would fetch whatever address the
+/// bucket named. The answer is then the redirect itself, which the transfer reports as a failed status.
+fn redirect_policy(base: &str) -> Policy {
+    let ours = reqwest::Url::parse(base).ok().map(|u| u.origin());
+    Policy::custom(move |attempt| {
+        if attempt.previous().len() > 3 {
+            return attempt.error("too many redirects");
+        }
+        let from_us = attempt
+            .previous()
+            .last()
+            .is_some_and(|u| ours.as_ref() == Some(&u.origin()));
+        if from_us {
+            attempt.follow()
+        } else {
+            attempt.stop()
+        }
+    })
+}
+
 /// Presigned-URL transfers. Relative URLs (the server's signed `/cdn/...` paths) are resolved
 /// against `base`.
 pub struct HttpTransfer {
@@ -155,7 +177,7 @@ impl HttpTransfer {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_secs(6 * 3600))
-            .redirect(Policy::limited(3))
+            .redirect(redirect_policy(base))
             .build()
             .map_err(|e| TransferError::Download(e.to_string()))?;
         Ok(Self {
@@ -543,6 +565,80 @@ mod tests {
             .claim("../../admin", &ClaimRequest::default())
             .unwrap_err();
         assert!(matches!(e, ApiClientError::Transport(m) if m.contains("unsafe id")));
+    }
+
+    /// A tiny server whose `/hop` answers a redirect to `target`.
+    fn redirector(
+        target: String,
+    ) -> (
+        String,
+        tokio::sync::oneshot::Sender<()>,
+        std::thread::JoinHandle<()>,
+    ) {
+        let (addr_tx, addr_rx) = std::sync::mpsc::channel::<String>();
+        let (stop_tx, stop_rx) = tokio::sync::oneshot::channel::<()>();
+        let handle = std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(async move {
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                addr_tx
+                    .send(format!("http://{}", listener.local_addr().unwrap()))
+                    .unwrap();
+                let app = Router::new().route(
+                    "/hop",
+                    get(move || {
+                        let t = target.clone();
+                        async move { axum::response::Redirect::temporary(&t) }
+                    }),
+                );
+                axum::serve(listener, app)
+                    .with_graceful_shutdown(async {
+                        let _ = stop_rx.await;
+                    })
+                    .await
+                    .unwrap();
+            });
+        });
+        (addr_rx.recv().unwrap(), stop_tx, handle)
+    }
+
+    /// Wave 53: a member's bucket answering a redirect (to an address inside the operator's network) is not
+    /// followed; a redirect our own server answers still is.
+    #[test]
+    fn only_the_servers_own_redirects_are_followed() {
+        let root = TempRoot::new();
+        let (base, _store, _blobs, handle, stop) = start_server(1000);
+        let inside = format!("{base}/cdn/originals/x.mkv");
+        let (bucket, bucket_stop, bucket_handle) = redirector(inside);
+        let source = |url: String| SourceRef {
+            download_url: url,
+            size_bytes: 1000,
+            expires_at: 0,
+            extension: "mkv".into(),
+        };
+        // The worker's server is `base`; the bucket's redirect goes nowhere.
+        let transfer = HttpTransfer::new(&base).unwrap();
+        let r = transfer.download(&source(format!("{bucket}/hop")), &root.0.join("a"), 1000);
+        assert!(
+            matches!(&r, Err(TransferError::Download(m)) if m.contains("307")),
+            "{r:?}"
+        );
+        assert!(
+            !root.0.join("a").exists() || std::fs::metadata(root.0.join("a")).unwrap().len() == 0
+        );
+        // When the redirect is the server's own (a /cdn path), it is followed.
+        let own = HttpTransfer::new(&bucket).unwrap();
+        let ok = own
+            .download(&source("/hop".into()), &root.0.join("b"), 1000)
+            .unwrap();
+        assert_eq!(ok, 1000);
+        let _ = bucket_stop.send(());
+        bucket_handle.join().unwrap();
+        let _ = stop.send(());
+        handle.join().unwrap();
     }
 
     #[test]

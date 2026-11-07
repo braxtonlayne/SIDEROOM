@@ -267,6 +267,8 @@ const SIGNED_OUT: Row[] = [
   { name: 'pub-join', path: () => '/join/abcd1234' },
   { name: 'pub-login', path: () => '/login' },
   { name: 'pub-login-2fa', path: () => '/login/2fa' },
+  // SEC-AUD-001: after a Discord sign-in the methods come in the URL; a passkey account leads with the passkey.
+  { name: 'pub-login-2fa-passkey', path: () => '/login/2fa?methods=passkey,recovery' },
   { name: 'pub-login-link', path: () => '/login/link' },
   { name: 'pub-register', path: () => '/register' },
   { name: 'pub-forgot', path: () => '/forgot' },

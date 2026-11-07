@@ -6,7 +6,7 @@ import { submitTwoFactor } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { FormError } from '../../components/FormParts';
 import { PasskeyButton } from '../../components/PasskeyButton';
-import { clearMfaMethods, readMfaMethods } from '../../lib/mfaMethods';
+import { clearMfaMethods, readMfaMethods, rememberMfaMethods } from '../../lib/mfaMethods';
 import { useT } from '../../i18n/react';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { enterApp } from '../../lib/enterApp';
@@ -74,10 +74,14 @@ export function OtpInput({
 
 export function TwoFactor() {
   const t = useT();
-  const search = useSearch({ strict: false }) as { next?: string };
+  const search = useSearch({ strict: false }) as { next?: string; methods?: string };
   const next = safeNext(search.next);
-  // Q83: only the methods the server offered at the password step are shown.
-  const [methods] = useState(readMfaMethods);
+  // Q83: only the methods the server offered at the first step are shown. A Discord sign-in
+  // (a server redirect) names them in `?methods=`; a password sign-in left them in sessionStorage.
+  const [methods] = useState(() => {
+    if (search.methods) rememberMfaMethods(search.methods.split(','));
+    return readMfaMethods();
+  });
   const hasTotp = methods.includes('totp');
   const hasPasskey = methods.includes('passkey');
   const [mode, setMode] = useState<'totp' | 'recovery' | 'passkey'>(

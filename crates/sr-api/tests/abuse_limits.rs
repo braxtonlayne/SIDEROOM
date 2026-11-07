@@ -12,7 +12,9 @@ use axum::{
     routing::{MethodRouter, on},
 };
 use sr_api::{
-    ApiSettings, AppState, build_router,
+    ApiSettings, AppState,
+    auth::{BotIdentity, memory::MemoryBots},
+    build_router,
     rate_limit::{ABUSE_ROUTES, Abuse, RateConfig, RateLimitConfig},
 };
 use tokio::sync::watch;
@@ -45,7 +47,18 @@ fn fixture() -> Fx {
         },
         ..ApiSettings::default()
     };
-    let state = AppState::builder().settings(settings).build();
+    // Callers `a` and `b` are real bot tokens; any other caller name is made up.
+    let bots = std::sync::Arc::new(MemoryBots::new());
+    for (i, token) in [(1, "a"), (2, "b")] {
+        bots.insert(
+            token,
+            BotIdentity {
+                user_id: i,
+                application_id: 10 + i,
+            },
+        );
+    }
+    let state = AppState::builder().settings(settings).bots(bots).build();
     let mut extra = Router::<AppState>::new();
     for (key, _) in ABUSE_ROUTES {
         let (method, pattern) = key.split_once(' ').unwrap();
@@ -128,7 +141,15 @@ async fn a_member_limit_is_per_caller_and_a_webhook_limit_is_per_token() {
         c.abuse[Abuse::FriendRequests.index()] = 1;
         c.abuse[Abuse::WebhookExecute.index()] = 12; // a burst of one
     });
-    // Friend requests: caller A is limited after one, caller B has their own allowance.
+    // Friend requests: caller A is limited after one, caller B has their own allowance. A and B are
+    // real bots that have authenticated once (SEC-AUD-007: until a credential is verified, it is
+    // also charged to the caller's address, which A and B share here).
+    for caller in ["a", "b"] {
+        assert_eq!(
+            send(&f.app, "POST", "/api/v1/sr/unlimited", caller).await.0,
+            StatusCode::NO_CONTENT
+        );
+    }
     let fr = "/api/v1/users/@me/relationships";
     assert_eq!(
         send(&f.app, "POST", fr, "a").await.0,

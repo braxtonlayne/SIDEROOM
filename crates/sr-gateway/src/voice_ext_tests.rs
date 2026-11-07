@@ -935,6 +935,89 @@ async fn an_unanswered_call_stops_ringing_after_the_timeout() {
     assert_eq!(log[0].missed_by, vec![u(FRIEND), u(MOD)]);
 }
 
+/// SEC-AUD-GDM: a member removed from a group DM leaves its call (the SFU drops them, like a guild
+/// member who lost CONNECT) and hears nothing more about it.
+#[tokio::test]
+async fn removing_a_member_from_a_group_dm_drops_them_from_its_call() {
+    let e = env();
+    let mut caller = client(&e, MEMBER).await;
+    let mut friend = client(&e, FRIEND).await;
+    let mut third = client(&e, MOD).await;
+    caller.call().await;
+    caller.event("VOICE_SERVER_UPDATE").await;
+    friend.call().await;
+    friend.event("VOICE_SERVER_UPDATE").await;
+    settle().await;
+    caller.drain().await;
+    friend.drain().await;
+    third.drain().await;
+    e.relay.take();
+
+    // MEMBER removes FRIEND from the group: the API sends FRIEND a CHANNEL_DELETE.
+    e.dir.removed_from_dm.lock().unwrap().push(u(FRIEND));
+    emit(
+        &e.bus,
+        DomainEvent::UserScoped {
+            users: vec![u(FRIEND)],
+            name: "CHANNEL_DELETE".into(),
+            payload: json!({"id": DM.get().to_string(), "type": 3}),
+        },
+    )
+    .await;
+    settle().await;
+    assert!(e.gw.voice_state(u(FRIEND)).is_none(), "still in the call");
+    assert!(
+        e.relay.take().iter().any(
+            |c| matches!(c, VoiceCommand::Disconnect { channel, user } if *channel == DM && *user == u(FRIEND))
+        ),
+        "the SFU must drop the removed member"
+    );
+    // FRIEND's own client hears it left; the others see it too.
+    let left = friend.event("VOICE_STATE_UPDATE").await;
+    assert_eq!(left["user_id"], FRIEND.to_string());
+    assert!(left["channel_id"].is_null());
+    assert!(caller.event("VOICE_STATE_UPDATE").await["channel_id"].is_null());
+    assert!(e.gw.voice_state(u(MEMBER)).is_some(), "the call goes on");
+
+    // FRIEND is no longer a member of the call: cannot be rung, hears no ring for others.
+    assert_eq!(
+        e.gw.call_ring(u(MEMBER), DM, Some(vec![u(FRIEND)])).await,
+        Err(CallError::NotAMember)
+    );
+    friend.drain().await;
+    e.gw.call_ring(u(MEMBER), DM, Some(vec![u(MOD)]))
+        .await
+        .unwrap();
+    assert_eq!(third.event("CALL_UPDATE").await["ringing"], json!(["4"]));
+    assert!(
+        friend
+            .drain()
+            .await
+            .iter()
+            .all(|v| v["t"] != "CALL_UPDATE" && v["t"] != "VOICE_STATE_UPDATE"),
+        "a removed member must hear nothing more about the call"
+    );
+}
+
+#[tokio::test]
+async fn closing_a_dm_keeps_its_member_in_the_call() {
+    let e = env();
+    let mut caller = client(&e, MEMBER).await;
+    caller.call().await;
+    caller.event("VOICE_SERVER_UPDATE").await;
+    emit(
+        &e.bus,
+        DomainEvent::UserScoped {
+            users: vec![u(MEMBER)],
+            name: "CHANNEL_DELETE".into(),
+            payload: json!({"id": DM.get().to_string(), "type": 3}),
+        },
+    )
+    .await;
+    settle().await;
+    assert!(e.gw.voice_state(u(MEMBER)).is_some());
+}
+
 #[tokio::test]
 async fn only_members_of_the_dm_can_join_its_call() {
     let e = env();

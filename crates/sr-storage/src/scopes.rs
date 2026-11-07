@@ -53,9 +53,10 @@ impl Kind {
             _ => None,
         }
     }
-    /// The kind a key belongs to, from its file extension. `None` is a companion file (cover, poster,
-    /// subtitle, sidecar, folder marker): it is readable with any share of the mount, because a shelf
-    /// without its covers and subtitles is useless.
+    /// The kind a key belongs to, from its file extension. `None` is either a companion file (see
+    /// [`is_companion`]: cover, poster, subtitle, metadata sidecar, folder marker), readable with any share
+    /// of the mount because a shelf without its covers and subtitles is useless, or any other file
+    /// (`Taxes/2024.xlsx`), readable only by whoever manages the mount (SEC-AUD-005).
     pub fn of_key(key: &str) -> Option<Self> {
         // Everything under the emulator folder is games, whatever its extension (`.bin` is a ROM there).
         if key.starts_with(EMU_PREFIX) {
@@ -74,6 +75,42 @@ impl Kind {
             _ => None,
         }
     }
+}
+
+/// Image extensions a shelf shows as covers, posters, backdrops and artwork.
+const COMPANION_ART: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "avif"];
+/// Subtitle extensions (and the `.idx` of a VobSub pair).
+const COMPANION_SUBS: &[&str] = &["srt", "vtt", "ass", "ssa", "sub", "idx"];
+/// Metadata sidecar extensions the shelves read: Kodi-style `.nfo`, cue sheets and playlists of an album,
+/// synced lyrics.
+const COMPANION_META_EXT: &[&str] = &["nfo", "cue", "m3u", "lrc"];
+/// Metadata sidecars by whole file name (compared case-insensitively): comic metadata, a series sheet and
+/// the folder sidecar of the indexer (`index::SIDECAR_NAME`).
+const COMPANION_META_NAMES: &[&str] = &["comicinfo.xml", "series.json", ".sideroom.json"];
+
+/// Whether a key of no shelf kind is a companion file a share admits (SEC-AUD-005): artwork, a subtitle, a
+/// metadata sidecar the shelves use, or a folder marker (a key ending in `/`). This is an allow-list: any
+/// other file (a spreadsheet, a text file, a backup archive) is not a companion, and only the owner, staff
+/// and a role with `manage` read it. A key of a shelf kind ([`Kind::of_key`] is `Some`) is not a companion.
+pub fn is_companion(key: &str) -> bool {
+    if key.ends_with('/') {
+        return true;
+    }
+    if Kind::of_key(key).is_some() {
+        return false;
+    }
+    let name = key.rsplit('/').next().unwrap_or(key).to_ascii_lowercase();
+    if COMPANION_META_NAMES.contains(&name.as_str()) {
+        return true;
+    }
+    let Some((stem, ext)) = name.rsplit_once('.') else {
+        return false;
+    };
+    // A bare `.png` is a hidden file, not artwork.
+    !stem.is_empty()
+        && (COMPANION_ART.contains(&ext)
+            || COMPANION_SUBS.contains(&ext)
+            || COMPANION_META_EXT.contains(&ext))
 }
 
 /// The six storage grants a guild role can carry (`guild_storage_grants.grant_name`).
@@ -158,8 +195,9 @@ impl GrantSet {
             || self.has(Grant::ViewMusic)
             || self.has(Grant::ViewGames)
     }
-    /// Whether this set lets the holder read a key of `kind` (`None`: a companion file). `manage` reads
-    /// everything: whoever administers a shelf sees it.
+    /// Whether this set lets the holder read a key of `kind` (`None`: a companion file, see
+    /// [`is_companion`]; a key that is neither needs `manage`, which [`Access::permits`] checks). `manage`
+    /// reads everything: whoever administers a shelf sees it.
     pub fn can_view(&self, kind: Option<Kind>) -> bool {
         match kind {
             Some(k) => self.has(Grant::Manage) || self.has(Grant::view_of(k)),
@@ -192,7 +230,9 @@ impl Share {
     pub fn any(self) -> bool {
         self.cinema || self.library || self.music
     }
-    /// Whether a key of `kind` may be read (`None`: a companion file, any share admits it).
+    /// Whether a key of `kind` may be read (`None`: a companion file, any share admits it). A key that is
+    /// neither a shelf kind nor a companion ([`is_companion`]) is never admitted by a share: see
+    /// [`Access::permits`].
     pub fn admits(self, kind: Option<Kind>) -> bool {
         match kind {
             Some(Kind::Cinema) => self.cinema,
@@ -368,17 +408,23 @@ pub struct Access {
     pub games: bool,
     /// Whether every key is readable regardless of kind (own, staff).
     pub unrestricted: bool,
+    /// Whether keys of no shelf kind that are not companions (`Taxes/2024.xlsx`) are readable: a guild
+    /// role with `manage` (SEC-AUD-005). Own and staff are `unrestricted` instead; shares never are.
+    pub others: bool,
     /// The mount the access is for.
     pub mount_id: i64,
 }
 
 impl Access {
-    /// Whether a key of this key's kind may be read, ignoring delisting.
+    /// Whether a key of this key's kind may be read, ignoring delisting. Listings, presigns, the shelf
+    /// readers and the scrapbook all ask this, so what a listing shows is what a presign serves.
     pub fn permits(&self, key: &str) -> Result<(), Refused> {
         let kind = Kind::of_key(key);
         let ok = match kind {
             Some(Kind::Games) => self.games,
-            k => self.kinds.admits(k),
+            Some(k) => self.kinds.admits(Some(k)),
+            None if is_companion(key) => self.kinds.admits(None),
+            None => self.others,
         };
         if self.unrestricted || ok {
             return Ok(());
@@ -411,6 +457,7 @@ pub async fn access(
         kinds,
         games,
         unrestricted,
+        others: false,
         mount_id: mount.id,
     };
     let all = Share {
@@ -473,7 +520,11 @@ pub async fn access(
         };
         let reaches = |k: Share, g: bool| k.any() || g;
         if reaches(kinds, games) && best.as_ref().is_none_or(|b| !reaches(b.kinds, b.games)) {
-            best = Some(mk(Scope::Guild(g), kinds, games, false));
+            best = Some(Access {
+                // Only whoever manages the shelf reads files that are neither media nor companions.
+                others: grants.has(Grant::Manage),
+                ..mk(Scope::Guild(g), kinds, games, false)
+            });
         }
     }
     if let Some(a) = best {
@@ -1305,6 +1356,97 @@ mod tests {
             go(&f, viewer(FRIEND), &m, "emu/bios/scph1001.bin").await,
             Err(Refused::NoShare)
         );
+    }
+
+    #[test]
+    fn companions_are_an_allow_list() {
+        for k in [
+            "x/cover.jpg",
+            "x/Poster.JPEG",
+            "a.png",
+            "a.webp",
+            "a.gif",
+            "a.avif",
+            "Film.en.srt",
+            "a.vtt",
+            "a.ass",
+            "a.ssa",
+            "a.sub",
+            "a.idx",
+            "Film.nfo",
+            "Album/disc.cue",
+            "Album/list.m3u",
+            "Album/track.lrc",
+            "Comics/X/ComicInfo.xml",
+            "Comics/X/series.json",
+            "Movies/.sideroom.json",
+            "Albums/",
+        ] {
+            assert!(is_companion(k), "{k}");
+        }
+        for k in [
+            "Taxes/2024.xlsx",
+            "notes.txt",
+            "backup.zip",
+            "id_rsa",
+            "noext",
+            ".png",
+            "secret.json",
+            "other.xml",
+            "song.mp3",
+            "film.mkv",
+            "emu/roms/cover.jpg",
+            "x.jpg/readme",
+        ] {
+            assert!(!is_companion(k), "{k}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_share_reads_companions_but_not_other_files() {
+        let f = MemoryScopeFacts::new();
+        f.befriend(OWNER, FRIEND);
+        f.share_with(
+            MOUNT,
+            FRIEND,
+            Share {
+                music: true,
+                ..Share::default()
+            },
+        );
+        let m = mount(MountOwner::User(OWNER));
+        for k in ["x/cover.jpg", "x/track.lrc", "x/song.mp3"] {
+            assert!(go(&f, viewer(FRIEND), &m, k).await.is_ok(), "{k}");
+        }
+        for k in ["Taxes/2024.xlsx", "notes.txt", "backup.zip"] {
+            assert_eq!(
+                go(&f, viewer(FRIEND), &m, k).await,
+                Err(Refused::NoShare),
+                "{k}"
+            );
+            // The owner and staff still read them.
+            assert!(go(&f, viewer(OWNER), &m, k).await.is_ok());
+            let staff = Viewer {
+                id: STRANGER,
+                staff: true,
+            };
+            assert!(go(&f, staff, &m, k).await.is_ok());
+        }
+        // A server shelf: all three view grants do not open other files, manage does.
+        let gm = mount(MountOwner::Guild(GUILD));
+        f.member(GUILD, FRIEND, standing(&[ROLE_MEMBER]));
+        f.grant(
+            GUILD,
+            ROLE_MEMBER,
+            GrantSet::of([Grant::ViewCinema, Grant::ViewLibrary, Grant::ViewMusic]),
+        );
+        assert_eq!(
+            go(&f, viewer(FRIEND), &gm, "Ledger.xlsx").await,
+            Err(Refused::NoGrant)
+        );
+        assert!(go(&f, viewer(FRIEND), &gm, "Show/poster.png").await.is_ok());
+        f.grant(GUILD, ROLE_MEMBER, GrantSet::of([Grant::Manage]));
+        assert!(go(&f, viewer(FRIEND), &gm, "Ledger.xlsx").await.is_ok());
     }
 
     #[test]

@@ -105,6 +105,8 @@ mod bot_pg_tests;
 #[cfg(test)]
 mod instance_mount_pg_tests;
 #[cfg(test)]
+mod jobs_hold_race_pg_tests;
+#[cfg(test)]
 mod jobs_scale_pg_tests;
 #[cfg(test)]
 mod jukebox_pg_tests;

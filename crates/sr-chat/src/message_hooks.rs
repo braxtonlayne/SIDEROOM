@@ -56,9 +56,17 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
         {
             tracing::warn!(error = %e, channel = %m.channel_id, "DM spam screening failed");
         }
-        // Recipients were filtered for VIEW_CHANNEL before the message was stored.
+        // Recipients were filtered for VIEW_CHANNEL before the message was stored. A block either
+        // way, or an ignore of the author, keeps the badge off (SEC-AUD-011); fail closed.
+        let muted = match self.mention_muted(m.author_id, notify).await {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(error = %e, channel = %m.channel_id, "mention block check failed");
+                return;
+            }
+        };
         if let Err(e) = self
-            .record_eligible_mentions(m.author_id, notify, m.channel_id, |_| true)
+            .record_eligible_mentions(m.author_id, notify, m.channel_id, |u| !muted.contains(&u))
             .await
         {
             tracing::warn!(error = %e, channel = %m.channel_id, "recording mentions failed");

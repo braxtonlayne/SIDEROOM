@@ -61,6 +61,8 @@ struct Dir {
     afk: Mutex<VoiceGuildInfo>,
     limits: Mutex<HashMap<UserId, VoiceLimits>>,
     default_limits: Mutex<VoiceLimits>,
+    /// Members removed from the group DM.
+    removed_from_dm: Mutex<Vec<UserId>>,
 }
 
 impl Dir {
@@ -85,6 +87,7 @@ impl Dir {
             afk: Mutex::new(VoiceGuildInfo::default()),
             limits: Mutex::new(HashMap::new()),
             default_limits: Mutex::new(VoiceLimits::free()),
+            removed_from_dm: Mutex::new(Vec::new()),
         }
     }
 }
@@ -207,7 +210,11 @@ impl GuildDirectory for Dir {
     }
 
     async fn dm_call_members(&self, ch: ChannelId, user: UserId) -> Option<Vec<UserId>> {
-        let members = vec![u(MEMBER), u(FRIEND), u(MOD)];
+        let removed = self.removed_from_dm.lock().unwrap().clone();
+        let members: Vec<UserId> = [u(MEMBER), u(FRIEND), u(MOD)]
+            .into_iter()
+            .filter(|m| !removed.contains(m))
+            .collect();
         (ch == DM && members.contains(&user)).then_some(members)
     }
 

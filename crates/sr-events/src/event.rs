@@ -365,6 +365,14 @@ pub enum DomainEvent {
         name: String,
         payload: serde_json::Value,
     },
+    /// Some or all of a user's sign-in sessions were revoked (logout, logout-all, a session ended from
+    /// the device list, password change, a staff suspend / force-logout / 2FA or password reset).
+    /// Published on the user's own `Topic::User`; the gateway makes every socket of that user re-check
+    /// its credential at once, so a revoked session's socket closes with 4004 (SEC-AUD-002). Never sent
+    /// to a client.
+    SessionsRevoked {
+        user: UserId,
+    },
     /// A user's chosen presence changed (status via `PATCH /users/@me/presence`,
     /// custom status). Published on the user's own `Topic::User`; the gateway, which
     /// knows the live sessions, merges it with them (open question 119) and raises
@@ -672,7 +680,9 @@ impl DomainEvent {
             }
             Self::ThreadMemberUpdated { user, .. } => vec![Topic::User(*user)],
             Self::UserScoped { users, .. } => users.iter().map(|u| Topic::User(*u)).collect(),
-            Self::PresenceChanged { user, .. } => vec![Topic::User(*user)],
+            Self::PresenceChanged { user, .. } | Self::SessionsRevoked { user } => {
+                vec![Topic::User(*user)]
+            }
             Self::FeatureSettingsChanged { .. }
             | Self::PlatformBroadcast { .. }
             | Self::ReviewCard { .. }

@@ -141,6 +141,8 @@ struct Env {
     user_mount: i64,
     /// The server mount of GUILD.
     guild_mount: i64,
+    /// The scope facts behind the routes (tests add shares).
+    facts: Arc<MemoryScopeFacts>,
 }
 
 async fn mk_mount(
@@ -150,6 +152,17 @@ async fn mk_mount(
     prefix: &str,
     cors: bool,
 ) -> Mount {
+    mk_mount_at(repo, id, owner, prefix, cors, "http://127.0.0.1:9").await
+}
+
+async fn mk_mount_at(
+    repo: &Arc<dyn MountRepo>,
+    id: i64,
+    owner: MountOwner,
+    prefix: &str,
+    cors: bool,
+    endpoint: &str,
+) -> Mount {
     let new = NewMount::seal(
         &XorSealer,
         id,
@@ -157,7 +170,7 @@ async fn mk_mount(
             owner,
             label: format!("Shelf {id}"),
             provider: Provider::Garage,
-            endpoint: "http://127.0.0.1:9".into(),
+            endpoint: endpoint.into(),
             region: "garage".into(),
             bucket: "shelf".into(),
             prefix: prefix.into(),
@@ -245,7 +258,7 @@ async fn env_with(guard: Option<Arc<dyn sr_storage::guard::EndpointGuard>>) -> E
     let next = Arc::new(AtomicU64::new(7000));
     let scope = ScopeDeps {
         mounts: repo.clone(),
-        store: Arc::new(Store(facts)),
+        store: Arc::new(Store(facts.clone())),
         sealer: Arc::new(XorSealer),
         guard,
     };
@@ -270,6 +283,7 @@ async fn env_with(guard: Option<Arc<dyn sr_storage::guard::EndpointGuard>>) -> E
         repo,
         user_mount,
         guild_mount,
+        facts,
     }
 }
 
@@ -854,6 +868,7 @@ async fn the_listing_tells_the_ui_what_the_caller_may_do() {
                 },
                 games: true,
                 unrestricted: true,
+                others: true,
                 mount_id: m.id,
             },
             mount: m.clone(),
@@ -867,4 +882,178 @@ async fn the_listing_tells_the_ui_what_the_caller_may_do() {
     assert_eq!(caps(&guild_mount, UPLOADER).await, (true, false));
     assert_eq!(caps(&guild_mount, MANAGER).await, (true, true));
     assert_eq!(caps(&guild_mount, STRANGER).await, (false, false));
+}
+
+/// A fake S3 bucket `shelf` that answers every ListObjectsV2 with `keys` (bucket keys).
+async fn listing_s3(keys: &'static [&'static str]) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    tokio::spawn(async move {
+        while let Ok((mut sock, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = Vec::new();
+                let mut chunk = [0u8; 4096];
+                while !buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    let n = sock.read(&mut chunk).await.unwrap_or(0);
+                    if n == 0 {
+                        return;
+                    }
+                    buf.extend_from_slice(&chunk[..n]);
+                }
+                let head = String::from_utf8_lossy(&buf).to_string();
+                let (status, reply) = if head.contains("list-type=2") {
+                    let contents: String = keys
+                        .iter()
+                        .map(|k| {
+                            format!(
+                                "<Contents><Key>{k}</Key><LastModified>2026-01-01T00:00:00.000Z</LastModified><ETag>\"e\"</ETag><Size>1</Size></Contents>"
+                            )
+                        })
+                        .collect();
+                    (
+                        200,
+                        format!("<ListBucketResult>{contents}</ListBucketResult>"),
+                    )
+                } else {
+                    (500, String::new())
+                };
+                let resp = format!(
+                    "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                    reply.len()
+                );
+                let _ = sock.write_all(resp.as_bytes()).await;
+                let _ = sock.shutdown().await;
+            });
+        }
+    });
+    format!("http://127.0.0.1:{port}")
+}
+
+/// SEC-AUD-005: "companion" is an allow-list. A share admits artwork, subtitles and the sidecars the shelves
+/// read; any other file is the owner's (or a manager's) alone, in the listing and the presign alike.
+#[tokio::test]
+async fn a_share_reads_companions_but_not_other_files() {
+    let e = env().await;
+    let endpoint = listing_s3(&[
+        "lib/Taxes/2024.xlsx",
+        "lib/cover.jpg",
+        "lib/film.mkv",
+        "lib/notes.txt",
+        "lib/song.mp3",
+        "lib/track.lrc",
+    ])
+    .await;
+    let m = mk_mount_at(
+        &e.repo,
+        902,
+        MountOwner::User(OWNER),
+        "lib",
+        true,
+        &endpoint,
+    )
+    .await
+    .id;
+    e.facts.share_with(
+        m,
+        FRIEND,
+        Share {
+            music: true,
+            ..Share::default()
+        },
+    );
+    let listed = |who: i64| {
+        let e = &e;
+        async move {
+            let (st, v) = e
+                .call(
+                    Some(who),
+                    Method::GET,
+                    &format!("/storage/mounts/{m}/objects"),
+                    None,
+                )
+                .await;
+            assert_eq!(st, StatusCode::OK, "{v}");
+            v["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|o| o["key"].as_str().unwrap().to_owned())
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(
+        listed(FRIEND).await,
+        vec!["cover.jpg", "song.mp3", "track.lrc"]
+    );
+    assert_eq!(listed(OWNER).await.len(), 6);
+
+    let presign = |who: i64, mount: i64, key: &'static str| {
+        let e = &e;
+        async move {
+            e.post(
+                who,
+                &format!("/storage/mounts/{mount}/presign"),
+                json!({ "method": "GET", "key": key }),
+            )
+            .await
+            .0
+        }
+    };
+    for key in ["Taxes/2024.xlsx", "notes.txt", "film.mkv"] {
+        assert_eq!(
+            presign(FRIEND, m, key).await,
+            StatusCode::NOT_FOUND,
+            "{key}"
+        );
+    }
+    for key in ["cover.jpg", "track.lrc", "song.mp3"] {
+        assert_eq!(presign(FRIEND, m, key).await, StatusCode::OK, "{key}");
+    }
+    assert_eq!(presign(OWNER, m, "Taxes/2024.xlsx").await, StatusCode::OK);
+
+    // A server shelf: every view grant still does not open other files; manage does.
+    let g = e.guild_mount;
+    assert_eq!(
+        presign(VIEWER, g, "Ledger.xlsx").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(presign(VIEWER, g, "Show/poster.png").await, StatusCode::OK);
+    assert_eq!(presign(MANAGER, g, "Ledger.xlsx").await, StatusCode::OK);
+}
+
+/// Wave 53: a legal takedown is keyed by path, so a file under one cannot be moved or renamed out from under it
+/// (alone or inside a folder); the other files move as before.
+#[tokio::test]
+async fn a_taken_down_file_cannot_be_moved_or_renamed() {
+    let e = env().await;
+    let m = e.user_mount;
+    let pre = format!("/storage/mounts/{m}");
+    e.io.seed(m, "Films/leak.mkv", 5);
+    e.io.seed(m, "Films/fine.mkv", 5);
+    e.facts.delist(m, "Films/leak.mkv");
+    for (from, to) in [
+        ("Films/leak.mkv", "Films/renamed.mkv"),
+        ("Films/", "Elsewhere/"),
+    ] {
+        let (st, v) = e
+            .post(
+                OWNER,
+                &format!("{pre}/move"),
+                json!({ "from": from, "to": to }),
+            )
+            .await;
+        assert_eq!(st, StatusCode::CONFLICT, "{from} -> {v}");
+        assert_eq!(code(&v), "OBJECT_TAKEN_DOWN");
+    }
+    assert!(e.io.has(m, "Films/leak.mkv") && !e.io.has(m, "Films/renamed.mkv"));
+    assert!(!e.io.has(m, "Elsewhere/leak.mkv"));
+    let (st, v) = e
+        .post(
+            OWNER,
+            &format!("{pre}/move"),
+            json!({ "from": "Films/fine.mkv", "to": "Films/better.mkv" }),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
 }

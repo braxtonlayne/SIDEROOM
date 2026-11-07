@@ -242,7 +242,115 @@ pub(crate) fn zip_archive<R: Read + Seek>(mut reader: R) -> zip::result::ZipResu
     ZipArchive::with_config(ZipConfig { archive_offset }, reader)
 }
 
-fn open_zip<R: Read + Seek>(reader: R, limits: ArchiveLimits) -> Result<ZipReader<R>, IngestError> {
+/// The end-of-central-directory record sits in the last 22 bytes plus at most a 64 KiB comment.
+const EOCD_SEARCH: u64 = 22 + 0xFFFF;
+/// A central-directory header is 46 bytes plus its name, extra field and comment. Real ones are a few hundred
+/// bytes, so a directory larger than this many bytes a permitted entry is refused before it is parsed.
+const CD_BYTES_PER_ENTRY: u64 = 4096;
+
+fn u16_at(b: &[u8], i: usize) -> u64 {
+    u64::from(u16::from_le_bytes([b[i], b[i + 1]]))
+}
+
+fn u32_at(b: &[u8], i: usize) -> u64 {
+    u64::from(u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]))
+}
+
+fn u64_at(b: &[u8], i: usize) -> u64 {
+    let mut a = [0u8; 8];
+    a.copy_from_slice(&b[i..i + 8]);
+    u64::from_le_bytes(a)
+}
+
+/// Refuse a ZIP whose end-of-central-directory record (or its ZIP64 record) declares more than `max_entries`
+/// entries or a central directory larger than `max_entries` headers can need, reading only the tail of the file
+/// (wave 53). The zip crate parses every central-directory header the record declares, and builds its whole
+/// table, before [`ZipArchive::len`] can be compared with the cap: a crafted upload of millions of 46-byte
+/// headers would cost gigabytes of memory first. The reader is left at an unspecified position.
+pub(crate) fn check_zip_directory<R: Read + Seek>(
+    reader: &mut R,
+    max_entries: usize,
+) -> Result<(), IngestError> {
+    let io = |e: std::io::Error| IngestError::Archive(e.to_string());
+    let bad = || IngestError::Archive("no end of central directory".into());
+    let len = reader.seek(SeekFrom::End(0)).map_err(io)?;
+    let tail_len = len.min(EOCD_SEARCH);
+    let tail_start = len - tail_len;
+    reader.seek(SeekFrom::Start(tail_start)).map_err(io)?;
+    let mut tail = vec![0u8; usize::try_from(tail_len).map_err(|_| bad())?];
+    reader.read_exact(&mut tail).map_err(io)?;
+    if tail.len() < 22 {
+        return Err(bad());
+    }
+    // Every candidate record is checked, not only the last: the zip crate tries the next one back when the
+    // last does not parse, so a planted small record must not hide a large one behind it.
+    let candidates: Vec<usize> = (0..=tail.len() - 22)
+        .rev()
+        .filter(|&i| tail[i..i + 4] == [0x50, 0x4b, 0x05, 0x06])
+        .collect();
+    if candidates.is_empty() {
+        return Err(bad());
+    }
+    for at in candidates {
+        check_eocd(reader, &tail, tail_start, at, max_entries)?;
+    }
+    Ok(())
+}
+
+fn check_eocd<R: Read + Seek>(
+    reader: &mut R,
+    tail: &[u8],
+    tail_start: u64,
+    at: usize,
+    max_entries: usize,
+) -> Result<(), IngestError> {
+    let io = |e: std::io::Error| IngestError::Archive(e.to_string());
+    let mut entries = u16_at(tail, at + 10);
+    let mut cd_size = u32_at(tail, at + 12);
+    // ZIP64: a locator right before the record points at the ZIP64 record, whose counts are 64-bit. The zip
+    // crate reads it when present, so its counts are checked too (an archive within our size limits never
+    // needs ZIP64, but some writers always add it).
+    let eocd = tail_start + at as u64;
+    if eocd >= 20 {
+        let mut loc = [0u8; 20];
+        reader.seek(SeekFrom::Start(eocd - 20)).map_err(io)?;
+        reader.read_exact(&mut loc).map_err(io)?;
+        if loc[..4] == [0x50, 0x4b, 0x06, 0x07] {
+            let mut rec = [0u8; 56];
+            // Where the locator says, else right before the locator (a prefixed archive shifts the offset).
+            let read_rec = |reader: &mut R, pos: u64, rec: &mut [u8; 56]| -> bool {
+                pos.checked_add(56).is_some_and(|end| end <= eocd - 20)
+                    && reader.seek(SeekFrom::Start(pos)).is_ok()
+                    && reader.read_exact(rec).is_ok()
+                    && rec[..4] == [0x50, 0x4b, 0x06, 0x06]
+            };
+            let found = read_rec(reader, u64_at(&loc, 8), &mut rec)
+                || (eocd >= 76 && read_rec(reader, eocd - 76, &mut rec));
+            if !found {
+                return Err(IngestError::Archive("unreadable ZIP64 directory".into()));
+            }
+            entries = entries.max(u64_at(&rec, 32));
+            cd_size = cd_size.max(u64_at(&rec, 40));
+        }
+    }
+    let max = u64::try_from(max_entries).unwrap_or(u64::MAX);
+    if entries > max {
+        return Err(IngestError::TooManyEntries);
+    }
+    if cd_size > max.saturating_mul(CD_BYTES_PER_ENTRY) {
+        return Err(IngestError::TooLarge("archive directory"));
+    }
+    Ok(())
+}
+
+fn open_zip<R: Read + Seek>(
+    mut reader: R,
+    limits: ArchiveLimits,
+) -> Result<ZipReader<R>, IngestError> {
+    check_zip_directory(&mut reader, limits.max_entries)?;
+    reader
+        .seek(SeekFrom::Start(0))
+        .map_err(|e| IngestError::Archive(e.to_string()))?;
     let mut zip = zip_archive(reader).map_err(archive_err)?;
     if zip.len() > limits.max_entries {
         return Err(IngestError::TooManyEntries);
@@ -673,6 +781,124 @@ mod tests {
 
     fn names(r: &ArchiveReader<Cursor<Vec<u8>>>) -> Vec<&str> {
         r.pages().iter().map(|e| e.name.as_str()).collect()
+    }
+
+    /// Counts the bytes read through it.
+    struct Counting<R> {
+        inner: R,
+        read: std::rc::Rc<std::cell::Cell<u64>>,
+    }
+
+    impl<R: Read> Read for Counting<R> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.inner.read(buf)?;
+            self.read.set(self.read.get() + n as u64);
+            Ok(n)
+        }
+    }
+
+    impl<R: Seek> Seek for Counting<R> {
+        fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(pos)
+        }
+    }
+
+    fn counting(bytes: Vec<u8>) -> (Counting<Cursor<Vec<u8>>>, std::rc::Rc<std::cell::Cell<u64>>) {
+        let read = std::rc::Rc::new(std::cell::Cell::new(0));
+        (
+            Counting {
+                inner: Cursor::new(bytes),
+                read: read.clone(),
+            },
+            read,
+        )
+    }
+
+    fn many_entries(n: usize) -> Vec<u8> {
+        let mut w = ZipWriter::new(Cursor::new(Vec::new()));
+        let o = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+        for i in 0..n {
+            w.start_file(format!("{i:05}.png"), o).unwrap();
+            w.write_all(b"p").unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    }
+
+    /// Wave 53: the entry cap is read from the end-of-central-directory record, so an archive over it is refused
+    /// after reading its tail, not after the zip crate parsed the whole directory.
+    #[test]
+    fn too_many_entries_are_refused_from_the_tail_before_the_directory_is_parsed() {
+        let z = many_entries(4001);
+        assert!(
+            z.len() > 300_000,
+            "the directory alone is far past the tail"
+        );
+        let (r, read) = counting(z.clone());
+        assert!(matches!(
+            ArchiveReader::open(r, ArchiveLimits::default()),
+            Err(IngestError::TooManyEntries)
+        ));
+        assert!(read.get() < 100_000, "read {} bytes", read.get());
+        let (r, read) = counting(z);
+        assert!(matches!(
+            crate::ingest::epub::inspect(r, &ArchiveLimits::default()),
+            Err(IngestError::TooManyEntries)
+        ));
+        assert!(read.get() < 100_000, "read {} bytes", read.get());
+        // At the cap it still opens.
+        assert!(
+            ArchiveReader::open(Cursor::new(many_entries(40)), ArchiveLimits::default()).is_ok()
+        );
+    }
+
+    /// A ZIP64 record claiming more entries than the cap is refused, even behind a classic record with small
+    /// counts, and a small record planted after a large one does not hide it.
+    #[test]
+    fn zip64_and_planted_directory_records_are_checked() {
+        let eocd = |entries: u16, size: u32, comment: &[u8]| {
+            let mut v = vec![0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0];
+            v.extend_from_slice(&entries.to_le_bytes());
+            v.extend_from_slice(&entries.to_le_bytes());
+            v.extend_from_slice(&size.to_le_bytes());
+            v.extend_from_slice(&0u32.to_le_bytes());
+            v.extend_from_slice(&(comment.len() as u16).to_le_bytes());
+            v.extend_from_slice(comment);
+            v
+        };
+        let mut z = vec![0u8; 64];
+        let rec = z.len() as u64;
+        z.extend_from_slice(&[0x50, 0x4b, 0x06, 0x06]);
+        z.extend_from_slice(&44u64.to_le_bytes());
+        z.extend_from_slice(&[45, 0, 45, 0]);
+        z.extend_from_slice(&[0; 8]);
+        z.extend_from_slice(&5000u64.to_le_bytes());
+        z.extend_from_slice(&5000u64.to_le_bytes());
+        z.extend_from_slice(&(5000u64 * 50).to_le_bytes());
+        z.extend_from_slice(&0u64.to_le_bytes());
+        z.extend_from_slice(&[0x50, 0x4b, 0x06, 0x07, 0, 0, 0, 0]);
+        z.extend_from_slice(&rec.to_le_bytes());
+        z.extend_from_slice(&1u32.to_le_bytes());
+        // The classic record looks harmless; only the ZIP64 one is over the cap.
+        z.extend_from_slice(&eocd(3, 150, b""));
+        assert!(matches!(
+            check_zip_directory(&mut Cursor::new(z), 4000),
+            Err(IngestError::TooManyEntries)
+        ));
+        // A large classic record whose comment ends in a small, well-formed-looking one.
+        let mut z = vec![0u8; 64];
+        let small = eocd(1, 46, b"");
+        z.extend_from_slice(&eocd(60_000, 60_000 * 46, &small));
+        assert!(matches!(
+            check_zip_directory(&mut Cursor::new(z), 4000),
+            Err(IngestError::TooManyEntries)
+        ));
+        // A directory far larger than its entry count can need.
+        let mut z = vec![0u8; 64];
+        z.extend_from_slice(&eocd(10, 50_000_000, b""));
+        assert!(matches!(
+            check_zip_directory(&mut Cursor::new(z), 4000),
+            Err(IngestError::TooLarge(_))
+        ));
     }
 
     #[test]

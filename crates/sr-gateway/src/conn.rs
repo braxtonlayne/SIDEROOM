@@ -13,7 +13,7 @@ use tokio::time::{Instant, sleep_until};
 pub const DISPATCH_BYTES: &str = "sr_gateway_dispatch_bytes";
 
 use crate::compress::{Compression, zstd_compress};
-use crate::hub::Gateway;
+use crate::hub::{Gateway, UnidentifiedSlot};
 use crate::protocol::{Identify, Payload, PresenceUpdate, Resume, close, intents, op};
 use crate::session::{Out, Session, SessionHandle};
 use crate::traits::{AuthError, AuthedUser};
@@ -34,6 +34,9 @@ pub struct ConnectParams {
     pub session_cookie: Option<String>,
     /// `Origin` header of the upgrade request, if any.
     pub origin: Option<String>,
+    /// The client's address (behind a trusted proxy, the forwarded one), for the per-address cap on
+    /// sockets that have not identified yet (SEC-AUD-010). `None`: not capped per address.
+    pub peer: Option<std::net::IpAddr>,
 }
 
 /// Inbound client ops allowed per connection in each window (docs/05 section 6.2).
@@ -57,6 +60,14 @@ struct Conn {
     /// server closes the connection, to tell a silent client from a stalled write path (RDY-VOX-002).
     last_in: Instant,
     send_blocked_max: std::time::Duration,
+    /// The token IDENTIFY/RESUME authenticated with (empty: the `sr_session` cookie), re-checked every
+    /// [`crate::GatewayConfig::session_recheck`] and on a `SessionsRevoked` event (SEC-AUD-002).
+    credential: Option<String>,
+    recheck_at: Instant,
+    /// Until IDENTIFY/RESUME succeeds: the socket's place in the unidentified count, and the time
+    /// it must have identified by (heartbeats do not extend it; SEC-AUD-010).
+    unidentified: Option<UnidentifiedSlot>,
+    identify_by: Instant,
 }
 
 /// A live session refreshes the user's `last_seen_at` at most this often (D-166).
@@ -71,10 +82,31 @@ enum Stop {
 }
 
 /// Serve one connection until it ends. `incoming` is what the client sent,
-/// `outgoing` is what the server writes back.
+/// `outgoing` is what the server writes back. Over the per-address cap on sockets that have not
+/// identified yet, the connection is closed at once with 4008.
 pub async fn run_connection(
     gw: Gateway,
     params: ConnectParams,
+    incoming: mpsc::Receiver<Frame>,
+    outgoing: mpsc::Sender<Frame>,
+) {
+    let Some(slot) = gw.admit(params.peer) else {
+        let _ = outgoing
+            .send(Frame::Close {
+                code: close::RATE_LIMITED,
+                reason: "too many connections".into(),
+            })
+            .await;
+        return;
+    };
+    run_admitted(gw, params, slot, incoming, outgoing).await;
+}
+
+/// [`run_connection`] for a socket already counted by [`Gateway::admit`].
+pub(crate) async fn run_admitted(
+    gw: Gateway,
+    params: ConnectParams,
+    slot: UnidentifiedSlot,
     mut incoming: mpsc::Receiver<Frame>,
     outgoing: mpsc::Sender<Frame>,
 ) {
@@ -82,6 +114,7 @@ pub async fn run_connection(
     let cap = gw.config().resume_buffer.max(1024) + 64;
     let (session_tx, mut session_rx) = mpsc::channel::<Out>(cap);
     let deadline = Instant::now() + gw.config().heartbeat_interval + gw.config().heartbeat_grace;
+    let identify_by = Instant::now() + gw.config().identify_timeout;
     let mut c = Conn {
         gw,
         out: outgoing,
@@ -96,6 +129,10 @@ pub async fn run_connection(
         next_seen: Instant::now(),
         last_in: Instant::now(),
         send_blocked_max: std::time::Duration::ZERO,
+        credential: None,
+        recheck_at: Instant::now(),
+        unidentified: Some(slot),
+        identify_by,
     };
     let stop = c.run(&mut incoming, &mut session_rx).await;
     // Which side ended a gateway connection, and why (RDY-VOX-002: run 40237146331 lost five members'
@@ -148,6 +185,10 @@ impl Conn {
         loop {
             let step = tokio::select! {
                 () = sleep_until(self.deadline) => Err(Stop::Close(close::SESSION_TIMED_OUT, "session timed out")),
+                () = sleep_until(self.recheck_at), if self.session.is_some() => self.recheck().await,
+                () = sleep_until(self.identify_by), if self.session.is_none() => {
+                    Err(Stop::Close(close::SESSION_TIMED_OUT, "identify timed out"))
+                }
                 m = session_rx.recv(), if self.session.is_some() => match m {
                     Some(Out::Frame(t)) => {
                         self.record_dispatch_bytes(t.len());
@@ -160,6 +201,7 @@ impl Conn {
                         let _ = self.send_text(Payload::new(op::RECONNECT, Value::Null).to_text()).await;
                         Err(Stop::Close(close::UNKNOWN_ERROR, "reconnect"))
                     }
+                    Some(Out::Recheck) => self.recheck().await,
                     // Taken over by a newer connection, or fell too far behind.
                     None => Err(Stop::Close(close::UNKNOWN_ERROR, "session detached")),
                 },
@@ -208,6 +250,33 @@ impl Conn {
             .as_deref()
             .ok_or(AuthError::Invalid)?;
         self.gw.inner.auth.authenticate_session_cookie(cookie).await
+    }
+
+    /// Re-check the credential this connection identified with (SEC-AUD-002). A revoked or expired
+    /// session, a suspended account or a reset bot token closes the socket with 4004, which the web
+    /// client treats as signed out. A backend outage keeps the socket (the next check retries).
+    async fn recheck(&mut self) -> Result<(), Stop> {
+        self.recheck_at = Instant::now() + self.gw.config().session_recheck;
+        let (Some(s), Some(token)) = (self.session.as_ref(), self.credential.as_deref()) else {
+            return Ok(());
+        };
+        match self.authenticate(token).await {
+            Ok(u) if u.user_id == s.user => Ok(()),
+            Ok(_) | Err(AuthError::Invalid) => {
+                Err(Stop::Close(close::AUTHENTICATION_FAILED, "session revoked"))
+            }
+            Err(AuthError::Unavailable(e)) => {
+                tracing::warn!(conn = self.id, error = %e, "gateway session re-check unavailable");
+                Ok(())
+            }
+        }
+    }
+
+    /// Mark the credential that authenticated this connection, for [`Self::recheck`].
+    fn authenticated_with(&mut self, token: &str) {
+        self.unidentified = None;
+        self.credential = Some(token.to_owned());
+        self.recheck_at = Instant::now() + self.gw.config().session_recheck;
     }
 
     /// Feed the `sr_gateway_dispatch_bytes` histogram (uncompressed size).
@@ -380,6 +449,7 @@ impl Conn {
         self.gw
             .set_session_platform(&session, crate::presence::platform_of(&id.properties));
         self.session = Some(session.clone());
+        self.authenticated_with(&id.token);
         self.touch_seen();
         if let Some(p) = id.presence {
             self.gw.set_session_presence(&session, p).await;
@@ -410,6 +480,7 @@ impl Conn {
                 s.deliver_marker("RESUMED");
                 self.gw.refresh_presence(s.user, false).await;
                 self.session = Some(s);
+                self.authenticated_with(&r.token);
                 self.touch_seen();
                 Ok(())
             }

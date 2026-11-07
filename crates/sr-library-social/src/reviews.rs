@@ -10,7 +10,8 @@ use crate::service::LibrarySocial;
 
 /// Rows by authors the viewer (`$1`) did not block or ignore.
 const NOT_BLOCKED: &str = "NOT EXISTS (SELECT 1 FROM relationships bl WHERE bl.user_id = $1 \
-     AND bl.target_id = r.user_id AND bl.type IN (2, 6))";
+     AND bl.target_id = r.user_id AND bl.type IN (2, 6)) \
+     AND NOT EXISTS (SELECT 1 FROM user_ignores ig WHERE ig.user_id = $1 AND ig.target_id = r.user_id)";
 
 const REVIEW_COLS: &str = "r.id, r.series_id, r.user_id, \
      COALESCE(a.display_name, a.username::text) AS author_name, rt.score::int AS rating, \

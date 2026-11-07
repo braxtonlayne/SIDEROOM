@@ -169,7 +169,9 @@ fn app_cols(a: &str) -> String {
          {a}.bot_public, {a}.bot_require_code_grant, {a}.redirect_uris, {a}.install_params, \
          {a}.terms_url, {a}.privacy_url, {a}.release_state::text AS release_state, \
          {a}.suspended_reason, {a}.intents_requested, {a}.intents_approved, \
-         {a}.client_secret_hash, {a}.client_secret_hint, {}",
+         {a}.client_secret_hash, {a}.client_secret_hint, \
+         EXISTS (SELECT 1 FROM application_versions rv WHERE rv.application_id = {a}.id \
+           AND rv.state = 'approved') AS was_released, {}",
         ms(&format!("{a}.created_at"), "created_ms")
     )
 }
@@ -210,6 +212,7 @@ fn app_from(r: &PgRow) -> AppsResult<Application> {
         suspended_reason: r.try_get("suspended_reason").map_err(db)?,
         intents_requested: g("intents_requested")? as u64,
         intents_approved: g("intents_approved")? as u64,
+        was_released: r.try_get("was_released").map_err(db)?,
         client_secret_hash: hash_of(r, "client_secret_hash")?,
         client_secret_hint: r.try_get("client_secret_hint").map_err(db)?,
         created_at_ms: g("created_ms")?,

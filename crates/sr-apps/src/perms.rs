@@ -174,6 +174,7 @@ mod tests {
             suspended_reason: None,
             intents_requested: 0,
             intents_approved: 0,
+            was_released: false,
             client_secret_hash: TokenHash::from_bytes(&[0; 32]).unwrap(),
             client_secret_hint: String::new(),
             created_at_ms: 0,
@@ -184,6 +185,24 @@ mod tests {
         owner_id: 1,
         member_count: 5,
     };
+
+    /// SEC-AUD-004: privileged intents while a version waits for review.
+    #[test]
+    fn a_released_app_in_review_keeps_only_approved_intents() {
+        use crate::model::intents;
+        let asked = intents::MESSAGE_CONTENT | intents::GUILD_MEMBERS | intents::GUILD_PRESENCES;
+        // a development-only app in its first review keeps the developer's set (test servers)
+        let mut a = app(ReleaseState::InReview, true);
+        a.intents_requested = asked;
+        assert_eq!(a.allowed_intents(), asked);
+        // an app that was released before stays on what staff approved
+        a.was_released = true;
+        a.intents_approved = intents::GUILD_MEMBERS;
+        assert_eq!(a.allowed_intents(), intents::GUILD_MEMBERS);
+        assert_eq!(a.flags(), 1 << 14);
+        a.release_state = ReleaseState::Released;
+        assert_eq!(a.allowed_intents(), intents::GUILD_MEMBERS);
+    }
 
     #[test]
     fn install_needs_manage_guild() {

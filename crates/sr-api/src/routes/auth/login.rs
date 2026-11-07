@@ -139,23 +139,12 @@ pub async fn login(
         tracing::warn!(error = %e, "password rehash not stored");
     }
 
-    let secure = state.settings().secure_cookies;
-    let has_totp = svc
-        .store
-        .totp_get(account.id)
-        .await?
-        .is_some_and(|t| t.confirmed);
-    let has_passkey = svc.has_passkeys(account.id).await?;
-    if (has_totp || has_passkey) && !is_trusted(&svc, &state, &headers, account.id).await? {
-        let token = SessionToken::generate()?;
-        svc.pending
-            .insert(&token.hash(), account.id, now + svc.cfg.mfa_ttl_secs, now);
-        let cookie = mfa_cookie(&token, secure, svc.cfg.mfa_ttl_secs);
+    if let Some(step) = second_factor_step(&svc, &state, &headers, account.id).await? {
         return Ok((
-            AppendHeaders([(header::SET_COOKIE, cookie)]),
+            AppendHeaders([(header::SET_COOKIE, step.cookie)]),
             Json(json!({
                 "status": "mfa_required",
-                "methods": second_factor_methods(has_totp, has_passkey),
+                "methods": step.methods,
             })),
         ));
     }
@@ -166,6 +155,44 @@ pub async fn login(
         AppendHeaders([(header::SET_COOKIE, cookie)]),
         Json(json!({ "status": "ok" })),
     ))
+}
+
+/// A pending second-factor step: the `sr_mfa` cookie to set and the methods it offers.
+pub(super) struct SecondFactorStep {
+    pub cookie: String,
+    pub methods: Vec<&'static str>,
+}
+
+/// The one second-factor rule every first-factor sign-in (password, Discord) applies
+/// (SEC-AUD-001): an account with a confirmed TOTP or any passkey, on a device it has not
+/// trusted, gets a pending MFA token instead of a session.
+pub(super) async fn second_factor_step(
+    svc: &AuthService,
+    state: &AppState,
+    headers: &HeaderMap,
+    account_id: i64,
+) -> R<Option<SecondFactorStep>> {
+    let has_totp = svc
+        .store
+        .totp_get(account_id)
+        .await?
+        .is_some_and(|t| t.confirmed);
+    let has_passkey = svc.has_passkeys(account_id).await?;
+    if !(has_totp || has_passkey) || is_trusted(svc, state, headers, account_id).await? {
+        return Ok(None);
+    }
+    let now = state.now_secs();
+    let token = SessionToken::generate()?;
+    svc.pending
+        .insert(&token.hash(), account_id, now + svc.cfg.mfa_ttl_secs, now);
+    Ok(Some(SecondFactorStep {
+        cookie: mfa_cookie(
+            &token,
+            state.settings().secure_cookies,
+            svc.cfg.mfa_ttl_secs,
+        ),
+        methods: second_factor_methods(has_totp, has_passkey),
+    }))
 }
 
 /// Whether the request carries a live "trust this device" cookie for `user_id`.

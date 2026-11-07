@@ -337,7 +337,10 @@ setting is an entry of the Admin > Limits catalog (group `abuse`, or `limits` fo
 `PATCH /admin/settings` applies it on the next request (the HTTP ones through the `RateConfig` watch channel of H-39, the data-export and counter-notice
 ones from the `platform_settings` row on each request). A refused request answers `429` with `Retry-After` (REST) or the 429 error body. **Scope is per
 process, as for every limiter in this document**: one node, counters reset on restart, not shared across nodes (documented, not changed). "Per credential"
-means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). The
+means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). A
+credential that has not authenticated in the last 10 minutes is also charged to its address (global and route bucket) until the auth extractor
+verifies it, so a made-up token per request shares the address's allowance (SEC-AUD-007); a channel, server or webhook id counts once however it
+is spelled (`0042`, `%34%32`). The
 table is checked against the catalog by `abuse_limits.rs::doc_05_table_matches_the_catalog_and_its_tests_exist`: a row's setting, default and test must
 exist.
 
@@ -563,6 +566,8 @@ Rich presence for watching/reading uses standard `activities` on `PRESENCE_UPDAT
 `HELLO(heartbeat_interval=41250)` → `IDENTIFY(token, intents, properties)` → `READY(session_id, resume_gateway_url, user, guilds (unavailable stubs), private_channels, relationships, read_state, user_settings, sessions)`. `private_channels` entries carry full `recipients` user objects (everyone but the viewer), the same shape as `GET /users/@me/channels` and the DM `CHANNEL_CREATE` (D-181); a conversation in the viewer's Message Requests also carries `is_message_request: true`. The gateway records every frame size in the `sr_gateway_dispatch_bytes` histogram (`/internal/metrics`) so the "p95 above 64 KiB" trigger for browser zstd is measurable → `GUILD_CREATE` per guild. Resume buffers are kept in memory per session for 2 minutes or 5,000 events.
 
 `GUILD_CREATE` also carries `stage_instances` (the live stages whose channel the recipient can see) and `soundboard_sounds` (the server's sounds, the `SOUNDBOARD_SOUNDS` shape), so clients seed those stores without a boot fetch (G-38). Members who are the system user are left out of its `members` and of every member list, count and prune (D-188); message objects the system user wrote carry the SIDE ROOM message flag `SYSTEM_TAG` (`1 << 30`).
+
+**Limits and revocation (wave 53).** A client message or frame larger than 256 KiB closes the socket (the largest client op, an op 101 commit, is under 200 KiB). A socket must IDENTIFY or RESUME within 30 s of HELLO, heartbeats or not, or it is closed with `4009`; one client address may hold 32 sockets that have not identified yet (more get HTTP 429), and they count toward `gateway.max_connections`. An identified socket re-checks its token or `sr_session` cookie every 60 s and at once when the account's sessions are revoked (logout, logout everywhere, a session ended from the device list, a password change, a staff suspend, force-logout or reset): a revoked session, a deactivated account or a reset bot token closes it with `4004`, which the web client treats as signed out.
 
 ### 6.5 Voice (gateway ops, dispatches, REST)
 The media signalling (voice WebSocket) is in `docs/specs/lounge-voice-video.md` section 4. This section is the gateway and REST side.

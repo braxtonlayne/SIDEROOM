@@ -207,6 +207,38 @@ impl Gateway {
         }
     }
 
+    /// A DM channel went away for `user` (`CHANNEL_DELETE` on their own topic): removed from a group
+    /// DM, left it, or the group was deleted. If they are no longer a member, they leave its call
+    /// like a guild member who lost `CONNECT` (the SFU drops them, the MLS group gets a Remove
+    /// proposal) and stop hearing about it: they leave the call's member list and its ring
+    /// (SEC-AUD-GDM). Closing a one-to-one DM keeps the membership, so nothing changes then.
+    pub(crate) async fn call_recipient_removed(&self, user: UserId, channel: ChannelId) {
+        let in_call = self
+            .voice_state(user)
+            .is_some_and(|v| v.guild_id.is_none() && v.channel_id == channel);
+        let known = self.st().vx.calls.contains_key(&channel);
+        if !in_call && !known {
+            return;
+        }
+        if self
+            .inner
+            .dir
+            .dm_call_members(channel, user)
+            .await
+            .is_some()
+        {
+            return;
+        }
+        if in_call {
+            self.voice_leave(user).await;
+        }
+        let mut st = self.st();
+        if let Some(c) = st.vx.calls.get_mut(&channel) {
+            c.members.retain(|m| *m != user);
+            c.ringing.remove(&user);
+        }
+    }
+
     /// A member left the DM voice room; the call ends with the last one.
     pub(crate) async fn call_member_left(&self, old: &VoiceState) {
         let channel = old.channel_id;

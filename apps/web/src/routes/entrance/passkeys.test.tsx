@@ -121,6 +121,15 @@ describe('passkey as the second step', () => {
     });
   });
 
+  it('offers the passkey after a Discord sign-in, which names the methods in the URL (SEC-AUD-001)', async () => {
+    // A server redirect: nothing was stored at a password step on this page.
+    stubWebAuthn();
+    at('/login/2fa?methods=passkey,recovery');
+    expect(await screen.findByText('Your passkey.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Use your passkey' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Digit 1')).toBeNull();
+  });
+
   it('offers the passkey next to the authenticator code and can switch to recovery', async () => {
     sessionStorage.setItem('sr.mfaMethods', JSON.stringify(['passkey', 'totp', 'recovery']));
     stubWebAuthn();

@@ -18,6 +18,15 @@ export const TOMBSTONE_TTL_MS = 5 * 60_000;
 export const MAX_TOMBSTONES = 1000;
 /** Keys only the instance's host may write. */
 export const HOST_KEY_PREFIX = 'host:';
+/** The largest key version accepted from the wire (a safe integer far above any real document). */
+export const MAX_VERSION = 2 ** 40;
+/**
+ * How far above the local document version a live change may be. Honest writers send `version + 1`; a few
+ * in-flight writes can lead the local view by a little, never by thousands.
+ */
+export const MAX_VERSION_JUMP = 1024;
+/** The host answers one member's `sync` at most this often (ms): each answer is a broadcast of the document. */
+export const SYNC_COOLDOWN_MS = 1000;
 
 /** What an Activity (or the host page) provides: opaque bytes in and out, and who is who. */
 export interface DataTransport {
@@ -128,6 +137,10 @@ export class ActivityData {
   /** When each tombstone was recorded (local clock), to expire it. */
   private readonly tombAt = new Map<string, number>();
   private readonly now: () => number;
+  /** Key prefixes whose next segment must be the writer's member id (see `scopeKeys`). */
+  private readonly scoped = new Set<string>();
+  /** When the host last answered each member's `sync` (local clock). */
+  private readonly syncedAt = new Map<string, number>();
 
   constructor(opts: { now?: () => number } = {}) {
     this.now = opts.now ?? Date.now;
@@ -140,6 +153,26 @@ export class ActivityData {
     this.hostId = transport.host;
     this.off = transport.onMessage((from, bytes) => this.receive(from, bytes));
     if (transport.self !== this.hostId) this.sendEnvelope({ v: 1, t: 'sync' });
+  }
+
+  /**
+   * Bind a family of keys to their writer: a key `<prefix><memberId>:...` can only be written, overwritten or
+   * deleted by that member (the instance's host may also delete them, to compact the document). A key a member
+   * writes under someone else's id is dropped here and by every peer that scoped the same prefix, and a write
+   * of one throws `FORBIDDEN`. Call it before the first snapshot arrives.
+   */
+  scopeKeys(prefix: string): void {
+    if (prefix) this.scoped.add(prefix);
+  }
+
+  private keyAllowed(k: string, by: string, isDelete: boolean): boolean {
+    for (const p of this.scoped) {
+      if (!k.startsWith(p)) continue;
+      const writer = k.slice(p.length).split(':', 1)[0];
+      if (writer === by) return true;
+      return isDelete && by === this.hostId;
+    }
+    return true;
   }
 
   detach(): void {
@@ -193,9 +226,12 @@ export class ActivityData {
   private write(items: { k: string; d?: unknown }[]): void {
     const t = this.requireTransport();
     if (items.length === 0) return;
-    for (const { k } of items) {
+    for (const { k, d } of items) {
       if (k.startsWith(HOST_KEY_PREFIX) && t.self !== this.hostId) {
         throw new DataError('FORBIDDEN', `Only the host may write "${k}".`);
+      }
+      if (!this.keyAllowed(k, t.self, d === undefined)) {
+        throw new DataError('FORBIDDEN', `"${k}" belongs to another member.`);
       }
     }
     const base = this.version;
@@ -229,14 +265,14 @@ export class ActivityData {
   /** Host to one member (e.g. a player's hole cards). Only the host may reply. */
   reply(member: string, data: Uint8Array): void {
     const t = this.requireTransport();
-    if (t.self !== this.hostId) throw new DataError('FORBIDDEN', 'Only the host may reply to a member.');
+    if (t.self !== this.hostId)
+      throw new DataError('FORBIDDEN', 'Only the host may reply to a member.');
     if (member === t.self) {
       this.emit('input', { from: t.self, data: data.slice(), reply: true });
       return;
     }
     this.sendEnvelope({ v: 1, t: 'reply', to: member, b: b64(data) });
   }
-
 
   // ---- host handoff (D-388) ----
 
@@ -374,14 +410,26 @@ export class ActivityData {
       case 'state':
       case 'snap': {
         if (!forMe) return;
-        if (env.t === 'snap' && from === this.hostId && typeof env.floor === 'number') {
-          if (Number.isFinite(env.floor)) this.floor = Math.max(this.floor, env.floor);
+        const snap = env.t === 'snap';
+        let ceiling = this.version + MAX_VERSION_JUMP;
+        if (snap) {
+          // A snapshot's versions never exceed its floor; the floor itself is bounded.
+          const fl = env.floor;
+          const okFloor =
+            typeof fl === 'number' && Number.isSafeInteger(fl) && fl >= 0 && fl <= MAX_VERSION;
+          if (from === this.hostId && okFloor) this.floor = Math.max(this.floor, fl);
+          ceiling = okFloor ? fl : MAX_VERSION;
         }
-        this.applyOps(this.cleanOps(env.ops, from, env.t === 'snap'), false);
+        this.applyOps(this.cleanOps(env.ops, from, snap, ceiling), false);
         return;
       }
       case 'sync':
         if (t.self === this.hostId) {
+          // Every answer is a broadcast of the whole document: one per member per cooldown.
+          const at = this.now();
+          const last = this.syncedAt.get(from);
+          if (last !== undefined && at - last < SYNC_COOLDOWN_MS) return;
+          this.syncedAt.set(from, at);
           for (const env of this.snapshotEnvelopes(from)) this.sendEnvelope(env);
         }
         return;
@@ -403,16 +451,21 @@ export class ActivityData {
   /**
    * Validate ops from `from`. A normal change must carry `by === from` (the sender cannot forge an author);
    * a snapshot is accepted only from the host and keeps each op's author. `host:*` keys are accepted only
-   * when the original author is the host.
+   * when the original author is the host. Versions must be positive safe integers up to `ceiling`; keys under a
+   * `scopeKeys` prefix must be written by the member their key names.
    */
-  private cleanOps(raw: unknown, from: string, snapshot: boolean): StateOp[] {
+  private cleanOps(raw: unknown, from: string, snapshot: boolean, ceiling: number): StateOp[] {
     if (!Array.isArray(raw) || (snapshot && from !== this.hostId)) return [];
     const out: StateOp[] = [];
     for (const o of raw as Record<string, unknown>[]) {
       if (typeof o !== 'object' || o === null) continue;
       const { k, ver, by } = o as { k?: unknown; ver?: unknown; by?: unknown };
-      if (typeof k !== 'string' || typeof ver !== 'number' || !Number.isFinite(ver)) continue;
+      if (typeof k !== 'string' || typeof ver !== 'number') continue;
+      // A version is a positive safe integer, bounded by what the document could honestly have reached: a huge
+      // one (1e308) would outrank every later write and freeze the shared state for everyone.
+      if (!Number.isSafeInteger(ver) || ver < 1 || ver > ceiling) continue;
       if (typeof by !== 'string') continue;
+      if (!this.keyAllowed(k, by, !('d' in o))) continue;
       if (!snapshot && by !== from) continue;
       if (k.startsWith(HOST_KEY_PREFIX) && by !== this.hostId) continue;
       out.push('d' in o ? { k, d: o.d, ver, by } : { k, ver, by });

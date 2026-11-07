@@ -479,6 +479,50 @@ async fn rate_limit_headers_and_429() {
     assert_eq!(send(&a, other).await.0, StatusCode::OK);
 }
 
+/// SEC-AUD-007: a made-up credential per request does not buy a fresh bucket; it is charged to
+/// the caller's address until it authenticates. A real credential keeps its own bucket.
+#[tokio::test]
+async fn rotating_made_up_credentials_are_limited_by_address() {
+    let settings = ApiSettings {
+        rate_limit: RateLimitConfig {
+            default_bucket: BucketSpec::new(3, 60),
+            ..RateLimitConfig::default()
+        },
+        ..ApiSettings::default()
+    };
+    let f = fixture_with(settings, |_| {});
+    let a = app(&f);
+    let now = NOW_MS / 1000;
+    let t = login(&f, 5, now - 10, now + 1000).await;
+    let with = |name: header::HeaderName, value: String| {
+        Request::get("/api/v1/users/@me")
+            .header(name, value)
+            .body(Body::empty())
+            .unwrap()
+    };
+    // the real bot and the real session authenticate once (each also costs the address one)
+    let bot = || with(header::AUTHORIZATION, "Bot botsecret".into());
+    let session = || with(header::COOKIE, format!("sr_session={}", t.expose()));
+    assert_eq!(send(&a, bot()).await.0, StatusCode::OK);
+    assert_eq!(send(&a, session()).await.0, StatusCode::OK);
+    // made-up tokens, a new one per request, share the address's last allowance
+    let (s, _, _) = send(&a, with(header::AUTHORIZATION, "Bot fake-1".into())).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    let (s, _, _) = send(&a, with(header::AUTHORIZATION, "Bot fake-2".into())).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    let (s, _, _) = send(&a, with(header::COOKIE, "sr_session=fake-3".into())).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    let (s, _, _) = send(&a, with(header::AUTHORIZATION, "Bearer fake-4".into())).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    // the verified credentials still have their own buckets (2 of 3 left each)
+    let (s, h, _) = send(&a, bot()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(h["x-ratelimit-remaining"], "1");
+    let (s, h, _) = send(&a, session()).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(h["x-ratelimit-remaining"], "1");
+}
+
 #[tokio::test]
 async fn global_rate_limit_sets_global_header() {
     let mut settings = ApiSettings::default();

@@ -78,7 +78,8 @@ export interface NotesStore {
   /** New browser: open a recovery file and load the notes. */
   restore(bundleJson: string, passphrase: string): Promise<boolean>;
   create(text?: string): Promise<string | null>;
-  save(id: string, text: string): Promise<void>;
+  /** Resolves `true` only when the text reached the server (or was kept as a copy after a conflict). */
+  save(id: string, text: string): Promise<boolean>;
   remove(id: string): Promise<void>;
   /** Give up on notes that cannot be opened: delete them all on the server and start again with a new key. */
   startOver(): Promise<void>;
@@ -112,7 +113,7 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
   let key: CryptoKey | null = null;
   const listeners = new Set<() => void>();
   // Saves of one note run one after another, so each starts from the revision the last one returned.
-  const chains = new Map<string, Promise<void>>();
+  const chains = new Map<string, Promise<unknown>>();
 
   const set = (patch: Partial<NotesState>) => {
     state = { ...state, ...patch };
@@ -237,14 +238,14 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
     },
 
     save(id, text) {
-      const run = async () => {
-        if (!key) return;
+      const run = async (): Promise<boolean> => {
+        if (!key) return false;
         if (new TextEncoder().encode(text).length > MAX_NOTE_TEXT_BYTES) {
           set({ problem: 'tooBig' });
-          return;
+          return false;
         }
         const cur = state.notes.find((n) => n.id === id);
-        if (!cur) return;
+        if (!cur) return false;
         const wire = toBase64(await encryptNote(key, text, id));
         try {
           const saved = await api.put(id, wire, cur.revision === 0 ? null : cur.revision);
@@ -256,6 +257,7 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
             unreadable: false,
           });
           set({ problem: null });
+          return true;
         } catch (e) {
           if (e instanceof ApiError && e.status === 409 && cur.revision !== 0) {
             // Changed elsewhere: take the other version as the note and keep ours as a copy.
@@ -264,10 +266,11 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
               upsert(await open(remote));
               if (text.trim() !== '') await store.create(text);
               set({ problem: null });
-              return;
+              return true;
             }
           }
           set({ problem: fail(e) });
+          return false;
         }
       };
       const prev = chains.get(id) ?? Promise.resolve();

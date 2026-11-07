@@ -32,7 +32,7 @@ pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs
     let Some(mounts) = deps.mounts.as_ref() else {
         return plain(StatusCode::NOT_FOUND, "not found");
     };
-    let storage = match mounts.for_mount(mount_id).await {
+    let storage = match mounts.for_serving(mount_id).await {
         Ok(s) => s,
         Err(StorageError::NotFound(_)) => return plain(StatusCode::NOT_FOUND, "not found"),
         Err(e) => {

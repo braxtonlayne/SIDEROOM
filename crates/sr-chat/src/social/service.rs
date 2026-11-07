@@ -894,6 +894,16 @@ impl<R: SocialRepository> SocialService<R> {
 
     /// Mention badges for a new message, counting only users `can_view` admits
     /// (open question 117). The send path supplies the VIEW_CHANNEL check.
+    /// Mention targets whose notifications `author` must not trigger: a block either way or the
+    /// target ignores `author` (SEC-AUD-011).
+    pub async fn mention_muted(
+        &self,
+        author: UserId,
+        mentioned: &[UserId],
+    ) -> SocialResult<Vec<UserId>> {
+        Ok(self.repo.muted_towards(author, mentioned).await?)
+    }
+
     pub async fn record_eligible_mentions(
         &self,
         author: UserId,

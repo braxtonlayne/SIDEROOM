@@ -221,6 +221,19 @@ impl PushNotifier {
         if candidates.is_empty() {
             return Ok(());
         }
+        // SEC-AUD-011: no push to someone who blocked the author, was blocked by them, or ignores them.
+        let muted = self
+            .social
+            .service
+            .mention_muted(
+                msg.author_id,
+                &candidates
+                    .iter()
+                    .map(|c| UserId::new(*c))
+                    .collect::<Vec<_>>(),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
         let Some(ch) = self
             .messages
             .repo
@@ -266,6 +279,9 @@ impl PushNotifier {
         let mut targets: Vec<(u64, NotifyDecision)> = Vec::new();
         for raw in candidates {
             let user = UserId::new(raw);
+            if muted.contains(&user) {
+                continue;
+            }
             // The member must be able to see the channel; roles come with the member row.
             let Ok(access) = self.messages.access(user, *channel).await else {
                 continue;

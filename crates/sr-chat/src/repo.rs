@@ -114,6 +114,9 @@ pub trait ChannelRepository: Send + Sync {
     async fn update_channel(&self, channel: &Channel) -> RepoResult<()>;
     /// Delete the channel; children of a category are orphaned, not deleted.
     async fn delete_channel(&self, id: ChannelId) -> RepoResult<()>;
+    /// Whether the channel, or a thread under it, holds a message or an attachment under a moderation hold
+    /// (D-122). Such a channel is not deleted: the held rows would go with it (wave 53, SEC-AUD-006).
+    async fn holds_evidence(&self, id: ChannelId) -> RepoResult<bool>;
     /// Whether `user` is a recipient of a DM or group DM.
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool>;
     /// Every recipient of a DM or group DM, hidden or not (open question 50).

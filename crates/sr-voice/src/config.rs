@@ -7,6 +7,11 @@ use std::time::Duration;
 /// file descriptor and a reader task; participants are spread across them.
 pub const MAX_UDP_SOCKETS: usize = 256;
 
+/// Most ICE-TCP connections open at once (SEC-AUD-009 follow-up). A member uses at most one
+/// (only when UDP is blocked); each costs a descriptor, two tasks and an entry in every shard,
+/// and they are accepted before any token is shown, so the count must be bounded.
+pub const MAX_TCP_CONNECTIONS: usize = 4096;
+
 #[derive(Debug, Clone)]
 pub struct SfuConfig {
     /// Interface the media sockets bind to.

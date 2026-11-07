@@ -20,19 +20,27 @@ export function NoteDialog({
   const t = useT();
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
+  /** The note could not be read (not a 404): no form, so Save cannot overwrite it with an empty one. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
+    setLoading(true);
+    setLoadFailed(false);
     apiFetch<{ note: string }>(`/users/@me/notes/${encodeURIComponent(userId)}`, { retries: 0 })
       .then((n) => live && setNote(n.note))
-      .catch(() => undefined) // 404 = no note yet
+      .catch((e: unknown) => {
+        // 404 = no note yet; anything else is a failed read.
+        if (live && !(e instanceof ApiError && e.status === 404)) setLoadFailed(true);
+      })
       .finally(() => live && setLoading(false));
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [userId, attempt]);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -63,6 +71,20 @@ export function NoteDialog({
         <p role="status">
           <Spinner label={t('lounge.userDialogs.noteLoading')} />
         </p>
+      ) : loadFailed ? (
+        <div className="lng-form">
+          <p role="alert" className="lng-failed">
+            {t('lounge.userDialogs.noteLoadError')}
+          </p>
+          <div className="lng-form-actions">
+            <Button variant="ghost" onClick={onClose}>
+              {t('lounge.userDialogs.cancel')}
+            </Button>
+            <Button onClick={() => setAttempt((n) => n + 1)}>
+              {t('lounge.userDialogs.retry')}
+            </Button>
+          </div>
+        </div>
       ) : (
         <form className="lng-form" onSubmit={(e) => void save(e)}>
           <TextInput

@@ -38,6 +38,7 @@ pub async fn logout(
 ) -> R<impl IntoResponse> {
     let sid = session_id(&p)?;
     svc.store.revoke_session(p.user_id, sid).await?;
+    svc.notify_sessions_revoked(p.user_id).await;
     Ok((
         StatusCode::NO_CONTENT,
         AppendHeaders([
@@ -59,6 +60,7 @@ pub async fn logout_all(
 ) -> R<impl IntoResponse> {
     session_id(&p)?;
     svc.store.revoke_sessions_except(p.user_id, None).await?;
+    svc.notify_sessions_revoked(p.user_id).await;
     Ok((
         StatusCode::NO_CONTENT,
         AppendHeaders([
@@ -105,6 +107,7 @@ pub async fn revoke(
     session_id(&p)?;
     let id: i64 = id.parse().map_err(|_| ErrorCode::UnknownSession)?;
     if svc.store.revoke_session(p.user_id, id).await? {
+        svc.notify_sessions_revoked(p.user_id).await;
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ErrorCode::UnknownSession.into())

@@ -1466,6 +1466,82 @@ async fn logout_all_revokes_everything_and_sessions_are_user_scoped() {
     );
 }
 
+/// The next `SessionsRevoked` on `stream` within a second (other events are skipped), if any.
+async fn next_revoked(
+    stream: &mut futures::stream::BoxStream<'static, sr_events::DomainEvent>,
+) -> Option<sr_events::DomainEvent> {
+    let wait = async {
+        while let Some(e) = futures::StreamExt::next(stream).await {
+            if matches!(e, sr_events::DomainEvent::SessionsRevoked { .. }) {
+                return Some(e);
+            }
+        }
+        None
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(1), wait)
+        .await
+        .ok()
+        .flatten()
+}
+
+/// SEC-AUD-002: every way a member ends sessions tells the gateway, so open sockets close at once.
+#[tokio::test]
+async fn ending_sessions_tells_the_gateway() {
+    use sr_events::{DomainEvent, EventBus, Topic};
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.add_account(2, "bob", "bob@x.test", AccountState::Active);
+    let alice = sr_core::UserId::new(1);
+    let mut alice_topic = h.bus.subscribe(Topic::User(alice));
+    let mut bob_topic = h.bus.subscribe(Topic::User(sr_core::UserId::new(2)));
+    let a1 = h.login("alice").await;
+    let a2 = h.login("alice").await;
+    let a3 = h.login("alice").await;
+    h.login("bob").await;
+
+    // One session ended from the device list.
+    let list = h.get("/api/v1/sr/auth/sessions").session(&a1).send().await;
+    let other = list.body.as_array().unwrap()[1]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let r = h
+        .call(Method::DELETE, &format!("/api/v1/sr/auth/sessions/{other}"))
+        .session(&a1)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    let want = DomainEvent::SessionsRevoked { user: alice };
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want.clone()));
+
+    // Logout of this session.
+    let mut still = None;
+    for s in [&a2, &a3] {
+        if h.get("/api/v1/users/@me").session(s).send().await.status == StatusCode::OK {
+            still = Some(s.clone());
+        }
+    }
+    let still = still.expect("one of the other two sessions is live");
+    let r = h
+        .post("/api/v1/sr/auth/logout", json!({}))
+        .session(&a1)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want.clone()));
+
+    // Logout everywhere.
+    let r = h
+        .post("/api/v1/sr/auth/logout-all", json!({}))
+        .session(&still)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT);
+    assert_eq!(next_revoked(&mut alice_topic).await, Some(want));
+    // Bob's topic heard nothing.
+    assert_eq!(next_revoked(&mut bob_topic).await, None);
+}
+
 // ---- password reset -------------------------------------------------------
 
 #[tokio::test]
@@ -1943,6 +2019,65 @@ async fn discord_pending_link_is_empty_without_a_cookie() {
     let r = h.get("/api/v1/sr/auth/discord/pending").send().await;
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(r.body["pending"], false);
+}
+
+/// The Location and Set-Cookie headers of a Discord sign-in for the account linked to `discord_id`.
+async fn discord_sign_in(h: &H, discord_id: &str, next: Option<&str>) -> (String, Vec<String>) {
+    let svc = h.state.extension::<AuthService>().unwrap();
+    let res = super::discord::sign_in_linked(
+        &h.state,
+        &svc,
+        &HeaderMap::new(),
+        discord_id,
+        next,
+        "sr_oauth_state=; Max-Age=0".into(),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("sign-in failed"));
+    let location = res.headers()[header::LOCATION].to_str().unwrap().to_owned();
+    let cookies = res
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap().to_owned())
+        .collect();
+    (location, cookies)
+}
+
+#[tokio::test]
+async fn discord_sign_in_asks_a_passkey_only_account_for_its_second_factor() {
+    // SEC-AUD-001: the Discord path checked TOTP only, so a passkey-only account got a session.
+    let h = discord_harness();
+    h.add_account(7, "sam", "sam@example.org", AccountState::Active);
+    h.store.link_discord(7, 70, "d-7").await.unwrap();
+    let (location, cookies) = discord_sign_in(&h, "d-7", None).await;
+    assert_eq!(location, "/");
+    assert!(cookies.iter().any(|c| c.starts_with("sr_session=")));
+
+    h.store
+        .passkey_insert(super::store::PasskeyRecord {
+            id: 71,
+            account_id: 7,
+            credential_id: vec![7; 16],
+            cose_key: vec![1, 2, 3],
+            alg: -7,
+            sign_count: 0,
+            backup_eligible: false,
+            backup_state: false,
+            aaguid: vec![0; 16],
+            name: "Key".into(),
+            created_at: 0,
+            last_used_at: None,
+        })
+        .await
+        .unwrap();
+    let (location, cookies) = discord_sign_in(&h, "d-7", Some("/lounge?a=1")).await;
+    assert_eq!(
+        location,
+        "/login/2fa?methods=passkey,recovery&next=%2Flounge%3Fa%3D1"
+    );
+    assert!(cookies.iter().any(|c| c.starts_with("sr_mfa=")));
+    assert!(!cookies.iter().any(|c| c.starts_with("sr_session=")));
 }
 
 #[tokio::test]
