@@ -684,7 +684,13 @@ async function capture(
   );
   const page = await context.newPage();
   page.on('console', (m) => {
-    if (m.type() === 'error') rec.consoleErrors.push(m.text().slice(0, 300));
+    if (m.type() !== 'error') return;
+    // The browser's own line for an expected 4xx (the row's `expect4xx`) names no URL; the response itself is
+    // checked against `expect4xx` below.
+    const url = m.location().url;
+    if (row.expect4xx && /^Failed to load resource/.test(m.text()) && (!url || row.expect4xx.test(url)))
+      return;
+    rec.consoleErrors.push(m.text().slice(0, 300));
   });
   page.on('pageerror', (e) => rec.pageErrors.push(String(e).slice(0, 300)));
   page.on('response', (r) => {
