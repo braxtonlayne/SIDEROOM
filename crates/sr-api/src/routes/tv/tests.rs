@@ -1093,3 +1093,37 @@ async fn staff_see_whether_a_slate_is_configured() {
     assert_eq!(b["playable"], false);
     assert!(b.get("asset_id").is_none());
 }
+
+#[tokio::test]
+async fn a_personal_pool_of_another_member_is_403_on_create_and_update() {
+    // D-569: staff cannot bind a channel to someone else's personal shelf.
+    let e = env().await;
+    let mut body = channel_body(150);
+    body["pool"] = json!({"kind": "personal", "user_id": MEMBER.to_string()});
+    let (s, b) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/tv/channels",
+            Some(body.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    let id = create(&e, channel_body(151)).await;
+    let (s, b) = e
+        .call(
+            Some(CURATOR),
+            Method::PUT,
+            &format!("/admin/tv/channels/{id}"),
+            Some(body),
+        )
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{b}");
+    // The caller's own personal pool is accepted.
+    let mut own = channel_body(152);
+    own["pool"] = json!({"kind": "personal", "user_id": CURATOR.to_string()});
+    let (s, b) = e
+        .call(Some(CURATOR), Method::POST, "/admin/tv/channels", Some(own))
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{b}");
+}
