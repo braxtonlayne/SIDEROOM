@@ -250,6 +250,227 @@ async fn channel_edit_and_delete_follow_the_channels_overwrites() {
     f.svc.delete_channel(CAROL, f.general).await.unwrap();
 }
 
+fn into(parent: Option<ChannelId>) -> ChannelMove {
+    ChannelMove {
+        parent_id: Some(parent),
+        ..Default::default()
+    }
+}
+
+async fn parent_of(f: &Fx, id: ChannelId) -> Option<ChannelId> {
+    f.svc
+        .get_channel_view(OWNER, id)
+        .await
+        .unwrap()
+        .channel
+        .parent_id
+}
+
+/// D-575 (SEC-AUD-043): moving a channel into a different category also needs `MANAGE_CHANNELS` in that
+/// category, overwrites applied, on the single-channel edit and on the bulk route; a position change in the same
+/// category or a move out of a category needs only the channel's permission.
+#[tokio::test]
+async fn moving_into_a_category_needs_manage_channels_there() {
+    let f = fx().await;
+    let managers = role_with(&f, Permissions::MANAGE_CHANNELS).await;
+    f.svc
+        .assign_role(OWNER, f.guild, BOB, managers, true)
+        .await
+        .unwrap();
+    let deny_managers = Overwrite {
+        id: managers.snowflake(),
+        kind: OverwriteKind::Role,
+        allow: Permissions::empty(),
+        deny: Permissions::MANAGE_CHANNELS,
+    };
+    f.svc
+        .set_overwrite(OWNER, f.voice_cat, deny_managers)
+        .await
+        .unwrap();
+
+    // Bob holds the guild-level bit, but the target category denies it: both routes refuse and nothing moves.
+    assert!(matches!(
+        f.svc
+            .edit_channel(
+                BOB,
+                f.general,
+                ChannelPatch::default(),
+                into(Some(f.voice_cat))
+            )
+            .await,
+        Err(ChatError::MissingPermissions)
+    ));
+    assert!(matches!(
+        f.svc
+            .reorder_channels(BOB, f.guild, vec![(f.general, into(Some(f.voice_cat)))])
+            .await,
+        Err(ChatError::MissingPermissions)
+    ));
+    assert_eq!(parent_of(&f, f.general).await, Some(f.text_cat));
+
+    // Within the same category, and out of a category, only the channel's permission counts.
+    let same = ChannelMove {
+        position: Some(4),
+        parent_id: Some(Some(f.text_cat)),
+        ..Default::default()
+    };
+    f.svc
+        .edit_channel(BOB, f.general, ChannelPatch::default(), same.clone())
+        .await
+        .unwrap();
+    f.svc
+        .reorder_channels(BOB, f.guild, vec![(f.general, same)])
+        .await
+        .unwrap();
+    f.svc
+        .edit_channel(BOB, f.general, ChannelPatch::default(), into(None))
+        .await
+        .unwrap();
+    assert_eq!(parent_of(&f, f.general).await, None);
+    // Into a category without a deny: the guild-level bit passes.
+    f.svc
+        .reorder_channels(BOB, f.guild, vec![(f.general, into(Some(f.text_cat)))])
+        .await
+        .unwrap();
+    assert_eq!(parent_of(&f, f.general).await, Some(f.text_cat));
+
+    // Carol has no guild-level bit; an allow on the channel lets her edit it but not carry it into the voice
+    // category until that category allows her as well.
+    let allow_carol = Overwrite {
+        id: CAROL.snowflake(),
+        kind: OverwriteKind::Member,
+        allow: Permissions::MANAGE_CHANNELS,
+        deny: Permissions::empty(),
+    };
+    f.svc
+        .set_overwrite(OWNER, f.general, allow_carol)
+        .await
+        .unwrap();
+    assert!(matches!(
+        f.svc
+            .edit_channel(
+                CAROL,
+                f.general,
+                ChannelPatch::default(),
+                into(Some(f.voice_cat))
+            )
+            .await,
+        Err(ChatError::MissingPermissions)
+    ));
+    f.svc
+        .set_overwrite(OWNER, f.voice_cat, allow_carol)
+        .await
+        .unwrap();
+    let moved = f
+        .svc
+        .edit_channel(
+            CAROL,
+            f.general,
+            ChannelPatch::default(),
+            into(Some(f.voice_cat)),
+        )
+        .await
+        .unwrap();
+    assert_eq!(moved.channel.parent_id, Some(f.voice_cat));
+}
+
+/// D-575 (SEC-AUD-043): `lock_permissions` on a single-channel edit rewrites the channel's overwrites, so it is
+/// honoured only with `MANAGE_ROLES` in the channel; without it the move still happens and the overwrites stay.
+#[tokio::test]
+async fn lock_permissions_on_a_channel_edit_needs_manage_roles_in_the_channel() {
+    let f = fx().await;
+    let movers = role_with(&f, Permissions::MANAGE_CHANNELS).await;
+    let admins = role_with(&f, Permissions::MANAGE_CHANNELS | Permissions::MANAGE_ROLES).await;
+    f.svc
+        .assign_role(OWNER, f.guild, BOB, movers, true)
+        .await
+        .unwrap();
+    f.svc
+        .assign_role(OWNER, f.guild, CAROL, admins, true)
+        .await
+        .unwrap();
+    let category_rule = Overwrite {
+        id: f.guild.snowflake(),
+        kind: OverwriteKind::Role,
+        allow: Permissions::empty(),
+        deny: Permissions::SEND_MESSAGES,
+    };
+    f.svc
+        .set_overwrite(OWNER, f.voice_cat, category_rule)
+        .await
+        .unwrap();
+    let channel_rule = Overwrite {
+        id: CAROL.snowflake(),
+        kind: OverwriteKind::Member,
+        allow: Permissions::empty(),
+        deny: Permissions::ADD_REACTIONS,
+    };
+    f.svc
+        .set_overwrite(OWNER, f.general, channel_rule)
+        .await
+        .unwrap();
+    let lock_into = |parent| ChannelMove {
+        parent_id: Some(Some(parent)),
+        lock_permissions: true,
+        ..Default::default()
+    };
+
+    // Bob may move channels but not edit overwrites: the move lands, the overwrites stay.
+    let moved = f
+        .svc
+        .edit_channel(
+            BOB,
+            f.general,
+            ChannelPatch::default(),
+            lock_into(f.voice_cat),
+        )
+        .await
+        .unwrap();
+    assert_eq!(moved.channel.parent_id, Some(f.voice_cat));
+    assert_eq!(moved.overwrites, vec![channel_rule]);
+
+    // A guild-level MANAGE_ROLES holder whose role is denied MANAGE_ROLES in the channel: no sync either.
+    let deny_roles = Overwrite {
+        id: admins.snowflake(),
+        kind: OverwriteKind::Role,
+        allow: Permissions::empty(),
+        deny: Permissions::MANAGE_ROLES,
+    };
+    f.svc
+        .set_overwrite(OWNER, f.general, deny_roles)
+        .await
+        .unwrap();
+    let kept = f
+        .svc
+        .edit_channel(
+            CAROL,
+            f.general,
+            ChannelPatch::default(),
+            lock_into(f.voice_cat),
+        )
+        .await
+        .unwrap();
+    assert_eq!(kept.overwrites.len(), 2);
+    assert!(kept.overwrites.contains(&channel_rule));
+
+    // With MANAGE_ROLES in the channel the sync happens.
+    f.svc
+        .delete_overwrite(OWNER, f.general, admins.snowflake())
+        .await
+        .unwrap();
+    let synced = f
+        .svc
+        .edit_channel(
+            CAROL,
+            f.general,
+            ChannelPatch::default(),
+            lock_into(f.voice_cat),
+        )
+        .await
+        .unwrap();
+    assert_eq!(synced.overwrites, vec![category_rule]);
+}
+
 #[tokio::test]
 async fn overwrites_hide_channels_and_sync_with_category() {
     let f = fx().await;
