@@ -146,9 +146,8 @@ test('failure states are inline, danger text and the new privacy code notice', a
       await p2.screenshot({ path: resolve(OUT, `kit-input-error-${tag}.png`) });
 
       // 4. A call: the soundboard favourites sync failed (one line, no toast), then the new privacy code notice.
-      await p2.goto(`/channels/@me`);
-      await p2.waitForTimeout(1500);
-      await p2.evaluate(`(async () => {
+      const inject = () =>
+        p2.evaluate(`(async () => {
         const me = await (await fetch('/api/v1/users/@me', { credentials: 'include' })).json();
         const st = await import('/src/store/index.ts');
         st.useStore.setState((s) => ({ users: { ...s.users, '9990001': { id: '9990001', username: 'robin', global_name: 'Robin' } } }));
@@ -173,7 +172,26 @@ test('failure states are inline, danger text and the new privacy code notice', a
           },
         });
       })()`);
-      await p2.waitForTimeout(500);
+      // The voice state is set through the dev server's module graph; a page still booting can drop it, so try twice.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await p2.goto(`/channels/@me`);
+        await p2
+          .getByRole('button', { name: 'User Settings' })
+          .first()
+          .waitFor()
+          .catch(() => undefined);
+        await p2.waitForTimeout(1500);
+        await inject();
+        const ok = await p2
+          .getByRole('button', { name: 'Soundboard' })
+          .first()
+          .waitFor({ timeout: 8000 })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (ok) break;
+      }
       await failOn(p2, /\/api\/v1\/users\/@me\/settings$/, 'PATCH');
       await soft(
         `${tag} soundboard`,

@@ -1014,11 +1014,6 @@
   padding-block: 16px;
   padding-inline: 16px;
 }
-.lng-list-failed {
-  padding-block: 12px;
-  padding-inline: 16px;
-  line-height: 1.4;
-}
 .lng-reply {
   display: flex;
   align-items: center;
