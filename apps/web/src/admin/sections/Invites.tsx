@@ -1,4 +1,4 @@
-import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select, TextInput } from '@sideroom/ui';
+import { Badge, Button, EmptyState, Notice, Select, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import * as api from '../api';
 import { useT, type MessageKey } from '../../i18n';
@@ -11,7 +11,6 @@ import {
   SectionHeader,
   StateBadge,
   fmtMs,
-  useAction,
   useAdminViewer,
   usePaged,
   useResource,
@@ -32,7 +31,7 @@ export function InvitesSection() {
   const [issuer, setIssuer] = useState('');
   const [issuerApplied, setIssuerApplied] = useState('');
   const [revoke, setRevoke] = useState<api.InviteRow | null>(null);
-  const action = useAction();
+  const [done, setDone] = useState<string | null>(null);
   const paged = usePaged<api.InviteRow>(`invites:${state}:${issuerApplied}`, async (after) => {
     const p = await api.listInvites({ state, issuer_id: issuerApplied, after, limit: 50 });
     return { items: p.items, next: p.next_after };
@@ -74,7 +73,7 @@ export function InvitesSection() {
         />
         <Button type="submit">{t('admin.invites.filter')}</Button>
       </form>
-      <ActionStatus error={action.error ?? paged.error} done={action.done} />
+      <ActionStatus error={paged.error} done={done} />
       {!paged.error && !paged.loading && paged.items.length === 0 && (
         <EmptyState
           title={t('admin.invites.emptyTitle')}
@@ -131,30 +130,19 @@ export function InvitesSection() {
       )}
       <LoadMore paged={paged} />
       <Suspicion />
-      <ConfirmDialog
+      <ReasonDialog
         open={!!revoke}
         danger
         title={t('admin.invites.revokeTitle')}
         description={t('admin.invites.revokeDescription', { code: revoke?.code ?? '' })}
         confirmLabel={t('admin.invites.revokeConfirm')}
-        loading={action.busy}
         onCancel={() => setRevoke(null)}
-        onConfirm={() => {
+        onConfirm={async (reason) => {
           if (!revoke) return;
-          void action
-            .run(
-              async () => {
-                await api.revokeInvite(revoke.id);
-                return true;
-              },
-              t('admin.invites.revoked', { code: revoke.code }),
-            )
-            .then((ok) => {
-              if (ok) {
-                setRevoke(null);
-                paged.reload();
-              }
-            });
+          await api.revokeInvite(revoke.id, reason);
+          setDone(t('admin.invites.revoked', { code: revoke.code }));
+          setRevoke(null);
+          paged.reload();
         }}
       />
     </>

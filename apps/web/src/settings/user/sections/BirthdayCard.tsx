@@ -22,6 +22,9 @@ export const daysIn = (month: number): number => new Date(Date.UTC(2000, month, 
 export function BirthdayCard() {
   const t = useT();
   const [loaded, setLoaded] = useState(false);
+  /** The birthday could not be read (not a 404): no form, so Save cannot overwrite it with defaults. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [saved, setSaved] = useState<Birthday | null>(null);
   const [month, setMonth] = useState(1);
   const [day, setDay] = useState(1);
@@ -43,19 +46,18 @@ export function BirthdayCard() {
 
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     getBirthday()
       .then((b) => live && apply(b))
       .catch((e: unknown) => {
         // 404 means none set yet.
-        if (live && !(e instanceof ApiError && e.status === 404))
-          setError(t('settings.birthday.loadError'));
+        if (live && !(e instanceof ApiError && e.status === 404)) setLoadFailed(true);
       })
       .finally(() => live && setLoaded(true));
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const yearNum = year.trim() === '' ? null : Number(year);
   const yearBad =
@@ -111,6 +113,13 @@ export function BirthdayCard() {
         <p className="us-muted" role="status">
           {t('settings.birthday.loading')}
         </p>
+      ) : loadFailed ? (
+        <Notice variant="danger" role="alert">
+          {t('settings.birthday.loadError')}{' '}
+          <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            {t('settings.birthday.retry')}
+          </Button>
+        </Notice>
       ) : (
         <div className="us-stack">
           <Select

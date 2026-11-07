@@ -334,7 +334,8 @@ export const listInvites = (p: {
   after?: string | null;
   limit?: number;
 }) => get<InvitePage>(`/admin/invites${qs(p)}`);
-export const revokeInvite = (id: string) => send<void>(`/admin/invites/${id}`, 'DELETE');
+export const revokeInvite = (id: string, reason: string) =>
+  send<void>(`/admin/invites/${id}`, 'DELETE', { reason });
 
 // OPS-INV-001: Lock the Doors, the quotas and the invites.prune job.
 export interface PruneRun {
@@ -537,7 +538,8 @@ export interface StaffAlertRow {
 export const listStaffAlerts = () => get<StaffAlertRow[]>('/admin/alerts');
 export const ackStaffAlert = (id: string) => send<StaffAlertRow>(`/admin/alerts/${id}/ack`, 'POST');
 
-export const revokeStaff = (accountId: string) => send<void>(`/admin/staff/${accountId}`, 'DELETE');
+export const revokeStaff = (accountId: string, reason: string) =>
+  send<void>(`/admin/staff/${accountId}`, 'DELETE', { reason });
 
 // ---- settings and features ----
 

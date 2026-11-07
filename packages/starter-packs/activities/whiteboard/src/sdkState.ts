@@ -4,11 +4,13 @@
 // `sdk.isHost` says whether this participant launched the instance. One message carries at most 16 KiB, which
 // is why the board keeps every entry and every snapshot chunk small.
 
-import type { StateAdapter } from './sync';
+import { BLOB_PREFIX, OP_PREFIX, type StateAdapter } from './sync';
 
 /** The slice of the SDK the whiteboard needs (a `SideRoomSDK` satisfies it). */
 export interface SdkLike {
   readonly isHost: boolean;
+  /** The SDK's data layer; `scopeKeys` binds a key family to the member its key names (SEC-AUD-015). */
+  readonly data?: { scopeKeys?(prefix: string): void };
   state: {
     all(): Record<string, unknown>;
     set(patch: Record<string, unknown>): void;
@@ -24,7 +26,14 @@ export interface SdkLike {
  * Wrap `sdk.state` as the board's adapter. A write the SDK refuses (a message over 16 KiB, a `host:*` key from a
  * guest) is reported to `onError` and dropped; the board never depends on one write alone.
  */
-export function adapterFromSdk(sdk: SdkLike, onError: (e: unknown) => void = () => {}): StateAdapter {
+export function adapterFromSdk(
+  sdk: SdkLike,
+  onError: (e: unknown) => void = () => {},
+): StateAdapter {
+  // `op:<author>:<n>` and `blob:<author>:...` may only be written by that author: no member can forge or overwrite
+  // another member's strokes. Must happen before the first snapshot arrives.
+  sdk.data?.scopeKeys?.(OP_PREFIX);
+  sdk.data?.scopeKeys?.(BLOB_PREFIX);
   return {
     snapshot: () => sdk.state.all(),
     set: (key, value) => {

@@ -331,7 +331,9 @@ describe('invites', () => {
           },
         ]),
       ),
-      http.delete('*/api/v1/admin/invites/9', () => {
+      http.delete('*/api/v1/admin/invites/9', async ({ request }) => {
+        // SEC-AUD-013: the server refuses a revoke without a reason.
+        expect(await request.json()).toEqual({ reason: 'leaked in a public post' });
         revoked = true;
         return new HttpResponse(null, { status: 204 });
       }),
@@ -346,7 +348,10 @@ describe('invites', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Revoke invite ABCDE-FGHJK' }));
     const dialog = await screen.findByRole('dialog', { name: 'Revoke this invite' });
-    await user.click(within(dialog).getByRole('button', { name: 'Revoke invite' }));
+    const confirm = within(dialog).getByRole('button', { name: 'Revoke invite' });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByRole('textbox'), 'leaked in a public post');
+    await user.click(confirm);
     expect(await screen.findByText('Invite ABCDE-FGHJK was revoked.')).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: /Revoke invite ABCDE/ })).toBeNull(),
@@ -449,7 +454,9 @@ describe('staff', () => {
         HttpResponse.json(removed ? [ownerMember] : [ownerMember, member]),
       ),
       http.get('*/api/v1/admin/staff/roles', () => HttpResponse.json(roles)),
-      http.delete('*/api/v1/admin/staff/7', () => {
+      http.delete('*/api/v1/admin/staff/7', async ({ request }) => {
+        // SEC-AUD-013: the server refuses a removal without a reason.
+        expect(await request.json()).toEqual({ reason: 'left the team' });
         removed = true;
         return new HttpResponse(null, { status: 204 });
       }),
@@ -458,7 +465,10 @@ describe('staff', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Remove bob from staff' }));
     const dialog = await screen.findByRole('dialog', { name: /Remove @bob/ });
-    await user.click(within(dialog).getByRole('button', { name: 'Remove from staff' }));
+    const confirm = within(dialog).getByRole('button', { name: 'Remove from staff' });
+    expect(confirm).toBeDisabled();
+    await user.type(within(dialog).getByRole('textbox'), 'left the team');
+    await user.click(confirm);
     expect(await screen.findByText('@bob was removed from staff.')).toBeInTheDocument();
   });
 });

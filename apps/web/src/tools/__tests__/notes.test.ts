@@ -129,7 +129,7 @@ describe('notes store', () => {
     expect(store.getState().status).toBe('ready');
 
     const id = (await store.create('first draft'))!;
-    await store.save(id, 'second draft with a secret');
+    expect(await store.save(id, 'second draft with a secret')).toBe(true);
     expect(store.getState().notes[0]).toMatchObject({
       id,
       text: 'second draft with a secret',
@@ -231,14 +231,15 @@ describe('notes store', () => {
     await store.init();
     await store.setup('size limit phrase', ROUNDS);
     const id = (await store.create('small'))!;
-    await store.save(id, 'x'.repeat(70 * 1024));
+    expect(await store.save(id, 'x'.repeat(70 * 1024))).toBe(false);
     expect(store.getState().problem).toBe('tooBig');
     expect(api.seen).toHaveLength(1);
 
     api.put = async () => {
       throw new Error('offline');
     };
-    await store.save(id, 'changed');
+    // SEC-AUD-014: a failed save says so (the editor must not show "Saved" for it).
+    expect(await store.save(id, 'changed')).toBe(false);
     expect(store.getState().problem).toBe('offline');
     expect(store.getState().notes[0]!.text).toBe('small');
   });

@@ -28,6 +28,7 @@ export type GameStatus =
 export type SaveStatus =
   | { kind: 'none' }
   | { kind: 'ready'; mountLabel: string }
+  | { kind: 'readFailed' }
   | { kind: 'saving' }
   | { kind: 'saved'; at: number; what: SaveName }
   | { kind: 'error'; message: string };
@@ -176,7 +177,10 @@ export function useEmuGame(opts: {
         fail({ kind: 'failed', detail: e instanceof Error ? e.message : String(e) });
         return;
       }
-      live.current = { session: s, prepared, saveMount, lastSram: prepared.sram };
+      // A save that could not be read is never written over: this session plays with saving off.
+      const activeMount = prepared.saveReadFailed ? null : saveMount;
+      if (prepared.saveReadFailed) setSave({ kind: 'readFailed' });
+      live.current = { session: s, prepared, saveMount: activeMount, lastSram: prepared.sram };
       setSession(s);
       setStatus({ phase: 'running' });
 
