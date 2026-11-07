@@ -9,15 +9,15 @@
  *
  * Never rejects: a part that cannot be removed (storage blocked) does not stop the others or the sign-out.
  */
+import { clearOfflineCache } from '../library/reader/offlineCache';
 import { purgeAppCaches } from './purge';
 import { clearSharedFiles } from './shareFiles';
 
-/** The Library module is loaded on demand so the sign-out path does not pull the reader into its chunk. */
-const clearLibraryOffline = () =>
-  import('../library/reader/offlineCache').then(
-    (m) => m.clearOfflineCache(),
-    () => undefined,
-  );
+/**
+ * Imported statically (a small module): a session that ended elsewhere gets 401 for every /app/ file, so a chunk
+ * loaded on demand at that moment would never arrive and the offline chapters would stay.
+ */
+const clearLibraryOffline = () => clearOfflineCache();
 
 export async function purgeOnSignOut(): Promise<void> {
   await Promise.all([
