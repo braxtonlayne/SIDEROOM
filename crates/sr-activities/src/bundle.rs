@@ -348,6 +348,45 @@ pub fn parse_manifest(data: &[u8]) -> Result<Vec<String>, BundleError> {
     crate::arcade::parse_manifest(data).map(|m| m.capabilities)
 }
 
+/// The `sideroom.json` at the root of a zip, read with the same archive rules as [`unpack`] (archive at byte 0,
+/// at most [`MAX_ENTRIES`] entries, no encrypted manifest, the manifest's real size counted against
+/// [`MAX_MANIFEST_BYTES`]) and validated by [`crate::arcade::parse_manifest`]. Only the manifest is inflated: a
+/// guild cartridge (D-568) is a game or a mod, whose other files need not be a browser bundle. A zip without a
+/// manifest gives the empty [`crate::arcade::Manifest`] (no tier). CPU-bound: call from a blocking thread.
+pub fn read_manifest(zip_bytes: &[u8]) -> Result<crate::arcade::Manifest, BundleError> {
+    if zip_bytes.is_empty() {
+        return Err(BundleError::general("The file is empty."));
+    }
+    if zip_bytes.len() as u64 > MAX_UNPACKED_BYTES {
+        return Err(BundleError::general("The zip is larger than 32 MiB."));
+    }
+    let cfg = ZipConfig {
+        archive_offset: ArchiveOffset::Known(0),
+    };
+    let mut zip = zip::ZipArchive::with_config(cfg, Cursor::new(zip_bytes))
+        .map_err(|_| BundleError::general("That is not a zip file."))?;
+    if zip.len() > MAX_ENTRIES {
+        return Err(BundleError::general(format!(
+            "The zip has more than {MAX_ENTRIES} entries."
+        )));
+    }
+    let Some(i) = zip.index_for_name(MANIFEST) else {
+        return Ok(crate::arcade::Manifest::default());
+    };
+    let mut f = zip
+        .by_index(i)
+        .map_err(|_| BundleError::at(MANIFEST, "could not be read"))?;
+    if f.encrypted() {
+        return Err(BundleError::at(MANIFEST, "is encrypted"));
+    }
+    let mut data = Vec::new();
+    f.by_ref()
+        .take(MAX_MANIFEST_BYTES as u64 + 1)
+        .read_to_end(&mut data)
+        .map_err(|_| BundleError::at(MANIFEST, "could not be read"))?;
+    crate::arcade::parse_manifest(&data)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,6 +404,37 @@ mod tests {
             }
         }
         z.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn read_manifest_reads_only_the_manifest_of_a_cartridge() {
+        // A mod need not be a browser bundle: other file types and no index.html are fine.
+        let m = read_manifest(&build(&[
+            ("data/level.pak", b"\x00\x01"),
+            (
+                "sideroom.json",
+                br#"{"tier": "TIER_2_REIMPLEMENTATION", "capabilities": ["storage"]}"#,
+            ),
+        ]))
+        .unwrap();
+        assert_eq!(m.tier, Some(crate::arcade::Tier::Reimplementation));
+        assert_eq!(m.capabilities, vec!["storage"]);
+        // No manifest: no tier.
+        assert_eq!(
+            read_manifest(&build(&[("index.html", b"x")])).unwrap().tier,
+            None
+        );
+        // The manifest rules hold: an unknown tier, a flag the tier forbids, an oversized manifest.
+        for bad in [
+            br#"{"tier": "TIER_3_FAN"}"#.to_vec(),
+            br#"{"tier": "TIER_2_REIMPLEMENTATION", "capabilities": ["guest_play"]}"#.to_vec(),
+            [b"{\"x\": \"".as_slice(), &[b'a'; 9000], b"\"}"].concat(),
+        ] {
+            let e = read_manifest(&build(&[("sideroom.json", &bad)])).unwrap_err();
+            assert_eq!(e.entry.as_deref(), Some(MANIFEST), "{e:?}");
+        }
+        assert!(read_manifest(b"not a zip").is_err());
+        assert!(read_manifest(b"").is_err());
     }
 
     fn err(entries: &[(&str, &[u8])]) -> BundleError {

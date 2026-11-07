@@ -261,19 +261,17 @@ describe('Guild cartridges', () => {
     ...over,
   });
 
-  it('lists the picked server cartridges and offers only the two tiers', async () => {
+  it('lists the picked server cartridges and leaves the tier to the manifest', async () => {
     const user = userEvent.setup();
     render(<CartridgesSection guilds={[{ id: '1', name: 'Friends' }]} flags={flags} api={api()} />);
     expect(await screen.findByRole('heading', { name: 'Pong' })).toBeInTheDocument();
     // ARC-UI-010: the form lives in a dialog behind a button, not open on the page.
-    expect(screen.queryByLabelText('Content tier')).toBeNull();
+    expect(screen.queryByLabelText('Shelf path')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'List a cartridge' }));
     const dialog = screen.getByRole('dialog', { name: 'List a cartridge in Friends' });
-    const tier = within(dialog).getByLabelText('Content tier') as HTMLSelectElement;
-    expect([...tier.options].map((o) => o.value)).toEqual([
-      'TIER_1_ORIGINAL',
-      'TIER_2_REIMPLEMENTATION',
-    ]);
+    // D-568: the tier is read from the game's sideroom.json, so the lister cannot pick one.
+    expect(within(dialog).queryByLabelText('Content tier')).toBeNull();
+    expect(within(dialog).getByText(/read from the game’s sideroom.json/)).toBeInTheDocument();
   });
 
   it('offers the shelf file only for a cartridge on a shelf object (wave 41)', async () => {
@@ -305,10 +303,12 @@ describe('Guild cartridges', () => {
       '1',
       expect.objectContaining({
         title: 'Tetris-like',
-        tier: 'TIER_1_ORIGINAL',
         source_ref: 'games/t.zip',
       }),
     );
+    // Neither the tier nor capabilities are sent: the server reads them from the file (D-568).
+    const sent = vi.mocked(a.addCartridge).mock.calls[0]?.[1] ?? {};
+    expect('tier' in sent || 'capabilities' in sent).toBe(false);
     expect(await screen.findByRole('heading', { name: 'Tetris-like' })).toBeInTheDocument();
     // The dialog closes once the cartridge is listed.
     expect(screen.queryByRole('dialog')).toBeNull();

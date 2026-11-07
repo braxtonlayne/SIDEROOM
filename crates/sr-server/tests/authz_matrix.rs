@@ -2189,22 +2189,22 @@ async fn seed(
         a.insert("arcade_release_entry_id", n.to_owned());
         b.insert("arcade_release_entry_id", n.to_owned());
     }
-    for (cred, guild, map) in [(&oa, ga, &mut a), (&ob, gb, &mut b)] {
-        let path = format!("/guilds/{guild}/arcade/cartridges");
-        if let Some(v) = create(
-            &srv,
-            cred,
-            "POST",
-            "/guilds/{guild_id}/arcade/cartridges",
-            &path,
-            infos,
-            Some(json!({"title": "Authz cart", "kind": "game", "tier": "TIER_1_ORIGINAL", "source_ref": "games/authz.zip"})),
+    // D-568: listing reads the cartridge file's `sideroom.json` from a shelf bucket, which the matrix has not
+    // got, so the row is seeded directly (the POST route is still probed for its authorization row).
+    for (guild, map) in [(ga, &mut a), (gb, &mut b)] {
+        let id = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO arcade_guild_cartridges (id, guild_id, title, description, kind, tier, source_ref, \
+             capabilities, tip_links, added_by) \
+             SELECT $1, $2, 'Authz cart', '', 'game', 'TIER_1_ORIGINAL', 'games/authz.zip', '{}', '[]', owner_id \
+             FROM guilds WHERE id = $2",
         )
+        .bind(id)
+        .bind(guild)
+        .execute(&pool)
         .await
-            && let Some(n) = v["id"].as_str()
-        {
-            map.insert("arcade_cartridge_id", n.to_owned());
-        }
+        .expect("seed a cartridge");
+        map.insert("arcade_cartridge_id", id.to_string());
     }
     {
         let bot = account(&pool, &ids, "arcadegamebot").await;
