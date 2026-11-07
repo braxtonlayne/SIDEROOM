@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 54 - 2026-11-07
+
+- **You hear about failures.** When deleting, pinning, voting, blocking or another action fails, SIDE ROOM tells you and puts things back the way they really are. A channel that can't load says so instead of looking empty.
+- **Encrypted calls warn about new keys.** If someone's privacy code changes, the shield in the call says so until you verify them again.
+- **Signing out cleans up.** Signing out (or being signed out elsewhere) clears what the app kept on this device, including offline Library chapters and shared files.
+- **More confirmation for sensitive changes.** Setting up an authenticator app asks for your password, and staff actions like bans, badge changes and delisting ask for a second factor.
+- **Fairer limits and fewer races.** Daily download and report allowances can't be beaten with parallel requests, and settings saved at the same moment no longer undo each other.
+- **For operators.** Release builds refuse test-only settings, background jobs keep retrying instead of stopping, and `gateway.max_unidentified_per_ip` is a setting.
+
 ## Phase 53 - 2026-11-07
 
 - **Safer sign-in.** Signing in with Discord now asks for your passkey too, and logging out (or "log out everywhere") disconnects your other open sessions straight away.

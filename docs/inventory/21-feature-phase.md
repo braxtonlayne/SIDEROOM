@@ -448,3 +448,32 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-013** [FE] Staff removal and invite revoke ask for the required reason (they always failed before). Handoff `fix-p53-web.md`.
 - [x] **SEC-AUD-014** [FE] A failed load never leaves an editable empty form (per-server profile, notes, birthday, Notes tool); a failed save never says "Saved". Handoff `fix-p53-web.md`.
 - [x] **SEC-AUD-015** [FE] The embedded-app SDK validates state versions, scopes per-member keys to their writer, and rate-limits sync answers. Handoff `fix-p53-web.md`.
+
+## Wave 54 — Audit follow-ups and decisions D-556..D-570
+
+### SEC-AUD — Security audit findings (continued)
+- [x] **SEC-AUD-016** [BE] `gateway.max_unidentified_per_ip` is an `sr.toml` key (D-556). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-017** [BE/FE] `GET /sr/auth/2fa/methods` reads the pending cookie; second-factor methods never ride in a URL (D-557). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-018** [BE] Removing a rung group-DM member sends `CALL_UPDATE`; a Person ban, self-deletion and an erasure run publish `SessionsRevoked` (D-558). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-019** [BE] A staff email change sends the old address the "This wasn't me" notice (D-561). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-020** [BE] The staff member who verified an erasure cannot run it (D-562). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-021** [BE] Retention and lock settings need a reason; each audit purge writes a platform-audit row (D-563). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-022** [BE/FE] Step-up on account rename and badges, mount and shelf delist/relist, perk grants, graduated bans, lowering a server's 2FA level, and TOTP enrolment (password). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-023** [BE] A hold release deletes an empty group DM in the same transaction (D-559). Handoff `fix-p54-chat.md`.
+- [x] **SEC-AUD-024** [BE] The posting gate covers edits with new content, crosspost and poll votes (D-566). Handoff `fix-p54-chat.md`.
+- [x] **SEC-AUD-025** [BE] Bridge edits and reactions pass the per-bridge limiter; the bridge seed imports only owner-confirmed permission bits (D-567). Handoff `fix-p54-chat.md`.
+- [x] **SEC-AUD-026** [BE] Channel edit and delete evaluate `MANAGE_CHANNELS` with the channel's overwrites (D-570). Handoff `fix-p54-chat.md`.
+- [x] **SEC-AUD-027** [BE] Check-then-write races fixed: community settings, privacy settings, thread edits, read markers, slowmode, report and download caps, voice limits. Handoff `fix-p54-chat.md`.
+- [x] **SEC-AUD-028** [BE/OPS] Release builds refuse test-only settings; `server.metrics_token`; `sr-cli restore` checks the dump before dropping anything. Handoff `fix-p54-ops.md`.
+- [x] **SEC-AUD-029** [BE] Recurring singleton jobs back off instead of dying, with a `job_failing` staff alert; event loops survive a panic. Handoff `fix-p54-ops.md`.
+- [x] **SEC-AUD-030** [BE] Resource limits: storage browse, directory presence, GIF frames, EXIF budget, list dedupe, lyrics parser, member search limit. Handoff `fix-p54-ops.md`.
+- [x] **SEC-AUD-031** [DOCS/OPS] /readyz behind Caddy, the voice.e2ee docs, operator links to public pages, release workflow permissions; deafen comments (D-565); the e2e voice-E2EE opt-out documented and asserted absent from release bundles (D-570). Handoff `fix-p54-ops.md`.
+- [x] **SEC-AUD-032** [BE/FE] A cartridge's tier and capabilities come from its `sideroom.json` (D-568). Handoff `fix-p54-apps.md`.
+- [x] **SEC-AUD-033** [BE] A personal TV pool can only be bound by its own member (D-569); TV reminders check the member may watch. Handoff `fix-p54-apps.md`.
+- [x] **SEC-AUD-034** [BE] Other members' submission drafts and previews no longer leak to reviewers or submitters. Handoff `fix-p54-apps.md`.
+- [x] **SEC-AUD-035** [BE] Resource limits: subtitle reads, oversized video sources, the SDK shared document. Handoff `fix-p54-apps.md`.
+- [x] **SEC-AUD-036** [FE] About 40 silent failures now tell the member and roll back only what failed; a failed history load says so. Handoff `fix-p54-weba.md`.
+- [x] **SEC-AUD-037** [FE] A failed first settings read never lets the older account copy overwrite a local change (the waiting mark names its account); privacy switches stay locked until known. Handoff `fix-p54-weba.md`.
+- [x] **SEC-AUD-038** [FE] E2EE identity keys are pinned on the client; a changed key drops the verified mark and shows a notice (D-564). Handoff `fix-p54-webb.md`.
+- [x] **SEC-AUD-039** [FE] Sign-out and a session that ended clear the app caches, shared files and the Library offline cache (D-570); the service worker never stores an app page under a public shell. Handoff `fix-p54-webb.md`.
+- [x] **SEC-AUD-040** [FE] Rule slips: hard-coded English translated (sign-in, kit, OAuth, menus, cinema rows), "server" not "Guild" in UI, undefined and raw colour tokens, physical CSS. Handoff `fix-p54-webb.md`.
