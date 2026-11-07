@@ -11,6 +11,7 @@ import {
   useCurrentUser,
   useDms,
   useGuild,
+  useListLoadFailure,
   useMessages,
   usePresence,
   useUsers,
@@ -34,6 +35,7 @@ import { openProfilePopout } from './profile/popoutStore';
 import { startDmCall } from './shell/dmCall';
 import { useVoiceSession } from '../voice/session';
 import { MessageRequestView } from './shell/MessageRequestView';
+import { ListLoadFailed } from './ListLoadFailed';
 import { useSocial } from './shell/social';
 
 export interface ChannelViewProps {
@@ -56,6 +58,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
   const composer = useRef<ComposerHandle | null>(null);
   const guild = useGuild(isDm ? undefined : guildId);
   const timedOutUntil = useMyTimeout(isDm ? undefined : guildId);
+  const serverLoad = useListLoadFailure('server', isDm ? undefined : guildId);
 
   const channel = channels.find((c) => c.id === channelId);
   const isAnnouncement = !isDm && channel?.type === 'announcement';
@@ -80,6 +83,9 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
 
   if (!channel && !dm && pendingRequest)
     return <MessageRequestView dm={pendingRequest} onBack={onBack} />;
+  // SEC-AUD-046 (D-577): a channel list that failed to load is not a channel that does not exist.
+  if (!channel && !dm && serverLoad.failed)
+    return <ListLoadFailed message={t('lounge.listLoad.channel')} onRetry={serverLoad.retry} />;
   if (!channel && !dm) {
     return (
       <EmptyState

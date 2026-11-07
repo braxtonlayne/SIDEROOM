@@ -3,6 +3,7 @@
 export default {
   'lounge.listLoad.channels': 'The channels could not be loaded.',
   'lounge.listLoad.members': 'The member list could not be loaded.',
+  'lounge.listLoad.channel': 'This channel could not be loaded.',
   'lounge.listLoad.server': 'This server could not be loaded.',
   'lounge.listLoad.retry': 'Try again',
   'lounge.soundboard.favoritesUnsynced': 'Favorites are not saved to your account yet.',

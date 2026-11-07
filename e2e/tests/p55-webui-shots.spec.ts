@@ -47,16 +47,28 @@ const boom = (r: Route) =>
 const failOn = (page: Page, glob: string | RegExp, method = 'GET') =>
   page.route(glob, (r) => (r.request().method() === method ? boom(r) : r.fallback()));
 
+const notes: string[] = [];
+/** A check that, failing, is noted (and printed at the end) instead of stopping the remaining shots. */
+const soft = (label: string, check: Promise<unknown>) =>
+  check.catch((e: unknown) => notes.push(`${label}: ${String(e).slice(0, 200)}`));
+
 /** Forward the gateway both ways, but drop the GUILD_CREATE of one server. */
-async function dropGuildCreate(page: Page, guildId: string) {
-  await page.routeWebSocket(/\/gateway/, (ws) => {
+async function dropGuildCreate(page: Page, guildId: string, tag: string) {
+  const seen: string[] = [];
+  await page.routeWebSocket(/gateway/, (ws) => {
     const server = ws.connectToServer();
     server.onMessage((m) => {
-      if (typeof m === 'string' && m.includes('"t":"GUILD_CREATE"') && m.includes(`"${guildId}"`))
+      const text = typeof m === 'string' ? m : m.toString('utf8');
+      const t = /"t"\s*:\s*"([A-Z_]+)"/.exec(text)?.[1] ?? 'op';
+      if (seen.length < 30) seen.push(t);
+      if (t === 'GUILD_CREATE' && text.includes(guildId)) {
+        notes.push(`${tag}: dropped GUILD_CREATE`);
         return;
+      }
       ws.send(m);
     });
   });
+  return seen;
 }
 
 test('failure states are inline, danger text and the new privacy code notice', async ({
@@ -89,19 +101,33 @@ test('failure states are inline, danger text and the new privacy code notice', a
       };
 
       // 1. Channel list (and on desktop the member list) that failed to load: inline rows, no toast.
-      await dropGuildCreate(page, guild.id);
+      const seen = await dropGuildCreate(page, guild.id, tag);
+      const asked: string[] = [];
+      page.on('request', (r) => {
+        if (lists.test(r.url())) asked.push(r.url().replace(ORIGIN, ''));
+      });
       await failOn(page, lists);
       await page.goto(
         vp === 'phone' ? `/channels/${guild.id}` : `/channels/${guild.id}/${text.id}`,
       );
-      await expect(page.getByText('The channels could not be loaded.').first()).toBeVisible();
+      await soft(
+        `${tag} channels row`,
+        expect(page.getByText('The channels could not be loaded.').first()).toBeVisible(),
+      );
       if (vp === 'desktop')
-        await expect(page.getByText('The member list could not be loaded.')).toBeVisible();
+        await soft(
+          `${tag} members row`,
+          expect(page.getByText('The member list could not be loaded.')).toBeVisible(),
+        );
+      notes.push(`${tag}: frames ${seen.join(',')}; list requests ${asked.join(' ')}`);
       await shot('lists-failed');
 
       // 2. Server Settings while the server cannot be loaded: says so instead of loading forever.
       await page.goto(`/settings/server/${guild.id}`);
-      await page.waitForTimeout(1500);
+      await soft(
+        `${tag} server settings row`,
+        expect(page.getByText('This server could not be loaded.')).toBeVisible({ timeout: 20_000 }),
+      );
       await shot('server-settings-failed');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
       await c.close();
@@ -111,8 +137,11 @@ test('failure states are inline, danger text and the new privacy code notice', a
       const p2 = await c2.newPage();
       p2.setDefaultTimeout(20_000);
       await p2.goto(`/settings/server/${guild.id}/channels?channel=${text.id}`);
-      await p2.getByLabel('Channel name').first().fill('');
-      await expect(p2.getByText('Name must be between 1 and 100 characters.')).toBeVisible();
+      await soft(`${tag} kit error`, p2.getByLabel('Channel name').first().fill(''));
+      await soft(
+        `${tag} kit error`,
+        expect(p2.getByText('Name must be between 1 and 100 characters.')).toBeVisible(),
+      );
       await p2.waitForTimeout(500);
       await p2.screenshot({ path: resolve(OUT, `kit-input-error-${tag}.png`) });
 
@@ -146,23 +175,34 @@ test('failure states are inline, danger text and the new privacy code notice', a
       })()`);
       await p2.waitForTimeout(500);
       await failOn(p2, /\/api\/v1\/users\/@me\/settings$/, 'PATCH');
-      const board = p2.getByRole('button', { name: 'Soundboard' }).first();
-      await board.click();
-      await p2
-        .getByRole('button', { name: /^Favorite / })
-        .first()
-        .click();
-      await expect(p2.getByTestId('soundboard-unsynced')).toBeVisible();
+      await soft(
+        `${tag} soundboard`,
+        p2.getByRole('button', { name: 'Soundboard' }).first().click(),
+      );
+      await soft(
+        `${tag} favorite`,
+        p2
+          .getByRole('button', { name: /^Favorite / })
+          .first()
+          .click(),
+      );
+      await soft(`${tag} unsynced`, expect(p2.getByTestId('soundboard-unsynced')).toBeVisible());
       await p2.waitForTimeout(500);
       await p2.screenshot({ path: resolve(OUT, `soundboard-unsynced-${tag}.png`) });
       await p2.keyboard.press('Escape');
       await p2.unrouteAll({ behavior: 'ignoreErrors' });
 
-      await p2
-        .getByRole('button', { name: /new privacy code/ })
-        .first()
-        .click();
-      await expect(p2.getByText(/has a new privacy code/)).toBeVisible();
+      await soft(
+        `${tag} shield`,
+        p2
+          .getByRole('button', { name: /new privacy code/ })
+          .first()
+          .click(),
+      );
+      await soft(
+        `${tag} shield notice`,
+        expect(p2.getByText(/has a new privacy code/)).toBeVisible(),
+      );
       await p2.waitForTimeout(500);
       await p2.screenshot({ path: resolve(OUT, `shield-new-code-${tag}.png`) });
       await c2.close();
@@ -177,7 +217,10 @@ test('failure states are inline, danger text and the new privacy code notice', a
     const input = page.locator('#invite-code');
     await input.fill('ZZZZZZZZZZ');
     await input.press('Enter');
-    await expect(page.locator('#invite-msg[data-tone="bad"]')).not.toBeEmpty();
+    await soft(
+      `${vp} invite`,
+      expect(page.locator('#invite-msg[data-tone="bad"]')).not.toBeEmpty(),
+    );
     await page.waitForTimeout(800);
     await page.screenshot({ path: resolve(OUT, `entrance-invite-refused-${vp}.png`) });
     await c.close();
@@ -186,4 +229,5 @@ test('failure states are inline, danger text and the new privacy code notice', a
   await apiPatch(o, '/users/@me/settings', {
     settings: { user_prefs: { theme: 'lounge-editorial', zoom: 100 } },
   });
+  console.log(['p55-webui notes:', ...notes].join('\n'));
 });

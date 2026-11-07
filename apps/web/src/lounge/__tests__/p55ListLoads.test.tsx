@@ -76,6 +76,9 @@ describe('list loads (SEC-AUD-046, D-577)', () => {
     at('/channels/g1/c1');
     expect(await screen.findByText('The channels could not be loaded.')).toBeInTheDocument();
     expect(screen.queryByText('No channels yet.')).toBeNull();
+    // The open channel is "could not be loaded", not "doesn't exist".
+    expect(screen.getByText('This channel could not be loaded.')).toBeInTheDocument();
+    expect(screen.queryByText("This channel doesn't exist")).toBeNull();
     expect(reported).toEqual([]);
     up = true;
     const sidebar = screen.getByTestId('channel-sidebar');
