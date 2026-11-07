@@ -1945,6 +1945,65 @@ async fn discord_pending_link_is_empty_without_a_cookie() {
     assert_eq!(r.body["pending"], false);
 }
 
+/// The Location and Set-Cookie headers of a Discord sign-in for the account linked to `discord_id`.
+async fn discord_sign_in(h: &H, discord_id: &str, next: Option<&str>) -> (String, Vec<String>) {
+    let svc = h.state.extension::<AuthService>().unwrap();
+    let res = super::discord::sign_in_linked(
+        &h.state,
+        &svc,
+        &HeaderMap::new(),
+        discord_id,
+        next,
+        "sr_oauth_state=; Max-Age=0".into(),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("sign-in failed"));
+    let location = res.headers()[header::LOCATION].to_str().unwrap().to_owned();
+    let cookies = res
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|v| v.to_str().unwrap().to_owned())
+        .collect();
+    (location, cookies)
+}
+
+#[tokio::test]
+async fn discord_sign_in_asks_a_passkey_only_account_for_its_second_factor() {
+    // SEC-AUD-001: the Discord path checked TOTP only, so a passkey-only account got a session.
+    let h = discord_harness();
+    h.add_account(7, "sam", "sam@example.org", AccountState::Active);
+    h.store.link_discord(7, 70, "d-7").await.unwrap();
+    let (location, cookies) = discord_sign_in(&h, "d-7", None).await;
+    assert_eq!(location, "/");
+    assert!(cookies.iter().any(|c| c.starts_with("sr_session=")));
+
+    h.store
+        .passkey_insert(super::store::PasskeyRecord {
+            id: 71,
+            account_id: 7,
+            credential_id: vec![7; 16],
+            cose_key: vec![1, 2, 3],
+            alg: -7,
+            sign_count: 0,
+            backup_eligible: false,
+            backup_state: false,
+            aaguid: vec![0; 16],
+            name: "Key".into(),
+            created_at: 0,
+            last_used_at: None,
+        })
+        .await
+        .unwrap();
+    let (location, cookies) = discord_sign_in(&h, "d-7", Some("/lounge?a=1")).await;
+    assert_eq!(
+        location,
+        "/login/2fa?methods=passkey,recovery&next=%2Flounge%3Fa%3D1"
+    );
+    assert!(cookies.iter().any(|c| c.starts_with("sr_mfa=")));
+    assert!(!cookies.iter().any(|c| c.starts_with("sr_session=")));
+}
+
 #[tokio::test]
 async fn discord_routes_are_404_when_not_configured() {
     let h = harness();
