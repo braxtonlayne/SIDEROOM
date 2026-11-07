@@ -546,7 +546,7 @@ pub struct DiscordLinkStart {
 
 /// Body of the link call.
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct LinkBody {
+pub struct DiscordLinkBody {
     /// The account password (re-authentication).
     password: String,
     /// Second factor (D-573). Required when the account has two-factor authentication or a
@@ -562,7 +562,7 @@ pub struct LinkBody {
 #[utoipa::path(
     post,
     path = "/sr/auth/discord/link",
-    request_body = LinkBody,
+    request_body = DiscordLinkBody,
     responses(
         (status = 200, body = DiscordLinkStart),
         (status = 400, body = ErrorBody),
@@ -576,7 +576,7 @@ pub async fn link_start(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
     Svc { svc, ip }: Svc,
-    Json(body): Json<LinkBody>,
+    Json(body): Json<DiscordLinkBody>,
 ) -> R<Response> {
     let sid = session_id(&p)?;
     let Some(oauth) = svc.discord.as_ref() else {
@@ -663,7 +663,7 @@ pub async fn unlink(
 #[derive(OpenApi)]
 #[openapi(
     paths(status, link_start, unlink),
-    components(schemas(DiscordStatus, DiscordLinkStart, LinkBody, UnlinkBody))
+    components(schemas(DiscordStatus, DiscordLinkStart, DiscordLinkBody, UnlinkBody))
 )]
 pub struct DiscordApiDoc;
 
