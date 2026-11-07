@@ -139,6 +139,10 @@ impl Principal {
             return Ok(p.clone());
         }
         let p = authenticate(parts, state).await?;
+        // The credential is real: the HTTP limiter may give it a bucket of its own (SEC-AUD-007).
+        if let Some(proof) = parts.extensions.get::<crate::rate_limit::CredentialProof>() {
+            proof.mark();
+        }
         parts.extensions.insert(p.clone());
         Ok(p)
     }

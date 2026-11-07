@@ -337,7 +337,10 @@ setting is an entry of the Admin > Limits catalog (group `abuse`, or `limits` fo
 `PATCH /admin/settings` applies it on the next request (the HTTP ones through the `RateConfig` watch channel of H-39, the data-export and counter-notice
 ones from the `platform_settings` row on each request). A refused request answers `429` with `Retry-After` (REST) or the 429 error body. **Scope is per
 process, as for every limiter in this document**: one node, counters reset on restart, not shared across nodes (documented, not changed). "Per credential"
-means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). The
+means one session cookie, bot token or bearer token (the limiter's identity); "per address" is the client IP (`trust_forwarded_for` behind Caddy). A
+credential that has not authenticated in the last 10 minutes is also charged to its address (global and route bucket) until the auth extractor
+verifies it, so a made-up token per request shares the address's allowance (SEC-AUD-007); a channel, server or webhook id counts once however it
+is spelled (`0042`, `%34%32`). The
 table is checked against the catalog by `abuse_limits.rs::doc_05_table_matches_the_catalog_and_its_tests_exist`: a row's setting, default and test must
 exist.
 

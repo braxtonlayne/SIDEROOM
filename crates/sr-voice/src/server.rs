@@ -26,7 +26,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, UdpSocket};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::config::{MAX_UDP_SOCKETS, SfuConfig};
+use crate::config::{MAX_TCP_CONNECTIONS, MAX_UDP_SOCKETS, SfuConfig};
 use crate::core::{
     CloseReason, CoreEvent, CoreOutput, Flags, JoinParams, ParticipantId, SfuCore, Snapshot,
 };
@@ -196,6 +196,18 @@ struct Shared {
 
 fn locked<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// The flags a member joins with when a `SetFlags` arrived before their WebSocket did: the
+/// moderation flags from the command, but the tier and channel quality from the join token,
+/// which the command does not carry (apps-voice MED: a mute in that window used to drop a
+/// Patron to tier 0 and lose full quality for the whole call).
+fn with_pending(token: Flags, pending: Flags) -> Flags {
+    Flags {
+        tier: token.tier,
+        video_full: token.video_full,
+        ..pending
+    }
 }
 
 /// Which shard owns a channel. A multiplicative hash keeps the spread even whatever the id
@@ -443,6 +455,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
                 cmds: cmd_txs.clone(),
                 shared: shared.clone(),
             },
+            MAX_TCP_CONNECTIONS,
         ));
     }
 
@@ -587,9 +600,19 @@ impl TcpRoute {
     }
 }
 
-async fn tcp_acceptor(l: TcpListener, dst: SocketAddr, route: TcpRoute) {
+/// Accept ICE-TCP connections, at most `max_open` at once: past it a new connection is closed
+/// straight away (like [`MAX_UDP_SOCKETS`] for UDP), so unauthenticated peers cannot grow the
+/// node's descriptors, tasks and shard maps without bound.
+async fn tcp_acceptor(l: TcpListener, dst: SocketAddr, route: TcpRoute, max_open: usize) {
+    let open = Arc::new(tokio::sync::Semaphore::new(max_open));
     loop {
         let Ok((stream, peer)) = l.accept().await else {
+            // e.g. out of descriptors: back off instead of spinning
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            continue;
+        };
+        let Ok(permit) = open.clone().try_acquire_owned() else {
+            drop(stream);
             continue;
         };
         let _ = stream.set_nodelay(true);
@@ -621,6 +644,8 @@ async fn tcp_acceptor(l: TcpListener, dst: SocketAddr, route: TcpRoute) {
         });
         let route = route.clone();
         tokio::spawn(async move {
+            // the slot is held until this connection's reader ends
+            let _permit = permit;
             loop {
                 let mut len = [0u8; 2];
                 let read = async {
@@ -1026,7 +1051,7 @@ impl Actor {
         if let Some((f, at)) = self.pending_flags.remove(&(c.channel_id, c.user_id))
             && now.saturating_duration_since(at) <= PENDING_FLAGS_TTL
         {
-            flags = f;
+            flags = with_pending(flags, f);
         }
         let e2ee_keyed = self
             .pending_keyed
@@ -1297,4 +1322,74 @@ pub fn advertised(cfg: &SfuConfig, ports: &[u16]) -> Vec<SocketAddr> {
                 .map(move |ip: &IpAddr| SocketAddr::new(*ip, *p))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod limit_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn a_mute_before_the_join_keeps_the_tokens_tier_and_quality() {
+        let token = Flags {
+            speak: true,
+            tier: 4,
+            video_full: true,
+            ..Flags::default()
+        };
+        // what SetFlags stores when the member has not joined yet
+        let pending = Flags {
+            speak: false,
+            deaf: true,
+            ..Flags::default()
+        };
+        let f = with_pending(token, pending);
+        assert!(!f.speak);
+        assert!(f.deaf);
+        assert_eq!(f.tier, 4);
+        assert!(f.video_full);
+    }
+
+    /// Is the server end of `s` still open after a short wait (no EOF)?
+    async fn still_open(s: &mut tokio::net::TcpStream) -> bool {
+        let mut b = [0u8; 1];
+        match tokio::time::timeout(Duration::from_millis(300), s.read(&mut b)).await {
+            Err(_) => true,
+            Ok(Ok(0) | Err(_)) => false,
+            Ok(Ok(_)) => true,
+        }
+    }
+
+    #[tokio::test]
+    async fn ice_tcp_connections_past_the_cap_are_closed() {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        // one shard whose queue holds each connection's writer (nobody reads it here)
+        let (cmd_tx, _cmd_rx) = mpsc::channel::<Cmd>(16);
+        let route = TcpRoute {
+            pkts: Vec::new(),
+            cmds: vec![cmd_tx],
+            shared: Arc::new(Shared {
+                user_shard: Mutex::new(HashMap::new()),
+                tcp_shard: Mutex::new(HashMap::new()),
+                total: AtomicUsize::new(0),
+                snaps: Mutex::new(Vec::new()),
+            }),
+        };
+        tokio::spawn(tcp_acceptor(l, addr, route, 2));
+        let mut a = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let mut b = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let mut c = tokio::net::TcpStream::connect(addr).await.unwrap();
+        assert!(
+            !still_open(&mut c).await,
+            "the third connection is over the cap"
+        );
+        assert!(still_open(&mut a).await);
+        assert!(still_open(&mut b).await);
+        // a slot frees up when a connection ends
+        drop(a);
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let mut d = tokio::net::TcpStream::connect(addr).await.unwrap();
+        assert!(still_open(&mut d).await);
+    }
 }

@@ -86,6 +86,13 @@ use crate::loss::LossBudget;
 
 /// Largest SDP the core will parse (browsers send a few KiB).
 pub const MAX_SDP_BYTES: usize = 64 * 1024;
+/// Most track declarations (`Video::Publish`, one per m-line) a member may hold (SEC-AUD-009).
+/// A member publishes at most mic, camera, screen, screen audio and music; renegotiations can
+/// leave a few stale m-lines behind, so this is generous.
+pub const MAX_DECLARED: usize = 32;
+/// Hint sources a member can reference per other member (camera, screen, screen audio, music).
+/// Subscription hints are capped at this times the room size (SEC-AUD-009).
+pub const HINT_SOURCES: usize = 4;
 /// After push-to-talk is released, audio still passes this long (late packets, reordering).
 pub const PTT_GRACE: Duration = Duration::from_millis(300);
 /// An ICE-disconnected participant is removed after this long without recovering
@@ -1195,6 +1202,15 @@ impl SfuCore {
                 {
                     return Err(SfuError::Video("that source is already published"));
                 }
+                // SEC-AUD-009: bounded. At the cap, forget inactive declarations of m-lines that
+                // were never negotiated before refusing a new one.
+                if !p.declared.contains_key(&mid) && p.declared.len() >= MAX_DECLARED {
+                    let tracks = &p.tracks;
+                    p.declared.retain(|m, d| d.active || tracks.contains_key(m));
+                    if p.declared.len() >= MAX_DECLARED {
+                        return Err(SfuError::Video("too many tracks declared"));
+                    }
+                }
                 p.declared.insert(
                     mid,
                     Declared {
@@ -1208,12 +1224,38 @@ impl SfuCore {
                 self.apply_declaration(pid, mid);
             }
             Video::Subscribe { subscriptions } => {
+                // SEC-AUD-009: hints name members of the room and their sources, so they are
+                // capped at that many; past it, hints about people not in the room go first.
+                let cap = self.max_room_size.max(1).saturating_mul(HINT_SOURCES);
+                let (held, channel) = self
+                    .parts
+                    .get(&pid)
+                    .map(|p| (p.hints.len(), p.channel))
+                    .ok_or(SfuError::UnknownParticipant)?;
+                let in_room: Option<HashSet<UserId>> =
+                    (held + subscriptions.len() > cap).then(|| {
+                        self.rooms
+                            .get(&channel)
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|q| self.parts.get(q).map(|q| q.user))
+                            .collect()
+                    });
                 let p = self
                     .parts
                     .get_mut(&pid)
                     .ok_or(SfuError::UnknownParticipant)?;
                 for h in subscriptions {
-                    p.hints.insert((h.user_id, h.source), h);
+                    let key = (h.user_id, h.source);
+                    if !p.hints.contains_key(&key) && p.hints.len() >= cap {
+                        if let Some(room) = &in_room {
+                            p.hints.retain(|(u, _), _| room.contains(u));
+                        }
+                        if p.hints.len() >= cap {
+                            return Err(SfuError::Video("too many subscription hints"));
+                        }
+                    }
+                    p.hints.insert(key, h);
                 }
                 self.dirty.insert(pid);
                 self.apply_hints(pid);
@@ -2357,5 +2399,88 @@ mod video_quality_tests {
             ..Flags::default()
         };
         assert_eq!(cap_of(MAX_SEVERITY - 1, &patron), Layer::Mid);
+    }
+}
+
+#[cfg(test)]
+mod map_cap_tests {
+    //! SEC-AUD-009: a joined member cannot grow its declaration or hint maps without bound.
+    use super::*;
+
+    fn member(room: usize) -> (SfuCore, ParticipantId, Instant) {
+        let mut core = SfuCore::new(10, room);
+        let now = Instant::now();
+        let pid = core
+            .join(
+                now,
+                JoinParams {
+                    user: UserId::new(1),
+                    guild: None,
+                    channel: ChannelId::new(5),
+                    flags: Flags::default(),
+                    e2ee_keyed: true,
+                    candidates: vec![
+                        Candidate::host("127.0.0.1:5000".parse().unwrap(), "udp").unwrap(),
+                    ],
+                },
+            )
+            .unwrap();
+        (core, pid, now)
+    }
+
+    fn hint(user: u64) -> SubscriptionHint {
+        SubscriptionHint {
+            user_id: UserId::new(user),
+            source: Source::Camera,
+            enabled: true,
+            layer: None,
+            viewport: None,
+        }
+    }
+
+    #[test]
+    fn hints_about_strangers_stay_bounded_and_room_hints_survive() {
+        let (mut core, pid, now) = member(3);
+        let cap = 3 * HINT_SOURCES;
+        core.handle_video(
+            now,
+            pid,
+            Video::Subscribe {
+                subscriptions: vec![hint(1)],
+            },
+        )
+        .unwrap();
+        for round in 0..20u64 {
+            let subscriptions = (0..100).map(|i| hint(1000 + round * 100 + i)).collect();
+            core.handle_video(now, pid, Video::Subscribe { subscriptions })
+                .unwrap();
+            assert!(core.parts[&pid].hints.len() <= cap);
+        }
+        assert!(
+            core.parts[&pid]
+                .hints
+                .contains_key(&(UserId::new(1), Source::Camera))
+        );
+    }
+
+    #[test]
+    fn declarations_stay_bounded() {
+        let (mut core, pid, now) = member(3);
+        for m in 0..500 {
+            core.handle_video(
+                now,
+                pid,
+                Video::Publish {
+                    mid: format!("m{m}"),
+                    source: Source::Camera,
+                    active: false,
+                    width: 0,
+                    height: 0,
+                    fps: 0,
+                },
+            )
+            .unwrap();
+            assert!(core.parts[&pid].declared.len() <= MAX_DECLARED);
+        }
     }
 }
