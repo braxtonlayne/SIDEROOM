@@ -1125,6 +1125,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             // READY always names a resume URL, as Discord's does: typed libraries (serenity's `Ready`) refuse a
             // READY whose `resume_gateway_url` is null, and never get past it.
             resume_gateway_url: Some(gateway_ws_url(&cfg.server.public_url)),
+            // D-556: the one gateway figure an operator's network shape changes (a NAT puts everyone on one address).
+            max_unidentified_per_ip: cfg.gateway.max_unidentified_per_ip,
             voice: voice_setup.as_ref().map(|v| {
                 let mut g = v.gateway.clone();
                 g.calls = Some(call_recorder.clone());

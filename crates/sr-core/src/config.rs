@@ -149,12 +149,16 @@ impl Default for SmtpConfig {
 pub struct GatewayLimits {
     /// Connections accepted at once; further upgrades get 503.
     pub max_connections: usize,
+    /// Sockets one client address may hold before they IDENTIFY; further upgrades get 429 (D-556). Raise it when
+    /// many members share one address (a NAT, or a proxy whose forwarded address is not trusted).
+    pub max_unidentified_per_ip: usize,
 }
 
 impl Default for GatewayLimits {
     fn default() -> Self {
         Self {
             max_connections: 10_000,
+            max_unidentified_per_ip: 32,
         }
     }
 }
@@ -756,6 +760,9 @@ impl Config {
         if self.gateway.max_connections == 0 {
             return Err(bad("gateway.max_connections must be > 0"));
         }
+        if self.gateway.max_unidentified_per_ip == 0 {
+            return Err(bad("gateway.max_unidentified_per_ip must be > 0"));
+        }
         if self.voice.removed_e2ee == Some(false) {
             return Err(bad(
                 "voice.e2ee was removed: end-to-end encryption is the only voice mode, so delete the e2ee = false line (or SR_VOICE__E2EE=false)",
@@ -1009,9 +1016,11 @@ secret_key = \"abc\"
         assert!(Config::from_figment(&f).is_err());
 
         let f = Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
-            "[smtp]\nhost = \"mail.example.org\"\ntls = \"tls\"\nfrom = \"SIDE ROOM <no-reply@example.org>\"\n[database]\nauto_migrate = true\n[gateway]\nmax_connections = 5\n",
+            "[smtp]\nhost = \"mail.example.org\"\ntls = \"tls\"\nfrom = \"SIDE ROOM <no-reply@example.org>\"\n[database]\nauto_migrate = true\n[gateway]\nmax_connections = 5\nmax_unidentified_per_ip = 7\n",
         ));
         let c = Config::from_figment(&f).unwrap();
+        assert_eq!(c.gateway.max_unidentified_per_ip, 7);
+        assert_eq!(Config::default().gateway.max_unidentified_per_ip, 32);
         assert_eq!(c.smtp.tls, SmtpTls::Tls);
         assert_eq!(c.smtp.port, 587);
         assert!(c.database.auto_migrate);

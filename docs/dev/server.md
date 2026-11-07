@@ -26,6 +26,8 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `server.secret_key` | empty | 64 hex chars; encrypts TOTP secrets. Empty = random per boot (dev only). |
 | `server.shutdown_grace_secs` | `25` | Drain budget for HTTP, then again for jobs. |
 | `database.url`, `database.max_connections` | see `sr-core` | |
+| `gateway.max_connections` | `10000` | Gateway sockets accepted at once (identified or not); further upgrades get 503. |
+| `gateway.max_unidentified_per_ip` | `32` | Gateway sockets one client address may hold before they IDENTIFY (they must within 30 s); further upgrades get 429 (D-556). Raise it when many members share one address: a NAT, or a proxy whose `X-Forwarded-For` is not trusted (`server.trust_forwarded_for`). |
 | `storage.*` | see `sr-core` | S3-compatible (Garage in dev). |
 | `web.root` | unset | The built `apps/web/dist` (D-385, SEC-ENT-003). Unset: no documents are served (API only). Set: the server serves the app only to a request with a valid session and refuses to start when `<root>/app/csp.txt` is missing. |
 | `web.serve_public` | `false` | Also serve the public surfaces, the legal page and the error pages (single-binary installs without a proxy, CI). Off in production, where Caddy serves them. |
