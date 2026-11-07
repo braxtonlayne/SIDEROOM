@@ -120,7 +120,7 @@
   font-size: 1.125rem;
 }
 .sr-calc-error {
-  color: var(--ui-danger);
+  color: var(--ui-text);
   font-size: 0.8125rem;
 }
 .sr-calc-error::before {

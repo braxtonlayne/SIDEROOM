@@ -461,11 +461,15 @@ async function connectVoiceForShot(page: Page, notes: string[]): Promise<void> {
  * SEC-AUD-038 (D-564): the call's E2EE view with another member whose identity key changed since this device pinned
  * it, set through the dev server's module graph like the voice session above, then the shield popover opened.
  */
-async function keyChangedForShot(page: Page, guildId: string, notes: string[]): Promise<void> {
+async function keyChangedForShot(page: Page, world: SweepWorld, notes: string[]): Promise<void> {
+  const { guildId } = world;
+  const voiceId = world.voiceChannelId ?? world.channelId;
   const script = `(async () => {
     const me = await (await fetch('/api/v1/users/@me', { credentials: 'include' })).json();
     const ms = await (await fetch('/api/v1/guilds/${guildId}/members?limit=20', { credentials: 'include' })).json();
     const other = (Array.isArray(ms) ? ms : []).map((m) => m.user).find((u) => u && u.id !== me.id) || { id: '2' };
+    const v = await import('/src/voice/session.ts');
+    v.useVoiceSession.setState({ status: 'connected', guildId: '${guildId}', channelId: '${voiceId}', channelName: 'General' });
     const m = await import('/src/voice/e2ee/store.ts');
     m.setE2ee({
       active: true,
@@ -755,7 +759,7 @@ async function capture(
     // Let lazy chunks, fonts and the catalog settle; skeletons fade.
     await page.waitForTimeout(900);
     if (row.voice) await connectVoiceForShot(page, rec.notes);
-    if (row.keyChanged) await keyChangedForShot(page, world.guildId, rec.notes);
+    if (row.keyChanged) await keyChangedForShot(page, world, rec.notes);
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);

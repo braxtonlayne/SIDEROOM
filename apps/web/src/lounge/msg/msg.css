@@ -1374,7 +1374,7 @@
   padding: 6px 8px;
   margin-block-end: 4px;
   border-radius: 8px;
-  background: var(--ui-bg-raised);
+  background: var(--ui-bg-hover);
 }
 .lng-sticker-suggest .lng-sticker-tile {
   width: 64px;
