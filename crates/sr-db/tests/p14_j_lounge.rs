@@ -119,12 +119,18 @@ async fn incident_columns_round_trip_and_the_raid_alert_respects_its_cooldown() 
     assert_eq!(guild.incidents.raid_detected_at_ms, None);
 
     // The alert pauses invites for a day once, then waits out its cooldown.
+    let stale = settings.get_community(g).await.unwrap();
     let fired = settings
         .mark_raid(g, NOW, 600_000, NOW + DAY)
         .await
         .unwrap();
     assert_eq!(fired, Some(true));
+    // SEC-AUD-027: a settings save from a read taken before the alert does not revert the pause.
+    let mut stale = stale;
+    stale.description = Some("saved meanwhile".into());
+    settings.put_community(&stale).await.unwrap();
     let c = settings.get_community(g).await.unwrap();
+    assert_eq!(c.description.as_deref(), Some("saved meanwhile"));
     assert_eq!(c.raid_detected_at_ms, Some(NOW));
     assert_eq!(c.invites_disabled_until_ms, Some(NOW + DAY));
     assert_eq!(
@@ -213,9 +219,10 @@ async fn a_paused_invite_is_refused_until_the_time_passes_and_joins_are_counted(
     settings.insert_invite(&invite).await.unwrap();
     let joiner = sr_db::invite_join::PgInviteJoinRepo::new(pool.clone());
 
-    let mut c = settings.get_community(g).await.unwrap();
-    c.invites_disabled_until_ms = Some(now + 3_600_000);
-    settings.put_community(&c).await.unwrap();
+    settings
+        .set_incident_pauses(g, Some(now + 3_600_000), None)
+        .await
+        .unwrap();
     let who = account(&pool, &test_ids).await;
     let err = joiner
         .join_via_invite("pausedcode", who, now)
@@ -253,20 +260,24 @@ async fn dms_between_strangers_are_blocked_only_when_every_shared_server_pauses_
     let now = SystemClock.now_unix_ms();
 
     assert!(!social.shared_protection(a, b).await.unwrap().dms_paused_all);
-    let mut c1 = settings.get_community(g1).await.unwrap();
-    c1.dms_disabled_until_ms = Some(now + 3_600_000);
-    settings.put_community(&c1).await.unwrap();
+    settings
+        .set_incident_pauses(g1, None, Some(now + 3_600_000))
+        .await
+        .unwrap();
     assert!(
         !social.shared_protection(a, b).await.unwrap().dms_paused_all,
         "one of two shared servers is not enough"
     );
-    let mut c2 = settings.get_community(g2).await.unwrap();
-    c2.dms_disabled_until_ms = Some(now + 3_600_000);
-    settings.put_community(&c2).await.unwrap();
+    settings
+        .set_incident_pauses(g2, None, Some(now + 3_600_000))
+        .await
+        .unwrap();
     assert!(social.shared_protection(a, b).await.unwrap().dms_paused_all);
     // A pause that ended no longer counts.
-    c2.dms_disabled_until_ms = Some(now - 1_000);
-    settings.put_community(&c2).await.unwrap();
+    settings
+        .set_incident_pauses(g2, None, Some(now - 1_000))
+        .await
+        .unwrap();
     assert!(!social.shared_protection(a, b).await.unwrap().dms_paused_all);
     db.cleanup().await.unwrap();
 }

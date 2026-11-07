@@ -835,7 +835,7 @@ impl Gateway {
                 ));
             }
         }
-        let new = VoiceState {
+        let mut new = VoiceState {
             guild_id: guild,
             channel_id: channel,
             user_id: s.user,
@@ -858,12 +858,41 @@ impl Gateway {
             video_quality: info.video_quality,
             joined_ms: cur.as_ref().map_or_else(unix_ms, |c| c.joined_ms),
         };
-        let flags = media_flags(perms, &new);
         // Refuse before changing anything if no SFU can be named.
         let fresh_join = !(inside && cur.as_ref().is_some_and(|c| c.session_id == s.id));
         if fresh_join {
             self.voice_server_update_check(&new)?;
         }
+        {
+            // The room and the camera allowance are checked again under the lock, with the insert: the counts
+            // above were read before several awaits, and parallel joins must not overfill a channel
+            // (SEC-AUD-027).
+            let mut st = self.st();
+            let occupants = st
+                .voice
+                .values()
+                .filter(|v| v.channel_id == channel && v.user_id != s.user)
+                .count();
+            check_join(&info, perms, occupants, inside, age_ok)?;
+            if new.self_video && !(same && carry.is_some_and(|c| c.self_video)) {
+                let others = st
+                    .voice
+                    .values()
+                    .filter(|v| v.channel_id == channel && v.user_id != s.user && !v.exempt)
+                    .map(VoiceState::video_sends)
+                    .fold(0u16, u16::saturating_add);
+                let mine_after = 1 + u16::from(self_stream);
+                if !allowance_ok(others, mine_after, limits.video_senders, limits.exempt) {
+                    new.self_video = false;
+                    video_denied = Some((
+                        JoinDenied::VideoLimitReached,
+                        json!({ "limit": limits.video_senders, "count": others }),
+                    ));
+                }
+            }
+            st.voice.insert(s.user, new.clone());
+        }
+        let flags = media_flags(perms, &new);
 
         if let Some(old) = &cur
             && old.channel_id != channel
@@ -874,7 +903,6 @@ impl Gateway {
             })
             .await;
         }
-        self.st().voice.insert(s.user, new.clone());
         self.voice_touch(s.user);
 
         let member = match guild {

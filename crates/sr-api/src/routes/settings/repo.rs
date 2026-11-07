@@ -221,6 +221,16 @@ impl CommunityRepository for DynRepo {
     async fn put_community(&self, settings: &CommunitySettings) -> RepoResult<()> {
         self.0.put_community(settings).await
     }
+    async fn set_incident_pauses(
+        &self,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> RepoResult<()> {
+        self.0
+            .set_incident_pauses(guild, invites_until_ms, dms_until_ms)
+            .await
+    }
     async fn mark_raid(
         &self,
         guild: GuildId,

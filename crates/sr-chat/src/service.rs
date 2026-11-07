@@ -21,6 +21,15 @@ use sr_core::{
 };
 use std::sync::Arc;
 
+/// Striped locks for the slowmode check-then-insert, shared by every `ChatService` of the process (SEC-AUD-027).
+static SLOWMODE_LOCKS: [tokio::sync::Mutex<()>; 64] =
+    [const { tokio::sync::Mutex::const_new(()) }; 64];
+
+fn slowmode_lock(channel: ChannelId, author: UserId) -> &'static tokio::sync::Mutex<()> {
+    let key = channel.get() ^ author.get().rotate_left(17);
+    &SLOWMODE_LOCKS[usize::try_from(key % 64).unwrap_or(0)]
+}
+
 pub struct ChatService<R> {
     pub(crate) repo: R,
     pub(crate) clock: Arc<dyn Clock>,
@@ -435,6 +444,13 @@ impl<R: ChatRepository> ChatService<R> {
             Some(id) => self.repo.get_message(channel_id, id).await?,
             None => None,
         };
+        // Slowmode: the check and the insert run one at a time per (channel, author) in this process, so a
+        // burst of parallel sends cannot all pass the same last-sent time (SEC-AUD-027).
+        let slowmode_turn = if acc.channel.rate_limit_per_user > 0 {
+            Some(slowmode_lock(channel_id, author).lock().await)
+        } else {
+            None
+        };
         let last_sent = if acc.channel.rate_limit_per_user > 0 {
             self.repo.last_sent_ms(channel_id, author).await?
         } else {
@@ -525,6 +541,7 @@ impl<R: ChatRepository> ChatService<R> {
             message.flags |= hooks.extra_flags(&message).await;
         }
         self.repo.insert_message(&message).await?;
+        drop(slowmode_turn);
         if let Some(hooks) = &self.hooks {
             hooks.message_sent(&message, &notify).await;
         }

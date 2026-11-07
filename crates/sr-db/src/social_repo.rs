@@ -16,7 +16,7 @@ use sr_chat::social::dm::{
 use sr_chat::social::notifications::{ChannelOverride, Mute, NotificationLevel, ScopeSettings};
 use sr_chat::social::presence::{CustomStatus, PresencePrefs, Status};
 use sr_chat::social::profile::{Connection, Profile};
-use sr_chat::social::read_state::{MAX_MENTION_COUNT, ReadState};
+use sr_chat::social::read_state::{MAX_MENTION_COUNT, ReadState, ReadStateOp};
 use sr_chat::social::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
@@ -77,6 +77,70 @@ fn overrides_to_json(m: &BTreeMap<u64, bool>) -> serde_json::Value {
             .map(|(k, v)| (k.to_string(), (*v).into()))
             .collect(),
     )
+}
+
+const PRIVACY_SELECT: &str = "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, \
+        dm_server_members, dm_message_requests, media_friends, media_others, \
+        media_servers, dm_spam_filter, server_dm_overrides \
+     FROM user_privacy WHERE user_id = $1";
+
+fn privacy_from_row(r: &PgRow) -> RepoResult<Privacy> {
+    Ok(Privacy {
+        friend_requests: FriendRequestSources {
+            everyone: r.try_get("fr_everyone").map_err(db)?,
+            friends_of_friends: r.try_get("fr_friends_of_friends").map_err(db)?,
+            server_members: r.try_get("fr_server_members").map_err(db)?,
+        },
+        dms: DmPrivacy {
+            allow_server_member_dms: r.try_get("dm_server_members").map_err(db)?,
+            message_requests: r.try_get("dm_message_requests").map_err(db)?,
+        },
+        safety: SafetyPrefs {
+            sensitive_media: SensitiveMedia {
+                friends: media_filter(r, "media_friends")?,
+                others: media_filter(r, "media_others")?,
+                servers: media_filter(r, "media_servers")?,
+            },
+            dm_spam_filter: SpamFilter::from_code(r.try_get("dm_spam_filter").map_err(db)?)
+                .ok_or_else(|| bad("dm_spam_filter"))?,
+            server_dm_overrides: overrides_from_json(
+                &r.try_get::<serde_json::Value, _>("server_dm_overrides")
+                    .map_err(db)?,
+            ),
+        },
+    })
+}
+
+async fn write_privacy<'e, E: sqlx::PgExecutor<'e>>(
+    ex: E,
+    user: UserId,
+    p: &Privacy,
+) -> RepoResult<()> {
+    sqlx::query(
+        "INSERT INTO user_privacy (user_id, fr_everyone, fr_friends_of_friends, \
+           fr_server_members, dm_server_members, dm_message_requests, media_friends, \
+           media_others, media_servers, dm_spam_filter, server_dm_overrides) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+         ON CONFLICT (user_id) DO UPDATE SET fr_everyone = $2, fr_friends_of_friends = $3, \
+           fr_server_members = $4, dm_server_members = $5, dm_message_requests = $6, \
+           media_friends = $7, media_others = $8, media_servers = $9, dm_spam_filter = $10, \
+           server_dm_overrides = $11, updated_at = now()",
+    )
+    .bind(i(user.get()))
+    .bind(p.friend_requests.everyone)
+    .bind(p.friend_requests.friends_of_friends)
+    .bind(p.friend_requests.server_members)
+    .bind(p.dms.allow_server_member_dms)
+    .bind(p.dms.message_requests)
+    .bind(p.safety.sensitive_media.friends.code())
+    .bind(p.safety.sensitive_media.others.code())
+    .bind(p.safety.sensitive_media.servers.code())
+    .bind(p.safety.dm_spam_filter.code())
+    .bind(overrides_to_json(&p.safety.server_dm_overrides))
+    .execute(ex)
+    .await
+    .map_err(db)?;
+    Ok(())
 }
 
 fn guild_key(g: Option<GuildId>) -> i64 {
@@ -339,71 +403,47 @@ impl RelationshipRepository for PgSocialRepo {
     }
 
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy> {
-        let row = sqlx::query(
-            "SELECT fr_everyone, fr_friends_of_friends, fr_server_members, \
-                    dm_server_members, dm_message_requests, media_friends, media_others, \
-                    media_servers, dm_spam_filter, server_dm_overrides \
-             FROM user_privacy WHERE user_id = $1",
-        )
-        .bind(i(user.get()))
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(db)?;
-        let Some(r) = row else {
-            return Ok(Privacy::default());
-        };
-        Ok(Privacy {
-            friend_requests: FriendRequestSources {
-                everyone: r.try_get("fr_everyone").map_err(db)?,
-                friends_of_friends: r.try_get("fr_friends_of_friends").map_err(db)?,
-                server_members: r.try_get("fr_server_members").map_err(db)?,
-            },
-            dms: DmPrivacy {
-                allow_server_member_dms: r.try_get("dm_server_members").map_err(db)?,
-                message_requests: r.try_get("dm_message_requests").map_err(db)?,
-            },
-            safety: SafetyPrefs {
-                sensitive_media: SensitiveMedia {
-                    friends: media_filter(&r, "media_friends")?,
-                    others: media_filter(&r, "media_others")?,
-                    servers: media_filter(&r, "media_servers")?,
-                },
-                dm_spam_filter: SpamFilter::from_code(r.try_get("dm_spam_filter").map_err(db)?)
-                    .ok_or_else(|| bad("dm_spam_filter"))?,
-                server_dm_overrides: overrides_from_json(
-                    &r.try_get::<serde_json::Value, _>("server_dm_overrides")
-                        .map_err(db)?,
-                ),
-            },
-        })
+        let row = sqlx::query(PRIVACY_SELECT)
+            .bind(i(user.get()))
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(db)?;
+        row.as_ref()
+            .map_or_else(|| Ok(Privacy::default()), privacy_from_row)
     }
 
     async fn put_privacy(&self, user: UserId, p: &Privacy) -> RepoResult<()> {
-        sqlx::query(
-            "INSERT INTO user_privacy (user_id, fr_everyone, fr_friends_of_friends, \
-               fr_server_members, dm_server_members, dm_message_requests, media_friends, \
-               media_others, media_servers, dm_spam_filter, server_dm_overrides) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
-             ON CONFLICT (user_id) DO UPDATE SET fr_everyone = $2, fr_friends_of_friends = $3, \
-               fr_server_members = $4, dm_server_members = $5, dm_message_requests = $6, \
-               media_friends = $7, media_others = $8, media_servers = $9, dm_spam_filter = $10, \
-               server_dm_overrides = $11, updated_at = now()",
-        )
-        .bind(i(user.get()))
-        .bind(p.friend_requests.everyone)
-        .bind(p.friend_requests.friends_of_friends)
-        .bind(p.friend_requests.server_members)
-        .bind(p.dms.allow_server_member_dms)
-        .bind(p.dms.message_requests)
-        .bind(p.safety.sensitive_media.friends.code())
-        .bind(p.safety.sensitive_media.others.code())
-        .bind(p.safety.sensitive_media.servers.code())
-        .bind(p.safety.dm_spam_filter.code())
-        .bind(overrides_to_json(&p.safety.server_dm_overrides))
-        .execute(&self.pool)
-        .await
-        .map_err(db)?;
-        Ok(())
+        write_privacy(&self.pool, user, p).await
+    }
+
+    async fn replace_privacy(
+        &self,
+        user: UserId,
+        expected: &Privacy,
+        p: &Privacy,
+    ) -> RepoResult<bool> {
+        // The account row serialises the user's privacy writers even before a privacy row exists; the
+        // write happens only over the value the caller read (SEC-AUD-027).
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        sqlx::query("SELECT 1 FROM accounts WHERE id = $1 FOR NO KEY UPDATE")
+            .bind(i(user.get()))
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?;
+        let row = sqlx::query(PRIVACY_SELECT)
+            .bind(i(user.get()))
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?;
+        let current = row
+            .as_ref()
+            .map_or_else(|| Ok(Privacy::default()), privacy_from_row)?;
+        if current != *expected {
+            return Ok(false);
+        }
+        write_privacy(&mut *tx, user, p).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(true)
     }
 
     async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool> {
@@ -979,6 +1019,61 @@ impl ReadStateRepository for PgSocialRepo {
         .await
         .map_err(db)?;
         Ok(())
+    }
+
+    async fn apply_read_state(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+        op: ReadStateOp,
+    ) -> RepoResult<ReadState> {
+        // One statement each, touching only the change's own columns (SEC-AUD-027): an ack never moves the
+        // marker back (GREATEST) and never rewrites the pin-seen time; a pins ack writes nothing else.
+        // A new row gets the change's values and the defaults for the rest.
+        let (update, last_read, mentions, pin_ms) = match op {
+            ReadStateOp::Ack(up_to) => (
+                "last_read_message_id = GREATEST(read_states.last_read_message_id, \
+                   EXCLUDED.last_read_message_id), mention_count = 0",
+                Some(i(up_to.get())),
+                0_i32,
+                None,
+            ),
+            ReadStateOp::Unread {
+                previous_message,
+                mention_count,
+            } => (
+                "last_read_message_id = EXCLUDED.last_read_message_id, \
+                 mention_count = EXCLUDED.mention_count",
+                previous_message.map(|m| i(m.get())),
+                i32::try_from(mention_count.min(MAX_MENTION_COUNT)).unwrap_or(i32::MAX),
+                None,
+            ),
+            ReadStateOp::Pins(now_ms) => (
+                "last_pin_timestamp = GREATEST(read_states.last_pin_timestamp, \
+                   EXCLUDED.last_pin_timestamp)",
+                None,
+                0,
+                Some(now_ms),
+            ),
+        };
+        let sql = format!(
+            "INSERT INTO read_states (user_id, channel_id, last_read_message_id, mention_count, \
+               last_pin_timestamp) \
+             VALUES ($1, $2, $3, $4, to_timestamp($5::bigint / 1000.0)) \
+             ON CONFLICT (user_id, channel_id) DO UPDATE SET {update}, updated_at = now() \
+             RETURNING user_id, channel_id, last_read_message_id, mention_count, {} AS last_pin_ms",
+            ms("last_pin_timestamp")
+        );
+        let row = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(i(user.get()))
+            .bind(i(channel.get()))
+            .bind(last_read)
+            .bind(mentions)
+            .bind(pin_ms)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(db)?;
+        read_state_from_row(&row)
     }
 
     async fn list_read_states(&self, user: UserId) -> RepoResult<Vec<ReadState>> {

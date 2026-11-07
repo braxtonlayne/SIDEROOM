@@ -260,6 +260,12 @@ impl Moderation {
         let limits = self.limits().await?;
         let mut tx = self.pool.begin().await?;
 
+        // One report of this reporter at a time, so parallel reports cannot all pass the daily count
+        // (SEC-AUD-027). The count below runs after the lock and sees every committed report.
+        sqlx::query("SELECT 1 FROM accounts WHERE id = $1 FOR NO KEY UPDATE")
+            .bind(reporter)
+            .fetch_optional(&mut *tx)
+            .await?;
         let today: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM moderation_reports WHERE reporter_id = $1 AND created_at > now() - interval '1 day'",
         )

@@ -1927,3 +1927,116 @@ async fn a_self_delete_is_noted_on_the_members_open_cases_and_their_ban_case() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn releasing_the_last_hold_deletes_an_empty_group_dm() {
+    let w = world().await;
+    let s = staff(w.staff_id, P::MANAGE_CASES);
+    let who = Who::Staff(&s);
+    let pool = w.pool().clone();
+    let channel_exists = |c: i64| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS (SELECT 1 FROM channels WHERE id = $1)")
+                .bind(c)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        }
+    };
+    // Two group DMs: `empty` lost its last member while held (SEC-AUD-006), `lived` still has one.
+    let (empty, lived) = (uid(), uid());
+    for g in [empty, lived] {
+        exec(
+            w.pool(),
+            "INSERT INTO channels (id, guild_id, type, name, owner_id) VALUES ($1, NULL, 3, 'crew', $2)",
+            &[g, w.author],
+        )
+        .await;
+    }
+    exec(
+        w.pool(),
+        "INSERT INTO channel_recipients (channel_id, user_id) VALUES ($1, $2)",
+        &[lived, w.reporter],
+    )
+    .await;
+    let (m1, m2, m3) = (w.base, w.base + 1, w.base + 2);
+    message(w.pool(), m1, empty, w.author, "one").await;
+    message(w.pool(), m2, empty, w.author, "two").await;
+    message(w.pool(), m3, lived, w.author, "three").await;
+    let case =
+        w.m.open_case(
+            &who,
+            &NewCase {
+                category: ReportCategory::Harassment,
+                target_kind: TargetKind::Message,
+                target_id: Some(m1),
+                subject_account_id: Some(w.author),
+                summary: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+    let mut holds = Vec::new();
+    for m in [m1, m2, m3] {
+        let out =
+            w.m.place_hold(&who, case.id, HoldScope::Message(m), Some("evidence"))
+                .await
+                .unwrap();
+        holds.push(out.hold_id.unwrap());
+    }
+
+    // Another hold still freezes a row of the empty group: it stays.
+    w.m.release_hold(&who, holds[0], Some("done"))
+        .await
+        .unwrap();
+    assert!(channel_exists(empty).await);
+    // The last one goes: the empty group is deleted with its messages, in the same transaction.
+    w.m.release_hold(&who, holds[1], Some("done"))
+        .await
+        .unwrap();
+    assert!(!channel_exists(empty).await);
+    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM messages WHERE channel_id = $1")
+        .bind(empty)
+        .fetch_one(w.pool())
+        .await
+        .unwrap();
+    assert_eq!(left, 0);
+    // A group somebody is still in, and the guild channel, are never touched.
+    w.m.release_hold(&who, holds[2], Some("done"))
+        .await
+        .unwrap();
+    assert!(channel_exists(lived).await);
+    assert!(channel_exists(w.channel).await);
+}
+
+/// SEC-AUD-027: parallel reports from one reporter cannot all pass the daily limit.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn parallel_reports_do_not_pass_the_daily_limit_together() {
+    let w = world().await;
+    w.talk().await;
+    sqlx::query("INSERT INTO platform_settings (key, value) VALUES ('moderation.reports_per_day', '1'::jsonb)")
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let reqs: Vec<_> = (1..=4)
+        .map(|i| {
+            report(
+                TargetKind::Message,
+                w.base + i,
+                Some(w.channel),
+                ReportCategory::Spam,
+            )
+        })
+        .collect();
+    let (a, b, c, d) = tokio::join!(
+        w.m.file_report(w.reporter, &reqs[0]),
+        w.m.file_report(w.reporter, &reqs[1]),
+        w.m.file_report(w.reporter, &reqs[2]),
+        w.m.file_report(w.reporter, &reqs[3]),
+    );
+    let ok = [a, b, c, d].iter().filter(|r| r.is_ok()).count();
+    assert_eq!(ok, 1, "exactly one report within the limit of one a day");
+}

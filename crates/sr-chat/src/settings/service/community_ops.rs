@@ -203,7 +203,8 @@ impl<R: SettingsRepository> SettingsService<R> {
         let mut new = old.clone();
         new.invites_disabled_until_ms = invites;
         new.dms_disabled_until_ms = dms;
-        self.repo.put_community(&new).await?;
+        // Only the two pauses: the rest of the row is not this action's to write back (SEC-AUD-027).
+        self.repo.set_incident_pauses(guild, invites, dms).await?;
         let changes = diff(&old, &new);
         if !changes.is_empty() {
             self.record_audit(

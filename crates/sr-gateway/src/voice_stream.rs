@@ -289,6 +289,19 @@ impl Gateway {
                 Some(live) if live.session_id == cur.session_id && !live.self_stream => {}
                 _ => return Err(plain(JoinDenied::AlreadyStreaming)),
             }
+            // The allowance too: the count above was read before the awaits (SEC-AUD-027).
+            let others = st
+                .voice
+                .values()
+                .filter(|v| v.channel_id == cur.channel_id && v.user_id != user && !v.exempt)
+                .map(VoiceState::video_sends)
+                .fold(0u16, u16::saturating_add);
+            if !allowance_ok(others, mine_after, limits.video_senders, limits.exempt) {
+                return Err((
+                    JoinDenied::VideoLimitReached,
+                    json!({ "limit": limits.video_senders, "count": others }),
+                ));
+            }
             st.voice.insert(user, new.clone());
             st.vx.streams.insert(key, stream.clone());
         }
