@@ -43,3 +43,38 @@
   margin: 0;
   color: var(--danger, #d33);
 }
+/* XC-VIS-004: themed range and number controls (same look as the kit's Slider and inputs). */
+.utl-aud-field input[type='range'] {
+  inline-size: 100%;
+  margin: 0;
+  accent-color: var(--ui-accent);
+  cursor: pointer;
+}
+.utl-aud-field input[type='range']:focus-visible,
+.utl-aud-check input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.utl-aud-check input {
+  accent-color: var(--ui-accent);
+}
+.utl-aud-field input[type='number'] {
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 36px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  font: inherit;
+  color-scheme: inherit;
+}
+.utl-aud-field input[type='number']:hover {
+  border-color: var(--ui-text-faint);
+}
+.utl-aud-field input[type='number']:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}

@@ -559,3 +559,10 @@
 .us-title + .us-muted {
   margin: -12px 0 16px;
 }
+
+/* XC-VIS-004: the privacy rows stack label above select, so the select's arrow stays inside a phone screen. */
+.us-fields .us-field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
