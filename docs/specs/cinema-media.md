@@ -406,8 +406,11 @@ Review `{id, title_id, author_id, rating?, body, spoiler, helpful_count, voted, 
 Comments on a title or an episode, threaded one level: `GET/POST /cinema/titles/{id}/comments`,
 `GET/POST /cinema/titles/{id}/episodes/{eid}/comments` (`{body, spoiler?, parent_id?}`; a reply's parent must be top level),
 `GET /cinema/comments/{id}/replies`, `PATCH/DELETE /cinema/comments/{id}` (author), `PUT/DELETE /cinema/comments/{id}/like`.
-Comment `{id, title_id, episode_id, parent_id?, author_id, body, spoiler, like_count, reply_count, liked, mine, created_at_ms,
-edited_at_ms?}`. Authors the caller blocked or ignored are left out. Deleting a comment with replies removes the replies.
+Comment `{id, title_id, episode_id, parent_id?, author_id?, body, spoiler, like_count, reply_count, liked, mine, created_at_ms,
+edited_at_ms?, deleted}`. Authors the caller blocked or ignored are left out. Deleting a comment that has replies keeps it as a
+tombstone (D-572): body and author cleared (`body` "", `author_id` null), likes dropped, `deleted: true`, shown as "Comment
+deleted" with its replies; it takes no edit, like, report or new reply, is listed only while it has a visible reply, and is
+removed with its last reply. A comment with no replies is deleted outright.
 
 **Moderation hooks.** `POST /cinema/reviews/{id}/report` and `POST /cinema/comments/{id}/report` (`{reason}`) store a report (once per
 reporter and target) and call `ModerationHook::on_report`; `ModerationHook::screen` runs before a review or comment is stored and
