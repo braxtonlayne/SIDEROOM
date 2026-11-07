@@ -202,6 +202,39 @@ impl StaffCtx {
         self.now_secs
     }
 
+    /// The address a staff email change is about to replace (D-561); `None` without an account service.
+    pub async fn email_contact(
+        &self,
+        account_id: i64,
+    ) -> Option<crate::routes::auth::EmailContact> {
+        let auth = self.auth.as_ref()?;
+        match auth.email_contact(account_id).await {
+            Ok(c) => c,
+            Err(_) => {
+                tracing::warn!("could not read the address before a staff email change");
+                None
+            }
+        }
+    }
+
+    /// After a staff email change: the D-167 notice, named a staff action, to the old address (D-561).
+    pub async fn notify_staff_email_change(
+        &self,
+        account_id: i64,
+        old: Option<crate::routes::auth::EmailContact>,
+    ) {
+        let (Some(auth), Some(old)) = (&self.auth, old) else {
+            return;
+        };
+        if auth
+            .notify_staff_email_change(account_id, &old, self.now_secs)
+            .await
+            .is_err()
+        {
+            tracing::warn!("could not send the staff email change notice");
+        }
+    }
+
     /// Refuse unless this session passed a second-factor check in the last 15 minutes
     /// (ADM-STF-009). The client answers the `SrReauthRequired` error by calling
     /// `POST /admin/reauth` and retrying. A no-op when [`AdminDeps::require_reauth`] is off.
