@@ -42,7 +42,28 @@ Base: `integration/phase54` `1480498f`. No migrations, no new dependencies, no n
 - Vitest: `admin/__tests__/p55staffReauth.test.ts` (15 helpers: a 900004 opens the prompt once and retries once),
   `donations.test.tsx` new case (own id: message shown, Grant disabled, nothing posted; another id enables it).
 
-RESULTS_PLACEHOLDER
+Run, all green: `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-api --all-targets -- -D warnings`;
+`cargo test -j 4 -p sr-api --lib -- sensitive reauth_list donations` (18, incl. `sensitive_routes_wait_for_a_fresh_second_factor`);
+`cargo test -p sr-api --test route_matrix` (6); OpenAPI regenerated (only the grant summary changed) plus
+`schema.d.ts` and the MSW handlers; web tsc, eslint and prettier on changed files; vitest
+`p55staffReauth.test.ts` (15) and `donations.test.tsx` (12); `check-css-tokens`, `i18n-audit` (0),
+`check-doc-links`; `playwright test --list` (936 tests in 74 files). Not run: the full authorization matrix and
+`immutable_rules` (integration), `pnpm build`/entrance isolation/bundle budget (no public page touched; the new
+code is in the lazy admin chunk).
+
+Note on the lock: my retry loop took the heavy lock over at 13:00 as stale (the commander's lock from 11:45 was
+past heavy.sh's 75-minute limit), as heavy.sh is written to do. If the commander was still building then, two
+heavy jobs overlapped for that round.
+
+## Visual check and flows (`C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p55-staff/`)
+Own stack (my sr-server build, ports 8323/5323, DB `sr_p55_staff_ui`, dropped, stack stopped). Sweep
+`SR_SWEEP_ONLY='^admin-(donation-entitlements|accounts)$'`, desktop and phone, Lounge Light and the dark pass: clean,
+no flags; looked at. `probe/` holds the grant dialog with the Owner's own id typed in (message under the field, Grant
+disabled) and with another id (no message, Grant enabled), both viewports and themes; taken by a scratch spec that
+is not committed. The `grant-own-*` shots are a little dim because they were taken during the dialog's fade-in. The
+`grant-other-*` shots are taken later and are fully opaque. Flows run on the same stack with the window demanded
+(default): `admin-accounts.spec.ts` (Senior Staff suspends, answers the "Confirm it is you" dialog with a TOTP code,
+reactivates; Owner access log) and the `@gate` `moderation-gate.spec.ts` (R decides the appeal after re-auth); 3 passed.
 
 ## Owner questions (defaults chosen)
 1. `POST /admin/moderation/restrictions/{id}/lift` is gated too (it ends a restriction early; the D-row's "lift" names
