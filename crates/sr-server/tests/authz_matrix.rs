@@ -2249,6 +2249,14 @@ async fn seed(
     .await
         && let Some(n) = v["submission"]["id"].as_str()
     {
+        // SEC-AUD-034: to a reviewer, a submission that was never sent does not exist (404). The seeded one has no
+        // chapters and cannot be submitted, so it is marked as sent once: the reviewer routes then reach it and
+        // answer with their state rules, as before. The member's own draft routes are unchanged.
+        sqlx::query("UPDATE submissions SET submitted_at = now() WHERE id = $1")
+            .bind(n.parse::<i64>().expect("submission id"))
+            .execute(&pool)
+            .await
+            .expect("mark the seeded submission as sent");
         a.insert("submission_id", n.to_owned());
     }
     if let Some(v) = create(
@@ -4746,7 +4754,12 @@ const WRITE_OBSERVED_LEN: usize = 40;
 /// moderation hold keeps a message of the seed channel, so the Owner's delete is refused with 400
 /// `CHANNEL_UNDER_MODERATION_HOLD` after the permission check passed. Its refusals for every other actor are
 /// asserted as usual.
-const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 47];
+///
+/// Wave 54 raised `rest` from 47 to 48 for `POST /guilds/{guild_id}/arcade/cartridges` (SEC-AUD-032, D-568): a
+/// cartridge's tier is read from its file's `sideroom.json` on a shelf bucket, which the matrix has not got, so the
+/// Owner's listing is refused with 400 on `source_ref` after the `MANAGE_GUILD` check passed. Its refusals for every
+/// other actor are asserted as usual.
+const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 48];
 
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
