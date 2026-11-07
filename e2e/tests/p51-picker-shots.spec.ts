@@ -51,7 +51,14 @@ async function playShelf(page: Page) {
   await page.route(/\/api\/v1\/shelves\/55\/objects(\?.*)?$/, (r: Route) => {
     const q = new URL(r.request().url()).searchParams.get('q')?.toLowerCase() ?? '';
     const objects = FILES.filter(
-      (f) => !q || f.path.toLowerCase().includes(q) || f.title.toLowerCase().includes(q),
+      (f) =>
+        !q ||
+        String(f.path ?? '')
+          .toLowerCase()
+          .includes(q) ||
+        String(f.title ?? '')
+          .toLowerCase()
+          .includes(q),
     );
     void r.fulfill({ json: { objects, next_cursor: null, can_edit: true } });
   });
