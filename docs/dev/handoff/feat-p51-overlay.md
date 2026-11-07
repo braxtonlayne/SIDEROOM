@@ -58,18 +58,38 @@ lounge-light,lounge-dark}-z{100,150}`. Read: all three themes, both viewports, b
   trigger on desktop, flipped above it on a phone at 150 % (no room below), correct.
 - The Lounge page itself was not changed; the shots enter from a Lounge channel.
 
-## Not done / notes
-- On a phone at 150 % the layer is 250 px wide: a gadget fills it and covers the rail (909 over 908), and the dock
-  (910) covers the rail panel. That is the stated layer order, just crowded at that size; the spec presses the rail
-  button directly there. See owner question 2.
-- Kit dialogs and menus outside the overlay root (the Lounge's own zoomed root) still use unscaled `100dvh` /
-  `100vh` maxima, a pre-existing issue at high zoom on small screens; not in this task's scope (owner question 3).
-- Browsers without `currentCSSZoom` get `effectiveZoom` 1, i.e. the old placement. Only Chromium was shot.
+## Follow-ups D-553..D-555 (Fable's answers, built the same evening)
+- **D-553** (gadget rectangles in the layer's zoomed px): no change.
+- **D-554** (commit "the open rail panel comes above gadgets and the dock"): `PinRail` marks the wrap `data-open`
+  while a panel shows; `tools.css` raises `.sr-tl-rail-wrap[data-open]` to 911 (908 rail, 909 gadgets, 910 dock,
+  911 open rail panel, 1000 modals, 1050 menus, commented). `layers.test.ts` asserts the order.
+- **D-555** (commit "the kit token --ui-zoom"): `UI_ZOOM_TOKEN` / `zoomVars` in `packages/ui/src/theme/runtime.ts`
+  (default 1 through `var(--ui-zoom, 1)`; deliberately not in `appearanceVars`, so a nested provider inherits it
+  rather than resetting it). Modal, Menu, Drawer, Feedback and Overlay module CSS divide their viewport maxima by it.
+  `applyPrefs` sets it beside `zoom` (the Lounge, Library and other section roots), `ThemedOverlayRoot` beside
+  `--sr-overlay-zoom`; `overlay-root.css` keeps only the zoom rule. `check-css-tokens` scans the five kit files for an
+  undivided viewport unit (`scanZoom`, tested). The token name is neutral (no section or theme name).
+- Decisions D-553..D-555 pasted after D-540 (no D-541..D-552 rows were present in this branch); D-554/D-555 status
+  notes "built in wave 51".
+- Tests: `layers.test.ts` (order, every kit viewport length divided, a dialog at 150 % on an 812 px phone fits),
+  `Overlay/zoom.test.tsx` (the token), `overlayZoom.test.tsx` (both roots set it, the copies are gone, the rail rule),
+  `check-css-tokens.test.mjs` (7 pass). The shots spec now also checks the open rail panel is topmost and the Lounge
+  full-profile dialog fits the screen.
+- Shots (own stack again, DB recreated and dropped, stack stopped by PID; spec 1 passed): 48 in
+  `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p51-overlay-followup/` plus `report.txt`. Read
+  `rail-panel-phone-*-z150` (the open panel above the playing dock, wrap z 911, `elementFromPoint` hits the panel in
+  all 12 captures) and `menu-in-dialog-phone-*-z150` (the Lounge full-profile dialog, portalled into the Lounge's own
+  zoomed root: bottom 782 of 812 px, was past the screen before; the menu topmost at 1050).
+- Seen, not changed: on a phone at 150 % the Lounge full-profile dialog is wider than the screen (428 px drawn on
+  375, clipped at the inline-start too). The Lounge root itself is laid out at 250 CSS px there; the dialog's width
+  comes from its content, not a viewport maximum, so it is outside D-555. Candidate for the next round.
+- Gates (inside the lock): web build, `check-entrance-isolation` (clean; its node tests 21 pass), `check-bundle-budget`
+  (all ok), vitest `apps/web` `src/tools` + `src/settings/user/__tests__` (58 files, 537 passed), `packages/ui` `src`
+  (18 files, 351 passed), `playwright --list` (913 tests), `check-css-tokens` (clean), `i18n-audit` (0), web and ui
+  `tsc`, eslint + prettier on changed files.
 
-## Owner questions (for Fable)
-1. Gadget rectangles are stored in the layer's zoomed px, so a gadget saved at 100 % opens 1.5x further in at 150 %
-   (re-clamped to the window). Default: keep it (one number, no migration); alternative: store viewport px.
-2. Phone at 150 %+: should the dock or a gadget yield to the pin rail (e.g. the rail above both), or keep 908 < 909 <
-   910? Default: kept.
-3. Divide the kit's dialog/menu viewport maxima by the zoom everywhere (needs a kit-level zoom token, which would be a
-   new `--ui-*` token)? Default: only inside the overlay root this wave.
+## Notes
+- On a phone at 150 % the layer is 250 px wide: a gadget fills it and covers the rail button (909 over 908, D-553/554
+  keep that: the gadget's close button stays on screen); the spec presses the rail button directly there.
+- Browsers without `currentCSSZoom` get `effectiveZoom` 1, i.e. the old placement. Only Chromium was shot.
+- Owner questions 1-3 of the first round are answered by D-553..D-555; no new questions.

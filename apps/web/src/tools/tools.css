@@ -222,11 +222,16 @@
   inset-block-start: 50%;
   inset-inline-end: 0;
   transform: translateY(-50%);
+  /* D-554: 908 the pin rail, 909 gadgets, 910 the player dock, 911 the rail while its panel is open (the panel lives
+     in this stacking context, made by the transform), 1000 modals, 1050 menus and popovers. */
   z-index: 908;
   display: flex;
   align-items: flex-start;
   gap: 0.25rem;
   pointer-events: none;
+}
+.sr-tl-rail-wrap[data-open] {
+  z-index: 911; /* the panel the member just opened comes above the gadgets and the dock (D-554) */
 }
 .sr-tl-rail {
   pointer-events: auto;

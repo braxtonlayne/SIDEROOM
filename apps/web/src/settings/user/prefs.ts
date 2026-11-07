@@ -9,7 +9,7 @@
  * (docs/10 section 6) and `data-*` attributes (see `prefs-effects.css`).
  */
 import type { AppearanceSettings, ThemeId } from '@sideroom/ui';
-import { isThemeId } from '@sideroom/ui';
+import { isThemeId, zoomVars } from '@sideroom/ui';
 import type { CSSProperties } from 'react';
 import { create } from 'zustand';
 import { getHour12, setFormatLocale, setHour12 } from '../../i18n';
@@ -399,7 +399,8 @@ export function applyPrefs(
     p.theme === 'system' ? (systemDark ? 'lounge-dark' : 'lounge-light') : p.theme;
   const style: Record<string, string | number> = {};
   // CSS zoom scales layout and text together; it is a no-op at 100.
-  if (p.zoom !== 100) style.zoom = p.zoom / 100;
+  // The kit's --ui-zoom rides with it (D-555), so dialogs and menus inside divide their viewport maxima by it.
+  if (p.zoom !== 100) Object.assign(style, { zoom: p.zoom / 100 }, zoomVars(p.zoom / 100));
   style['--lng-message-gap'] = `${p.messageGap}px`;
   return {
     userGlobal,
