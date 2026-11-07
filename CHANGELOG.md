@@ -14,6 +14,8 @@ what the operator now has to know. Keep each wave to a handful of lines.
   dialog shows a single Cancel button.
 - **Privacy settings fit a phone.** The Profiles privacy rows stack their label above the choice, so nothing runs
   off a narrow screen.
+- **Clearer empty search.** A file-picker search that finds nothing now says no file matches, instead of saying the
+  shelf has nothing the game can use.
 
 ## Phase 51 - 2026-11-06
 

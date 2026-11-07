@@ -230,7 +230,11 @@ export default function ShelfPicker({
               </p>
             ) : shown.length === 0 ? (
               <p className="act-muted">
-                {t(rows.length === 0 ? 'activities.pick.empty' : 'activities.pick.noMatch')}
+                {t(
+                  rows.length === 0 && !query.trim()
+                    ? 'activities.pick.empty'
+                    : 'activities.pick.noMatch',
+                )}
               </p>
             ) : (
               <ul className="act-pick-list" aria-label={t('activities.pick.files')}>
