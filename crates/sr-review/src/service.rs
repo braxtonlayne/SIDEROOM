@@ -238,7 +238,18 @@ impl ReviewService {
         let s = self.load(id).await?;
         let kind = self.kinds.get(&s.kind)?.clone();
         need(c, kind.review_permission())?;
+        Self::ever_sent(&s)?;
         Ok((s, kind))
+    }
+
+    /// A submission that was never sent for review (a draft, or one withdrawn while still a draft) is its
+    /// submitter's alone: to a reviewer it does not exist.
+    fn ever_sent(s: &Submission) -> ReviewResult<()> {
+        if s.submitted_at_ms.is_some() {
+            Ok(())
+        } else {
+            Err(ReviewError::NotFound("submission"))
+        }
     }
 
     /// A reviewer never decides their own submission.
@@ -446,7 +457,7 @@ impl ReviewService {
         let items = self.check_ready(&s, kind.as_ref()).await?;
         self.sync_items(id, items, action == Action::Resubmit)
             .await?;
-        let snapshot = kind.preview(&s).await?;
+        let snapshot = kind.preview(&s, &self.repo.items(s.id).await?).await?;
         let ev = self.event(
             if action == Action::Resubmit {
                 "resubmitted"
@@ -664,7 +675,7 @@ impl ReviewService {
             return Ok(s);
         }
         let kind = self.kinds.get(&s.kind)?;
-        if c.permissions.has(kind.review_permission()) {
+        if c.permissions.has(kind.review_permission()) && s.submitted_at_ms.is_some() {
             Ok(s)
         } else {
             Err(ReviewError::NotFound("submission"))
@@ -696,7 +707,8 @@ impl ReviewService {
 
     pub async fn preview_mine(&self, user: i64, id: i64) -> ReviewResult<Value> {
         let s = self.load_own(user, id).await?;
-        self.kinds.get(&s.kind)?.preview(&s).await
+        let items = self.repo.items(s.id).await?;
+        self.kinds.get(&s.kind)?.preview(&s, &items).await
     }
 
     pub async fn list_mine(
@@ -772,12 +784,12 @@ impl ReviewService {
     /// The videos of the items under review (reviewers of the kind).
     pub async fn media_for_review(&self, c: Caller, id: i64) -> ReviewResult<Vec<MediaRef>> {
         let (s, kind) = self.load_for_review(c, id).await?;
-        kind.media(&s).await
+        kind.media(&s, &self.repo.items(s.id).await?).await
     }
 
     pub async fn preview_for_review(&self, c: Caller, id: i64) -> ReviewResult<Value> {
         let (s, kind) = self.load_for_review(c, id).await?;
-        kind.preview(&s).await
+        kind.preview(&s, &self.repo.items(s.id).await?).await
     }
 
     /// The review queue: kinds the caller may review, submitted and in review by default,
@@ -800,6 +812,9 @@ impl ReviewService {
         if q.states.is_empty() {
             q.states = vec![SubmissionState::Submitted, SubmissionState::InReview];
         }
+        // Another member's unsent work is not the reviewer's to read, whatever `state` was asked for: a draft
+        // never shows, nor one withdrawn before it was sent (SEC-AUD-034).
+        q.submitted_only = true;
         self.page(q, Some(c.user_id)).await
     }
 

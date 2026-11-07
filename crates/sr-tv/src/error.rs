@@ -10,6 +10,9 @@ pub enum TvError {
     Conflict(String),
     #[error("missing platform permission {0}")]
     MissingPermission(&'static str),
+    /// Refused whatever the caller's permissions (403), with the reason.
+    #[error("{0}")]
+    Forbidden(&'static str),
     /// The airing programme is age restricted and the viewer has not confirmed their age (D-184).
     #[error("age confirmation required")]
     AgeConfirmationRequired,

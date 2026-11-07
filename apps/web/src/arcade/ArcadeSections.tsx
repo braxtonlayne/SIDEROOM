@@ -19,7 +19,7 @@ import { GameArt } from './GameArt';
 import type { Lobby } from '../activities/types';
 import { GameCard } from './GameCard';
 import type { PlayTarget } from './StartInDialog';
-import { TIERS, type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
+import { type Cartridge, type ComingSoonCard, type FeaturedCard, type Tier } from './types';
 import type { CapabilityFlag } from './types';
 import { apiFetch } from '../api/client';
 import { objectPath } from '../study/objectUrl';
@@ -485,7 +485,6 @@ interface CartridgeDraft {
   title: string;
   description: string;
   kind: 'game' | 'mod';
-  tier: Tier;
   source: string;
 }
 
@@ -509,12 +508,11 @@ function ListCartridgeDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [kind, setKind] = useState<'game' | 'mod'>('game');
-  const [tier, setTier] = useState<Tier>('TIER_1_ORIGINAL');
   const [source, setSource] = useState('');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    void onSubmit({ title, description, kind, tier, source }).then((ok) => {
+    void onSubmit({ title, description, kind, source }).then((ok) => {
       if (!ok) return;
       setTitle('');
       setDescription('');
@@ -554,16 +552,6 @@ function ListCartridgeDialog({
               <option value="mod">{t('arcade.cartridges.kindMod')}</option>
             </select>
           </label>
-          <label className="arc-field">
-            <span>{t('arcade.cartridges.tier')}</span>
-            <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
-              {TIERS.map((x) => (
-                <option key={x} value={x}>
-                  {t(tierKey(x))}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
         <TextInput
           label={t('arcade.cartridges.source')}
@@ -571,6 +559,7 @@ function ListCartridgeDialog({
           value={source}
           onChange={(e) => setSource(e.target.value)}
         />
+        <p className="arc-form-note">{t('arcade.cartridges.tierFromManifest')}</p>
         {error && (
           <Notice variant="danger" title={t('arcade.cartridges.addFailed', { reason: error })} />
         )}
@@ -635,9 +624,7 @@ export function CartridgesSection({
         title: i.title,
         description: i.description,
         kind: i.kind,
-        tier: i.tier,
         source_ref: i.source,
-        capabilities: [],
         tip_links: [],
       });
       setItems((cur) => [c, ...(cur ?? [])]);

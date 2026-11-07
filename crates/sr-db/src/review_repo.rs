@@ -930,6 +930,9 @@ fn push_filters(
             .push_bind(ts(now_ms))
             .push("))");
     }
+    if q.submitted_only {
+        qb.push(" AND submitted_at IS NOT NULL");
+    }
     if let Some(t) = q.submitted_before_ms {
         qb.push(" AND submitted_at <= to_timestamp(")
             .push_bind(ts(t))

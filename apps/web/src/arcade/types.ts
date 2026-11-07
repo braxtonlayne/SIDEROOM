@@ -77,15 +77,17 @@ export interface Cartridge {
   added_at_ms: number;
 }
 
+/**
+ * A cartridge to list. Its tier and capabilities come from the file's `sideroom.json` (D-568): the
+ * server reads them and refuses typed values that differ, so the form sends neither.
+ */
 export interface CartridgeInput {
   title: string;
   description: string;
   kind: 'game' | 'mod';
-  tier: Tier;
   source_ref: string;
   shelf_id?: string;
   object_hash?: string;
-  capabilities: string[];
   tip_links: TipLink[];
 }
 

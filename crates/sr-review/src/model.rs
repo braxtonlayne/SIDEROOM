@@ -274,6 +274,9 @@ pub struct SubmissionQuery {
     /// Submitted at or before this time (age filter).
     pub submitted_before_ms: Option<i64>,
     pub title_contains: Option<String>,
+    /// Only submissions that were sent for review at least once (`submitted_at` set). The review queue sets it,
+    /// so a reviewer never lists another member's draft, nor one withdrawn before it was ever sent.
+    pub submitted_only: bool,
     pub sort: SortKey,
     pub descending: bool,
     pub limit: u32,

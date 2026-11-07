@@ -613,16 +613,19 @@ impl SubmissionKind for LibraryKind {
         Ok(problems)
     }
 
-    async fn preview(&self, s: &Submission) -> ReviewResult<Value> {
+    async fn preview(&self, s: &Submission, mine: &[SubmissionItem]) -> ReviewResult<Value> {
         let series = series_of(s)?;
         let detail = self.svc.admin_series(sponsor(0), series).await?;
         let chapters = self.chapters_of(series).await?;
         let items = if self.new_series {
             chapters.iter().collect::<Vec<_>>()
         } else {
-            // The chapters of this submission are the unpublished ones (published ones are
-            // the series' existing catalog).
-            chapters.iter().filter(|c| !c.published).collect()
+            // The chapters of this submission: the unpublished ones it registered. Another member's pending
+            // chapters for the same series are theirs, not this submission's (SEC-AUD-034).
+            chapters
+                .iter()
+                .filter(|c| !c.published && mine.iter().any(|i| i.ref_id == c.id))
+                .collect()
         };
         Ok(json!({
             "series_id": series.to_string(),

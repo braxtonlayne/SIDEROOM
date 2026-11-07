@@ -164,7 +164,7 @@ impl DraftOps {
 
     /// The draft episodes this submission owns. For a new title that is every episode; for new
     /// episodes of a published series it is the unpublished ones the submission created.
-    fn owned<'a>(
+    pub(crate) fn owned<'a>(
         s: &Submission,
         items: &[SubmissionItem],
         detail: &'a AdminTitleDetail,

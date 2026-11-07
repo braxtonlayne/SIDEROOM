@@ -17790,6 +17790,10 @@ export interface components {
         };
         /** @description A cartridge to list. */
         ArcadeCartridgeInput: {
+            /**
+             * @description Leave it out: the capabilities are read from the cartridge's `sideroom.json` (D-568). When sent (not
+             *     empty) they must equal what the manifest declares, or the listing is refused (400 on `capabilities`).
+             */
             capabilities?: string[];
             description?: string;
             /** @description `game` or `mod`. */
@@ -17801,11 +17805,12 @@ export interface components {
              */
             shelf_id?: string | null;
             /**
-             * @description A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes
+             * @description A path on one of this server's own shelves (such as `games/pong.zip`), which names the cartridge's file
+             *     when `shelf_id` and `object_hash` are left out. With them it may be empty: the server writes
              *     `shelf:<shelf_id>/<object_hash>`.
              */
             source_ref?: string;
-            tier: components["schemas"]["ArcadeTier"];
+            tier?: null | components["schemas"]["ArcadeTier"];
             tip_links?: components["schemas"]["ArcadeTipInput"][];
             title: string;
         };

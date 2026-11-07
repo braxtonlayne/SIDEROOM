@@ -448,8 +448,12 @@ pub struct CartridgeInput {
     pub description: String,
     /// `game` or `mod`.
     pub kind: String,
-    pub tier: Tier,
-    /// A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes
+    /// Leave it out: the tier is read from the cartridge's `sideroom.json` (D-568). When sent it must equal what
+    /// the manifest declares, or the listing is refused (400 on `tier`).
+    #[serde(default)]
+    pub tier: Option<Tier>,
+    /// A path on one of this server's own shelves (such as `games/pong.zip`), which names the cartridge's file
+    /// when `shelf_id` and `object_hash` are left out. With them it may be empty: the server writes
     /// `shelf:<shelf_id>/<object_hash>`.
     #[serde(default)]
     pub source_ref: String,
@@ -459,10 +463,20 @@ pub struct CartridgeInput {
     pub shelf_id: Option<String>,
     #[serde(default)]
     pub object_hash: Option<String>,
+    /// Leave it out: the capabilities are read from the cartridge's `sideroom.json` (D-568). When sent (not
+    /// empty) they must equal what the manifest declares, or the listing is refused (400 on `capabilities`).
     #[serde(default)]
     pub capabilities: Vec<String>,
     #[serde(default)]
     pub tip_links: Vec<TipInput>,
+}
+
+/// Reads a cartridge's file from its shelf for [`ArcadeService::add_cartridge`] (D-568). The HTTP layer
+/// implements it with the shelf's sealed credentials and the endpoint guard; the service never holds a bucket.
+#[async_trait::async_trait]
+pub trait CartridgeObjects: Send + Sync {
+    /// The first `len` bytes of the object at `path` on shelf (mount) `shelf`. `Err` is the reason for the lister.
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String>;
 }
 
 /// A tip link in a request.
@@ -950,13 +964,45 @@ impl ArcadeService {
             .map_err(Into::into)
     }
 
-    /// List a cartridge on a server. The same manifest rules as a bundle: a known tier, known flags that the
-    /// tier permits, tip links on the allow-list.
+    /// Fetch a cartridge's file (`size` bytes, from the catalog) and read its `sideroom.json`.
+    async fn cartridge_manifest(
+        &self,
+        objects: &dyn CartridgeObjects,
+        shelf: i64,
+        path: &str,
+        size: i64,
+    ) -> ActivityResult<Manifest> {
+        let len = u64::try_from(size).unwrap_or(0);
+        if len == 0 {
+            return Err(invalid("object_hash", "is an empty file, not a game."));
+        }
+        if len > bundle::MAX_UNPACKED_BYTES {
+            return Err(invalid(
+                "object_hash",
+                "is larger than 32 MiB, too large for a cartridge.",
+            ));
+        }
+        let bytes = objects
+            .read(shelf, path, len)
+            .await
+            .map_err(|m| invalid("object_hash", m))?;
+        tokio::task::spawn_blocking(move || bundle::read_manifest(&bytes))
+            .await
+            .map_err(|e| ActivityError::Storage(e.to_string()))?
+            .map_err(|e| invalid("object_hash", format!("could not be read: {}", e.text())))
+    }
+
+    /// List a cartridge on a server. The cartridge names a file: a catalog object (`shelf_id` and `object_hash`)
+    /// or a path on one of this server's own shelves (`source_ref`). Its tier and capabilities are read from that
+    /// file's `sideroom.json` (D-568) with the bundle reader's rules ([`bundle::read_manifest`]) and stored on the
+    /// row; a typed tier or capability list that differs is refused, naming the field. A file without a declared
+    /// tier is not listed (the Arcade lists only the two tiers). Tip links are the lister's, on the allow-list.
     pub async fn add_cartridge(
         &self,
         guild: i64,
         user: i64,
         input: CartridgeInput,
+        objects: &dyn CartridgeObjects,
     ) -> ActivityResult<CartridgeView> {
         let title = text("title", &input.title, 2, 60)?;
         let description = if input.description.trim().is_empty() {
@@ -967,8 +1013,32 @@ impl ArcadeService {
         if !matches!(input.kind.as_str(), "game" | "mod") {
             return Err(invalid("kind", "must be game or mod."));
         }
-        let object = match (input.shelf_id.as_deref(), input.object_hash.as_deref()) {
-            (None, None) => None,
+        // (shelf, object_hash, path, size) of the cartridge's file.
+        let object: (i64, String, String, i64) = match (
+            input.shelf_id.as_deref(),
+            input.object_hash.as_deref(),
+        ) {
+            (None, None) => {
+                // A path on one of this server's own shelves (the lister's form): the oldest shelf that has it.
+                let path = source_ref(&input.source_ref)?;
+                let row: Option<(i64, String, String, i64)> = sqlx::query_as(
+                    "SELECT o.shelf_id, o.object_hash, o.path, o.size FROM shelf_objects o \
+                     JOIN storage_mounts m ON m.id = o.shelf_id \
+                     WHERE m.owner_kind = 'guild' AND m.owner_id = $1 AND o.path = $2 \
+                       AND o.listed AND o.delisted_at IS NULL \
+                     ORDER BY o.shelf_id LIMIT 1",
+                )
+                .bind(guild)
+                .bind(&path)
+                .fetch_optional(&self.pool)
+                .await?;
+                row.ok_or_else(|| {
+                    invalid(
+                        "source_ref",
+                        "is not a file on this server's shelf (or it was taken down).",
+                    )
+                })?
+            }
             (Some(s), Some(h)) => {
                 let shelf = s
                     .trim()
@@ -987,40 +1057,35 @@ impl ArcadeService {
                 // Only an object in the catalog that is not delisted, on a shelf the lister owns, the server owns,
                 // or that is shared with one of this server's roles. Access is checked again for every member
                 // when the per-object URL is minted.
-                let listed: bool = sqlx::query_scalar(
-                    "SELECT EXISTS (SELECT 1 FROM shelf_objects o JOIN storage_mounts m ON m.id = o.shelf_id \
+                let row: Option<(i64, String, String, i64)> = sqlx::query_as(
+                    "SELECT o.shelf_id, o.object_hash, o.path, o.size \
+                     FROM shelf_objects o JOIN storage_mounts m ON m.id = o.shelf_id \
                      WHERE o.shelf_id = $1 AND o.object_hash = $2 AND o.delisted_at IS NULL AND o.listed \
                      AND ((m.owner_kind = 'user' AND m.owner_id = $3) \
                           OR (m.owner_kind = 'guild' AND m.owner_id = $4) \
                           OR EXISTS (SELECT 1 FROM shelf_grants g WHERE g.shelf_id = o.shelf_id \
                                      AND g.grantee_kind = 'guild_role' AND g.guild_id = $4 \
-                                     AND g.revoked_at IS NULL)))",
+                                     AND g.revoked_at IS NULL))",
                 )
                 .bind(shelf)
                 .bind(&hash)
                 .bind(user)
                 .bind(guild)
-                .fetch_one(&self.pool)
+                .fetch_optional(&self.pool)
                 .await?;
-                if !listed {
-                    return Err(invalid(
+                row.ok_or_else(|| {
+                    invalid(
                         "object_hash",
                         "is not a file on that shelf (or it was taken down).",
-                    ));
-                }
-                Some((shelf, hash))
+                    )
+                })?
             }
             _ => {
                 return Err(invalid("shelf_id", "shelf_id and object_hash go together."));
             }
         };
-        let source = match &object {
-            Some((shelf, hash)) if input.source_ref.trim().is_empty() => {
-                format!("shelf:{shelf}/{hash}")
-            }
-            _ => source_ref(&input.source_ref)?,
-        };
-        let mut caps: Vec<String> = Vec::new();
+        // Typed values are checked for shape before the file is fetched.
+        let mut typed_caps: Vec<String> = Vec::new();
         for c in &input.capabilities {
             if !accepts(c) {
                 return Err(invalid(
@@ -1031,13 +1096,47 @@ impl ArcadeService {
                     ),
                 ));
             }
-            if !caps.contains(c) {
-                caps.push(c.clone());
+            if !typed_caps.contains(c) {
+                typed_caps.push(c.clone());
             }
         }
-        caps.sort();
-        check_flags(Some(input.tier), &caps).map_err(|m| invalid("capabilities", m))?;
+        typed_caps.sort();
         let tips = tips_of(&input.tip_links)?;
+        let (shelf, hash, path, size) = object;
+        let manifest = self.cartridge_manifest(objects, shelf, &path, size).await?;
+        let Some(tier) = manifest.tier else {
+            return Err(invalid(
+                "object_hash",
+                format!(
+                    "has no tier in its {MANIFEST}: the Arcade lists only games that declare \
+                     \"tier\": \"{TIER_1}\" or \"{TIER_2}\"."
+                ),
+            ));
+        };
+        if input.tier.is_some_and(|t| t != tier) {
+            return Err(invalid(
+                "tier",
+                format!(
+                    "does not match the cartridge's {MANIFEST}, which declares {}. Leave it out.",
+                    tier.as_str()
+                ),
+            ));
+        }
+        if !typed_caps.is_empty() && typed_caps != manifest.capabilities {
+            return Err(invalid(
+                "capabilities",
+                format!(
+                    "do not match the cartridge's {MANIFEST}, which declares [{}]. Leave them out.",
+                    manifest.capabilities.join(", ")
+                ),
+            ));
+        }
+        let caps = manifest.capabilities;
+        let source = if input.source_ref.trim().is_empty() {
+            format!("shelf:{shelf}/{hash}")
+        } else {
+            source_ref(&input.source_ref)?
+        };
         let mut tx = self.pool.begin().await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtext('arcade_cartridges')::bigint # $1)")
             .bind(guild)
@@ -1067,13 +1166,13 @@ impl ArcadeService {
         .bind(&title)
         .bind(&description)
         .bind(&input.kind)
-        .bind(input.tier.as_str())
+        .bind(tier.as_str())
         .bind(&source)
         .bind(&caps)
         .bind(tips_json)
         .bind(user)
-        .bind(object.as_ref().map(|(s, _)| *s))
-        .bind(object.as_ref().map(|(_, h)| h.clone()))
+        .bind(shelf)
+        .bind(&hash)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;

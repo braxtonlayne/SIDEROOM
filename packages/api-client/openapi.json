@@ -84834,15 +84834,15 @@
         "description": "A cartridge to list.",
         "required": [
           "title",
-          "kind",
-          "tier"
+          "kind"
         ],
         "properties": {
           "capabilities": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Leave it out: the capabilities are read from the cartridge's `sideroom.json` (D-568). When sent (not\nempty) they must equal what the manifest declares, or the listing is refused (400 on `capabilities`)."
           },
           "description": {
             "type": "string"
@@ -84866,10 +84866,18 @@
           },
           "source_ref": {
             "type": "string",
-            "description": "A shelf locator. With `shelf_id` and `object_hash` it may be empty: the server writes\n`shelf:<shelf_id>/<object_hash>`."
+            "description": "A path on one of this server's own shelves (such as `games/pong.zip`), which names the cartridge's file\nwhen `shelf_id` and `object_hash` are left out. With them it may be empty: the server writes\n`shelf:<shelf_id>/<object_hash>`."
           },
           "tier": {
-            "$ref": "#/components/schemas/ArcadeTier"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ArcadeTier",
+                "description": "Leave it out: the tier is read from the cartridge's `sideroom.json` (D-568). When sent it must equal what\nthe manifest declares, or the listing is refused (400 on `tier`)."
+              }
+            ]
           },
           "tip_links": {
             "type": "array",

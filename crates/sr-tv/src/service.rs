@@ -1113,9 +1113,22 @@ impl TvService {
         Ok(self.view(&rec, Some((cur.as_ref(), next.as_ref())), true))
     }
 
+    /// D-569: a `personal` pool is for that member alone, so only that member may bind a channel to it. Staff
+    /// holding `MANAGE_TV` cannot point a channel at somebody else's personal shelf (it would read that shelf
+    /// into the admin schedule views); the member route (BYOS-TV-002) keeps the same rule.
+    fn own_pool(a: Actor, input: &ChannelInput) -> TvResult<()> {
+        match input.pool {
+            PoolSource::Personal { user_id } if user_id != a.user_id => Err(TvError::Forbidden(
+                "A personal channel can only be set up by the member whose shelf it airs",
+            )),
+            _ => Ok(()),
+        }
+    }
+
     pub async fn create_channel(&self, a: Actor, input: ChannelInput) -> TvResult<Channel> {
         a.need()?;
         let input = input.checked().map_err(TvError::Invalid)?;
+        Self::own_pool(a, &input)?;
         let seed = self.id().max(1);
         let rec = self
             .repo
@@ -1132,6 +1145,7 @@ impl TvService {
     ) -> TvResult<Channel> {
         a.need()?;
         let input = input.checked().map_err(TvError::Invalid)?;
+        Self::own_pool(a, &input)?;
         let rec = self
             .repo
             .update_channel(id, &input, self.clock_ms())
@@ -1644,7 +1658,9 @@ impl TvService {
             .get_block(block_id)
             .await?
             .ok_or(TvError::NotFound("block"))?;
-        self.public_channel(block.channel_id).await?;
+        // Like every other member route: a channel the viewer may not watch (another member's personal channel,
+        // a server they are not in) is unknown to them, so its name and programme never reach their DMs.
+        self.require_watch(viewer, block.channel_id).await?;
         let now = self.clock_ms();
         if block.kind != BlockKind::Program {
             return Err(TvError::Invalid(

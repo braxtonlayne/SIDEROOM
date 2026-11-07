@@ -17,15 +17,16 @@ use crate::routes::admin::{StaffCtx, map_err};
 use crate::routes::developer::SystemCard;
 use crate::routes::messages::error::ApiJson;
 use crate::routes::settings::deps::SettingsDeps;
-use crate::routes::storage::uid;
+use crate::routes::storage::objects::vet_endpoint;
+use crate::routes::storage::{ScopeDeps, uid};
 use crate::state::AppState;
 use axum::{Json, extract::Path, http::StatusCode};
 use serde::Deserialize;
 use serde_json::json;
 use sr_activities::ActivityError;
 use sr_activities::arcade::{
-    ArcadeFront, ArcadeService, CandidateView, CartridgeInput, CartridgeView, ComingSoonCard,
-    ComingSoonInput, FeatureInput, FeaturedCard,
+    ArcadeFront, ArcadeService, CandidateView, CartridgeInput, CartridgeObjects, CartridgeView,
+    ComingSoonCard, ComingSoonInput, FeatureInput, FeaturedCard,
 };
 use sr_chat::cards::reminders::Verdict;
 use sr_core::permissions::Permissions;
@@ -186,6 +187,7 @@ pub async fn add_cartridge(
     SessionOnly(p): SessionOnly,
     Ext(settings): Ext<SettingsDeps>,
     Ext(d): Ext<ArcadeDeps>,
+    Ext(shelves): Ext<ScopeDeps>,
     Path(guild): Path<String>,
     ApiJson(body): ApiJson<CartridgeInput>,
 ) -> ApiResult<Json<CartridgeView>> {
@@ -197,10 +199,47 @@ pub async fn add_cartridge(
         return Err(ErrorCode::MissingPermissions.into());
     }
     d.service
-        .add_cartridge(gid.get() as i64, uid(&p), body)
+        .add_cartridge(gid.get() as i64, uid(&p), body, &ShelfFiles(&shelves))
         .await
         .map(Json)
         .map_err(arc)
+}
+
+/// Reads a cartridge's file from its shelf (D-568): the mount's sealed credentials, the endpoint re-checked
+/// right before the bucket is called (as for every member mount read), one ranged `GET` of the catalog size.
+struct ShelfFiles<'a>(&'a ScopeDeps);
+
+#[async_trait::async_trait]
+impl CartridgeObjects for ShelfFiles<'_> {
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
+        use sr_storage::ObjectStorage as _;
+        let unreadable = || "could not be read from its shelf. Try again later.".to_owned();
+        let mount = match self.0.mounts.by_id(shelf).await {
+            Ok(Some(m)) => m,
+            Ok(None) => return Err("is not a file on that shelf.".to_owned()),
+            Err(e) => {
+                tracing::error!(error = %e, shelf, "cartridge shelf lookup failed");
+                return Err(unreadable());
+            }
+        };
+        if vet_endpoint(self.0, &mount).await.is_err() {
+            return Err(
+                "is on a shelf whose bucket is not reachable from the public internet.".to_owned(),
+            );
+        }
+        let storage = mount.storage(&*self.0.sealer).map_err(|e| {
+            tracing::error!(error = %e, shelf, "cartridge shelf client could not be built");
+            unreadable()
+        })?;
+        let bytes = storage
+            .get_range(&mount.bucket_key(path), 0, len)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, shelf, "cartridge file read failed");
+                unreadable()
+            })?;
+        Ok(bytes.to_vec())
+    }
 }
 
 /// Unlist a cartridge (`MANAGE_GUILD`).

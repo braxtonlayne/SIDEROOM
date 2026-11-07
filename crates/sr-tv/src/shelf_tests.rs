@@ -111,9 +111,20 @@ fn input(number: i32, pool: PoolSource, kind: ChannelKind) -> ChannelInput {
     }
 }
 
+/// A personal channel is set up by its own member (D-569); the rest by staff.
+fn author(e: &Env, pool: PoolSource) -> Actor {
+    match pool {
+        PoolSource::Personal { user_id } => Actor {
+            user_id,
+            permissions: P::MANAGE_TV,
+        },
+        _ => e.staff,
+    }
+}
+
 async fn make(e: &Env, number: i32, pool: PoolSource, kind: ChannelKind) -> i64 {
     e.svc
-        .create_channel(e.staff, input(number, pool, kind))
+        .create_channel(author(e, pool), input(number, pool, kind))
         .await
         .unwrap()
         .id
@@ -295,4 +306,76 @@ async fn channel_numbers_are_unique_within_a_source() {
         .create_channel(e.staff, input(1, GUILD, ChannelKind::RuleBased))
         .await;
     assert!(matches!(dup, Err(TvError::Conflict(_))));
+}
+
+#[tokio::test]
+async fn staff_cannot_bind_a_channel_to_another_members_personal_pool() {
+    // D-569: create and update with `pool.kind = personal` and a user other than the caller are 403.
+    let e = env();
+    let made = e
+        .svc
+        .create_channel(e.staff, input(1, MINE, ChannelKind::RuleBased))
+        .await;
+    assert!(matches!(made, Err(TvError::Forbidden(_))), "{made:?}");
+    assert!(e.svc.channels().await.unwrap().is_empty());
+
+    let open = make(&e, 1, PoolSource::Instance, ChannelKind::RuleBased).await;
+    let moved = e
+        .svc
+        .update_channel(e.staff, open, input(1, MINE, ChannelKind::RuleBased))
+        .await;
+    assert!(matches!(moved, Err(TvError::Forbidden(_))), "{moved:?}");
+    assert_eq!(
+        e.svc.admin_channel(e.staff, open).await.unwrap().pool,
+        PoolSource::Instance
+    );
+
+    // The member themselves may, and may edit it; staff may move it off the member's shelf.
+    let owner = author(&e, MINE);
+    let mine = make(&e, 2, MINE, ChannelKind::RuleBased).await;
+    e.svc
+        .update_channel(owner, mine, input(3, MINE, ChannelKind::RuleBased))
+        .await
+        .unwrap();
+    assert!(matches!(
+        e.svc
+            .update_channel(e.staff, mine, input(3, MINE, ChannelKind::RuleBased))
+            .await,
+        Err(TvError::Forbidden(_))
+    ));
+    e.svc
+        .update_channel(
+            e.staff,
+            mine,
+            input(3, PoolSource::Instance, ChannelKind::RuleBased),
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_reminder_needs_a_channel_the_viewer_may_watch() {
+    // A reminder DMs the channel's name and programme: someone who may not watch the channel gets "unknown".
+    let e = env();
+    let mine = make(&e, 1, MINE, ChannelKind::Manual).await;
+    let id = e
+        .svc
+        .place_block(
+            author(&e, MINE),
+            mine,
+            PlaceInput {
+                title_id: 33,
+                episode_id: None,
+                start_ms: days_from_civil(2025, 6, 2) * MS_DAY + 21 * 3_600_000,
+                end_ms: None,
+            },
+        )
+        .await
+        .unwrap()
+        .id;
+    assert!(matches!(
+        e.svc.set_reminder(viewer(6), id, None).await,
+        Err(TvError::NotFound(_))
+    ));
+    e.svc.set_reminder(viewer(5), id, None).await.unwrap();
 }
