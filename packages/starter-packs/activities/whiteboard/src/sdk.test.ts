@@ -134,9 +134,25 @@ describe('late join after a big compaction', () => {
       });
     }
     a.board.compact();
-    expect(Object.keys(a.sdk.state.all()).filter((k) => k.startsWith('host:base:1:')).length).toBeGreaterThan(2);
+    expect(
+      Object.keys(a.sdk.state.all()).filter((k) => k.startsWith('host:base:1:')).length,
+    ).toBeGreaterThan(2);
     const c = join(hub, 'carol');
     expect(ids(c.board)).toHaveLength(120);
     expect(ids(c.board)).toEqual(ids(a.board));
+  });
+
+  it('a member cannot forge or overwrite other members strokes (SEC-AUD-015)', () => {
+    const hub = new LoopbackHub('alice');
+    const a = join(hub, 'alice');
+    const m = join(hub, 'mallory');
+    a.board.add(stroke(1));
+    const [victimId] = ids(a.board);
+    const key = [...Object.keys(a.sdk.state.all())].find((k) => k.startsWith('op:alice:'))!;
+    // Mallory's client tries to write over Alice's key and to author a new one in her name.
+    expect(() => m.sdk.state.set({ [key]: { forged: true } })).toThrow();
+    expect(() => m.sdk.state.set({ 'op:alice:99': { forged: true } })).toThrow();
+    expect(ids(a.board)).toEqual([victimId]);
+    expect(a.sdk.state.all()[key]).not.toEqual({ forged: true });
   });
 });
