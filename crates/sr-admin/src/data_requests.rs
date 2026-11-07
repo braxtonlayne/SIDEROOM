@@ -868,6 +868,15 @@ impl AdminService {
                 "You cannot erase your own account from the queue".into(),
             ));
         }
+        // D-562: two people for an irreversible erasure (the D-215 reviewer rule): whoever verified the
+        // request does not run it, unless the caller is the Owner and nobody else holds the bit.
+        if r.verified_by == Some(c.user_id)
+            && !(c.is_owner && !self.another_takedown_holder(c).await?)
+        {
+            return Err(AdminError::Forbidden(
+                "You verified this request, so another staff member has to run the erasure.".into(),
+            ));
+        }
         let audit = self.entry(
             c,
             AccessKind::AdminAction,
@@ -881,8 +890,26 @@ impl AdminService {
             .requests()?
             .run_erasure(req_id, now, opts, &audit)
             .await?;
+        // The deletion ended every session: open sockets close now (D-558).
+        if !run.report.already_deleted {
+            self.push_sessions_revoked(r.account_id).await;
+        }
         run.request = run.request.with_clock(now);
         Ok(run)
+    }
+
+    /// Whether a staff member other than the caller may run the data-request queue (the Owner, or a holder of
+    /// `MANAGE_TAKEDOWNS`).
+    async fn another_takedown_holder(&self, c: &Caller) -> AdminResult<bool> {
+        Ok(self.repo().list_staff().await?.iter().any(|m| {
+            m.account_id != c.user_id
+                && (m.is_owner
+                    || m.platform_permissions
+                        .parse::<u64>()
+                        .ok()
+                        .map(P::from_bits_truncate)
+                        .is_some_and(|p| p.has(P::MANAGE_TAKEDOWNS)))
+        }))
     }
 
     async fn loaded_request(&self, id: i64) -> AdminResult<DataRequest> {
