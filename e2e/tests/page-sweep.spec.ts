@@ -180,7 +180,8 @@ const SIGNED_IN: Row[] = [
   },
   {
     name: 'lounge-voice-key-changed',
-    path: (w) => `/channels/${w.guildId}/${w.channelId}`,
+    // The home list: the user panel (where the shield sits) is on screen at both widths.
+    path: () => '/channels/@me',
     voice: true,
     keyChanged: true,
   },
