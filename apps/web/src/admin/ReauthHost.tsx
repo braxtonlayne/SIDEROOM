@@ -7,10 +7,25 @@ import { useT } from '../i18n';
 import { passkeyVerifyBegin } from '../api/passkeys';
 import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 import * as api from './api';
-import { onEnrollmentRequired, registerReauthPrompt } from './reauth';
+import { onEnrollmentRequired, registerReauthPrompt, type ReauthReason } from './reauth';
 import { useOpenUserSettings } from '../settings/user/nav';
+import { ThemedOverlayRoot } from '../settings/user/ThemedOverlayRoot';
 
 type Method = 'totp' | 'recovery';
+
+/**
+ * The app-root host (router.tsx). It sits outside every section's shell, which is where the `--ui-*` tokens live, so
+ * without a theme root of its own the dialog had no surface, backdrop or field boxes (seen in the D-573 visual check
+ * over Settings). It takes the member's Lounge theme like the player and the drawer; the admin shell keeps mounting
+ * the bare host inside its own theme.
+ */
+export function RootReauthHost() {
+  return (
+    <ThemedOverlayRoot className="sr-reauth-theme">
+      <ReauthHost />
+    </ThemedOverlayRoot>
+  );
+}
 
 export function ReauthHost() {
   const t = useT();
@@ -22,6 +37,8 @@ export function ReauthHost() {
   const [error, setError] = useState<string | null>(null);
   const resolver = useRef<((ok: boolean) => void) | null>(null);
   const [enrol, setEnrol] = useState(false);
+  // D-573: the same dialog collects the second factor for a change to how the account signs in.
+  const [reason, setReason] = useState<ReauthReason>('action');
   const openSettings = useOpenUserSettings();
   useEffect(() => onEnrollmentRequired(() => setEnrol(true)), []);
 
@@ -40,9 +57,10 @@ export function ReauthHost() {
   useEffect(
     () =>
       registerReauthPrompt(
-        () =>
+        (why) =>
           new Promise<boolean>((resolve) => {
             resolver.current = resolve;
+            setReason(why);
             setStatus(null);
             setOpen(true);
             api
@@ -120,7 +138,11 @@ export function ReauthHost() {
         open={open}
         onClose={() => (busy ? undefined : finish(false))}
         title={t('admin.reauth.title')}
-        description={t('admin.reauth.description', { minutes })}
+        description={
+          reason === 'signIn'
+            ? t('settings.reauth.description', { minutes })
+            : t('admin.reauth.description', { minutes })
+        }
         size="sm"
         footer={
           <>

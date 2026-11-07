@@ -46,10 +46,10 @@ function WhatsNew() {
   );
 }
 
-// The re-auth dialog (ADM-STF-009) lives at the root so staff-card buttons in the Lounge can open the
+// The re-auth dialog (ADM-STF-009, D-573) lives at the root so staff-card buttons in the Lounge and Settings can open the
 // second-factor window too; it is its own chunk and renders nothing until asked.
 const ReauthHost = lazy(() =>
-  import('./admin/ReauthHost').then((m) => ({ default: m.ReauthHost })),
+  import('./admin/ReauthHost').then((m) => ({ default: m.RootReauthHost })),
 );
 // The floating player (MUS-PLY-001) belongs to the signed-in app: its gate is its own chunk and is not even
 // requested on a public page (D-385: a visitor without a login loads only what that page needs).
@@ -78,9 +78,12 @@ function RootLayout() {
         <Outlet />
       </CatalogGate>
       <CatalogGate>
-        <Suspense fallback={null}>
-          <ReauthHost />
-        </Suspense>
+        {/* Signed-in pages only: its theme root reads the member's appearance, like the player below. */}
+        {!isPublicPath(pathname) && (
+          <Suspense fallback={null}>
+            <ReauthHost />
+          </Suspense>
+        )}
         {/* The floating player lives here, above every route, so playback survives navigation (MUS-PLY-001). */}
         {!isPublicPath(pathname) && (
           <Suspense fallback={null}>

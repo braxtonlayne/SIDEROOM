@@ -142,4 +142,57 @@ describe('Passkeys card', () => {
     await waitFor(() => expect(body).toEqual({ password: 'pw' }));
     expect(await screen.findByText('No passkeys yet.')).toBeInTheDocument();
   });
+
+  it('adding a second passkey proves the first factor in the re-auth dialog first (D-573)', async () => {
+    signedIn();
+    accountEndpoints([key('1', 'Work laptop')]);
+    const { create } = stubWebAuthn();
+    const begins: unknown[] = [];
+    let proof: unknown = null;
+    server.use(
+      http.post('*/api/v1/sr/auth/passkeys/register/begin', async ({ request }) => {
+        begins.push(await request.json());
+        return proof
+          ? HttpResponse.json({ ceremony_id: 'r2', options: CREATION_OPTIONS })
+          : HttpResponse.json(
+              {
+                code: 50035,
+                message: 'Invalid Form Body',
+                errors: { mfa: { _errors: [{ code: 'required', message: 'Second factor.' }] } },
+              },
+              { status: 400 },
+            );
+      }),
+      http.post('*/api/v1/sr/auth/passkeys/register/finish', () =>
+        HttpResponse.json({ passkey: key('2', 'Desk key'), recovery_codes: null }),
+      ),
+      http.get('*/api/v1/admin/reauth', () =>
+        HttpResponse.json({ code: 50013, message: 'Missing Access' }, { status: 403 }),
+      ),
+      http.post('*/api/v1/admin/reauth', () =>
+        HttpResponse.json({ code: 50013, message: 'Missing Access' }, { status: 403 }),
+      ),
+      http.get('*/api/v1/sr/auth/reauth', () =>
+        HttpResponse.json({ fresh: false, enrolled: true, window_secs: 900 }),
+      ),
+      http.post('*/api/v1/sr/auth/reauth', async ({ request }) => {
+        proof = await request.json();
+        return HttpResponse.json({ fresh: true, enrolled: true, window_secs: 900 });
+      }),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: 'Add a passkey' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add a passkey' });
+    await user.type(within(dialog).getByLabelText('Current password'), 'pw');
+    await user.click(within(dialog).getByRole('button', { name: 'Add passkey' }));
+    const reauth = await screen.findByRole('dialog', { name: 'Confirm it is you' });
+    expect(create).not.toHaveBeenCalled();
+    await user.type(within(reauth).getByLabelText('Code from your authenticator app'), '654321');
+    await user.click(within(reauth).getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Desk key', { selector: 'strong' })).toBeInTheDocument();
+    expect(proof).toEqual({ method: 'totp', code: '654321' });
+    expect(begins).toEqual([{ password: 'pw' }, { password: 'pw' }]);
+    expect(create).toHaveBeenCalledOnce();
+  });
 });

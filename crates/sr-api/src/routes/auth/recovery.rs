@@ -3,6 +3,7 @@
 
 use super::{
     common::{AuthRouteError, AuthService, R, Svc},
+    identity::require_second_factor,
     mfa::{PasswordBody, current_account, reauthenticate},
     sessions::session_id,
 };
@@ -25,17 +26,18 @@ pub(super) async fn issue_recovery_codes(
     Ok(batch.codes.iter().map(|c| c.formatted()).collect())
 }
 
-/// `POST /sr/auth/recovery-codes {password}`: regenerate the recovery codes
-/// (invalidating the old ones). Requires two-factor to be enabled.
+/// `POST /sr/auth/recovery-codes {password, mfa?}`: regenerate the recovery codes
+/// (invalidating the old ones). Requires two-factor to be enabled, and its proof (D-573).
 pub async fn regenerate(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
     Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<Json<Value>> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
+    let now = state.now_secs();
     let account = current_account(&svc, p.user_id).await?;
-    reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
+    reauthenticate(&svc, now, &account, &body.password).await?;
     if !svc
         .store
         .totp_get(account.id)
@@ -48,6 +50,7 @@ pub async fn regenerate(
         )
         .into());
     }
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
     let codes = issue_recovery_codes(&svc, account.id).await?;
     svc.notify_security(account.id, "Your recovery codes were regenerated")
         .await;

@@ -20,7 +20,11 @@ interface Begin<O> {
 }
 
 export const listPasskeys = () => apiFetch<Passkey[]>('/sr/auth/passkeys', { retries: 0 });
-/** Re-checks the password (403 with a message when it is wrong), then returns creation options. */
+/**
+ * Re-checks the password (403 with a message when it is wrong), then returns creation options. With a second factor
+ * already on the account the server also wants its proof (400, field `mfa`, D-573): Settings wraps this call (and
+ * `deletePasskey`) in `withSecondFactor`, kept out of this module because the sign-in pages load it (D-385).
+ */
 export const passkeyRegisterBegin = (password: string) =>
   apiPost<Begin<CreationOptionsJSON>>('/sr/auth/passkeys/register/begin', { password });
 export const passkeyRegisterFinish = (req: {
