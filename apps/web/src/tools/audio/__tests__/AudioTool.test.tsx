@@ -149,3 +149,17 @@ describe('AudioTool (UTL-AUD-001)', () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe('AudioTool Cancel (XC-VIS-004)', () => {
+  const file = () => new File(['x'], 'tone.mp3', { type: 'audio/mpeg' });
+  it('shows its own Cancel by default', async () => {
+    render(<AudioTool file={file()} onUse={vi.fn()} onCancel={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId('audio-range')).toBeTruthy());
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
+  });
+  it('hides it when the host dialog has its own Cancel', async () => {
+    render(<AudioTool file={file()} onUse={vi.fn()} onCancel={vi.fn()} hideCancel />);
+    await waitFor(() => expect(screen.getByTestId('audio-range')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+  });
+});
