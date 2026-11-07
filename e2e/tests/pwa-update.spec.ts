@@ -385,6 +385,12 @@ test.describe('the service worker update, the purge and the offline shells (RDY-
     test.setTimeout(240_000);
     const buildA = buildId(dirA);
     expect(buildId(dirB)).not.toBe(buildA);
+    // The drill is a signed-in member: the real server serves the app shell only under a session. Without this the
+    // app's "session gone" exit (an API 401, then "who am I?" answering 401) purges the signed-in cache before it
+    // leaves for the sign-in page, as it must for a session that ended (SEC-AUD-002), and step 2 has nothing to see.
+    await context.route('**/api/v1/users/@me', (route) =>
+      route.fulfill({ json: { id: '1', username: 'drill', discriminator: '0', avatar: null } }),
+    );
 
     // ---- 1. Build A: installed and controlling the page; a public page creates no signed-in cache.
     await serve(dirA);
