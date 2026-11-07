@@ -5,7 +5,7 @@ export default {
   'lounge.listLoad.members': 'The member list could not be loaded.',
   'lounge.listLoad.server': 'This server could not be loaded.',
   'lounge.listLoad.retry': 'Try again',
-  'lounge.soundboard.favoritesUnsynced': 'Favourites are not saved to your account yet.',
+  'lounge.soundboard.favoritesUnsynced': 'Favorites are not saved to your account yet.',
   'lounge.keyPins.shieldNew': 'End-to-end encryption: a new privacy code',
   'lounge.keyPins.newCode': '{name} has a new privacy code (a new device, or a new sign-in).',
   'lounge.keyPins.compare': 'Compare the new code with them, then mark them verified.',
