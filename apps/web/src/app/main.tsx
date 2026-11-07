@@ -19,6 +19,7 @@ import { createAppRouter } from '../router';
 import { CrashBoundary, currentRouteName, installCrashTelemetry } from '../crash';
 import { setUnauthorizedHandler } from '../api/client';
 import { exitToLogin } from '../lib/enterApp';
+import { purgeOnSignOut } from '../pwa/signOutPurge';
 import { forgetSection } from '../state/session';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
@@ -39,8 +40,9 @@ setUnauthorizedHandler(() => {
       forgetSection(); // FU-16: a session that ends without a sign-out forgets its last section too
       // SEC-ENT-002 / SEC-AUD-002 / SEC-AUD-039: a session revoked elsewhere leaves nothing signed-in behind, just
       // like a sign-out: the app caches (the service worker only purges on a 401 it sees itself; the gateway's
-      // 4004 is not one), the shared files and the Library offline chapters.
-      await import('../pwa/signOutPurge').then((m) => m.purgeOnSignOut()).catch(() => undefined);
+      // 4004 is not one), the shared files and the Library offline chapters. Imported statically: once the
+      // session is gone, /app/ files answer 401, so a chunk loaded at this moment could not arrive.
+      await purgeOnSignOut();
       exitToLogin();
     })
     .catch(() => undefined);
