@@ -113,6 +113,9 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
   const guild = useGuild(guildId);
   const me = useCurrentUser();
   const [loaded, setLoaded] = useState(false);
+  /** The profile could not be read (not a 404): the form stays locked so Save cannot erase it. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [nick, setNick] = useState('');
   const [bio, setBio] = useState('');
   const [pronouns, setPronouns] = useState('');
@@ -134,6 +137,7 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
 
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     apiFetch<OwnMember>(`/users/@me/guilds/${encodeURIComponent(guildId)}/member`, { retries: 0 })
       .then((m) => {
         if (!live) return;
@@ -152,11 +156,16 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
         setRoles(m.roles ?? []);
         setLoaded(true);
       })
-      .catch(() => live && setLoaded(true));
+      .catch((e: unknown) => {
+        if (!live) return;
+        // 404: nothing set in this server yet, an empty form is right.
+        if (e instanceof ApiError && e.status === 404) setLoaded(true);
+        else setLoadFailed(true);
+      });
     return () => {
       live = false;
     };
-  }, [guildId, me.id]);
+  }, [guildId, me.id, attempt]);
 
   if (!guild) return null;
 
@@ -286,6 +295,14 @@ export function GuildProfileDialog({ guildId, onClose }: { guildId: string; onCl
           onError={setError}
         />
         <ServerDmToggle guildId={guildId} />
+        {loadFailed && (
+          <p role="alert" className="lng-failed">
+            {t('lounge.guildProfile.loadError')}{' '}
+            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+              {t('lounge.guildProfile.retry')}
+            </Button>
+          </p>
+        )}
         {error && (
           <p role="alert" className="lng-failed">
             {error}

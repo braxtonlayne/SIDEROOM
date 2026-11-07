@@ -177,6 +177,8 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [saved, setSaved] = useState(true);
+  /** The last save did not reach the server: never say "Saved" for it. */
+  const [saveFailed, setSaveFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftFor = useRef<string | null>(null);
   const [lockConfirm, setLockConfirm] = useState(false);
@@ -196,13 +198,17 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
       draftFor.current = current.id;
       setDraft(current.text);
       setSaved(true);
+      setSaveFailed(false);
     }
   }, [current]);
 
   const flush = (id: string, text: string) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    void store.save(id, text).then(() => setSaved(true));
+    void store.save(id, text).then((ok) => {
+      setSaved(ok);
+      setSaveFailed(!ok);
+    });
   };
 
   useEffect(
@@ -215,6 +221,7 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
   const change = (text: string) => {
     setDraft(text);
     setSaved(false);
+    setSaveFailed(false);
     if (!current) return;
     if (timer.current) clearTimeout(timer.current);
     const id = current.id;
@@ -244,7 +251,11 @@ function Editor({ state, store }: { state: NotesState; store: NotesStore }) {
           {t('tools.notes.newNote')}
         </button>
         <span className="ud-muted" role="status" aria-live="polite">
-          {saved ? t('tools.notes.saved') : t('tools.notes.saving')}
+          {saveFailed
+            ? t('tools.notes.notSaved')
+            : saved
+              ? t('tools.notes.saved')
+              : t('tools.notes.saving')}
         </span>
       </div>
       <div className="ud-notes-layout">

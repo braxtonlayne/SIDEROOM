@@ -1,7 +1,7 @@
 /** Pieces shared by the profile popout, the full profile and the DM profile panel. */
 import { Avatar, Button, DropdownMenu, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { apiFetch } from '../../api/client';
+import { ApiError, apiFetch } from '../../api/client';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
 import type { Activity } from '../data';
@@ -69,28 +69,42 @@ export function NoteField({ userId }: { userId: string }) {
   const t = useT();
   const [note, setNote] = useState('');
   const saved = useRef('');
+  /** The note could not be read (not a 404): the box is locked so a blur cannot overwrite it with nothing. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     apiFetch<{ note: string }>(`/users/@me/notes/${encodeURIComponent(userId)}`, { retries: 0 })
       .then((n) => {
         if (!live) return;
         saved.current = n.note;
         setNote(n.note);
       })
-      .catch(() => undefined); // 404: no note yet
+      .catch((e: unknown) => {
+        // 404: no note yet; anything else is a failed read.
+        if (live && !(e instanceof ApiError && e.status === 404)) setLoadFailed(true);
+      });
     return () => {
       live = false;
     };
-  }, [userId]);
+  }, [userId, attempt]);
   const save = () => {
     const next = note.trim();
-    if (next === saved.current) return;
+    if (loadFailed || next === saved.current) return;
+    const before = saved.current;
     saved.current = next;
+    setSaveFailed(false);
     apiFetch<void>(`/users/@me/notes/${encodeURIComponent(userId)}`, {
       method: 'PUT',
       json: { note: next || null },
       retries: 0,
-    }).catch(() => undefined);
+    }).catch(() => {
+      // Not saved: forget that it was, so the next blur tries again, and say so.
+      saved.current = before;
+      setSaveFailed(true);
+    });
   };
   return (
     <section aria-labelledby={`note-h-${userId}`}>
@@ -103,10 +117,24 @@ export function NoteField({ userId }: { userId: string }) {
         placeholder={t('lounge.profilePopout.notePlaceholder')}
         maxLength={NOTE_MAX}
         value={note}
+        disabled={loadFailed}
         onChange={(e) => setNote(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
       />
+      {loadFailed && (
+        <p role="alert" className="lng-failed">
+          {t('lounge.profilePopout.noteLoadError')}{' '}
+          <button type="button" onClick={() => setAttempt((n) => n + 1)}>
+            {t('lounge.profilePopout.noteRetry')}
+          </button>
+        </p>
+      )}
+      {saveFailed && (
+        <p role="alert" className="lng-failed">
+          {t('lounge.profilePopout.noteSaveError')}
+        </p>
+      )}
     </section>
   );
 }
