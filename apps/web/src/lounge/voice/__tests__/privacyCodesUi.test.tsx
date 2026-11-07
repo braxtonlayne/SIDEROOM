@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
-import { resetE2ee, setE2ee } from '../../../voice/e2ee/store';
+import { resetE2ee, setE2ee, useE2ee } from '../../../voice/e2ee/store';
 import { verifiedStore } from '../../../voice/e2ee/verified';
 import { MockDataProvider } from '../../mockData';
 import { E2eeShield, PrivacyCodes, type PrivacyParticipant } from '../PrivacyCodes';
@@ -82,5 +82,49 @@ describe('privacy codes popover (VOX-E2E-007, D-250)', () => {
     expect(screen.getByRole('button', { name: 'End-to-end encryption' })).toBeInTheDocument();
     act(() => resetE2ee());
     expect(screen.queryByRole('button', { name: 'End-to-end encryption' })).toBeNull();
+  });
+
+  it('SEC-AUD-038 (D-564): a changed key shows the notice until the person is verified again', async () => {
+    localStorage.clear();
+    resetE2ee();
+    const user = userEvent.setup();
+    render(
+      <MockDataProvider>
+        <E2eeShield />
+      </MockDataProvider>,
+    );
+    act(() =>
+      setE2ee({
+        active: true,
+        selfKey: 'aa',
+        viewer: '1',
+        keyChanged: ['2'],
+        pairwise: { '2': '11111 11111 11111 11111 11111 11111' },
+        call: {
+          status: 'secure',
+          epoch: 3,
+          callCode: '22222 22222 22222 22222 22222 22222',
+          members: [
+            { userId: '1', identityKey: 'aa' },
+            { userId: '2', identityKey: 'bb' },
+          ],
+          error: null,
+        },
+      }),
+    );
+    const shield = screen.getByRole('button', {
+      name: 'End-to-end encryption: a privacy code changed',
+    });
+    expect(shield).toHaveAttribute('data-key-changed', 'true');
+    await user.click(shield);
+    expect(screen.getByRole('status')).toHaveTextContent(/changed since you last saw it/);
+    expect(await axeViolations(document.body)).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Mark as verified' }));
+    await vi.waitFor(() => expect(useE2ee.getState().keyChanged).toEqual([]));
+    expect(screen.queryByText(/changed since you last saw it/)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'End-to-end encrypted, everyone verified' }),
+    ).toBeInTheDocument();
+    act(() => resetE2ee());
   });
 });
