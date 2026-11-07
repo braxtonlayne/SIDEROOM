@@ -131,6 +131,23 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "/moderation/cases/{case_id}/ban",
         "Platform-ban the Person a case is about",
     ),
+    // SEC-AUD-022: the graduated-moderation bans reach the same platform ban.
+    row(
+        "ban.member",
+        "Platform ban",
+        Staff,
+        "POST",
+        "/admin/moderation/members/{account_id}/ban",
+        "Platform-ban a member from the graduated moderation screen",
+    ),
+    row(
+        "ban.node",
+        "Platform ban",
+        Staff,
+        "POST",
+        "/admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban",
+        "Platform-ban one account of an invite subtree case",
+    ),
     row(
         "data.run",
         "Data-request outcome",
@@ -154,6 +171,39 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "POST",
         "/moderation/takedowns/{notice_id}/uphold",
         "Uphold a takedown notice",
+    ),
+    // SEC-AUD-022: delisting takes a member's bucket, or a file on it, offline for everyone.
+    row(
+        "storage.delist",
+        "Takedown uphold",
+        Staff,
+        "POST",
+        "/admin/storage/mounts/{mount_id}/delist",
+        "Delist a member's whole storage connection",
+    ),
+    row(
+        "storage.relist",
+        "Takedown uphold",
+        Staff,
+        "POST",
+        "/admin/storage/mounts/{mount_id}/relist",
+        "Relist a delisted storage connection",
+    ),
+    row(
+        "shelf.delist",
+        "Takedown uphold",
+        Staff,
+        "POST",
+        "/admin/shelves/delist",
+        "Delist one file on a member's shelf",
+    ),
+    row(
+        "shelf.relist",
+        "Takedown uphold",
+        Staff,
+        "POST",
+        "/admin/shelves/relist",
+        "Relist a delisted shelf file",
     ),
     row(
         "secret.rotate",
@@ -195,6 +245,15 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "/admin/donations/wallet",
         "Set the wallet that receives donations",
     ),
+    // SEC-AUD-022: a staff grant of a perk, including to the staff member's own account.
+    row(
+        "entitlement.grant",
+        "Perk grant",
+        Staff,
+        "POST",
+        "/admin/donations/entitlements",
+        "Grant a Patron or server perk by hand",
+    ),
     row(
         "account.reset2fa",
         "Account takeover surface",
@@ -226,6 +285,23 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "POST",
         "/admin/persons/{person_id}/identities/{identity_id}/move",
         "Move an identity between Persons",
+    ),
+    // SEC-AUD-022: a username is how members recognise each other (impersonation), badges are public marks.
+    row(
+        "account.rename",
+        "Account takeover surface",
+        Staff,
+        "POST",
+        "/admin/accounts/{account_id}/rename",
+        "Rename an account",
+    ),
+    row(
+        "account.badges",
+        "Account takeover surface",
+        Staff,
+        "POST",
+        "/admin/accounts/{account_id}/badges",
+        "Grant or revoke public badges",
     ),
     row(
         "announce.create",

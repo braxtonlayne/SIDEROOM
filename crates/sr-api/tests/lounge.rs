@@ -2663,6 +2663,20 @@ async fn elevated_routes_need_a_second_factor_on_a_2fa_server() {
     assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
     let r = w.delete(OWNER, &format!("/webhooks/{hid}")).await;
     assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+
+    // SEC-AUD-022: switching the requirement off needs the same fresh second factor; a stale session cannot.
+    let r = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 0 }))
+        .await;
+    assert_eq!(mfa_code(&r), (403, 900004), "{}", r.1);
+    let (_, g) = w.get(OWNER, &format!("/guilds/{gid}")).await;
+    assert_eq!(g["mfa_level"], 1, "still on");
+    w.prove(100).await;
+    let (s, m) = w
+        .post(OWNER, &format!("/guilds/{gid}/mfa"), json!({ "level": 0 }))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{m}");
+    assert_eq!(m, json!({ "level": 0 }));
 }
 
 #[tokio::test]

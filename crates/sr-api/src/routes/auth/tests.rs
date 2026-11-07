@@ -1055,8 +1055,24 @@ async fn origin_guard_rejects_foreign_origins() {
 
 /// Enrol TOTP for a logged-in session; returns (secret, recovery codes).
 async fn enrol_totp(h: &H, session: &str) -> (TotpSecret, Vec<String>) {
+    // SEC-AUD-022: a bare session cannot start enrolment; the password is re-checked first.
+    for body in [json!({}), json!({"password": "not the password"})] {
+        let refused = h
+            .post("/api/v1/sr/auth/totp/enroll", body)
+            .session(session)
+            .send()
+            .await;
+        assert!(
+            matches!(
+                refused.status,
+                StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN | StatusCode::UNPROCESSABLE_ENTITY
+            ),
+            "{:?}",
+            refused.status
+        );
+    }
     let e = h
-        .post("/api/v1/sr/auth/totp/enroll", json!({}))
+        .post("/api/v1/sr/auth/totp/enroll", json!({ "password": PW }))
         .session(session)
         .send()
         .await;
@@ -1137,7 +1153,7 @@ async fn totp_enrol_login_replay_and_recovery() {
 
     // Enrolling twice is refused.
     let again = h
-        .post("/api/v1/sr/auth/totp/enroll", json!({}))
+        .post("/api/v1/sr/auth/totp/enroll", json!({ "password": PW }))
         .session(&s)
         .send()
         .await;
@@ -2072,12 +2088,61 @@ async fn discord_sign_in_asks_a_passkey_only_account_for_its_second_factor() {
         .await
         .unwrap();
     let (location, cookies) = discord_sign_in(&h, "d-7", Some("/lounge?a=1")).await;
-    assert_eq!(
-        location,
-        "/login/2fa?methods=passkey,recovery&next=%2Flounge%3Fa%3D1"
-    );
+    // D-557: the methods never ride in the URL; the page asks `GET /sr/auth/2fa/methods`.
+    assert_eq!(location, "/login/2fa?next=%2Flounge%3Fa%3D1");
     assert!(cookies.iter().any(|c| c.starts_with("sr_mfa=")));
     assert!(!cookies.iter().any(|c| c.starts_with("sr_session=")));
+    let (location, _) = discord_sign_in(&h, "d-7", None).await;
+    assert_eq!(location, "/login/2fa");
+}
+
+#[tokio::test]
+async fn pending_second_factor_methods_come_from_the_cookie_not_the_url() {
+    // SEC-AUD-017 (D-557): the 2FA page learns the methods from the pending `sr_mfa` cookie.
+    let h = discord_harness();
+    h.add_account(8, "pat", "pat@example.org", AccountState::Active);
+    h.store.link_discord(8, 80, "d-8").await.unwrap();
+    h.store
+        .passkey_insert(super::store::PasskeyRecord {
+            id: 81,
+            account_id: 8,
+            credential_id: vec![8; 16],
+            cose_key: vec![1, 2, 3],
+            alg: -7,
+            sign_count: 0,
+            backup_eligible: false,
+            backup_state: false,
+            aaguid: vec![0; 16],
+            name: "Key".into(),
+            created_at: 0,
+            last_used_at: None,
+        })
+        .await
+        .unwrap();
+    let (_, cookies) = discord_sign_in(&h, "d-8", None).await;
+    let mfa = cookies
+        .iter()
+        .find_map(|c| c.strip_prefix("sr_mfa="))
+        .and_then(|c| c.split(';').next())
+        .expect("pending cookie")
+        .to_owned();
+    let r = h
+        .get("/api/v1/sr/auth/2fa/methods")
+        .cookie("sr_mfa", &mfa)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.body["methods"], json!(["passkey", "recovery"]));
+
+    // No pending sign-in, or an unknown one: refused, and nothing about any account.
+    let r = h.get("/api/v1/sr/auth/2fa/methods").send().await;
+    assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+    let r = h
+        .get("/api/v1/sr/auth/2fa/methods")
+        .cookie("sr_mfa", "not-a-token")
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -2309,6 +2374,30 @@ async fn delete_account_needs_password_and_typed_username_and_ends_the_account()
         .send()
         .await;
     assert_ne!(login.status, StatusCode::OK);
+}
+
+/// SEC-AUD-018 (D-558): deleting the account closes its open gateway sockets at once.
+#[tokio::test]
+async fn delete_account_tells_the_gateway() {
+    use sr_events::{DomainEvent, EventBus, Topic};
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let alice = sr_core::UserId::new(1);
+    let mut topic = h.bus.subscribe(Topic::User(alice));
+    let s = h.login("alice").await;
+    let ok = h
+        .post(
+            "/api/v1/sr/auth/account/delete",
+            json!({"username": "alice", "password": PW}),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
+    assert_eq!(
+        next_revoked(&mut topic).await,
+        Some(DomainEvent::SessionsRevoked { user: alice })
+    );
 }
 
 #[tokio::test]

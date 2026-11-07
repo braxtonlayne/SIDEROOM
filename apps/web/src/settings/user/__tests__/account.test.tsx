@@ -254,13 +254,20 @@ describe('My Account', () => {
     const codes = Array.from({ length: 10 }, (_, i) => `AAAA-000${i}`);
     let attempts = 0;
     server.use(
-      http.post('*/api/v1/sr/auth/totp/enroll', () =>
-        HttpResponse.json({
-          otpauth_uri:
-            'otpauth://totp/SIDE%20ROOM:alice?secret=JBSWY3DPEHPK3PXP&issuer=SIDE%20ROOM',
-          manual_entry_key: 'JBSW Y3DP EHPK 3PXP',
-        }),
-      ),
+      // SEC-AUD-022: enrolment starts with the password.
+      http.post('*/api/v1/sr/auth/totp/enroll', async ({ request }) => {
+        const { password } = (await request.json()) as { password?: string };
+        return password === 'right-password'
+          ? HttpResponse.json({
+              otpauth_uri:
+                'otpauth://totp/SIDE%20ROOM:alice?secret=JBSWY3DPEHPK3PXP&issuer=SIDE%20ROOM',
+              manual_entry_key: 'JBSW Y3DP EHPK 3PXP',
+            })
+          : HttpResponse.json(
+              { code: 900004, message: "That password doesn't match." },
+              { status: 403 },
+            );
+      }),
       http.post('*/api/v1/sr/auth/totp/verify', async ({ request }) => {
         attempts += 1;
         const { code } = (await request.json()) as { code: string };
@@ -279,6 +286,15 @@ describe('My Account', () => {
     const clip = vi.spyOn(navigator.clipboard, 'writeText');
     openSettings('account');
     await user.click(await screen.findByRole('button', { name: 'Enable authenticator app' }));
+    // The password prompt comes first; a wrong password keeps it open with the server's sentence.
+    const prompt = await screen.findByRole('dialog', { name: 'Enable authenticator app' });
+    expect(within(prompt).queryByRole('img', { name: /QR code/ })).toBeNull();
+    await user.type(within(prompt).getByLabelText('Current password'), 'wrong');
+    await user.click(within(prompt).getByRole('button', { name: 'Continue' }));
+    expect(await within(prompt).findByText("That password doesn't match.")).toBeInTheDocument();
+    await user.clear(within(prompt).getByLabelText('Current password'));
+    await user.type(within(prompt).getByLabelText('Current password'), 'right-password');
+    await user.click(within(prompt).getByRole('button', { name: 'Continue' }));
     const dialog = await screen.findByRole('dialog', { name: 'Enable authenticator app' });
     expect(await within(dialog).findByRole('img', { name: /QR code/ })).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Manual entry key')).toHaveTextContent(
@@ -326,8 +342,12 @@ describe('My Account', () => {
         ),
       ),
     );
+    const user = userEvent.setup();
     openSettings('account');
-    await userEvent.click(await screen.findByRole('button', { name: 'Enable authenticator app' }));
+    await user.click(await screen.findByRole('button', { name: 'Enable authenticator app' }));
+    const prompt = await screen.findByRole('dialog', { name: 'Enable authenticator app' });
+    await user.type(within(prompt).getByLabelText('Current password'), 'pw');
+    await user.click(within(prompt).getByRole('button', { name: 'Continue' }));
     expect(
       await screen.findByText('Two-factor authentication is already enabled.'),
     ).toBeInTheDocument();

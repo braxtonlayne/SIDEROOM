@@ -17,7 +17,9 @@ test('sign in: fields, passkey button, second factor, keyboard only', async ({
   const user = await seedUser('kb2');
   const api = await playwright.request.newContext({ baseURL: PUBLIC_URL });
   await loginApi(api, user);
-  const enroll = await apiPost<{ otpauth_uri: string }>(api, '/sr/auth/totp/enroll');
+  const enroll = await apiPost<{ otpauth_uri: string }>(api, '/sr/auth/totp/enroll', {
+    password: user.password,
+  });
   const secret = secretFromOtpauth(enroll.otpauth_uri);
   await apiPost(api, '/sr/auth/totp/verify', { code: totp(secret) });
   await api.dispose();

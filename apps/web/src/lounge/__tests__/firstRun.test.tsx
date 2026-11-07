@@ -120,6 +120,9 @@ describe('the steps', () => {
     await next(user);
     expect(screen.getByRole('heading', { name: 'Protect your account' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Set it up here' }));
+    // SEC-AUD-022: the password first.
+    await user.type(await screen.findByLabelText('Current password'), 'pw');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('JBSWY3DPEHPK3PXP')).toBeVisible();
     await user.type(screen.getByLabelText('Authentication code'), '123456');
     await user.click(screen.getByRole('button', { name: /Verify/ }));

@@ -154,35 +154,44 @@ One list in code, `SENSITIVE_ACTIONS` in `crates/sr-api/src/sensitive.rs`, names
 
 The table below is printed by `cargo test -p sr-api sensitive::tests::print_table -- --nocapture`.
 
-| Action                     | Gate                           | Route or command                                                | Effect                                                    |
-| -------------------------- | ------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------- |
-| Staff appointment          | second factor, last 15 minutes | `POST /admin/staff`                                             | Appoint a staff member                                    |
-| Staff appointment          | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/roles`                           | Change a staff member's roles                             |
-| Staff appointment          | second factor, last 15 minutes | `DELETE /admin/staff/{account_id}`                              | Remove a staff member                                     |
-| Staff appointment          | second factor, last 15 minutes | `POST /admin/staff/offers`                                      | Offer an appointment                                      |
-| Staff appointment          | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/delegation`                      | Delegate a permission                                     |
-| Platform ban               | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/ban`                         | Platform-ban the Person behind an account                 |
-| Platform ban               | second factor, last 15 minutes | `POST /admin/persons/{person_id}/ban`                           | Platform-ban a Person                                     |
-| Platform ban               | second factor, last 15 minutes | `POST /moderation/cases/{case_id}/ban`                          | Platform-ban the Person a case is about                   |
-| Data-request outcome       | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/run`                    | Run an export, erasure or other data request              |
-| Data-request outcome       | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/decline`                | Decline a data request                                    |
-| Takedown uphold            | second factor, last 15 minutes | `POST /moderation/takedowns/{notice_id}/uphold`                 | Uphold a takedown notice                                  |
-| Secret rotation            | host access                    | `sr-cli rotate-secret-key`                                      | Re-seal every stored secret under a new server.secret_key |
-| Owner transfer             | second factor, last 15 minutes | `POST /admin/guilds/{guild_id}/transfer-ownership`              | Make another member the owner of a server                 |
-| Application secret reset   | account password               | `POST /applications/{application_id}/reset-secret`              | Replace an application's client secret                    |
-| Application secret reset   | account password               | `POST /applications/{application_id}/bot/reset-token`           | Replace a bot token                                       |
-| Payout descriptor change   | second factor, last 15 minutes | `PUT /admin/donations/wallet`                                   | Set the wallet that receives donations                    |
-| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/reset-2fa`                   | Reset an account's second factor                          |
-| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/change-email`                | Change an account's email                                 |
-| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/force-password-reset`        | Force a password reset                                    |
-| Account takeover surface   | second factor, last 15 minutes | `POST /admin/persons/{person_id}/identities/{identity_id}/move` | Move an identity between Persons                          |
-| Announcements and entrance | second factor, last 15 minutes | `POST /admin/announcements`                                     | Broadcast an announcement                                 |
-| Announcements and entrance | second factor, last 15 minutes | `PATCH /admin/announcements/{announcement_id}`                  | Edit an announcement                                      |
-| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/copy/{key}`                                | Change the public entrance copy                           |
-| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/copy/{key}`                             | Reset the public entrance copy                            |
-| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/hero`                                      | Change the entrance hero image                            |
-| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/hero`                                   | Remove the entrance hero image                            |
-| Announcements and entrance | second factor, last 15 minutes | `POST /admin/system/email-test`                                 | Send the operator test mail                               |
+| Action                     | Gate                           | Route or command                                                        | Effect                                                     |
+| -------------------------- | ------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Staff appointment          | second factor, last 15 minutes | `POST /admin/staff`                                                     | Appoint a staff member                                     |
+| Staff appointment          | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/roles`                                   | Change a staff member's roles                              |
+| Staff appointment          | second factor, last 15 minutes | `DELETE /admin/staff/{account_id}`                                      | Remove a staff member                                      |
+| Staff appointment          | second factor, last 15 minutes | `POST /admin/staff/offers`                                              | Offer an appointment                                       |
+| Staff appointment          | second factor, last 15 minutes | `PUT /admin/staff/{account_id}/delegation`                              | Delegate a permission                                      |
+| Platform ban               | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/ban`                                 | Platform-ban the Person behind an account                  |
+| Platform ban               | second factor, last 15 minutes | `POST /admin/persons/{person_id}/ban`                                   | Platform-ban a Person                                      |
+| Platform ban               | second factor, last 15 minutes | `POST /moderation/cases/{case_id}/ban`                                  | Platform-ban the Person a case is about                    |
+| Platform ban               | second factor, last 15 minutes | `POST /admin/moderation/members/{account_id}/ban`                       | Platform-ban a member from the graduated moderation screen |
+| Platform ban               | second factor, last 15 minutes | `POST /admin/moderation/subtree-cases/{case_id}/nodes/{account_id}/ban` | Platform-ban one account of an invite subtree case         |
+| Data-request outcome       | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/run`                            | Run an export, erasure or other data request               |
+| Data-request outcome       | second factor, last 15 minutes | `POST /admin/data-requests/{request_id}/decline`                        | Decline a data request                                     |
+| Takedown uphold            | second factor, last 15 minutes | `POST /moderation/takedowns/{notice_id}/uphold`                         | Uphold a takedown notice                                   |
+| Takedown uphold            | second factor, last 15 minutes | `POST /admin/storage/mounts/{mount_id}/delist`                          | Delist a member's whole storage connection                 |
+| Takedown uphold            | second factor, last 15 minutes | `POST /admin/storage/mounts/{mount_id}/relist`                          | Relist a delisted storage connection                       |
+| Takedown uphold            | second factor, last 15 minutes | `POST /admin/shelves/delist`                                            | Delist one file on a member's shelf                        |
+| Takedown uphold            | second factor, last 15 minutes | `POST /admin/shelves/relist`                                            | Relist a delisted shelf file                               |
+| Secret rotation            | host access                    | `sr-cli rotate-secret-key`                                              | Re-seal every stored secret under a new server.secret_key  |
+| Owner transfer             | second factor, last 15 minutes | `POST /admin/guilds/{guild_id}/transfer-ownership`                      | Make another member the owner of a server                  |
+| Application secret reset   | account password               | `POST /applications/{application_id}/reset-secret`                      | Replace an application's client secret                     |
+| Application secret reset   | account password               | `POST /applications/{application_id}/bot/reset-token`                   | Replace a bot token                                        |
+| Payout descriptor change   | second factor, last 15 minutes | `PUT /admin/donations/wallet`                                           | Set the wallet that receives donations                     |
+| Perk grant                 | second factor, last 15 minutes | `POST /admin/donations/entitlements`                                    | Grant a Patron or server perk by hand                      |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/reset-2fa`                           | Reset an account's second factor                           |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/change-email`                        | Change an account's email                                  |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/force-password-reset`                | Force a password reset                                     |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/persons/{person_id}/identities/{identity_id}/move`         | Move an identity between Persons                           |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/rename`                              | Rename an account                                          |
+| Account takeover surface   | second factor, last 15 minutes | `POST /admin/accounts/{account_id}/badges`                              | Grant or revoke public badges                              |
+| Announcements and entrance | second factor, last 15 minutes | `POST /admin/announcements`                                             | Broadcast an announcement                                  |
+| Announcements and entrance | second factor, last 15 minutes | `PATCH /admin/announcements/{announcement_id}`                          | Edit an announcement                                       |
+| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/copy/{key}`                                        | Change the public entrance copy                            |
+| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/copy/{key}`                                     | Reset the public entrance copy                             |
+| Announcements and entrance | second factor, last 15 minutes | `PUT /admin/entrance/hero`                                              | Change the entrance hero image                             |
+| Announcements and entrance | second factor, last 15 minutes | `DELETE /admin/entrance/hero`                                           | Remove the entrance hero image                             |
+| Announcements and entrance | second factor, last 15 minutes | `POST /admin/system/email-test`                                         | Send the operator test mail                                |
 
 ## 7. Developer roles
 

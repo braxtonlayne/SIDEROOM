@@ -86,6 +86,7 @@ test.describe('Phase 0 exit gate', () => {
     const request = page.request;
     const enroll = await request.post(`${API}/sr/auth/totp/enroll`, {
       headers: { 'X-SR-CSRF': await csrf(request) },
+      data: { password: friend.password },
     });
     expect(enroll.ok()).toBeTruthy();
     const secret = secretFromOtpauth(
