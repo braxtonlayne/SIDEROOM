@@ -884,6 +884,11 @@ impl AdminService {
                 &audit,
             )
             .await?;
+        // The ban revoked every session of the Person's accounts: their open sockets close now, not at
+        // the gateway's next re-check (D-558).
+        for a in &person.accounts {
+            self.push_sessions_revoked(a.id).await;
+        }
         if let Some(s) = &out.inviter_suspicion {
             self.alert(
                 StaffAlertKind::InviterSuspicion,
@@ -1237,6 +1242,15 @@ impl AdminService {
         }
         if !problems.is_empty() {
             return Err(AdminError::Invalid(problems.join("; ")));
+        }
+        // D-563: the guild audit-log retention and the invite lock need a reason here too, as the dedicated
+        // lock path does (`set_invites_locked`): shortening retention deletes history.
+        if reason.is_empty()
+            && clean
+                .iter()
+                .any(|(k, _)| settings::REASON_REQUIRED_KEYS.contains(&k.as_str()))
+        {
+            return Err(AdminError::ReasonRequired);
         }
         let (freeze, escalate) = (
             clean

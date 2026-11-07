@@ -999,6 +999,46 @@ async fn removing_a_member_from_a_group_dm_drops_them_from_its_call() {
     );
 }
 
+/// SEC-AUD-018 (D-558): removing a member who is being rung sends the remaining members a
+/// `CALL_UPDATE` with the shorter `ringing` list, as Discord does.
+#[tokio::test]
+async fn removing_a_rung_member_tells_the_others_the_shorter_ring() {
+    let e = env();
+    let mut caller = client(&e, MEMBER).await;
+    let mut friend = client(&e, FRIEND).await;
+    let mut third = client(&e, MOD).await;
+    caller.call().await;
+    caller.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(
+        friend.event("CALL_CREATE").await["ringing"],
+        json!(["2", "4"])
+    );
+    settle().await;
+    caller.drain().await;
+    friend.drain().await;
+    third.drain().await;
+
+    // MOD is rung, never joined, and is removed from the group.
+    e.dir.removed_from_dm.lock().unwrap().push(u(MOD));
+    emit(
+        &e.bus,
+        DomainEvent::UserScoped {
+            users: vec![u(MOD)],
+            name: "CHANNEL_DELETE".into(),
+            payload: json!({"id": DM.get().to_string(), "type": 3}),
+        },
+    )
+    .await;
+    settle().await;
+    assert_eq!(caller.event("CALL_UPDATE").await["ringing"], json!(["2"]));
+    assert_eq!(friend.event("CALL_UPDATE").await["ringing"], json!(["2"]));
+    assert_eq!(e.gw.call_snapshot()[&DM].1, vec![u(FRIEND)]);
+    assert!(
+        third.drain().await.iter().all(|v| v["t"] != "CALL_UPDATE"),
+        "the removed member hears nothing more about the call"
+    );
+}
+
 #[tokio::test]
 async fn closing_a_dm_keeps_its_member_in_the_call() {
     let e = env();

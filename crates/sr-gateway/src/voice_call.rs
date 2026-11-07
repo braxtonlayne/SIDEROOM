@@ -232,10 +232,24 @@ impl Gateway {
         if in_call {
             self.voice_leave(user).await;
         }
-        let mut st = self.st();
-        if let Some(c) = st.vx.calls.get_mut(&channel) {
-            c.members.retain(|m| *m != user);
-            c.ringing.remove(&user);
+        // A rung member who is removed stops ringing; the others get the shorter `ringing` list in a
+        // `CALL_UPDATE` (Discord parity, D-558), so no client keeps showing them as rung.
+        let updated = {
+            let mut st = self.st();
+            st.vx.calls.get_mut(&channel).and_then(|c| {
+                c.members.retain(|m| *m != user);
+                if !c.ringing.remove(&user) {
+                    return None;
+                }
+                if c.ringing.is_empty() {
+                    c.ring_until = None;
+                }
+                c.active.then(|| c.clone())
+            })
+        };
+        if let Some(c) = updated {
+            self.call_tell(&c.members, "CALL_UPDATE", &c.update_body())
+                .await;
         }
     }
 
