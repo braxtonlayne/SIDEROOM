@@ -393,7 +393,15 @@ impl PackageService {
         if doc.blocks.iter().any(|b| b.kind == BlockKind::TopFriends) {
             let named = profile_doc::top_friend_ids(&doc);
             let still = self.friends_among(owner, &named).await?;
-            for id in named.iter().filter(|i| still.contains(i)) {
+            // A friend the viewer blocked (or who blocked the viewer) is not shown (SEC-AUD-012).
+            let hidden = match viewer {
+                Some(v) if v != owner => self.blocked_among(v, &named).await?,
+                _ => Vec::new(),
+            };
+            for id in named
+                .iter()
+                .filter(|i| still.contains(i) && !hidden.contains(i))
+            {
                 if let Some((u, _)) = self.user_by("a.id = $1", Some(*id), None).await? {
                     friends.push(u);
                 }
@@ -549,6 +557,10 @@ impl PackageService {
              FROM profile_guestbook g LEFT JOIN accounts a ON a.id = g.author_id \
              WHERE g.profile_id = $1 AND ($2::bigint IS NULL OR g.id < $2) \
                AND (g.status = 'approved' OR $3) \
+               AND ($3 OR $4::bigint IS NULL OR g.author_id IS NULL OR NOT EXISTS ( \
+                    SELECT 1 FROM relationships b WHERE b.type = 2 \
+                      AND ((b.user_id = $4 AND b.target_id = g.author_id) \
+                        OR (b.user_id = g.author_id AND b.target_id = $4)))) \
              ORDER BY g.id DESC LIMIT {PAGE}",
             ms("g.created_at")
         );
@@ -556,6 +568,7 @@ impl PackageService {
             .bind(profile)
             .bind(before)
             .bind(owner_view)
+            .bind(viewer)
             .fetch_all(self.pool())
             .await?;
         rows.iter()

@@ -11,9 +11,11 @@ use crate::rules;
 use crate::service::LibrarySocial;
 
 /// A list the viewer (`$1`) may see: their own, public ones, and friends-only ones of friends;
-/// never one whose owner blocked them.
+/// never one of an owner blocked in either direction or ignored by the viewer.
 const VISIBLE: &str = "(l.owner_id = $1 OR (NOT EXISTS (SELECT 1 FROM relationships b \
-       WHERE b.user_id = l.owner_id AND b.target_id = $1 AND b.type = 2) \
+       WHERE ((b.user_id = l.owner_id AND b.target_id = $1) \
+           OR (b.user_id = $1 AND b.target_id = l.owner_id)) AND b.type = 2) \
+     AND NOT EXISTS (SELECT 1 FROM user_ignores ig WHERE ig.user_id = $1 AND ig.target_id = l.owner_id) \
      AND (l.visibility = 'public' OR (l.visibility = 'friends' AND EXISTS ( \
        SELECT 1 FROM relationships f WHERE f.user_id = $1 AND f.target_id = l.owner_id AND f.type = 1)))))";
 

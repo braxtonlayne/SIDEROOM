@@ -555,3 +555,59 @@ async fn a_showcase_names_only_audio_or_video_on_the_members_own_shelf() {
         .unwrap();
     assert!(r.svc.set_doc(owner, &doc(shelf, &hash)).await.is_err());
 }
+
+/// SEC-AUD-012: a viewer who blocked someone does not see them among the owner's top friends or as a
+/// guestbook author; the owner's own view of the book is unchanged.
+#[tokio::test]
+#[ignore = "needs Postgres"]
+async fn a_viewers_blocked_people_are_left_out_of_top_friends_and_guestbook() {
+    let r = rig().await;
+    let owner = account(&r.pool, None).await;
+    let named = account(&r.pool, Some(FRIEND)).await;
+    befriend(&r.pool, owner, named).await;
+    r.svc
+        .set_doc(owner, &doc_with_secrets(&[named.to_string()]))
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO profile_guestbook (id, profile_id, author_id, body) VALUES ($1,$2,$3,$4)",
+    )
+    .bind(uid())
+    .bind(owner)
+    .bind(named)
+    .bind(GUEST)
+    .execute(&r.pool)
+    .await
+    .unwrap();
+    r.svc
+        .set_privacy(
+            owner,
+            PrivacyUpdate {
+                preset: Some(Preset::Members),
+                ..PrivacyUpdate::default()
+            },
+            true,
+        )
+        .await
+        .unwrap();
+    let viewer = account(&r.pool, None).await;
+    let shown = |p: &sr_packages::service::ProfilePage| p.friends.len();
+    let page = r.svc.page(viewer, None, Some(owner), true).await.unwrap();
+    assert_eq!(shown(&page), 1, "before the block");
+    let book = r.svc.guestbook(viewer, owner, None, true).await.unwrap();
+    assert!(book.iter().any(|e| e.body == GUEST));
+
+    sqlx::query("INSERT INTO relationships (user_id, target_id, type) VALUES ($1,$2,2)")
+        .bind(viewer)
+        .bind(named)
+        .execute(&r.pool)
+        .await
+        .unwrap();
+    let page = r.svc.page(viewer, None, Some(owner), true).await.unwrap();
+    assert_eq!(shown(&page), 0, "a blocked friend is not shown");
+    let book = r.svc.guestbook(viewer, owner, None, true).await.unwrap();
+    assert!(!book.iter().any(|e| e.body == GUEST), "{book:?}");
+    // The owner still sees the note, so they can remove it.
+    let own = r.svc.guestbook(owner, owner, None, true).await.unwrap();
+    assert!(own.iter().any(|e| e.body == GUEST));
+}
