@@ -160,10 +160,10 @@
   border-bottom: 1px solid var(--ui-border);
 }
 .lng-banner[data-tone='danger'] {
-  background: color-mix(in srgb, var(--danger, #ed4245) 25%, var(--bg-base-low));
+  background: color-mix(in srgb, var(--ui-danger) 25%, var(--bg-base-low));
 }
 .lng-banner[data-tone='warn'] {
-  background: color-mix(in srgb, var(--warning, #faa61a) 25%, var(--bg-base-low));
+  background: color-mix(in srgb, var(--ui-warning) 25%, var(--bg-base-low));
 }
 .lng-friends-tabs {
   margin-inline-start: 16px;
@@ -241,7 +241,7 @@
 }
 .lng-add-ok {
   margin: 0;
-  color: var(--success, #3ba55d);
+  color: var(--ui-success);
 }
 .lng-pick-list {
   max-height: 260px;
@@ -261,7 +261,7 @@
 .lng-dm-close {
   position: absolute;
   top: 50%;
-  right: 6px;
+  inset-inline-end: 6px;
   display: none;
   transform: translateY(-50%);
 }
@@ -357,7 +357,7 @@
   cursor: not-allowed;
 }
 .lng-welcome-card[data-done] {
-  border-color: var(--success, #3ba55d);
+  border-color: var(--ui-success);
 }
 .lng-welcome-text {
   display: flex;
@@ -397,9 +397,9 @@
   cursor: pointer;
 }
 .lng-dir-cat[aria-pressed='true'] {
-  background: var(--accent, #5865f2);
+  background: var(--ui-accent);
   border-color: transparent;
-  color: var(--on-accent, #fff);
+  color: var(--ui-accent-ink);
 }
 .lng-dir-grid {
   display: grid;
@@ -417,7 +417,7 @@
 }
 .lng-dir-banner {
   block-size: 64px;
-  background: var(--bg-base-high, #333) center / cover;
+  background: var(--bg-base-lowest) center / cover;
 }
 .lng-dir-body {
   display: flex;
@@ -456,7 +456,7 @@
   inline-size: 120px;
   block-size: 48px;
   border-radius: 6px;
-  background: var(--bg-base-high, #333) center / cover;
+  background: var(--bg-base-lowest) center / cover;
 }
 
 /* Active Now cards (LNG-FRD-013) */
@@ -494,8 +494,8 @@
   inset-inline-start: 6px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: var(--danger, #ed4245);
-  color: #fff;
+  background: var(--ui-danger);
+  color: var(--ui-danger-ink);
   font-size: 11px;
   font-weight: 700;
 }
@@ -555,7 +555,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--ui-surface-2, rgba(128, 128, 128, 0.2));
+  background: var(--ui-bg-raised);
   flex: none;
 }
 .lng-icon-preview img {
@@ -574,7 +574,7 @@
   padding-block: 4px;
   padding-inline: 8px;
   border-radius: 6px;
-  background: var(--ui-surface-hover, rgb(255 255 255 / 6%));
+  background: var(--ui-bg-hover);
   color: var(--ui-text-muted);
   font-size: 0.8125rem;
 }

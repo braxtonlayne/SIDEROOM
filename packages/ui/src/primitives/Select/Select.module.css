@@ -34,7 +34,7 @@
 .value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .placeholder { color: var(--ui-text-faint); }
 
-.inputRow { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; padding: 4px 4px 4px 8px; }
+.inputRow { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; padding-block: 4px; padding-inline: 8px 4px; }
 .inputRow .input { flex: 1 1 80px; padding: 4px; }
 
 .chip {
@@ -42,7 +42,8 @@
   align-items: center;
   gap: 2px;
   max-width: 100%;
-  padding: 2px 4px 2px 8px;
+  padding-block: 2px;
+  padding-inline: 8px 4px;
   background: var(--ui-bg-hover);
   border-radius: var(--ui-radius);
   font-size: 0.8125rem;
@@ -88,7 +89,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 0 8px;
+  padding-block: 0;
+  padding-inline: 8px 12px;
   cursor: pointer;
   user-select: none;
 }

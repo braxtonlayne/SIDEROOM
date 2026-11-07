@@ -317,7 +317,7 @@
   box-sizing: border-box;
   padding: 7px 10px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   background: var(--ui-bg);
   color: var(--ui-text);
   font: inherit;
@@ -340,7 +340,7 @@
   width: 100%;
   padding: 6px 8px;
   border: 0;
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   background: transparent;
   color: var(--ui-text);
   font: inherit;
@@ -409,7 +409,7 @@
 .us-key-capture {
   padding: 6px 12px;
   border: 2px solid var(--ui-accent);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   background: var(--ui-bg);
   color: var(--ui-text);
   font: inherit;

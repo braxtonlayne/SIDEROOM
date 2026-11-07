@@ -60,7 +60,7 @@
   border: 0;
   border-radius: 12px;
   background: var(--brand);
-  color: var(--brand-contrast, #fff);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -114,7 +114,7 @@
   padding-inline: 8px;
   border-radius: 6px;
   border: 1px solid var(--ui-border, currentColor);
-  background: var(--ui-bg-input, transparent);
+  background: var(--ui-bg);
   color: inherit;
 }
 

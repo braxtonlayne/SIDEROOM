@@ -8,15 +8,11 @@
   border: 2px solid var(--ui-warning);
   border-radius: var(--ui-radius);
   overflow: hidden;
-  background: var(--ui-bg-sunken);
+  background: var(--ui-bg);
 }
 .gsv-hazard {
   block-size: 14px;
-  background: repeating-linear-gradient(
-    45deg,
-    var(--ui-warning) 0 14px,
-    var(--ui-bg-sunken) 14px 28px
-  );
+  background: repeating-linear-gradient(45deg, var(--ui-warning) 0 14px, var(--ui-bg) 14px 28px);
 }
 .gsv-sign {
   margin: 0;
@@ -157,7 +153,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 6px;
-  border-radius: var(--ui-radius-sm);
+  border-radius: calc(var(--ui-radius) / 2);
   background: var(--ui-bg-raised);
 }
 .gsv-row-name {
@@ -173,8 +169,8 @@
   margin: 0;
   padding: 6px 8px;
   overflow: hidden;
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-bg-sunken);
+  border-radius: calc(var(--ui-radius) / 2);
+  background: var(--ui-bg);
   font-family: var(--ui-font-mono);
   font-size: 0.72rem;
   white-space: pre-wrap;
@@ -200,7 +196,7 @@
   padding-block: 1px;
   padding-inline: 4px;
   border: 1px solid var(--ui-border);
-  background: var(--ui-bg-sunken);
+  background: var(--ui-bg);
   font-family: var(--ui-font-mono);
   color: var(--ui-success);
 }
@@ -210,7 +206,7 @@
   padding: 10px 12px;
   border: 1px dashed var(--ui-warning);
   border-radius: var(--ui-radius);
-  background: var(--ui-bg-sunken);
+  background: var(--ui-bg);
 }
 .gsv-tile-title {
   margin: 0;

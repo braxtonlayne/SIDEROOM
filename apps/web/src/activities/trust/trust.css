@@ -20,15 +20,15 @@
   color: var(--sr-gold, #c9a24d);
 }
 .trust-badge[data-tone='signed'] {
-  color: var(--sr-success, #4caf7d);
+  color: var(--ui-success);
 }
 .trust-badge[data-tone='warning'] {
-  color: var(--sr-warning, #e0a030);
+  color: var(--ui-warning);
   letter-spacing: 0;
   font-weight: 500;
 }
 .trust-badge[data-tone='plain'] {
-  color: var(--sr-text-muted, #9a9a9a);
+  color: var(--ui-text-muted);
 }
 .trust-vouch {
   display: flex;
@@ -39,5 +39,5 @@
 .trust-vouch-hint {
   margin-block: 0;
   font-size: 0.85em;
-  color: var(--sr-text-muted, #9a9a9a);
+  color: var(--ui-text-muted);
 }

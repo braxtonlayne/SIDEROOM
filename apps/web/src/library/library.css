@@ -220,7 +220,7 @@
 }
 .lib-search-icon {
   position: absolute;
-  left: 12px;
+  inset-inline-start: 12px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--sr-text-2);

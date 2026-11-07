@@ -15,7 +15,7 @@
   justify-content: space-between;
   padding: 12px;
   border-radius: 8px;
-  background: var(--ui-surface-raised, rgb(255 255 255 / 4%));
+  background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border, rgb(255 255 255 / 10%));
 }
 
@@ -73,7 +73,7 @@
   padding-inline: 10px;
   border-radius: 6px;
   border: 1px solid var(--ui-border, rgb(255 255 255 / 15%));
-  background: var(--ui-surface, transparent);
+  background: var(--ui-bg);
   color: inherit;
 }
 
@@ -98,7 +98,7 @@
 
 .lng-events-row:hover,
 .lng-events-row:focus-visible {
-  background: var(--ui-surface-hover, rgb(255 255 255 / 6%));
+  background: var(--ui-bg-hover);
   color: var(--ui-text);
 }
 
@@ -139,7 +139,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--ui-surface-raised, rgb(255 255 255 / 4%));
+  background: var(--ui-bg-raised);
   border: 1px dashed var(--ui-border, rgb(255 255 255 / 20%));
   color: var(--ui-text-muted);
   font-size: 0.8rem;

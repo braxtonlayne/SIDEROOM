@@ -67,7 +67,7 @@
   flex-wrap: wrap;
 }
 .lng-saved-failed {
-  color: var(--danger, #e5484d);
+  color: var(--ui-danger);
   font-size: 13px;
 }
 .lng-community {
@@ -132,13 +132,13 @@
 }
 .lng-status-chip[data-status='approved'],
 .lng-status-chip[data-status='implemented'] {
-  background: color-mix(in srgb, #2ecc71 25%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 25%, transparent);
 }
 .lng-status-chip[data-status='denied'] {
-  background: color-mix(in srgb, #e74c3c 25%, transparent);
+  background: color-mix(in srgb, var(--ui-danger) 25%, transparent);
 }
 .lng-status-chip[data-status='considering'] {
-  background: color-mix(in srgb, #f1c40f 25%, transparent);
+  background: color-mix(in srgb, var(--ui-warning) 25%, transparent);
 }
 .lng-tpl-row {
   display: flex;
