@@ -82,7 +82,8 @@ async fn relationship_lifecycle() {
         account(&pool, &ids).await,
     );
     assert!(matches!(
-        svc.send_friend_request(a, UserId::new(1)).await,
+        // An id no account has (1 is the system account, which other tests in this database create).
+        svc.send_friend_request(a, UserId::new(999_999_999_999_999_999)).await,
         Err(SocialError::UnknownUser)
     ));
     svc.send_friend_request(a, b).await.unwrap();

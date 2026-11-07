@@ -7861,8 +7861,12 @@ async fn shelf_access_holds_over_http() {
     let laptop = Cred::Session(session_for(&auth, &ids, victim).await);
     let stranger = world.actor("outsider").cred.clone();
     let owner = world.actor("member").cred.clone();
-    let staff = world.actor(bit_actor_name("MANAGE_TAKEDOWNS")).cred.clone();
+    // SEC-AUD-022: delist and relist need a fresh second factor; the enrolled Owner (who holds MANAGE_TAKEDOWNS)
+    // steps up once, as the other staff drills do.
+    let staff = world.actor("staff_owner").cred.clone();
     let srv = &world.srv;
+    let r = step_up(srv, &staff, &world.totp).await;
+    assert_eq!(r.status, 200, "staff step-up: {}", r.body);
     let pool = &world.pool;
     let m = world.a["shelf_id"].clone();
     let hash = world.a["object_hash"].clone();
