@@ -46,6 +46,8 @@ pub const TOKENS: &[TokenSpec] = &[
     t("--ui-accent-ink", Color),
     t("--ui-danger", Color),
     t("--ui-danger-ink", Color),
+    // Danger text on a surface (D-577); --ui-danger-ink is text on a danger fill.
+    t("--ui-danger-text", Color),
     t("--ui-success", Color),
     t("--ui-warning", Color),
     t("--ui-info", Color),

@@ -514,7 +514,7 @@ async function keyChangedForShot(page: Page, world: SweepWorld, notes: string[])
     .then(() => page.waitForTimeout(200))
     .then(() =>
       page
-        .getByRole('button', { name: /privacy code changed/ })
+        .getByRole('button', { name: /new privacy code/ })
         .first()
         .click({ timeout: 5000 }),
     )

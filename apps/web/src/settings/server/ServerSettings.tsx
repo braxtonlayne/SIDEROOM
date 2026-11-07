@@ -14,6 +14,8 @@ import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { LiveDataConnection, useEnsureGuild } from '../../lounge/live';
+import { useListLoadFailure } from '../../lounge/data';
+import { ListLoadFailed } from '../../lounge/ListLoadFailed';
 import { LoungeThemeProvider } from '../user/LoungeThemeProvider';
 import { useGuild, useStore } from '../../store';
 import { FormContext, useViewer, type FormHandle, type Viewer } from './hooks';
@@ -242,6 +244,7 @@ export function ServerSettings({
   const viewer = useViewer(guildId);
   const [form, setForm] = useState<FormHandle | null>(null);
   useEnsureGuild(guildId, true);
+  const serverLoad = useListLoadFailure('server', guildId);
   const loadMembers = useStore((s) => s.loadMembers);
   useEffect(() => {
     loadMembers(guildId).catch(() => undefined);
@@ -279,7 +282,10 @@ export function ServerSettings({
 
   const active = visible.find((s) => s.id === section);
   let body;
-  if (!viewer.ready || !guild) {
+  if ((!viewer.ready || !guild) && serverLoad.failed) {
+    // SEC-AUD-046 (D-577): a failed load says so here, with Try again, instead of loading forever.
+    body = <ListLoadFailed message={t('lounge.listLoad.server')} onRetry={serverLoad.retry} />;
+  } else if (!viewer.ready || !guild) {
     body = <Loading label={t('settings.serverSettings.loading')} />;
   } else if (section === 'gameservers' && !gameServersOn) {
     // GSV-PAGE-001: switched off by the operator, the route is the Lounge's not-found view.

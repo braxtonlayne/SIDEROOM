@@ -41,6 +41,7 @@ const CONTRAST_PAIRS: &[(&str, &str)] = &[
     ("--ui-text-muted", "--ui-bg"),
     ("--ui-accent-ink", "--ui-accent"),
     ("--ui-danger-ink", "--ui-danger"),
+    ("--ui-danger-text", "--ui-bg"),
     ("--text-normal", "--bg-base-low"),
     ("--sr-text", "--sr-bg-0"),
     ("--sr-gold-ink", "--sr-gold"),

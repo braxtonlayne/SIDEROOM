@@ -99,6 +99,7 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
   const guilds = useGuilds();
   const mine = useMyExpressions(true);
   const favorites = useSoundboard((s) => s.favorites);
+  const unsynced = useSoundboard((s) => s.favoritesUnsynced);
   const volume = useSoundboard((s) => s.volume);
   const toggleFavorite = useSoundboard((s) => s.toggleFavorite);
   const setVolume = useSoundboard((s) => s.setVolume);
@@ -208,6 +209,11 @@ function Body({ guildId, channelId }: { guildId: string; channelId: string }) {
       {failed && (
         <p className="vc-inline-error" role="alert">
           {t('lounge.soundboard.loadFailed')}
+        </p>
+      )}
+      {unsynced && (
+        <p className="vc-note" data-testid="soundboard-unsynced">
+          {t('lounge.soundboard.favoritesUnsynced')}
         </p>
       )}
       <div className="vc-sb-scroll">

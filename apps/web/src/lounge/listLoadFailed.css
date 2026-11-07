@@ -1,0 +1,19 @@
+/* SEC-AUD-046 (D-577): the "could not be loaded, Try again" row. Its own file, so the row looks the same where the
+   Lounge stylesheets are not loaded (Server Settings). */
+.lng-list-failed {
+  margin: 0;
+  padding-block: 12px;
+  padding-inline: 16px;
+  color: var(--ui-danger-text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.lng-list-retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link, var(--brand));
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}

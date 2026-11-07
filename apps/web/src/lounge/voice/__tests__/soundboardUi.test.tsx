@@ -166,4 +166,15 @@ describe('soundboard popover (VOX-SB-002)', () => {
     const body = await popover(user);
     expect(await axeViolations(body)).toEqual([]);
   });
+
+  it('SEC-AUD-046 (D-577): a favorites change not saved to the account is one quiet line, not an alert', async () => {
+    const user = open();
+    const body = await popover(user);
+    expect(within(body).queryByTestId('soundboard-unsynced')).toBeNull();
+    act(() => useSoundboard.setState({ favoritesUnsynced: true }));
+    expect(within(body).getByTestId('soundboard-unsynced')).toHaveTextContent(
+      'Favorites are not saved to your account yet.',
+    );
+    expect(within(body).queryByRole('alert')).toBeNull();
+  });
 });

@@ -4,9 +4,10 @@
  * each participant's pairwise verification code stays the same across calls until one of the
  * two identity keys changes, and backs the "verified" mark kept on this device per key.
  *
- * SEC-AUD-038 (D-564): the first identity key seen for a person is pinned on this device; when a
- * call carries another key for them, the shield says their privacy code changed until the viewer
- * compares the new code and marks them verified again.
+ * SEC-AUD-038 (D-564), SEC-AUD-047 (D-578): this device keeps a set of the identity keys it has
+ * seen per person (pins.ts). A key new to the set makes the shield say, for the rest of the call,
+ * that the person has a new privacy code (a new device, or a new sign-in), until the viewer
+ * compares it and marks them verified. The verified mark is per person and key.
  */
 import { useState } from 'react';
 import { Icon, Popover } from '@sideroom/ui';
@@ -25,7 +26,7 @@ export interface PrivacyParticipant {
   code: string;
   /** Their identity key (hex): what a verification is tied to. */
   keyFingerprint: string;
-  /** SEC-AUD-038 (D-564): their key differs from the one pinned on this device. */
+  /** SEC-AUD-047 (D-578): their key is new to the set this device keeps for them. */
   keyChanged?: boolean;
 }
 
@@ -58,7 +59,7 @@ export function PrivacyCodes({
   const label = !callCode
     ? t('lounge.privacyCodes.securing')
     : changed.length > 0
-      ? t('lounge.keyPins.shieldChanged')
+      ? t('lounge.keyPins.shieldNew')
       : allVerified
         ? t('lounge.privacyCodes.allVerified')
         : t('lounge.privacyCodes.title');
@@ -83,7 +84,7 @@ export function PrivacyCodes({
       {changed.length > 0 && (
         <div className="vc-e2ee-changed" role="status">
           {changed.map((p) => (
-            <p key={p.userId}>{t('lounge.keyPins.changed', { name: p.name })}</p>
+            <p key={p.userId}>{t('lounge.keyPins.newCode', { name: p.name })}</p>
           ))}
           <p>{showCodes ? t('lounge.keyPins.compare') : t('lounge.keyPins.compareHidden')}</p>
         </div>
@@ -144,7 +145,7 @@ export function PrivacyCodes({
 
 const deviceVerified = verifiedStore();
 
-/** Marking a person verified after comparing the new code trusts the key their call carries now (D-564). */
+/** Marking a person verified after comparing the new code pins the key their call carries now (D-564, D-578). */
 function trustCurrentKey(
   viewer: string | null | undefined,
   p: PrivacyParticipant,

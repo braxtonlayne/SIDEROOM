@@ -27,6 +27,7 @@ import { applyMutes } from './shell/applyMutes';
 import { findBridgedMember, useBridgedMembers } from './bridge/members';
 import { useNotifSettings } from './shell/notifSettings';
 import { failWith } from './actionError';
+import { markLoadFailed, useLoadFailed } from './loadFailures';
 import {
   basePermissions,
   computeChannelPermissions,
@@ -325,22 +326,34 @@ export function useLiveSnapshot(): LiveSnapshot {
   ]);
 }
 
-/** Loads a guild's channels and roles over REST when only the READY stub is known. */
+/**
+ * Loads a guild's channels and roles over REST when only the READY stub is known. A failure is shown in the
+ * channel list (SEC-AUD-046, D-577: no toast for a load the member did not start) and loaded again on Try
+ * again or when the browser comes back online (`loadFailures.ts`).
+ */
 export function useEnsureGuild(guildId: string | undefined, active: boolean) {
   const loaded = useStore((s) => (guildId ? s.channelIdsByGuild[guildId] !== undefined : true));
+  const failed = useLoadFailed('server', guildId);
   useEffect(() => {
-    if (!active || !guildId || guildId === DM_GUILD || loaded) return;
-    useStore.getState().loadGuild(guildId).catch(failWith('lounge.actionError.loadServer'));
-  }, [active, guildId, loaded]);
+    if (!active || !guildId || guildId === DM_GUILD || loaded || failed) return;
+    useStore
+      .getState()
+      .loadGuild(guildId)
+      .catch(() => markLoadFailed('server', guildId));
+  }, [active, guildId, loaded, failed]);
 }
 
-/** Loads a guild's member list once per guild. */
+/** Loads a guild's member list once per guild; a failure is shown in the member list (as above). */
 export function useEnsureMembers(guildId: string | undefined, active: boolean) {
   const loaded = useStore((s) => (guildId ? s.memberIdsByGuild[guildId] !== undefined : true));
+  const failed = useLoadFailed('members', guildId);
   useEffect(() => {
-    if (!active || !guildId || guildId === DM_GUILD || loaded) return;
-    useStore.getState().loadMembers(guildId).catch(failWith('lounge.actionError.loadMembers'));
-  }, [active, guildId, loaded]);
+    if (!active || !guildId || guildId === DM_GUILD || loaded || failed) return;
+    useStore
+      .getState()
+      .loadMembers(guildId)
+      .catch(() => markLoadFailed('members', guildId));
+  }, [active, guildId, loaded, failed]);
 }
 
 export function useLiveMessages(channelId: string | undefined, active: boolean): MessagesState {
