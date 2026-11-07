@@ -48,6 +48,15 @@ WHERE purge_after IS NOT NULL \
 ORDER BY purge_after \
 LIMIT $2";
 
+/// Locks the messages `$2` (chosen by [`PURGE_DUE_SQL`]) that are still due at `$1` (Unix ms) and still
+/// unheld, inside the batch transaction, before their stored objects are deleted. A row another transaction
+/// holds (an edit, a hold being placed) is passed by and comes round on the next run.
+pub(crate) const PURGE_LOCK_SQL: &str = "\
+SELECT id FROM messages WHERE id = ANY($2) \
+  AND purge_after IS NOT NULL \
+  AND purge_after <= to_timestamp($1::double precision / 1000.0) AND hold_id IS NULL \
+FOR UPDATE SKIP LOCKED";
+
 /// Deletes the messages `$2` (chosen by [`PURGE_DUE_SQL`]) and their edit history in one
 /// statement, re-checking the due and hold conditions against `$1` (Unix ms) so a hold
 /// placed after the selection still wins. `message_edits` has no foreign key to the
@@ -143,27 +152,41 @@ pub(crate) async fn purge_deleted_messages(
         if due.is_empty() {
             break;
         }
-        let keys: Vec<(i64, String)> = sqlx::query_as(
-            "SELECT message_id, storage_key FROM attachments \
-             WHERE message_id = ANY($1) AND state <> 'pending'",
+        // One bounded transaction per batch: a lock wait over a second or a statement over thirty
+        // seconds fails the run (retried on the next tick) instead of holding the table.
+        let mut tx = sr_db::bounded::begin(pool).await?;
+        // Lock and re-check the batch, and the attachments of what is left, before any stored object goes
+        // (wave 53, server-1 HIGH 2). A hold placed since the selection has either committed (the row drops
+        // out here) or waits on these locks until the batch commits and then finds the row gone; it can no
+        // longer land between the object delete and the row delete and keep a row whose file is gone.
+        let locked: Vec<i64> = sqlx::query_scalar(PURGE_LOCK_SQL)
+            .bind(now_ms)
+            .bind(&due)
+            .fetch_all(&mut *tx)
+            .await?;
+        let atts: Vec<(i64, String, bool, bool)> = sqlx::query_as(
+            "SELECT message_id, storage_key, hold_id IS NOT NULL, state <> 'pending' FROM attachments \
+             WHERE message_id = ANY($1) FOR UPDATE",
         )
-        .bind(&due)
-        .fetch_all(pool)
+        .bind(&locked)
+        .fetch_all(&mut *tx)
         .await?;
-        let mut failed = std::collections::HashSet::new();
-        for (message_id, key) in &keys {
-            if !remove_object(storage, key).await {
+        // A message with a held attachment stays whole: its rows and every object of it.
+        let mut failed: std::collections::HashSet<i64> = atts
+            .iter()
+            .filter(|(_, _, held, _)| *held)
+            .map(|(m, ..)| *m)
+            .collect();
+        for (message_id, key, _, stored) in &atts {
+            if *stored && !failed.contains(message_id) && !remove_object(storage, key).await {
                 failed.insert(*message_id);
             }
         }
-        let doomed: Vec<i64> = due
+        let doomed: Vec<i64> = locked
             .iter()
             .copied()
             .filter(|id| !failed.contains(id))
             .collect();
-        // One bounded transaction per batch: a lock wait over a second or a statement over thirty
-        // seconds fails the run (retried on the next tick) instead of holding the table.
-        let mut tx = sr_db::bounded::begin(pool).await?;
         let n: i64 = sqlx::query_scalar(PURGE_SQL)
             .bind(now_ms)
             .bind(&doomed)
@@ -185,13 +208,16 @@ pub(crate) async fn purge_removed_attachments(
     pool: &PgPool,
     storage: &dyn ObjectStorage,
 ) -> DbResult<i64> {
+    // The rows are locked from the selection to the delete, so a hold cannot land between the object delete and
+    // the row delete (wave 53): it either committed first (the row is not selected) or waits and finds it gone.
+    let mut tx = sr_db::bounded::begin(pool).await?;
     let rows: Vec<(i64, String)> = sqlx::query_as(
         "SELECT id, storage_key FROM attachments \
          WHERE removed_at IS NOT NULL AND message_id IS NULL AND hold_id IS NULL \
-         ORDER BY removed_at LIMIT $1",
+         ORDER BY removed_at LIMIT $1 FOR UPDATE SKIP LOCKED",
     )
     .bind(PURGE_BATCH)
-    .fetch_all(pool)
+    .fetch_all(&mut *tx)
     .await?;
     let mut done: Vec<i64> = Vec::new();
     for (id, key) in &rows {
@@ -206,9 +232,10 @@ pub(crate) async fn purge_removed_attachments(
         "DELETE FROM attachments WHERE id = ANY($1) AND removed_at IS NOT NULL AND hold_id IS NULL",
     )
     .bind(&done)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?
     .rows_affected();
+    tx.commit().await?;
     Ok(i64::try_from(n).unwrap_or(i64::MAX))
 }
 
@@ -261,16 +288,21 @@ pub(crate) async fn expire_large_attachments(
 ) -> DbResult<Vec<ExpiredAttachment>> {
     let mut out: Vec<ExpiredAttachment> = Vec::new();
     for _ in 0..EXPIRE_MAX_BATCHES {
+        // The attachment rows (and, shared, their messages) stay locked from the selection to the update, so a
+        // hold on either cannot land after the hold check and before the object is deleted (wave 53): it either
+        // committed first (the row is not selected) or waits for the batch.
+        let mut tx = sr_db::bounded::begin(pool).await?;
         let rows: Vec<(i64, i64, i64, String)> = sqlx::query_as(
             "SELECT a.id, a.message_id, m.channel_id, a.storage_key \
              FROM attachments a JOIN messages m ON m.id = a.message_id \
              WHERE a.is_large AND a.state = 'ready' AND a.hold_id IS NULL AND m.hold_id IS NULL \
                AND a.expires_at <= to_timestamp($1::double precision / 1000.0) \
-             ORDER BY a.expires_at LIMIT $2",
+             ORDER BY a.expires_at LIMIT $2 \
+             FOR UPDATE OF a SKIP LOCKED FOR SHARE OF m SKIP LOCKED",
         )
         .bind(now_ms)
         .bind(EXPIRE_BATCH)
-        .fetch_all(pool)
+        .fetch_all(&mut *tx)
         .await?;
         if rows.is_empty() {
             break;
@@ -296,8 +328,9 @@ pub(crate) async fn expire_large_attachments(
              WHERE id = ANY($1) AND state = 'ready' AND hold_id IS NULL",
         )
         .bind(&done)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         if i64::try_from(rows.len()).unwrap_or(i64::MAX) < EXPIRE_BATCH {
             break;
         }
