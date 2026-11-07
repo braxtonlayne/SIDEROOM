@@ -736,6 +736,64 @@ async fn soundboard_sounds_round_trip_and_follow_their_guild() {
     assert!(repo.list_sounds(g).await.unwrap().is_empty());
 }
 
+/// SEC-AUD-021 (D-563): a purge that removed rows writes one platform-audit row (system user, cutoff and count);
+/// a run that removed nothing writes none.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_audit_purge_that_removed_rows_is_itself_audited() {
+    let pool = pool().await;
+    let repo = PgSettingsRepo::new(pool.clone());
+    // The system user (`sr-cli bootstrap` makes it on a real install).
+    sqlx::query("INSERT INTO persons (id) VALUES (1) ON CONFLICT DO NOTHING")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO accounts (id, person_id, username, email, password_hash) \
+         VALUES (1, 1, 'sideroom', 'system@sideroom.invalid', 'x') ON CONFLICT DO NOTHING",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let rows = |pool: PgPool| async move {
+        sqlx::query_as::<_, (i64, String)>(
+            "SELECT actor_id, note FROM platform_audit_log WHERE action = 'audit.purge' \
+             ORDER BY created_at DESC, id DESC",
+        )
+        .fetch_all(&pool)
+        .await
+        .unwrap()
+    };
+    let before = rows(pool.clone()).await.len();
+    // Far in the past, so nothing another test inserts is touched; a guild id nothing else uses.
+    let old = 946_684_800_000; // 2000-01-01
+    let guild_id: i64 = 8_100_000_000_000_002;
+    sqlx::query(
+        "INSERT INTO audit_log_entries (id, guild_id, actor_id, action, created_at) \
+         SELECT 8100000000200000 + n, $1, 1, 1, to_timestamp($2::double precision / 1000.0 - 86400) \
+         FROM generate_series(0, 2) AS n",
+    )
+    .bind(guild_id)
+    .bind(old)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let purged = repo.purge_audit_before(old).await.unwrap();
+    assert!(purged >= 3, "purged {purged}");
+    let after = rows(pool.clone()).await;
+    assert_eq!(after.len(), before + 1, "one row for the run");
+    assert_eq!(after[0].0, 1, "the system user is the actor");
+    assert!(
+        after[0].1.contains("2000-01-01T00:00:00Z")
+            && after[0].1.contains(&format!("removed: {purged}")),
+        "{}",
+        after[0].1
+    );
+    // Nothing older is left: a run that removes nothing is not recorded.
+    assert_eq!(repo.purge_audit_before(old).await.unwrap(), 0);
+    assert_eq!(rows(pool.clone()).await.len(), before + 1);
+}
+
 /// RDY-PERF-003 (job `audit.purge`): a purge over more rows than one batch removes all of them, in several
 /// bounded transactions, and keeps the newer ones.
 #[tokio::test]

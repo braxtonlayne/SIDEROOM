@@ -142,6 +142,10 @@ pub const INVITES_LOCKED: &str = "invites.locked";
 pub const INVITES_DEFAULT_CREDITS: &str = "invites.default_credits";
 pub const INVITES_MAX_OUTSTANDING: &str = "invites.max_outstanding";
 pub const INVITES_UNUSED_CODE_DAYS: &str = "invites.unused_code_days";
+/// Guild audit-log retention in days (P28-OPS-1); the daily `audit.purge` job deletes older rows.
+pub const AUDIT_RETENTION_DAYS: &str = "moderation.audit_retention_days";
+/// Keys a settings patch may change only with a reason (D-563): the audit retention and the invite lock.
+pub const REASON_REQUIRED_KEYS: [&str; 2] = [AUDIT_RETENTION_DAYS, INVITES_LOCKED];
 /// FU-8: days after an invite card finishes or is canceled that its claimant list is purged (0 = never).
 pub const INVITES_CARD_CLAIMANTS_RETENTION_DAYS: &str = "invites.card_claimants_retention_days";
 /// Inviter suspicion thresholds (doc 06 section 5.4).
