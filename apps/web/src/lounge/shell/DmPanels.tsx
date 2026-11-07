@@ -222,8 +222,11 @@ function GroupInvite({ channelId }: { channelId: string }) {
             size="sm"
             variant="secondary"
             onClick={() => {
-              void navigator.clipboard?.writeText(state.url);
-              setCopied(true);
+              // "Copied" only when the browser really copied (SEC-AUD-036).
+              void navigator.clipboard?.writeText(state.url).then(
+                () => setCopied(true),
+                () => setCopied(false),
+              );
             }}
           >
             {copied ? t('lounge.dmPanel.copied') : t('lounge.dmPanel.copy')}

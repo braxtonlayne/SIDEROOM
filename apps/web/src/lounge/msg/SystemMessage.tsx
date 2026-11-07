@@ -1,6 +1,6 @@
 import { Icon, type IconName } from '@sideroom/ui';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { apiFetch } from '../../api/client';
+import { ApiError, apiFetch } from '../../api/client';
 import { t, useT } from '../../i18n';
 import type { Message, Snowflake } from '../data';
 import { formatMessageTime } from '../time';
@@ -97,7 +97,9 @@ function ThreadStarterPreview({
   onJump?: (() => void) | undefined;
 }) {
   const t = useT();
-  const [original, setOriginal] = useState<{ author: string; text: string } | null | 'gone'>(null);
+  const [original, setOriginal] = useState<
+    { author: string; text: string } | null | 'gone' | 'failed'
+  >(null);
   useEffect(() => {
     let live = true;
     apiFetch<{ content?: string; author?: { username: string; global_name?: string | null } }>(
@@ -111,13 +113,19 @@ function ThreadStarterPreview({
             text: m.content || '',
           });
       })
-      .catch(() => live && setOriginal('gone'));
+      // Only a 404 means the message is gone; anything else is a failed read (SEC-AUD-036).
+      .catch(
+        (e: unknown) =>
+          live && setOriginal(e instanceof ApiError && e.status === 404 ? 'gone' : 'failed'),
+      );
     return () => {
       live = false;
     };
   }, [channelId, messageId]);
   if (original === 'gone')
     return <span className="lng-muted">{t('lounge.systemMessage.threadGone')}</span>;
+  if (original === 'failed')
+    return <span className="lng-muted">{t('lounge.systemMessage.threadStarterFailed')}</span>;
   return (
     <>
       <span className="lng-muted">{t('lounge.systemMessage.threadStartedFrom')}</span>

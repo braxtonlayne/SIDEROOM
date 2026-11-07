@@ -8,6 +8,7 @@ import type { Submission } from '../../review/types';
 import { listMemberInvites, type MemberInvite } from '../../settings/user/api';
 import { acceptFriend, listRelationships, REL, removeRelationship } from '../shell/api';
 import type { RelationshipRow } from '../shell/api';
+import { failWith } from '../actionError';
 
 const LIMIT = 5;
 const DECIDED = new Set(['approved', 'rejected', 'changes_requested', 'published']);
@@ -102,7 +103,11 @@ export function ForYou({ onGo }: { onGo: () => void }) {
                   type="button"
                   className="lng-inbox-mark"
                   aria-label={t('lounge.inbox.forYouAccept', { name: name(r.user) })}
-                  onClick={() => void acceptFriend(r.user.id).then(() => dropRequest(r.user.id))}
+                  onClick={() =>
+                    void acceptFriend(r.user.id)
+                      .then(() => dropRequest(r.user.id))
+                      .catch(failWith('lounge.friends.acceptError'))
+                  }
                 >
                   {t('lounge.inbox.forYouAcceptShort')}
                 </button>
@@ -111,7 +116,9 @@ export function ForYou({ onGo }: { onGo: () => void }) {
                   className="lng-inbox-mark"
                   aria-label={t('lounge.inbox.forYouDecline', { name: name(r.user) })}
                   onClick={() =>
-                    void removeRelationship(r.user.id).then(() => dropRequest(r.user.id))
+                    void removeRelationship(r.user.id)
+                      .then(() => dropRequest(r.user.id))
+                      .catch(failWith('lounge.friends.updateError'))
                   }
                 >
                   {t('lounge.inbox.forYouDeclineShort')}

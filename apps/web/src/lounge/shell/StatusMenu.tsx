@@ -2,6 +2,7 @@ import { Avatar, DropdownMenu, type MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { t, useT, type MessageKey } from '../../i18n';
 import { useLoungeUi } from '../store';
+import { failWith } from '../actionError';
 import { useNavigate } from '@tanstack/react-router';
 import { useIsPlatformStaff } from './platformStaff';
 import { useSelfPresence, type SelfStatus } from './selfPresence';
@@ -43,7 +44,9 @@ export function StatusMenu({ name }: { name: string }) {
   }, [load]);
 
   const set = (next: SelfStatus, seconds: number | null = null) =>
-    void update({ status: next, duration_seconds: seconds }).catch(() => undefined);
+    void update({ status: next, duration_seconds: seconds }).catch(
+      failWith('lounge.actionError.status'),
+    );
   const timed = (next: SelfStatus, label: string): MenuEntry => ({
     type: 'submenu',
     label,

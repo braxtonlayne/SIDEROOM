@@ -34,7 +34,7 @@ beforeEach(() => {
   resetStore();
   useStore.setState({ currentUserId: 'u1' });
   usePrefsStore.setState({ prefs: DEFAULT_PREFS });
-  useNotifSettings.setState({ load: async () => undefined, byGuild: {} });
+  useNotifSettings.setState({ load: async () => true, byGuild: {} });
   activeChannel = 'other';
   vi.spyOn(document, 'hasFocus').mockReturnValue(true);
 });

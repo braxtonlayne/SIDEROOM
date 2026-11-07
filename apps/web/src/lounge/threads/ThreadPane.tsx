@@ -11,6 +11,7 @@ import { MessageList } from '../MessageList';
 import { useLoungeGoto, useLoungeGotoThread } from '../nav';
 import { useMyTimeout } from '../timeout';
 import { useThreads } from './threadStore';
+import { failWith, reportActionError } from '../actionError';
 import './threads.css';
 
 /** A thread opened beside its parent channel: header, messages and composer (LNG-THR-001 UI). */
@@ -69,7 +70,10 @@ export function ThreadPane({
       if (thread.joined) await useThreads.getState().leave(threadId);
       else await useThreads.getState().join(threadId);
     } catch {
-      /* the button state simply does not change */
+      // The button keeps its true state; say why nothing changed (SEC-AUD-036).
+      reportActionError(
+        thread.joined ? 'lounge.actionError.leaveThread' : 'lounge.actionError.followThread',
+      );
     } finally {
       setBusy(false);
     }
@@ -80,7 +84,7 @@ export function ThreadPane({
     (thread.ownerId === me.id ||
       !!guild?.permissions.manageChannels ||
       !!guild?.permissions.manageMessages);
-  const quiet = (p: Promise<void>) => void p.catch(() => undefined);
+  const quiet = (p: Promise<void>) => void p.catch(failWith('lounge.actionError.notify'));
   const menu: MenuEntry[] = [
     ...(thread
       ? [

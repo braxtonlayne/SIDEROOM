@@ -2,6 +2,7 @@ import { DropdownMenu, Icon, type MenuEntry } from '@sideroom/ui';
 import { useEffect } from 'react';
 import { useT } from '../../i18n';
 import { useLoungeUi } from '../store';
+import { failWith } from '../actionError';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from '../shell/notifSettings';
 
 /** Notification bell menu in the channel header: mute durations and the settings dialog (LNG-CHN-018). */
@@ -14,7 +15,7 @@ export function NotifyButton({ guildId, channelId }: { guildId: string; channelI
     void useNotifSettings.getState().load(guildId);
   }, [guildId]);
   const muted = isMuted(notif?.channels[channelId]);
-  const run = (p: Promise<void>) => void p.catch(() => undefined);
+  const run = (p: Promise<void>) => void p.catch(failWith('lounge.actionError.notify'));
 
   const level = notif?.channels[channelId]?.level;
   const items: MenuEntry[] = [

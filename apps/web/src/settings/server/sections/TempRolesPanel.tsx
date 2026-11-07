@@ -6,7 +6,7 @@ import { formatDateTime, useT } from '../../../i18n';
 import { useGuild, useMembers } from '../../../store';
 import * as api from '../featuresApi';
 import { useResource } from '../hooks';
-import { Async, useAction } from '../ui';
+import { ActionStatus, Async, useAction } from '../ui';
 import type { FeatureSlotProps } from './featureSlots';
 
 /** Grant lengths offered in the temporary-role form, in seconds. */
@@ -111,6 +111,7 @@ export default function TempRolesPanel({ guildId }: FeatureSlotProps) {
           {t('settings.features.temp.give')}
         </Button>
       </div>
+      <ActionStatus error={act.error} done={act.done} />
     </section>
   );
 }

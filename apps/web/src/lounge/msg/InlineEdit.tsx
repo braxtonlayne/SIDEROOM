@@ -68,6 +68,11 @@ export function InlineEdit({
         onChange={(e) => setText(e.target.value)}
         onKeyDown={onKeyDown}
       />
+      {text.trim().length > MAX_MESSAGE_LENGTH && (
+        <p role="alert" className="lng-failed">
+          {t('lounge.composer.overLimit', { count: text.trim().length - MAX_MESSAGE_LENGTH })}
+        </p>
+      )}
       <p className="lng-muted lng-inline-hint">
         {t('lounge.inlineEdit.escapeTo')}{' '}
         <button type="button" className="lng-link-btn" onClick={onCancel}>

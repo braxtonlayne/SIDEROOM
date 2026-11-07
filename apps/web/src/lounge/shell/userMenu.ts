@@ -1,5 +1,7 @@
 import type { MenuEntry } from '@sideroom/ui';
+import type { MessageKey } from '../../i18n';
 import { rest } from '../../store';
+import { failWith } from '../actionError';
 import { isTextLike } from '../channels';
 import { useAllChannels, useGuilds } from '../data';
 import { inviteUrl } from '../inviteFlow';
@@ -41,7 +43,8 @@ export function useUserMenuEntries(
   if (!user) return { note: null, invite: null, relationship: [] as MenuEntry[] };
   const isFriend = friendsOf(relationships).some((r) => r.id === user.id);
   // The gateway (RELATIONSHIP_*) updates the friend lists, so nothing is re-fetched here (D-183).
-  const after = (req: Promise<unknown>) => void req.catch(() => undefined);
+  // A failure is shown as a toast: the menu has closed, so nothing else would tell the person (SEC-AUD-036).
+  const after = (req: Promise<unknown>, failure: MessageKey) => void req.catch(failWith(failure));
 
   const targets = guilds
     .filter((g) => g.permissions.createInvite)
@@ -58,7 +61,8 @@ export function useUserMenuEntries(
     items: targets.length
       ? targets.map(({ g, ch }) => ({
           label: g.name,
-          onSelect: () => void sendServerInvite(ch.id, user.id).catch(() => undefined),
+          onSelect: () =>
+            void sendServerInvite(ch.id, user.id).catch(failWith('lounge.actionError.invite')),
         }))
       : [{ label: 'No servers to invite to', disabled: true }],
   };
@@ -68,12 +72,16 @@ export function useUserMenuEntries(
           {
             label: 'Remove Friend',
             danger: true,
-            onSelect: () => after(removeRelationship(user.id)),
+            onSelect: () => after(removeRelationship(user.id), 'lounge.friends.removeError'),
           } as MenuEntry,
         ]
       : []),
-    { label: 'Ignore', onSelect: () => after(ignoreUser(user.id)) },
-    { label: 'Block', danger: true, onSelect: () => after(blockUser(user.id)) },
+    { label: 'Ignore', onSelect: () => after(ignoreUser(user.id), 'lounge.friends.ignoreError') },
+    {
+      label: 'Block',
+      danger: true,
+      onSelect: () => after(blockUser(user.id), 'lounge.friends.blockError'),
+    },
     ...entryList(reportEntry({ kind: 'user', id: user.id, authorId: user.id, guildId })),
   ];
   return { note, invite, relationship };

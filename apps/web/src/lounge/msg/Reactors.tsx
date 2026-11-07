@@ -30,6 +30,7 @@ export function ReactorsModal({
   const [emoji, setEmoji] = useState<string | undefined>(initialEmoji);
   const [users, setUsers] = useState<Reactor[] | null>(null);
   const [error, setError] = useState(false);
+  const [removeFailed, setRemoveFailed] = useState(false);
   const active = emoji ?? reactions[0]?.emoji;
 
   useEffect(() => setEmoji(initialEmoji), [initialEmoji, message?.id]);
@@ -49,11 +50,13 @@ export function ReactorsModal({
 
   const remove = async (u: Reactor) => {
     if (!message || !active) return;
+    setRemoveFailed(false);
     try {
       await apiFetch<void>(`${path(message, active)}/${u.id}`, { method: 'DELETE', retries: 0 });
       setUsers((list) => list?.filter((x) => x.id !== u.id) ?? null);
     } catch {
-      setError(true);
+      // The list did load; it is the removal that failed (SEC-AUD-036).
+      setRemoveFailed(true);
     }
   };
 
@@ -78,6 +81,11 @@ export function ReactorsModal({
       </div>
       <div role="tabpanel" aria-label={t('lounge.reactors.panelLabel', { emoji: active ?? '' })}>
         {error && <p className="lng-failed">{t('lounge.reactors.loadError')}</p>}
+        {removeFailed && (
+          <p role="alert" className="lng-failed">
+            {t('lounge.reactors.removeError')}
+          </p>
+        )}
         {!error && users === null && <p className="lng-muted">{t('lounge.reactors.loading')}</p>}
         <ul className="lng-voter-list">
           {users?.map((u) => (

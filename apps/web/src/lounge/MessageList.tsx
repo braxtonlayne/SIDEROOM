@@ -38,6 +38,7 @@ import { useLoungeUi } from './store';
 import { useLoungeGoto, useLoungeGotoMessage, useLoungeGotoThread, useLoungeRoute } from './nav';
 import { formatDividerDate } from './time';
 import { richCardResolvers } from './msg/RichCards';
+import { failWith } from './actionError';
 import './msg/msg.css';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
@@ -90,7 +91,9 @@ export function MessageList({
   inThread,
 }: MessageListProps) {
   const t = useT();
-  const { messages, hasMore, loadingOlder, atLatest } = useMessages(channelId);
+  const { messages, hasMore, loadingOlder, atLatest, error } = useMessages(channelId);
+  // A failed first load is not an empty channel (SEC-AUD-036): no "start of #channel", an error and Retry.
+  const loadFailed = !!error && messages.length === 0;
   const me = useCurrentUser();
   const users = useUsers();
   const members = useMembers(guildId);
@@ -129,13 +132,13 @@ export function MessageList({
     () =>
       buildRows(messages, {
         lastReadId: unreadFrom ?? lastReadId,
-        atStart: !hasMore,
+        atStart: !hasMore && !loadFailed,
         // Mark Unread is the viewer's own choice, so its divider shows even above their own message.
         ...(unreadFrom ? {} : { selfId: me.id }),
         hidden,
         revealed: shownRuns,
       }),
-    [messages, lastReadId, unreadFrom, hasMore, me.id, hidden, shownRuns],
+    [messages, lastReadId, unreadFrom, hasMore, loadFailed, me.id, hidden, shownRuns],
   );
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
@@ -492,7 +495,7 @@ export function MessageList({
       void useSaved
         .getState()
         .addReminder({ note: '', remindAt: new Date(Date.now() + ms), ref: toSaved(m, guildId) })
-        .catch(() => undefined),
+        .catch(failWith('lounge.actionError.remind')),
     [guildId],
   );
   const onCreateThread = useCallback(
@@ -594,6 +597,20 @@ export function MessageList({
         onTouchStart={stopSettling}
         onKeyDown={stopSettling}
       >
+        {loadFailed && (
+          <p role="alert" className="lng-failed lng-history-failed">
+            {t('lounge.messageList.loadFailed')}{' '}
+            {actions.reloadMessages && (
+              <button
+                type="button"
+                className="lng-link-btn"
+                onClick={() => actions.reloadMessages?.(channelId)}
+              >
+                {t('lounge.messageList.retry')}
+              </button>
+            )}
+          </p>
+        )}
         <div className="lng-messages-sizer" style={{ height: v.getTotalSize() }}>
           {v.getVirtualItems().map((item) => {
             const row = rows[item.index];

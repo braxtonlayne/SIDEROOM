@@ -3,6 +3,7 @@ import { FriendShelfShare } from '../../settings/user/storage/FriendShelfShare';
 import '../../settings/user/storage/storage.css';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { ApiError } from '../../api/client';
 import { formatDate, useT } from '../../i18n';
 import { cdnUrl } from '../../store/cdn';
 import { useCurrentUser, useGuilds, useUsers } from '../data';
@@ -41,7 +42,14 @@ function useLoaded<T>(fetcher: () => Promise<T[]>, key: string): Load<T> {
     setState({ kind: 'loading' });
     fetcher().then(
       (items) => live && setState({ kind: 'ready', items }),
-      () => live && setState({ kind: 'error' }),
+      // 404: nothing to show (or the route is not built yet); anything else failed and says so (SEC-AUD-036).
+      (e: unknown) =>
+        live &&
+        setState(
+          e instanceof ApiError && e.status === 404
+            ? { kind: 'ready', items: [] }
+            : { kind: 'error' },
+        ),
     );
     return () => {
       live = false;
@@ -88,6 +96,10 @@ function WatchingTab({
           <p className="lng-muted" role="status">
             {t('lounge.profilePopout.loading')}
           </p>
+        ) : lists.kind === 'error' ? (
+          <p className="lng-failed" role="alert">
+            {t('lounge.fullProfile.loadFailed')}
+          </p>
         ) : now.length === 0 ? (
           <EmptyState
             title={t('lounge.fullProfile.watchingEmptyTitle')}
@@ -108,7 +120,13 @@ function ReviewsTab({ userId }: { userId: string }) {
         {t('lounge.profilePopout.loading')}
       </p>
     );
-  if (reviews.kind === 'error' || reviews.items.length === 0)
+  if (reviews.kind === 'error')
+    return (
+      <p className="lng-failed" role="alert">
+        {t('lounge.fullProfile.loadFailed')}
+      </p>
+    );
+  if (reviews.items.length === 0)
     return (
       <EmptyState
         title={t('lounge.fullProfile.reviewsEmptyTitle')}

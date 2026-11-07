@@ -26,6 +26,7 @@ import { usePermEngine, type PermEngine } from './permEngine';
 import { applyMutes } from './shell/applyMutes';
 import { findBridgedMember, useBridgedMembers } from './bridge/members';
 import { useNotifSettings } from './shell/notifSettings';
+import { failWith } from './actionError';
 import {
   basePermissions,
   computeChannelPermissions,
@@ -329,7 +330,7 @@ export function useEnsureGuild(guildId: string | undefined, active: boolean) {
   const loaded = useStore((s) => (guildId ? s.channelIdsByGuild[guildId] !== undefined : true));
   useEffect(() => {
     if (!active || !guildId || guildId === DM_GUILD || loaded) return;
-    useStore.getState().loadGuild(guildId).catch(noop);
+    useStore.getState().loadGuild(guildId).catch(failWith('lounge.actionError.loadServer'));
   }, [active, guildId, loaded]);
 }
 
@@ -338,7 +339,7 @@ export function useEnsureMembers(guildId: string | undefined, active: boolean) {
   const loaded = useStore((s) => (guildId ? s.memberIdsByGuild[guildId] !== undefined : true));
   useEffect(() => {
     if (!active || !guildId || guildId === DM_GUILD || loaded) return;
-    useStore.getState().loadMembers(guildId).catch(noop);
+    useStore.getState().loadMembers(guildId).catch(failWith('lounge.actionError.loadMembers'));
   }, [active, guildId, loaded]);
 }
 
@@ -363,6 +364,7 @@ export function useLiveMessages(channelId: string | undefined, active: boolean):
       loadingOlder: win.loading && win.ids.length > 0,
       loading: win.loading && win.ids.length === 0,
       atLatest: win.atLatest,
+      error: win.error,
     };
   }, [win, byId]);
 }
@@ -436,10 +438,16 @@ export const LIVE_ACTIONS: LoungeActions = {
       .catch(noop);
   },
   deleteMessage(channelId, messageId) {
-    useStore.getState().deleteMessage(channelId, messageId).catch(noop);
+    useStore
+      .getState()
+      .deleteMessage(channelId, messageId)
+      .catch(failWith('lounge.actionError.delete'));
   },
   pinMessage(channelId, messageId, pinned) {
-    useStore.getState().pinMessage(channelId, messageId, pinned).catch(noop);
+    useStore
+      .getState()
+      .pinMessage(channelId, messageId, pinned)
+      .catch(failWith(pinned ? 'lounge.actionError.pin' : 'lounge.actionError.unpin'));
   },
   forwardMessage(source, targets, note) {
     const st = useStore.getState();
@@ -448,14 +456,17 @@ export const LIVE_ACTIONS: LoungeActions = {
         .then(() => {
           if (note) st.sendMessage(target, note, null).catch(noop);
         })
-        .catch(noop);
+        .catch(failWith('lounge.actionError.forward'));
     }
   },
   votePoll(channelId, messageId, answerId, add) {
-    useStore.getState().votePoll(channelId, messageId, answerId, add).catch(noop);
+    useStore
+      .getState()
+      .votePoll(channelId, messageId, answerId, add)
+      .catch(failWith('lounge.actionError.vote'));
   },
   endPoll(channelId, messageId) {
-    useStore.getState().endPoll(channelId, messageId).catch(noop);
+    useStore.getState().endPoll(channelId, messageId).catch(failWith('lounge.actionError.endPoll'));
   },
   retryMessage(channelId, messageId) {
     const nonce = useStore.getState().messages[messageId]?.local?.nonce;
@@ -466,7 +477,10 @@ export const LIVE_ACTIONS: LoungeActions = {
     if (nonce) useStore.getState().discardMessage(channelId, nonce);
   },
   editMessage(channelId, messageId, content) {
-    useStore.getState().editMessage(channelId, messageId, content).catch(noop);
+    useStore
+      .getState()
+      .editMessage(channelId, messageId, content)
+      .catch(failWith('lounge.actionError.edit'));
   },
   loadOlder(channelId) {
     void useStore.getState().loadOlderMessages(channelId);
@@ -491,7 +505,10 @@ export const LIVE_ACTIONS: LoungeActions = {
     }
   },
   toggleReaction(channelId, messageId, emoji) {
-    void useStore.getState().toggleReaction(channelId, messageId, emoji);
+    useStore
+      .getState()
+      .toggleReaction(channelId, messageId, emoji)
+      .catch(failWith('lounge.actionError.react'));
   },
   startTyping(channelId) {
     rest.postTyping(channelId).catch(noop);
@@ -501,6 +518,9 @@ export const LIVE_ACTIONS: LoungeActions = {
   },
   jumpToPresent(channelId) {
     void useStore.getState().jumpToPresent(channelId);
+  },
+  reloadMessages(channelId) {
+    void useStore.getState().loadInitialMessages(channelId);
   },
 };
 
