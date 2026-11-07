@@ -9,14 +9,14 @@ use super::{
     store::AccountState,
     throttle::Rule,
 };
-use crate::{auth::parse_cookie, state::AppState};
+use crate::{auth::parse_cookie, openapi::ErrorBody, state::AppState};
 use axum::{
     Json,
     extract::State,
     http::{HeaderMap, header},
     response::{AppendHeaders, IntoResponse},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sr_auth::{
     email_token::{EmailToken, EmailTokenPurpose},
@@ -25,6 +25,7 @@ use sr_auth::{
     totp::{self, TotpSecret},
 };
 use sr_core::{ApiError, ErrorCode};
+use utoipa::{OpenApi, ToSchema};
 
 /// Copy shown for any failed credential check (no oracle).
 const NO_MATCH: &str = "That doesn't match our list.";
@@ -194,6 +195,53 @@ pub(super) async fn second_factor_step(
         methods: second_factor_methods(has_totp, has_passkey),
     }))
 }
+
+/// The second-factor methods a pending sign-in offers.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SecondFactorMethods {
+    /// Method names in the order to offer them: `passkey`, `totp`, then always `recovery`.
+    pub methods: Vec<String>,
+}
+
+/// `GET /sr/auth/2fa/methods`: the methods of the sign-in waiting on the `sr_mfa` cookie (D-557).
+/// The 2FA page asks this when it has no list of its own (after a Discord sign-in), so which
+/// factors an account has never rides in a URL. No pending sign-in: 401.
+#[utoipa::path(
+    get,
+    path = "/sr/auth/2fa/methods",
+    responses(
+        (status = 200, body = SecondFactorMethods),
+        (status = 401, body = ErrorBody),
+    )
+)]
+pub async fn pending_methods(
+    State(state): State<AppState>,
+    Svc { svc, .. }: Svc,
+    headers: HeaderMap,
+) -> R<Json<SecondFactorMethods>> {
+    let now = state.now_secs();
+    let pending = parse_cookie(&headers, MFA_COOKIE)
+        .and_then(SessionToken::parse)
+        .and_then(|t| svc.pending.get(&t.hash(), now))
+        .ok_or_else(no_match)?;
+    let has_totp = svc
+        .store
+        .totp_get(pending.user_id)
+        .await?
+        .is_some_and(|t| t.confirmed);
+    let has_passkey = svc.has_passkeys(pending.user_id).await?;
+    Ok(Json(SecondFactorMethods {
+        methods: second_factor_methods(has_totp, has_passkey)
+            .into_iter()
+            .map(str::to_owned)
+            .collect(),
+    }))
+}
+
+/// OpenAPI fragment for the pending second factor's methods.
+#[derive(OpenApi)]
+#[openapi(paths(pending_methods), components(schemas(SecondFactorMethods)))]
+pub struct LoginApiDoc;
 
 /// Whether the request carries a live "trust this device" cookie for `user_id`.
 async fn is_trusted(

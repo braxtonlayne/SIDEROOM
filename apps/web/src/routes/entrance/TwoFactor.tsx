@@ -1,12 +1,25 @@
 import { Checkbox, GoldButton, TextInput } from '@sideroom/ui';
 import { useSearch } from '@tanstack/react-router';
-import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 import { ApiError } from '../../api/client';
-import { submitTwoFactor } from '../../api/entrance';
+import { getPendingMfaMethods, submitTwoFactor, type MfaMethod } from '../../api/entrance';
 import { AuthSplit, FormHead } from '../../components/AuthSplit';
 import { FormError } from '../../components/FormParts';
 import { PasskeyButton } from '../../components/PasskeyButton';
-import { clearMfaMethods, readMfaMethods, rememberMfaMethods } from '../../lib/mfaMethods';
+import {
+  DEFAULT_MFA_METHODS,
+  clearMfaMethods,
+  readMfaMethods,
+  readStoredMfaMethods,
+  rememberMfaMethods,
+} from '../../lib/mfaMethods';
 import { useT } from '../../i18n/react';
 import { minutesFromSeconds, safeNext } from '../../lib/validation';
 import { enterApp } from '../../lib/enterApp';
@@ -74,14 +87,45 @@ export function OtpInput({
 
 export function TwoFactor() {
   const t = useT();
-  const search = useSearch({ strict: false }) as { next?: string; methods?: string };
+  // Q83: only the methods the server offered at the first step are shown. A password sign-in left
+  // them in sessionStorage; after a Discord sign-in (a server redirect) the page asks the server,
+  // which reads the pending `sr_mfa` cookie, so the methods never ride in a URL (D-557).
+  const [methods, setMethods] = useState<MfaMethod[] | null>(readStoredMfaMethods);
+  useEffect(() => {
+    if (methods) return;
+    let live = true;
+    getPendingMfaMethods().then(
+      (r) => {
+        rememberMfaMethods(r.methods);
+        if (live) setMethods(readMfaMethods());
+      },
+      // No pending sign-in (a direct visit, an expired step): the documented default set.
+      () => live && setMethods(DEFAULT_MFA_METHODS),
+    );
+    return () => {
+      live = false;
+    };
+  }, [methods]);
+  if (!methods) {
+    return (
+      <AuthSplit
+        eyebrow={t('entrance.twoFactor.eyebrow')}
+        heading={t('entrance.twoFactor.heading')}
+        accent={t('entrance.twoFactor.headingAccent')}
+        copy={t('entrance.twoFactor.copy')}
+        footLabel={t('entrance.twoFactor.footLabel')}
+      >
+        <div className="ent-form" aria-busy="true" />
+      </AuthSplit>
+    );
+  }
+  return <TwoFactorForm methods={methods} />;
+}
+
+function TwoFactorForm({ methods }: { methods: MfaMethod[] }) {
+  const t = useT();
+  const search = useSearch({ strict: false }) as { next?: string };
   const next = safeNext(search.next);
-  // Q83: only the methods the server offered at the first step are shown. A Discord sign-in
-  // (a server redirect) names them in `?methods=`; a password sign-in left them in sessionStorage.
-  const [methods] = useState(() => {
-    if (search.methods) rememberMfaMethods(search.methods.split(','));
-    return readMfaMethods();
-  });
   const hasTotp = methods.includes('totp');
   const hasPasskey = methods.includes('passkey');
   const [mode, setMode] = useState<'totp' | 'recovery' | 'passkey'>(

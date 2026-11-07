@@ -337,8 +337,9 @@ async fn fetch_user(http: &oauth2::reqwest::Client, access: &str) -> Result<Disc
 
 /// Sign-in for the account linked to `discord_id`, once Discord vouched for it. The same
 /// second-factor rule as a password login applies (SEC-AUD-001): a TOTP or passkey, on a device
-/// not trusted, sends the browser to `/login/2fa` with the pending `sr_mfa` cookie and the methods
-/// to offer (`?methods=passkey,totp,recovery`: method names only, never a secret).
+/// not trusted, sends the browser to a bare `/login/2fa` (only `?next=` when there is one) with the
+/// pending `sr_mfa` cookie. Which factors the account has never rides in the URL (D-557): the page
+/// asks `GET /sr/auth/2fa/methods`.
 pub(super) async fn sign_in_linked(
     state: &AppState,
     svc: &AuthService,
@@ -359,9 +360,9 @@ pub(super) async fn sign_in_linked(
         ));
     };
     if let Some(step) = second_factor_step(svc, state, headers, account.id).await? {
-        let mut to = format!("/login/2fa?methods={}", step.methods.join(","));
+        let mut to = String::from("/login/2fa");
         if let Some(next) = next {
-            to.push_str("&next=");
+            to.push_str("?next=");
             to.extend(url::form_urlencoded::byte_serialize(next.as_bytes()));
         }
         return Ok(redirect_with(&to, vec![clear_state, step.cookie]));

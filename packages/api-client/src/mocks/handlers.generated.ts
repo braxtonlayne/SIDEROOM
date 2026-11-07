@@ -943,6 +943,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"list_default_sounds","method":"get","path":"/soundboard-default-sounds","status":200,"body":[{}]},
   {"id":"default_sound_audio","method":"get","path":"/soundboard-default-sounds/:sound_id/audio","status":200,"body":null},
   {"id":"appearance_defaults","method":"get","path":"/sr/appearance/defaults","status":200,"body":{"default_theme_by_section":{}}},
+  {"id":"pending_methods","method":"get","path":"/sr/auth/2fa/methods","status":200,"body":{"methods":["string"]}},
   {"id":"delete_account","method":"post","path":"/sr/auth/account/delete","status":204,"body":null},
   {"id":"status","method":"get","path":"/sr/auth/discord","status":200,"body":{"enabled":false,"linked":false}},
   {"id":"link_start","method":"post","path":"/sr/auth/discord/link","status":200,"body":{"url":"string"}},
