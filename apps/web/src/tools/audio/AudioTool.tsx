@@ -24,8 +24,12 @@ export interface AudioLimits {
   maxSeconds?: number;
   /** Largest exported file, in bytes. */
   maxBytes?: number;
-  /** The only format `onUse` may receive: voice messages need Ogg, sounds take WAV. */
-  format: 'wav' | 'ogg';
+  /**
+   * The format `onUse` receives: voice messages need Ogg, `wav` is always WAV, and `opus` (the soundboard, D-534)
+   * is Opus in whichever container the browser records (Ogg or WebM, both taken by the server) with WAV as the
+   * fallback where the browser cannot record Opus or the encode fails.
+   */
+  format: 'wav' | 'ogg' | 'opus';
 }
 
 export interface AudioToolProps {
@@ -161,7 +165,7 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
   };
 
   const baseName = (source?.name ?? 'audio').replace(/\.[^.]+$/, '') || 'audio';
-  const run = async (kind: 'wav' | 'opus') => {
+  const run = async (kind: 'wav' | 'opus', fellBack = false): Promise<void> => {
     const p = build();
     if (!p) return;
     stopRef.current?.();
@@ -179,9 +183,12 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
         blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'audio/wav' });
         name = `${baseName}-trimmed.wav`;
       } else {
-        // Voice messages take Ogg Opus or (FU-7) WebM Opus; Ogg is preferred where the browser has it.
+        // Voice messages take Ogg Opus or (FU-7) WebM Opus, Ogg first; the soundboard prefers WebM (D-551).
         const mime = opusMimeType(limits?.format === 'ogg');
         if (!mime) {
+          if (limits?.format === 'opus') {
+            return await run('wav', true);
+          }
           setError(t('tools.audio.opusUnsupported'));
           return;
         }
@@ -200,13 +207,17 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
       if (onUse) onUse(new File([blob], name, { type: blob.type }));
       else download(blob, name);
     } catch {
+      if (kind === 'opus' && limits?.format === 'opus' && !fellBack) {
+        return await run('wav', true);
+      }
       setError(t('tools.audio.exportFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  const embeddedKind = limits?.format === 'ogg' ? 'opus' : 'wav';
+  const embeddedKind = limits?.format === 'wav' ? 'wav' : 'opus';
+  const opusHere = limits?.format === 'opus' ? opusMimeType(false) !== null : null;
   const x = total ? (start / total) * BINS : 0;
   const w = total ? ((end - start) / total) * BINS : 0;
   return (
@@ -325,6 +336,11 @@ export function AudioTool({ file: initial, limits, onUse, onCancel }: AudioToolP
             </label>
           )}
           <p className="utl-aud-sub">{t('tools.audio.normalizeNote')}</p>
+          {opusHere !== null && (
+            <p className="utl-aud-sub" data-testid="audio-format">
+              {opusHere ? t('tools.audio.savedAsOpus') : t('tools.audio.savedAsWav')}
+            </p>
+          )}
           <div className="utl-aud-actions">
             <Button variant="secondary" onClick={togglePlay}>
               {playing ? t('tools.audio.stop') : t('tools.audio.play')}

@@ -1,7 +1,7 @@
 // BYOS-UI-001: check-css-tokens.mjs flags raw colours and physical properties, and the real storage files pass.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scan, targetFiles } from './check-css-tokens.mjs';
+import { scan, scanZoom, targetFiles, ZOOM_TARGETS } from './check-css-tokens.mjs';
 import { readFileSync } from 'node:fs';
 
 const rules = (css, file = 'x.css') => scan(css, file).map((v) => v.rule);
@@ -47,4 +47,12 @@ test('the BYOS storage files pass', () => {
     'storage.css is scanned',
   );
   for (const f of files) assert.deepEqual(scan(readFileSync(f, 'utf8'), f), [], f);
+});
+
+test('D-555: kit overlay viewport lengths are divided by --ui-zoom', () => {
+  assert.equal(scanZoom('.a { max-height: calc(100dvh / var(--ui-zoom, 1) - 32px); }').length, 0);
+  assert.equal(scanZoom('.a { width: min(420px, 100vw / var(--ui-zoom, 1)); }').length, 0);
+  assert.equal(scanZoom('.a { max-height: calc(100vh - 16px); }').length, 1);
+  assert.equal(scanZoom('/* 100vw */ .a { max-height: 85vh; }').length, 1);
+  for (const f of ZOOM_TARGETS) assert.deepEqual(scanZoom(readFileSync(f, 'utf8')), [], f);
 });

@@ -15,6 +15,8 @@ import {
   server,
 } from './helpers';
 import { warmLoungeRoute } from '../../../test/warmRoutes';
+import { browserAudioDeps } from '../../../voice/deps';
+import { setAudioFetcher } from '../../../voice/soundboard';
 
 warmLoungeRoute();
 
@@ -643,6 +645,53 @@ describe('Soundboard settings (LNG-SSET-025)', () => {
       }),
     );
     await waitFor(() => expect(del.calls).toHaveLength(1));
+  });
+
+  const playSetup = async (decode: () => Promise<unknown>) => {
+    seed({ perms: [MANAGE.expressions] });
+    const created: unknown[] = [];
+    const start = vi.fn();
+    const ctx = {
+      decodeAudioData: decode,
+      resume: vi.fn(),
+      close: vi.fn(async () => undefined),
+      destination: {},
+      createBufferSource: () => ({ connect: vi.fn(), disconnect: vi.fn(), start, stop: vi.fn() }),
+      createGain: () => ({ gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }),
+    };
+    vi.spyOn(browserAudioDeps, 'createAudioContext').mockReturnValue(ctx as never);
+    const audioCtor = vi.fn(function () {
+      created.push(1);
+    });
+    vi.stubGlobal('Audio', audioCtor);
+    setAudioFetcher(async () => new ArrayBuffer(8));
+    await openWith('expressions', () =>
+      server.use(
+        http.get('*/api/v1/guilds/g1/soundboard-sounds', () =>
+          HttpResponse.json({ items: [sound('7', 'Airhorn')] }),
+        ),
+      ),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Soundboard' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Play Airhorn' }));
+    return { start, created };
+  };
+
+  it('plays through WebAudio at the row volume and never makes an audio element (D-552)', async () => {
+    const decode = vi.fn(async () => ({}));
+    const { start, created } = await playSetup(decode);
+    await waitFor(() => expect(start).toHaveBeenCalled());
+    expect(decode).toHaveBeenCalledWith(expect.any(ArrayBuffer));
+    expect(created).toHaveLength(0);
+  });
+
+  it('says so when the browser cannot decode the sound (D-551)', async () => {
+    const { start, created } = await playSetup(async () => {
+      throw new Error('EncodingError');
+    });
+    expect(await screen.findByText(/Your browser cannot play this sound/)).toBeTruthy();
+    expect(start).not.toHaveBeenCalled();
+    expect(created).toHaveLength(0);
   });
 
   it('uploads a short sound and refuses one over five seconds', async () => {

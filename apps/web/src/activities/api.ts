@@ -168,7 +168,12 @@ export interface ShelfCatalogPage {
 export function shelfCatalogPage(
   shelfId: string,
   cursor?: string | null,
+  search?: string,
 ): Promise<ShelfCatalogPage> {
-  const q = cursor ? `?cursor=${enc(cursor)}` : '';
+  // P51: `q` makes the server match file names (with the same visibility filter as the plain listing).
+  const parts = [cursor ? `cursor=${enc(cursor)}` : '', search ? `q=${enc(search)}` : ''].filter(
+    Boolean,
+  );
+  const q = parts.length ? `?${parts.join('&')}` : '';
   return apiFetch(`/shelves/${enc(shelfId)}/objects${q}`, NO_RETRY);
 }

@@ -4,7 +4,7 @@
  *
  *   GET /soundboard-default-sounds                the eight default sounds (`sound_id` "1".."8")
  *   GET /guilds/{id}/soundboard-sounds            `{ items: [...] }`
- *   GET .../audio                                 the file as uploaded (MP3, Ogg or WAV, at most 5 s)
+ *   GET .../audio                                 the file as uploaded (MP3, Ogg, WebM Opus or WAV, at most 5 s)
  *   POST /channels/{id}/send-soundboard-sound     announce a play (permission, voice state, cooldown)
  *   GUILD_SOUNDBOARD_SOUNDS_UPDATE / SOUNDBOARD_SOUNDS   `{ guild_id, soundboard_sounds: [...] }`
  *

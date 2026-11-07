@@ -94,6 +94,20 @@ export function saturatedTokens(tokens: Record<string, string>, saturation: numb
   return out;
 }
 
+/**
+ * D-555: the CSS `zoom` in effect, as a unitless factor (default 1 through `var(--ui-zoom, 1)`). Inside a zoomed box
+ * viewport units are zoomed too, so the kit divides its `100vw` / `100vh` / `100dvh` maxima by this token. Whoever
+ * applies `zoom` to a box sets the token on the same box. It is not part of `appearanceVars`: a nested provider must
+ * inherit its ancestor's value, not reset it.
+ */
+export const UI_ZOOM_TOKEN = "--ui-zoom";
+
+/** The style entry for a zoom factor (anything unusable reads as 1). */
+export function zoomVars(factor: number): Record<string, string> {
+  const z = Number.isFinite(factor) && factor > 0 ? factor : 1;
+  return { [UI_ZOOM_TOKEN]: String(z) };
+}
+
 /** DS-TOK-006: runtime variables, applied on the provider root. */
 export function appearanceVars(settings: AppearanceSettings, systemReducedMotion: boolean): Record<string, string> {
   const reduced = settings.reducedMotion === "on" || (settings.reducedMotion === "system" && systemReducedMotion);

@@ -173,6 +173,8 @@ export class PartyController {
   /** Join (if needed) and start following a party. Resolves once the media was handed to the player. */
   async open(id: string, opts: { code?: string | null } = {}): Promise<void> {
     if (this.state.party?.id === id && this.state.status === 'active') return;
+    // D-549: a reopen of the same party (the Rejoin button) falls back to the invite code this tab was shown.
+    const code = opts.code || (this.state.party?.id === id ? this.state.party.invite_code : null);
     this.teardown();
     const token = ++this.token;
     this.store.setState(initial(), true);
@@ -183,11 +185,11 @@ export class PartyController {
       let party: Party;
       try {
         party = await this.deps.api.get(id);
-        if (!party.you?.member) party = await this.deps.api.join(id, opts.code);
+        if (!party.you?.member) party = await this.deps.api.join(id, code || undefined);
       } catch (e) {
         // A private party is invisible until joined: try the code.
-        if (e instanceof ApiError && e.status === 404 && opts.code)
-          party = await this.deps.api.join(id, opts.code);
+        if (e instanceof ApiError && e.status === 404 && code)
+          party = await this.deps.api.join(id, code);
         else throw e;
       }
       if (token !== this.token) return;

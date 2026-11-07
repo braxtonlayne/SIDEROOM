@@ -32,7 +32,7 @@ export function PinRail() {
   const floating = open ? gadgets.some((g) => g.tool === open.id) : false;
 
   return (
-    <div className="sr-tl-rail-wrap">
+    <div className="sr-tl-rail-wrap" data-open={open ? '' : undefined}>
       {open && (
         <section className="sr-tl-rail-panel" aria-label={t(open.nameKey)} data-tool={open.id}>
           <header className="sr-tl-gadget-head sr-tl-rail-head">

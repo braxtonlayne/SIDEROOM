@@ -20409,7 +20409,7 @@ export interface components {
             emoji_name?: string | null;
             /** @description 2 to 32 characters. */
             name: string;
-            /** @description `data:audio/ogg;base64,...` (MP3, Ogg or WAV; at most 5 seconds and 512 KiB). */
+            /** @description `data:audio/ogg;base64,...` (MP3, Ogg, WebM/Opus or WAV; at most 5 seconds and 512 KiB). */
             sound: string;
             /**
              * Format: double
@@ -62753,6 +62753,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
+            /** @description The stored type: audio/mpeg, audio/ogg, audio/webm or audio/wav */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -73545,6 +73546,8 @@ export interface operations {
             query?: {
                 /** @description next_cursor of the previous page */
                 cursor?: string;
+                /** @description Only objects whose file name contains this (case-insensitive, at most 100 characters) */
+                q?: string;
             };
             header?: never;
             path: {

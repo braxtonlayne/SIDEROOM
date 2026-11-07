@@ -18,6 +18,10 @@ const MAX_PAGES = 15;
 const PAGE_SIZE = 200;
 /** D-537: the stated cap; a shelf past it lists only this many. */
 export const MAX_LISTED = MAX_PAGES * PAGE_SIZE;
+/** Longest search the server takes (it refuses more). */
+const MAX_QUERY = 100;
+/** Quiet time after the last keystroke before the server is asked. */
+const SEARCH_DEBOUNCE_MS = 300;
 /** Most rows drawn at once; the search narrows the rest. */
 const MAX_ROWS = 200;
 
@@ -57,6 +61,9 @@ export default function ShelfPicker({
   const [failed, setFailed] = useState(false);
   const [truncated, setTruncated] = useState(false);
   const [query, setQuery] = useState('');
+  // P51: the server searches file names once the member stops typing; the list filters instantly meanwhile.
+  const [term, setTerm] = useState('');
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     let dead = false;
@@ -79,9 +86,23 @@ export default function ShelfPicker({
   }, [ownOnly]);
 
   useEffect(() => {
+    const next = query.trim().slice(0, MAX_QUERY);
+    if (next === term) return;
+    const id = setTimeout(() => setTerm(next), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [query, term]);
+
+  // A new shelf starts from its plain listing.
+  useEffect(() => {
+    setFiles(null);
+    setTerm('');
+    setQuery('');
+  }, [shelf]);
+
+  useEffect(() => {
     if (!shelf) return;
     let dead = false;
-    setFiles(null);
+    setSearching(true);
     setFailed(false);
     setTruncated(false);
     void (async () => {
@@ -89,7 +110,7 @@ export default function ShelfPicker({
         const all: ShelfCatalogObject[] = [];
         let cursor: string | null = null;
         for (let i = 0; i < MAX_PAGES; i++) {
-          const page: ShelfCatalogPage = await shelfCatalogPage(shelf, cursor);
+          const page: ShelfCatalogPage = await shelfCatalogPage(shelf, cursor, term || undefined);
           if (dead) return;
           all.push(...page.objects);
           cursor = page.next_cursor;
@@ -97,6 +118,7 @@ export default function ShelfPicker({
         }
         if (!dead) {
           setFiles(all);
+          setSearching(false);
           // The last page still had a next page: the shelf is longer than the picker reads (D-537).
           setTruncated(cursor !== null);
         }
@@ -104,13 +126,14 @@ export default function ShelfPicker({
         if (!dead) {
           setFiles([]);
           setFailed(true);
+          setSearching(false);
         }
       }
     })();
     return () => {
       dead = true;
     };
-  }, [shelf]);
+  }, [shelf, term]);
 
   const options = useMemo(
     () =>
@@ -171,7 +194,7 @@ export default function ShelfPicker({
         </Button>
       }
     >
-      <div className="act-pick">
+      <div className="act-pick" aria-busy={searching}>
         {noShelves ? (
           <p className="act-muted">
             {t(failed ? 'activities.pick.error' : 'activities.pick.noShelves')}
@@ -231,7 +254,9 @@ export default function ShelfPicker({
             ) : null}
             {files !== null && !failed && truncated ? (
               <p className="act-muted act-pick-note" role="note">
-                {t('activities.pick.truncated', { count: MAX_LISTED.toLocaleString() })}
+                {t(term ? 'activities.pick.searchTruncated' : 'activities.pick.truncated', {
+                  count: MAX_LISTED.toLocaleString(),
+                })}
               </p>
             ) : null}
             {files !== null && !failed && hidden > 0 ? (

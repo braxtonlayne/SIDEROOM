@@ -64,7 +64,7 @@
   );
 
   container-type: inline-size;
-  inline-size: min(52rem, calc(100vw - 1rem));
+  inline-size: min(52rem, calc(100vw / var(--sr-overlay-zoom, 1) - 1rem));
   padding-block: 0.75rem;
   padding-inline: 3rem;
   color: var(--v-cream);

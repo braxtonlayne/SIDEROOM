@@ -6,7 +6,8 @@ import { useClientFlags } from '../../moderation/reports';
 import { toolAllowed } from '../flags';
 import { getTool, type ToolEntry } from '../registry';
 import { ToolView } from '../ToolView';
-import { clampRect, type Gadget, type GadgetRect } from './layout';
+import { overlayZoom, useOverlayZoom } from '../../settings/user/overlayZoom';
+import { dragRect, type DragGesture, type Gadget, type GadgetRect } from './layout';
 import { useToolsStore, viewport } from './store';
 
 const STEP = 16;
@@ -22,15 +23,17 @@ const isRtl = () =>
 export function GadgetLayer() {
   const gadgets = useToolsStore((s) => s.layout.gadgets);
   const flags = useClientFlags((s) => s.flags);
-  // A smaller window must not leave a gadget off screen.
+  const zoom = useOverlayZoom();
+  // A smaller window, or a bigger zoom (D-540: the layer then has fewer pixels), must not leave a gadget off screen.
   useEffect(() => {
     const onResize = () => {
       const { layout, setRect } = useToolsStore.getState();
       for (const g of layout.gadgets) setRect(g.tool, g);
     };
+    onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, []);
+  }, [zoom]);
   return (
     <div className="sr-tl-gadgets">
       {gadgets.map((g) => {
@@ -43,23 +46,15 @@ export function GadgetLayer() {
   );
 }
 
-type Gesture = {
-  kind: 'move' | 'size';
-  startX: number;
-  startY: number;
-  from: GadgetRect;
-  sign: 1 | -1;
-};
-
 function GadgetWindow({ gadget, entry }: { gadget: Gadget; entry: ToolEntry }) {
   const t = useT();
-  const gesture = useRef<Gesture | null>(null);
+  const gesture = useRef<DragGesture | null>(null);
   const [live, setLive] = useState<GadgetRect | null>(null);
   const pinned = useToolsStore((s) => s.layout.pins.includes(entry.id));
   const rect = live ?? gadget;
   const mins = entry.size;
 
-  const begin = (kind: Gesture['kind']) => (e: ReactPointerEvent<HTMLElement>) => {
+  const begin = (kind: DragGesture['kind']) => (e: ReactPointerEvent<HTMLElement>) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('button')) return;
     useToolsStore.getState().raise(entry.id);
@@ -69,20 +64,14 @@ function GadgetWindow({ gadget, entry }: { gadget: Gadget; entry: ToolEntry }) {
       startY: e.clientY,
       from: { x: gadget.x, y: gadget.y, w: gadget.w, h: gadget.h },
       sign: isRtl() ? -1 : 1,
+      zoom: overlayZoom(),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
   };
   const next = (e: ReactPointerEvent<HTMLElement>): GadgetRect | null => {
     const g = gesture.current;
-    if (!g) return null;
-    const dx = (e.clientX - g.startX) * g.sign;
-    const dy = e.clientY - g.startY;
-    const raw =
-      g.kind === 'move'
-        ? { ...g.from, x: g.from.x + dx, y: g.from.y + dy }
-        : { ...g.from, w: g.from.w + dx, h: g.from.h + dy };
-    return clampRect(raw, viewport(), mins);
+    return g ? dragRect(g, e.clientX, e.clientY, viewport(), mins) : null;
   };
   const move = (e: ReactPointerEvent<HTMLElement>) => {
     const r = next(e);

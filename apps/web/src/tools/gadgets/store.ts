@@ -12,15 +12,21 @@ import {
   raiseGadget,
   setGadgetRect,
   unpinTool,
+  zoomedViewport,
   type GadgetRect,
   type Layout,
   type Viewport,
 } from './layout';
+import { overlayZoom } from '../../settings/user/overlayZoom';
 
+/** The gadget layer's size in its own (zoomed, D-540) pixels: what rectangles are stored and clamped in. */
 export const viewport = (): Viewport =>
-  typeof window === 'undefined'
-    ? { w: 1280, h: 800 }
-    : { w: window.innerWidth, h: window.innerHeight };
+  zoomedViewport(
+    typeof window === 'undefined'
+      ? { w: 1280, h: 800 }
+      : { w: window.innerWidth, h: window.innerHeight },
+    overlayZoom(),
+  );
 
 interface ToolsState {
   layout: Layout;

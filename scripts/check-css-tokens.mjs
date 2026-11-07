@@ -81,6 +81,30 @@ function walk(p) {
   return readdirSync(p).flatMap((n) => (n === '__tests__' ? [] : walk(join(p, n))));
 }
 
+/**
+ * D-555: the kit's overlay primitives (dialogs, menus, drawers, toasts, popovers) open inside zoomed roots, where a
+ * viewport unit is zoomed too, so each `100vw` / `NNvh` / `100dvh` there is divided by the kit token `--ui-zoom`.
+ */
+export const ZOOM_TARGETS = ['Modal', 'Menu', 'Drawer', 'Feedback', 'Overlay'].map((n) =>
+  join(ROOT, 'packages/ui/src/primitives', n, `${n}.module.css`),
+);
+
+/** Returns `{ line, rule, text }` for a viewport length not divided by `var(--ui-zoom, 1)`. */
+export function scanZoom(text) {
+  const out = [];
+  text.split('\n').forEach((raw, i) => {
+    const line = raw.replace(/\/\*.*?\*\//g, '');
+    for (const m of line.matchAll(/\d+(?:\.\d+)?[ds]?v[wh]\b(\s*\/\s*var\(--ui-zoom, 1\))?/g))
+      if (!m[1])
+        out.push({
+          line: i + 1,
+          rule: 'viewport unit not divided by var(--ui-zoom, 1)',
+          text: raw.trim(),
+        });
+  });
+  return out;
+}
+
 export function targetFiles() {
   return TARGETS.flatMap((t) => walk(join(WEB, t))).filter((f) => !/\.test\.tsx?$/.test(f));
 }
@@ -94,13 +118,21 @@ function main() {
       console.error(`${relative(ROOT, f)}:${v.line}: ${v.rule}: ${v.text}`);
     }
   }
+  if (process.argv.length <= 2)
+    for (const f of ZOOM_TARGETS)
+      for (const v of scanZoom(readFileSync(f, 'utf8'))) {
+        bad++;
+        console.error(`${relative(ROOT, f)}:${v.line}: ${v.rule}: ${v.text}`);
+      }
   if (bad) {
     console.error(
       `check-css-tokens: ${bad} problem(s). Use var(--ui-*) tokens and logical properties.`,
     );
     process.exit(1);
   }
-  console.log(`check-css-tokens: ${files.length} file(s) clean.`);
+  console.log(
+    `check-css-tokens: ${files.length} file(s) clean; ${ZOOM_TARGETS.length} kit overlay file(s) divide by --ui-zoom.`,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

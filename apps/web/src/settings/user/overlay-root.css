@@ -1,0 +1,11 @@
+/*
+ * D-540: the overlay root (`ThemedOverlayRoot`) is `display: contents` and carries `--sr-overlay-zoom`. Each of its
+ * children is a positioned overlay (the gadget layer, the pin rail, the player dock, and the modals and menus
+ * portalled into the root), so the zoom goes on them: no box and no stacking context on the root, and the z-index
+ * order against the page stays as it was. Viewport units inside a zoomed box are zoomed too: the dock skins and the
+ * rail panel divide theirs by `--sr-overlay-zoom`, and the kit's dialogs and menus by `--ui-zoom` (D-555), which the
+ * root also sets.
+ */
+.sr-overlay-root > * {
+  zoom: var(--sr-overlay-zoom, 1);
+}

@@ -1,8 +1,11 @@
 import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch } from '../../../api/client';
 import { useT } from '../../../i18n';
+import { browserAudioDeps } from '../../../voice/deps';
+import { LocalSoundPlayer } from '../../../voice/soundPlayer';
 import { parseSound, soundAudio, type Sound } from '../../../voice/soundboard';
+import { getVoiceSettings } from '../../../voice/settings';
 import * as api from '../api';
 import { useGuildEvents, useResource } from '../hooks';
 import { ActionStatus, Async, useAction } from '../ui';
@@ -81,7 +84,8 @@ const readDataUri = (file: Blob) =>
 /**
  * Soundboard (LNG-SSET-025): the server's sounds with play, rename, volume and delete, and an upload dialog.
  * The server keeps files as uploaded (D-201), so a file over five seconds is trimmed in the browser first
- * (the shared audio tool in `tools/audio`, limited to five seconds and the size cap, exported as WAV).
+ * (the shared audio tool in `tools/audio`, limited to five seconds and the size cap, exported as Opus where the
+ * browser can record it and as WAV otherwise, D-534).
  */
 export function SoundboardTab({ guildId }: { guildId: string }) {
   const t = useT();
@@ -90,6 +94,9 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
   const [uploading, setUploading] = useState(false);
   const [toDelete, setToDelete] = useState<SoundRow | null>(null);
   const action = useAction();
+  // One WebAudio player for every Play in the tab (D-552): the same decoder as the popover and the call.
+  const [player] = useState(() => new LocalSoundPlayer(browserAudioDeps));
+  useEffect(() => () => player.dispose(), [player]);
 
   const remove = async () => {
     if (!toDelete) return;
@@ -129,6 +136,7 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
                   key={s.id}
                   guildId={guildId}
                   sound={s}
+                  player={player}
                   onChanged={res.reload}
                   onDelete={() => setToDelete(s)}
                 />
@@ -164,11 +172,13 @@ export function SoundboardTab({ guildId }: { guildId: string }) {
 function SoundItem({
   guildId,
   sound,
+  player,
   onChanged,
   onDelete,
 }: {
   guildId: string;
   sound: SoundRow;
+  player: LocalSoundPlayer;
   onChanged: () => Promise<void>;
   onDelete: () => void;
 }) {
@@ -176,21 +186,16 @@ function SoundItem({
   const [name, setName] = useState(sound.name);
   const [volume, setVolume] = useState(Math.round(sound.volume * 100));
   const action = useAction();
-  const playing = useRef<HTMLAudioElement | null>(null);
   const validName =
     name.trim().length >= SOUND_LIMITS.nameMin && name.trim().length <= SOUND_LIMITS.nameMax;
   const dirty = name.trim() !== sound.name || volume !== Math.round(sound.volume * 100);
 
   const play = () =>
     void action.run(async () => {
-      playing.current?.pause();
+      player.stop();
       const buf = await soundAudio(sound);
-      const url = URL.createObjectURL(new Blob([buf]));
-      const a = new Audio(url);
-      a.volume = volume / 100;
-      a.onended = () => URL.revokeObjectURL(url);
-      playing.current = a;
-      await a.play();
+      const ok = await player.play(buf, volume / 100, getVoiceSettings().outputDeviceId);
+      if (!ok) action.setError(t('settings.soundboard.cannotPlayHere'));
     });
   const save = async () => {
     const ok = await action.run(async () => {
@@ -297,12 +302,13 @@ function UploadDialog({
     if (!f) return;
     let seconds: number;
     try {
+      // A WebM from MediaRecorder reports an unknown (infinite) length until it is decoded.
       seconds = await audioSeconds(f);
     } catch {
       setFileError(t('settings.soundboard.unreadable'));
       return;
     }
-    if (seconds > SOUND_LIMITS.maxSeconds) {
+    if (!Number.isFinite(seconds) || seconds > SOUND_LIMITS.maxSeconds) {
       // Too long: decode it and let the person pick a five second window (the server never transcodes, D-201).
       // A file the browser cannot decode cannot be trimmed either: keep the plain "too long" refusal for it.
       try {
@@ -310,16 +316,26 @@ function UploadDialog({
         setTrim(f);
       } catch {
         setFileError(
-          t('settings.soundboard.tooLong', {
-            seconds: seconds.toFixed(1),
-            max: String(SOUND_LIMITS.maxSeconds),
-          }),
+          Number.isFinite(seconds)
+            ? t('settings.soundboard.tooLong', {
+                seconds: seconds.toFixed(1),
+                max: String(SOUND_LIMITS.maxSeconds),
+              })
+            : t('settings.soundboard.unreadable'),
         );
       }
       return;
     }
     if (f.size > SOUND_LIMITS.maxBytes) {
-      setFileError(t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }));
+      // Short but big (a stereo WAV): the tool re-encodes it as Opus or mono WAV, which is what fits (D-534).
+      try {
+        await decodeAudioFile(f);
+        setTrim(f);
+      } catch {
+        setFileError(
+          t('settings.soundboard.tooLarge', { kb: String(SOUND_LIMITS.maxBytes / 1024) }),
+        );
+      }
       return;
     }
     setFile(f);
@@ -364,7 +380,7 @@ function UploadDialog({
         <input
           id="ss-sound-file"
           type="file"
-          accept=".mp3,.ogg,.wav,audio/mpeg,audio/ogg,audio/wav"
+          accept=".mp3,.ogg,.opus,.webm,.wav,audio/mpeg,audio/ogg,audio/webm,audio/wav"
           onChange={(e) => void choose(e.target.files?.[0])}
         />
         {fileError && <ActionStatus error={fileError} />}
@@ -374,7 +390,7 @@ function UploadDialog({
             limits={{
               maxSeconds: SOUND_LIMITS.maxSeconds,
               maxBytes: SOUND_LIMITS.maxBytes,
-              format: 'wav',
+              format: 'opus',
             }}
             onCancel={() => setTrim(null)}
             onUse={(made) => {

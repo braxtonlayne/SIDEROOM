@@ -85,6 +85,49 @@ export function clampRect(rect: GadgetRect, vp: Viewport, mins: Mins): GadgetRec
   return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
 }
 
+/**
+ * The layer's own size for a window size and the member's zoom (D-540). The gadget layer is a fixed box under CSS
+ * `zoom`, so its pixels are the window's divided by the zoom: rectangles are stored and clamped in those.
+ */
+export function zoomedViewport(win: Viewport, zoom: number): Viewport {
+  const z = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  return { w: win.w / z, h: win.h / z };
+}
+
+export interface DragGesture {
+  kind: 'move' | 'size';
+  /** Where the pointer went down, in viewport (client) pixels. */
+  startX: number;
+  startY: number;
+  from: GadgetRect;
+  /** -1 in right-to-left, where the inline axis runs the other way. */
+  sign: 1 | -1;
+  /** The layer's zoom when the gesture began. */
+  zoom: number;
+}
+
+/**
+ * The rectangle a move or resize gesture gives for the pointer at (clientX, clientY). Pointer positions are viewport
+ * pixels and the rectangle is in the zoomed layer's pixels, so the delta is divided by the zoom: at 150 % the
+ * title bar stays under the pointer instead of running ahead of it.
+ */
+export function dragRect(
+  g: DragGesture,
+  clientX: number,
+  clientY: number,
+  vp: Viewport,
+  mins: Mins,
+): GadgetRect {
+  const z = Number.isFinite(g.zoom) && g.zoom > 0 ? g.zoom : 1;
+  const dx = ((clientX - g.startX) * g.sign) / z;
+  const dy = (clientY - g.startY) / z;
+  const raw =
+    g.kind === 'move'
+      ? { ...g.from, x: g.from.x + dx, y: g.from.y + dy }
+      : { ...g.from, w: g.from.w + dx, h: g.from.h + dy };
+  return clampRect(raw, vp, mins);
+}
+
 export type OpenResult =
   { ok: true; layout: Layout } | { ok: false; reason: 'limit'; layout: Layout };
 

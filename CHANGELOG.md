@@ -8,6 +8,19 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 51 - 2026-11-06
+
+- **Smaller soundboard sounds.** The upload dialog now saves sounds as Opus where your browser can record it (WAV
+  otherwise), and WebM/Opus files are accepted. If your browser cannot play a sound, it says so instead of failing
+  silently; members whose browser can still hear it in a call.
+- **Search the shelf picker.** The file picker in games and the profile showcase has a search box that looks
+  through the whole shelf, not just the first 3,000 files.
+- **Rejoin a watch party.** If your connection drops long enough to take you out of a party, "Rejoin the party"
+  brings you back, including into a private party you were already in.
+- **Zoom reaches the drawer and player.** Your zoom setting now applies to the drawer, gadgets, pin rail and player
+  dock, and dragging a gadget follows the pointer at any zoom. Menus and tooltips opened inside a dialog now show
+  above it.
+
 ## Phase 50 - 2026-11-06
 
 - **Profile pages grew.** Your profile ring now shows around your picture on your page for the people you chose. A
