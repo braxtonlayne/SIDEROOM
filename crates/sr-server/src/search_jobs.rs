@@ -261,16 +261,20 @@ pub fn spawn_firehose_consumer(
                     _ => break,
                 }
             }
-            for item in batch {
-                match item {
-                    Ok(ev) => consume_event(&next_id, &search, &mut dedup, &ev, &mut pending),
-                    Err(BroadcastStreamRecvError::Lagged(missed)) => {
-                        flush_jobs(&pool, &mut pending).await;
-                        recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+            // SEC-AUD-029: a panic in one batch must not end indexing.
+            crate::catch_panic::step("search firehose", async {
+                for item in batch {
+                    match item {
+                        Ok(ev) => consume_event(&next_id, &search, &mut dedup, &ev, &mut pending),
+                        Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                            flush_jobs(&pool, &mut pending).await;
+                            recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
+                        }
                     }
                 }
-            }
-            flush_jobs(&pool, &mut pending).await;
+                flush_jobs(&pool, &mut pending).await;
+            })
+            .await;
         }
     })
 }

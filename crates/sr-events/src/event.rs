@@ -49,6 +49,8 @@ pub enum StaffAlertKind {
     TranscodeFailed,
     /// `sr-cli preflight --alert-test`: proves the card and mail path (RDY-OPS-006).
     AlertTest,
+    /// A recurring background job keeps failing (it retries with backoff; SEC-AUD-029).
+    JobFailing,
 }
 
 /// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
@@ -91,6 +93,7 @@ impl StaffAlertKind {
             Self::BackupFailed => "backup_failed",
             Self::TranscodeFailed => "transcode_failed",
             Self::AlertTest => "alert_test",
+            Self::JobFailing => "job_failing",
         }
     }
 }
