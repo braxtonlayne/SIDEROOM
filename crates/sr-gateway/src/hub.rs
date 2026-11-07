@@ -1017,6 +1017,17 @@ impl Gateway {
                 }
             }
             self.dispatch_user(user, name, payload.clone()).await;
+            // A group DM the user was removed from (or left): out of its call too (SEC-AUD-GDM).
+            if name == "CHANNEL_DELETE"
+                && payload.get("guild_id").is_none_or(Value::is_null)
+                && let Some(channel) = payload
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<u64>().ok())
+            {
+                self.call_recipient_removed(user, ChannelId::new(channel))
+                    .await;
+            }
             return;
         }
         if let Some(d) = to_dispatch(&ev) {
