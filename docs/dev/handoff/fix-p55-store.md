@@ -58,11 +58,27 @@ Not pushed. Migrations used: `2450`, `2451` (range 2450-2469).
 - Specs: the cinema spec's "Deleting a comment with replies removes the replies." is replaced (Comment shape updated);
   the library spec's comments row says the same.
 
+Commits: `4d3c6e5b` (048), `60738b52`, `45a12753`, `53d11bf9`, `18d3185e` (049: back end, web, Cinema replies view,
+OpenAPI/client/mocks + rustfmt), `f0cf8002` (048 clippy), `69f99176` (sweep), then this handoff.
+
 ## Not done
-- PLACEHOLDER
+- **Inventory rows**: there are no SEC-AUD-048/049 rows in `docs/inventory/21-feature-phase.md` yet (the wave 55
+  section is the integrator's to add, to avoid six builders editing the same spot). Both rows are fully built.
+- **Library tombstone in the sweep**: the sweep world has no Library series, so the Library tombstone is covered by
+  vitest (`p13.test.tsx`, axe-clean) and the Rust suite, not by a screenshot. The Library and Cinema components share
+  the same shape (muted italic "Comment deleted" + the replies toggle).
+- **Click-through**: the delete flow ran through the API in the sweep seed (member comments, Owner replies, member
+  deletes) and through the UI in vitest (the toggle, no actions on a tombstone); I did not click it by hand in a browser.
+- Threat model: no new route or permission surface; a row is probably not needed. If the commander wants one: "a
+  takedown keyed only by path is escaped by a re-upload under another name -> D-571 byte matching".
 
 ## Routes shot (visual check)
-- PLACEHOLDER
+Folder `C:\Users\braxt\Desktop\SIDEROOM_wt\visual-sweep-shots\p55-store` (desktop 1280x800 and phone 375x812, Lounge
+Light and Editorial): `cinema-title` and the new `cinema-title-comments` (Comments tab open, replies under the
+tombstone opened). All 8 captures: status 200, 0 automatic flags, no notes. Looked at: "Comment deleted" muted italic
+with the date, no author or actions; "Hide replies" toggle; the Owner's reply indented with the rule on the reading
+side; no overflow at 375 px. Cinema keeps its own dark palette in both themes (the plain `cinema-title` shots are the
+same), so the page matches its area. Nothing needed fixing, so there is no before/after.
 
 ## Tests run
 All green. Scratch DB `sr_p55_store` (Rust), `sr_p55_store_ui` (stack); both dropped afterwards.
