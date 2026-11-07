@@ -287,9 +287,17 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         let mut all = self.repo.list_guild_channels(gid).await?;
         all.retain(|x| x.id != id);
         all.push(planned);
-        let lock = mv.lock_permissions;
+        // D-575: syncing with the parent rewrites the channel's overwrites, so it is honoured only when the actor
+        // may edit them (`MANAGE_ROLES` in the channel); otherwise the move happens and the overwrites stay.
+        let lock = mv.lock_permissions && in_channel.perms.has(Permissions::MANAGE_ROLES);
         let moved = plan_channel_moves(&in_channel, gid, &all, &[(id, mv)])?;
         let updated = moved.into_iter().next().ok_or(ChatError::UnknownChannel)?;
+        self.check_category_moves(
+            actor,
+            std::slice::from_ref(&channel),
+            std::slice::from_ref(&updated),
+        )
+        .await?;
         self.repo.update_channel(&updated).await?;
         if lock {
             self.sync_with_parent(&updated).await?;
@@ -312,6 +320,39 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         })
     }
 
+    /// D-575: a channel moved into a different category changes that category too, so the actor also needs
+    /// `MANAGE_CHANNELS` there (overwrites applied: a guild-level holder passes unless the category denies it, a
+    /// category allow lets a member in). A position change within the same parent, or a move out of a category,
+    /// needs only the permission the route already checked. `before` holds the channels as stored.
+    async fn check_category_moves(
+        &self,
+        actor: UserId,
+        before: &[Channel],
+        after: &[Channel],
+    ) -> ChatResult<()> {
+        let mut checked: Vec<ChannelId> = Vec::new();
+        for ch in after {
+            let Some(target) = ch.parent_id else { continue };
+            let old_parent = before
+                .iter()
+                .find(|b| b.id == ch.id)
+                .and_then(|b| b.parent_id);
+            if old_parent == Some(target) || checked.contains(&target) {
+                continue;
+            }
+            if !self
+                .access(actor, target)
+                .await?
+                .perms
+                .has(Permissions::MANAGE_CHANNELS)
+            {
+                return Err(ChatError::MissingPermissions);
+            }
+            checked.push(target);
+        }
+        Ok(())
+    }
+
     async fn sync_with_parent(&self, channel: &Channel) -> ChatResult<()> {
         if let Some(parent) = channel.parent_id {
             let ov = channel_rules::synced_overwrites(&self.repo.get_overwrites(parent).await?);
@@ -330,6 +371,7 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         let c = self.ctx(actor, id).await?;
         let all = self.repo.list_guild_channels(id).await?;
         let changed = plan_channel_moves(&c.actor, id, &all, &moves)?;
+        self.check_category_moves(actor, &all, &changed).await?;
         self.repo.update_channel_layout(&changed).await?;
         let mut out = Vec::with_capacity(changed.len());
         for ch in changed {
