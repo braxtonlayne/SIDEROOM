@@ -419,6 +419,27 @@ async fn test_server_limit_and_release_flow() {
             .unwrap()
             .is_some()
     );
+    // SEC-AUD-004: a released bot that asks for more and submits a new version keeps only the
+    // approved intents while the version waits for review.
+    f.svc
+        .update_application(
+            f.owner,
+            c.application.id,
+            UpdateInput {
+                privileged_intents: Some(vec!["MESSAGE_CONTENT".into(), "GUILD_MEMBERS".into()]),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    f.svc
+        .submit_version(f.owner, c.application.id, None)
+        .await
+        .unwrap();
+    let gw = f.svc.gateway_bot(&c.bot_token).await.unwrap().unwrap();
+    assert_eq!(gw.application.release_state, ReleaseState::InReview);
+    assert!(gw.application.was_released);
+    assert_eq!(gw.allowed_intents, intents::MESSAGE_CONTENT);
     f.db.cleanup().await.unwrap();
 }
 

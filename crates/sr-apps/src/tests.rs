@@ -375,6 +375,9 @@ async fn privileged_intents_follow_the_release_state() {
     assert_eq!(v2.needs_review_reasons, vec!["intents"]);
     let gw = e.svc.gateway_bot(&c.bot_token).await.unwrap().unwrap();
     assert_eq!(gw.application.release_state, ReleaseState::InReview);
+    // SEC-AUD-004: submitting a new version must not unlock the unapproved GUILD_PRESENCES
+    // for a bot that is already live in guilds.
+    assert_eq!(gw.allowed_intents, intents::MESSAGE_CONTENT);
     let (_, a) = e
         .svc
         .decide_version(

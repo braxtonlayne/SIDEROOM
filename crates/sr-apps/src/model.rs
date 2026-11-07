@@ -123,6 +123,9 @@ pub struct Application {
     pub intents_requested: u64,
     /// Privileged intents staff approved.
     pub intents_approved: u64,
+    /// An earlier version was approved (SEC-AUD-004): while a new version waits for review
+    /// the bot keeps only its approved privileged intents.
+    pub was_released: bool,
     /// Digest of the client secret.
     pub client_secret_hash: TokenHash,
     /// Last four characters of the client secret.
@@ -133,11 +136,14 @@ pub struct Application {
 
 impl Application {
     /// Privileged intents the gateway lets the bot IDENTIFY with: the developer's set while
-    /// the application is in test servers, the approved subset once released.
+    /// the application is in test servers, the approved subset once released. A released
+    /// application that submits a new version stays on the approved subset until a reviewer
+    /// decides (SEC-AUD-004): submitting must not unlock intents nobody approved.
     pub fn allowed_intents(&self) -> u64 {
         let asked = self.intents_requested & intents::PRIVILEGED;
         match self.release_state {
             ReleaseState::Released => asked & self.intents_approved,
+            ReleaseState::InReview if self.was_released => asked & self.intents_approved,
             ReleaseState::Suspended => 0,
             ReleaseState::Development | ReleaseState::InReview => asked,
         }
@@ -145,7 +151,8 @@ impl Application {
 
     /// Discord application `flags` derived from the intents.
     pub fn flags(&self) -> u64 {
-        let released = self.release_state == ReleaseState::Released;
+        let released = self.release_state == ReleaseState::Released
+            || (self.release_state == ReleaseState::InReview && self.was_released);
         let on = self.allowed_intents();
         let mut f = 0u64;
         for (bit, full, limited) in [
