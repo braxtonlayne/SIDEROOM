@@ -177,6 +177,20 @@ function CommentItem({ c, titleId }: { c: Comment; titleId: string }) {
     onSuccess: refresh,
   });
   const remove = useMutation({ mutationFn: () => deleteComment(c.id), onSuccess: refresh });
+  if (c.deleted) {
+    // D-572: the author deleted it but others replied; the replies keep their place under this marker.
+    return (
+      <li className="cin-post" data-deleted="true">
+        <p className="cin-post-head">
+          <em className="cin-muted">{t('cinema.social.commentDeleted')}</em>
+          <span className="cin-muted">{when(c.created_at_ms)}</span>
+        </p>
+        {c.reply_count > 0 && (
+          <p className="cin-muted">{t('cinema.social.replyCount', { n: c.reply_count })}</p>
+        )}
+      </li>
+    );
+  }
   return (
     <li className="cin-post">
       <p className="cin-post-head">

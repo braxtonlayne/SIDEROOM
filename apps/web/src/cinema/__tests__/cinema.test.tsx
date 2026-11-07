@@ -573,6 +573,31 @@ describe('Title page', () => {
     );
   });
 
+  it('comments: a deleted comment with replies shows as a tombstone without actions (D-572)', async () => {
+    useCinemaApi({
+      comments: [
+        {
+          id: 'c2',
+          author_id: null,
+          body: '',
+          spoiler: false,
+          like_count: 0,
+          reply_count: 2,
+          liked: false,
+          mine: false,
+          created_at_ms: 1_700_000_000_000,
+          deleted: true,
+        },
+      ],
+    });
+    const user = userEvent.setup();
+    renderAt('/cinema/t/1');
+    await user.click(await screen.findByRole('tab', { name: 'Comments' }));
+    const tomb = (await screen.findByText('Comment deleted')).closest('li')!;
+    expect(within(tomb).getByText('2 replies')).toBeInTheDocument();
+    expect(within(tomb).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('shows Resume when the title is started, and a friendly message for a missing title', async () => {
     useCinemaApi();
     renderAt('/cinema/t/5');

@@ -13,7 +13,8 @@ export interface LibComment {
   /** "0" for a comment on the series itself. */
   chapter_id: string;
   parent_id?: string | null;
-  author_id: string;
+  /** `null` for a deleted comment kept for its replies (D-572). */
+  author_id?: string | null;
   author_name: string;
   body: string;
   spoiler: boolean;
@@ -23,6 +24,8 @@ export interface LibComment {
   mine: boolean;
   created_at_ms: number;
   edited_at_ms?: number | null;
+  /** A tombstone (D-572): shown as "Comment deleted" with its replies; no body, author or actions. */
+  deleted?: boolean;
 }
 
 export interface CommentPage {
