@@ -38,6 +38,9 @@ fn no_control(s: &str) -> bool {
 /// Trim, collapse whitespace, drop empties and case-insensitive duplicates.
 pub fn clean_list(what: &str, items: &[String], max_len: usize) -> CinemaResult<Vec<String>> {
     let mut out: Vec<String> = Vec::new();
+    // SEC-AUD-030: one set lookup per entry, and the cap stops the loop as soon as it is passed (it was a
+    // pairwise compare over the whole input, checked only at the end).
+    let mut seen = std::collections::HashSet::new();
     for raw in items {
         let v = squash(raw);
         if v.is_empty() {
@@ -48,8 +51,11 @@ pub fn clean_list(what: &str, items: &[String], max_len: usize) -> CinemaResult<
                 "{what}: entries must be at most {max_len} characters"
             ));
         }
-        if !out.iter().any(|o| o.to_lowercase() == v.to_lowercase()) {
+        if seen.insert(v.to_lowercase()) {
             out.push(v);
+            if out.len() > MAX_LIST {
+                return invalid(format!("{what}: at most {MAX_LIST} entries"));
+            }
         }
     }
     if out.len() > MAX_LIST {
@@ -154,6 +160,10 @@ fn languages(what: &str, items: &[String]) -> CinemaResult<Vec<String>> {
         let l = language(raw)?;
         if !out.contains(&l) {
             out.push(l);
+            // SEC-AUD-030: stop at the cap instead of after the whole input.
+            if out.len() > 40 {
+                return invalid(format!("{what}: at most 40 entries"));
+            }
         }
     }
     if out.len() > 40 {
@@ -529,6 +539,28 @@ pub fn decode_episode_cursor(s: &str) -> CinemaResult<(i32, i32, i64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SEC-AUD-030: a huge member-supplied list is refused at the cap in linear time (it was a pairwise compare of
+    /// every entry, so 200k entries took minutes), and duplicates still fold case-insensitively.
+    #[test]
+    fn a_huge_list_stops_at_the_cap_and_duplicates_still_fold() {
+        let many: Vec<String> = (0..50_000).map(|i| format!("Name {i}")).collect();
+        let t = std::time::Instant::now();
+        assert!(clean_list("cast", &many, 200).is_err());
+        assert!(t.elapsed() < std::time::Duration::from_secs(10));
+        let dupes: Vec<String> = (0..50_000)
+            .map(|i| {
+                if i % 2 == 0 {
+                    "ÉMILE".into()
+                } else {
+                    "émile".into()
+                }
+            })
+            .collect();
+        assert_eq!(clean_list("cast", &dupes, 200).unwrap(), vec!["ÉMILE"]);
+        let langs: Vec<String> = (0..50_000).map(|_| "en".to_owned()).collect();
+        assert!(languages("audio", &langs).is_ok());
+    }
 
     fn input() -> TitleInput {
         TitleInput {

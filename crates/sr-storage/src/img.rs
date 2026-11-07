@@ -263,7 +263,10 @@ fn collect_frames(
     let per_frame = u64::from(p.width) * u64::from(p.height);
     let mut frames: Vec<Frame> = Vec::new();
     for f in frames_iter {
-        let f = f.map_err(|_| ImgError::Malformed)?;
+        let f = f.map_err(|e| match e {
+            image::ImageError::Limits(_) => ImgError::TooLarge,
+            _ => ImgError::Malformed,
+        })?;
         if frames.len() + 1 > limits.max_frames
             || per_frame * (frames.len() as u64 + 1) > limits.max_animation_pixels
         {
@@ -286,7 +289,13 @@ fn collect_frames(
 pub fn decode(src: &[u8], limits: &Limits) -> Result<(Probe, Decoded), ImgError> {
     let p = probe(src, limits)?;
     if p.format == ImgFormat::Gif {
-        let dec = GifDecoder::new(Cursor::new(src)).map_err(|_| ImgError::Malformed)?;
+        let mut dec = GifDecoder::new(Cursor::new(src)).map_err(|_| ImgError::Malformed)?;
+        // SEC-AUD-030: a frame is decoded at its own descriptor size before the canvas budget is checked, so no
+        // frame may be larger than the logical screen the probe measured (and the allocation stays bounded).
+        let mut l = decode_limits(limits);
+        l.max_image_width = Some(p.width.max(1));
+        l.max_image_height = Some(p.height.max(1));
+        dec.set_limits(l).map_err(|_| ImgError::TooLarge)?;
         return Ok((p, collect_frames(p, dec.into_frames(), limits)?));
     }
     if p.format == ImgFormat::Webp && webp_header_animated(src) {

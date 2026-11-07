@@ -29,6 +29,9 @@ fn no_control(s: &str) -> bool {
 /// Trim, collapse whitespace, drop empties and case-insensitive duplicates.
 pub fn clean_list(what: &str, items: &[String], max_len: usize) -> LibraryResult<Vec<String>> {
     let mut out: Vec<String> = Vec::new();
+    // SEC-AUD-030: one set lookup per entry (ASCII case folded, as before), and the cap stops the loop as soon as
+    // it is passed instead of after a pairwise compare over the whole input.
+    let mut seen = std::collections::HashSet::new();
     for raw in items {
         let v = squash(raw);
         if v.is_empty() {
@@ -39,8 +42,11 @@ pub fn clean_list(what: &str, items: &[String], max_len: usize) -> LibraryResult
                 "{what}: entries must be at most {max_len} characters"
             ));
         }
-        if !out.iter().any(|o| o.eq_ignore_ascii_case(&v) || *o == v) {
+        if seen.insert(v.to_ascii_lowercase()) {
             out.push(v);
+            if out.len() > MAX_LIST {
+                return invalid(format!("{what}: at most {MAX_LIST} entries"));
+            }
         }
     }
     if out.len() > MAX_LIST {
@@ -359,6 +365,25 @@ pub fn decode_chapter_cursor(s: &str) -> LibraryResult<ChapterCursor> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SEC-AUD-030: a huge list is refused at the cap in linear time, and ASCII case duplicates still fold.
+    #[test]
+    fn a_huge_list_stops_at_the_cap_and_duplicates_still_fold() {
+        let many: Vec<String> = (0..50_000).map(|i| format!("Name {i}")).collect();
+        let t = std::time::Instant::now();
+        assert!(clean_list("authors", &many, 200).is_err());
+        assert!(t.elapsed() < std::time::Duration::from_secs(10));
+        let dupes: Vec<String> = (0..50_000)
+            .map(|i| {
+                if i % 2 == 0 {
+                    "Oda".into()
+                } else {
+                    "ODA".into()
+                }
+            })
+            .collect();
+        assert_eq!(clean_list("authors", &dupes, 200).unwrap(), vec!["Oda"]);
+    }
 
     fn input() -> SeriesInput {
         SeriesInput {

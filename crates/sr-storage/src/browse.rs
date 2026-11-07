@@ -10,6 +10,8 @@ use crate::storage::ObjectStoreStorage;
 
 /// Page size of a listing.
 pub const PAGE: usize = 1000;
+/// Most keys one recursive listing call reads from the bucket (SEC-AUD-030).
+pub const RECURSIVE_SCAN_CAP: usize = 5 * PAGE;
 /// Longest key in bytes.
 pub use crate::path::MAX_KEY_BYTES;
 
@@ -70,6 +72,18 @@ impl ObjectStoreStorage {
         cursor: Option<&str>,
         limit: usize,
     ) -> Result<DirPage> {
+        self.list_dir_capped(prefix, delimiter, cursor, limit, RECURSIVE_SCAN_CAP)
+            .await
+    }
+
+    async fn list_dir_capped(
+        &self,
+        prefix: &str,
+        delimiter: bool,
+        cursor: Option<&str>,
+        limit: usize,
+        scan_cap: usize,
+    ) -> Result<DirPage> {
         let path = if prefix.is_empty() {
             None
         } else {
@@ -86,9 +100,19 @@ impl ObjectStoreStorage {
                 items.push((m.location.to_string(), Some(dir_object(m))));
             }
         } else {
-            let metas: Vec<_> = self.store.list(path.as_ref()).try_collect().await?;
-            for m in &metas {
-                items.push((m.location.to_string(), Some(dir_object(m))));
+            // SEC-AUD-030: never pull the whole bucket into memory. Start after the cursor (S3 pushes it down as
+            // `start-after`) and read at most `scan_cap` keys; S3 and the in-memory store list in key order, so
+            // the first `limit` of them are the page.
+            let mut stream = match cursor.and_then(|c| Path::parse(c).ok()) {
+                Some(offset) => self.store.list_with_offset(path.as_ref(), &offset),
+                None => self.store.list(path.as_ref()),
+            };
+            let cap = scan_cap.max(limit.saturating_add(1));
+            while items.len() < cap {
+                let Some(m) = stream.try_next().await? else {
+                    break;
+                };
+                items.push((m.location.to_string(), Some(dir_object(&m))));
             }
         }
         items.sort_by(|a, b| a.0.cmp(&b.0));
@@ -243,6 +267,38 @@ mod tests {
                 "m/zeta/z.txt"
             ]
         );
+    }
+
+    /// SEC-AUD-030: a recursive listing reads a bounded number of keys per call and still pages through everything.
+    #[tokio::test]
+    async fn a_recursive_listing_reads_a_bounded_window_per_page() {
+        let s = ObjectStoreStorage::in_memory();
+        let mut want = Vec::new();
+        for i in 0..40 {
+            let k = format!("big/{:02}/f{i}.bin", 39 - i);
+            s.put(&k, Bytes::from_static(b"x")).await.unwrap();
+            want.push(k);
+        }
+        want.sort();
+        let mut seen = Vec::new();
+        let mut cursor: Option<String> = None;
+        let mut pages = 0;
+        loop {
+            let p = s
+                .list_dir_capped("big/", false, cursor.as_deref(), 5, 7)
+                .await
+                .unwrap();
+            pages += 1;
+            assert!(p.objects.len() <= 5);
+            seen.extend(p.objects.iter().map(|o| o.key.clone()));
+            match p.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+            assert!(pages < 20, "the cursor must advance");
+        }
+        assert_eq!(seen, want);
+        assert_eq!(pages, 8);
     }
 
     #[tokio::test]
