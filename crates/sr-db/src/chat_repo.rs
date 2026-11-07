@@ -987,6 +987,22 @@ impl ChannelRepository for PgChatRepo {
         tx.commit().await.map_err(db)
     }
 
+    async fn holds_evidence(&self, id: ChannelId) -> RepoResult<bool> {
+        // Through the partial hold indexes: only held rows are looked at, never the channel's history.
+        sqlx::query_scalar(
+            "WITH chans AS (SELECT $1::bigint AS id \
+                            UNION ALL SELECT id FROM channels WHERE parent_id = $1 AND type IN (10, 11, 12)) \
+             SELECT EXISTS (SELECT 1 FROM messages m \
+                            WHERE m.hold_id IS NOT NULL AND m.channel_id IN (SELECT id FROM chans)) \
+                 OR EXISTS (SELECT 1 FROM attachments a JOIN messages m ON m.id = a.message_id \
+                            WHERE a.hold_id IS NOT NULL AND m.channel_id IN (SELECT id FROM chans))",
+        )
+        .bind(i(id.get()))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(db)
+    }
+
     async fn is_thread_member(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
         sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM thread_members WHERE channel_id = $1 AND user_id = $2)",

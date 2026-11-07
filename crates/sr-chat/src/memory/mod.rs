@@ -243,6 +243,19 @@ impl ChannelRepository for MemoryRepo {
         Ok(())
     }
 
+    async fn holds_evidence(&self, id: ChannelId) -> RepoResult<bool> {
+        let s = self.lock()?;
+        let threads: Vec<ChannelId> = s
+            .channels
+            .values()
+            .filter(|c| c.kind.is_thread() && c.parent_id == Some(id))
+            .map(|c| c.id)
+            .collect();
+        Ok(s.messages.iter().any(|m| {
+            m.hold_id.is_some() && (m.channel_id == id || threads.contains(&m.channel_id))
+        }))
+    }
+
     async fn is_recipient(&self, channel: ChannelId, user: UserId) -> RepoResult<bool> {
         Ok(self.lock()?.recipients.contains(&(channel, user)))
     }
