@@ -35,7 +35,16 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sideroom/wasm build
+      # D-570: the release web build is never an end-to-end build. `VITE_SR_E2E=1` compiles in test-only paths
+      # (the e2e voice observer `sr.e2e.noVoiceE2ee`, the probe core, the test tone); the flag must be unset here,
+      # and the voice opt-out must not be in the bundle.
+      - name: The release web build is not an e2e build
+        run: |
+          if [ -n "${VITE_SR_E2E:-}" ]; then echo "VITE_SR_E2E is set; a release web build must not set it" >&2; exit 1; fi
       - run: pnpm --filter @sideroom/web build
+      - name: No e2e-only path is in the bundle
+        run: |
+          if grep -rl 'sr.e2e.noVoiceE2ee' apps/web/dist; then echo "the e2e voice opt-out is in the release bundle" >&2; exit 1; fi
       - name: The service worker was finished by the build
         run: |
           ! grep -q '__SR_BUILD__' apps/web/dist/sw.js

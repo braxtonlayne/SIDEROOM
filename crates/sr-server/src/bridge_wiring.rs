@@ -130,7 +130,10 @@ pub fn spawn_event_consumer(
                     let svc = svc.clone();
                     tokio::spawn(async move { svc.handle_event(&ev).await });
                 }
-                Ok(ev) => svc.handle_event(&ev).await,
+                Ok(ev) => {
+                    // SEC-AUD-029: one panicking event must not end mirroring.
+                    crate::catch_panic::step("discord bridge events", svc.handle_event(&ev)).await;
+                }
                 Err(BroadcastStreamRecvError::Lagged(missed)) => {
                     tracing::warn!(
                         missed,
@@ -149,9 +152,12 @@ pub fn spawn_outbox_worker(svc: Arc<BridgeService>) -> JoinHandle<()> {
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             tick.tick().await;
-            if let Err(e) = svc.drain_outbox().await {
-                tracing::warn!(error = %e, "discord bridge queue pass failed");
-            }
+            crate::catch_panic::step("discord bridge queue", async {
+                if let Err(e) = svc.drain_outbox().await {
+                    tracing::warn!(error = %e, "discord bridge queue pass failed");
+                }
+            })
+            .await;
         }
     })
 }

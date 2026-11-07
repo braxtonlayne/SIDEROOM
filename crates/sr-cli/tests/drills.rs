@@ -479,3 +479,25 @@ async fn drill_compromised_staff_account() {
     assert!(out.contains("access log OK"), "{out}");
     d.done().await;
 }
+
+/// SEC-AUD-028: `restore --force` with a source pg_restore cannot read stops before it drops anything.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL and pg_restore on PATH"]
+async fn drill_restore_force_keeps_the_schema_when_the_dump_is_unreadable() {
+    let d = Drill::new("restore").await;
+    let alice = d.account("alice").await;
+    let bad = d.dir.join("damaged.dump");
+    std::fs::write(&bad, b"PGDMP this is not a real archive").unwrap();
+    let out = d.cli(KEY_A, &[], &["restore", "--force", bad.to_str().unwrap()]);
+    assert!(!out.status.success(), "a damaged dump must be refused");
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("nothing was changed"), "{err}");
+    // The schema and its rows are still there.
+    let still: i64 = sqlx::query_scalar("SELECT count(*) FROM accounts WHERE id = $1")
+        .bind(alice)
+        .fetch_one(d.pool())
+        .await
+        .unwrap();
+    assert_eq!(still, 1);
+    d.done().await;
+}

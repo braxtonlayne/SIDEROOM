@@ -42,6 +42,8 @@ fn main() -> anyhow::Result<()> {
 async fn serve() -> anyhow::Result<()> {
     let path = std::env::var_os("SR_CONFIG").map(PathBuf::from);
     let cfg = Config::load(path.as_deref()).context("loading configuration")?;
+    // SEC-AUD-028: a release build refuses test-only settings before anything starts.
+    sr_server::release_guard::enforce(&cfg)?;
     observability::init_tracing(&cfg.log);
     sr_server::app::run(cfg, sr_server::app::os_shutdown_signal()).await
 }

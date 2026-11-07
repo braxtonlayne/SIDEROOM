@@ -272,6 +272,28 @@ pub fn verify_dump(dump: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Whether a `pg_restore --list` table of contents is a SIDE ROOM database dump: it must create the migrations table
+/// and load its rows, or the restore would leave a database the server cannot use.
+pub fn check_restore_toc(toc: &str) -> Result<()> {
+    // Entries read `<id>; <oid> <oid> TABLE public _sqlx_migrations <owner>` and `... TABLE DATA public ...`.
+    let has = |want: &[&str]| {
+        toc.lines()
+            .filter(|l| !l.trim_start().starts_with(';'))
+            .any(|l| {
+                let words: Vec<&str> = l.split_whitespace().collect();
+                words.windows(want.len()).any(|w| w == want)
+            })
+    };
+    if !has(&["TABLE", "public", "_sqlx_migrations"])
+        || !has(&["TABLE", "DATA", "public", "_sqlx_migrations"])
+    {
+        bail!(
+            "the dump has no _sqlx_migrations table and data: it is not a SIDE ROOM database dump (sr-cli backup writes one)"
+        );
+    }
+    Ok(())
+}
+
 /// `sr-cli restore`: load a dump into the configured database. It must be empty unless `force`.
 pub async fn restore(cfg: &Config, pool: &PgPool, dump: &Path, force: bool) -> Result<()> {
     if !dump.is_file() {
@@ -290,6 +312,24 @@ pub async fn restore(cfg: &Config, pool: &PgPool, dump: &Path, force: bool) -> R
             env.database
         );
     }
+    // SEC-AUD-028: read the dump's table of contents before anything is dropped. A file pg_restore cannot read
+    // (damaged, not a custom-format dump, written by a newer pg_dump) or a dump of some other database stops here,
+    // with the existing schema untouched.
+    let mut list = env.command("pg_restore");
+    list.arg("--list").arg(dump);
+    let out = list.output().with_context(|| {
+        "could not run pg_restore: it must be installed and on PATH (the PostgreSQL client tools)".to_owned()
+    })?;
+    if !out.status.success() {
+        bail!(
+            "pg_restore cannot read {} ({}): {}; nothing was changed",
+            dump.display(),
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    check_restore_toc(&String::from_utf8_lossy(&out.stdout))
+        .with_context(|| format!("{}: nothing was changed", dump.display()))?;
     println!(
         "restoring {} into {}@{}",
         dump.display(),
@@ -614,6 +654,30 @@ fn now_ms() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_restore_source_must_be_a_sideroom_dump() {
+        let good = ";\n; Archive created at 2026-11-07\n;\n\
+            3456; 1259 16385 TABLE public _sqlx_migrations sideroom\n\
+            3789; 0 16385 TABLE DATA public _sqlx_migrations sideroom\n\
+            3790; 0 16400 TABLE DATA public accounts sideroom\n";
+        assert!(check_restore_toc(good).is_ok());
+        // No owner (dumped with --no-owner) still matches.
+        assert!(
+            check_restore_toc(
+                "1; 1259 1 TABLE public _sqlx_migrations\n2; 0 1 TABLE DATA public _sqlx_migrations\n"
+            )
+            .is_ok()
+        );
+        for bad in [
+            "",
+            "3790; 0 16400 TABLE DATA public accounts sideroom\n",
+            "3456; 1259 16385 TABLE public _sqlx_migrations sideroom\n",
+            "; 3456; 1259 16385 TABLE public _sqlx_migrations x\n; 3789; 0 16385 TABLE DATA public _sqlx_migrations x\n",
+        ] {
+            assert!(check_restore_toc(bad).is_err(), "{bad:?}");
+        }
+    }
 
     #[test]
     fn splits_a_database_url() {

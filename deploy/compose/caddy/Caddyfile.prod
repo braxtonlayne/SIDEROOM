@@ -55,6 +55,11 @@
 	handle /internal/* {
 		respond 404
 	}
+	# Readiness lists each dependency and its error text: it is for the server's own probe and the operator on the
+	# box, never for visitors (D-385, SEC-AUD-031). Without this block the catch-all below would proxy it.
+	handle /readyz {
+		respond 404
+	}
 
 	handle /api/* {
 		reverse_proxy {$SR_UPSTREAM:127.0.0.1:8080}

@@ -165,6 +165,21 @@ impl settings::EventStartNotifier for Notified {
 }
 
 async fn world() -> World {
+    world_with_presence(None).await
+}
+
+/// Counts how often the online count is asked for (SEC-AUD-030); nobody is online.
+#[derive(Default)]
+struct CountingPresence(AtomicU64);
+
+impl settings::PresenceCounter for CountingPresence {
+    fn count_online(&self, _users: &[UserId]) -> u64 {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        0
+    }
+}
+
+async fn world_with_presence(presence: Option<Arc<CountingPresence>>) -> World {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
     let ids = SnowflakeGenerator::new(dyn_clock.clone(), 1, 1).unwrap();
@@ -222,24 +237,26 @@ async fn world() -> World {
     ));
     let voice = Arc::new(FakeVoice::default());
     let notified = Arc::new(Notified::default());
-    let settings_deps = Arc::new(
-        settings::SettingsDeps::new(
-            settings_repo.clone(),
-            Arc::new(repo.clone()),
-            storage.clone(),
-            dyn_clock.clone(),
-            entropy,
-            1,
-            5,
-        )
-        .unwrap()
-        .with_events(Arc::new(settings::events::BusSettingsEvents::new(
-            bus.clone(),
-        )))
-        .with_joiner(joiner.clone())
-        .with_event_world(voice.clone())
-        .with_event_notifier(notified.clone()),
-    );
+    let mut settings_deps = settings::SettingsDeps::new(
+        settings_repo.clone(),
+        Arc::new(repo.clone()),
+        storage.clone(),
+        dyn_clock.clone(),
+        entropy,
+        1,
+        5,
+    )
+    .unwrap()
+    .with_events(Arc::new(settings::events::BusSettingsEvents::new(
+        bus.clone(),
+    )))
+    .with_joiner(joiner.clone())
+    .with_event_world(voice.clone())
+    .with_event_notifier(notified.clone());
+    if let Some(p) = presence {
+        settings_deps = settings_deps.with_presence(p);
+    }
+    let settings_deps = Arc::new(settings_deps);
 
     // Staff: STAFF may manage the directory, BASIC may not.
     let admin_repo = Arc::new(MemoryAdminRepo::default());
@@ -1313,6 +1330,42 @@ async fn temporary_members_leave_when_they_go_offline_unless_they_hold_a_role() 
 }
 
 // ------------------------------------------------------------------ LNG-GLD-013
+
+/// SEC-AUD-030: the directory reads members for the online count only for the page it returns, not for every
+/// listing.
+#[tokio::test]
+async fn the_directory_counts_presence_for_the_returned_page_only() {
+    let presence = Arc::new(CountingPresence::default());
+    let w = world_with_presence(Some(presence.clone())).await;
+    for name in ["Chess Club", "Go Club", "Shogi Club"] {
+        let (gid, general) = w.guild(name).await;
+        w.community(&gid, &general, json!({})).await;
+        let (s, l) = w
+            .put(
+                OWNER,
+                &format!("/guilds/{gid}/directory"),
+                json!({ "category": "gaming", "description": "Boards" }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{l}");
+        let (s, d) = w
+            .patch(
+                STAFF,
+                &format!("/admin/directory/{gid}"),
+                json!({ "decision": "approve" }),
+            )
+            .await;
+        assert_eq!(s, StatusCode::OK, "{d}");
+    }
+    presence.0.store(0, Ordering::SeqCst);
+    let (s, page) = w.get(CAROL, "/directory?limit=1").await;
+    assert_eq!(s, StatusCode::OK, "{page}");
+    assert_eq!(page.as_array().unwrap().len(), 1);
+    assert_eq!(page[0]["approximate_presence_count"], 0);
+    assert_eq!(presence.0.load(Ordering::SeqCst), 1, "one page, one count");
+    let (_, all) = w.get(CAROL, "/directory").await;
+    assert_eq!(all.as_array().unwrap().len(), 3);
+}
 
 #[tokio::test]
 async fn server_directory_listing_approval_search_and_join() {

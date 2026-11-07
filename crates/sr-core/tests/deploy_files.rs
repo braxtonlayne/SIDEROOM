@@ -504,9 +504,11 @@ fn caddy_proxies_what_the_server_serves_and_hides_the_rest() {
     }
     // Readiness details and metrics are never public.
     assert!(caddy.contains("handle /internal/*"));
+    // SEC-AUD-031: /readyz lists dependency errors. The catch-all proxies every path it is not told about, so the
+    // absence of a proxy block is not enough: Caddy must answer it with 404 itself.
     assert!(
-        !caddy.contains("handle /readyz"),
-        "/readyz lists dependency errors; it must stay off the public listener"
+        caddy.contains("handle /readyz {\n\t\trespond 404\n\t}"),
+        "/readyz lists dependency errors; Caddy must refuse it, not proxy it"
     );
     // Every address the compose file hands Caddy is one it reads.
     for v in ["SR_DOMAIN", "SR_UPSTREAM", "SR_WEB_ROOT"] {

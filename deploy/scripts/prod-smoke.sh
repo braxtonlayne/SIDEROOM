@@ -138,6 +138,12 @@ stage_wait() {
   echo "$headers" | grep -qi '^content-security-policy:.*frame-ancestors' || die "no CSP with frame-ancestors on /"
   code=$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$ca" "$base_url/internal/metrics")
   [ "$code" = "404" ] || die "/internal/metrics answered $code through Caddy (want 404)"
+  # SEC-AUD-031: readiness names each dependency and its error, so it is never served to visitors. (The upgrade
+  # drill's previous release may predate the Caddy block; it is checked once its Caddyfile has it.)
+  if grep -q 'handle /readyz' "$compose_dir/caddy/Caddyfile.prod"; then
+    code=$(curl --silent --output /dev/null --write-out '%{http_code}' --cacert "$ca" "$base_url/readyz")
+    [ "$code" = "404" ] || die "/readyz answered $code through Caddy (want 404)"
+  fi
   curl_ca "$base_url/" | grep -qi '<div id="root"' || die "the web app shell is not served at /"
   # The container health check: sr-server probes its own /readyz (database and storage).
   dc exec -T sr-server /usr/local/bin/sr-server healthcheck

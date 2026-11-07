@@ -52,6 +52,23 @@ fn payloads_follow_discords_shape() {
             limit: DEFAULT_QUERY_LIMIT
         }
     );
+    // SEC-AUD-030: a name search is capped at 100 whatever limit it asks for.
+    let p = ok(json!({"guild_id": 1, "query": "a", "limit": 1_000_000}));
+    assert_eq!(
+        p.request,
+        MemberRequest::Search {
+            query: "a".into(),
+            limit: DEFAULT_QUERY_LIMIT
+        }
+    );
+    let p = ok(json!({"guild_id": 1, "query": "a", "limit": 7}));
+    assert_eq!(
+        p.request,
+        MemberRequest::Search {
+            query: "a".into(),
+            limit: 7
+        }
+    );
     let p = ok(json!({"guild_id": "1", "user_ids": ["5", 6, "5", "x"], "presences": true}));
     assert_eq!(
         p.request,

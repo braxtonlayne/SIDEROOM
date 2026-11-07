@@ -10,6 +10,14 @@ use crate::DbResult;
 const BACKOFF_BASE_SECS: u64 = 5;
 const BACKOFF_CAP_SECS: u64 = 3600;
 
+/// Recurring singletons ([`schedule_singleton`]) use fixed ids below this; every enqueued job has a Snowflake id far
+/// above it. A failing singleton is never dead-lettered: it backs off (capped at an hour) and keeps retrying, and the
+/// health check reports it once it has failed [`SINGLETON_FAILING_AFTER`] times in a row (SEC-AUD-029).
+pub const SINGLETON_ID_LIMIT: i64 = 1 << 40;
+
+/// Failed attempts in a row after which a singleton counts as failing.
+pub const SINGLETON_FAILING_AFTER: i32 = 5;
+
 /// Delay before retrying after `attempts` failed attempts (exponential, capped).
 /// Mirrors the SQL expression in [`fail`].
 pub fn backoff(attempts: i32) -> Duration {
@@ -163,17 +171,18 @@ pub async fn complete_many<'e>(ex: impl PgExecutor<'e>, ids: &[i64]) -> DbResult
 }
 
 /// Record a failure. Re-queues with exponential backoff, or dead-letters once
-/// `max_attempts` is reached. Returns the resulting state (`queued`/`dead`),
-/// or `None` if the job was not running.
+/// `max_attempts` is reached. A recurring singleton (id below [`SINGLETON_ID_LIMIT`]) is never dead-lettered: it
+/// re-queues with the capped backoff, because nothing would re-arm it before the next boot (SEC-AUD-029).
+/// Returns the resulting state (`queued`/`dead`), or `None` if the job was not running.
 pub async fn fail<'e>(ex: impl PgExecutor<'e>, id: i64, error: &str) -> DbResult<Option<String>> {
     Ok(sqlx::query_scalar(
         "UPDATE jobs SET \
-             state = CASE WHEN attempts >= max_attempts THEN 'dead'::job_state \
+             state = CASE WHEN attempts >= max_attempts AND id >= $5 THEN 'dead'::job_state \
                           ELSE 'queued'::job_state END, \
-             run_at = CASE WHEN attempts >= max_attempts THEN run_at \
+             run_at = CASE WHEN attempts >= max_attempts AND id >= $5 THEN run_at \
                       ELSE now() + make_interval(secs => \
                           LEAST($3::float8 * power(2, LEAST(attempts - 1, 20)), $4::float8)) END, \
-             finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END, \
+             finished_at = CASE WHEN attempts >= max_attempts AND id >= $5 THEN now() ELSE NULL END, \
              last_error = $2, locked_at = NULL, locked_by = NULL, updated_at = now() \
          WHERE id = $1 AND state = 'running' \
          RETURNING state::text",
@@ -182,7 +191,26 @@ pub async fn fail<'e>(ex: impl PgExecutor<'e>, id: i64, error: &str) -> DbResult
     .bind(error)
     .bind(BACKOFF_BASE_SECS as f64)
     .bind(BACKOFF_CAP_SECS as f64)
+    .bind(SINGLETON_ID_LIMIT)
     .fetch_optional(ex)
+    .await?)
+}
+
+/// Recurring singletons that have failed [`SINGLETON_FAILING_AFTER`] or more times in a row and are waiting for
+/// their next retry: `(kind, attempts, last error)`, oldest id first, at most `limit`.
+pub async fn failing_singletons<'e>(
+    ex: impl PgExecutor<'e>,
+    limit: i64,
+) -> DbResult<Vec<(String, i32, String)>> {
+    Ok(sqlx::query_as(
+        "SELECT kind, attempts, COALESCE(left(last_error, 160), '') FROM jobs \
+         WHERE id < $1 AND state = 'queued' AND attempts >= $2 AND last_error IS NOT NULL \
+         ORDER BY id LIMIT $3",
+    )
+    .bind(SINGLETON_ID_LIMIT)
+    .bind(SINGLETON_FAILING_AFTER)
+    .bind(limit)
+    .fetch_all(ex)
     .await?)
 }
 

@@ -10,7 +10,8 @@ scrape_configs:
   - job_name: sr-server
     metrics_path: /internal/metrics
     static_configs:
-      - targets: ["sr-server:9100"]
+      # Prometheus shares sr-server's network namespace (deploy/compose/prod.yml), so the loopback listener is local.
+      - targets: ["127.0.0.1:9100"]
   # RDY-OBS-001: a standalone SFU node (`sr-voice`, SR_VOICE_HTTP_BIND, default port 8081) is scraped here. Change the
   # target to the node's private address. When the SFU runs inside sr-server (the default), its sr_voice_* series come
   # through the sr-server job above and this job can be removed.

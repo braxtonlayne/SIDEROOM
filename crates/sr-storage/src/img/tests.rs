@@ -293,3 +293,19 @@ fn animated_webp_obeys_the_frame_budget() {
     };
     assert_eq!(decode(&w.bytes, &l).err(), Some(ImgError::TooLarge));
 }
+
+/// SEC-AUD-030: a GIF whose frame descriptor is larger than its logical screen is refused before the frame is
+/// decoded at that size (the canvas budget alone would only be checked after the decode).
+#[test]
+fn a_gif_frame_larger_than_its_screen_is_refused() {
+    let mut src = animated_gif(64, 64, 2);
+    assert!(decode(&src, &Limits::default()).is_ok());
+    // Shrink the logical screen (bytes 6..10, little-endian width and height) to 4x4; the frames stay 64x64.
+    src[6..8].copy_from_slice(&4u16.to_le_bytes());
+    src[8..10].copy_from_slice(&4u16.to_le_bytes());
+    assert_eq!(probe(&src, &Limits::default()).unwrap().width, 4);
+    assert_eq!(
+        decode(&src, &Limits::default()).err(),
+        Some(ImgError::TooLarge)
+    );
+}

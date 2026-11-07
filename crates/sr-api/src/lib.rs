@@ -23,5 +23,5 @@ pub mod state;
 
 pub use auth::{AuthKind, Principal};
 pub use error::HttpError;
-pub use router::{build_router, internal_router};
+pub use router::{build_router, internal_router, internal_router_with_token};
 pub use state::{ApiSettings, AppState, AppStateBuilder};
