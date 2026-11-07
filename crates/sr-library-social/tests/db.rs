@@ -1631,10 +1631,17 @@ async fn a_deleted_comment_with_replies_becomes_a_tombstone() {
     );
     assert!(!t.spoiler && !t.liked && !t.mine && t.like_count == 0);
     assert_eq!(t.reply_count, 2);
-    assert_eq!(page.total, 2, "the total counts the replies, not the tombstone");
+    assert_eq!(
+        page.total, 2,
+        "the total counts the replies, not the tombstone"
+    );
     let replies = e.svc.comment_replies(c, top.id, None, None).await.unwrap();
     assert_eq!(
-        replies.items.iter().map(|r| r.body.as_str()).collect::<Vec<_>>(),
+        replies
+            .items
+            .iter()
+            .map(|r| r.body.as_str())
+            .collect::<Vec<_>>(),
         ["A reply by b", "A reply by c"]
     );
     let likes: i64 =
@@ -1671,15 +1678,21 @@ async fn a_deleted_comment_with_replies_becomes_a_tombstone() {
     // A comment with no replies is deleted outright; the last reply takes the tombstone with it.
     e.svc.delete_comment(b, r1.id).await.unwrap();
     assert_eq!(
-        e.svc.comments(b, s, 0, None, None).await.unwrap().items.len(),
+        e.svc
+            .comments(b, s, 0, None, None)
+            .await
+            .unwrap()
+            .items
+            .len(),
         1
     );
     e.svc.delete_comment(c, r2.id).await.unwrap();
-    let left: i64 = sqlx::query_scalar("SELECT count(*) FROM reading_comments WHERE series_id = $1")
-        .bind(s)
-        .fetch_one(e.pool())
-        .await
-        .unwrap();
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM reading_comments WHERE series_id = $1")
+            .bind(s)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
     assert_eq!(left, 0);
 
     // A tombstone whose only reply staff hid is not listed (and the reply is kept for the record).

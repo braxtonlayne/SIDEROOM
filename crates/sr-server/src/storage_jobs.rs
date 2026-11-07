@@ -619,14 +619,20 @@ mod tests {
         // D-571: the leak was taken down as Movies/Leak.mp4; the same bytes come back as Movies/Renamed.mp4.
         let storage = S3Tags(ObjectStoreStorage::in_memory());
         let leak = Bytes::from_static(b"the very same film bytes");
-        storage.put("Movies/Renamed.mp4", leak.clone()).await.unwrap();
+        storage
+            .put("Movies/Renamed.mp4", leak.clone())
+            .await
+            .unwrap();
         storage
             .put("Movies/Other.mp4", Bytes::from_static(b"another film"))
             .await
             .unwrap();
         // Same size as the leak, other bytes: the size alone never matches.
         storage
-            .put("Movies/Lookalike.mp4", Bytes::from_static(b"the very same film BYTES"))
+            .put(
+                "Movies/Lookalike.mp4",
+                Bytes::from_static(b"the very same film BYTES"),
+            )
             .await
             .unwrap();
         let store = Memory::default();

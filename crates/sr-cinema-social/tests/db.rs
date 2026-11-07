@@ -1635,9 +1635,7 @@ async fn a_deleted_comment_with_replies_becomes_a_tombstone() {
                 c,
                 ContentKind::Comment,
                 top.id,
-                ReportInput {
-                    reason: "x".into()
-                }
+                ReportInput { reason: "x".into() }
             )
             .await
             .is_err()

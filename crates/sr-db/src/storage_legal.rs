@@ -67,12 +67,11 @@ pub async fn delist_byte_matches(
     if rows.is_empty() {
         return Ok(Vec::new());
     }
-    let mount_label: String =
-        sqlx::query_scalar("SELECT label FROM storage_mounts WHERE id = $1")
-            .bind(mount_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .unwrap_or_default();
+    let mount_label: String = sqlx::query_scalar("SELECT label FROM storage_mounts WHERE id = $1")
+        .bind(mount_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or_default();
     let mut matched: Vec<String> = Vec::new();
     for r in &rows {
         let key: String = r.try_get("key")?;

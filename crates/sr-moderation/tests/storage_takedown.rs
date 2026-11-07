@@ -700,7 +700,11 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
     .fetch_one(w.pool())
     .await
     .unwrap();
-    assert_eq!(hash.as_deref(), Some(LEAK_TAG), "the upheld item records the bytes");
+    assert_eq!(
+        hash.as_deref(),
+        Some(LEAK_TAG),
+        "the upheld item records the bytes"
+    );
     assert_eq!(size, Some(LEAK_SIZE));
     let dms_before = w.dms.0.lock().unwrap().len();
 
@@ -745,11 +749,23 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
     .unwrap();
     assert_eq!(
         derived[0],
-        (mnt, "films/renamed.mkv".into(), "disabled".into(), None, Some(source))
+        (
+            mnt,
+            "films/renamed.mkv".into(),
+            "disabled".into(),
+            None,
+            Some(source)
+        )
     );
     assert_eq!(
         derived[1],
-        (theirs, "x/renamed.mkv".into(), "disabled".into(), None, Some(source))
+        (
+            theirs,
+            "x/renamed.mkv".into(),
+            "disabled".into(),
+            None,
+            Some(source)
+        )
     );
     // A match of a match still points at the item staff upheld.
     let again = listed(&[("y/third.mkv", LEAK_TAG, LEAK_SIZE)]);
@@ -765,13 +781,12 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
     .unwrap();
     assert_eq!(from, Some(source));
     // The CDN paths are blocked under the notice, the timeline says so, and nobody was struck or messaged.
-    let mut blocked: Vec<String> = sqlx::query_scalar(
-        "SELECT value FROM blocked_objects WHERE notice_id = $1 ORDER BY value",
-    )
-    .bind(id)
-    .fetch_all(w.pool())
-    .await
-    .unwrap();
+    let mut blocked: Vec<String> =
+        sqlx::query_scalar("SELECT value FROM blocked_objects WHERE notice_id = $1 ORDER BY value")
+            .bind(id)
+            .fetch_all(w.pool())
+            .await
+            .unwrap();
     blocked.sort();
     let mut want = vec![
         format!("mount/{mnt}/films/leak.mkv"),
