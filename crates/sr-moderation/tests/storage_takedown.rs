@@ -194,7 +194,8 @@ async fn a_notice_against_an_object_delists_it_and_a_counter_notice_restores_it(
     assert_eq!(out.items_disabled, 1);
     assert_eq!(out.notified, 1);
 
-    // Delisted: that key only, on that mount only; nothing was held or blocked on the instance's media path.
+    // Delisted: that key only, on that mount only; nothing was held. The one block is the mount's own CDN path,
+    // so a /cdn/mount link minted before the takedown stops too (wave 53).
     assert_eq!(
         storage_legal::delisted_keys(w.pool(), mnt, &probe)
             .await
@@ -207,13 +208,16 @@ async fn a_notice_against_an_object_delists_it_and_a_counter_notice_restores_it(
             .unwrap()
             .is_empty()
     );
-    let blocked: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM blocked_objects WHERE notice_id = $1")
+    let blocked: Vec<(String, String)> =
+        sqlx::query_as("SELECT kind, value FROM blocked_objects WHERE notice_id = $1")
             .bind(id)
-            .fetch_one(w.pool())
+            .fetch_all(w.pool())
             .await
             .unwrap();
-    assert_eq!(blocked, 0);
+    assert_eq!(
+        blocked,
+        vec![("key".to_owned(), format!("mount/{mnt}/films/leak.mkv"))]
+    );
     // The owner got the uploader's message (D-336 (c)) naming the object.
     {
         let dms = w.dms.0.lock().unwrap();
@@ -248,6 +252,16 @@ async fn a_notice_against_an_object_delists_it_and_a_counter_notice_restores_it(
     let after = w.m.get_notice(&who, id).await.unwrap();
     assert!(after.items.iter().all(|i| i.state == ItemState::Restored));
     assert_eq!(after.items[0].object_key.as_deref(), Some("films/leak.mkv"));
+    let blocked: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM blocked_objects WHERE notice_id = $1")
+            .bind(id)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert_eq!(
+        blocked, 0,
+        "the restore lifts the CDN block with the delisting"
+    );
     assert!(
         storage_legal::delisted_keys(w.pool(), mnt, &probe)
             .await

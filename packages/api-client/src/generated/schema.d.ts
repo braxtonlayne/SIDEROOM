@@ -75536,7 +75536,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description TARGET_EXISTS, OBJECT_TOO_LARGE or BUCKET_UNREACHABLE */
+            /** @description TARGET_EXISTS, OBJECT_TOO_LARGE, OBJECT_TAKEN_DOWN or BUCKET_UNREACHABLE */
             409: {
                 headers: {
                     [name: string]: unknown;

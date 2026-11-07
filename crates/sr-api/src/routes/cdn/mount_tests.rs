@@ -44,6 +44,7 @@ fn now() -> u64 {
 struct Fx {
     app: axum::Router,
     signer: sr_storage::cdn::CdnSigner,
+    repo: Arc<MemoryMountRepo>,
 }
 
 async fn fx(with_mounts: bool) -> Fx {
@@ -71,7 +72,7 @@ async fn fx(with_mounts: bool) -> Fx {
         .put("cinema/1/poster.webp", Bytes::from_static(b"instance"))
         .await
         .unwrap();
-    let mounts = MountStorages::new(instance.clone(), repo, Arc::new(TagSealer));
+    let mounts = MountStorages::new(instance.clone(), repo.clone(), Arc::new(TagSealer));
     let signer = sr_storage::cdn::CdnSigner::new(SECRET);
     let mut deps = CdnDeps::new(instance, signer.clone());
     if with_mounts {
@@ -81,6 +82,7 @@ async fn fx(with_mounts: bool) -> Fx {
     Fx {
         app: layered(state),
         signer,
+        repo,
     }
 }
 
@@ -211,4 +213,23 @@ async fn without_mounts_configured_the_link_is_a_404_and_the_instance_still_serv
         )
         .await;
     assert_eq!(ok.status(), StatusCode::OK);
+}
+
+/// Wave 53: a whole-mount takedown (delisting) also stops the links minted before it.
+#[tokio::test]
+async fn a_delisted_mount_stops_serving_links_minted_before_the_takedown() {
+    let f = fx(true).await;
+    let link = f.signed(77, "Movies/a.mp4", 3600);
+    assert_eq!(f.send("GET", &link).await.status(), StatusCode::FOUND);
+    f.repo
+        .update(
+            77,
+            sr_storage::mounts::MountPatch {
+                status: Some(sr_storage::mounts::MountStatus::Delisted),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(f.send("GET", &link).await.status(), StatusCode::NOT_FOUND);
 }
