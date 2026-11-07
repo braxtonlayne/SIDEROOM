@@ -15,7 +15,11 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
-import { saveActivity, useActivitySettings } from '../settings/user/activitySettings';
+import {
+  saveActivity,
+  useActivityLoad,
+  useActivitySettings,
+} from '../settings/user/activitySettings';
 import { getFollows, getUpdates } from './api';
 import { progressApi, progressLine } from './progress';
 import { getUnread, socialKeys } from './social';
@@ -241,6 +245,8 @@ export function HistoryPage() {
   // Pausing the history is the Activity Privacy switch (D-190): while it is on nothing you read is shared with
   // friends or counted in the Friends and People-you-know rankings. Your own progress is still saved.
   const activity = useActivitySettings();
+  // The switch shows the default until the account copy loads; it stays off until then (SEC-AUD-037).
+  const activityLoad = useActivityLoad();
   const pause = useMutation({ mutationFn: (paused: boolean) => saveActivity({ paused }) });
   const q = useQuery({
     queryKey: ['library', 'recent', 'all'],
@@ -285,7 +291,7 @@ export function HistoryPage() {
         <Switch
           label={t('library.pages.history.pause')}
           checked={activity.paused}
-          disabled={pause.isPending}
+          disabled={pause.isPending || !activityLoad.loaded}
           onChange={(e) => pause.mutate(e.target.checked)}
         />
       </div>

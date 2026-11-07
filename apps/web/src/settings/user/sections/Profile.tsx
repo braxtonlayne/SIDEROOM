@@ -170,6 +170,8 @@ export interface ProfileForm {
   saveError: string | null;
   save: () => Promise<void>;
   reset: () => void;
+  /** Read the profile again after a failed load (SEC-AUD-037). */
+  retry: () => void;
 }
 
 /** Lives in the settings root so edits survive switching sections; loads only once `active` is first true. */
@@ -181,11 +183,13 @@ export function useProfileForm(active: boolean): ProfileForm {
   const [draft, setDraftState] = useState<ProfileDraft>(EMPTY);
   const [saveError, setSaveError] = useState<string | null>(null);
   const started = useRef(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!active || started.current) return;
     started.current = true;
     setState('loading');
+    setLoadError(null);
     Promise.all([getOwnProfile(), getPresence()])
       .then(([p, presence]) => {
         const d: ProfileDraft = {
@@ -209,7 +213,7 @@ export function useProfileForm(active: boolean): ProfileForm {
         setLoadError(errorText(e));
         setState('error');
       });
-  }, [active]);
+  }, [active, attempt]);
 
   const dirty = state === 'ready' && JSON.stringify(saved) !== JSON.stringify(draft);
 
@@ -250,6 +254,10 @@ export function useProfileForm(active: boolean): ProfileForm {
     reset: () => {
       setDraftState(saved);
       setSaveError(null);
+    },
+    retry: () => {
+      started.current = false;
+      setAttempt((n) => n + 1);
     },
   };
 }
@@ -559,7 +567,10 @@ export function ProfileSection({ form }: { form: ProfileForm }) {
         </p>
       ) : form.loadError ? (
         <Notice variant="danger" title={t('settings.profile.loadError')}>
-          {form.loadError}
+          {form.loadError}{' '}
+          <Button size="sm" variant="secondary" onClick={form.retry}>
+            {t('settings.profile.retry')}
+          </Button>
         </Notice>
       ) : (
         <>
