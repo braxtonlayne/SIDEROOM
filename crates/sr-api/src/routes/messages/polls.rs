@@ -2,7 +2,7 @@
 //! poll is part of "create message"; finalisation after expiry is a job
 //! ([`super::rich_jobs`]).
 
-use super::deps::MessagesDeps;
+use super::deps::{Access, MessagesDeps};
 use super::error::{ApiQuery, MsgResult, invalid, parse_id};
 use super::model::{MessageObject, ReactionUsersQuery, UserRef};
 use super::render::{actor, render_one};
@@ -28,6 +28,7 @@ struct Target {
     channel: ChannelId,
     answer: u32,
     message: Message,
+    acc: Access,
 }
 
 async fn target(
@@ -65,6 +66,7 @@ async fn target(
         channel,
         answer,
         message,
+        acc,
     })
 }
 
@@ -95,6 +97,7 @@ pub async fn vote(
     Path((channel, message, answer)): Path<(String, String, String)>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message, Some(&answer)).await?;
+    deps.require_dm_open(&t.acc, t.user).await?;
     let store = deps.rich_store("poll")?;
     match store
         .cast_vote(t.message.id, t.answer, t.user, deps.now_ms())

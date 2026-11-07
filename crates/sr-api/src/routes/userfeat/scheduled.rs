@@ -62,6 +62,7 @@ pub async fn create(
     let channel: ChannelId = parse_id(&channel, ErrorCode::UnknownChannel)?;
     let at = body_time("send_at", &body.send_at)?;
     let acc = m.access(user, channel).await?;
+    m.require_dm_open(&acc, user).await?;
     acc.require(if acc.channel.kind.is_thread() {
         Permissions::SEND_MESSAGES_IN_THREADS
     } else {
