@@ -110,6 +110,24 @@ pub trait ObjectStorage: Send + Sync {
         }
         Ok(true)
     }
+    /// [`ObjectStorage::walk`] with each object's entity tag as the listing gives it (`visit(key, size, etag)`;
+    /// D-571: the catalog indexer keys takedowns by the bytes). Same caps and the same answer as `walk`. The
+    /// default lists everything first; the `object_store` implementation streams page by page.
+    async fn walk_tagged(
+        &self,
+        max_objects: u64,
+        budget: Duration,
+        visit: &mut (dyn for<'a> FnMut(&'a str, u64, Option<&'a str>) + Send),
+    ) -> Result<bool> {
+        let started = std::time::Instant::now();
+        for (seen, o) in self.list("").await?.into_iter().enumerate() {
+            if seen as u64 >= max_objects || started.elapsed() > budget {
+                return Ok(false);
+            }
+            visit(&o.key, o.size, o.etag.as_deref());
+        }
+        Ok(true)
+    }
     /// Produce a time-limited presigned URL.
     async fn presign(&self, method: PresignMethod, key: &str, ttl: Duration) -> Result<String>;
     /// Begin a multipart upload.
@@ -320,6 +338,32 @@ impl ObjectStorage for ObjectStoreStorage {
                 Some(meta) => {
                     let meta = meta?;
                     visit(meta.location.as_ref(), meta.size);
+                    seen += 1;
+                }
+            }
+        }
+    }
+
+    async fn walk_tagged(
+        &self,
+        max_objects: u64,
+        budget: Duration,
+        visit: &mut (dyn for<'a> FnMut(&'a str, u64, Option<&'a str>) + Send),
+    ) -> Result<bool> {
+        use futures::StreamExt;
+        let started = std::time::Instant::now();
+        let mut seen = 0u64;
+        let mut stream = self.store.list(None);
+        loop {
+            let left = budget.saturating_sub(started.elapsed());
+            if seen >= max_objects || left.is_zero() {
+                return Ok(false);
+            }
+            match stream.next().await {
+                None => return Ok(true),
+                Some(meta) => {
+                    let meta = meta?;
+                    visit(meta.location.as_ref(), meta.size, meta.e_tag.as_deref());
                     seen += 1;
                 }
             }
