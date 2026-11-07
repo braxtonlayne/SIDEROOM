@@ -854,8 +854,12 @@ impl SyncEngine {
                         .await?;
                     if item.import {
                         // The owner confirmed the plan: this is the owner granting, not Discord (design 9.4).
-                        let shared = Permissions::from_bits_truncate(dr.permissions)
-                            .intersection(Permissions::BRIDGE_SHARED);
+                        // Only bits the owner saw in that plan (`item.discord_permissions`) and Discord still has
+                        // now: a bit added on Discord after the confirmation is never imported (SEC-AUD-025).
+                        let shared = Permissions::from_bits_truncate(
+                            dr.permissions & item.discord_permissions,
+                        )
+                        .intersection(Permissions::BRIDGE_SHARED);
                         if !shared.is_empty() {
                             self.sr
                                 .import_role_permissions(guild, sid, shared, &origin)

@@ -160,7 +160,7 @@
   width: 100%;
   height: auto;
   border: 1px solid var(--ui-border);
-  background: var(--ui-bg-sunken, #0003);
+  background: var(--ui-bg);
 }
 .rv-banner {
   border: 1px solid var(--ui-warning, #c9972b);

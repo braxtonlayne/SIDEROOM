@@ -86,9 +86,9 @@
 .adm-pre {
   margin: 0;
   padding: 10px 12px;
-  background: var(--ui-bg-sunken, var(--ui-bg-raised));
+  background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   overflow-x: auto;
   font-size: 0.8125rem;
 }
@@ -122,7 +122,7 @@
   padding: 8px;
   min-block-size: 120px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
 }
 .adm-week-name {
   margin: 0;
@@ -147,7 +147,7 @@
   color: inherit;
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-sm, 4px);
+  border-radius: calc(var(--ui-radius) / 2);
   cursor: grab;
 }
 .adm-slot[aria-pressed='true'] {
@@ -168,8 +168,8 @@
   width: 36px;
   height: 54px;
   object-fit: cover;
-  border-radius: var(--ui-radius-sm, 4px);
-  background: var(--ui-bg-sunken, var(--ui-bg-raised));
+  border-radius: calc(var(--ui-radius) / 2);
+  background: var(--ui-bg-raised);
 }
 .adm-cin-poster-empty {
   border: 1px dashed var(--ui-border);
@@ -178,7 +178,7 @@
   width: 160px;
   aspect-ratio: 2 / 3;
   border: 1px dashed var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,7 +208,7 @@
   position: relative;
   height: 14px;
   border-radius: 7px;
-  background: var(--ui-bg-sunken, var(--ui-bg-raised));
+  background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
   margin: 8px 0 12px;
   overflow: hidden;
@@ -242,7 +242,7 @@
   width: 100%;
   max-width: 640px;
   background: #000;
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
 }
 .adm-cin-preview {
   margin-bottom: 12px;
@@ -270,7 +270,7 @@
   margin: 0 0 12px;
   padding: 10px 12px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
 }
 .adm-dt-count {
   margin-block: 8px 0;
@@ -377,7 +377,7 @@
   padding-block: 8px;
   padding-inline: 12px;
   border: 1px solid transparent;
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
 }
 .adm-unsaved[data-dirty='true'] {
   position: sticky;
@@ -417,8 +417,8 @@
 .adm-canvas-el {
   display: block;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
-  background: var(--ui-bg-sunken, var(--ui-bg));
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
   touch-action: none;
   cursor: grab;
 }
@@ -480,8 +480,8 @@
 }
 .adm-runbook pre {
   padding: 8px 12px;
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-bg-sunken);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
   overflow-x: auto;
 }
 .adm-runbook blockquote {

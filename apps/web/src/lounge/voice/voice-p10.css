@@ -41,7 +41,7 @@
   flex: 1;
 }
 .vc-stage:fullscreen {
-  background: var(--bg-base);
+  background: var(--bg-base-low);
 }
 .vc-chat {
   display: flex;
@@ -288,7 +288,7 @@
   gap: 12px;
   min-block-size: 100vh;
   padding: 12px;
-  background: var(--bg-base);
+  background: var(--bg-base-low);
   color: var(--text-normal, inherit);
 }
 .vc-popout-title {

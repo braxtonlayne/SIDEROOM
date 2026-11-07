@@ -273,6 +273,32 @@ async fn metrics_record_requests_by_route_pattern() {
     assert_eq!(s, StatusCode::NOT_FOUND);
 }
 
+/// SEC-AUD-028: with `server.metrics_token` set, the metrics listener answers only the bearer token.
+#[tokio::test]
+async fn metrics_token_is_required_when_set() {
+    let f = fixture();
+    let app = sr_api::internal_router_with_token(f.state.clone(), "s3cret-metrics");
+    let (s, h, _) = send(&app, get_req("/internal/metrics")).await;
+    assert_eq!(s, StatusCode::UNAUTHORIZED);
+    assert_eq!(h[header::WWW_AUTHENTICATE], "Bearer");
+    for wrong in [
+        "Bearer nope",
+        "Basic s3cret-metrics",
+        "Bearer s3cret-metric",
+    ] {
+        let req = Request::get("/internal/metrics")
+            .header(header::AUTHORIZATION, wrong)
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(send(&app, req).await.0, StatusCode::UNAUTHORIZED, "{wrong}");
+    }
+    let req = Request::get("/internal/metrics")
+        .header(header::AUTHORIZATION, "Bearer s3cret-metrics")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(&app, req).await.0, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn no_credentials_is_401() {
     let f = fixture();

@@ -123,9 +123,46 @@ async fn api_docs(
 /// Router for the loopback-only operations listener: `/internal/metrics`.
 /// Never expose this on the public listener.
 pub fn internal_router(state: AppState) -> Router {
-    Router::new()
+    internal_router_with_token(state, "")
+}
+
+/// [`internal_router`] that answers only `Authorization: Bearer <token>` when `token` is not empty
+/// (`server.metrics_token`, SEC-AUD-028); anything else gets 401. An empty token keeps the listener open, which a
+/// release build allows only on a loopback bind.
+pub fn internal_router_with_token(state: AppState, token: &str) -> Router {
+    let router = Router::new()
         .route("/internal/metrics", get(health::metrics))
-        .with_state(state)
+        .with_state(state);
+    if token.is_empty() {
+        return router;
+    }
+    let token = std::sync::Arc::<str>::from(token);
+    router.layer(from_fn(
+        move |req: Request<axum::body::Body>, next: Next| {
+            let token = token.clone();
+            async move {
+                if metrics_bearer_ok(req.headers(), &token) {
+                    next.run(req).await
+                } else {
+                    (
+                        StatusCode::UNAUTHORIZED,
+                        [(header::WWW_AUTHENTICATE, "Bearer")],
+                    )
+                        .into_response()
+                }
+            }
+        },
+    ))
+}
+
+/// Whether `headers` carry `Authorization: Bearer <token>` (compared in constant time).
+fn metrics_bearer_ok(headers: &axum::http::HeaderMap, token: &str) -> bool {
+    use subtle::ConstantTimeEq;
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .is_some_and(|got| bool::from(got.trim().as_bytes().ct_eq(token.as_bytes())))
 }
 
 /// A Web Share Target POST that reached the server because no service worker took it (G-77):

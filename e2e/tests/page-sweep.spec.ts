@@ -80,6 +80,10 @@ interface Row {
   shelves?: boolean;
   /** Show the page with a voice session connected (the section bar's status, D-536). */
   voice?: boolean;
+  /** Answer `GET /sr/auth/2fa/methods` with these methods (a pending Discord sign-in, D-557). */
+  mfaMethods?: string[];
+  /** SEC-AUD-038 (D-564): an encrypted call where a member's identity key changed, with the shield popover open. */
+  keyChanged?: boolean;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -176,6 +180,13 @@ const SIGNED_IN: Row[] = [
     path: (w) => (w.voiceChannelId ? `/channels/${w.guildId}/${w.voiceChannelId}` : null),
     voice: true,
   },
+  {
+    name: 'lounge-voice-key-changed',
+    // The home list: the user panel (where the shield sits) is on screen at both widths.
+    path: () => '/channels/@me',
+    voice: true,
+    keyChanged: true,
+  },
   { name: 'app-door', path: () => '/app' },
   ...USER_SETTINGS.map((s): Row => ({
     name: `settings-user-${s}`,
@@ -266,9 +277,15 @@ const SIGNED_OUT: Row[] = [
   { name: 'pub-landing', path: () => '/' },
   { name: 'pub-join', path: () => '/join/abcd1234' },
   { name: 'pub-login', path: () => '/login' },
-  { name: 'pub-login-2fa', path: () => '/login/2fa' },
-  // SEC-AUD-001: after a Discord sign-in the methods come in the URL; a passkey account leads with the passkey.
-  { name: 'pub-login-2fa-passkey', path: () => '/login/2fa?methods=passkey,recovery' },
+  // No sign-in is waiting on a second factor here, so the methods route answers 401 and the page shows the default set.
+  { name: 'pub-login-2fa', path: () => '/login/2fa', expect4xx: /\/sr\/auth\/2fa\/methods$/ },
+  // SEC-AUD-001, D-557: after a Discord sign-in the page asks the server for the methods (the pending sr_mfa
+  // cookie); a passkey account leads with the passkey.
+  {
+    name: 'pub-login-2fa-passkey',
+    path: () => '/login/2fa',
+    mfaMethods: ['passkey', 'recovery'],
+  },
   { name: 'pub-login-link', path: () => '/login/link' },
   { name: 'pub-register', path: () => '/register' },
   { name: 'pub-forgot', path: () => '/forgot' },
@@ -447,6 +464,51 @@ async function connectVoiceForShot(page: Page, notes: string[]): Promise<void> {
     )
     .then(() => page.waitForTimeout(200))
     .catch((e) => notes.push(`voice session not set: ${String(e).slice(0, 120)}`));
+}
+
+/**
+ * SEC-AUD-038 (D-564): the call's E2EE view with another member whose identity key changed since this device pinned
+ * it, set through the dev server's module graph like the voice session above, then the shield popover opened.
+ */
+async function keyChangedForShot(page: Page, world: SweepWorld, notes: string[]): Promise<void> {
+  const { guildId } = world;
+  const voiceId = world.voiceChannelId ?? world.channelId;
+  const script = `(async () => {
+    const me = await (await fetch('/api/v1/users/@me', { credentials: 'include' })).json();
+    const ms = await (await fetch('/api/v1/guilds/${guildId}/members?limit=20', { credentials: 'include' })).json();
+    const other = (Array.isArray(ms) ? ms : []).map((m) => m.user).find((u) => u && u.id !== me.id) || { id: '2' };
+    const v = await import('/src/voice/session.ts');
+    v.useVoiceSession.setState({ status: 'connected', guildId: '${guildId}', channelId: '${voiceId}', channelName: 'General' });
+    const m = await import('/src/voice/e2ee/store.ts');
+    m.setE2ee({
+      active: true,
+      viewer: me.id,
+      selfKey: 'aa',
+      keyChanged: [other.id],
+      pairwise: { [other.id]: '31415 92653 58979 32384 62643 38327' },
+      call: {
+        status: 'secure',
+        epoch: 4,
+        callCode: '27182 81828 45904 52353 60287 47135',
+        members: [
+          { userId: me.id, identityKey: 'aa' },
+          { userId: other.id, identityKey: 'bb' },
+        ],
+        error: null,
+      },
+    });
+  })()`;
+  await page
+    .evaluate(script)
+    .then(() => page.waitForTimeout(200))
+    .then(() =>
+      page
+        .getByRole('button', { name: /privacy code changed/ })
+        .first()
+        .click({ timeout: 5000 }),
+    )
+    .then(() => page.waitForTimeout(300))
+    .catch((e) => notes.push(`key-changed shield not shown: ${String(e).slice(0, 160)}`));
 }
 
 /** The shelves of The Study, as study-shelves.spec.ts fakes them (BYOS needs a real bucket). */
@@ -676,7 +738,17 @@ async function capture(
   );
   const page = await context.newPage();
   page.on('console', (m) => {
-    if (m.type() === 'error') rec.consoleErrors.push(m.text().slice(0, 300));
+    if (m.type() !== 'error') return;
+    // The browser's own line for an expected 4xx (the row's `expect4xx`) names no URL; the response itself is
+    // checked against `expect4xx` below.
+    const url = m.location().url;
+    if (
+      row.expect4xx &&
+      /^Failed to load resource/.test(m.text()) &&
+      (!url || row.expect4xx.test(url))
+    )
+      return;
+    rec.consoleErrors.push(m.text().slice(0, 300));
   });
   page.on('pageerror', (e) => rec.pageErrors.push(String(e).slice(0, 300)));
   page.on('response', (r) => {
@@ -700,12 +772,19 @@ async function capture(
   try {
     if (opts.signedIn) await decorate(page);
     if (row.shelves) await fakeShelves(page);
+    const mfaMethods = row.mfaMethods;
+    if (mfaMethods) {
+      await page.route('**/api/v1/sr/auth/2fa/methods', (r) =>
+        r.fulfill({ json: { methods: mfaMethods } }),
+      );
+    }
     const res = await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     rec.status = res?.status() ?? null;
     await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => undefined);
     // Let lazy chunks, fonts and the catalog settle; skeletons fade.
     await page.waitForTimeout(900);
     if (row.voice) await connectVoiceForShot(page, rec.notes);
+    if (row.keyChanged) await keyChangedForShot(page, world, rec.notes);
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);

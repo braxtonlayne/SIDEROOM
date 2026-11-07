@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@sideroom/ui';
 import { apiPost } from '../../api/client';
 import { useT } from '../../i18n';
@@ -51,7 +51,7 @@ async function realDeps(): Promise<JoinDeps> {
 }
 
 /** Keeps the store current from the gateway while mounted, and keeps a joined listener on the cursor. */
-function useRoomFeed(channelId: string) {
+function useRoomFeed(channelId: string, onFollowFailed: () => void) {
   useEffect(
     () =>
       onDispatch((event, data) => {
@@ -66,9 +66,15 @@ function useRoomFeed(channelId: string) {
         const u = ingestRoomUpdate(data);
         if (!u || u.channel_id !== channelId) return;
         if (useListeningRooms.getState().listening !== channelId) return;
-        void realDeps().then((d) => followRoom(u, d));
+        // A failed move to the next track stops playback and says so instead of claiming "listening" (SEC-AUD-036).
+        void realDeps().then((d) =>
+          followRoom(u, d).catch(() => {
+            leaveRoom(d);
+            onFollowFailed();
+          }),
+        );
       }),
-    [channelId],
+    [channelId, onFollowFailed],
   );
 }
 
@@ -161,7 +167,8 @@ export function ListeningRoomCard({ channelId }: { channelId: string }) {
         null)
       : null,
   );
-  useRoomFeed(channelId);
+  const onFollowFailed = useCallback(() => setFailed(true), []);
+  useRoomFeed(channelId, onFollowFailed);
   if (!room) return null;
   return (
     <RoomCardView

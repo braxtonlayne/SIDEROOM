@@ -45,6 +45,9 @@ export const discordStartUrl = (intent: 'login' | 'register', next?: string) =>
 /** Methods the server offers after a password check (doc 05 section 5.1). */
 export type MfaMethod = 'totp' | 'passkey' | 'recovery';
 export type LoginResult = { status: 'ok' } | { status: 'mfa_required'; methods: MfaMethod[] };
+/** `GET /sr/auth/2fa/methods` (D-557): the methods of the sign-in waiting on the `sr_mfa` cookie; 401 when none. */
+export const getPendingMfaMethods = () =>
+  apiFetch<{ methods: MfaMethod[] }>('/sr/auth/2fa/methods', { retries: 0 });
 export const login = async (req: { login: string; password: string }) => {
   const res = await apiPost<LoginResult>('/sr/auth/login', req);
   if (res.status === 'ok') await refreshCsrf();

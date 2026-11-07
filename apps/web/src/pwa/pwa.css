@@ -1,11 +1,11 @@
 .sr-pwa {
   position: fixed;
   inset-inline-start: max(16px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  inset-block-end: max(16px, env(safe-area-inset-bottom));
   z-index: 9000;
   display: grid;
   gap: 8px;
-  max-width: min(420px, calc(100vw - 32px));
+  max-inline-size: min(420px, calc(100vw - 32px));
   pointer-events: none;
 }
 .sr-pwa-card {

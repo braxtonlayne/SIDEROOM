@@ -415,8 +415,10 @@ async fn an_erasure_after_the_deadline_completes_and_the_purge_window_starts_the
         .await
         .unwrap();
     assert!(q.overdue);
+    // D-562: a second staff member verifies; `w.staff` runs it.
+    let verifier = staff(account(&pool, "staff2").await);
     w.svc
-        .verify_data_request(&w.staff, q.id, Some("replied from the account address"))
+        .verify_data_request(&verifier, q.id, Some("replied from the account address"))
         .await
         .unwrap();
     let run = w

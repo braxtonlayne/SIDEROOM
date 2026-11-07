@@ -363,8 +363,36 @@ impl AuditRepository for PgSettingsRepo {
                 break;
             }
         }
+        if total > 0 {
+            record_audit_purge(&self.pool, cutoff_ms, total).await?;
+        }
         Ok(total)
     }
+}
+
+/// D-563: a run of the guild audit-log retention that removed rows leaves one platform-audit row (actor: the system
+/// user), naming the cutoff and the count. Deleting audit history is itself audited. Skipped (with a warning) only
+/// when the system user does not exist yet, which `sr-cli bootstrap` creates.
+async fn record_audit_purge(pool: &PgPool, cutoff_ms: i64, removed: u64) -> RepoResult<()> {
+    let r = sqlx::query(
+        "INSERT INTO platform_audit_log (id, actor_id, action, target_id, note) \
+         SELECT sr_snowflake_floor(clock_timestamp()) + floor(random() * 4194304)::bigint, a.id, \
+                'audit.purge', NULL, \
+                format('guild audit-log rows created before %s removed: %s', \
+                       to_char(to_timestamp($2::double precision / 1000.0) AT TIME ZONE 'UTC', \
+                               'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), $3::bigint) \
+         FROM accounts a WHERE a.id = $1",
+    )
+    .bind(crate::accounts::SYSTEM_USER_ID)
+    .bind(cutoff_ms)
+    .bind(i64::try_from(removed).unwrap_or(i64::MAX))
+    .execute(pool)
+    .await
+    .map_err(db)?;
+    if r.rows_affected() == 0 {
+        tracing::warn!(removed, "audit purge not recorded: there is no system user");
+    }
+    Ok(())
 }
 
 // ---- emoji and stickers --------------------------------------------------------
@@ -1237,6 +1265,9 @@ impl CommunityRepository for PgSettingsRepo {
     }
 
     async fn put_community(&self, s: &CommunitySettings) -> RepoResult<()> {
+        // The timed pauses and the raid alert time are written only when the row is created; afterwards they
+        // belong to `set_incident_pauses`, `mark_raid` and `clear_invite_pause`, so a settings save from an
+        // older read never reverts a raid auto-pause (SEC-AUD-027).
         let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
             "UPDATE guilds SET rules_channel_id = $2, public_updates_channel_id = $3 WHERE id = $1",
@@ -1275,9 +1306,6 @@ impl CommunityRepository for PgSettingsRepo {
                explicit_media_filter_dms = EXCLUDED.explicit_media_filter_dms, \
                hide_suspicious_links = EXCLUDED.hide_suspicious_links, \
                warn_new_account_days = EXCLUDED.warn_new_account_days, \
-               invites_disabled_until = EXCLUDED.invites_disabled_until, \
-               dms_disabled_until = EXCLUDED.dms_disabled_until, \
-               raid_detected_at = EXCLUDED.raid_detected_at, \
                raid_auto_pause_invites = EXCLUDED.raid_auto_pause_invites, \
                updated_at = now()",
         )
@@ -1333,6 +1361,28 @@ impl CommunityRepository for PgSettingsRepo {
         .fetch_optional(&self.pool)
         .await
         .map_err(db)
+    }
+
+    async fn set_incident_pauses(
+        &self,
+        guild: GuildId,
+        invites_until_ms: Option<i64>,
+        dms_until_ms: Option<i64>,
+    ) -> RepoResult<()> {
+        sqlx::query(
+            "INSERT INTO guild_community (guild_id, invites_disabled_until, dms_disabled_until) \
+             VALUES ($1, to_timestamp($2::bigint / 1000.0), to_timestamp($3::bigint / 1000.0)) \
+             ON CONFLICT (guild_id) DO UPDATE SET \
+               invites_disabled_until = EXCLUDED.invites_disabled_until, \
+               dms_disabled_until = EXCLUDED.dms_disabled_until, updated_at = now()",
+        )
+        .bind(i(guild.get()))
+        .bind(invites_until_ms)
+        .bind(dms_until_ms)
+        .execute(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(())
     }
 
     async fn clear_invite_pause(&self, guild: GuildId) -> RepoResult<bool> {

@@ -1,6 +1,7 @@
 // Pure helpers for OAuth2 scopes, redirect URIs, the authorize URL builder and the permission calculator.
 // The permission catalog is the same one the server settings use (docs/07), so bit numbers never drift.
 import { PERM, PERMISSIONS, toBig } from '../settings/server/permissions';
+import { t } from '../i18n/runtime';
 import type { IntentName } from './types';
 
 export interface ScopeInfo {
@@ -11,16 +12,23 @@ export interface ScopeInfo {
   bot?: boolean;
 }
 
-export const SCOPES: ScopeInfo[] = [
-  { id: 'identify', label: 'identify', description: 'Read the account name, avatar and id.' },
-  { id: 'email', label: 'email', description: 'Read the account email address.' },
-  { id: 'guilds', label: 'guilds', description: 'List the servers the account is in.' },
-  { id: 'bot', label: 'bot', description: 'Add the app bot user to a server.', bot: true },
-  {
-    id: 'applications.commands',
-    label: 'applications.commands',
-    description: 'Let the app register slash commands in a server.',
+// The label is the scope's API name (what a developer types); the description is translated when read
+// (SEC-AUD-040).
+const scope = (id: string, descKey: string, bot?: boolean): ScopeInfo => ({
+  id,
+  label: id,
+  get description() {
+    return t(descKey);
   },
+  ...(bot ? { bot } : {}),
+});
+
+export const SCOPES: ScopeInfo[] = [
+  scope('identify', 'developers.scopes.identify'),
+  scope('email', 'developers.scopes.email'),
+  scope('guilds', 'developers.scopes.guilds'),
+  scope('bot', 'developers.scopes.bot', true),
+  scope('applications.commands', 'developers.scopes.commands'),
 ];
 
 export const SCOPE_BY_ID = new Map(SCOPES.map((s) => [s.id, s]));
@@ -29,36 +37,37 @@ export const SCOPE_BY_ID = new Map(SCOPES.map((s) => [s.id, s]));
 export const scopeSentence = (scope: string): string => {
   switch (scope) {
     case 'identify':
-      return 'Access your username, avatar and account id';
+      return t('developers.consent.identify');
     case 'email':
-      return 'Access your email address';
+      return t('developers.consent.email');
     case 'guilds':
-      return 'Know which servers you are in';
+      return t('developers.consent.guilds');
     case 'bot':
-      return 'Add a bot to a server';
+      return t('developers.consent.bot');
     case 'applications.commands':
-      return 'Create slash commands in a server';
+      return t('developers.consent.commands');
     default:
       return scope;
   }
 };
 
+const intent = (key: IntentName, name: string) => ({
+  key,
+  get label() {
+    return t(`developers.intents.${name}.label`);
+  },
+  get description() {
+    return t(`developers.intents.${name}.description`);
+  },
+});
+
 export const INTENTS: { key: IntentName; label: string; description: string }[] = [
-  {
-    key: 'GUILD_PRESENCES',
-    label: 'Presence intent',
-    description: 'Receive presence updates (online status and activities).',
-  },
-  {
-    key: 'GUILD_MEMBERS',
-    label: 'Server members intent',
-    description: 'Receive member join, leave and update events and list members.',
-  },
-  {
-    key: 'MESSAGE_CONTENT',
-    label: 'Message content intent',
-    description: 'Read the content of messages that do not mention or reply to the bot.',
-  },
+  // t('developers.intents.presences.label') t('developers.intents.presences.description')
+  intent('GUILD_PRESENCES', 'presences'),
+  // t('developers.intents.members.label') t('developers.intents.members.description')
+  intent('GUILD_MEMBERS', 'members'),
+  // t('developers.intents.messageContent.label') t('developers.intents.messageContent.description')
+  intent('MESSAGE_CONTENT', 'messageContent'),
 ];
 
 export const MAX_REDIRECTS = 10;
@@ -67,25 +76,24 @@ const BLOCKED_SCHEMES = new Set(['javascript:', 'data:', 'file:', 'vbscript:', '
 /** Error text for one redirect URI, or null when it is acceptable. */
 export function redirectUriError(raw: string): string | null {
   const value = raw.trim();
-  if (!value) return 'Enter a URL.';
-  if (/\s/.test(value)) return 'Redirect URIs cannot contain spaces.';
-  if (value.includes('*')) return 'Wildcards are not allowed. Register each exact URI.';
+  if (!value) return t('developers.urls.empty');
+  if (/\s/.test(value)) return t('developers.urls.spaces');
+  if (value.includes('*')) return t('developers.urls.wildcard');
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    return 'Enter a full URL, like https://example.com/callback.';
+    return t('developers.urls.notUrl');
   }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:')
-    return 'Only https URLs are allowed (http only for localhost).';
-  if (url.hash) return 'Redirect URIs cannot have a #fragment.';
-  if (url.username || url.password) return 'Redirect URIs cannot contain credentials.';
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return t('developers.urls.scheme');
+  if (url.hash) return t('developers.urls.fragment');
+  if (url.username || url.password) return t('developers.urls.credentials');
   if (url.protocol === 'http:') {
     const host = url.hostname;
     if (!(host === 'localhost' || host === '127.0.0.1' || host === '[::1]'))
-      return 'Use https. Plain http is only allowed for localhost.';
+      return t('developers.urls.httpLocal');
   }
-  if (value.length > 512) return 'That URL is too long (512 characters at most).';
+  if (value.length > 512) return t('developers.urls.tooLong', { max: 512 });
   return null;
 }
 
@@ -93,11 +101,11 @@ export function redirectUriError(raw: string): string | null {
 export function policyUrlError(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
-  if (value.length > 512) return 'That URL is too long (512 characters at most).';
+  if (value.length > 512) return t('developers.urls.tooLong', { max: 512 });
   try {
-    return new URL(value).protocol === 'https:' ? null : 'Use an https URL.';
+    return new URL(value).protocol === 'https:' ? null : t('developers.urls.httpsOnly');
   } catch {
-    return 'Enter a full URL, like https://example.com/privacy.';
+    return t('developers.urls.notPolicyUrl');
   }
 }
 

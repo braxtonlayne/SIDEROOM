@@ -95,6 +95,59 @@ async fn job_lifecycle_backoff_and_dead_letter() {
     assert!(jobs::complete(&pool, id).await.unwrap());
 }
 
+/// SEC-AUD-029: a recurring singleton that keeps failing is never dead-lettered (nothing would re-arm it before the
+/// next boot); it backs off, keeps retrying, and shows up as failing.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_failing_singleton_keeps_retrying_and_is_reported() {
+    let pool = pool().await;
+    let kind = format!("t-{}", uid());
+    let kinds = vec![kind.clone()];
+    // A fixed id in the singleton range, unique per run.
+    let id = (1_i64 << 39) + uid().rem_euclid(1 << 38);
+    assert!(id < jobs::SINGLETON_ID_LIMIT);
+    jobs::schedule_singleton(&pool, id, &kind, &serde_json::json!({}), Duration::ZERO)
+        .await
+        .unwrap();
+    for n in 1..=7 {
+        sqlx::query("UPDATE jobs SET run_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let c = jobs::claim(&pool, &kinds, "w1", 5).await.unwrap();
+        assert_eq!(c.len(), 1, "attempt {n} was claimable");
+        assert_eq!(c[0].attempts, n);
+        assert_eq!(
+            jobs::fail(&pool, id, "storage down")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("queued"),
+            "attempt {n}"
+        );
+        let failing = jobs::failing_singletons(&pool, 1000).await.unwrap();
+        let listed = failing
+            .iter()
+            .any(|(k, _, e)| k == &kind && e == "storage down");
+        assert_eq!(listed, n >= jobs::SINGLETON_FAILING_AFTER, "attempt {n}");
+    }
+    // The retry is spaced by the capped backoff, not immediate.
+    let wait: f64 = sqlx::query_scalar(
+        "SELECT EXTRACT(EPOCH FROM run_at - now())::float8 FROM jobs WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(wait > 60.0 && wait <= 3600.5, "{wait}");
+    sqlx::query("DELETE FROM jobs WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn concurrent_claims_never_double_claim() {

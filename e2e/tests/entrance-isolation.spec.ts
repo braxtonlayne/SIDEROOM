@@ -455,6 +455,9 @@ test.describe.serial('signed in', () => {
         { timeout: 15_000 },
       )
       .toEqual([]);
+    // The app leaves for the sign-in page on its own once it learns the session is gone; let that land first so
+    // our navigation is not cut short by it ("interrupted by another navigation").
+    await page.waitForURL(/\/login/, { timeout: 15_000 }).catch(() => undefined);
     await page.goto('/channels');
     await expect(page).toHaveURL(/\/login/);
     await a.close();

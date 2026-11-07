@@ -330,6 +330,25 @@ impl Inbound {
         Ok(convert::mapped_content(data, &maps))
     }
 
+    /// `abuse.bridge_messages_per_minute`: whether this dispatch is over the bridge's figure (and is dropped).
+    /// Creates, edits and reactions all count (D-567).
+    fn over_limit(&self, bridge: &Bridge) -> bool {
+        if self
+            .limiter
+            .allow(bridge.guild_id, (self.cfg.messages_per_minute)())
+        {
+            return false;
+        }
+        if self.limiter.dropped(bridge.guild_id).is_power_of_two() {
+            tracing::warn!(
+                guild = bridge.guild_id,
+                dropped = self.limiter.dropped(bridge.guild_id),
+                "bridge inbound over abuse.bridge_messages_per_minute: dropping"
+            );
+        }
+        true
+    }
+
     async fn create(&self, bridge: &Bridge, data: &Value) -> BridgeResult<Outcome> {
         let Some(mut m) = convert::parse_message(data) else {
             return Ok(Outcome::Ignored(Why::Unparseable));
@@ -360,17 +379,7 @@ impl Inbound {
         {
             return Ok(Outcome::Ignored(Why::Known));
         }
-        if !self
-            .limiter
-            .allow(bridge.guild_id, (self.cfg.messages_per_minute)())
-        {
-            if self.limiter.dropped(bridge.guild_id).is_power_of_two() {
-                tracing::warn!(
-                    guild = bridge.guild_id,
-                    dropped = self.limiter.dropped(bridge.guild_id),
-                    "bridge inbound over abuse.bridge_messages_per_minute: dropping"
-                );
-            }
+        if self.over_limit(bridge) {
             return Ok(Outcome::Ignored(Why::RateLimited));
         }
         let reply_to = match m.reply_to {
@@ -419,6 +428,9 @@ impl Inbound {
         };
         match store::sr_message_for_discord(&self.pool, map.id, e.id).await? {
             Some((sr, MessageMapDirection::In)) => {
+                if self.over_limit(bridge) {
+                    return Ok(Outcome::Ignored(Why::RateLimited));
+                }
                 self.sink
                     .edit(map.channel_id, sr, e.content, e.links)
                     .await?;
@@ -478,6 +490,9 @@ impl Inbound {
         else {
             return Ok(Outcome::Ignored(Why::NotBridged));
         };
+        if self.over_limit(bridge) {
+            return Ok(Outcome::Ignored(Why::RateLimited));
+        }
         let change = if r.add {
             store::add_reactor(&self.pool, map.id, sr, emoji, r.user_id).await?
         } else {

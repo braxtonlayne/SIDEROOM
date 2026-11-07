@@ -156,6 +156,16 @@ function storableShell(res) {
   return res.ok && !res.redirected && ct.includes('text/html');
 }
 
+/**
+ * The signed-in shell loads its code from /app/; a public shell never does. A member opening a public path that
+ * the server answers with the app (`/~handle` is the app's profile page for a member, PRF-PRO-001) must not leave
+ * the signed-in shell under a public key, where sign-out does not purge it and a signed-out visitor would get it
+ * offline (SEC-AUD-039, D-385).
+ */
+function isAppShell(html) {
+  return html.includes('"' + APP_FILES) || html.includes("'" + APP_FILES);
+}
+
 /** Network first for a page; remember it in `cacheName` under `key` when it is a shell; fall back to the cache. */
 function navigateWith(event, cacheName, key) {
   return fetch(event.request)
@@ -173,7 +183,7 @@ function navigateWith(event, cacheName, key) {
           probe
             .text()
             .then((html) =>
-              html.includes(SHELL_MARK)
+              html.includes(SHELL_MARK) && !(cacheName === STATIC_CACHE && isAppShell(html))
                 ? caches.open(cacheName).then((c) => c.put(key, copy))
                 : undefined,
             )

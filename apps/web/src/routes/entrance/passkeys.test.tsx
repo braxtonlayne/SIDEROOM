@@ -121,13 +121,47 @@ describe('passkey as the second step', () => {
     });
   });
 
-  it('offers the passkey after a Discord sign-in, which names the methods in the URL (SEC-AUD-001)', async () => {
-    // A server redirect: nothing was stored at a password step on this page.
+  it('asks the server for the methods after a Discord sign-in (SEC-AUD-001, D-557)', async () => {
+    // A server redirect to a bare /login/2fa: nothing was stored at a password step on this page,
+    // and the methods are not in the URL; the pending sr_mfa cookie names them.
     stubWebAuthn();
-    at('/login/2fa?methods=passkey,recovery');
+    let asked = 0;
+    server.use(
+      http.get('*/api/v1/sr/auth/2fa/methods', () => {
+        asked += 1;
+        return HttpResponse.json({ methods: ['passkey', 'recovery'] });
+      }),
+    );
+    at('/login/2fa');
     expect(await screen.findByText('Your passkey.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use your passkey' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Digit 1')).toBeNull();
+    expect(asked).toBe(1);
+  });
+
+  it('ignores methods in the URL and falls back to the default set without a pending sign-in', async () => {
+    server.use(
+      http.get('*/api/v1/sr/auth/2fa/methods', () =>
+        HttpResponse.json({ code: 0, message: 'No match.' }, { status: 401 }),
+      ),
+    );
+    at('/login/2fa?methods=passkey,recovery');
+    expect(await screen.findByLabelText('Digit 1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use your passkey' })).toBeNull();
+  });
+
+  it('does not ask the server when the password step stored the methods', async () => {
+    sessionStorage.setItem('sr.mfaMethods', JSON.stringify(['totp', 'recovery']));
+    let asked = 0;
+    server.use(
+      http.get('*/api/v1/sr/auth/2fa/methods', () => {
+        asked += 1;
+        return HttpResponse.json({ methods: ['passkey', 'recovery'] });
+      }),
+    );
+    at('/login/2fa');
+    expect(await screen.findByLabelText('Digit 1')).toBeInTheDocument();
+    expect(asked).toBe(0);
   });
 
   it('offers the passkey next to the authenticator code and can switch to recovery', async () => {

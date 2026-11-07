@@ -520,6 +520,54 @@ pub(super) async fn apply_email_change(
     Ok(true)
 }
 
+/// The address and locale of an account before a staff member changes its email (D-561).
+pub struct EmailContact {
+    email: String,
+    locale: String,
+}
+
+impl AuthService {
+    /// Read the address a staff email change is about to replace; `None` for an unknown account.
+    pub async fn email_contact(
+        &self,
+        user_id: i64,
+    ) -> Result<Option<EmailContact>, AuthRouteError> {
+        Ok(self.store.find_by_id(user_id).await?.map(|a| EmailContact {
+            email: a.email,
+            locale: a.locale,
+        }))
+    }
+
+    /// After a staff member changed the account's email (D-561): mail the old address the D-167
+    /// notice, naming it a staff action, with a "This wasn't me" link that signs every device out.
+    /// No session is revoked here. Best effort: a mail failure is logged, the change stands.
+    pub async fn notify_staff_email_change(
+        &self,
+        user_id: i64,
+        old: &EmailContact,
+        now: i64,
+    ) -> Result<(), AuthRouteError> {
+        let cancel = EmailToken::generate(EmailTokenPurpose::CancelEmailChange)?;
+        self.store
+            .email_token_put(
+                user_id,
+                EmailTokenPurpose::CancelEmailChange,
+                &cancel.hash(),
+                cancel.expires_at(now),
+            )
+            .await?;
+        let notice = mail::email_changed_by_staff(
+            &old.email,
+            &self.cancel_email_link(cancel.expose()),
+            &old.locale,
+        );
+        if let Err(e) = self.mailer.send(notice).await {
+            tracing::warn!("staff email change notice not sent: {e}");
+        }
+        Ok(())
+    }
+}
+
 /// Body for `POST /sr/auth/account/delete`.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DeleteAccountBody {
@@ -612,6 +660,8 @@ pub async fn delete_account(
                 .into());
         }
     };
+    // A deletion is the member's own logout-all: every open socket of the account closes now (D-558).
+    svc.notify_sessions_revoked(account.id).await;
     svc.store
         .audit(
             account.id,

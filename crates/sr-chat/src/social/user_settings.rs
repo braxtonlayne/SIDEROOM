@@ -244,57 +244,71 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(self.repo().get_privacy(user).await?)
     }
 
+    /// Apply the fields `up` names. Written over the value it was applied to, so two concurrent updates never
+    /// revert each other (SEC-AUD-027); a lost race re-reads and re-applies, as the settings blob does.
     pub async fn update_privacy(
         &self,
         user: UserId,
         up: PrivacyUpdate,
     ) -> SocialResult<super::repo::Privacy> {
-        let mut p = self.repo().get_privacy(user).await?;
-        let fr = &mut p.friend_requests;
-        *fr = FriendRequestSources {
-            everyone: up.friend_everyone.unwrap_or(fr.everyone),
-            friends_of_friends: up.friend_of_friends.unwrap_or(fr.friends_of_friends),
-            server_members: up.friend_server_members.unwrap_or(fr.server_members),
-        };
-        if let Some(v) = up.allow_server_member_dms {
-            p.dms.allow_server_member_dms = v;
-        }
-        if let Some(v) = up.message_requests {
-            p.dms.message_requests = v;
-        }
-        let s = &mut p.safety;
-        if let Some(v) = up.media_friends {
-            s.sensitive_media.friends = v;
-        }
-        if let Some(v) = up.media_others {
-            s.sensitive_media.others = v;
-        }
-        if let Some(v) = up.media_servers {
-            s.sensitive_media.servers = v;
-        }
-        if let Some(v) = up.dm_spam_filter {
-            s.dm_spam_filter = v;
-        }
-        for (guild, change) in up.server_dm_overrides.iter().flatten() {
-            match change {
-                Some(allowed) => {
-                    s.server_dm_overrides.insert(*guild, *allowed);
-                }
-                None => {
-                    s.server_dm_overrides.remove(guild);
-                }
+        for _ in 0..WRITE_ATTEMPTS {
+            let read = self.repo().get_privacy(user).await?;
+            let next = apply_privacy(read.clone(), &up)?;
+            if self.repo().replace_privacy(user, &read, &next).await? {
+                return Ok(next);
             }
         }
-        if s.server_dm_overrides.len() > MAX_SERVER_DM_OVERRIDES {
-            return Err(SocialError::invalid(
-                "server_dm_overrides",
-                "BASE_TYPE_MAX_LENGTH",
-                format!("at most {MAX_SERVER_DM_OVERRIDES} servers"),
-            ));
-        }
-        self.repo().put_privacy(user, &p).await?;
-        Ok(p)
+        Err(SocialError::Conflict)
     }
+}
+
+fn apply_privacy(
+    mut p: super::repo::Privacy,
+    up: &PrivacyUpdate,
+) -> SocialResult<super::repo::Privacy> {
+    let fr = &mut p.friend_requests;
+    *fr = FriendRequestSources {
+        everyone: up.friend_everyone.unwrap_or(fr.everyone),
+        friends_of_friends: up.friend_of_friends.unwrap_or(fr.friends_of_friends),
+        server_members: up.friend_server_members.unwrap_or(fr.server_members),
+    };
+    if let Some(v) = up.allow_server_member_dms {
+        p.dms.allow_server_member_dms = v;
+    }
+    if let Some(v) = up.message_requests {
+        p.dms.message_requests = v;
+    }
+    let s = &mut p.safety;
+    if let Some(v) = up.media_friends {
+        s.sensitive_media.friends = v;
+    }
+    if let Some(v) = up.media_others {
+        s.sensitive_media.others = v;
+    }
+    if let Some(v) = up.media_servers {
+        s.sensitive_media.servers = v;
+    }
+    if let Some(v) = up.dm_spam_filter {
+        s.dm_spam_filter = v;
+    }
+    for (guild, change) in up.server_dm_overrides.iter().flatten() {
+        match change {
+            Some(allowed) => {
+                s.server_dm_overrides.insert(*guild, *allowed);
+            }
+            None => {
+                s.server_dm_overrides.remove(guild);
+            }
+        }
+    }
+    if s.server_dm_overrides.len() > MAX_SERVER_DM_OVERRIDES {
+        return Err(SocialError::invalid(
+            "server_dm_overrides",
+            "BASE_TYPE_MAX_LENGTH",
+            format!("at most {MAX_SERVER_DM_OVERRIDES} servers"),
+        ));
+    }
+    Ok(p)
 }
 
 #[cfg(test)]

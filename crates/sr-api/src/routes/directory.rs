@@ -176,7 +176,27 @@ async fn card(
     entry: &DirectoryEntry,
     viewer: sr_core::UserId,
 ) -> ApiResult<Option<DirectoryGuildObject>> {
-    build_card(deps, entry, viewer, false).await
+    build_card_with(deps, entry, viewer, false, true).await
+}
+
+/// The online count of a guild of `members` members (only up to 1000 members; one page of members is read).
+async fn presence_count(
+    deps: &SettingsDeps,
+    guild: GuildId,
+    members: u64,
+) -> ApiResult<Option<u64>> {
+    Ok(match deps.presence() {
+        Some(p) if members <= 1000 => {
+            let page = deps
+                .chat
+                .page_members(guild, None, 1000)
+                .await
+                .map_err(re)?;
+            let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
+            Some(p.count_online(&ids))
+        }
+        _ => None,
+    })
 }
 
 /// The card of a listing. `preview` skips the visibility rule (staff look at requests that are
@@ -186,6 +206,18 @@ async fn build_card(
     entry: &DirectoryEntry,
     viewer: sr_core::UserId,
     preview: bool,
+) -> ApiResult<Option<DirectoryGuildObject>> {
+    build_card_with(deps, entry, viewer, preview, !preview).await
+}
+
+/// [`build_card`]; `with_presence` false leaves the presence count out (the directory list adds it for the page it
+/// returns only, SEC-AUD-030).
+async fn build_card_with(
+    deps: &SettingsDeps,
+    entry: &DirectoryEntry,
+    viewer: sr_core::UserId,
+    preview: bool,
+    with_presence: bool,
 ) -> ApiResult<Option<DirectoryGuildObject>> {
     let community = deps
         .service
@@ -206,13 +238,10 @@ async fn build_card(
         .await
         .map_err(re)?
         .is_some();
-    let presence = match deps.presence() {
-        Some(p) if members <= 1000 && !preview => {
-            let page = deps.chat.page_members(g.id, None, 1000).await.map_err(re)?;
-            let ids: Vec<_> = page.iter().map(|m| m.user_id).collect();
-            Some(p.count_online(&ids))
-        }
-        _ => None,
+    let presence = if with_presence && !preview {
+        presence_count(deps, g.id, members).await?
+    } else {
+        None
     };
     Ok(Some(DirectoryGuildObject {
         id: g.id.to_string(),
@@ -515,7 +544,9 @@ pub async fn search(
         if hidden.contains(&e.category) {
             continue;
         }
-        if let Some(c) = card(&deps, e, user).await? {
+        // SEC-AUD-030: the presence count reads up to 1000 members per guild, so it is added only for the page that
+        // is returned, never for every listing.
+        if let Some(c) = build_card_with(&deps, e, user, false, false).await? {
             let hay = format!(
                 "{} {} {}",
                 c.name,
@@ -524,11 +555,11 @@ pub async fn search(
             )
             .to_lowercase();
             if terms.iter().all(|t| hay.contains(t.as_str())) {
-                cards.push(c);
+                cards.push((e.guild_id, c));
             }
         }
     }
-    cards.sort_by(|a, b| {
+    cards.sort_by(|(_, a), (_, b)| {
         b.featured
             .cmp(&a.featured)
             .then(b.approximate_member_count.cmp(&a.approximate_member_count))
@@ -537,7 +568,13 @@ pub async fn search(
     });
     let offset = q.offset.unwrap_or(0);
     let limit = q.limit.unwrap_or(24).clamp(1, 50);
-    Ok(Json(cards.into_iter().skip(offset).take(limit).collect()))
+    let mut page = Vec::new();
+    for (gid, mut c) in cards.into_iter().skip(offset).take(limit) {
+        c.approximate_presence_count =
+            presence_count(&deps, gid, c.approximate_member_count).await?;
+        page.push(c);
+    }
+    Ok(Json(page))
 }
 
 /// One listed server (the card behind a preview). 404 unless it is approved and Community.

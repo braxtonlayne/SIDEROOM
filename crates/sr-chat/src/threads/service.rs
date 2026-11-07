@@ -533,7 +533,7 @@ impl<R: ChatRepository + ThreadRepository> ThreadService<R> {
             &patch,
             self.now(),
         )?;
-        self.repo.update_thread(&planned).await?;
+        self.repo.update_thread(&a.thread, &planned).await?;
         let channel = self.fresh(thread_id).await?;
         let member = self.repo.get_thread_member(thread_id, actor).await?;
         Ok(ThreadView { channel, member })

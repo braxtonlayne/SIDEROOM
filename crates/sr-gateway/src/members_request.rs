@@ -86,10 +86,15 @@ pub(crate) fn parse(d: &Value) -> Result<Parsed, u16> {
     let (request, bad_ids) = match (query, ids) {
         (Some(_), Some(_)) | (None, None) => return Err(bad),
         (Some(query), None) => {
-            let limit = if limit == 0 && !query.is_empty() {
+            // A name search returns at most 100 members, as on Discord (SEC-AUD-030: any session could otherwise
+            // page a whole guild with a one-letter query and a huge limit). Only the empty query, which needs a bot
+            // with the privileged intent, may ask for everyone.
+            let limit = if query.is_empty() {
+                limit
+            } else if limit == 0 {
                 DEFAULT_QUERY_LIMIT
             } else {
-                limit
+                limit.min(DEFAULT_QUERY_LIMIT)
             };
             (MemberRequest::Search { query, limit }, Vec::new())
         }

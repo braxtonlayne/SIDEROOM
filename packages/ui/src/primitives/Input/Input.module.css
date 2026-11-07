@@ -21,8 +21,8 @@
 .error { margin: 0; font-size: 0.75rem; color: var(--ui-danger); }
 :global([data-theme^="lounge-dark"]) .error,
 :global([data-theme="lounge-ash"]) .error,
-:global([data-theme="lounge-onyx"]) .error { color: #fa777c; }
-:global([data-theme^="sideroom"]) .error { color: #d98270; }
+:global([data-theme="lounge-onyx"]) .error { color: color-mix(in srgb, var(--ui-danger) 60%, var(--ui-text)); }
+:global([data-theme^="sideroom"]) .error { color: color-mix(in srgb, var(--ui-danger) 60%, var(--ui-text)); }
 
 .passwordWrap { position: relative; display: flex; }
 .hasToggle { padding-inline-end: 64px; }

@@ -8,6 +8,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import { Field, type FieldProps } from "./Field";
 import styles from "./Input.module.css";
 
@@ -96,8 +97,6 @@ export function passwordStrength(pw: string): PasswordStrength {
   return Math.min(score, 4) as PasswordStrength;
 }
 
-const STRENGTH_LABELS = ["Too weak", "Weak", "Fair", "Good", "Strong"] as const;
-
 export interface PasswordInputProps extends Omit<TextInputProps, "type"> {
   showStrength?: boolean;
 }
@@ -106,6 +105,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(fu
   { showStrength, label, hint, error, id, className, value, defaultValue, onChange, ...rest },
   ref,
 ) {
+  const ui = useUiStrings();
   const [visible, setVisible] = useState(false);
   const [internal, setInternal] = useState(String(defaultValue ?? ""));
   const current = value !== undefined ? String(value) : internal;
@@ -136,19 +136,19 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(fu
             type="button"
             className={styles.toggle}
             aria-pressed={visible}
-            aria-label={visible ? "Hide password" : "Show password"}
+            aria-label={visible ? ui.hidePassword : ui.showPassword}
             onClick={() => setVisible((v) => !v)}
           >
-            {visible ? "Hide" : "Show"}
+            {visible ? ui.hide : ui.show}
           </button>
         </div>
       )}
     >
       {showStrength && (
         <div className={styles.strength}>
-          <meter min={0} max={4} value={strength} aria-label="Password strength" className={styles.meter} />
+          <meter min={0} max={4} value={strength} aria-label={ui.passwordStrength} className={styles.meter} />
           <span className={styles.hint} data-testid="strength-label">
-            {STRENGTH_LABELS[strength]}
+            {ui.strengthLevels[strength]}
           </span>
         </div>
       )}

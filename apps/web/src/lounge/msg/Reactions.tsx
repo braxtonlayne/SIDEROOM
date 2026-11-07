@@ -1,14 +1,24 @@
 import { Icon, Popover, Tooltip } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../api/client';
+import { useStore } from '../../store';
 import { t, useT } from '../../i18n';
 import { EmojiPicker } from '../components/EmojiPicker';
 import type { Message, Reaction } from '../data';
 
 interface Reactor {
   id: string;
-  username: string;
+  username?: string;
   global_name?: string | null;
+}
+
+/**
+ * A reactor's display name. The reactions route answers ids only, so the name comes from the users the store
+ * knows; without this the tooltip showed its raw "{who}" placeholder (seen in the wave 54 shots).
+ */
+export function reactorName(u: Reactor): string {
+  const known = useStore.getState().users[u.id];
+  return u.global_name || u.username || known?.global_name || known?.username || u.id;
 }
 
 /** Reactor names fetched for a tooltip, keyed by message, emoji and count so a changed count refetches. */
@@ -43,7 +53,7 @@ function ReactorNames({ message, reaction }: { message: Message; reaction: React
       { retries: 0 },
     )
       .then((list) => {
-        const n = list.map((u) => u.global_name || u.username);
+        const n = list.map(reactorName);
         nameCache.set(key, n);
         if (live) setNames(n);
       })

@@ -6,6 +6,7 @@ import { useReportEntry } from '../../moderation/reports';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useCurrentUser, useLoungeActions, type Guild } from '../data';
 import { useLoungeUi } from '../store';
+import { failWith } from '../actionError';
 import { isMuted, MUTE_DURATIONS, useNotifSettings } from './notifSettings';
 
 /**
@@ -33,16 +34,21 @@ export function useMuteEntry(guildId: string): MenuEntry {
   const patch = useNotifSettings((s) => s.patchGuild);
   if (isMuted(notif))
     return {
-      label: 'Unmute Server',
-      onSelect: () => void patch(guildId, { mute: { muted: false } }).catch(() => undefined),
+      label: t('lounge.menus.unmuteServer'),
+      onSelect: () =>
+        void patch(guildId, { mute: { muted: false } }).catch(
+          failWith('lounge.actionError.unmute'),
+        ),
     };
   return {
     type: 'submenu',
-    label: 'Mute Server',
+    label: t('lounge.menus.muteServer'),
     items: MUTE_DURATIONS.map((d) => ({
       label: d.label,
       onSelect: () =>
-        void patch(guildId, { mute: { muted: true, seconds: d.seconds } }).catch(() => undefined),
+        void patch(guildId, { mute: { muted: true, seconds: d.seconds } }).catch(
+          failWith('lounge.actionError.mute'),
+        ),
     })),
   };
 }
@@ -65,28 +71,28 @@ export function useGuildMenuCore(guild: Guild) {
   const isOwner = guild.ownerId === me.id;
   return {
     markRead: {
-      label: 'Mark As Read',
+      label: t('lounge.menus.markRead'),
       disabled: !guild.unread,
       onSelect: () => actions.markGuildRead(guild.id),
     } as MenuEntry,
     invite: {
-      label: 'Invite People',
+      label: t('lounge.menus.invitePeople'),
       disabled: !p.createInvite,
       onSelect: () => openDialog({ kind: 'invite', guildId: guild.id }),
     } as MenuEntry,
     mute,
     notifications: {
-      label: 'Notification Settings',
+      label: t('lounge.menus.notificationSettings'),
       onSelect: () => openDialog({ kind: 'notifications', guildId: guild.id }),
     } as MenuEntry,
     hideMuted: {
       type: 'checkbox',
-      label: 'Hide Muted Channels',
+      label: t('lounge.menus.hideMuted'),
       checked: hideMuted,
       onCheckedChange: () => toggleHideMuted(guild.id),
     } as MenuEntry,
     settings: {
-      label: 'Server Settings',
+      label: t('lounge.menus.serverSettings'),
       disabled: !(p.serverSettings ?? p.manageGuild),
       onSelect: () =>
         void navigate({ to: '/settings/server/$guildId', params: { guildId: guild.id } }),
@@ -94,7 +100,7 @@ export function useGuildMenuCore(guild: Guild) {
     /** Server Settings ▸ with a shortcut per section the viewer's base permissions open (LNG-RAIL-012). */
     settingsMenu: {
       type: 'submenu',
-      label: 'Server Settings',
+      label: t('lounge.menus.serverSettings'),
       disabled: !(p.serverSettings ?? p.manageGuild),
       items: (
         [
@@ -125,17 +131,17 @@ export function useGuildMenuCore(guild: Guild) {
       onSelect: () => openDialog({ kind: 'guildProfile', guildId: guild.id }),
     } as MenuEntry,
     createChannel: {
-      label: 'Create Channel',
+      label: t('lounge.menus.createChannel'),
       disabled: !p.manageChannels,
       onSelect: () => openDialog({ kind: 'createChannel', guildId: guild.id }),
     } as MenuEntry,
     createCategory: {
-      label: 'Create Category',
+      label: t('lounge.menus.createCategory'),
       disabled: !p.manageChannels,
       onSelect: () => openDialog({ kind: 'createChannel', guildId: guild.id, category: true }),
     } as MenuEntry,
     leave: {
-      label: 'Leave Server',
+      label: t('lounge.menus.leaveServer'),
       danger: true,
       // The owner must transfer ownership first (LNG-GLD-027); the dialog explains it.
       onSelect: () => openDialog({ kind: 'leaveServer', guildId: guild.id }),
@@ -143,7 +149,7 @@ export function useGuildMenuCore(guild: Guild) {
     // Hidden unless Developer Mode is on (G-56); callers spread `core.copyId` only when it is set.
     copyId: (developerMode
       ? {
-          label: 'Copy Server ID',
+          label: t('lounge.menus.copyServerId'),
           onSelect: () => void navigator.clipboard?.writeText(guild.id),
         }
       : null) as MenuEntry | null,

@@ -280,15 +280,26 @@ async fn changing_the_lock_through_the_settings_patch_is_audited_as_a_lock() {
     svc.patch_settings(
         &staff(op),
         &[("invites.locked".to_owned(), json!(true))],
-        None,
+        Some("still closed"),
     )
     .await
     .unwrap();
     assert_eq!(log_rows(pool, "invites.lock").await.len(), 1);
+    // D-563: the lock needs a reason through this door too, as through the dedicated one.
+    assert!(
+        svc.patch_settings(
+            &staff(op),
+            &[("invites.locked".to_owned(), json!(false))],
+            None,
+        )
+        .await
+        .is_err()
+    );
+    assert!(auth_store(pool).invite_controls().await.unwrap().locked);
     svc.patch_settings(
         &staff(op),
         &[("invites.locked".to_owned(), json!(false))],
-        None,
+        Some("incident over"),
     )
     .await
     .unwrap();

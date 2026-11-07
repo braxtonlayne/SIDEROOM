@@ -69,7 +69,7 @@ impl SubmissionKind for FakeKind {
             vec![]
         })
     }
-    async fn preview(&self, s: &Submission) -> ReviewResult<Value> {
+    async fn preview(&self, s: &Submission, _items: &[SubmissionItem]) -> ReviewResult<Value> {
         Ok(json!({ "title": s.title }))
     }
     async fn publish(&self, _: &Submission, approved: &[SubmissionItem]) -> ReviewResult<()> {
@@ -388,18 +388,18 @@ async fn illegal_transitions_are_conflicts() {
     let w = world();
     let id = draft(&w).await;
     let r = reviewer(REVIEWER);
-    // A draft is not in the queue.
+    // A draft is not in the queue: to a reviewer it does not exist (SEC-AUD-034).
     assert!(matches!(
         w.svc.claim(r, id, false).await,
-        Err(ReviewError::Conflict(_))
+        Err(ReviewError::NotFound(_))
     ));
     assert!(matches!(
         w.svc.approve(r, id, DecisionInput::default()).await,
-        Err(ReviewError::Conflict(_))
+        Err(ReviewError::NotFound(_))
     ));
     assert!(matches!(
         w.svc.publish(r, id).await,
-        Err(ReviewError::Conflict(_))
+        Err(ReviewError::NotFound(_))
     ));
     w.svc.submit(MEMBER, id).await.unwrap();
     // Cannot submit twice, cannot decide without a claim.
@@ -1810,4 +1810,57 @@ async fn a_merged_duplicate_earns_no_credit_but_not_a_duplicate_does() {
             "{action:?}"
         );
     }
+}
+
+#[tokio::test]
+async fn reviewers_never_see_another_members_unsent_drafts() {
+    // SEC-AUD-034: `?state=draft` (or `withdrawn`, or every state) does not open other members' unsent work.
+    let w = world();
+    let r = reviewer(REVIEWER);
+    let unsent = draft(&w).await;
+    let pulled = draft(&w).await;
+    w.svc.withdraw(MEMBER, pulled).await.unwrap();
+    let sent = draft(&w).await;
+    w.svc.submit(MEMBER, sent).await.unwrap();
+    let every = SubmissionQuery {
+        states: vec![
+            SubmissionState::Draft,
+            SubmissionState::Submitted,
+            SubmissionState::InReview,
+            SubmissionState::ChangesRequested,
+            SubmissionState::Approved,
+            SubmissionState::Rejected,
+            SubmissionState::Published,
+            SubmissionState::Withdrawn,
+        ],
+        limit: 50,
+        ..Default::default()
+    };
+    let page = w.svc.queue(r, every).await.unwrap();
+    assert_eq!(page.items.iter().map(|s| s.id).collect::<Vec<_>>(), [sent]);
+    assert_eq!(page.total, 1);
+    let drafts = SubmissionQuery {
+        states: vec![SubmissionState::Draft],
+        limit: 50,
+        ..Default::default()
+    };
+    assert_eq!(w.svc.queue(r, drafts).await.unwrap().total, 0);
+    // Nor by id: the reviewer reads, previews and edits are "unknown submission".
+    for id in [unsent, pulled] {
+        assert_eq!(
+            w.svc.get_for_review(r, id).await.unwrap_err(),
+            ReviewError::NotFound("submission")
+        );
+        assert_eq!(
+            w.svc.preview_for_review(r, id).await.unwrap_err(),
+            ReviewError::NotFound("submission")
+        );
+        assert!(w.svc.readable_for(r, id).await.is_err());
+        assert!(w.svc.editable_for(r, id).await.is_err());
+    }
+    // A submission withdrawn after it was sent stays in the reviewers' history.
+    w.svc.withdraw(MEMBER, sent).await.unwrap();
+    w.svc.get_for_review(r, sent).await.unwrap();
+    // The submitter still reads their own draft.
+    w.svc.get_mine(MEMBER, unsent).await.unwrap();
 }

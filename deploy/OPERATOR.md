@@ -59,7 +59,7 @@ Settings live in Admin > Limits & settings (or `PATCH /admin/settings`) and Admi
 |---|---|---|
 | `accounts.minimum_age` | 13 | Minimum age asked at registration and shown on the invite landing. |
 | `compliance.operator_country` | unset | Two-letter country code; the privacy page names it. Set it before the first invite. |
-| `compliance.operator_contact` | unset | The address the copyright and takedown notices go to; published on `/help`. |
+| `compliance.operator_contact` | unset | The address the copyright and takedown notices go to; published signed out on the house notes (`/house-notes`) and the sign-in page, and in the handbook (`/help`, signed-in members only, D-385). |
 | `compliance.data_request_deadline_days` | 30 (7 to 90) | Due date of a data-subject request. |
 | `compliance.invoice_retention_years` | 10 | Years an invoice stays linked to the member after the year of payment. |
 | `moderation.strike_review_threshold` | 3 | Upheld takedowns in the window that open a review case (never an automatic suspension). |
@@ -112,6 +112,13 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 **Voice (configuration file or environment, not Admin)**
 
 `voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress".
+
+**Gateway (configuration file or environment, not Admin)**
+
+| Key | Default | Meaning |
+|---|---|---|
+| `gateway.max_connections` (`SR_GATEWAY__MAX_CONNECTIONS`) | 10000 | Gateway sockets at once, identified or not; further upgrades get 503. |
+| `gateway.max_unidentified_per_ip` (`SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP`) | 32 | Sockets one client address may hold before they sign in (IDENTIFY, within 30 s); further upgrades get 429 (D-556). Raise it when many members reach the server from one address: a shared NAT, or a proxy whose forwarded address the server does not trust. |
 
 **Environment you will meet:** `SR_BACKUP_DIR`, `SR_BACKUP_KEEP` (default 14,8,12), `SR_DRILL_MAX_AGE_HOURS`, `SR_BASEBACKUP_KEEP`; secrets are `server.secret_key` (rotation: [BACKUP.md](BACKUP.md)), database and storage credentials. Secrets go in the environment or a mode-0600 file, never on a command line.
 

@@ -20,12 +20,12 @@
   border: 0;
 }
 .ud-muted {
-  color: var(--sr-text-muted, #a79f8f);
+  color: var(--ui-text-muted);
   font-size: 13px;
 }
 .ud-error {
   margin: 0;
-  color: var(--sr-danger, #e5484d);
+  color: var(--ui-danger);
   font-size: 13px;
 }
 .ud-warn {
@@ -81,7 +81,7 @@
 }
 .ud-field > span {
   font-size: 12px;
-  color: var(--sr-text-muted, #a79f8f);
+  color: var(--ui-text-muted);
 }
 .ud-root input,
 .ud-root textarea,
@@ -119,7 +119,7 @@
   overflow: auto;
 }
 :where(.ud-root, .ud-timer) :focus-visible {
-  outline: 2px solid var(--sr-focus, #c9a24d);
+  outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
 
@@ -268,10 +268,10 @@
 
 /* diff */
 .ud-diff-add {
-  background: color-mix(in srgb, var(--sr-success, #3fb950) 25%, transparent);
+  background: color-mix(in srgb, var(--ui-success) 25%, transparent);
 }
 .ud-diff-del {
-  background: color-mix(in srgb, var(--sr-danger, #e5484d) 25%, transparent);
+  background: color-mix(in srgb, var(--ui-danger) 25%, transparent);
   text-decoration: line-through;
 }
 

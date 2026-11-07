@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearUploadsOnSignOut } from '../../lib/uploadLedger';
 import { ApiError, apiFetch, apiPost, clearCsrf, type ApiErrorBody } from '../../api/client';
-import { purgeAppCaches } from '../../pwa/purge';
+import { purgeOnSignOut } from '../../pwa/signOutPurge';
 import { forgetSection } from '../../state/session';
 
 // ---- account ----
@@ -46,7 +46,7 @@ const endPlayer = () =>
   );
 export const logout = async () => {
   await clearUploadsOnSignOut(); // aborts the open chat upload slots while the session still works
-  await purgeAppCaches();
+  await purgeOnSignOut(); // app files, shared files and Library offline chapters (SEC-AUD-039)
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
   forgetSection();
@@ -55,7 +55,7 @@ export const logout = async () => {
 /** Revokes every session, this one included. */
 export const logoutAll = async () => {
   await clearUploadsOnSignOut();
-  await purgeAppCaches();
+  await purgeOnSignOut(); // app files, shared files and Library offline chapters (SEC-AUD-039)
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
   forgetSection();
@@ -131,7 +131,9 @@ export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;
 }
-export const totpEnroll = () => apiPost<TotpEnrollment>('/sr/auth/totp/enroll');
+/** SEC-AUD-022: enrolment re-checks the password first (a session alone cannot add an authenticator). */
+export const totpEnroll = (password: string) =>
+  apiPost<TotpEnrollment>('/sr/auth/totp/enroll', { password });
 export const totpVerify = (code: string) =>
   apiPost<{ recovery_codes: string[] }>('/sr/auth/totp/verify', { code });
 export const totpDisable = (password: string) =>

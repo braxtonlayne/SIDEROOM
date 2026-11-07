@@ -281,19 +281,35 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
     ) -> ChatResult<ChannelWithOverwrites> {
         let (channel, gid) = self.guild_channel(id).await?;
         let c = self.ctx(actor, gid).await?;
+        let in_channel = self.actor_in_channel(&c.actor, actor, id).await?;
         patch.forum.assign_tag_ids(|| self.ids.generate().get());
-        let planned = channel_rules::plan_edit_channel(&c.actor, &channel, patch)?;
+        let planned = channel_rules::plan_edit_channel(&in_channel, &channel, patch)?;
         let mut all = self.repo.list_guild_channels(gid).await?;
         all.retain(|x| x.id != id);
         all.push(planned);
         let lock = mv.lock_permissions;
-        let moved = plan_channel_moves(&c.actor, gid, &all, &[(id, mv)])?;
+        let moved = plan_channel_moves(&in_channel, gid, &all, &[(id, mv)])?;
         let updated = moved.into_iter().next().ok_or(ChatError::UnknownChannel)?;
         self.repo.update_channel(&updated).await?;
         if lock {
             self.sync_with_parent(&updated).await?;
         }
         self.with_overwrites(updated).await
+    }
+
+    /// The actor with its permissions in `channel` (overwrites applied), for a channel edit or delete: as on
+    /// Discord, an overwrite that denies `MANAGE_CHANNELS` stops it and one that allows it permits it (D-570).
+    async fn actor_in_channel(
+        &self,
+        guild_actor: &GuildActor,
+        actor: UserId,
+        channel: ChannelId,
+    ) -> ChatResult<GuildActor> {
+        let acc = self.access(actor, channel).await?;
+        Ok(GuildActor {
+            perms: acc.perms,
+            ..*guild_actor
+        })
     }
 
     async fn sync_with_parent(&self, channel: &Channel) -> ChatResult<()> {
@@ -331,7 +347,8 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
     pub async fn delete_channel(&self, actor: UserId, id: ChannelId) -> ChatResult<Channel> {
         let (channel, gid) = self.guild_channel(id).await?;
         let c = self.ctx(actor, gid).await?;
-        channel_rules::check_delete_channel(&c.actor, &channel)?;
+        let in_channel = self.actor_in_channel(&c.actor, actor, id).await?;
+        channel_rules::check_delete_channel(&in_channel, &channel)?;
         // Held evidence outlives a channel delete (D-122, D-213: only platform staff release a hold). The
         // database refuses the cascade as well; this check turns it into an answer the server admin can read.
         if self.repo.holds_evidence(id).await? {

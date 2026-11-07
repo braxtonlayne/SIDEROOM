@@ -31,8 +31,8 @@ dc="docker compose -f prod.yml --env-file .env.prod"
    ```
 
    The old server keeps running during this; the previous binary tolerates the new schema by the one-version rule.
-7. Restart: `$dc up -d sr-server` or `systemctl restart sr-server`. The server drains for up to 25 s, then jobs for another 25 s, so allow a minute.
-8. Check readiness, the Grafana overview, and the error ratio for ten minutes. `/readyz` is not served through Caddy (it lists dependency errors), so ask the server itself: `$dc exec sr-server /usr/local/bin/sr-server healthcheck` (exit 0 = ready; `$dc ps` shows the same probe as the container health), or `curl -fsS http://127.0.0.1:8080/readyz` on a plain-binary install. `https://<domain>/healthz` through Caddy must answer too.
+7. Restart: `$dc up -d sr-server` or `systemctl restart sr-server`. The server drains for up to 25 s, then jobs for another 25 s, so allow a minute. With the `monitoring` profile on, also run `$dc up -d prometheus`: Prometheus lives in the server container's network namespace and must follow a recreated server.
+8. Check readiness, the Grafana overview, and the error ratio for ten minutes. Caddy answers `/readyz` with 404 (it lists dependency errors; the shipped `Caddyfile.prod` has a `handle /readyz` block for this), so ask the server itself: `$dc exec sr-server /usr/local/bin/sr-server healthcheck` (exit 0 = ready; `$dc ps` shows the same probe as the container health), or `curl -fsS http://127.0.0.1:8080/readyz` on a plain-binary install. `https://<domain>/healthz` through Caddy must answer too.
 
 ## Rolling back
 
@@ -55,6 +55,14 @@ Everything written after the backup is lost; the restored database is exactly th
 ## When the version skips
 
 Upgrading across several releases: step through each release in order, running `sr-cli migrate` at each, unless the release notes say a jump is safe.
+
+## Release notes: release builds refuse test-only settings; metrics stay on loopback (wave 54, SEC-AUD-028, SEC-AUD-031)
+
+- A release build of `sr-server` (the image, the release binaries) now refuses to start, naming the key, when it finds: an empty `server.secret_key`; `unfurl.allow_private_for_tests`; `storage.endpoint = "memory:"`; `activities.origin_mode = "same_host_sandboxed"`; `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS` while `SR_PAYMENTS_ESPLORA_URL` is not a private service (a one-label name such as `http://electrs:3000`, or a private IP address); or a `server.metrics_bind` that is not loopback while `server.metrics_token` is empty. A debug build (`cargo build`, the e2e stack and the tunnel test of `docs/ops/test-deploy-quick-tunnel.md`) still only warns. The private-host opt-in now covers the Esplora endpoint only; the price sources always use the strict policy.
+- `/internal/metrics` takes an optional bearer token, `server.metrics_token` (`SR_SERVER__METRICS_TOKEN`, or `SR_SERVER__METRICS_TOKEN_FILE`): set it when Prometheus scrapes the server from another host, and send `Authorization: Bearer <token>`.
+- Compose: `prod.yml` no longer sets `SR_SERVER__METRICS_BIND=0.0.0.0:9100`. The `monitoring` profile's Prometheus runs in the server container's network namespace (`network_mode: service:sr-server`) and scrapes `127.0.0.1:9100`; Grafana reaches it as `sr-server:9090`. Take the release's `compose/prod.yml`, `monitoring/prometheus.yml` and `monitoring/grafana/provisioning/datasources/prometheus.yml`, then `$dc up -d sr-server prometheus grafana`.
+- Caddy now answers `/readyz` with 404 (before, the catch-all proxied it to anyone). Take the release's `compose/caddy/Caddyfile.prod` and recreate Caddy: `$dc up -d --force-recreate caddy`.
+- `sr-cli restore` reads the dump's table of contents (`pg_restore --list`) and checks it is a SIDE ROOM dump before `--force` drops anything; a damaged or foreign dump stops with "nothing was changed".
 
 ## Release notes: a signed-in member sees their full profile at `/~handle` (FU-BETA-1)
 

@@ -94,6 +94,10 @@ impl Default for TranscodeSettings {
     }
 }
 
+/// Most pixels in one source frame (8192 x 8192). The probe allows 16384 per axis, but a frame that large decodes
+/// to hundreds of megabytes before the ladder scales it down, so such a source is refused when it is planned.
+pub const MAX_SOURCE_PIXELS: u64 = 8192 * 8192;
+
 #[derive(Debug, Error, PartialEq)]
 pub enum PlanError {
     #[error("the file has no video stream")]
@@ -102,6 +106,8 @@ pub enum PlanError {
     NoDuration,
     #[error("the file is {0:.0} s long, over the limit")]
     TooLong(f64),
+    #[error("the picture is {0} x {1}, over the {MAX_SOURCE_PIXELS} pixel limit")]
+    TooManyPixels(u32, u32),
     #[error("invalid settings: {0}")]
     BadSettings(&'static str),
 }
@@ -725,6 +731,9 @@ fn base_checks<'a>(
 ) -> Result<(&'a VideoStream, f64), PlanError> {
     check_settings(s)?;
     let v = probe.primary_video().ok_or(PlanError::NoVideo)?;
+    if u64::from(v.width) * u64::from(v.height) > MAX_SOURCE_PIXELS {
+        return Err(PlanError::TooManyPixels(v.width, v.height));
+    }
     let duration = probe
         .duration_secs()
         .filter(|d| *d > 0.0)
@@ -1158,6 +1167,23 @@ mod tests {
             plan_ladder_job(&pr, &s),
             Err(PlanError::TooLong(_))
         ));
+        // SEC-AUD-035: a 16384 x 16384 source passes the probe's per-axis limit but not the pixel budget.
+        let mut pr = probe(H264_SDR);
+        pr.video[0].width = 16_384;
+        pr.video[0].height = 16_384;
+        assert_eq!(
+            plan_ladder_job(&pr, &s),
+            Err(PlanError::TooManyPixels(16_384, 16_384))
+        );
+        assert!(matches!(
+            plan_proxy_job(&pr, &s),
+            Err(PlanError::TooManyPixels(..))
+        ));
+        // 8K stays allowed.
+        let mut pr = probe(H264_SDR);
+        pr.video[0].width = 7680;
+        pr.video[0].height = 4320;
+        assert!(plan_ladder_job(&pr, &s).is_ok());
         let bad = TranscodeSettings {
             max_height: 2160,
             ..TranscodeSettings::default()

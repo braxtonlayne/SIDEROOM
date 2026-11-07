@@ -40,6 +40,7 @@ pub mod mail_text;
 pub mod memory;
 
 pub use common::{AuthConfig, AuthRouteError, AuthService, IdSource, Svc};
+pub use identity::EmailContact;
 
 /// Re-check a signed-in user's password before a sensitive operation outside `/sr/auth`
 /// (the developer portal). Shares the failure lockout with login.
@@ -106,6 +107,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     doc.merge(member_invites::MemberInvitesApiDoc::openapi());
     doc.merge(self_delete::SelfDeleteApiDoc::openapi());
     doc.merge(first_run::FirstRunApiDoc::openapi());
+    doc.merge(login::LoginApiDoc::openapi());
     doc
 }
 
@@ -131,6 +133,7 @@ pub fn router() -> Router<AppState> {
         .route("/sr/auth/login", post(login::login))
         .route("/sr/auth/login-link", post(login::login_link))
         .route("/sr/auth/2fa", post(login::second_factor))
+        .route("/sr/auth/2fa/methods", get(login::pending_methods))
         .route("/sr/auth/logout", post(sessions::logout))
         .route("/sr/auth/logout-all", post(sessions::logout_all))
         .route("/sr/auth/sessions", get(sessions::list))

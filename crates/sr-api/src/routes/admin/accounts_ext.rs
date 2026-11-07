@@ -61,7 +61,8 @@ pub struct ChangeEmailBody {
 }
 
 /// Replace an account's email; it becomes unverified and links sent to the old address
-/// stop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor.
+/// stop working (`MANAGE_ACCOUNTS`). Needs a fresh second factor. The old address is told that
+/// staff changed it, with a "This wasn't me" link that signs every device out (D-561).
 #[utoipa::path(
     post, path = "/admin/accounts/{account_id}/change-email", request_body = ChangeEmailBody,
     params(("account_id" = String, Path, description = "Account snowflake")),
@@ -79,11 +80,15 @@ pub async fn change_email(
     let r = reason(&headers, b.reason.as_deref());
     let aid = id(&account_id)?;
     ctx.require_reauth().await?;
-    ctx.svc()
+    let old = ctx.email_contact(aid).await;
+    let out = ctx
+        .svc()
         .change_email(&ctx.caller, aid, &b.email, r.as_deref())
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    // D-561: the old address hears of it, as a staff action, with the "This wasn't me" link.
+    ctx.notify_staff_email_change(aid, old).await;
+    Ok(Json(out))
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

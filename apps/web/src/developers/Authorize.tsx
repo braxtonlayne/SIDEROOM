@@ -8,7 +8,14 @@ import { useT, type MessageKey } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { errorText, previewAuthorize, submitAuthorize, type AuthorizeQuery } from './api';
 import { AppIcon } from './Applications';
-import { external, isSafeRedirect, parseScopes, permissionLabels, scopeSentence } from './oauth';
+import {
+  external,
+  isSafeRedirect,
+  parseScopes,
+  permissionIds,
+  permissionLabels,
+  scopeSentence,
+} from './oauth';
 import type { AuthorizeSearch } from './search';
 import type { ConsentGuild } from './types';
 import { Loading } from './ui';
@@ -156,7 +163,8 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
     );
 
   const labels = permissionLabels(p.permissions);
-  const adminAsked = labels.includes('Administrator');
+  // By permission id, not by its (translated) label (SEC-AUD-040).
+  const adminAsked = permissionIds(p.permissions).includes('ADMINISTRATOR');
   const needGuild = wantsBot && !guildId;
   const redirectHost = (() => {
     try {

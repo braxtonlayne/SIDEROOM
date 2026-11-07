@@ -13,7 +13,9 @@ import {
   memoryKeyStore,
   signWithIdentity,
 } from './identity';
+import { checkKeys, devicePins, type PinStore } from './pins';
 import type { WorkerOut } from './protocol';
+import { verifiedStore, type VerifiedStore } from './verified';
 import { resetE2ee, setE2ee, useE2ee } from './store';
 import { detectTransformMode, type TransformMode } from './support';
 
@@ -83,22 +85,48 @@ export function engineHooks(
   };
 }
 
-/** Publish the call's state to the UI store, with the D-250 pairwise codes. */
+/**
+ * Publish the call's state to the UI store, with the D-250 pairwise codes, and check every member's identity
+ * key against the key pinned on this device (SEC-AUD-038, D-564).
+ */
 export function bindToStore(
   call: E2eeCall,
   api: E2eeApi,
   me: string,
   selfKey: Uint8Array,
+  pins: PinStore = devicePins(),
+  verified: VerifiedStore = verifiedStore(),
 ): () => void {
-  setE2ee({ active: true, call: call.state, selfKey: hex(selfKey), pairwise: {} });
-  return call.subscribe((s) => {
+  setE2ee({
+    active: true,
+    call: call.state,
+    selfKey: hex(selfKey),
+    pairwise: {},
+    viewer: me,
+    keyChanged: [],
+  });
+  let seq = 0;
+  let live = true;
+  const unsubscribe = call.subscribe((s) => {
     const pairwise: Record<string, string> = {};
     for (const m of s.members) {
       if (m.userId !== me)
         pairwise[m.userId] = api.pairwiseCode(me, selfKey, m.userId, unhex(m.identityKey));
     }
     setE2ee({ call: s, pairwise });
+    const mine = ++seq;
+    void checkKeys(pins, me, s.members, verified).then(
+      (changed) => {
+        // Only the newest roster's answer counts, and none after the call ended.
+        if (live && mine === seq) setE2ee({ keyChanged: changed });
+      },
+      () => undefined,
+    );
   });
+  return () => {
+    live = false;
+    unsubscribe();
+  };
 }
 
 /** e2e builds only: let the browser tests read the call's E2EE state (codes, frame counters). */

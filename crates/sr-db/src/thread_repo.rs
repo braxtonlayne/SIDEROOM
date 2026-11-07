@@ -80,27 +80,44 @@ impl ThreadRepository for PgChatRepo {
         tx.commit().await.map_err(db)
     }
 
-    async fn update_thread(&self, thread: &Channel) -> RepoResult<()> {
+    async fn update_thread(&self, before: &Channel, thread: &Channel) -> RepoResult<()> {
         let Some(info) = thread.thread.as_ref() else {
             return Ok(());
         };
+        // Only what the edit changed from `before` is written (SEC-AUD-027): a message's activity time, a pin or
+        // a slowmode change that landed since `before` was read stays. Flags are merged bit by bit.
+        let was = before.thread.as_ref();
+        let differs = |f: &dyn Fn(&sr_chat::threads::ThreadInfo) -> bool| was.is_none_or(f);
+        let changed_flags = before.flags ^ thread.flags;
         let mut tx = self.pool.begin().await.map_err(db)?;
         sqlx::query(
-            "UPDATE channels SET name = $2, rate_limit_per_user = $3, flags = $4, \
+            "UPDATE channels SET name = CASE WHEN $5 THEN $2 ELSE name END, \
+               rate_limit_per_user = CASE WHEN $6 THEN $3 ELSE rate_limit_per_user END, \
+               flags = (flags & ~$7::int) | ($4::int & $7::int), \
              updated_at = now() WHERE id = $1",
         )
         .bind(i(thread.id.get()))
         .bind(thread.name.as_deref())
         .bind(i32::try_from(thread.rate_limit_per_user).unwrap_or(0))
         .bind(i32::try_from(thread.flags).unwrap_or(0))
+        .bind(before.name != thread.name)
+        .bind(before.rate_limit_per_user != thread.rate_limit_per_user)
+        .bind(i32::try_from(changed_flags).unwrap_or(0))
         .execute(&mut *tx)
         .await
         .map_err(db)?;
         sqlx::query(
-            "UPDATE thread_metadata SET archived = $2, auto_archive_duration = $3, \
-             archive_timestamp = to_timestamp($4::double precision / 1000.0), locked = $5, \
-             invitable = $6, last_activity_at = to_timestamp($7::double precision / 1000.0), \
-             applied_tags = $8 WHERE channel_id = $1",
+            "UPDATE thread_metadata SET \
+               archived = CASE WHEN $9 THEN $2 ELSE archived END, \
+               archive_timestamp = CASE WHEN $9 \
+                 THEN to_timestamp($4::double precision / 1000.0) ELSE archive_timestamp END, \
+               auto_archive_duration = CASE WHEN $10 THEN $3 ELSE auto_archive_duration END, \
+               locked = CASE WHEN $11 THEN $5 ELSE locked END, \
+               invitable = CASE WHEN $12 THEN $6 ELSE invitable END, \
+               last_activity_at = CASE WHEN $13 THEN GREATEST(last_activity_at, \
+                 to_timestamp($7::double precision / 1000.0)) ELSE last_activity_at END, \
+               applied_tags = CASE WHEN $14 THEN $8 ELSE applied_tags END \
+             WHERE channel_id = $1",
         )
         .bind(i(thread.id.get()))
         .bind(info.archived)
@@ -110,6 +127,14 @@ impl ThreadRepository for PgChatRepo {
         .bind(info.invitable)
         .bind(info.last_activity_ms)
         .bind(info.applied_tags.iter().map(|t| i(*t)).collect::<Vec<_>>())
+        .bind(differs(&|b| b.archived != info.archived))
+        .bind(differs(&|b| {
+            b.auto_archive_duration != info.auto_archive_duration
+        }))
+        .bind(differs(&|b| b.locked != info.locked))
+        .bind(differs(&|b| b.invitable != info.invitable))
+        .bind(differs(&|b| b.last_activity_ms != info.last_activity_ms))
+        .bind(differs(&|b| b.applied_tags != info.applied_tags))
         .execute(&mut *tx)
         .await
         .map_err(db)?;

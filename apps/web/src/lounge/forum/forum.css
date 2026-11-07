@@ -64,7 +64,7 @@
 .lng-tag-filter[aria-pressed='true'] {
   border-color: var(--brand);
   background: var(--brand);
-  color: var(--brand-contrast, #fff);
+  color: var(--ui-accent-ink);
 }
 .lng-posts {
   list-style: none;

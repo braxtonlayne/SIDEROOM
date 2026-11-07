@@ -26,5 +26,5 @@ export function lazyNamed<M extends object, K extends keyof M>(
 
 /** Empty, announced politely. No spinner: chunks arrive in well under a second on a normal connection. */
 export function RouteFallback() {
-  return <div role="status" aria-busy="true" aria-live="polite" style={{ minHeight: '40vh' }} />;
+  return <div role="status" aria-busy="true" aria-live="polite" style={{ minBlockSize: '40vh' }} />;
 }

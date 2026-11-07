@@ -270,6 +270,14 @@ export function ExtensionsSection({ guildId, viewer }: SectionProps) {
       />
       <ActionStatus error={action.error} done={action.done} />
 
+      {on.error && (
+        <Notice variant="danger" className="ss-status" title={t('settings.extensions.loadFailed')}>
+          {on.error}{' '}
+          <Button size="sm" variant="secondary" onClick={on.reload}>
+            {t('settings.extensions.retry')}
+          </Button>
+        </Notice>
+      )}
       {manager && <LookCard guildId={guildId} themeName={themeOn?.name ?? null} />}
       {imported && <ImportReport name={imported.name} result={imported.result} />}
 

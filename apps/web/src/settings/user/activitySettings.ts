@@ -4,7 +4,7 @@
  * Friends and "People you know" trending and rating scopes and the profile all read the same keys. Absent
  * keys mean the defaults below (D-120: sharing on, adult titles hidden, history not paused).
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { rest, useStore } from '../../store';
 
 export const ACTIVITY_KEY = 'activity';
@@ -58,17 +58,49 @@ export async function saveShareReading(level: ShareReading): Promise<void> {
   useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved);
 }
 
+let blobLoad: Promise<boolean> | null = null;
+/** Reads the settings blob once (shared by every caller); resolves false when the read failed. */
+function ensureSettingsBlob(): Promise<boolean> {
+  if (useStore.getState().userSettings) return Promise.resolve(true);
+  blobLoad ??= rest
+    .fetchUserSettings()
+    .then((b) => {
+      useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', b);
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      blobLoad = null;
+    });
+  return blobLoad;
+}
+
 /** The current settings (defaults until the blob loads). */
 export function useActivitySettings(): ActivitySettings {
   const blob = useStore((s) => s.userSettings?.settings[ACTIVITY_KEY]);
   useEffect(() => {
-    if (useStore.getState().userSettings) return;
-    rest
-      .fetchUserSettings()
-      .then((b) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', b))
-      .catch(() => undefined);
+    void ensureSettingsBlob();
   }, []);
   return readActivity(blob);
+}
+
+/**
+ * Whether the switches show the account's real choices (SEC-AUD-037): until the blob has loaded they show the
+ * defaults, so the screen keeps them off; a failed read says so and offers Try again.
+ */
+export function useActivityLoad(): { loaded: boolean; failed: boolean; retry: () => void } {
+  const loaded = useStore((s) => !!s.userSettings);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let live = true;
+    setFailed(false);
+    void ensureSettingsBlob().then((ok) => live && setFailed(!ok));
+    return () => {
+      live = false;
+    };
+  }, [attempt]);
+  return { loaded, failed: failed && !loaded, retry: () => setAttempt((n) => n + 1) };
 }
 
 /** Saves some of the keys (a merge patch) and records the new blob version. Rejects when the save fails. */

@@ -1365,3 +1365,30 @@ async fn the_database_refuses_a_malformed_token_scope_and_a_mount_job_without_a_
     .await;
     assert!(bad.is_err(), "a mount job names its mount");
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn parallel_download_starts_cannot_pass_the_daily_allowance() {
+    // SEC-AUD-035: the count and the insert are one step, so a burst of starts records at most `per_day`.
+    let (d, patron, _) = downloads(2).await;
+    let a = d.asset.id;
+    d.w.svc.set_original_downloads(a, true).await.unwrap();
+    let s = || d.dl.start(patron, 1, None, a, ORIGINAL);
+    let (r1, r2, r3, r4, r5, r6) = tokio::join!(s(), s(), s(), s(), s(), s());
+    let results = [r1, r2, r3, r4, r5, r6];
+    let ok = results.iter().filter(|r| r.is_ok()).count();
+    assert_eq!(ok, 2, "{results:?}");
+    assert!(
+        results
+            .iter()
+            .filter_map(|r| r.as_ref().err())
+            .all(|e| matches!(e, MediaError::RateLimited(_))),
+        "{results:?}"
+    );
+    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM cinema_downloads WHERE user_id = $1")
+        .bind(patron)
+        .fetch_one(&d.w.pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 2);
+}

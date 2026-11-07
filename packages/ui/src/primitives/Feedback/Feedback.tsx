@@ -18,7 +18,7 @@ import styles from "./Feedback.module.css";
 export type NoticeVariant = "info" | "success" | "warning" | "danger";
 
 const ICONS: Record<NoticeVariant, string> = { info: "i", success: "✓", warning: "!", danger: "!" };
-const VARIANT_LABEL: Record<NoticeVariant, keyof UiStrings> = {
+const VARIANT_LABEL: Record<NoticeVariant, Extract<keyof UiStrings, `notice${string}`>> = {
   info: "noticeInfo",
   success: "noticeSuccess",
   warning: "noticeWarning",

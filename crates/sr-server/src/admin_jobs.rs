@@ -627,10 +627,58 @@ pub async fn run_health(pool: &PgPool, admin: &AdminService, bus: &Arc<dyn Event
     }
     record_gauges(pool, &settings).await;
     failed_transcodes(pool, bus).await;
+    match sr_db::jobs::failing_singletons(pool, 10).await {
+        Ok(rows) => {
+            if let Some(detail) = failing_jobs_detail(&rows) {
+                alert_once(pool, bus, StaffAlertKind::JobFailing, detail).await;
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "health check: failing jobs unreadable"),
+    }
+}
+
+/// The alert text for recurring jobs that keep failing (SEC-AUD-029): they retry with backoff instead of stopping,
+/// so this is how staff learn about them. `None` when nothing is failing.
+pub fn failing_jobs_detail(rows: &[(String, i32, String)]) -> Option<String> {
+    if rows.is_empty() {
+        return None;
+    }
+    let list = rows
+        .iter()
+        .map(|(kind, attempts, error)| {
+            if error.is_empty() {
+                format!("{kind} ({attempts} failed runs)")
+            } else {
+                format!("{kind} ({attempts} failed runs: {error})")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ");
+    Some(format!(
+        "Background jobs keep failing and are retrying with backoff: {list}. See the server log."
+    ))
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn failing_jobs_are_named_in_the_alert() {
+        assert_eq!(super::failing_jobs_detail(&[]), None);
+        let d = super::failing_jobs_detail(&[
+            ("retention.purge".into(), 6, "pool timed out".into()),
+            ("moderation.takedown_restore".into(), 5, String::new()),
+        ])
+        .unwrap();
+        assert!(
+            d.contains("retention.purge (6 failed runs: pool timed out)"),
+            "{d}"
+        );
+        assert!(
+            d.contains("moderation.takedown_restore (5 failed runs)"),
+            "{d}"
+        );
+    }
+
     use super::*;
 
     /// RDY-OBS-002: the new job id and kind are not used by any other job, and its setting key is not used by any other

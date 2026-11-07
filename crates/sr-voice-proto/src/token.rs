@@ -32,7 +32,7 @@ pub struct JoinClaims {
     pub exp: u64,
     /// May send audio (SPEAK permission and not server muted).
     pub speak: bool,
-    /// Server deafened: receives nothing.
+    /// Server deafened: receives no audio; camera, screen video and data frames still arrive (D-565).
     #[serde(default)]
     pub deaf: bool,
     /// Voice activity is denied (no USE_VAD): audio is forwarded only while the client reports push-to-talk.

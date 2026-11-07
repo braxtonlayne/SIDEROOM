@@ -82,7 +82,7 @@
 }
 .vc-sb-play:hover:not(:disabled),
 .vc-sb-play:focus-visible {
-  background: var(--surface-hover, rgb(127 127 127 / 18%));
+  background: var(--ui-bg-hover);
 }
 .vc-sb-play:disabled {
   opacity: 0.5;
@@ -94,7 +94,7 @@
   white-space: nowrap;
 }
 .vc-sb-row [data-active] {
-  color: var(--warning, #f0b232);
+  color: var(--ui-warning);
 }
 
 /* stage view */
@@ -167,7 +167,7 @@
   display: flex;
   flex-direction: column;
   flex: none;
-  border-block-end: 1px solid var(--border, rgb(127 127 127 / 25%));
+  border-block-end: 1px solid var(--ui-border);
 }
 .vc-dmcall-stage {
   display: flex;
@@ -175,7 +175,7 @@
   min-block-size: 0;
   overflow: auto;
   padding: 8px 12px;
-  background: var(--surface-sunken, rgb(0 0 0 / 12%));
+  background: var(--ui-bg);
 }
 .vc-dmcall-grid {
   flex: 1;
@@ -192,7 +192,7 @@
 }
 .vc-dmcall-resize:hover,
 .vc-dmcall-resize:focus-visible {
-  background: var(--accent, #5865f2);
+  background: var(--ui-accent);
 }
 .vc-tile-ringing .vc-ringing-label {
   position: absolute;
@@ -220,7 +220,7 @@
   align-items: center;
   gap: 8px;
   padding: 4px 16px;
-  border-block-end: 1px solid var(--border, rgb(127 127 127 / 20%));
+  border-block-end: 1px solid var(--ui-border);
 }
 .vc-status-text {
   flex: 1;

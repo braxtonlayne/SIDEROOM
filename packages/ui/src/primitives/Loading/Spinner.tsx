@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import styles from "./Loading.module.css";
 
 export interface SpinnerProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
@@ -8,9 +9,10 @@ export interface SpinnerProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chi
   label?: string;
 }
 
-export function Spinner({ size = "md", label = "Loading", className, ...rest }: SpinnerProps) {
+export function Spinner({ size = "md", label, className, ...rest }: SpinnerProps) {
+  const ui = useUiStrings();
   return (
-    <span role="status" aria-label={label} {...rest} className={cx(styles.spinner, styles[`spin-${size}`], className)}>
+    <span role="status" aria-label={label ?? ui.loading} {...rest} className={cx(styles.spinner, styles[`spin-${size}`], className)}>
       <span className={styles.ring} aria-hidden="true" />
     </span>
   );

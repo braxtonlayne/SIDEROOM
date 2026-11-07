@@ -169,7 +169,8 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 10px 10px 10px 28px;
+  padding-block: 10px;
+  padding-inline: 28px 10px;
   border: 1px solid var(--sr-line);
   background: var(--sr-bg-1);
   color: var(--sr-text-2);
@@ -227,7 +228,8 @@
   color: var(--sr-gold);
 }
 .ent-invite-msg[data-tone='bad'] {
-  color: #d98c7c;
+  /* The theme's danger, lifted toward the text colour so small text keeps AA contrast on the dark entrance. */
+  color: color-mix(in srgb, var(--ui-danger) 60%, var(--sr-text));
 }
 .ent-helper {
   display: flex;
@@ -251,7 +253,8 @@
 }
 .ent-hero-right .ent-door-bg {
   position: absolute;
-  inset: 0 calc(var(--ent-pad) * -1) 0 -8%;
+  inset-block: 0;
+  inset-inline: -8% calc(var(--ent-pad) * -1);
 }
 .ent-corner {
   position: absolute;
@@ -268,8 +271,8 @@
 }
 .ent-vertical {
   position: absolute;
-  right: 24px;
-  bottom: 40px;
+  inset-inline-end: 24px;
+  inset-block-end: 40px;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-size: 14px;
@@ -350,7 +353,8 @@
 }
 .ent-split-right {
   background: var(--sr-bg-1);
-  padding: 92px var(--ent-pad) 60px 132px;
+  padding-block: 92px 60px;
+  padding-inline: 132px var(--ent-pad);
 }
 .ent-formwrap {
   max-width: 600px;

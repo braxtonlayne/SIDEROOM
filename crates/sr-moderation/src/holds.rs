@@ -396,6 +396,18 @@ pub async fn release_hold_in(
     }
     let case_id: Option<i64> = row.try_get("case_id")?;
 
+    // Group DMs this hold may be keeping alive: their last member can have left while it held rows (wave 53,
+    // SEC-AUD-006). Looked up before the rows are cleared; whether they go is decided after (D-559).
+    let groups: Vec<i64> = sqlx::query_scalar(
+        "SELECT c.id FROM channels c WHERE c.type = 3 AND c.id IN ( \
+             SELECT channel_id FROM messages WHERE hold_id = $1 \
+             UNION SELECT m.channel_id FROM attachments a JOIN messages m ON m.id = a.message_id \
+                   WHERE a.hold_id = $1)",
+    )
+    .bind(hold_id)
+    .fetch_all(&mut *conn)
+    .await?;
+
     let purgeable = sqlx::query(
         "UPDATE messages SET hold_id = NULL, \
          purge_after = CASE WHEN visibility <> 'visible' AND purge_after IS NULL \
@@ -442,6 +454,23 @@ pub async fn release_hold_in(
     .bind(&reason)
     .execute(&mut *conn)
     .await?;
+    // D-559: a group DM left with no recipients and nothing else held goes now, in this transaction. The release is
+    // the one moment that knows; nobody can see such a group, so no gateway event is owed.
+    let empty_groups_deleted = if groups.is_empty() {
+        0
+    } else {
+        sqlx::query(
+            "DELETE FROM channels c WHERE c.id = ANY($1) AND c.type = 3 \
+               AND NOT EXISTS (SELECT 1 FROM channel_recipients r WHERE r.channel_id = c.id) \
+               AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.channel_id = c.id AND m.hold_id IS NOT NULL) \
+               AND NOT EXISTS (SELECT 1 FROM attachments a JOIN messages m ON m.id = a.message_id \
+                               WHERE m.channel_id = c.id AND a.hold_id IS NOT NULL)",
+        )
+        .bind(&groups)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected()
+    };
     let out = ReleaseOutcome {
         messages,
         attachments: i64::try_from(attachments).unwrap_or(0),
@@ -464,6 +493,7 @@ pub async fn release_hold_in(
                 "submissions": out.submissions,
                 "catalog_rows": out.catalog_rows,
                 "purgeable_messages": out.purgeable_messages,
+                "empty_groups_deleted": empty_groups_deleted,
             }),
         )
         .await?;

@@ -394,6 +394,7 @@ function StickerTab({
       />
       <p className="ss-sub">{t('settings.expressions.hideDefaultStickersHint')}</p>
       <ActionStatus error={hide.error} done={null} />
+      {hideRes.error && <ActionStatus error={hideRes.error} />}
       <p className="ss-sub">
         {t('settings.expressions.stickerRules', { kb: String(LIMITS.maxStickerBytes / 1024) })}
       </p>

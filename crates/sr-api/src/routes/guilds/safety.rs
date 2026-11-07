@@ -406,7 +406,13 @@ pub async fn set_mfa_level(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     // Only the owner may change it; the enrolment check is theirs alone (others get the 403 below).
-    let is_owner = api.get_guild(user, gid).await.map_err(ce)?.0.owner_id == user;
+    let (current, _) = api.get_guild(user, gid).await.map_err(ce)?;
+    let is_owner = current.owner_id == user;
+    // SEC-AUD-022: switching the requirement off is itself a moderator-grade change of a server that demands
+    // 2FA, so it needs the same fresh second factor (`900004`) a moderator action there needs.
+    if is_owner && body.level == 0 && current.mfa_level != 0 {
+        gate.check_level(user, current.mfa_level).await?;
+    }
     if body.level == 1
         && is_owner
         && let (Some(auth), Some(session)) = (&gate.auth, gate.session)

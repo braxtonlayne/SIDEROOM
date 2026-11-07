@@ -15,12 +15,7 @@ import { useT } from '../../i18n/react';
 import { enterApp, nav } from '../../lib/enterApp';
 import { useCompliancePublic } from '../../lib/compliancePublic';
 import { clearInviteCode, heldInviteCode } from '../../lib/inviteCode';
-import {
-  USERNAME_HINT,
-  validateEmail,
-  validatePassword,
-  validateUsername,
-} from '../../lib/validation';
+import { validateEmail, validatePassword, validateUsername } from '../../lib/validation';
 
 type Field = 'email' | 'username' | 'display_name' | 'password' | 'confirm' | 'rules' | 'age';
 type UsernameState = 'idle' | 'checking' | 'free' | 'taken';
@@ -168,7 +163,7 @@ export function Register() {
       ? t('entrance.register.checkingName')
       : unameState === 'free'
         ? t('entrance.register.nameFree')
-        : USERNAME_HINT;
+        : t('entrance.validation.username');
 
   return (
     <AuthSplit

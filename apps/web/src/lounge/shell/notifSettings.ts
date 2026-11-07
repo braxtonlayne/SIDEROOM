@@ -10,6 +10,7 @@
  * has not already answered for it.
  */
 import { create } from 'zustand';
+import { t } from '../../i18n';
 import { apiFetch } from '../../api/client';
 
 export interface MuteInfo {
@@ -80,13 +81,19 @@ export function isMuted(m: MuteInfo | undefined, now = Date.now()): boolean {
 }
 
 /** Seconds offered by "Mute Server" / "Mute Channel"; -1 = until I turn it back on. */
+const duration = (key: string, seconds: number) => ({
+  get label() {
+    return t(key);
+  },
+  seconds,
+});
 export const MUTE_DURATIONS: { label: string; seconds: number }[] = [
-  { label: 'For 15 Minutes', seconds: 900 },
-  { label: 'For 1 Hour', seconds: 3600 },
-  { label: 'For 3 Hours', seconds: 10800 },
-  { label: 'For 8 Hours', seconds: 28800 },
-  { label: 'For 24 Hours', seconds: 86400 },
-  { label: 'Until I turn it back on', seconds: -1 },
+  duration('lounge.menus.mute15m', 900),
+  duration('lounge.menus.mute1h', 3600),
+  duration('lounge.menus.mute3h', 10800),
+  duration('lounge.menus.mute8h', 28800),
+  duration('lounge.menus.mute24h', 86400),
+  duration('lounge.menus.muteUntil', -1),
 ];
 
 export type MutePatch = { muted: false } | { muted: true; seconds: number };
@@ -102,7 +109,8 @@ export interface NotifState {
    * false when it failed, so the caller does not fall back to a request per server.
    */
   loadAll(guildIds: string[]): Promise<boolean>;
-  load(guildId: string, force?: boolean): Promise<void>;
+  /** Resolves false when the request failed (the dialog then says so instead of spinning). */
+  load(guildId: string, force?: boolean): Promise<boolean>;
   patchGuild(
     guildId: string,
     patch: {
@@ -126,7 +134,9 @@ export interface NotifState {
 const settingsPath = (guildId: string) =>
   `/users/@me/guilds/${guildId === '@me' ? guildId : encodeURIComponent(guildId)}/settings`;
 
-const inflight = new Set<string>();
+const inflight = new Map<string, Promise<boolean>>();
+/** Bumped by every patch, so a read that left before it cannot put the older settings back. */
+const writes = new Map<string, number>();
 let batch: Promise<boolean> | null = null;
 let batchDone = false;
 
@@ -165,16 +175,26 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
   },
   async load(guildId, force) {
     if (!force && !get().byGuild[guildId] && batch) await batch;
-    if ((!force && get().byGuild[guildId]) || inflight.has(guildId)) return;
-    inflight.add(guildId);
-    try {
-      const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), { retries: 0 });
-      set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
-    } catch {
-      /* stays un-muted; the dialog reloads on open */
-    } finally {
-      inflight.delete(guildId);
-    }
+    if (!force && get().byGuild[guildId]) return true;
+    const pending = inflight.get(guildId);
+    if (pending) return pending;
+    const gen = writes.get(guildId) ?? 0;
+    const run = (async () => {
+      try {
+        const w = await apiFetch<WireGuildSettings>(settingsPath(guildId), { retries: 0 });
+        // A mute or level change made while this read was out is newer than its answer.
+        if ((writes.get(guildId) ?? 0) === gen)
+          set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
+        return true;
+      } catch {
+        // Stays un-muted; the notification dialog shows the failure with Try again (SEC-AUD-036).
+        return false;
+      } finally {
+        inflight.delete(guildId);
+      }
+    })();
+    inflight.set(guildId, run);
+    return run;
   },
   async patchGuild(guildId, patch) {
     const body: Record<string, unknown> = {
@@ -194,6 +214,7 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
       json: body,
       retries: 0,
     });
+    writes.set(guildId, (writes.get(guildId) ?? 0) + 1);
     set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
   },
   async patchChannel(guildId, channelId, patch) {
@@ -206,6 +227,7 @@ export const useNotifSettings = create<NotifState>()((set, get) => ({
       json: { channel_overrides: { [channelId]: override } },
       retries: 0,
     });
+    writes.set(guildId, (writes.get(guildId) ?? 0) + 1);
     set((s) => ({ byGuild: { ...s.byGuild, [guildId]: fromWire(w) } }));
   },
   reset: () => {

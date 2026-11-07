@@ -297,11 +297,14 @@
 }
 .lng-pill {
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   top: 50%;
   width: 4px;
   height: 0;
-  border-radius: 0 4px 4px 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 4px;
+  border-end-end-radius: 4px;
   background: var(--interactive-active);
   transform: translateY(-50%);
   transition: height 0.15s;
@@ -1005,6 +1008,10 @@
   margin: 0;
   color: var(--danger);
   font-size: 13px;
+}
+.lng-history-failed {
+  padding-block: 16px;
+  padding-inline: 16px;
 }
 .lng-reply {
   display: flex;
@@ -1866,7 +1873,7 @@
   margin-top: 8px;
 }
 .vc-view {
-  background: var(--bg-base);
+  background: var(--bg-base-low);
 }
 .vc-stage {
   display: flex;

@@ -850,6 +850,20 @@ async function stageDownload() {
   check('download: refused (403) before the member is a Patron', nope.status === 403, nope);
   const how = await grantPatron();
   log(`Patron granted by ${how}`);
+  if (how === 'sql') {
+    // A grant written by SQL does not invalidate the server's entitlement cache (60 s TTL), which holds the
+    // "not a Patron" read from the refusal above. The API path is closed here since wave 54/55: a perk grant
+    // needs a fresh second factor and nobody may grant one to their own account.
+    const until = Date.now() + 75_000;
+    for (;;) {
+      const t = await owner.call(
+        'GET',
+        `/cinema/titles/${S.titleId}/downloads?episode=${S.episodeId}`,
+      );
+      if (t.status === 200 || Date.now() > until) break;
+      await new Promise((r) => setTimeout(r, 5_000));
+    }
+  }
   const opts = await owner.must(
     'GET',
     `/cinema/titles/${S.titleId}/downloads?episode=${S.episodeId}`,

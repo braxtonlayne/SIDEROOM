@@ -45,6 +45,7 @@ function ReportFormInner({ target }: { target: ReportTarget }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [blockFailed, setBlockFailed] = useState(false);
   const blockId = target.kind === 'user' ? target.id : target.authorId;
 
   const submit = async (e?: FormEvent) => {
@@ -62,7 +63,8 @@ function ReportFormInner({ target }: { target: ReportTarget }) {
         note: note.trim(),
         moderators_may_see_name: mayReachModerators(target.kind) && showName,
       });
-      if (block && blockId) await blockUser(blockId).catch(() => undefined);
+      // The report is filed either way; a failed block is said on the sent screen (SEC-AUD-036).
+      if (block && blockId) await blockUser(blockId).catch(() => setBlockFailed(true));
       setSent(true);
     } catch (err) {
       setError(failure(err, t));
@@ -81,6 +83,9 @@ function ReportFormInner({ target }: { target: ReportTarget }) {
         footer={<Button onClick={closeReport}>{t('moderation.report.close')}</Button>}
       >
         <p>{t('moderation.reportDialog.sentBody')}</p>
+        {blockFailed && (
+          <Notice variant="danger">{t('moderation.reportDialog.blockFailed')}</Notice>
+        )}
       </Modal>
     );
   }

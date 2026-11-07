@@ -15,7 +15,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use sr_api::{
-    ApiSettings, AppState, build_router, internal_router,
+    ApiSettings, AppState, build_router, internal_router_with_token,
     router::with_request_id,
     routes::{
         self,
@@ -1125,6 +1125,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             // READY always names a resume URL, as Discord's does: typed libraries (serenity's `Ready`) refuse a
             // READY whose `resume_gateway_url` is null, and never get past it.
             resume_gateway_url: Some(gateway_ws_url(&cfg.server.public_url)),
+            // D-556: the one gateway figure an operator's network shape changes (a NAT puts everyone on one address).
+            max_unidentified_per_ip: cfg.gateway.max_unidentified_per_ip,
             voice: voice_setup.as_ref().map(|v| {
                 let mut g = v.gateway.clone();
                 g.calls = Some(call_recorder.clone());
@@ -1561,7 +1563,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         let mut tick = tokio::time::interval(Duration::from_secs(60));
         loop {
             tick.tick().await;
-            resume_voice.close_stale_resume_cards().await;
+            // SEC-AUD-029: a panic in one pass must not end the loop.
+            crate::catch_panic::step("resume cards", async {
+                resume_voice.close_stale_resume_cards().await;
+            })
+            .await;
         }
     });
     crate::staff_feed::spawn(Arc::new(crate::staff_feed::StaffFeed {
@@ -1811,15 +1817,16 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let internal = TcpListener::bind(&cfg.server.metrics_bind)
         .await
         .with_context(|| format!("binding {}", cfg.server.metrics_bind))?;
-    if !internal.local_addr()?.ip().is_loopback() {
+    if !internal.local_addr()?.ip().is_loopback() && cfg.server.metrics_token.expose().is_empty() {
+        // A release build refuses this before it gets here (SEC-AUD-028, release_guard.rs).
         tracing::warn!(
             bind = %cfg.server.metrics_bind,
-            "metrics listener is not loopback-only; firewall it"
+            "metrics listener is not loopback-only and has no server.metrics_token; firewall it"
         );
     }
     tracing::info!(bind = %cfg.server.bind, metrics = %cfg.server.metrics_bind, "listening");
 
-    let internal_app = internal_router(state.clone());
+    let internal_app = internal_router_with_token(state.clone(), cfg.server.metrics_token.expose());
     let metrics_task = tokio::spawn(async move {
         if let Err(e) = axum::serve(internal, internal_app).await {
             tracing::error!(error = %e, "internal listener failed");
@@ -1845,14 +1852,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         let mut tick = tokio::time::interval(Duration::from_secs(30));
         loop {
             tick.tick().await;
-            let ids: Vec<i64> = gw_for_seen
-                .drain_seen()
-                .into_iter()
-                .filter_map(|u| i64::try_from(u.get()).ok())
-                .collect();
-            if let Err(e) = sr_db::accounts::touch_last_seen(&seen_pool, &ids).await {
-                tracing::warn!(error = %e, "could not record last-seen times");
-            }
+            crate::catch_panic::step("last seen", async {
+                let ids: Vec<i64> = gw_for_seen
+                    .drain_seen()
+                    .into_iter()
+                    .filter_map(|u| i64::try_from(u.get()).ok())
+                    .collect();
+                if let Err(e) = sr_db::accounts::touch_last_seen(&seen_pool, &ids).await {
+                    tracing::warn!(error = %e, "could not record last-seen times");
+                }
+            })
+            .await;
         }
     });
 
@@ -1862,9 +1872,12 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         let mut tick = tokio::time::interval(Duration::from_secs(3600));
         loop {
             tick.tick().await;
-            if let Err(e) = gc_apps.purge_interactions().await {
-                tracing::warn!(error = %e, "could not purge expired interactions");
-            }
+            crate::catch_panic::step("interaction purge", async {
+                if let Err(e) = gc_apps.purge_interactions().await {
+                    tracing::warn!(error = %e, "could not purge expired interactions");
+                }
+            })
+            .await;
         }
     });
 
@@ -2040,12 +2053,19 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         tokio::spawn(async move {
             loop {
                 match rx.recv().await {
-                    Ok(e) => match e.kind {
-                        sr_voice::SfuEventKind::Lost => {
-                            gw.voice_media_lost(e.user, e.channel).await
-                        }
-                        sr_voice::SfuEventKind::Active => gw.voice_activity(e.user, e.channel),
-                    },
+                    Ok(e) => {
+                        crate::catch_panic::step("voice events", async {
+                            match e.kind {
+                                sr_voice::SfuEventKind::Lost => {
+                                    gw.voice_media_lost(e.user, e.channel).await
+                                }
+                                sr_voice::SfuEventKind::Active => {
+                                    gw.voice_activity(e.user, e.channel)
+                                }
+                            }
+                        })
+                        .await;
+                    }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }

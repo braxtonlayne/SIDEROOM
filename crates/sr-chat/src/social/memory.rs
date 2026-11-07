@@ -269,6 +269,20 @@ impl RelationshipRepository for MemoryRepo {
         Ok(())
     }
 
+    async fn replace_privacy(
+        &self,
+        user: UserId,
+        expected: &Privacy,
+        privacy: &Privacy,
+    ) -> RepoResult<bool> {
+        let mut g = self.lock()?;
+        if g.privacy.get(&user).cloned().unwrap_or_default() != *expected {
+            return Ok(false);
+        }
+        g.privacy.insert(user, privacy.clone());
+        Ok(true)
+    }
+
     async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool> {
         Ok(self.lock()?.ignores.contains(&(user, target)))
     }
@@ -559,6 +573,19 @@ impl ReadStateRepository for MemoryRepo {
             .read_states
             .insert((state.user, state.channel), state.clone());
         Ok(())
+    }
+
+    async fn apply_read_state(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+        op: crate::social::read_state::ReadStateOp,
+    ) -> RepoResult<ReadState> {
+        let mut g = self.lock()?;
+        let prev = g.read_states.get(&(user, channel)).cloned();
+        let s = op.apply(prev, user, channel);
+        g.read_states.insert((user, channel), s.clone());
+        Ok(s)
     }
 
     async fn list_read_states(&self, user: UserId) -> RepoResult<Vec<ReadState>> {

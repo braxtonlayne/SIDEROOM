@@ -316,12 +316,16 @@ pub fn spawn_sync_worker(engine: SyncEngine, admin: sr_admin::AdminService) -> J
             }
             n += 1;
             let live = engine.clone().with_hold_hours(hold_hours);
-            if let Err(e) = live.run_ops_pass(20).await {
-                tracing::warn!(error = %e, "bridge sync: ops pass failed");
-            }
-            if n.is_multiple_of(30) {
-                minute(&live, reconcile_minutes).await;
-            }
+            // SEC-AUD-029: a panic in one pass (an index slip in the reconcile) must not end every bridge's sync.
+            crate::catch_panic::step("bridge sync", async {
+                if let Err(e) = live.run_ops_pass(20).await {
+                    tracing::warn!(error = %e, "bridge sync: ops pass failed");
+                }
+                if n.is_multiple_of(30) {
+                    minute(&live, reconcile_minutes).await;
+                }
+            })
+            .await;
         }
     })
 }
@@ -336,7 +340,7 @@ pub fn spawn_sync_listener(
     tokio::spawn(async move {
         while let Some(item) = events.next().await {
             if let Ok(ev) = item {
-                engine.handle_sr_event(&ev).await;
+                crate::catch_panic::step("bridge sync events", engine.handle_sr_event(&ev)).await;
             }
         }
     })

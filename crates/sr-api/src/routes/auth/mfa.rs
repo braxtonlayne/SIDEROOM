@@ -41,11 +41,19 @@ pub(super) async fn reauthenticate(
     Err(ApiError::with_message(ErrorCode::SrReauthRequired, "That password doesn't match.").into())
 }
 
-/// `POST /sr/auth/totp/enroll`: create a pending secret and return the
-/// provisioning URI (render as a QR code) and the manual-entry key.
-pub async fn enroll(UserOnly(p): UserOnly, Svc { svc, .. }: Svc) -> R<Json<Value>> {
+/// `POST /sr/auth/totp/enroll {password}`: create a pending secret and return the
+/// provisioning URI (render as a QR code) and the manual-entry key. The password is
+/// re-checked first (SEC-AUD-022): a session alone must not be able to put its own
+/// authenticator on the account and lock the owner out.
+pub async fn enroll(
+    State(state): State<AppState>,
+    UserOnly(p): UserOnly,
+    Svc { svc, .. }: Svc,
+    Json(body): Json<PasswordBody>,
+) -> R<Json<Value>> {
     session_id(&p)?;
     let account = current_account(&svc, p.user_id).await?;
+    reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
     if svc
         .store
         .totp_get(account.id)

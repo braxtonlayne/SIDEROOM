@@ -56,6 +56,9 @@ pub struct ServerConfig {
     pub process_id: u8,
     /// Loopback listener for `/internal/metrics`.
     pub metrics_bind: String,
+    /// When set, `/internal/metrics` answers only `Authorization: Bearer <token>` (SEC-AUD-028). A release build
+    /// refuses to start with a non-loopback `metrics_bind` while this is empty.
+    pub metrics_token: Secret,
     /// 64 hex chars (32 bytes): encrypts TOTP secrets at rest. Empty means an
     /// ephemeral random key is used (development only).
     pub secret_key: Secret,
@@ -77,6 +80,7 @@ impl Default for ServerConfig {
             worker_id: 0,
             process_id: 0,
             metrics_bind: "127.0.0.1:9100".into(),
+            metrics_token: Secret::default(),
             secret_key: Secret::default(),
             shutdown_grace_secs: 25,
             secret_key_previous: Vec::new(),
@@ -149,12 +153,16 @@ impl Default for SmtpConfig {
 pub struct GatewayLimits {
     /// Connections accepted at once; further upgrades get 503.
     pub max_connections: usize,
+    /// Sockets one client address may hold before they IDENTIFY; further upgrades get 429 (D-556). Raise it when
+    /// many members share one address (a NAT, or a proxy whose forwarded address is not trusted).
+    pub max_unidentified_per_ip: usize,
 }
 
 impl Default for GatewayLimits {
     fn default() -> Self {
         Self {
             max_connections: 10_000,
+            max_unidentified_per_ip: 32,
         }
     }
 }
@@ -618,6 +626,7 @@ fn is_hex_key(key: &str) -> bool {
 /// Kubernetes secrets, systemd credentials). `server.secret_key_previous` is a list.
 pub const SECRET_FILE_KEYS: &[&str] = &[
     "server.secret_key",
+    "server.metrics_token",
     "database.url",
     "smtp.password",
     "voice.token_secret",
@@ -755,6 +764,9 @@ impl Config {
         }
         if self.gateway.max_connections == 0 {
             return Err(bad("gateway.max_connections must be > 0"));
+        }
+        if self.gateway.max_unidentified_per_ip == 0 {
+            return Err(bad("gateway.max_unidentified_per_ip must be > 0"));
         }
         if self.voice.removed_e2ee == Some(false) {
             return Err(bad(
@@ -1009,9 +1021,11 @@ secret_key = \"abc\"
         assert!(Config::from_figment(&f).is_err());
 
         let f = Figment::from(Serialized::defaults(Config::default())).merge(Toml::string(
-            "[smtp]\nhost = \"mail.example.org\"\ntls = \"tls\"\nfrom = \"SIDE ROOM <no-reply@example.org>\"\n[database]\nauto_migrate = true\n[gateway]\nmax_connections = 5\n",
+            "[smtp]\nhost = \"mail.example.org\"\ntls = \"tls\"\nfrom = \"SIDE ROOM <no-reply@example.org>\"\n[database]\nauto_migrate = true\n[gateway]\nmax_connections = 5\nmax_unidentified_per_ip = 7\n",
         ));
         let c = Config::from_figment(&f).unwrap();
+        assert_eq!(c.gateway.max_unidentified_per_ip, 7);
+        assert_eq!(Config::default().gateway.max_unidentified_per_ip, 32);
         assert_eq!(c.smtp.tls, SmtpTls::Tls);
         assert_eq!(c.smtp.port, 587);
         assert!(c.database.auto_migrate);

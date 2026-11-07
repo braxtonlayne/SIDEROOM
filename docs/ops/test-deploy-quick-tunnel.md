@@ -35,8 +35,9 @@ npm_config_manage_package_manager_versions=false npx pnpm@10.12.1 install --offl
 npm_config_manage_package_manager_versions=false npx pnpm@10.12.1 --filter @sideroom/wasm build
 npm_config_manage_package_manager_versions=false npx pnpm@10.12.1 --filter @sideroom/web build
 
-# 2. Release binaries (sr-server and sr-cli). Takes a while; -j 2 keeps the machine usable.
-cargo build --release -j 2 -p sr-server -p sr-cli
+# 2. Debug binaries (sr-server and sr-cli): a release build refuses the test-only settings below (memory:
+#    storage, same_host_sandboxed; SEC-AUD-028). Takes a while; -j 2 keeps the machine usable.
+cargo build -j 2 -p sr-server -p sr-cli
 
 # 3. A fresh database for the test (any name; keep it apart from sr_test and the dev databases).
 "/c/Program Files/PostgreSQL/17/bin/psql.exe" -h 127.0.0.1 -U postgres -c "CREATE DATABASE sr_tunnel_test"
@@ -76,7 +77,7 @@ export SR_ACTIVITIES__ENABLED=true
 export SR_ACTIVITIES__ORIGIN_MODE=same_host_sandboxed   # TEST ONLY
 # Voice stays off: do not set SR_VOICE__ENABLED.
 
-./target/release/sr-server
+./target/debug/sr-server
 ```
 
 Check the log for `TEST DEPLOYMENT: activities.origin_mode = same_host_sandboxed`. A second warning naming
@@ -85,13 +86,13 @@ Check the log for `TEST DEPLOYMENT: activities.origin_mode = same_host_sandboxed
 ### 3. The Owner, the Showroom switch and invites (third terminal, same `SR_DATABASE__URL` and `SR_SERVER__PUBLIC_URL`)
 
 ```bash
-SR_OWNER_PASSWORD='<owner password>' ./target/release/sr-cli bootstrap --owner-username owner --owner-email you@example.org
+SR_OWNER_PASSWORD='<owner password>' ./target/debug/sr-cli bootstrap --owner-username owner --owner-email you@example.org
 ```
 
 - Sign in at the tunnel address as the Owner, open **Admin > Features**, switch **`platform.showroom`** on (the
   populated preview) and give a reason.
 - **Invite-only:** registration always needs an invite code. Make one per tester with
-  `./target/release/sr-cli invite create --note "tester: Sam"` and send each person the tunnel address and their code.
+  `./target/debug/sr-cli invite create --note "tester: Sam"` and send each person the tunnel address and their code.
   So testers cannot invite more people, set the invite setting `invites.default_credits` to `0` in **Admin** before
   they register.
 - **Activities:** a game has to be uploaded as an application's Activity bundle and approved, as on any server

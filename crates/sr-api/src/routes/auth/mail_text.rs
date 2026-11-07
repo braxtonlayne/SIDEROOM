@@ -23,6 +23,8 @@ pub enum MailKind {
     ChangeEmailNotice,
     /// Tell the old address the change went through.
     EmailChanged,
+    /// Tell the old address a staff member changed it (D-561).
+    EmailChangedByStaff,
     /// A signed-in password change happened.
     PasswordChanged,
     /// Reset-password link.
@@ -100,6 +102,16 @@ const EN: Catalog = Catalog {
                 body: "The email address on your SIDE ROOM account was just changed to a new one. If this was you, no action is needed.",
                 button: "This wasn't me",
                 outro: "If this was not you, use the button to sign out every device, then reset your password and contact the operator. The link works for 7 days.",
+            },
+        ),
+        (
+            MailKind::EmailChangedByStaff,
+            Template {
+                subject: "A staff member changed your SIDE ROOM email",
+                heading: "Your email was changed by staff",
+                body: "A member of the SIDE ROOM staff changed the email address on your account to a new one. This was a staff action, not a change made from your own settings. If you asked them to, no action is needed.",
+                button: "This wasn't me",
+                outro: "If you did not ask for this, use the button to sign out every device, then contact the operator. The link works for 7 days.",
             },
         ),
         (
@@ -193,11 +205,12 @@ pub fn fill(text: &str, vars: &[(&str, &str)]) -> String {
 mod tests {
     use super::*;
 
-    const ALL: [MailKind; 9] = [
+    const ALL: [MailKind; 10] = [
         MailKind::VerifyEmail,
         MailKind::ChangeEmail,
         MailKind::ChangeEmailNotice,
         MailKind::EmailChanged,
+        MailKind::EmailChangedByStaff,
         MailKind::PasswordChanged,
         MailKind::ResetPassword,
         MailKind::TwoFactorReset,

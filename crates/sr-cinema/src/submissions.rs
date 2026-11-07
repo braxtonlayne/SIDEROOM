@@ -540,14 +540,11 @@ impl SubmissionKind for CinemaKind {
         Ok(problems)
     }
 
-    async fn preview(&self, s: &Submission) -> ReviewResult<Value> {
+    async fn preview(&self, s: &Submission, items: &[SubmissionItem]) -> ReviewResult<Value> {
         let detail = self.detail(s).await?;
-        let episodes: Vec<&Episode> = if self.new_title {
-            detail.episodes.iter().collect()
-        } else {
-            // The episodes of this submission are the unpublished ones.
-            detail.episodes.iter().filter(|e| !e.published).collect()
-        };
+        // The episodes of this submission: the unpublished ones it created. Another member's pending episodes
+        // of the same series are theirs (SEC-AUD-034).
+        let episodes = crate::drafts::DraftOps::owned(s, items, &detail, self.new_title);
         Ok(json!({
             "title_id": detail.title.id.to_string(),
             "new_title": self.new_title,
@@ -638,13 +635,10 @@ impl SubmissionKind for CinemaKind {
     }
 
     /// The videos of the episodes (or the film) under review.
-    async fn media(&self, s: &Submission) -> ReviewResult<Vec<MediaRef>> {
+    async fn media(&self, s: &Submission, items: &[SubmissionItem]) -> ReviewResult<Vec<MediaRef>> {
         let detail = self.detail(s).await?;
-        let episodes: Vec<&Episode> = if self.new_title {
-            detail.episodes.iter().collect()
-        } else {
-            detail.episodes.iter().filter(|e| !e.published).collect()
-        };
+        // Only this submission's episodes, not another submission's drafts of the same series.
+        let episodes = crate::drafts::DraftOps::owned(s, items, &detail, self.new_title);
         let mut out = Vec::new();
         if self.new_title && (episodes.is_empty() || detail.title.asset_id.is_some()) {
             out.push(MediaRef {

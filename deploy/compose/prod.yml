@@ -77,8 +77,9 @@ services:
       SR_SERVER__PUBLIC_URL: https://${SR_DOMAIN:?set SR_DOMAIN in .env.prod}
       SR_SERVER__SECRET_KEY: ${SR_SECRET_KEY:?set SR_SECRET_KEY (64 hex chars)}
       SR_SERVER__TRUST_FORWARDED_FOR: "true" # Caddy is the only thing that can reach this port
-      # Reachable by Prometheus on the compose network only; it is not published and Caddy 404s /internal/*.
-      SR_SERVER__METRICS_BIND: 0.0.0.0:9100
+      # /internal/metrics stays on the default 127.0.0.1:9100 inside this container: the monitoring profile's
+      # Prometheus shares this container's network namespace and scrapes it there (SEC-AUD-028: a release build
+      # refuses a non-loopback metrics_bind without server.metrics_token). Caddy 404s /internal/*.
       SR_DATABASE__URL: postgres://sideroom:${POSTGRES_PASSWORD}@postgres:5432/sideroom?sslmode=disable
       SR_STORAGE__ENDPOINT: http://garage:3900
       SR_STORAGE__REGION: garage
@@ -104,6 +105,9 @@ services:
       # The built web app, mounted read-only below: sr-server serves /app and /app/* from it to a signed-in session only
       # (D-385). It refuses to start when this is set and app/csp.txt is missing. Caddy serves the public files only.
       SR_WEB__ROOT: /srv/web
+      # Gateway sockets one client address may hold before they IDENTIFY (D-556); raise it when many members share
+      # one address (a NAT).
+      SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP: ${SR_GATEWAY_MAX_UNIDENTIFIED_PER_IP:-32}
       # Voice (docs/12 section 1, docs/specs/lounge-voice-video.md section 4). The SFU runs inside sr-server; it is off
       # until SR_VOICE_ENABLED=true. Then SR_VOICE_ANNOUNCE_IPS must be this host's public IP (comma-separated for
       # more than one) and UDP 50000-50099 (published below) open on the firewall. Calls that cannot reach the host
@@ -216,6 +220,11 @@ services:
     <<: *restart
     profiles: [monitoring]
     image: prom/prometheus:v2.55.1
+    # Runs in sr-server's network namespace so it reaches the loopback-only metrics listener at 127.0.0.1:9100;
+    # Grafana reaches Prometheus as sr-server:9090. After `up -d sr-server` recreates the server, run
+    # `up -d prometheus` too (deploy/UPGRADE.md).
+    network_mode: service:sr-server
+    depends_on: [sr-server]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=30d

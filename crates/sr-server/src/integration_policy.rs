@@ -138,7 +138,8 @@ pub fn spawn_subscriber(
         while let Some(ev) = stream.next().await {
             if matches!(&ev, DomainEvent::FeatureSettingsChanged { feature_id, .. } if feature_id == INTEGRATIONS_ID)
             {
-                refresh(&live, &base, &features).await;
+                crate::catch_panic::step("integration policy", refresh(&live, &base, &features))
+                    .await;
             }
         }
     })

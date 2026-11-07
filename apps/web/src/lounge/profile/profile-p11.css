@@ -81,7 +81,7 @@
 }
 .prf-friend-mark {
   display: inline-flex;
-  color: var(--success, #3ba55d);
+  color: var(--ui-success);
 }
 .prf-full-cols {
   display: grid;

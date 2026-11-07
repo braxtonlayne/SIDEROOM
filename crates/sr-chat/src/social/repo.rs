@@ -5,7 +5,7 @@ use super::dm::{DmChannel, DmPrivacy, GroupInvite, RequestReason, RequestState, 
 use super::notifications::{ChannelOverride, NotificationLevel, ScopeSettings};
 use super::presence::PresencePrefs;
 use super::profile::{Connection, Profile};
-use super::read_state::ReadState;
+use super::read_state::{ReadState, ReadStateOp};
 use super::relationships::{
     FriendRequestSources, RelOp, Relationship, RelationshipCounts, RelationshipKind,
 };
@@ -65,6 +65,14 @@ pub trait RelationshipRepository: Send + Sync {
     async fn guild_peers(&self, user: UserId) -> RepoResult<Vec<UserId>>;
     async fn get_privacy(&self, user: UserId) -> RepoResult<Privacy>;
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()>;
+    /// Write `privacy` only when the stored value still equals `expected` (what the caller read): `false` when
+    /// another write came in between, so a partial update never reverts it (SEC-AUD-027).
+    async fn replace_privacy(
+        &self,
+        user: UserId,
+        expected: &Privacy,
+        privacy: &Privacy,
+    ) -> RepoResult<bool>;
     /// Whether `user` has ignored `target` (independent of friendship).
     async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool>;
     /// The users among `candidates` who must not be notified of `author`'s messages (SEC-AUD-011):
@@ -169,6 +177,13 @@ pub trait ReadStateRepository: Send + Sync {
         channel: ChannelId,
     ) -> RepoResult<Option<ReadState>>;
     async fn put_read_state(&self, state: &ReadState) -> RepoResult<()>;
+    /// Apply one change atomically, writing only its own columns (see [`ReadStateOp`]); returns the stored row.
+    async fn apply_read_state(
+        &self,
+        user: UserId,
+        channel: ChannelId,
+        op: ReadStateOp,
+    ) -> RepoResult<ReadState>;
     async fn list_read_states(&self, user: UserId) -> RepoResult<Vec<ReadState>>;
     /// Atomically add `n` mentions for each user (creating missing rows).
     async fn add_mentions(&self, users: &[UserId], channel: ChannelId, n: u32) -> RepoResult<()>;

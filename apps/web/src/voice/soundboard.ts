@@ -15,6 +15,7 @@ import { create } from 'zustand';
 import { apiFetch } from '../api/client';
 import { rest, useStore } from '../store';
 import type { UserSettingsBlob } from '../store';
+import { failWith } from '../lounge/actionError';
 
 export interface Sound {
   id: string;
@@ -148,7 +149,7 @@ function writeFavorites(list: string[]): void {
   void rest
     .patchUserSettings({ [FAVORITES_KEY]: list })
     .then((saved) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved))
-    .catch(() => undefined);
+    .catch(failWith('lounge.actionError.soundFavorites'));
 }
 
 /**

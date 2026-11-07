@@ -93,7 +93,9 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
       'e2e moderation gate',
     ]);
     // S enrols TOTP; the second-factor window then opens with the next code (a code is spent once).
-    const enroll = await call<{ otpauth_uri: string }>(s, 'POST', '/sr/auth/totp/enroll');
+    const enroll = await call<{ otpauth_uri: string }>(s, 'POST', '/sr/auth/totp/enroll', {
+      password: userS.password,
+    });
     const secret = secretFromOtpauth(enroll.otpauth_uri);
     await call(s, 'POST', '/sr/auth/totp/verify', { code: totp(secret) });
     const reauth = async () => {
@@ -596,7 +598,8 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         account_id: userB.id,
         note: 'by email',
       });
-      await call(s, 'POST', `/admin/data-requests/${erase.id}/verify`, {
+      // D-562: an erasure is two people's: the Owner verifies, S runs it.
+      await call(o, 'POST', `/admin/data-requests/${erase.id}/verify`, {
         reason: 'Replied from the account address.',
       });
       await reauth();
@@ -668,7 +671,8 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         ['storage.mount.relist', 1],
         ['moderation.evasion.resolve', 1],
         ['data_request.create', 2],
-        ['data_request.verify', 2],
+        // The erasure was verified by the Owner (D-562).
+        ['data_request.verify', 1],
         ['data_request.run_export', 1],
         ['data_request.run_erasure', 1],
         ['moderation.hold.retain_after_erasure', 1],
@@ -699,6 +703,7 @@ test.describe('@gate Phase 7 moderation exit gate', () => {
         'person.link',
         'library.series.create',
         'library.chapter.publish',
+        'data_request.verify',
       ]) {
         expect(
           count(ownerRows, 'admin_action', action, startUs),

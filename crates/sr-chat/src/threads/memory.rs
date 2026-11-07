@@ -39,17 +39,43 @@ impl ThreadRepository for MemoryRepo {
         Ok(())
     }
 
-    async fn update_thread(&self, thread: &Channel) -> RepoResult<()> {
+    async fn update_thread(&self, before: &Channel, thread: &Channel) -> RepoResult<()> {
         let mut s = self.lock()?;
-        if let Some(cur) = s.channels.get_mut(&thread.id) {
-            let (messages, total, members) = cur.thread.as_ref().map_or((0, 0, 0), |t| {
-                (t.message_count, t.total_message_sent, t.member_count)
-            });
-            *cur = thread.clone();
-            if let Some(t) = cur.thread.as_mut() {
-                t.message_count = messages;
-                t.total_message_sent = total;
-                t.member_count = members;
+        let Some(cur) = s.channels.get_mut(&thread.id) else {
+            return Ok(());
+        };
+        // As in Postgres: only what the edit changed.
+        if before.name != thread.name {
+            cur.name.clone_from(&thread.name);
+        }
+        if before.rate_limit_per_user != thread.rate_limit_per_user {
+            cur.rate_limit_per_user = thread.rate_limit_per_user;
+        }
+        let changed = before.flags ^ thread.flags;
+        cur.flags = (cur.flags & !changed) | (thread.flags & changed);
+        if let (Some(b), Some(n), Some(t)) = (
+            before.thread.as_ref(),
+            thread.thread.as_ref(),
+            cur.thread.as_mut(),
+        ) {
+            if b.archived != n.archived {
+                t.archived = n.archived;
+                t.archive_timestamp_ms = n.archive_timestamp_ms;
+            }
+            if b.auto_archive_duration != n.auto_archive_duration {
+                t.auto_archive_duration = n.auto_archive_duration;
+            }
+            if b.locked != n.locked {
+                t.locked = n.locked;
+            }
+            if b.invitable != n.invitable {
+                t.invitable = n.invitable;
+            }
+            if b.last_activity_ms != n.last_activity_ms {
+                t.last_activity_ms = t.last_activity_ms.max(n.last_activity_ms);
+            }
+            if b.applied_tags != n.applied_tags {
+                t.applied_tags.clone_from(&n.applied_tags);
             }
         }
         Ok(())

@@ -52,11 +52,17 @@ fn strip_word_stamps(s: &str) -> String {
     out
 }
 
+/// Most timed lines one parse returns.
+pub const MAX_LINES: usize = 10_000;
+/// Most lyric text (the sum of the returned lines, in bytes) one parse returns.
+pub const MAX_TEXT_BYTES: usize = 2 * 1024 * 1024;
+
 /// Parse LRC text. Lines without a time stamp (metadata, plain text) are skipped; the result is
 /// sorted by time (stable, so equal stamps keep their order). Plain unsynced lyrics give `[]`.
 pub fn parse_lrc(text: &str) -> Vec<LrcLine> {
     let mut offset: i64 = 0;
     let mut out: Vec<LrcLine> = Vec::new();
+    let mut text_bytes: usize = 0;
     for raw in text.trim_start_matches('\u{feff}').lines() {
         let mut rest = raw.trim_start();
         let mut stamps: Vec<u64> = Vec::new();
@@ -88,8 +94,15 @@ pub fn parse_lrc(text: &str) -> Vec<LrcLine> {
         }
         let line = strip_word_stamps(rest).trim().to_string();
         for ms in stamps {
+            // SEC-AUD-030: every stamp copies the line, so a few stamps on a long line could ask for gigabytes.
+            // Stop at a line count and a text budget no real song comes near.
+            if out.len() >= MAX_LINES || text_bytes.saturating_add(line.len()) > MAX_TEXT_BYTES {
+                out.sort_by_key(|l| l.ms);
+                return out;
+            }
+            text_bytes += line.len();
             out.push(LrcLine {
-                ms: ms.saturating_add_signed(-offset),
+                ms: ms.saturating_add_signed(offset.saturating_neg()),
                 line: line.clone(),
             });
         }

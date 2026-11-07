@@ -9,6 +9,8 @@ import { startThreadsLive } from '../threads/threadStore';
 import { getMe } from '../../settings/user/api';
 import { adoptAccountLocale } from '../../i18n/accountLocale';
 
+export const BOOT_RETRY_MS = 30_000;
+
 /**
  * Loads what the Home screen and sidebars need beyond the gateway snapshot: friends and pending requests,
  * and DM notification settings. Skipped when a mock data provider is in charge.
@@ -35,4 +37,21 @@ export function useShellBoot() {
     void loadNotif('@me');
     void loadIgnores();
   }, [mock, loadRelationships, loadNotif, loadIgnores]);
+  // The friend, block and ignore lists decide whose messages collapse: a failed boot read is retried
+  // (every 30 s and when the network returns) instead of showing ignored people all session (SEC-AUD-036).
+  const socialFailed = useSocial((s) => s.status === 'error');
+  const ignoresFailed = useIgnores((s) => s.status === 'error');
+  useEffect(() => {
+    if (mock || (!socialFailed && !ignoresFailed)) return;
+    const retry = () => {
+      if (useSocial.getState().status === 'error') void loadRelationships();
+      if (useIgnores.getState().status === 'error') void loadIgnores();
+    };
+    const timer = setInterval(retry, BOOT_RETRY_MS);
+    window.addEventListener('online', retry);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', retry);
+    };
+  }, [mock, socialFailed, ignoresFailed, loadRelationships, loadIgnores]);
 }

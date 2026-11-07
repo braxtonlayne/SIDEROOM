@@ -19,6 +19,11 @@ export function rememberMfaMethods(methods: readonly string[]): void {
 }
 
 export function readMfaMethods(): MfaMethod[] {
+  return readStoredMfaMethods() ?? DEFAULT_MFA_METHODS;
+}
+
+/** The stored methods, or `null` when nothing usable was stored (after a Discord sign-in, D-557). */
+export function readStoredMfaMethods(): MfaMethod[] | null {
   try {
     const parsed: unknown = JSON.parse(sessionStorage.getItem(KEY) ?? 'null');
     if (Array.isArray(parsed)) {
@@ -28,7 +33,7 @@ export function readMfaMethods(): MfaMethod[] {
   } catch {
     /* unreadable or blocked */
   }
-  return DEFAULT_MFA_METHODS;
+  return null;
 }
 
 export function clearMfaMethods(): void {

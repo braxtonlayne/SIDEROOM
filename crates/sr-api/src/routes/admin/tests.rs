@@ -1744,6 +1744,24 @@ async fn account_edits_over_http() {
         (b["email"].as_str(), b["email_verified"].as_bool()),
         (Some("new@example.test"), Some(false))
     );
+    // SEC-AUD-019 (D-561): the old address gets the D-167 notice, named a staff action, with the
+    // "This wasn't me" link.
+    let sent = e.mailer.sent();
+    let notice = sent
+        .iter()
+        .find(|m| m.to == format!("u{ALICE}@x.test"))
+        .expect("notice to the old address");
+    assert_eq!(
+        notice.subject,
+        "A staff member changed your SIDE ROOM email"
+    );
+    assert!(notice.text.contains("staff action"), "{}", notice.text);
+    assert!(
+        notice.text.contains("/email-change/cancel?token="),
+        "{}",
+        notice.text
+    );
+    assert!(sent.iter().all(|m| m.to != "new@example.test"));
 
     let (s, b) = e
         .call(

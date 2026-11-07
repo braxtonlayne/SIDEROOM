@@ -20,7 +20,7 @@
      palette is the fallback, otherwise it had no background and its text ran over the page (XC-VIS-001). */
   border: 2px dashed var(--ui-accent, var(--sr-gold));
   border-radius: var(--ui-radius-lg, 8px);
-  background: var(--ui-surface-2, var(--ui-bg, var(--sr-bg-2)));
+  background: var(--ui-bg-raised, var(--sr-bg-2));
   color: var(--ui-text, var(--sr-text));
   box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
   font-size: 0.875rem;
@@ -100,7 +100,7 @@
   padding-block: 8px;
   padding-inline: 12px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md, 6px);
+  border-radius: var(--ui-radius);
   background: transparent;
   color: inherit;
   font: inherit;

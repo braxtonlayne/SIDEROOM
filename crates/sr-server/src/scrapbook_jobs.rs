@@ -453,21 +453,25 @@ pub fn spawn_cascade_consumer(
                 }
             };
             for scope in scopes {
-                match archiver.cascade(scope, clock.now_unix_ms()).await {
-                    Ok(r) if r.entries > 0 => {
-                        tracing::info!(
-                            entries = r.entries,
-                            removed = r.removed,
-                            failed = r.failed,
-                            "scrapbook cascade"
-                        );
+                // SEC-AUD-029: a panic on one scope must not end the consumer.
+                crate::catch_panic::step("scrapbook cascade", async {
+                    match archiver.cascade(scope, clock.now_unix_ms()).await {
+                        Ok(r) if r.entries > 0 => {
+                            tracing::info!(
+                                entries = r.entries,
+                                removed = r.removed,
+                                failed = r.failed,
+                                "scrapbook cascade"
+                            );
+                        }
+                        Ok(_) => {}
+                        // The sweep finds the entry again; say so loudly meanwhile.
+                        Err(e) => {
+                            tracing::error!(error = %e, "scrapbook cascade failed; the sweep will retry")
+                        }
                     }
-                    Ok(_) => {}
-                    // The sweep finds the entry again; say so loudly meanwhile.
-                    Err(e) => {
-                        tracing::error!(error = %e, "scrapbook cascade failed; the sweep will retry")
-                    }
-                }
+                })
+                .await;
             }
         }
     })

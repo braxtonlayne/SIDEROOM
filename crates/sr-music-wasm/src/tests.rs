@@ -541,6 +541,22 @@ fn lrc_fraction_widths_offset_enhanced_and_blank_lines() {
     );
 }
 
+/// SEC-AUD-030: thousands of stamps on one long line no longer copy the line once per stamp without bound.
+#[test]
+fn lrc_output_is_bounded() {
+    let mut text = "[00:00.00]".repeat(50_000);
+    text.push_str(&"x".repeat(100_000));
+    let l = parse_lrc(&text);
+    let bytes: usize = l.iter().map(|x| x.line.len()).sum();
+    assert!(!l.is_empty());
+    assert!(bytes <= lrc::MAX_TEXT_BYTES, "{bytes}");
+    let many = "[00:01.00]a\n".repeat(lrc::MAX_LINES + 50);
+    assert_eq!(parse_lrc(&many).len(), lrc::MAX_LINES);
+    // The most negative offset no longer overflows.
+    let l = parse_lrc("[offset:-9223372036854775808]\n[00:01.00]a");
+    assert_eq!(l.len(), 1);
+}
+
 #[test]
 fn lrc_rejects_garbage_without_panicking() {
     assert!(parse_lrc("").is_empty());

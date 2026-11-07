@@ -4,5 +4,6 @@ datasources:
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    # Prometheus runs in sr-server's network namespace (deploy/compose/prod.yml), so it answers on that name.
+    url: http://sr-server:9090
     isDefault: true

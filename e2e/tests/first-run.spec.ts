@@ -95,7 +95,7 @@ test.describe('platform first run', () => {
   });
 
   test('walks every step, sets two-step sign-in up in place and finishes', async ({ page }) => {
-    await registerThroughTheDoor(page, 'walk');
+    const me = await registerThroughTheDoor(page, 'walk');
     const dialog = welcome(page);
     await expect(dialog.getByRole('heading', { name: 'Three rooms, one door' })).toBeVisible();
     await expect(dialog.getByText(/The Library: manga/)).toBeVisible();
@@ -111,6 +111,9 @@ test.describe('platform first run', () => {
     await dialog.getByRole('button', { name: 'Next' }).click();
     await dialog.getByRole('button', { name: 'Set it up here' }).click();
     const wizard = page.getByRole('dialog', { name: 'Enable authenticator app' });
+    // SEC-AUD-022: the password first.
+    await wizard.getByLabel('Current password').fill(me.password);
+    await wizard.getByRole('button', { name: 'Continue' }).click();
     const secret = ((await wizard.getByLabel('Manual entry key').textContent()) ?? '').replace(
       /\s+/g,
       '',

@@ -11,8 +11,12 @@ use super::store::UploadState;
 use crate::routes::guilds::safety::MfaGate;
 use crate::routes::settings::{AutoModGateHandle, MessageCheck, alert_execution_payload};
 use crate::routes::{Ext, MaybeExt};
-use crate::{Principal, openapi::ErrorBody};
-use axum::{Json, extract::Path, http::StatusCode};
+use crate::{AppState, Principal, openapi::ErrorBody};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+};
 use sr_chat::message_flags;
 use sr_chat::message_rules::{AllowedMentions, EditMessageInput};
 use sr_chat::settings::audit::AuditAction;
@@ -331,10 +335,15 @@ async fn publish_alerts(
 )]
 pub async fn edit_message(
     p: Principal,
+    State(state): State<AppState>,
     Ext(deps): Ext<MessagesDeps>,
     Path((channel_id, message_id)): Path<(String, String)>,
     ApiJson(body): ApiJson<EditMessageBody>,
 ) -> MsgResult<Json<MessageObject>> {
+    // D-566: new content is publishing, so a timeout or a case freeze refuses it; a flags-only edit stays open.
+    if body.content.is_some() {
+        p.ensure_may_post(&state).await?;
+    }
     let editor = actor(&p);
     let channel_id: ChannelId = parse_id(&channel_id, ErrorCode::UnknownChannel)?;
     let message_id: MessageId = parse_id(&message_id, ErrorCode::UnknownMessage)?;

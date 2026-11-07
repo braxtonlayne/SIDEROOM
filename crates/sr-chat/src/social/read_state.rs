@@ -35,6 +35,38 @@ impl ReadState {
     }
 }
 
+/// One change to a read state. The repository writes only the columns the change owns, in one statement, so
+/// concurrent acks never move the marker back nor revert the pin-seen time (SEC-AUD-027).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadStateOp {
+    /// [`ack`]: the marker moves forward only; mentions reset.
+    Ack(MessageId),
+    /// [`mark_unread`]: the marker moves back on purpose and the mention count is restored.
+    Unread {
+        previous_message: Option<MessageId>,
+        mention_count: u32,
+    },
+    /// [`ack_pins`]: the pins were seen at this time (never earlier than a time already stored).
+    Pins(i64),
+}
+
+impl ReadStateOp {
+    /// The state after this change (the in-memory reference of what the repository stores).
+    pub fn apply(self, prev: Option<ReadState>, user: UserId, channel: ChannelId) -> ReadState {
+        match self {
+            Self::Ack(up_to) => ack(prev, user, channel, up_to),
+            Self::Unread {
+                previous_message,
+                mention_count,
+            } => mark_unread(prev, user, channel, previous_message, mention_count),
+            Self::Pins(now_ms) => {
+                let seen = prev.as_ref().and_then(|p| p.last_pin_ms);
+                ack_pins(prev, user, channel, seen.map_or(now_ms, |t| t.max(now_ms)))
+            }
+        }
+    }
+}
+
 /// Acknowledge up to `up_to`. The marker only moves forward; mentions reset.
 pub fn ack(
     prev: Option<ReadState>,

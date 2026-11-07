@@ -257,6 +257,18 @@ pub fn email_changed(to: &str, cancel_link: &str, locale: &str) -> OutgoingMail 
     render(to, locale, MailKind::EmailChanged, Some(cancel_link), &[])
 }
 
+/// Sent to the old address when a staff member changed the account's email (D-561). The link
+/// signs every device out, like [`email_changed`]'s.
+pub fn email_changed_by_staff(to: &str, cancel_link: &str, locale: &str) -> OutgoingMail {
+    render(
+        to,
+        locale,
+        MailKind::EmailChangedByStaff,
+        Some(cancel_link),
+        &[],
+    )
+}
+
 /// Sent after a signed-in password change.
 pub fn password_changed(to: &str, locale: &str) -> OutgoingMail {
     render(to, locale, MailKind::PasswordChanged, None, &[])

@@ -2,7 +2,7 @@
 
 Short, ordered checks for the alerts in `deploy/monitoring/alerts.yml`, the red tiles of Admin > System and the incidents an operator meets. Start from [OPERATOR.md](OPERATOR.md) when you do not know where to look. Logs are JSON lines on stdout (`docker compose logs sr-server` or `journalctl -u sr-server`); every request line carries `request_id`, `method` and `path`, and the same id comes back to clients in `X-Request-Id`, so a user report with that header leads straight to the line.
 
-Useful everywhere: `GET /healthz` (process is up), `GET /readyz` (Postgres and object storage reachable; failing checks are named in the body), `GET :9100/internal/metrics` (loopback or compose network only).
+Useful everywhere: `GET /healthz` (process is up), `GET /readyz` (Postgres and object storage reachable; failing checks are named in the body), `GET 127.0.0.1:9100/internal/metrics` (loopback only; in Compose, Prometheus shares the server container's network namespace; `server.metrics_token` adds a bearer token for a scrape from elsewhere).
 
 ## Server down
 
@@ -217,7 +217,7 @@ _Raised by:_ an `inviter_suspicion` or `inviter_escalated` card in `#alerts`: a 
 
 ## Takedown notice received
 
-For a copyright or illegal-content notice that reached the address on `/help` (`compliance.operator_contact`). Spec: `docs/specs/moderation-compliance.md` section 5. Who: `MANAGE_TAKEDOWNS` for the register, `MANAGE_CASES` for holds. Target: triage within one business day.
+For a copyright or illegal-content notice that reached the published notice address (`compliance.operator_contact`, on `/house-notes` and the sign-in page). Spec: `docs/specs/moderation-compliance.md` section 5. Who: `MANAGE_TAKEDOWNS` for the register, `MANAGE_CASES` for holds. Target: triage within one business day.
 
 1. Admin > Moderation > Takedowns > enter the notice: notifier name and contact, claimed work or legal basis, exact URLs or ids, date received, the original text. A case opens.
 2. Identify the content in SIDE ROOM. An incomplete notice gets the templated reply by hand (there is no mail path yet: mailing the reply waits on the lawyer, D-336 and D-335 item 4; staff copy the text out and mail it themselves).

@@ -19,6 +19,7 @@ import { TrailerModal } from './TrailerModal';
 import { ShelfEmptyState } from '../storage/ShelfEmpty';
 import { useStudyFlag } from '../study/flags';
 import type { Row, Title, TrendingScope } from './types';
+import { rowTitle } from './rowCopy';
 import {
   AgeBadge,
   CardSkeletons,
@@ -202,9 +203,10 @@ function RowView({
 }) {
   const tr = useT();
   if (row.titles.length === 0) return null;
+  const title = rowTitle(row, tr);
   const heading = (
     <>
-      {row.title}
+      {title}
       {row.accent && (
         <>
           {' '}
@@ -234,7 +236,7 @@ function RowView({
           exploreLabel={tr('cinema.discover.exploreAll')}
           prevLabel={tr('cinema.posterRow.scrollBack')}
           nextLabel={tr('cinema.posterRow.scrollForward')}
-          aria-label={row.title}
+          aria-label={title}
         >
           {row.titles.map((t) => (
             <TitleCard

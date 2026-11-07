@@ -163,6 +163,7 @@ pub(crate) fn map_err(e: TvError) -> HttpError {
             format!("Missing platform permission {p}"),
         )
         .into(),
+        TvError::Forbidden(m) => ApiError::with_message(ErrorCode::MissingPermissions, m).into(),
         TvError::Invalid(m) => ApiError::with_message(ErrorCode::InvalidFormBody, m).into(),
         TvError::Conflict(m) => ApiError::with_message(ErrorCode::SrConflict, m).into(),
         TvError::Storage(m) | TvError::Catalog(m) => {

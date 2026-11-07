@@ -178,7 +178,6 @@ export function TotpWizard({
 }) {
   const t = useT();
   const [enroll, setEnroll] = useState<TotpEnrollment | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -186,19 +185,11 @@ export function TotpWizard({
 
   useEffect(() => {
     if (!open) return;
-    let live = true;
     setEnroll(null);
-    setLoadError(null);
     setCode('');
     setCodeError(null);
     setCodes(null);
-    totpEnroll()
-      .then((e) => live && setEnroll(e))
-      .catch((e: unknown) => live && setLoadError(errorText(e)));
-    return () => {
-      live = false;
-    };
-  }, [open, t]);
+  }, [open]);
 
   const verify = async () => {
     const clean = code.replace(/\s+/g, '');
@@ -219,6 +210,22 @@ export function TotpWizard({
     }
   };
 
+  // SEC-AUD-022: the password comes first (the existing password prompt); the server answers with the key.
+  if (open && !enroll && !codes) {
+    return (
+      <PasswordPrompt
+        open
+        title={t('settings.account.enableAuthTitle')}
+        description={t('settings.account.enablePasswordDesc')}
+        confirmLabel={t('settings.account.enableContinue')}
+        onClose={onClose}
+        onSubmit={async (pw) => {
+          setEnroll(await totpEnroll(pw));
+        }}
+      />
+    );
+  }
+
   return (
     <Modal
       open={open}
@@ -231,13 +238,7 @@ export function TotpWizard({
     >
       {codes ? (
         <RecoveryCodes codes={codes} onDone={onClose} />
-      ) : loadError ? (
-        <Notice variant="danger" title={t('settings.account.setupError')}>
-          {loadError}
-        </Notice>
-      ) : !enroll ? (
-        <p className="us-muted">{t('settings.account.preparingKey')}</p>
-      ) : (
+      ) : !enroll ? null : (
         <form
           className="us-stack"
           onSubmit={(e) => {

@@ -12,7 +12,7 @@ use std::sync::{
 use async_trait::async_trait;
 
 use sr_activities::arcade::{
-    ArcadeService, CartridgeInput, ComingSoonInput, FeatureInput, Tier, TipInput,
+    ArcadeService, CartridgeInput, CartridgeObjects, ComingSoonInput, FeatureInput, Tier, TipInput,
 };
 use sr_activities::model::{ConfigInput, UrlMapping};
 use sr_activities::{ActivityError, ActivityService, ChannelAccess, ChannelPerms};
@@ -468,88 +468,285 @@ async fn coming_soon_has_a_per_member_notify_toggle() {
     r.db.cleanup().await.unwrap();
 }
 
+/// The files on the shelves, as the HTTP layer's reader would fetch them (D-568).
+#[derive(Default)]
+struct Files(std::sync::Mutex<std::collections::HashMap<(i64, String), Vec<u8>>>);
+
+#[async_trait]
+impl CartridgeObjects for Files {
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
+        let g = self.0.lock().unwrap();
+        let b = g
+            .get(&(shelf, path.to_owned()))
+            .ok_or_else(|| "is not a file on that shelf.".to_owned())?;
+        Ok(b[..usize::try_from(len).unwrap().min(b.len())].to_vec())
+    }
+}
+
+/// A shelf (storage mount) of `owner_kind`/`owner_id`.
+async fn shelf(pool: &PgPool, owner_kind: &str, owner_id: i64) -> i64 {
+    let id = uid();
+    sqlx::query(
+        "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc) \
+         VALUES ($1, $2, $3, 'm', 'garage', 'http://127.0.0.1:3900', 'b', 'AK', $4)",
+    )
+    .bind(id)
+    .bind(owner_kind)
+    .bind(owner_id)
+    .bind(vec![0u8])
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+/// Put `bytes` at `path` on `shelf` and in the catalog; returns the object hash.
+async fn shelf_file(
+    pool: &PgPool,
+    files: &Files,
+    shelf: i64,
+    path: &str,
+    bytes: Vec<u8>,
+) -> String {
+    let hash: String = sqlx::query_scalar("SELECT shelf_object_hash($1)")
+        .bind(path)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO shelf_objects (shelf_id, object_hash, path, kind, size) VALUES ($1, $2, $3, 'games', $4)",
+    )
+    .bind(shelf)
+    .bind(&hash)
+    .bind(path)
+    .bind(bytes.len() as i64)
+    .execute(pool)
+    .await
+    .unwrap();
+    files
+        .0
+        .lock()
+        .unwrap()
+        .insert((shelf, path.to_owned()), bytes);
+    hash
+}
+
+fn game_zip(manifest: Option<&str>) -> Vec<u8> {
+    match manifest {
+        Some(m) => zip_of(&[
+            ("index.html", b"<p>hi</p>"),
+            ("sideroom.json", m.as_bytes()),
+        ]),
+        None => zip_of(&[("index.html", b"<p>hi</p>")]),
+    }
+}
+
+fn field_of<T: std::fmt::Debug>(r: Result<T, ActivityError>) -> &'static str {
+    match r {
+        Err(ActivityError::Invalid(f, _)) => f,
+        other => panic!("expected a 400, got {other:?}"),
+    }
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
-async fn guild_cartridges_are_per_server_and_follow_the_manifest_rules() {
+async fn guild_cartridges_are_per_server_and_the_manifest_decides_the_tier() {
     let r = rig().await;
-    let user = account(r.db.pool()).await;
+    let pool = r.db.pool();
+    let files = Files::default();
+    let user = account(pool).await;
     let (g1, g2) = (uid(), uid());
     for g in [g1, g2] {
         sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Guild', $2)")
             .bind(g)
             .bind(user)
-            .execute(r.db.pool())
+            .execute(pool)
             .await
             .unwrap();
     }
-    let cart = |tier: Tier, caps: &[&str], tips: Vec<TipInput>| CartridgeInput {
+    let server_shelf = shelf(pool, "guild", g1).await;
+    shelf_file(
+        pool,
+        &files,
+        server_shelf,
+        "games/pong.zip",
+        game_zip(Some(
+            r#"{"tier": "TIER_1_ORIGINAL", "capabilities": ["guest_play", "datachannel"]}"#,
+        )),
+    )
+    .await;
+    // The audit's case: a fan game whose manifest says Tier 2, listed by someone who types Original.
+    shelf_file(
+        pool,
+        &files,
+        server_shelf,
+        "games/fan.zip",
+        game_zip(Some(r#"{"tier": "TIER_2_REIMPLEMENTATION"}"#)),
+    )
+    .await;
+    shelf_file(
+        pool,
+        &files,
+        server_shelf,
+        "games/old.zip",
+        game_zip(Some("{}")),
+    )
+    .await;
+    shelf_file(pool, &files, server_shelf, "games/bare.zip", game_zip(None)).await;
+    shelf_file(
+        pool,
+        &files,
+        server_shelf,
+        "games/notes.zip",
+        b"not a zip".to_vec(),
+    )
+    .await;
+
+    let cart = |path: &str| CartridgeInput {
         title: "Pong".into(),
         description: "Two paddles".into(),
         kind: "game".into(),
-        tier,
-        source_ref: "shelf-1/games/pong.zip".into(),
+        tier: None,
+        source_ref: path.into(),
         shelf_id: None,
         object_hash: None,
-        capabilities: caps.iter().map(|c| (*c).to_owned()).collect(),
-        tip_links: tips,
+        capabilities: vec![],
+        tip_links: vec![],
     };
+    // Nothing typed: the manifest's tier and capabilities are stored.
     let v = r
         .arcade
         .add_cartridge(
             g1,
             user,
-            cart(
-                Tier::Original,
-                &["guest_play", "datachannel", "datachannel"],
-                vec![TipInput {
+            CartridgeInput {
+                tip_links: vec![TipInput {
                     kind: "patreon".into(),
                     url: "https://www.patreon.com/dev".into(),
                 }],
-            ),
+                ..cart("games/pong.zip")
+            },
+            &files,
         )
         .await
         .unwrap();
+    assert_eq!(v.tier, Tier::Original);
     assert_eq!(v.capabilities, vec!["datachannel", "guest_play"]);
     assert_eq!(v.tip_links[0].kind, "patreon");
-    assert_eq!(r.arcade.cartridges(g1).await.unwrap().len(), 1);
+    assert_eq!(
+        v.shelf_id.as_deref(),
+        Some(server_shelf.to_string().as_str())
+    );
+    assert_eq!(v.source_ref, "games/pong.zip");
+    // Typed values that agree (in any order, with repeats) are accepted.
+    r.arcade
+        .add_cartridge(
+            g1,
+            user,
+            CartridgeInput {
+                tier: Some(Tier::Original),
+                capabilities: vec![
+                    "guest_play".into(),
+                    "datachannel".into(),
+                    "datachannel".into(),
+                ],
+                ..cart("games/pong.zip")
+            },
+            &files,
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.arcade.cartridges(g1).await.unwrap().len(), 2);
     assert!(r.arcade.cartridges(g2).await.unwrap().is_empty());
     // Unlisted: nothing about it reaches the Front Page.
     assert!(r.arcade.front(user).await.unwrap().featured.is_empty());
 
-    // The same rules as a manifest: a flag the tier does not allow, an unknown flag, a tip off the list,
-    // an unknown kind, a path that climbs.
-    let bad = [
-        cart(Tier::Reimplementation, &["guest_play"], vec![]),
-        cart(Tier::Original, &["root"], vec![]),
-        cart(
-            Tier::Original,
-            &[],
-            vec![TipInput {
-                kind: "kofi".into(),
-                url: "https://evil.example/a".into(),
-            }],
-        ),
-        CartridgeInput {
-            kind: "app".into(),
-            ..cart(Tier::Original, &[], vec![])
-        },
-        CartridgeInput {
-            source_ref: "../etc".into(),
-            ..cart(Tier::Original, &[], vec![])
-        },
-    ];
-    for b in bad {
-        assert!(matches!(
-            r.arcade.add_cartridge(g1, user, b).await,
-            Err(ActivityError::Invalid(..))
-        ));
+    // A self-declared Original on the Tier 2 fan game is refused, naming the field; left out, the manifest's
+    // Tier 2 is stored, so it gets no browser play and no guest links.
+    let typed = CartridgeInput {
+        tier: Some(Tier::Original),
+        ..cart("games/fan.zip")
+    };
+    assert_eq!(
+        field_of(r.arcade.add_cartridge(g1, user, typed, &files).await),
+        "tier"
+    );
+    let fan = r
+        .arcade
+        .add_cartridge(g1, user, cart("games/fan.zip"), &files)
+        .await
+        .unwrap();
+    assert_eq!(fan.tier, Tier::Reimplementation);
+    assert!(!fan.eligibility.guest_links && !fan.eligibility.browser_play);
+    assert!(fan.capabilities.is_empty());
+
+    // Typed capabilities that differ, or name an unknown flag, are refused on `capabilities`.
+    for caps in [
+        vec!["datachannel"],
+        vec!["guest_play", "datachannel", "storage"],
+        vec!["root"],
+    ] {
+        let b = CartridgeInput {
+            capabilities: caps.iter().map(|c| (*c).to_owned()).collect(),
+            ..cart("games/pong.zip")
+        };
+        assert_eq!(
+            field_of(r.arcade.add_cartridge(g1, user, b, &files).await),
+            "capabilities"
+        );
     }
+    // A file with no tier (an empty manifest, no manifest) or that is not a zip is not a cartridge.
+    for p in ["games/old.zip", "games/bare.zip", "games/notes.zip"] {
+        assert_eq!(
+            field_of(r.arcade.add_cartridge(g1, user, cart(p), &files).await),
+            "object_hash",
+            "{p}"
+        );
+    }
+    // A path that is not on this server's shelf (the other server has none), one that climbs, a tip off the
+    // list, an unknown kind.
+    assert_eq!(
+        field_of(
+            r.arcade
+                .add_cartridge(g2, user, cart("games/pong.zip"), &files)
+                .await
+        ),
+        "source_ref"
+    );
+    assert_eq!(
+        field_of(
+            r.arcade
+                .add_cartridge(g1, user, cart("../etc"), &files)
+                .await
+        ),
+        "source_ref"
+    );
+    let b = CartridgeInput {
+        tip_links: vec![TipInput {
+            kind: "kofi".into(),
+            url: "https://evil.example/a".into(),
+        }],
+        ..cart("games/pong.zip")
+    };
+    assert_eq!(
+        field_of(r.arcade.add_cartridge(g1, user, b, &files).await),
+        "tip_links"
+    );
+    let b = CartridgeInput {
+        kind: "app".into(),
+        ..cart("games/pong.zip")
+    };
+    assert_eq!(
+        field_of(r.arcade.add_cartridge(g1, user, b, &files).await),
+        "kind"
+    );
+    assert_eq!(r.arcade.cartridges(g1).await.unwrap().len(), 3);
 
     // Removal is scoped to the server.
     let id: i64 = v.id.parse().unwrap();
     assert!(!r.arcade.remove_cartridge(g2, id).await.unwrap());
     assert!(r.arcade.remove_cartridge(g1, id).await.unwrap());
-    assert!(r.arcade.cartridges(g1).await.unwrap().is_empty());
+    assert_eq!(r.arcade.cartridges(g1).await.unwrap().len(), 2);
     r.db.cleanup().await.unwrap();
 }
 
@@ -561,6 +758,7 @@ async fn guild_cartridges_are_per_server_and_follow_the_manifest_rules() {
 async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
     let r = rig().await;
     let pool = r.db.pool();
+    let files = Files::default();
     let user = account(pool).await;
     let stranger = account(pool).await;
     let guild = uid();
@@ -570,35 +768,16 @@ async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
         .execute(pool)
         .await
         .unwrap();
-    let (mine, theirs) = (uid(), uid());
-    for (id, owner) in [(mine, user), (theirs, stranger)] {
-        sqlx::query(
-            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc) \
-             VALUES ($1, 'user', $2, 'm', 'garage', 'http://127.0.0.1:3900', 'b', 'AK', $3)",
-        )
-        .bind(id)
-        .bind(owner)
-        .bind(vec![0u8])
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-    let hash = "c".repeat(64);
-    for shelf in [mine, theirs] {
-        sqlx::query(
-            "INSERT INTO shelf_objects (shelf_id, object_hash, path, kind) VALUES ($1, $2, 'games/pong.zip', 'games')",
-        )
-        .bind(shelf)
-        .bind(&hash)
-        .execute(pool)
-        .await
-        .unwrap();
-    }
+    let mine = shelf(pool, "user", user).await;
+    let theirs = shelf(pool, "user", stranger).await;
+    let manifest = Some(r#"{"tier": "TIER_1_ORIGINAL"}"#);
+    let hash = shelf_file(pool, &files, mine, "games/pong.zip", game_zip(manifest)).await;
+    shelf_file(pool, &files, theirs, "games/pong.zip", game_zip(manifest)).await;
     let cart = |shelf: Option<i64>, h: Option<&str>| CartridgeInput {
         title: "Pong".into(),
         description: String::new(),
         kind: "game".into(),
-        tier: Tier::Original,
+        tier: None,
         source_ref: String::new(),
         shelf_id: shelf.map(|s| s.to_string()),
         object_hash: h.map(str::to_owned),
@@ -607,22 +786,28 @@ async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
     };
     let v = r
         .arcade
-        .add_cartridge(guild, user, cart(Some(mine), Some(&hash)))
+        .add_cartridge(guild, user, cart(Some(mine), Some(&hash)), &files)
         .await
         .unwrap();
     assert_eq!(v.shelf_id.as_deref(), Some(mine.to_string().as_str()));
     assert_eq!(v.object_hash.as_deref(), Some(hash.as_str()));
     assert_eq!(v.source_ref, format!("shelf:{mine}/{hash}"));
+    assert_eq!(v.tier, Tier::Original);
 
-    // Someone else's shelf that is not shared with this server, a missing object, half a pair, a bad hash.
+    // Someone else's shelf that is not shared with this server, a missing object, half a pair, a bad hash. A
+    // path alone is looked up on this server's own shelves only (a member's shelf is not one).
     for bad in [
         cart(Some(theirs), Some(&hash)),
         cart(Some(mine), Some(&"d".repeat(64))),
         cart(Some(mine), None),
         cart(Some(mine), Some("ABC")),
+        CartridgeInput {
+            source_ref: "games/pong.zip".into(),
+            ..cart(None, None)
+        },
     ] {
         assert!(matches!(
-            r.arcade.add_cartridge(guild, user, bad).await,
+            r.arcade.add_cartridge(guild, user, bad, &files).await,
             Err(ActivityError::Invalid(..))
         ));
     }
@@ -639,7 +824,7 @@ async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
     .await
     .unwrap();
     r.arcade
-        .add_cartridge(guild, user, cart(Some(theirs), Some(&hash)))
+        .add_cartridge(guild, user, cart(Some(theirs), Some(&hash)), &files)
         .await
         .unwrap();
     assert_eq!(r.arcade.cartridges(guild).await.unwrap().len(), 2);
@@ -673,7 +858,7 @@ async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
     );
     assert!(
         r.arcade
-            .add_cartridge(guild, user, cart(Some(mine), Some(&hash)))
+            .add_cartridge(guild, user, cart(Some(mine), Some(&hash)), &files)
             .await
             .is_err()
     );

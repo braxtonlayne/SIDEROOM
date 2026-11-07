@@ -82,7 +82,9 @@ async fn relationship_lifecycle() {
         account(&pool, &ids).await,
     );
     assert!(matches!(
-        svc.send_friend_request(a, UserId::new(1)).await,
+        // An id no account has (1 is the system account, which other tests in this database create).
+        svc.send_friend_request(a, UserId::new(999_999_999_999_999_999))
+            .await,
         Err(SocialError::UnknownUser)
     ));
     svc.send_friend_request(a, b).await.unwrap();
@@ -117,6 +119,27 @@ async fn relationship_lifecycle() {
         svc.send_friend_request(a, c).await,
         Err(SocialError::RequestsNotAccepted)
     ));
+    // SEC-AUD-027: a write over a stale read is refused and changes nothing; over the current value it lands.
+    let mut other = p.clone();
+    other.dms.message_requests = !p.dms.message_requests;
+    assert!(
+        !svc.repo()
+            .replace_privacy(c, &Privacy::default(), &other)
+            .await
+            .unwrap()
+    );
+    assert_eq!(svc.repo().get_privacy(c).await.unwrap(), p);
+    assert!(svc.repo().replace_privacy(c, &p, &other).await.unwrap());
+    assert_eq!(svc.repo().get_privacy(c).await.unwrap(), other);
+    // No row yet: the default is what the caller read.
+    let fresh = account(&pool, &ids).await;
+    assert!(
+        svc.repo()
+            .replace_privacy(fresh, &Privacy::default(), &other)
+            .await
+            .unwrap()
+    );
+    assert_eq!(svc.repo().get_privacy(fresh).await.unwrap(), other);
     let counts = svc.repo().counts(a).await.unwrap();
     assert_eq!(counts.friends, 0);
 }
@@ -234,7 +257,32 @@ async fn read_states_and_notifications() {
         (s.last_read, s.mention_count),
         (Some(MessageId::new(10)), 3)
     );
-    assert!(svc.ack_pins(b, ch).await.unwrap().last_pin_ms.is_some());
+    let pinned = svc.ack_pins(b, ch).await.unwrap().last_pin_ms;
+    assert!(pinned.is_some());
+    // SEC-AUD-027: the repository write itself never moves the marker back nor reverts the pin-seen time, so
+    // a concurrent ack that read an older row cannot either (here: a later marker already stored).
+    use sr_chat::social::read_state::ReadStateOp;
+    use sr_chat::social::repo::ReadStateRepository;
+    let mut ahead = svc.read_states(b).await.unwrap()[0].clone();
+    ahead.last_read = Some(MessageId::new(500));
+    svc.repo().put_read_state(&ahead).await.unwrap();
+    let s = svc
+        .repo()
+        .apply_read_state(b, ch, ReadStateOp::Ack(MessageId::new(200)))
+        .await
+        .unwrap();
+    assert_eq!(s.last_read, Some(MessageId::new(500)));
+    assert_eq!(
+        s.last_pin_ms, pinned,
+        "an ack leaves the pin-seen time alone"
+    );
+    let s = svc
+        .repo()
+        .apply_read_state(b, ch, ReadStateOp::Pins(1))
+        .await
+        .unwrap();
+    assert_eq!(s.last_pin_ms, pinned, "an older pins ack does not go back");
+    assert_eq!(s.last_read, Some(MessageId::new(500)));
 
     // DM-scope settings and a channel override with a timed mute.
     let s = svc

@@ -64,7 +64,7 @@ Sign in as the Owner (the one-time link printed by `bootstrap` is single use and
 After the brief has been answered ([lawyer-brief.md](../docs/legal/lawyer-brief.md)); if it has not, leave the defaults and write down that you did.
 
 - **Where.** Admin > Features > Compliance (a reason is required): `accounts.minimum_age`, `compliance.operator_country`, `compliance.operator_contact`; the other compliance values keep their defaults unless the lawyer says otherwise.
-- **Done when.** `/help` publishes the copyright notice address, the privacy page names the operator's country and contact, and the invite landing shows the minimum age. Check all three signed out.
+- **Done when.** Signed out, the house notes (`/house-notes`) and the help section of the sign-in page (`/login`) show the copyright notice address, the privacy page names the operator's country and contact, and the invite landing shows the minimum age. (`/help`, the handbook, is for signed-in members only and sends a visitor to the sign-in page, D-385.)
 
 ## 9. The first invites
 

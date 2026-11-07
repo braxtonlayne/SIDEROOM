@@ -17,7 +17,9 @@ use sr_media::plan::JobPlan;
 use sr_media::playlist::parse_media_playlist;
 use sr_media::remux::RemuxPlan;
 use sr_media::runner::{CommandRunner, CommandSpec, Control};
-use sr_media::subtitles::{SubtitleError, ass_to_webvtt, sprite_vtt, srt_to_webvtt};
+use sr_media::subtitles::{
+    MAX_SUBTITLE_BYTES, SubtitleError, ass_to_webvtt, sprite_vtt, srt_to_webvtt,
+};
 use sr_media::worker_api::{
     Ack, ClaimRequest, ClaimResponse, ClaimedJob, CompleteRequest, FailRequest,
     FinishUploadRequest, HeartbeatRequest, HeartbeatResponse, InitUploadRequest,
@@ -822,7 +824,10 @@ impl<'a> Worker<'a> {
             StepKind::Subtitle => {
                 let s = &plan.subtitles[step.index];
                 let raw_path = sandbox_path(out, &s.raw_path).map_err(|e| bad(e.to_string()))?;
-                let raw = fs::read(&raw_path).map_err(|e| bad(format!("subtitle output: {e}")))?;
+                // At most one byte over the converter's cap: a multi-gigabyte track is refused as too large
+                // without being loaded (the converter answers TooLarge for anything over the cap).
+                let raw = read_capped(Path::new(&raw_path), MAX_SUBTITLE_BYTES as u64)
+                    .map_err(|e| bad(format!("subtitle output: {e}")))?;
                 let vtt = match s.extract {
                     ExtractFormat::Ass => ass_to_webvtt(&raw),
                     ExtractFormat::Srt => srt_to_webvtt(&raw),
@@ -987,6 +992,16 @@ impl<'a> Worker<'a> {
 enum StepFailure {
     Job(JobError),
     Exit { log: String, timed_out: bool },
+}
+
+/// The first `cap + 1` bytes of a file at most, so the caller can tell "over the cap" without loading it all.
+pub(crate) fn read_capped(path: &Path, cap: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::Read as _;
+    let mut out = Vec::new();
+    fs::File::open(path)?
+        .take(cap.saturating_add(1))
+        .read_to_end(&mut out)?;
+    Ok(out)
 }
 
 /// Parse a rendition's ffmpeg-written playlist into the stored segment index, checking that

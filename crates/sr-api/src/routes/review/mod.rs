@@ -309,6 +309,7 @@ impl ListParams {
                 .q
                 .map(|q| q.trim().to_owned())
                 .filter(|q| !q.is_empty()),
+            submitted_only: false,
             sort,
             descending,
             limit: self.limit.unwrap_or(25).clamp(1, 100),

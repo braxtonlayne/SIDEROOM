@@ -444,12 +444,14 @@ export function ChannelFeatures({
   const [archive, setArchive] = useState(channel.default_auto_archive_duration ?? 1440);
   const [slowmode, setSlowmode] = useState(channel.default_thread_rate_limit_per_user ?? 0);
 
-  const save = async (body: api.ChannelBody, done: string) => {
+  const save = async (body: api.ChannelBody, done: string, undo: () => void) => {
     const ok = await action.run(async () => {
       await api.modifyChannel(channel.id, body);
       return true;
     }, done);
+    // A refused save puts the select back to what the server still has (SEC-AUD-036).
     if (ok) await onChanged();
+    else undo();
   };
 
   if (channel.type === 15 || channel.type === 16)
@@ -470,8 +472,11 @@ export function ChannelFeatures({
           disabled={action.busy}
           onChange={(e) => {
             const v = Number(e.target.value);
+            const was = archive;
             setArchive(v);
-            void save({ default_auto_archive_duration: v }, t('settings.channelTabs.saved'));
+            void save({ default_auto_archive_duration: v }, t('settings.channelTabs.saved'), () =>
+              setArchive(was),
+            );
           }}
         >
           {ARCHIVE_MINUTES.map((o) => (
@@ -492,8 +497,13 @@ export function ChannelFeatures({
           disabled={action.busy}
           onChange={(e) => {
             const v = Number(e.target.value);
+            const was = slowmode;
             setSlowmode(v);
-            void save({ default_thread_rate_limit_per_user: v }, t('settings.channelTabs.saved'));
+            void save(
+              { default_thread_rate_limit_per_user: v },
+              t('settings.channelTabs.saved'),
+              () => setSlowmode(was),
+            );
           }}
         >
           {THREAD_SLOWMODE.map((s) => (

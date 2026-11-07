@@ -485,6 +485,41 @@ async fn a_bridge_over_its_message_figure_drops_the_rest() {
     let _ = f.db.cleanup().await;
 }
 
+/// D-567 (SEC-AUD-025): edits and reactions from Discord pass the same per-bridge figure as creates.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn edits_and_reactions_count_against_the_bridge_figure() {
+    let f = fx_with("both", 2).await;
+    let Outcome::Posted(sr) = f.send("MESSAGE_CREATE", f.msg(50, 9, "v1")).await else {
+        panic!("posted")
+    };
+    let mut upd = f.msg(50, 9, "v2");
+    upd.as_object_mut().unwrap().remove("author");
+    assert_eq!(
+        f.send("MESSAGE_UPDATE", upd.clone()).await,
+        Outcome::Edited(sr)
+    );
+    // The figure (2) is used up: the next edit and a reaction are dropped and counted.
+    upd["content"] = json!("v3");
+    assert_eq!(
+        f.send("MESSAGE_UPDATE", upd).await,
+        Outcome::Ignored(Why::RateLimited)
+    );
+    assert_eq!(
+        f.send(
+            "MESSAGE_REACTION_ADD",
+            json!({"channel_id": f.dch.to_string(), "message_id": "50", "user_id": "4",
+                   "emoji": {"id": null, "name": "\u{1F44D}"}})
+        )
+        .await,
+        Outcome::Ignored(Why::RateLimited)
+    );
+    assert_eq!(f.sink.log.lock().unwrap().edits.len(), 1);
+    assert!(f.sink.log.lock().unwrap().reactions.is_empty());
+    assert_eq!(f.inbound.dropped(f.guild), 2);
+    let _ = f.db.cleanup().await;
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn the_teardown_deleting_the_maps_takes_the_reaction_and_message_rows_with_it() {

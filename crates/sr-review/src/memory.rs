@@ -350,6 +350,7 @@ impl SubmissionRepository for MemoryReviewRepo {
                 q.claimed_by.is_none() || (s.claimed_by == q.claimed_by && s.lease_live(now_ms))
             })
             .filter(|s| !q.unclaimed || !s.lease_live(now_ms))
+            .filter(|s| !q.submitted_only || s.submitted_at_ms.is_some())
             .filter(|s| {
                 q.submitted_before_ms
                     .is_none_or(|t| s.submitted_at_ms.is_some_and(|x| x <= t))
