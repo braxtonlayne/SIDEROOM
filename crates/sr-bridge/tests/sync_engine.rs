@@ -797,6 +797,37 @@ async fn the_seed_builds_both_sides_and_never_sends_a_sideroom_only_bit() {
     let _ = s.w.db.cleanup().await;
 }
 
+/// SEC-AUD-025 (audit HIGH, D-386): a bit added to a Discord role between the owner's confirmation and the seed is
+/// not imported; the seed applies only what the confirmed plan showed.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_seed_imports_only_the_bits_the_owner_confirmed() {
+    let s = scene(true).await;
+    let (id, hash) = ready_plan(&s).await;
+    s.eng
+        .confirm_mode(s.guild, s.owner, id, &hash)
+        .await
+        .unwrap();
+    // After the confirmation, somebody on Discord gives "Only There" Manage Channels and Ban Members.
+    s.fake.set_role(
+        9002,
+        "permissions",
+        json!((0x8_u64 | 0x10 | 0x4 | (1 << 47)).to_string()),
+    );
+    let report = s.eng.run_seed(s.guild).await.unwrap();
+    assert_eq!(report.imported.len(), 1);
+    assert_eq!(report.imported[0].1, 0x8, "only the confirmed bit");
+    let perms: i64 = sqlx::query_scalar(
+        "SELECT permissions FROM roles WHERE name = 'Only There' AND guild_id = $1",
+    )
+    .bind(s.guild)
+    .fetch_one(s.w.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(perms, 0x8);
+    let _ = s.w.db.cleanup().await;
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_second_seed_run_creates_nothing_twice() {
