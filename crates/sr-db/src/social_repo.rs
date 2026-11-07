@@ -417,6 +417,23 @@ impl RelationshipRepository for PgSocialRepo {
         .map_err(db)
     }
 
+    async fn muted_towards(
+        &self,
+        author: UserId,
+        candidates: &[UserId],
+    ) -> RepoResult<Vec<UserId>> {
+        let ids: Vec<i64> = candidates.iter().map(|u| i(u.get())).collect();
+        let rows: Vec<i64> = sqlx::query_scalar(
+            "SELECT c FROM unnest($2::bigint[]) AS c WHERE \n             EXISTS (SELECT 1 FROM relationships WHERE type = 2 AND \n                     ((user_id = $1 AND target_id = c) OR (user_id = c AND target_id = $1))) \n             OR EXISTS (SELECT 1 FROM user_ignores WHERE user_id = c AND target_id = $1)",
+        )
+        .bind(i(author.get()))
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(uid).collect())
+    }
+
     async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>> {
         let ids: Vec<i64> = sqlx::query_scalar(
             "SELECT target_id FROM user_ignores WHERE user_id = $1 ORDER BY created_at, target_id",

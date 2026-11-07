@@ -67,6 +67,27 @@ pub trait RelationshipRepository: Send + Sync {
     async fn put_privacy(&self, user: UserId, privacy: &Privacy) -> RepoResult<()>;
     /// Whether `user` has ignored `target` (independent of friendship).
     async fn is_ignoring(&self, user: UserId, target: UserId) -> RepoResult<bool>;
+    /// The users among `candidates` who must not be notified of `author`'s messages (SEC-AUD-011):
+    /// blocked by `author`, blocking `author`, or ignoring `author`. One query where the store can.
+    async fn muted_towards(
+        &self,
+        author: UserId,
+        candidates: &[UserId],
+    ) -> RepoResult<Vec<UserId>> {
+        let mut out = Vec::new();
+        for &u in candidates {
+            let blocked = |r: Option<Relationship>| {
+                kind_of(&r) == Some(super::relationships::RelationshipKind::Blocked)
+            };
+            if blocked(self.get_relationship(author, u).await?)
+                || blocked(self.get_relationship(u, author).await?)
+                || self.is_ignoring(u, author).await?
+            {
+                out.push(u);
+            }
+        }
+        Ok(out)
+    }
     /// Users `user` ignores.
     async fn list_ignores(&self, user: UserId) -> RepoResult<Vec<UserId>>;
     async fn put_ignore(&self, user: UserId, target: UserId) -> RepoResult<()>;

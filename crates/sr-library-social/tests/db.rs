@@ -166,6 +166,24 @@ impl Env {
             .unwrap();
     }
 
+    async fn ignore(&self, who: i64, target: i64) {
+        sqlx::query("INSERT INTO user_ignores (user_id, target_id) VALUES ($1, $2)")
+            .bind(who)
+            .bind(target)
+            .execute(self.pool())
+            .await
+            .unwrap();
+    }
+
+    async fn unignore(&self, who: i64, target: i64) {
+        sqlx::query("DELETE FROM user_ignores WHERE user_id = $1 AND target_id = $2")
+            .bind(who)
+            .bind(target)
+            .execute(self.pool())
+            .await
+            .unwrap();
+    }
+
     async fn share_server(&self, users: &[i64]) {
         let gid = uid();
         sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Test guild', $2)")
@@ -392,6 +410,19 @@ async fn reviews_helpful_votes_sort_and_blocks() {
             .is_err()
     );
 
+    // An ignored author drops out too (SEC-AUD-012), for the ignorer only.
+    e.ignore(c.user_id, b.user_id).await;
+    let ignored = e
+        .svc
+        .reviews(c, s, ReviewSort::Helpful, None, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        ignored.items.len(),
+        1,
+        "an ignored author's review is hidden"
+    );
+    e.unignore(c.user_id, b.user_id).await;
     // A blocked author drops out of the blocker's listing only.
     e.block(c.user_id, b.user_id).await;
     let for_c = e
@@ -614,6 +645,11 @@ async fn featured_lists_are_public_and_blocked_owners_are_hidden() {
         .await
         .unwrap();
     e.svc.set_featured(list.id, true).await.unwrap();
+    // An owner the viewer ignored is invisible too (SEC-AUD-012).
+    e.ignore(viewer.user_id, owner.user_id).await;
+    assert!(e.svc.featured_lists(viewer, None).await.unwrap().is_empty());
+    assert!(e.svc.get_list(viewer, list.id).await.is_err());
+    e.unignore(viewer.user_id, owner.user_id).await;
     // An owner who blocked the viewer is invisible to them.
     e.block(owner.user_id, viewer.user_id).await;
     assert!(e.svc.featured_lists(viewer, None).await.unwrap().is_empty());
@@ -988,6 +1024,26 @@ async fn comments_replies_likes_reports_and_blocks() {
         .unwrap();
     assert!(edited.spoiler && edited.edited_at_ms.is_some() && edited.body == "Edited");
     assert!(e.svc.delete_comment(b, top.id).await.is_err());
+    // An ignored author drops out of the viewer's list too (SEC-AUD-012), and returns with the unignore.
+    e.ignore(c.user_id, b.user_id).await;
+    assert!(
+        e.svc
+            .comments(c, 0, ch, None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty(),
+        "an ignored author's comment is hidden"
+    );
+    e.unignore(c.user_id, b.user_id).await;
+    assert!(
+        !e.svc
+            .comments(c, 0, ch, None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
     // A blocked author drops out of the viewer's list.
     e.block(c.user_id, b.user_id).await;
     assert!(

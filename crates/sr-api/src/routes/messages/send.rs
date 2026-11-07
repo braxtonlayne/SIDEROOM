@@ -66,6 +66,7 @@ pub async fn create_message(
     // Resolve the channel first so unknown/forbidden channels fail before anything else.
     let acc = deps.access(author, channel_id).await?;
     acc.require_view()?;
+    deps.require_dm_open(&acc, author).await?;
 
     // Nonce dedupe (LNG-MSG-002, open question 151): only with `enforce_nonce`
     // does a repeated nonce return the original message; otherwise a new message

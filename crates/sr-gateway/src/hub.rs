@@ -1390,6 +1390,13 @@ impl Gateway {
         };
         if changed || force {
             self.notify_friends(user, &update, &guilds).await;
+            let hidden: HashSet<UserId> = self
+                .inner
+                .dir
+                .blocked_peers(user)
+                .await
+                .into_iter()
+                .collect();
             for g in guilds {
                 self.schedule_list_refresh(g, false);
                 self.dispatch_guild(
@@ -1397,7 +1404,14 @@ impl Gateway {
                     "PRESENCE_UPDATE",
                     presence_body(user, g, &update),
                     None,
-                    None,
+                    // A block hides presence both ways (SEC-AUD-011).
+                    (!hidden.is_empty())
+                        .then(|| {
+                            let mut a = self.guild_users(g, None);
+                            a.retain(|u| !hidden.contains(u));
+                            a
+                        })
+                        .as_ref(),
                 )
                 .await;
             }

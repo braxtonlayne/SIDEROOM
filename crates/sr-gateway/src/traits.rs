@@ -132,6 +132,12 @@ pub trait GuildDirectory: Send + Sync {
         Vec::new()
     }
 
+    /// Users with a block between them and `user`, in either direction (SEC-AUD-011): they get
+    /// none of `user`'s presence. Default: none.
+    async fn blocked_peers(&self, _user: UserId) -> Vec<UserId> {
+        Vec::new()
+    }
+
     /// What `channel` is for voice purposes. `None` when it does not exist in `guild`.
     /// Default: unknown (voice joins are refused).
     async fn voice_channel(

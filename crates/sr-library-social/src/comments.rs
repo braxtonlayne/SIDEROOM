@@ -9,7 +9,8 @@ use crate::rules;
 use crate::service::LibrarySocial;
 
 const NOT_BLOCKED: &str = "NOT EXISTS (SELECT 1 FROM relationships bl WHERE bl.user_id = $1 \
-     AND bl.target_id = c.user_id AND bl.type IN (2, 6))";
+     AND bl.target_id = c.user_id AND bl.type IN (2, 6)) \
+     AND NOT EXISTS (SELECT 1 FROM user_ignores ig WHERE ig.user_id = $1 AND ig.target_id = c.user_id)";
 
 const COLS: &str = "c.id, c.series_id, c.chapter_id, c.parent_id, c.user_id, \
      COALESCE(a.display_name, a.username::text) AS author_name, c.body, c.spoiler, c.like_count, \

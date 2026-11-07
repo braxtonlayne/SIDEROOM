@@ -1167,6 +1167,20 @@ impl PackageService {
         .await?)
     }
 
+    /// The ids among `ids` that have a block with `viewer` in either direction.
+    async fn blocked_among(&self, viewer: i64, ids: &[i64]) -> PackageResult<Vec<i64>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(sqlx::query_scalar(
+            "SELECT u FROM unnest($2::bigint[]) AS u WHERE EXISTS (SELECT 1 FROM relationships b \n             WHERE b.type = 2 AND ((b.user_id = $1 AND b.target_id = u) OR (b.user_id = u AND b.target_id = $1)))",
+        )
+        .bind(viewer)
+        .bind(ids)
+        .fetch_all(self.pool())
+        .await?)
+    }
+
     /// My document (the empty default when none was saved).
     pub async fn own_doc(&self, user: i64) -> PackageResult<ProfileDoc> {
         let v: Option<Value> = sqlx::query_scalar("SELECT profile_doc FROM accounts WHERE id = $1")

@@ -74,6 +74,7 @@ pub async fn add_own(
     ApiQuery(_q): ApiQuery<ReactionTypeQuery>,
 ) -> MsgResult<StatusCode> {
     let t = target(&deps, &p, &channel, &message).await?;
+    deps.require_dm_open(&t.acc, t.user).await?;
     let emoji = emoji(&raw_emoji)?;
     let existing = deps
         .store

@@ -11,7 +11,7 @@ use super::model::{CreateDmBody, DmChannelObject, EditDmBody, MessageRequestBody
 use super::util::{actor, channel_id, user_id};
 use crate::routes::MaybeExt;
 use crate::routes::media::MediaDeps;
-use crate::routes::messages::DmAnnouncer;
+use crate::routes::messages::{DmAnnouncer, DmSendGate};
 use crate::{Principal, openapi::ErrorBody, routes::Ext};
 use axum::{Json, extract::Path, http::StatusCode};
 use serde_json::{Value, json};
@@ -484,4 +484,33 @@ pub(crate) async fn announce(
             .await;
     }
     Ok(())
+}
+
+/// SEC-AUD-003: a block in either direction closes a 1:1 DM to writes; a group DM is
+/// never closed by a block (Discord keeps both people in it). Fails closed on a read error.
+#[async_trait::async_trait]
+impl DmSendGate for SocialDeps {
+    async fn dm_closed(&self, channel: ChannelId, user: UserId) -> bool {
+        let dm = match self.service.repo().get_dm(channel).await {
+            Ok(Some(dm)) => dm,
+            Ok(None) => return false,
+            Err(e) => {
+                tracing::warn!(error = %e, %channel, "reading DM for the block check failed");
+                return true;
+            }
+        };
+        if dm.kind != DmKind::Dm {
+            return false;
+        }
+        let Some(other) = dm.recipients.iter().copied().find(|u| *u != user) else {
+            return false;
+        };
+        match self.service.can_send_dm(user, other).await {
+            Ok(ok) => !ok,
+            Err(e) => {
+                tracing::warn!(error = %e, %channel, "block check failed");
+                true
+            }
+        }
+    }
 }

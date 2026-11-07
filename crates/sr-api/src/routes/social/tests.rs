@@ -142,7 +142,8 @@ async fn env() -> Env {
         1,
     )
     .unwrap()
-    .with_dm_announcer(social.clone());
+    .with_dm_announcer(social.clone())
+    .with_dm_gate(social.clone());
     let social_handle = social.clone();
     let state = AppState::builder()
         .bots(bots)
@@ -2259,4 +2260,144 @@ async fn the_author_never_receives_the_likely_spam_flag() {
     assert_eq!(flags_of(&mine), 0, "{mine}");
     let (_, theirs) = e.get(&format!("/channels/{dm}/messages"), BOB).await;
     assert_eq!(flags_of(&theirs), LIKELY_SPAM, "{theirs}");
+}
+
+// ---- SEC-AUD-003 / SEC-AUD-011: blocks are enforced after the DM exists ----
+
+async fn block(e: &Env, by: u64, target: u64) {
+    let (s, v) = e
+        .put(
+            &format!("/users/@me/relationships/{target}"),
+            by,
+            Some(json!({"type": 2})),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{v}");
+}
+
+async fn refused_50007(e: &Env, dm: &str, who: u64) {
+    let (s, v) = e
+        .post(
+            &format!("/channels/{dm}/messages"),
+            who,
+            json!({"content": "hello?"}),
+        )
+        .await;
+    assert_eq!(
+        (s, v["code"].as_i64()),
+        (StatusCode::FORBIDDEN, Some(50007)),
+        "{v}"
+    );
+}
+
+#[tokio::test]
+async fn a_block_closes_an_existing_dm_in_both_directions() {
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    e.say(&dm, BOB, "before the block").await;
+    let (_, list) = e.get(&format!("/channels/{dm}/messages"), BOB).await;
+    let old = list[0]["id"].as_str().unwrap().to_owned();
+
+    // Alice blocks Bob: neither can write; Bob's old message stays editable.
+    block(&e, ALICE, BOB).await;
+    refused_50007(&e, &dm, BOB).await;
+    refused_50007(&e, &dm, ALICE).await;
+    let (s, v) = e
+        .patch(
+            &format!("/channels/{dm}/messages/{old}"),
+            BOB,
+            json!({"content": "edited"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "edit own old message: {v}");
+    // A reaction is a write too.
+    let (s, v) = e
+        .put(
+            &format!("/channels/{dm}/messages/{old}/reactions/%F0%9F%91%8D/@me"),
+            ALICE,
+            None,
+        )
+        .await;
+    assert_eq!(
+        (s, v["code"].as_i64()),
+        (StatusCode::FORBIDDEN, Some(50007)),
+        "{v}"
+    );
+    // After the unblock both can write again.
+    assert_eq!(
+        e.delete("/users/@me/relationships/2", ALICE).await.0,
+        StatusCode::NO_CONTENT
+    );
+    e.say(&dm, BOB, "after the unblock").await;
+    e.say(&dm, ALICE, "welcome back").await;
+
+    // The other direction: Bob blocks Alice.
+    block(&e, BOB, ALICE).await;
+    refused_50007(&e, &dm, ALICE).await;
+    refused_50007(&e, &dm, BOB).await;
+}
+
+#[tokio::test]
+async fn a_block_never_closes_a_group_dm() {
+    use crate::routes::messages::DmSendGate;
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    e.befriend(ALICE, CAROL).await;
+    e.befriend(BOB, CAROL).await;
+    let (s, v) = e
+        .post(
+            "/users/@me/channels",
+            ALICE,
+            json!({"recipients": ["2", "3"], "name": "crew"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let group = ChannelId::new(v["id"].as_str().unwrap().parse().unwrap());
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    block(&e, ALICE, BOB).await;
+    for who in [ALICE, BOB, CAROL] {
+        assert!(!e.social.dm_closed(group, UserId::new(who)).await);
+    }
+    // A 1:1 DM between the blocked pair is closed to both.
+    let dm = ChannelId::new(dm.parse().unwrap());
+    assert!(e.social.dm_closed(dm, UserId::new(ALICE)).await);
+    assert!(e.social.dm_closed(dm, UserId::new(BOB)).await);
+    assert!(!e.social.dm_closed(dm, UserId::new(CAROL)).await);
+}
+
+#[tokio::test]
+async fn a_blocked_users_mention_does_not_badge_the_blocker() {
+    let e = env().await;
+    block(&e, ALICE, BOB).await;
+    let ch = e.ch;
+    // Bob mentions Alice (blocked him) and Carol (did not).
+    let (s, v) = e
+        .post(
+            &format!("/channels/{ch}/messages"),
+            BOB,
+            json!({"content": "hi <@1> and <@3>"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let count = |v: &Value| {
+        v["entries"]
+            .as_array()
+            .and_then(|a| a.iter().find(|x| x["id"] == ch.to_string().as_str()))
+            .map_or(0, |x| x["mention_count"].as_i64().unwrap_or(0))
+    };
+    assert_eq!(count(&e.get("/users/@me/read-states", ALICE).await.1), 0);
+    assert_eq!(count(&e.get("/users/@me/read-states", CAROL).await.1), 1);
+    // An ignore keeps the badge off too.
+    assert_eq!(
+        e.put("/users/@me/ignores/2", CAROL, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    let muted = e
+        .social
+        .service
+        .mention_muted(UserId::new(BOB), &[UserId::new(ALICE), UserId::new(CAROL)])
+        .await
+        .unwrap();
+    assert_eq!(muted.len(), 2);
 }

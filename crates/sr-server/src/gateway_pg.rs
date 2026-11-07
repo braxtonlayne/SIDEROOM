@@ -631,6 +631,25 @@ impl GuildDirectory for PgGuildDirectory {
         }
     }
 
+    async fn blocked_peers(&self, user: UserId) -> Vec<UserId> {
+        let rows: Result<Vec<i64>, sqlx::Error> = sqlx::query_scalar(
+            "SELECT target_id FROM relationships WHERE user_id = $1 AND type = 2 \n             UNION SELECT user_id FROM relationships WHERE target_id = $1 AND type = 2",
+        )
+        .bind(i64::try_from(user.get()).unwrap_or(i64::MAX))
+        .fetch_all(&self.pool)
+        .await;
+        match rows {
+            Ok(r) => r
+                .into_iter()
+                .filter_map(|v| u64::try_from(v).ok().map(UserId::new))
+                .collect(),
+            Err(e) => {
+                tracing::error!(error = %e, "blocked_peers failed");
+                Vec::new()
+            }
+        }
+    }
+
     async fn can_view_channel(&self, user: UserId, guild: GuildId, channel: ChannelId) -> bool {
         let res: Result<bool, sr_chat::error::RepoError> = async {
             let Some(ch) = self.chat.get_channel(channel).await? else {
@@ -895,7 +914,29 @@ impl GuildDirectory for PgGuildDirectory {
 
     async fn dm_call_members(&self, channel: ChannelId, user: UserId) -> Option<Vec<UserId>> {
         match self.social.get_dm(channel).await {
-            Ok(Some(dm)) if dm.has(user) => Some(dm.recipients),
+            Ok(Some(dm)) if dm.has(user) => {
+                // SEC-AUD-003: a block closes a 1:1 call (no ring, no join); a group DM stays open.
+                if dm.kind == sr_chat::social::dm::DmKind::Dm
+                    && let Some(other) = dm.recipients.iter().copied().find(|u| *u != user)
+                {
+                    use sr_chat::social::repo::{RelationshipRepository, kind_of};
+                    let blocked = |a, b| async move {
+                        self.social.get_relationship(a, b).await.map(|r| {
+                            kind_of(&r)
+                                == Some(sr_chat::social::relationships::RelationshipKind::Blocked)
+                        })
+                    };
+                    match (blocked(user, other).await, blocked(other, user).await) {
+                        (Ok(false), Ok(false)) => {}
+                        (Ok(_), Ok(_)) => return None,
+                        _ => {
+                            tracing::error!("dm_call_members block check failed");
+                            return None;
+                        }
+                    }
+                }
+                Some(dm.recipients)
+            }
             Ok(_) => None,
             Err(e) => {
                 tracing::error!(error = %e, "dm_call_members failed");

@@ -1221,6 +1221,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let messages = Arc::new(
         messages
             .with_dm_announcer(social_api.clone())
+            .with_dm_gate(social_api.clone())
             .with_viewer_safety(social_api.clone()),
     );
     // Server-level payments post their "supported this server" notice through the chat module.

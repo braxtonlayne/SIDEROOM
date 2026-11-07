@@ -71,6 +71,14 @@ pub trait DmAnnouncer: Send + Sync {
     async fn announce(&self, channel: ChannelId, users: &[UserId]);
 }
 
+/// Whether a 1:1 DM is closed to `user` by a block in either direction (SEC-AUD-003),
+/// implemented by the social routes. Group DMs are never closed by a block (Discord).
+#[async_trait]
+pub trait DmSendGate: Send + Sync {
+    /// True when `user` may not act (send, react, vote, ring) in 1:1 DM `channel`.
+    async fn dm_closed(&self, channel: ChannelId, user: UserId) -> bool;
+}
+
 /// Object-safe view of the `ChatService` operations used here.
 #[async_trait]
 trait ChatOps: Send + Sync {
@@ -208,6 +216,7 @@ pub struct MessagesDeps {
     nonces: NonceCache,
     cdn: Option<CdnSigner>,
     dm_announcer: Option<Arc<dyn DmAnnouncer>>,
+    dm_gate: Option<Arc<dyn DmSendGate>>,
     /// Source of the 18+ confirmation for age-restricted channels (D-032).
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
     safety: Option<Arc<dyn ViewerSafety>>,
@@ -263,6 +272,7 @@ impl MessagesDeps {
             nonces: Cache::builder().time_to_live(NONCE_WINDOW).build(),
             cdn: None,
             dm_announcer: None,
+            dm_gate: None,
             age: None,
             safety: None,
             audit: None,
@@ -324,6 +334,25 @@ impl MessagesDeps {
     pub fn with_dm_announcer(mut self, announcer: Arc<dyn DmAnnouncer>) -> Self {
         self.dm_announcer = Some(announcer);
         self
+    }
+
+    /// Refuse writes into a 1:1 DM that a block closes (SEC-AUD-003).
+    pub fn with_dm_gate(mut self, gate: Arc<dyn DmSendGate>) -> Self {
+        self.dm_gate = Some(gate);
+        self
+    }
+
+    /// Discord's 50007 when `acc` is a 1:1 DM closed to `user` by a block in either
+    /// direction. Guild channels and group DMs always pass. Editing or deleting one's own
+    /// old messages does not call this, as on Discord.
+    pub async fn require_dm_open(&self, acc: &Access, user: UserId) -> MsgResult<()> {
+        if acc.channel.guild_id.is_none()
+            && let Some(g) = &self.dm_gate
+            && g.dm_closed(acc.channel.id, user).await
+        {
+            return Err(ErrorCode::CannotSendMessagesToUser.into());
+        }
+        Ok(())
     }
 
     /// Gate age-restricted (NSFW) guild channels behind the account's 18+ answer
