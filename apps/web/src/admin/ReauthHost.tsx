@@ -9,8 +9,23 @@ import { getPasskey, isCancelled, passkeysSupported } from '../lib/webauthn';
 import * as api from './api';
 import { onEnrollmentRequired, registerReauthPrompt, type ReauthReason } from './reauth';
 import { useOpenUserSettings } from '../settings/user/nav';
+import { ThemedOverlayRoot } from '../settings/user/ThemedOverlayRoot';
 
 type Method = 'totp' | 'recovery';
+
+/**
+ * The app-root host (router.tsx). It sits outside every section's shell, which is where the `--ui-*` tokens live, so
+ * without a theme root of its own the dialog had no surface, backdrop or field boxes (seen in the D-573 visual check
+ * over Settings). It takes the member's Lounge theme like the player and the drawer; the admin shell keeps mounting
+ * the bare host inside its own theme.
+ */
+export function RootReauthHost() {
+  return (
+    <ThemedOverlayRoot className="sr-reauth-theme">
+      <ReauthHost />
+    </ThemedOverlayRoot>
+  );
+}
 
 export function ReauthHost() {
   const t = useT();
