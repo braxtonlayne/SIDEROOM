@@ -22,7 +22,18 @@
 //! Voice: a client or bot that did not complete the end-to-end handshake is refused at the join and never
 //! forwarded by the SFU (`sr-gateway` and `sr-voice` tests), and `voice.e2ee` is gone from the config
 //! (`e2ee = false` is an error, `sr-core` test); `no_flag_name_matches_the_deny_pattern` also pins that it
-//! does not come back. Needs Postgres for (a):
+//! does not come back.
+//!
+//! The one client-side exception, by design (D-570): the e2e-only opt-out `sr.e2e.noVoiceE2ee`
+//! (`apps/web/src/voice/e2ee/support.ts` `e2eOptOut`, localStorage `sr.e2e.noVoiceE2ee` = `1`) lets a browser
+//! test join as an observer that runs no E2EE itself and looks at the ciphertext the SFU forwards
+//! (`e2e/tests/voice-e2ee.spec.ts`). It is honoured only in a web build made with `VITE_SR_E2E=1` (compiled out
+//! otherwise), it weakens nothing for anyone else (the SFU never forwards that client's own media: it sends no
+//! key package, so it can only listen to ciphertext), and the release web build asserts the flag is unset
+//! (`.github/workflows/release-dry-run.yml`). It is not a setting, a feature or a flag an operator or member can
+//! reach.
+//!
+//! Needs Postgres for (a):
 //! `SR_TEST_DATABASE_URL=postgres://... cargo test -p sr-server --test immutable_rules -- --include-ignored
 //! --test-threads=1 --nocapture`.
 

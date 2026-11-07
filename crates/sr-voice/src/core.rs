@@ -113,7 +113,8 @@ pub struct ParticipantId(pub u64);
 pub struct Flags {
     /// May send audio: has SPEAK and is not server muted.
     pub speak: bool,
-    /// Receives nothing (server or self deafened).
+    /// Deafened (server or self): receives no audio (microphone, screen audio, music, soundboard); camera, screen
+    /// video and data frames still arrive (D-565, Discord's meaning).
     pub deaf: bool,
     /// No USE_VAD: audio passes only while the client reports push-to-talk.
     pub ptt_required: bool,

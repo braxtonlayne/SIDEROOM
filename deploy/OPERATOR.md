@@ -59,7 +59,7 @@ Settings live in Admin > Limits & settings (or `PATCH /admin/settings`) and Admi
 |---|---|---|
 | `accounts.minimum_age` | 13 | Minimum age asked at registration and shown on the invite landing. |
 | `compliance.operator_country` | unset | Two-letter country code; the privacy page names it. Set it before the first invite. |
-| `compliance.operator_contact` | unset | The address the copyright and takedown notices go to; published on `/help`. |
+| `compliance.operator_contact` | unset | The address the copyright and takedown notices go to; published signed out on the house notes (`/house-notes`) and the sign-in page, and in the handbook (`/help`, signed-in members only, D-385). |
 | `compliance.data_request_deadline_days` | 30 (7 to 90) | Due date of a data-subject request. |
 | `compliance.invoice_retention_years` | 10 | Years an invoice stays linked to the member after the year of payment. |
 | `moderation.strike_review_threshold` | 3 | Upheld takedowns in the window that open a review case (never an automatic suspension). |
