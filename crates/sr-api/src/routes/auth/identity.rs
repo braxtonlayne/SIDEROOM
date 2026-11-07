@@ -57,15 +57,20 @@ pub struct ChangePasswordBody {
     /// `false` to keep the other browsers signed in.
     #[serde(default = "yes")]
     revoke_other_sessions: bool,
+    /// Second factor (D-573). Required when the account has two-factor authentication or a
+    /// passkey, unless this session passed a second-factor check in the last 15 minutes.
+    #[serde(default)]
+    mfa: Option<MfaProof>,
 }
 
 fn yes() -> bool {
     true
 }
 
-/// `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:
+/// `POST /sr/auth/password {current_password, new_password, revoke_other_sessions?, mfa?}`:
 /// change the password of the signed-in account. The current password is checked
-/// first (and counts toward the login lockout). By default every other session and
+/// first (and counts toward the login lockout); an account with a second factor proves it
+/// too (`mfa`, D-573), after the new password passed its checks. By default every other session and
 /// every trusted device is revoked; the current session always stays. A notice goes
 /// to the account's email.
 #[utoipa::path(
@@ -106,6 +111,7 @@ pub async fn change_password(
             )
             .into());
     }
+    require_second_factor(&svc, now, &account, current_session, body.mfa.as_ref()).await?;
     let hash = svc.hash_password(&body.new_password).await?;
     svc.store.set_password_hash(account.id, &hash).await?;
     if body.revoke_other_sessions {

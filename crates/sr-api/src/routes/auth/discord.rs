@@ -20,6 +20,7 @@
 //! Every flow uses PKCE (S256) on top of the state cookie.
 
 use super::common::{AuthRouteError, AuthService, R, Svc, user_agent};
+use super::identity::{MfaProof, require_second_factor};
 use super::login::second_factor_step;
 use super::mfa::{current_account, reauthenticate};
 use super::sessions::session_id;
@@ -543,14 +544,28 @@ pub struct DiscordLinkStart {
     pub url: String,
 }
 
-/// `POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The
-/// answer sets the state cookie; the browser then goes to `url` and Discord returns to the
-/// callback, which sends it back to Settings.
+/// Body of the link call.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct LinkBody {
+    /// The account password (re-authentication).
+    password: String,
+    /// Second factor (D-573). Required when the account has two-factor authentication or a
+    /// passkey, unless this session passed a second-factor check in the last 15 minutes.
+    #[serde(default)]
+    mfa: Option<MfaProof>,
+}
+
+/// `POST /sr/auth/discord/link {password, mfa?}`: start linking a Discord identity to the
+/// signed-in account. A new sign-in method takes the password and, when the account has one,
+/// the second factor (D-573). The answer sets the state cookie; the browser then goes to `url`
+/// and Discord returns to the callback, which sends it back to Settings.
 #[utoipa::path(
     post,
     path = "/sr/auth/discord/link",
+    request_body = LinkBody,
     responses(
         (status = 200, body = DiscordLinkStart),
+        (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, description = "Discord sign-in is not configured"),
         (status = 429, body = ErrorBody),
@@ -561,8 +576,9 @@ pub async fn link_start(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
     Svc { svc, ip }: Svc,
+    Json(body): Json<LinkBody>,
 ) -> R<Response> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
     let Some(oauth) = svc.discord.as_ref() else {
         return Ok(StatusCode::NOT_FOUND.into_response());
     };
@@ -578,6 +594,8 @@ pub async fn link_start(
             }],
         )
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
+    let account = current_account(&svc, p.user_id).await?;
+    reauthenticate(&svc, now, &account, &body.password).await?;
     if svc.store.discord_linked(p.user_id).await? {
         return Err(ApiError::with_message(
             ErrorCode::General,
@@ -585,6 +603,7 @@ pub async fn link_start(
         )
         .into());
     }
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
     let (url, cookie) = begin(&state, &svc, oauth, Intent::Link(p.user_id), None, now)?;
     Ok((
         AppendHeaders([(header::SET_COOKIE, cookie)]),
@@ -644,7 +663,7 @@ pub async fn unlink(
 #[derive(OpenApi)]
 #[openapi(
     paths(status, link_start, unlink),
-    components(schemas(DiscordStatus, DiscordLinkStart, UnlinkBody))
+    components(schemas(DiscordStatus, DiscordLinkStart, LinkBody, UnlinkBody))
 )]
 pub struct DiscordApiDoc;
 

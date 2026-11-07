@@ -2,6 +2,7 @@
 
 use super::{
     common::{AuthRouteError, AuthService, R, Svc},
+    identity::{MfaProof, require_second_factor},
     recovery::issue_recovery_codes,
     sessions::session_id,
     store::AccountRecord,
@@ -41,19 +42,37 @@ pub(super) async fn reauthenticate(
     Err(ApiError::with_message(ErrorCode::SrReauthRequired, "That password doesn't match.").into())
 }
 
+/// D-573: a self-service change to how the account signs in takes the password and, when the
+/// account has a second factor (TOTP or a passkey), the D-167 proof (`mfa`, or a check on this
+/// session in the last 15 minutes; a recovery code counts). A trusted device skips the second
+/// factor at sign-in, so the password alone must not remove a factor or add a sign-in method.
+pub(super) async fn reauthenticate_with_factor(
+    svc: &AuthService,
+    now: i64,
+    account: &AccountRecord,
+    session: i64,
+    password: &str,
+    mfa: Option<&MfaProof>,
+) -> R<()> {
+    reauthenticate(svc, now, account, password).await?;
+    require_second_factor(svc, now, account, session, mfa).await
+}
+
 /// `POST /sr/auth/totp/enroll {password}`: create a pending secret and return the
 /// provisioning URI (render as a QR code) and the manual-entry key. The password is
 /// re-checked first (SEC-AUD-022): a session alone must not be able to put its own
-/// authenticator on the account and lock the owner out.
+/// authenticator on the account and lock the owner out. An account that already has a
+/// passkey proves it as well (`mfa`, D-573): adding a second factor needs the existing one.
 pub async fn enroll(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
     Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<Json<Value>> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
+    let now = state.now_secs();
     let account = current_account(&svc, p.user_id).await?;
-    reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
+    reauthenticate(&svc, now, &account, &body.password).await?;
     if svc
         .store
         .totp_get(account.id)
@@ -66,6 +85,7 @@ pub async fn enroll(
         )
         .into());
     }
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
     let e = totp::enroll(&svc.cfg.issuer, &account.username)?;
     svc.store
         .totp_put_pending(account.id, e.secret.as_bytes())
@@ -138,23 +158,35 @@ pub async fn verify(
     Ok(Json(json!({ "recovery_codes": codes })))
 }
 
-/// Body for actions that re-confirm the password.
+/// Body for actions that re-confirm the password (and, D-573, the second factor).
 #[derive(Debug, Deserialize)]
 pub struct PasswordBody {
     pub(super) password: String,
+    /// Second factor, when the account has one and this session has not passed a check in
+    /// the last 15 minutes (D-167, D-573).
+    #[serde(default)]
+    pub(super) mfa: Option<MfaProof>,
 }
 
-/// `DELETE /sr/auth/totp {password}`: disable two-factor and drop the
-/// recovery codes.
+/// `DELETE /sr/auth/totp {password, mfa?}`: disable two-factor and drop the
+/// recovery codes. The second factor is proved too (D-573).
 pub async fn disable(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
     Svc { svc, .. }: Svc,
     Json(body): Json<PasswordBody>,
 ) -> R<StatusCode> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
     let account = current_account(&svc, p.user_id).await?;
-    reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
+    reauthenticate_with_factor(
+        &svc,
+        state.now_secs(),
+        &account,
+        sid,
+        &body.password,
+        body.mfa.as_ref(),
+    )
+    .await?;
     svc.store.totp_delete(account.id).await?;
     // Passkeys still need the recovery codes.
     if !svc.has_passkeys(account.id).await? {

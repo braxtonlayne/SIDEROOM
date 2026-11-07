@@ -1318,7 +1318,7 @@ async fn second_factor_needs_pending_login_limits_attempts_and_expires() {
 }
 
 #[tokio::test]
-async fn disable_and_regenerate_require_the_password() {
+async fn disable_and_regenerate_require_the_password_and_the_second_factor() {
     let h = harness();
     h.add_account(1, "alice", "alice@x.test", AccountState::Active);
     let s = h.login("alice").await;
@@ -1331,7 +1331,7 @@ async fn disable_and_regenerate_require_the_password() {
         .await;
     assert_eq!(early.status, StatusCode::BAD_REQUEST);
 
-    let (_, old) = enrol_totp(&h, &s).await;
+    let (secret, old) = enrol_totp(&h, &s).await;
     let wrong = h
         .post(
             "/api/v1/sr/auth/recovery-codes",
@@ -1342,12 +1342,24 @@ async fn disable_and_regenerate_require_the_password() {
         .await;
     assert_eq!(wrong.status, StatusCode::FORBIDDEN);
     assert_eq!(wrong.body["code"], 900004);
-    let fresh = h
+    // D-573: the password alone does not regenerate the codes.
+    let bare = h
         .post("/api/v1/sr/auth/recovery-codes", json!({"password": PW}))
         .session(&s)
         .send()
         .await;
-    assert_eq!(fresh.status, StatusCode::OK);
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    // A recovery code is a valid proof.
+    let fresh = h
+        .post(
+            "/api/v1/sr/auth/recovery-codes",
+            json!({"password": PW, "mfa": {"method": "recovery", "code": old[1]}}),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(fresh.status, StatusCode::OK, "{:?}", fresh.body);
     assert_eq!(fresh.body["recovery_codes"].as_array().unwrap().len(), 10);
 
     // Old codes no longer work.
@@ -1359,16 +1371,79 @@ async fn disable_and_regenerate_require_the_password() {
         .await;
     assert_eq!(r.status, StatusCode::UNAUTHORIZED);
 
-    // Disable.
-    let del = |pw: &str| {
+    // Disable. The proof above opened a 15-minute window on this session; let it close.
+    h.clock.advance_ms(16 * 60_000);
+    let del = |body: Value| {
         h.call(Method::DELETE, "/api/v1/sr/auth/totp")
-            .json(json!({"password": pw}))
+            .json(body)
             .session(&s)
             .send()
     };
-    assert_eq!(del("nope").await.status, StatusCode::FORBIDDEN);
-    assert_eq!(del(PW).await.status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        del(json!({"password": "nope"})).await.status,
+        StatusCode::FORBIDDEN
+    );
+    let bare = del(json!({"password": PW})).await;
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    let bad_code = del(json!({"password": PW, "mfa": {"method": "totp", "code": "000000"}})).await;
+    assert_eq!(bad_code.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        bad_code.body["errors"]["mfa"]["_errors"][0]["code"],
+        "invalid"
+    );
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = del(json!({"password": PW, "mfa": {"method": "totp", "code": code}})).await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
     h.login("alice").await; // no second factor any more
+}
+
+/// D-573: a password change on an account with a second factor takes its proof; the proof
+/// opens the 15-minute window, which then covers the next change on the same session only.
+#[tokio::test]
+async fn change_password_needs_the_second_factor_when_the_account_has_one() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+    h.clock.advance_ms(31_000);
+    let url = "/api/v1/sr/auth/password";
+
+    let bare = h
+        .post(url, json!({"current_password": PW, "new_password": NEW_PW}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    // Nothing changed: the old password still signs in (to the second-factor step).
+    login_expecting_mfa(&h).await;
+
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = h
+        .post(
+            url,
+            json!({
+                "current_password": PW,
+                "new_password": NEW_PW,
+                "revoke_other_sessions": false,
+                "mfa": {"method": "totp", "code": code},
+            }),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::NO_CONTENT, "{:?}", ok.body);
+    // Within the window the same session changes it back without a new code.
+    let back = h
+        .post(
+            url,
+            json!({"current_password": NEW_PW, "new_password": PW, "revoke_other_sessions": false}),
+        )
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(back.status, StatusCode::NO_CONTENT, "{:?}", back.body);
 }
 
 // ---- sessions -----------------------------------------------------------
@@ -2780,7 +2855,7 @@ async fn discord_link_status_start_and_unlink() {
 
     // Starting answers the authorize URL and sets the state cookie.
     let start = h
-        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .post("/api/v1/sr/auth/discord/link", json!({"password": PW}))
         .session(&s)
         .send()
         .await;
@@ -2816,7 +2891,7 @@ async fn discord_link_status_start_and_unlink() {
     assert_eq!(st.body["linked"], true);
     // Linking twice through the API is refused up front.
     let again = h
-        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .post("/api/v1/sr/auth/discord/link", json!({"password": PW}))
         .session(&s)
         .send()
         .await;
@@ -2876,11 +2951,47 @@ async fn discord_link_routes_are_404_when_not_configured() {
     let st = h.get("/api/v1/sr/auth/discord").session(&s).send().await;
     assert_eq!(st.body, json!({"enabled": false, "linked": false}));
     let start = h
-        .post("/api/v1/sr/auth/discord/link", json!({}))
+        .post("/api/v1/sr/auth/discord/link", json!({"password": PW}))
         .session(&s)
         .send()
         .await;
     assert_eq!(start.status, StatusCode::NOT_FOUND);
+}
+
+/// D-573: starting a Discord link (a new way to sign in) takes the password and, on an
+/// account with a second factor, its proof. No state cookie is set before both pass.
+#[tokio::test]
+async fn discord_link_needs_the_password_and_the_second_factor() {
+    let h = discord_harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let start = |body: Value| {
+        h.post("/api/v1/sr/auth/discord/link", body)
+            .session(&s)
+            .send()
+    };
+    // A bare session is not enough.
+    let bare = start(json!({})).await;
+    assert!(bare.status.is_client_error(), "{:?}", bare.status);
+    assert!(bare.cookie("sr_oauth_state").is_none());
+    let wrong = start(json!({"password": "nope nope nope"})).await;
+    assert_eq!(wrong.status, StatusCode::FORBIDDEN);
+    assert_eq!(wrong.body["code"], 900004);
+    assert!(wrong.cookie("sr_oauth_state").is_none());
+
+    let (secret, _) = enrol_totp(&h, &s).await;
+    h.clock.advance_ms(31_000);
+    let no_code = start(json!({"password": PW})).await;
+    assert_eq!(no_code.status, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        no_code.body["errors"]["mfa"]["_errors"][0]["code"],
+        "required"
+    );
+    assert!(no_code.cookie("sr_oauth_state").is_none());
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = start(json!({"password": PW, "mfa": {"method": "totp", "code": code}})).await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert!(ok.cookie("sr_oauth_state").is_some());
 }
 
 // ---- N-05: member bulk self-delete (D-324) ----------------------------------------------

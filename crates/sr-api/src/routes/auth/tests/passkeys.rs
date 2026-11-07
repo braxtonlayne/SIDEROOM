@@ -113,18 +113,41 @@ impl Soft {
 }
 
 async fn reg_begin(h: &H, s: &str, password: &str) -> Resp {
-    h.post(
-        "/api/v1/sr/auth/passkeys/register/begin",
-        json!({ "password": password }),
-    )
-    .session(s)
-    .send()
-    .await
+    reg_begin_with(h, s, password, None).await
+}
+
+async fn reg_begin_with(h: &H, s: &str, password: &str, mfa: Option<Value>) -> Resp {
+    let mut body = json!({ "password": password });
+    if let Some(mfa) = mfa {
+        body["mfa"] = mfa;
+    }
+    h.post("/api/v1/sr/auth/passkeys/register/begin", body)
+        .session(s)
+        .send()
+        .await
+}
+
+/// A D-167 `mfa` proof made with `auth` (an existing passkey of the session's account).
+async fn passkey_proof(h: &H, s: &str, auth: &mut Soft) -> Value {
+    let b = h
+        .post("/api/v1/sr/auth/passkeys/verify/begin", json!({}))
+        .session(s)
+        .send()
+        .await;
+    assert_eq!(b.status, StatusCode::OK, "{:?}", b.body);
+    let c = auth.get(&b.body["options"]);
+    let code = json!({"ceremony_id": b.body["ceremony_id"], "credential": c}).to_string();
+    json!({"method": "passkey", "code": code})
 }
 
 /// Register `auth` for the session's account; returns the finish response.
 async fn register(h: &H, s: &str, auth: &mut Soft, name: &str) -> Resp {
-    let b = reg_begin(h, s, PW).await;
+    register_with(h, s, auth, name, None).await
+}
+
+/// [`register`] with a second-factor proof (D-573: the account already has a factor).
+async fn register_with(h: &H, s: &str, auth: &mut Soft, name: &str, mfa: Option<Value>) -> Resp {
+    let b = reg_begin_with(h, s, PW, mfa).await;
     assert_eq!(b.status, StatusCode::OK, "{:?}", b.body);
     let cred = auth.create(&b.body["options"], ORIGIN);
     h.post(
@@ -229,13 +252,25 @@ async fn register_list_login_rename_and_remove() {
     assert_eq!(wrong.status, StatusCode::FORBIDDEN);
     let still = h.get("/api/v1/sr/auth/passkeys").session(&s).send().await;
     assert_eq!(still.body.as_array().unwrap().len(), 1);
-    let del = h
+    // D-573: the password alone does not remove a second factor.
+    let bare = h
         .call(Method::DELETE, &uri)
         .json(json!({"password": PW}))
         .session(&s)
         .send()
         .await;
-    assert_eq!(del.status, StatusCode::NO_CONTENT);
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    let still = h.get("/api/v1/sr/auth/passkeys").session(&s).send().await;
+    assert_eq!(still.body.as_array().unwrap().len(), 1);
+    let proof = passkey_proof(&h, &s, &mut auth).await;
+    let del = h
+        .call(Method::DELETE, &uri)
+        .json(json!({"password": PW, "mfa": proof}))
+        .session(&s)
+        .send()
+        .await;
+    assert_eq!(del.status, StatusCode::NO_CONTENT, "{:?}", del.body);
     let gone = passkey_login(&h, &mut auth).await;
     assert_eq!(gone.status, StatusCode::UNAUTHORIZED);
     // The last second factor is gone, so are the recovery codes.
@@ -319,6 +354,15 @@ async fn registration_needs_a_session_the_password_and_a_fresh_ceremony() {
     assert_eq!(ok.body["passkey"]["name"], "Passkey");
     let replay = h.post(url, body.clone()).session(&s).send().await;
     assert_eq!(replay.status, StatusCode::BAD_REQUEST);
+
+    // D-573: a second passkey needs the first one (the password alone is refused); the proof
+    // opens this session's 15-minute window.
+    let bare = reg_begin(&h, &s, PW).await;
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    let proof = passkey_proof(&h, &s, &mut auth).await;
+    let opened = reg_begin_with(&h, &s, PW, Some(proof)).await;
+    assert_eq!(opened.status, StatusCode::OK, "{:?}", opened.body);
 
     // Another session of the same account cannot finish it either.
     let mut other = Soft::new(10);
@@ -741,9 +785,20 @@ async fn removing_totp_keeps_recovery_codes_while_passkeys_remain() {
     let h = harness();
     alice(&h);
     let s = h.login("alice").await;
-    enrol_totp(&h, &s).await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+    // D-573: the passkey joins an account that has TOTP, so the authenticator code comes too
+    // (the next step: the enrolment one is spent).
+    h.clock.advance_ms(31_000);
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
     let mut auth = Soft::new(19);
-    let r = register(&h, &s, &mut auth, "k").await;
+    let r = register_with(
+        &h,
+        &s,
+        &mut auth,
+        "k",
+        Some(json!({"method": "totp", "code": code})),
+    )
+    .await;
     // Recovery codes already exist: no new batch is shown.
     assert!(r.body["recovery_codes"].is_null());
     let del = h
@@ -754,6 +809,33 @@ async fn removing_totp_keeps_recovery_codes_while_passkeys_remain() {
         .await;
     assert_eq!(del.status, StatusCode::NO_CONTENT);
     assert_eq!(h.store.recovery_list_unused(1).await.unwrap().len(), 10);
+}
+
+/// D-573: adding TOTP to an account whose only factor is a passkey takes the passkey's proof
+/// (an account without a factor only needs the password, see `enrol_totp`).
+#[tokio::test]
+async fn totp_enrolment_needs_the_existing_passkey() {
+    let h = harness();
+    alice(&h);
+    let s = h.login("alice").await;
+    let mut auth = Soft::new(20);
+    register(&h, &s, &mut auth, "k").await;
+    let enroll = |mfa: Option<Value>| {
+        let mut body = json!({ "password": PW });
+        if let Some(mfa) = mfa {
+            body["mfa"] = mfa;
+        }
+        h.post("/api/v1/sr/auth/totp/enroll", body)
+            .session(&s)
+            .send()
+    };
+    let bare = enroll(None).await;
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    let proof = passkey_proof(&h, &s, &mut auth).await;
+    let ok = enroll(Some(proof)).await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert!(ok.body["otpauth_uri"].is_string());
 }
 
 #[tokio::test]
@@ -793,13 +875,20 @@ async fn an_account_holds_at_most_twenty_passkeys() {
     let h = harness();
     alice(&h);
     let s = h.login("alice").await;
+    let mut first = Soft::new(40);
     for i in 0..20u8 {
         // Stay below the 10-per-10-minutes begin limit.
         if i % 5 == 0 {
             h.clock.advance_ms(11 * 60_000);
         }
-        let mut a = Soft::new(i + 40);
-        let r = register(&h, &s, &mut a, "k").await;
+        let r = if i == 0 {
+            register(&h, &s, &mut first, "k").await
+        } else {
+            // D-573: every later passkey needs the first one (the window may have closed).
+            let proof = passkey_proof(&h, &s, &mut first).await;
+            let mut a = Soft::new(i + 40);
+            register_with(&h, &s, &mut a, "k", Some(proof)).await
+        };
         assert_eq!(r.status, StatusCode::OK, "{i}: {:?}", r.body);
     }
     h.clock.advance_ms(11 * 60_000);
