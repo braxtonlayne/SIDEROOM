@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 52 - 2026-11-07
+
+- **Trimmer matches your theme.** The audio trimmer's sliders and number fields follow the theme, and the soundboard
+  dialog shows a single Cancel button.
+- **Privacy settings fit a phone.** The Profiles privacy rows stack their label above the choice, so nothing runs
+  off a narrow screen.
+
 ## Phase 51 - 2026-11-06
 
 - **Smaller soundboard sounds.** The upload dialog now saves sounds as Opus where your browser can record it (WAV
