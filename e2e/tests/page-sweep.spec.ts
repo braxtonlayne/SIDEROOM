@@ -86,6 +86,8 @@ interface Row {
   keyChanged?: boolean;
   /** Open this tab (by its accessible name) before the shot, e.g. a title's Comments. */
   tab?: string;
+  /** Then press the first button whose accessible name matches, e.g. "Show 1 reply". */
+  press?: RegExp;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -214,7 +216,12 @@ const SIGNED_IN: Row[] = [
   { name: 'cinema-search', path: () => '/cinema/search?q=film' },
   { name: 'cinema-title', path: (w) => `/cinema/t/${w.titleId}` },
   // SEC-AUD-049 (D-572): the comment thread with a deleted comment kept for its reply ("Comment deleted").
-  { name: 'cinema-title-comments', path: (w) => `/cinema/t/${w.titleId}`, tab: 'Comments' },
+  {
+    name: 'cinema-title-comments',
+    path: (w) => `/cinema/t/${w.titleId}`,
+    tab: 'Comments',
+    press: /^Show \d+ repl/,
+  },
   { name: 'cinema-submit', path: () => '/cinema/submit' },
   {
     name: 'cinema-player',
@@ -797,6 +804,15 @@ async function capture(
         .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
         .then(() => page.waitForTimeout(500))
         .catch((e) => rec.notes.push(`tab ${row.tab} not opened: ${String(e).slice(0, 160)}`));
+    }
+    if (row.press) {
+      await page
+        .getByRole('button', { name: row.press })
+        .first()
+        .click({ timeout: 5000 })
+        .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
+        .then(() => page.waitForTimeout(500))
+        .catch((e) => rec.notes.push(`${row.press} not pressed: ${String(e).slice(0, 160)}`));
     }
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
