@@ -240,7 +240,9 @@ export function EmuPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!game.session || game.save.kind === 'none'}
+                disabled={
+                  !game.session || game.save.kind === 'none' || game.save.kind === 'readFailed'
+                }
                 onClick={() => void game.saveState(s)}
               >
                 {t('games.saves.save', { slot: s })}
@@ -248,7 +250,9 @@ export function EmuPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!game.session || game.save.kind === 'none'}
+                disabled={
+                  !game.session || game.save.kind === 'none' || game.save.kind === 'readFailed'
+                }
                 onClick={() => void game.loadState(s)}
               >
                 {t('games.saves.load', { slot: s })}
@@ -259,6 +263,7 @@ export function EmuPage() {
         <p className="emu-dim" role="status" data-testid="emu-save-status">
           {game.save.kind === 'none' && t('games.saves.noMount')}
           {game.save.kind === 'ready' && t('games.saves.ready', { mount: game.save.mountLabel })}
+          {game.save.kind === 'readFailed' && t('games.saves.readFailed')}
           {game.save.kind === 'saving' && t('games.saves.saving')}
           {game.save.kind === 'saved' && t('games.saves.saved')}
           {game.save.kind === 'error' && t('games.saves.failed')}

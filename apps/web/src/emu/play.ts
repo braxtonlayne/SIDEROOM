@@ -35,6 +35,8 @@ export interface Prepared {
   hash: string;
   extra: Array<{ name: string; bytes: Uint8Array }>;
   sram: Uint8Array | null;
+  /** The save could not be read (anything but "no save yet"): the game starts with saving off so the real save is not overwritten. */
+  saveReadFailed: boolean;
 }
 
 const dirOf = (key: string) => key.slice(0, key.lastIndexOf('/') + 1);
@@ -73,14 +75,18 @@ export async function prepareGame(
   }
   const hash = await sha1Hex(rom);
   let sram: Uint8Array | null = null;
+  let saveReadFailed = false;
   if (deps.saveMountId) {
     try {
       sram = await deps.loadSave(deps.saveMountId, saveKey(core.id, hash, 'sram'));
     } catch {
-      sram = null; // an unreachable save is not a reason to refuse the game; the UI shows the save status
+      // An unreadable save is not a reason to refuse the game, but it is not "no save" either: the caller
+      // plays with saving off, or the first autosave would overwrite the real save.
+      sram = null;
+      saveReadFailed = true;
     }
   }
-  return { core, rom, hash, extra, sram };
+  return { core, rom, hash, extra, sram, saveReadFailed };
 }
 
 /** Whether two byte arrays hold the same bytes. */
