@@ -19,6 +19,7 @@ import { createAppRouter } from '../router';
 import { CrashBoundary, currentRouteName, installCrashTelemetry } from '../crash';
 import { setUnauthorizedHandler } from '../api/client';
 import { exitToLogin } from '../lib/enterApp';
+import { purgeAppCaches } from '../pwa/purge';
 import { forgetSection } from '../state/session';
 import '../styles/fonts.css';
 import '../styles/tokens.css';
@@ -33,10 +34,13 @@ let leaving = false;
 setUnauthorizedHandler(() => {
   if (leaving) return;
   void fetch('/api/v1/users/@me', { credentials: 'include' })
-    .then((res) => {
+    .then(async (res) => {
       if (res.status !== 401 || leaving) return;
       leaving = true;
       forgetSection(); // FU-16: a session that ends without a sign-out forgets its last section too
+      // SEC-ENT-002 / SEC-AUD-002: a session revoked elsewhere leaves no signed-in shell behind, just like a
+      // sign-out (the service worker only purges on a 401 it sees itself; the gateway's 4004 is not one).
+      await purgeAppCaches();
       exitToLogin();
     })
     .catch(() => undefined);
