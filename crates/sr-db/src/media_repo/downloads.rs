@@ -235,7 +235,31 @@ impl DownloadRepository for PgMediaRepo {
         self.live_cache(asset_id, rendition).await
     }
 
-    async fn create_download(&self, row: &DownloadRow) -> MediaResult<()> {
+    async fn create_download(
+        &self,
+        row: &DownloadRow,
+        since_ms: i64,
+        cap: u32,
+    ) -> MediaResult<bool> {
+        // One member's starts are serialised by a transaction-scoped lock, so the count and the insert agree.
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtext('cinema_downloads')::bigint # $1)")
+            .bind(row.user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(be)?;
+        let used: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM cinema_downloads WHERE user_id = $1 \
+               AND created_at > to_timestamp($2::double precision / 1000.0)",
+        )
+        .bind(row.user_id)
+        .bind(since_ms)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+        if used >= i64::from(cap) {
+            return Ok(false);
+        }
         sqlx::query(
             "INSERT INTO cinema_downloads (id, user_id, title_id, episode_id, asset_id, rendition, cache_id) \
              VALUES ($1, $2, $3, $4, $5, $6, $7)",
@@ -247,10 +271,11 @@ impl DownloadRepository for PgMediaRepo {
         .bind(row.asset_id)
         .bind(&row.rendition)
         .bind(row.cache_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(be)?;
-        Ok(())
+        tx.commit().await.map_err(be)?;
+        Ok(true)
     }
 
     async fn download(&self, id: i64) -> MediaResult<Option<(DownloadRow, Option<CacheEntry>)>> {

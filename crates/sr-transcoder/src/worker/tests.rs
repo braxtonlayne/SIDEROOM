@@ -1049,3 +1049,15 @@ fn ffprobe_is_found_beside_ffmpeg() {
     );
     assert_eq!(ffprobe_beside("/opt/ff/my-encoder"), "ffprobe");
 }
+
+#[test]
+fn a_subtitle_track_is_read_no_further_than_one_byte_past_the_cap() {
+    // SEC-AUD-035: a huge extracted track is not loaded whole; the converter then refuses it as too large.
+    let root = TempRoot::new();
+    let p = root.0.join("big.ass");
+    fs::write(&p, vec![b'a'; 4096]).unwrap();
+    assert_eq!(read_capped(&p, 100).unwrap().len(), 101);
+    assert_eq!(read_capped(&p, 10_000).unwrap().len(), 4096);
+    let over = vec![b'a'; MAX_SUBTITLE_BYTES + 1];
+    assert_eq!(ass_to_webvtt(&over), Err(SubtitleError::TooLarge));
+}

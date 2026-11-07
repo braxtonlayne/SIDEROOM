@@ -27,6 +27,14 @@ export const MAX_VERSION = 2 ** 40;
 export const MAX_VERSION_JUMP = 1024;
 /** The host answers one member's `sync` at most this often (ms): each answer is a broadcast of the document. */
 export const SYNC_COOLDOWN_MS = 1000;
+/**
+ * Most live keys in the shared document. Every member holds the whole document and every late join copies it,
+ * so it is bounded: past this a new key is refused (`set` throws, a peer's change is ignored); existing keys
+ * still change.
+ */
+export const MAX_LIVE_KEYS = 10_000;
+/** Most bytes of live values (JSON) in the shared document, with the same rule as [`MAX_LIVE_KEYS`]. */
+export const MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
 
 /** What an Activity (or the host page) provides: opaque bytes in and out, and who is who. */
 export interface DataTransport {
@@ -108,6 +116,15 @@ export function unb64(s: string): Uint8Array {
   return out;
 }
 
+/** The size a value counts against [`MAX_DOCUMENT_BYTES`]: its JSON length (a value that is not JSON counts 0). */
+function jsonSize(d: unknown): number {
+  try {
+    return JSON.stringify(d)?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** True when `a` beats `b`: higher version wins, ties go to the larger author id. */
 function wins(a: { ver: number; by: string }, b: { ver: number; by: string } | undefined): boolean {
   if (!b) return true;
@@ -141,6 +158,9 @@ export class ActivityData {
   private readonly scoped = new Set<string>();
   /** When the host last answered each member's `sync` (local clock). */
   private readonly syncedAt = new Map<string, number>();
+  /** The JSON size of each live value, and their total (the document budget). */
+  private readonly sizes = new Map<string, number>();
+  private liveBytes = 0;
 
   constructor(opts: { now?: () => number } = {}) {
     this.now = opts.now ?? Date.now;
@@ -246,6 +266,25 @@ export class ActivityData {
         `State change is ${bytes.length} bytes; the limit is ${MAX_DATA_BYTES}.`,
       );
     }
+    let keys = this.sizes.size;
+    let total = this.liveBytes;
+    const after = new Map<string, number | undefined>();
+    for (const op of ops) {
+      const old = after.has(op.k) ? after.get(op.k) : this.sizes.get(op.k);
+      const next = 'd' in op ? jsonSize(op.d) : undefined;
+      keys += (next === undefined ? 0 : 1) - (old === undefined ? 0 : 1);
+      total += (next ?? 0) - (old ?? 0);
+      after.set(op.k, next);
+    }
+    if (
+      keys > Math.max(MAX_LIVE_KEYS, this.sizes.size) ||
+      total > Math.max(MAX_DOCUMENT_BYTES, this.liveBytes)
+    ) {
+      throw new DataError(
+        'TOO_LARGE',
+        `The shared document is full (at most ${MAX_LIVE_KEYS} keys and ${MAX_DOCUMENT_BYTES} bytes); delete keys first.`,
+      );
+    }
     this.applyOps(ops, true);
     t.send(bytes);
   }
@@ -338,6 +377,23 @@ export class ActivityData {
     const changes: StateChange[] = [];
     for (const op of ops) {
       if (!wins(op, this.entries.get(op.k))) continue;
+      const old = this.sizes.get(op.k);
+      const next = 'd' in op ? jsonSize(op.d) : undefined;
+      if (next !== undefined) {
+        // The document budget: a peer cannot grow everyone's copy without bound (a local write was checked).
+        const keys = this.sizes.size + (old === undefined ? 1 : 0);
+        const total = this.liveBytes - (old ?? 0) + next;
+        if (
+          (old === undefined && keys > MAX_LIVE_KEYS) ||
+          (next > (old ?? 0) && total > MAX_DOCUMENT_BYTES)
+        ) {
+          continue;
+        }
+        this.sizes.set(op.k, next);
+      } else {
+        this.sizes.delete(op.k);
+      }
+      this.liveBytes += (next ?? 0) - (old ?? 0);
       this.entries.set(op.k, op);
       if ('d' in op) this.tombAt.delete(op.k);
       else this.tombAt.set(op.k, this.now());

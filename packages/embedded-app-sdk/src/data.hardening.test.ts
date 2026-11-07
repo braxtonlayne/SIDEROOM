@@ -1,7 +1,15 @@
 // SEC-AUD-015 (wave 53): a member cannot freeze the shared state with a huge version, cannot write another
 // member's writer-scoped keys, and cannot make the host re-broadcast the document in a loop.
 import { describe, expect, it } from 'vitest';
-import { ActivityData, DataError, LoopbackHub, SYNC_COOLDOWN_MS, type DataTransport } from './data';
+import {
+  ActivityData,
+  DataError,
+  LoopbackHub,
+  MAX_DOCUMENT_BYTES,
+  MAX_LIVE_KEYS,
+  SYNC_COOLDOWN_MS,
+  type DataTransport,
+} from './data';
 
 const enc = new TextEncoder();
 const raw = (o: unknown) => enc.encode(JSON.stringify(o));
@@ -124,5 +132,47 @@ describe('sync flood', () => {
     clock.t += SYNC_COOLDOWN_MS + 1;
     inject(r, 'a', { v: 1, t: 'sync' });
     expect(count() - before).toBe(2);
+  });
+});
+
+// SEC-AUD-035 (wave 54): the shared document has a key and size budget, so one member cannot grow every
+// participant's copy (and every late join) without bound.
+describe('the document budget', () => {
+  it('refuses new keys past MAX_LIVE_KEYS, locally and from the wire, but existing keys still change', () => {
+    const r = room(['host', 'a', 'mal']);
+    const { docs } = r;
+    // Fill to the cap in envelopes small enough for the data channel.
+    let n = 0;
+    while (n < MAX_LIVE_KEYS) {
+      const patch: Record<string, number> = {};
+      for (let i = 0; i < 200 && n < MAX_LIVE_KEYS; i++, n++) patch[`f${n}`] = 0;
+      docs.host!.set(patch);
+    }
+    expect(Object.keys(docs.a!.snapshot()).length).toBe(MAX_LIVE_KEYS);
+    expect(() => docs.a!.set({ one: 1 })).toThrow(DataError);
+    const ver = docs.host!.version + 1;
+    inject(r, 'mal', { v: 1, t: 'state', ops: [{ k: 'extra', d: 1, ver, by: 'mal' }] });
+    expect(docs.host!.get('extra')).toBeUndefined();
+    expect(docs.a!.get('extra')).toBeUndefined();
+    // Changing and deleting what is there still works, and a deletion makes room.
+    docs.a!.set({ f0: 5 });
+    expect(docs.host!.get('f0')).toBe(5);
+    docs.a!.delete('f1');
+    docs.a!.set({ fresh: 1 });
+    expect(docs.host!.get('fresh')).toBe(1);
+  });
+
+  it('refuses growth past MAX_DOCUMENT_BYTES', () => {
+    const r = room(['host', 'a']);
+    const { docs } = r;
+    const chunk = 'x'.repeat(15_000);
+    const per = JSON.stringify(chunk).length;
+    const fit = Math.floor(MAX_DOCUMENT_BYTES / per);
+    for (let i = 0; i < fit; i++) docs.host!.set({ [`c${i}`]: chunk });
+    expect(() => docs.a!.set({ last: chunk })).toThrow(DataError);
+    expect(docs.host!.get('last')).toBeUndefined();
+    // Shrinking a value is always allowed.
+    docs.a!.set({ c0: 'small' });
+    expect(docs.host!.get('c0')).toBe('small');
   });
 });
