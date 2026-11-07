@@ -7,7 +7,15 @@ import { useDeveloperMode } from '../settings/user/prefs';
 import { useViewAsMembers } from '../settings/server/viewAsMode';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useAppsMenu } from './apps/useAppsMenu';
-import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
+import {
+  useCurrentUser,
+  useGuild,
+  useListLoadFailure,
+  useMembers,
+  usePresenceMap,
+  useRoles,
+} from './data';
+import { ListLoadFailed } from './ListLoadFailed';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
 import { openProfilePopout } from './profile/popoutStore';
 import { setMemberRole } from './profile/memberRoles';
@@ -231,6 +239,13 @@ export function MemberList({
   }, [bridged, needle]);
   const total = rows.length;
   const extra = bridged.length === 0 ? 0 : 2 + shownBridged.length;
+  const load = useListLoadFailure('members', guildId);
+  if (load.failed && members.length === 0)
+    return (
+      <div className="lng-members" aria-label={t('lounge.memberList.members')}>
+        <ListLoadFailed message={t('lounge.listLoad.members')} onRetry={load.retry} />
+      </div>
+    );
   return (
     <RovingScope selector=".lng-member">
       <VirtualList

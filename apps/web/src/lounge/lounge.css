@@ -1006,12 +1006,18 @@
 }
 .lng-failed {
   margin: 0;
-  color: var(--danger);
+  /* Danger text on a surface (D-577): contrast-tested per theme, unlike the --danger fill colour. */
+  color: var(--ui-danger-text);
   font-size: 13px;
 }
 .lng-history-failed {
   padding-block: 16px;
   padding-inline: 16px;
+}
+.lng-list-failed {
+  padding-block: 12px;
+  padding-inline: 16px;
+  line-height: 1.4;
 }
 .lng-reply {
   display: flex;

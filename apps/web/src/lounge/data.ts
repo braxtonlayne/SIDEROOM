@@ -22,6 +22,7 @@ import { applyRailLayout } from './shell/railLayout';
 import { useVoiceParticipants } from '../voice/hooks';
 import { useSocial } from './shell/social';
 import { useLoungeUi } from './store';
+import { retryLoad, useLoadFailed, type LoadKind } from './loadFailures';
 
 export type Snowflake = string;
 export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline';
@@ -525,6 +526,26 @@ export function useMembers(guildId: Snowflake | undefined): Member[] {
   useEnsureMembers(guildId, !mock);
   const map = mock ? mock.membersByGuild : live.membersByGuild;
   return (guildId ? map[guildId] : undefined) ?? EMPTY_MEMBERS;
+}
+/**
+ * SEC-AUD-046 (D-577): whether a server's channel list ('server') or member list ('members') failed to load, and
+ * how to try again. Never failed in the mock data.
+ */
+export function useListLoadFailure(
+  kind: LoadKind,
+  guildId: Snowflake | undefined,
+): { failed: boolean; retry: () => void } {
+  const mock = useContext(LoungeDataContext);
+  const failed = useLoadFailed(kind, guildId);
+  return useMemo(
+    () => ({
+      failed: !mock && failed,
+      retry: () => {
+        if (guildId) retryLoad(kind, guildId);
+      },
+    }),
+    [mock, failed, kind, guildId],
+  );
 }
 export function usePresence(userId: Snowflake): Presence {
   const { mock, live } = useSource();

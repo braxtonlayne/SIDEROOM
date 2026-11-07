@@ -20,11 +20,6 @@ export default {
   'lounge.actionError.followThread': 'You are not following this thread yet. Try again.',
   'lounge.actionError.leaveThread': 'You are still following this thread. Try again.',
   'lounge.actionError.status': 'Your status was not changed. Try again.',
-  'lounge.actionError.soundFavorites':
-    'Your favourite sounds were not saved to your account. They stay on this device for now.',
-  'lounge.actionError.loadServer': 'This server could not be loaded. Open it again in a moment.',
-  'lounge.actionError.loadMembers':
-    'The member list could not be loaded. Open the server again in a moment.',
   'lounge.messageList.loadFailed': 'Messages could not be loaded.',
   'lounge.messageList.retry': 'Try again',
   'lounge.notificationDialog.loadError':

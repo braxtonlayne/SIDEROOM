@@ -31,6 +31,7 @@ import { groupChannels, isVoiceLike } from './channels';
 import {
   useChannels,
   useGuild,
+  useListLoadFailure,
   useUsers,
   useVoiceMembers,
   type Channel,
@@ -38,6 +39,7 @@ import {
   type VoiceMember,
 } from './data';
 import { useLoungeRoute } from './nav';
+import { ListLoadFailed } from './ListLoadFailed';
 import { NestedThreads } from './threads/NestedThreads';
 import { completedOnboarding, pauseActive, useGuideFlags } from './shell/joinPipeline';
 import { useGuildMenuCore } from './shell/useGuildMenu';
@@ -571,7 +573,11 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
   const hideMuted = useLoungeUi((s) => !!s.hideMutedChannels[guildId]);
   const [error, setError] = useState<string | null>(null);
   const dnd = useChannelDnd(guildId, channels, !!guild?.permissions.manageChannels, setError);
-  if (!guild) return <div className="lng-sidebar" />;
+  const load = useListLoadFailure('server', guildId);
+  const failedRow = load.failed && (
+    <ListLoadFailed message={t('lounge.listLoad.channels')} onRetry={load.retry} />
+  );
+  if (!guild) return <div className="lng-sidebar">{failedRow}</div>;
   const groups = groupChannels(channels, { hideMuted, activeId: channelId });
   return (
     <div className="lng-sidebar" data-testid="channel-sidebar">
@@ -590,9 +596,10 @@ export function ChannelSidebar({ guildId }: { guildId: string }) {
         aria-label={t('lounge.channelSidebar.channels', { name: guild.name })}
         selector=":is(a, button).lng-channel, .lng-category-btn"
       >
-        {groups.length === 0 && (
-          <p className="lng-muted lng-pad">{t('lounge.channelSidebar.noChannels')}</p>
-        )}
+        {groups.length === 0 &&
+          (failedRow || (
+            <p className="lng-muted lng-pad">{t('lounge.channelSidebar.noChannels')}</p>
+          ))}
         {groups.map((g) => {
           const isCollapsed = !!g.category && !!collapsed[g.category.id];
           const shown = isCollapsed
