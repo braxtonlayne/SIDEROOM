@@ -12,6 +12,7 @@ import { LIVE_ACTIONS } from '../live';
 import { MAX_MESSAGE_LENGTH } from '../composerText';
 import { InlineEdit } from '../msg/InlineEdit';
 import { PollView } from '../msg/Poll';
+import { reactorName, reactorSentence } from '../msg/Reactions';
 import { SystemMessage } from '../msg/SystemMessage';
 import { NotificationDialog } from '../shell/NotificationDialog';
 import { useNotifSettings } from '../shell/notifSettings';
@@ -291,5 +292,14 @@ describe('inline edit over the length limit', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('5 characters over the limit');
     await userEvent.type(screen.getByRole('textbox'), '{Enter}');
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('reaction names', () => {
+  it('the reactions route answers ids only: names come from the users the store knows', () => {
+    seedLounge({ messages: [] });
+    expect(reactorName({ id: '2' })).toBe('Bob');
+    expect(reactorSentence([reactorName({ id: '2' })], 1, 'x')).toBe('Bob reacted with x');
+    expect(reactorName({ id: '99' })).toBe('99');
   });
 });

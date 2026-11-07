@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import type { Message } from '../data';
+import { reactorName } from './Reactions';
 
 interface Reactor {
   id: string;
-  username: string;
+  username?: string;
   global_name?: string | null;
 }
 
@@ -90,13 +91,13 @@ export function ReactorsModal({
         <ul className="lng-voter-list">
           {users?.map((u) => (
             <li key={u.id} className="lng-reactor-row">
-              <span>{u.global_name || u.username}</span>
+              <span>{reactorName(u)}</span>
               {canManage && (
                 <button
                   type="button"
                   className="lng-link-btn lng-danger"
                   aria-label={t('lounge.reactors.removeReaction', {
-                    name: u.global_name || u.username,
+                    name: reactorName(u),
                   })}
                   onClick={() => void remove(u)}
                 >

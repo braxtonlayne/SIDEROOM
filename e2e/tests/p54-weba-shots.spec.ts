@@ -1,7 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page, Route } from '@playwright/test';
-import { apiPatch, apiPost, apiPut, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import {
+  apiPatch,
+  apiPost,
+  apiPut,
+  bootstrapState,
+  expect,
+  loginApi,
+  test,
+} from '../support/fixtures';
 
 /**
  * SEC-AUD-036 / 037 (wave 54): the error states a failed action or load now shows (history load, action toasts,
@@ -45,7 +53,10 @@ const failOn = (page: Page, glob: string | RegExp, method = 'GET') =>
 
 async function openServerMenu(page: Page, vp: string, guildId: string) {
   if (vp === 'phone') {
-    await page.getByRole('button', { name: new RegExp(`^${GUILD}`) }).first().click();
+    await page
+      .getByRole('button', { name: new RegExp(`^${GUILD}`) })
+      .first()
+      .click();
   } else {
     const rail = page.getByRole('navigation', { name: 'Servers' });
     await rail.locator(`a[href^="/channels/${guildId}"]`).click({ button: 'right' });
@@ -73,7 +84,10 @@ test('silent failures now say so', async ({ browser }) => {
   const m = await apiPost<{ id: string }>(o, `/channels/${channelId}/messages`, {
     content: 'react to me',
   });
-  await apiPut(o, `/channels/${channelId}/messages/${m.id}/reactions/${encodeURIComponent('👍')}/@me`);
+  await apiPut(
+    o,
+    `/channels/${channelId}/messages/${m.id}/reactions/${encodeURIComponent('👍')}/@me`,
+  );
   const poll = await apiPost<{ id: string }>(o, `/channels/${channelId}/messages`, {
     content: '',
     poll: {
@@ -108,30 +122,41 @@ test('silent failures now say so', async ({ browser }) => {
       await failOn(page, /\/reactions\//, 'DELETE');
       await page.goto(`/channels/${guild.id}/${channelId}`);
       const log = page.getByRole('log');
-      await log.getByRole('button', { name: /1 reaction/ }).first().click();
+      await log
+        .getByRole('button', { name: /1 reaction/ })
+        .first()
+        .click();
       await expect(page.getByText('Your reaction was not saved. Try again.')).toBeVisible();
       await shot('toast-reaction-failed');
 
       // 3. Poll voters that failed to load are not "Nobody".
       await failOn(page, new RegExp(`/polls/${poll.id}/answers/1(\\?|$)`));
-      await log.getByRole('button', { name: /Voters.*Tea/ }).first().evaluate((b) => (b as HTMLButtonElement).click());
+      await log
+        .getByRole('button', { name: /Voters.*Tea/ })
+        .first()
+        .evaluate((b) => (b as HTMLButtonElement).click());
       await expect(page.getByText('The voters could not be loaded.')).toBeVisible();
       await shot('poll-voters-failed');
       await page.keyboard.press('Escape');
 
-      // 4. A failed status change.
-      await failOn(page, /\/api\/v1\/users\/@me\/presence$/, 'PATCH');
-      await failOn(page, /\/api\/v1\/users\/@me\/presence$/, 'PUT');
-      await page.getByRole('button', { name: 'Set status' }).first().click();
-      await page.getByRole('menuitem', { name: 'Idle' }).click();
-      await expect(page.getByText('Your status was not changed. Try again.')).toBeVisible();
-      await shot('toast-status-failed');
+      // 4. A failed status change (the user panel is on the desktop layout; a phone has it under You).
+      if (vp === 'desktop') {
+        await failOn(page, /\/api\/v1\/users\/@me\/presence$/, 'PATCH');
+        await failOn(page, /\/api\/v1\/users\/@me\/presence$/, 'PUT');
+        await page.getByRole('button', { name: 'Set status' }).first().click();
+        await page.getByRole('menuitem', { name: 'Idle' }).click();
+        await expect(page.getByText('Your status was not changed. Try again.')).toBeVisible();
+        await shot('toast-status-failed');
+      }
       await page.unrouteAll({ behavior: 'ignoreErrors' });
 
       // 5. The notification settings dialog when its load fails.
       await failOn(page, /\/api\/v1\/users\/@me\/guild-settings/);
       await failOn(page, new RegExp(`/api/v1/users/@me/guilds/${guild.id}/settings`));
-      await page.goto(`/channels/${guild.id}/${channelId}`);
+      // A phone opens the server menu from the channel list (no rail).
+      await page.goto(
+        vp === 'phone' ? `/channels/${guild.id}` : `/channels/${guild.id}/${channelId}`,
+      );
       await page.waitForTimeout(2000);
       await openServerMenu(page, vp, guild.id);
       await page.getByRole('menuitem', { name: 'Notification Settings' }).click();

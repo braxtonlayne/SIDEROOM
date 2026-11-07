@@ -271,7 +271,7 @@ export function ExtensionsSection({ guildId, viewer }: SectionProps) {
       <ActionStatus error={action.error} done={action.done} />
 
       {on.error && (
-        <Notice variant="danger" title={t('settings.extensions.loadFailed')}>
+        <Notice variant="danger" className="ss-status" title={t('settings.extensions.loadFailed')}>
           {on.error}{' '}
           <Button size="sm" variant="secondary" onClick={on.reload}>
             {t('settings.extensions.retry')}
