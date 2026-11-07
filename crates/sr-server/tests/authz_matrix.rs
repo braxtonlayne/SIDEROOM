@@ -10026,6 +10026,24 @@ async fn graduated_moderation_holds_over_http() {
             r.body
         ));
     }
+    // D-566 (SEC-AUD-024): crossposting and poll votes are posting too (the gate answers before the message is
+    // looked up).
+    let ch = &world.a["channel_id"];
+    for (method, path) in [
+        ("POST", format!("/channels/{ch}/messages/1/crosspost")),
+        (
+            "PUT",
+            format!("/channels/{ch}/polls/1/answers/1/voters/@me"),
+        ),
+    ] {
+        let r = srv.call(&sess["grdgen4idle"], method, &path, None).await;
+        if r.status != 403 || !r.body.contains("900124") {
+            failures.push(format!(
+                "the frozen node {method} {path} answers SrAccountRestricted: {} {}",
+                r.status, r.body
+            ));
+        }
+    }
     // It can still read its own restrictions and appeal.
     let mine = expect!(
         "the frozen node reads its restrictions",
