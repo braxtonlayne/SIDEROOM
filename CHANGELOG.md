@@ -8,6 +8,14 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 53 - 2026-11-07
+
+- **Safer sign-in.** Signing in with Discord now asks for your passkey too, and logging out (or "log out everywhere") disconnects your other open sessions straight away.
+- **Blocks work everywhere.** Someone you block can no longer message you in an existing DM, their mentions don't notify you, and you don't see them in comments, lists or your guestbook.
+- **Your files stay yours.** Sharing a shelf shares its media, covers and subtitles, not every other file in the bucket.
+- **No more lost data on a bad connection.** If a profile, note, birthday or game save can't be loaded, SIDE ROOM says so and won't overwrite it with an empty one.
+- **Staff fixes.** Removing a staff member and revoking an invite now ask for a reason and work again. Channels holding moderation evidence can't be deleted until the hold is released.
+
 ## Phase 52 - 2026-11-07
 
 - **Trimmer matches your theme.** The audio trimmer's sliders and number fields follow the theme, and the soundboard

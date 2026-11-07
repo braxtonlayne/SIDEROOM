@@ -428,3 +428,23 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 
 ### ACT — SDK shelf picker
 - [x] **ACT-SDK-001** [FE] [Activity] The member-only `pickShelfObject { accept?, max_size? } -> { shelf_id, object_hash, name, size, content_type } | null` bridge command (D-466, D-488, threat-model row T51; needs `byos_read`, not on the guest allow-list): the app's own shelf picker (`apps/web/src/activities/ShelfPicker.tsx`, a lazy chunk over the frame, never inside it) lists the shelves the member can open and one shelf's files filtered by `accept` and `max_size`; the member's pick is their yes for that object, so the following `shelfObjectBytes` shows no second dialog; cancel is `null`, a second call while one is open fails, closing the frame cancels it, and the host re-checks the pick against the filters. Sketch & Slander's pack panel gets "Choose a file..." before the paste field when the host has the command; the paste field stays for a shared link. Proof: SDK, host, picker and guest vitest, the Sketch client tests, and `e2e/tests/sketch-gate.spec.ts` (picks one pack with no second dialog, pastes another). Handoff: `docs/dev/handoff/feat-p49-picker.md`. Wave 51 (D-545): the picker searches on the server (`GET /shelves/{id}/objects?q=`, same visibility filter, debounced box), so a shelf past 3,000 files is searchable; the note stays for the unfiltered list. Handoff: `docs/dev/handoff/feat-p51-picker.md`.
+
+
+## Wave 53 — Audit fixes (read-only audit of 2026-11-07)
+
+### SEC-AUD — Security audit findings
+- [x] **SEC-AUD-001** [BE/FE] Discord sign-in applies the same second-factor rule as password sign-in (TOTP or passkey, trusted devices honoured); `/login/2fa` offers the passkey for a Discord login. Handoff `fix-p53-auth.md`.
+- [x] **SEC-AUD-002** [BE/FE] Logout, logout-all, session end, password change or reset, the email-change revoke link and staff suspend, force-logout and reset-2FA publish `SessionsRevoked`; the gateway re-checks and closes revoked sockets (4004), with a 60 s re-check as a backstop; the web client signs out on 4004. Group-DM removal also drops the member from the DM call and its MLS group. Handoff `fix-p53-auth.md`.
+- [x] **SEC-AUD-003** [BE] A block in either direction closes a 1:1 DM to sends, reactions, poll votes, scheduled sends and calls (50007); group DMs are unchanged. Handoff `fix-p53-block.md`.
+- [x] **SEC-AUD-004** [BE] A released app keeps only its approved privileged intents while a new version is in review. Handoff `fix-p53-limits.md`.
+- [x] **SEC-AUD-005** [BE] Storage "companion" files are an allow-list (artwork, subtitles, shelf sidecars); other files need manage rights. Handoff `fix-p53-storage.md`.
+- [x] **SEC-AUD-006** [BE] Held messages and attachments survive channel and DM deletes (migration 2390 triggers; 400 `CHANNEL_UNDER_MODERATION_HOLD`); purge jobs lock and re-check holds before deleting objects; delisted mounts and single-object takedowns are refused on `/cdn/mount`; moving a taken-down file is refused; the ZIP central directory is checked before parsing; transcode redirects are followed only from the server itself. Handoff `fix-p53-storage.md`.
+- [x] **SEC-AUD-007** [BE] The HTTP rate limiter also charges unverified credentials to the client IP, and ids in bucket keys are normalised. Handoff `fix-p53-limits.md`.
+- [x] **SEC-AUD-008** [FE] The emulator starts with saving off when a save can't be read, instead of overwriting it. Handoff `fix-p53-web.md`.
+- [x] **SEC-AUD-009** [BE] SFU per-member declarations and hints are capped, ICE-TCP connections are capped at 4096, and SetFlags before join keeps the token tier. Handoff `fix-p53-limits.md`.
+- [x] **SEC-AUD-010** [BE] `/gateway` caps messages at 256 KiB; unidentified sockets must IDENTIFY within 30 s, at most 32 per address, and count toward the connection cap. Handoff `fix-p53-auth.md`.
+- [x] **SEC-AUD-011** [BE] A blocked or ignored author's mentions don't badge or Web-Push; live presence isn't sent across a block. Handoff `fix-p53-block.md`.
+- [x] **SEC-AUD-012** [BE] Library comments, reviews and lists, reading presence and the profile's top friends and guestbook honour blocks and ignores. Handoff `fix-p53-block.md`.
+- [x] **SEC-AUD-013** [FE] Staff removal and invite revoke ask for the required reason (they always failed before). Handoff `fix-p53-web.md`.
+- [x] **SEC-AUD-014** [FE] A failed load never leaves an editable empty form (per-server profile, notes, birthday, Notes tool); a failed save never says "Saved". Handoff `fix-p53-web.md`.
+- [x] **SEC-AUD-015** [FE] The embedded-app SDK validates state versions, scopes per-member keys to their writer, and rate-limits sync answers. Handoff `fix-p53-web.md`.
