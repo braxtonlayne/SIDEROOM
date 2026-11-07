@@ -991,6 +991,29 @@ async fn new_episodes_for_a_published_series_stay_inside_the_submission() {
     w.make_playable(&a2).await;
     w.make_playable(&a3).await;
 
+    // SEC-AUD-034: another member's pending episode of the same series is not in this submission's preview
+    // (the submitter's own, and the reviewer's later), nor in the reviewer's videos.
+    let (st, b) = w
+        .post(
+            w.other,
+            "/submissions",
+            json!({ "kind": KIND_EPISODES, "payload": { "title_id": t.id.to_string(), "season": 1,
+                "episodes": [{ "number": 9, "title": "Somebody Else's Secret" }] } }),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{b}");
+    let (st, p) = w
+        .get(w.member, &format!("/submissions/{sub}/preview"))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{p}");
+    let titles: Vec<&str> = p["preview"]["episodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|e| e["title"].as_str())
+        .collect();
+    assert_eq!(titles, ["Two", "Three"], "{p}");
+
     let (st, d) = w
         .post(w.member, &format!("/submissions/{sub}/submit"), json!({}))
         .await;
@@ -998,6 +1021,12 @@ async fn new_episodes_for_a_published_series_stay_inside_the_submission() {
     assert_eq!(d["items"].as_array().unwrap().len(), 2, "{d}");
     let sid: i64 = sub.parse().unwrap();
     w.review.claim(w.reviewer, sid, false).await.unwrap();
+    let media = w.review.media_for_review(w.reviewer, sid).await.unwrap();
+    assert_eq!(media.len(), 2, "{media:?}");
+    assert!(
+        media.iter().all(|m| !m.label.contains("Secret")),
+        "{media:?}"
+    );
     w.review
         .approve(w.reviewer, sid, rm::DecisionInput::default())
         .await

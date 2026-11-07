@@ -45,8 +45,10 @@ pub trait SubmissionKind: Send + Sync {
     -> ReviewResult<Vec<NewItem>>;
     /// Problems that block submitting; empty when the submission is ready.
     async fn validate(&self, s: &Submission, items: &[NewItem]) -> ReviewResult<Vec<String>>;
-    /// The metadata a reviewer sees. Stored with each submit so a resubmit can be diffed.
-    async fn preview(&self, s: &Submission) -> ReviewResult<Value>;
+    /// The metadata a reviewer sees. Stored with each submit so a resubmit can be diffed. `items` are the
+    /// submission's registered items: a kind that shares its target with other submissions (new episodes of a
+    /// published series) shows only what this submission owns, never another member's pending drafts.
+    async fn preview(&self, s: &Submission, items: &[SubmissionItem]) -> ReviewResult<Value>;
     /// Publish the approved items. Idempotent: a retry after a partial failure must finish.
     async fn publish(&self, s: &Submission, approved: &[SubmissionItem]) -> ReviewResult<()>;
     /// Which of the published items earn a contribution credit (D-074). Default: all of them,
@@ -65,7 +67,12 @@ pub trait SubmissionKind: Send + Sync {
         Ok(Vec::new())
     }
     /// The videos under review, for the reviewer's proxy player (REV-RV-002). The default has none.
-    async fn media(&self, _s: &Submission) -> ReviewResult<Vec<MediaRef>> {
+    /// `items` as for [`Self::preview`].
+    async fn media(
+        &self,
+        _s: &Submission,
+        _items: &[SubmissionItem],
+    ) -> ReviewResult<Vec<MediaRef>> {
         Ok(Vec::new())
     }
     /// The artwork slots a member (or the reviewer holding the claim) can fill in the draft:

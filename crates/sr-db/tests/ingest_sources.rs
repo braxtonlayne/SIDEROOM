@@ -366,6 +366,43 @@ async fn files_are_added_to_a_published_series_with_the_same_title() {
         .unwrap();
     assert_eq!(sub.submission.kind, "library.items");
     assert_eq!(sub.submission.ref_id, Some(s.id));
+
+    // SEC-AUD-034: a pending chapter of the same series that this submission did not add (another member's
+    // draft) is not in its preview.
+    let edition = svc
+        .admin_series(actor, s.id)
+        .await
+        .unwrap()
+        .editions
+        .first()
+        .unwrap()
+        .id;
+    svc.create_chapter(
+        actor,
+        edition,
+        sr_library::model::ChapterInput {
+            number: 9.0,
+            title: Some("Somebody Else's Secret".into()),
+            volume_id: None,
+            format: sr_library::model::ChapterFormat::Images,
+            source_key: None,
+            release_group: None,
+        },
+    )
+    .await
+    .unwrap();
+    let preview = w
+        .review
+        .preview_mine(w.owner, sub.submission.id)
+        .await
+        .unwrap();
+    let numbers: Vec<f64> = preview["chapters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["number"].as_f64())
+        .collect();
+    assert_eq!(numbers, [5.0], "{preview}");
 }
 
 #[tokio::test]

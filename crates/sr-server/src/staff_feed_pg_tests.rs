@@ -807,7 +807,11 @@ impl sr_review::SubmissionKind for OneItemKind {
     ) -> sr_review::ReviewResult<Vec<String>> {
         Ok(Vec::new())
     }
-    async fn preview(&self, s: &sr_review::model::Submission) -> sr_review::ReviewResult<Value> {
+    async fn preview(
+        &self,
+        s: &sr_review::model::Submission,
+        _items: &[sr_review::model::SubmissionItem],
+    ) -> sr_review::ReviewResult<Value> {
         Ok(serde_json::json!({ "title": s.title }))
     }
     async fn publish(

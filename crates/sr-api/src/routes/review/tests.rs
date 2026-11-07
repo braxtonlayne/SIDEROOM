@@ -90,13 +90,13 @@ impl SubmissionKind for StubKind {
             vec![]
         })
     }
-    async fn preview(&self, s: &Submission) -> ReviewResult<Value> {
+    async fn preview(&self, s: &Submission, _items: &[SubmissionItem]) -> ReviewResult<Value> {
         Ok(json!({ "title": s.title }))
     }
     async fn publish(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<()> {
         Ok(())
     }
-    async fn media(&self, _: &Submission) -> ReviewResult<Vec<MediaRef>> {
+    async fn media(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<Vec<MediaRef>> {
         Ok(vec![MediaRef {
             ref_id: 1,
             label: "Episode 1".into(),
@@ -841,7 +841,7 @@ async fn the_artwork_route_follows_the_submission_rules() {
         )
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST, "{b}");
-    // Somebody else's submission names nothing; a reviewer of the kind is told to claim it first.
+    // Somebody else's submission names nothing; to a reviewer an unsent draft names nothing either (SEC-AUD-034).
     let (st, _) = e
         .call(
             Some(OTHER),
@@ -859,7 +859,7 @@ async fn the_artwork_route_follows_the_submission_rules() {
             Some(json!({ "image": png })),
         )
         .await;
-    assert_eq!(st, StatusCode::CONFLICT);
+    assert_eq!(st, StatusCode::NOT_FOUND);
     // A malformed id names nothing.
     let (st, _) = e
         .call(
