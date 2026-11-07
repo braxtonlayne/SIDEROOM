@@ -864,3 +864,185 @@ async fn a_cartridge_names_a_shelf_object_and_a_delisting_hides_it() {
     );
     r.db.cleanup().await.unwrap();
 }
+
+/// A cartridge row as listed before D-568: the lister's typed tier, never checked against a manifest.
+async fn old_cartridge(
+    pool: &PgPool,
+    guild: i64,
+    user: i64,
+    title: &str,
+    source_ref: &str,
+    object: Option<(i64, &str)>,
+) -> i64 {
+    let id = uid();
+    sqlx::query(
+        "INSERT INTO arcade_guild_cartridges \
+         (id, guild_id, title, kind, tier, source_ref, capabilities, added_by, shelf_id, object_hash) \
+         VALUES ($1, $2, $3, 'game', 'TIER_1_ORIGINAL', $4, '{guest_play}', $5, $6, $7)",
+    )
+    .bind(id)
+    .bind(guild)
+    .bind(title)
+    .bind(source_ref)
+    .bind(user)
+    .bind(object.map(|o| o.0))
+    .bind(object.map(|o| o.1.to_owned()))
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn cartridges_listed_before_d568_are_rechecked_against_their_manifest() {
+    // D-579 (SEC-AUD-045): every row without manifest_checked_at has its file's sideroom.json read; a readable
+    // manifest rewrites the typed tier and capabilities, anything else delists the row with the reason.
+    let r = rig().await;
+    let pool = r.db.pool();
+    let files = Files::default();
+    let user = account(pool).await;
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Old Arcade', $2)")
+        .bind(guild)
+        .bind(user)
+        .execute(pool)
+        .await
+        .unwrap();
+    let s = shelf(pool, "guild", guild).await;
+    let tier2 = Some(r#"{"tier": "TIER_2_REIMPLEMENTATION", "capabilities": ["datachannel"]}"#);
+    let fan = shelf_file(pool, &files, s, "games/fan.zip", game_zip(tier2)).await;
+    shelf_file(pool, &files, s, "games/path.zip", game_zip(tier2)).await;
+    let notier = shelf_file(pool, &files, s, "games/notier.zip", game_zip(Some("{}"))).await;
+    let bare = shelf_file(pool, &files, s, "games/bare.zip", game_zip(None)).await;
+    let notzip = shelf_file(pool, &files, s, "games/notes.zip", b"not a zip".to_vec()).await;
+    // In the catalog, but the bucket no longer has it.
+    let gone = shelf_file(pool, &files, s, "games/gone.zip", game_zip(tier2)).await;
+    files
+        .0
+        .lock()
+        .unwrap()
+        .remove(&(s, "games/gone.zip".to_owned()));
+
+    // The audit's case: a Tier 2 fan game its lister typed as Original.
+    let by_object = old_cartridge(pool, guild, user, "Fan Game", "x", Some((s, &fan))).await;
+    // Before wave 42 a cartridge named only a path on the server's shelf.
+    let by_path = old_cartridge(pool, guild, user, "By Path", "games/path.zip", None).await;
+    let mut bad = Vec::new();
+    for (title, hash) in [
+        ("No Tier", &notier),
+        ("No Manifest", &bare),
+        ("Not A Zip", &notzip),
+        ("Gone File", &gone),
+    ] {
+        bad.push(old_cartridge(pool, guild, user, title, "y", Some((s, hash))).await);
+    }
+    bad.push(old_cartridge(pool, guild, user, "Nowhere", "games/nowhere.zip", None).await);
+    // A row already checked (listed under D-568) is not read again.
+    let checked = old_cartridge(pool, guild, user, "Checked", "z", Some((s, &bare))).await;
+    sqlx::query("UPDATE arcade_guild_cartridges SET manifest_checked_at = now() WHERE id = $1")
+        .bind(checked)
+        .execute(pool)
+        .await
+        .unwrap();
+
+    // Small passes until one checks nothing.
+    let (mut rewritten, mut delisted, mut passes) = (0, Vec::new(), 0);
+    loop {
+        let pass = r.arcade.recheck_cartridges(&files, 3).await.unwrap();
+        passes += 1;
+        if pass.checked == 0 {
+            break;
+        }
+        rewritten += pass.rewritten;
+        delisted.extend(pass.delisted);
+    }
+    assert_eq!(passes, 4, "7 rows in passes of 3, then an empty one");
+    assert_eq!(rewritten, 2);
+    let mut ids: Vec<i64> = delisted.iter().map(|d| d.id).collect();
+    ids.sort();
+    bad.sort();
+    assert_eq!(ids, bad);
+    let no_tier = delisted.iter().find(|d| d.title == "No Tier").unwrap();
+    assert_eq!(no_tier.guild_name, "Old Arcade");
+    assert!(no_tier.added_by_name.starts_with('t'));
+    assert!(no_tier.reason.contains("tier"), "{}", no_tier.reason);
+    for d in &delisted {
+        assert!(!d.reason.is_empty(), "{d:?}");
+    }
+
+    // What is left listed: the two rewritten from their manifest, and the row checked before.
+    let listed = r.arcade.cartridges(guild).await.unwrap();
+    let mut listed_ids: Vec<i64> = listed.iter().map(|c| c.id.parse().unwrap()).collect();
+    listed_ids.sort();
+    let mut want = vec![by_object, by_path, checked];
+    want.sort();
+    assert_eq!(listed_ids, want);
+    for c in listed.iter().filter(|c| c.title != "Checked") {
+        assert_eq!(c.tier, Tier::Reimplementation, "{}", c.title);
+        assert_eq!(c.capabilities, vec!["datachannel"]);
+        assert!(!c.eligibility.browser_play);
+    }
+    let path_row = listed.iter().find(|c| c.title == "By Path").unwrap();
+    assert_eq!(path_row.shelf_id.as_deref(), Some(s.to_string().as_str()));
+    let untouched = listed.iter().find(|c| c.title == "Checked").unwrap();
+    assert_eq!(untouched.tier, Tier::Original);
+    let reason: Option<String> =
+        sqlx::query_scalar("SELECT delist_reason FROM arcade_guild_cartridges WHERE id = $1")
+            .bind(bad[0])
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert!(reason.is_some());
+
+    // The lister fixes the file and lists it again: the new row replaces the delisted one.
+    let fixed = game_zip(Some(r#"{"tier": "TIER_1_ORIGINAL"}"#));
+    sqlx::query("UPDATE shelf_objects SET size = $3 WHERE shelf_id = $1 AND object_hash = $2")
+        .bind(s)
+        .bind(&notier)
+        .bind(fixed.len() as i64)
+        .execute(pool)
+        .await
+        .unwrap();
+    files
+        .0
+        .lock()
+        .unwrap()
+        .insert((s, "games/notier.zip".to_owned()), fixed);
+    let input = CartridgeInput {
+        title: "No Tier".into(),
+        description: String::new(),
+        kind: "game".into(),
+        tier: None,
+        source_ref: String::new(),
+        shelf_id: Some(s.to_string()),
+        object_hash: Some(notier.clone()),
+        capabilities: vec![],
+        tip_links: vec![],
+    };
+    let v = r
+        .arcade
+        .add_cartridge(guild, user, input, &files)
+        .await
+        .unwrap();
+    assert_eq!(v.tier, Tier::Original);
+    let rows: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM arcade_guild_cartridges WHERE guild_id = $1 AND object_hash = $2",
+    )
+    .bind(guild)
+    .bind(&notier)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(rows, 1, "the delisted row was replaced");
+    // A new listing is checked already: the next pass finds nothing.
+    assert_eq!(
+        r.arcade
+            .recheck_cartridges(&files, 50)
+            .await
+            .unwrap()
+            .checked,
+        0
+    );
+    r.db.cleanup().await.unwrap();
+}
