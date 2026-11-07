@@ -31,9 +31,9 @@ use std::{
     num::NonZeroU32,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 type KeyedLimiter =
@@ -442,6 +442,34 @@ pub struct RateLimiter {
     live: Mutex<Live>,
     buckets: Mutex<HashMap<String, Arc<Bucket>>>,
     calls: AtomicU64,
+    /// Credential identities (`auth:`/`sess:` keys) that recently authenticated, with when they
+    /// last did (SEC-AUD-007). Only these get a bucket of their own without also being charged
+    /// to the caller's address; only a verified credential is ever added, so a caller cannot
+    /// grow it with made-up tokens.
+    proven: Mutex<HashMap<String, Instant>>,
+}
+
+/// How long a verified credential keeps its own bucket after it last authenticated.
+const PROVEN_TTL: Duration = Duration::from_secs(10 * 60);
+/// Most verified credentials remembered at once; past it a new one is charged to its address
+/// too until older ones expire (degrades to the address limit, never to no limit).
+const MAX_PROVEN: usize = 100_000;
+
+/// Put in the request's extensions by [`rate_limit`]; the auth extractor marks it when the
+/// request's credential authenticates, so the limiter learns which credentials are real without
+/// a lookup of its own (SEC-AUD-007).
+#[derive(Debug, Clone, Default)]
+pub struct CredentialProof(Arc<AtomicBool>);
+
+impl CredentialProof {
+    /// The request's credential was verified.
+    pub fn mark(&self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
+
+    fn is_marked(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
 }
 
 /// The limiters that follow the live [`RateConfig`]: one per identity kind.
@@ -485,7 +513,45 @@ impl RateLimiter {
             cfg,
             buckets: Mutex::new(HashMap::new()),
             calls: AtomicU64::new(0),
+            proven: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Has `identity` (an `auth:`/`sess:` key) authenticated within [`PROVEN_TTL`]?
+    pub fn is_proven(&self, identity: &str) -> bool {
+        lock(&self.proven)
+            .get(identity)
+            .is_some_and(|t| t.elapsed() < PROVEN_TTL)
+    }
+
+    /// Remember that `identity` just authenticated.
+    pub fn prove(&self, identity: &str) {
+        let mut p = lock(&self.proven);
+        if p.len() >= MAX_PROVEN && !p.contains_key(identity) {
+            p.retain(|_, t| t.elapsed() < PROVEN_TTL);
+            if p.len() >= MAX_PROVEN {
+                return;
+            }
+        }
+        p.insert(identity.to_owned(), Instant::now());
+    }
+
+    /// Count one request against the per-identity global limiter only (no route bucket).
+    fn check_global(&self, identity: &str) -> Option<Decision> {
+        if !self.cfg.enabled {
+            return None;
+        }
+        let (global, _) = self.global_for(identity);
+        global
+            .check_key(&identity.to_owned())
+            .err()
+            .map(|nu| Decision::Limited {
+                retry_after: nu
+                    .wait_time_from(DefaultClock::default().now())
+                    .as_secs_f64(),
+                global: true,
+                info: None,
+            })
     }
 
     /// The per-identity limiter for `identity` under the current live figures, rebuilt when an
@@ -635,6 +701,7 @@ impl RateLimiter {
         for b in lock(&self.buckets).values() {
             b.gov.retain_recent();
         }
+        lock(&self.proven).retain(|_, t| t.elapsed() < PROVEN_TTL);
     }
 }
 
@@ -668,8 +735,10 @@ fn normalise(pattern: &str) -> &str {
 }
 
 /// First path-parameter value for `/channels/{..}`, `/guilds/{..}`,
-/// `/webhooks/{..}` routes (Discord's "major parameters").
-fn major_resource<'a>(pattern: &str, path: &'a str) -> &'a str {
+/// `/webhooks/{..}` routes (Discord's "major parameters"), in one canonical spelling: the
+/// handlers parse the id as a number, so `0042`, `+42` and `%34%32` all name channel 42 and must
+/// share its bucket (otherwise a caller splits a per-channel limit by respelling the id).
+fn major_resource(pattern: &str, path: &str) -> String {
     let first = pattern.trim_start_matches('/').split('/').next();
     if matches!(first, Some("channels" | "guilds" | "webhooks")) {
         // path is /api/vN/<kind>/<id>/...
@@ -677,10 +746,35 @@ fn major_resource<'a>(pattern: &str, path: &'a str) -> &'a str {
         if segs.next() == Some("api") {
             segs.next();
         }
-        segs.nth(1).unwrap_or("")
+        canonical_id(segs.nth(1).unwrap_or(""))
     } else {
-        ""
+        String::new()
     }
+}
+
+/// A path segment with its percent escapes decoded and, when it is a number, written the way
+/// `u64` prints it.
+fn canonical_id(seg: &str) -> String {
+    let hex = |c: u8| char::from(c).to_digit(16);
+    let b = seg.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%'
+            && i + 2 < b.len()
+            && let (Some(h), Some(l)) = (hex(b[i + 1]), hex(b[i + 2]))
+        {
+            out.push(u8::try_from(h * 16 + l).unwrap_or(b'%'));
+            i += 3;
+        } else {
+            out.push(b[i]);
+            i += 1;
+        }
+    }
+    let decoded = String::from_utf8_lossy(&out);
+    decoded
+        .parse::<u64>()
+        .map_or_else(|_| decoded.clone().into_owned(), |n| n.to_string())
 }
 
 /// `<webhook id>/<hash of the token>` for `/api/vN/webhooks/{id}/{token}`: the key of a webhook's own
@@ -691,9 +785,9 @@ fn webhook_token_resource(path: &str) -> String {
         segs.next();
     }
     let _webhooks = segs.next();
-    let id = segs.next().unwrap_or("");
-    let token = segs.next().unwrap_or("");
-    format!("{id}/{}", hash_hex(token))
+    let id = canonical_id(segs.next().unwrap_or(""));
+    let token = canonical_id(segs.next().unwrap_or(""));
+    format!("{id}/{}", hash_hex(&token))
 }
 
 /// The caller's address: the socket peer, or, when the proxy is trusted, the
@@ -715,43 +809,79 @@ pub fn client_ip(req: &Request, trust_forwarded_for: bool) -> Option<IpAddr> {
         .map(|c| c.0.ip())
 }
 
-fn identity(req: &Request, trust_forwarded_for: bool) -> String {
-    if let Some(a) = req.headers().get(header::AUTHORIZATION) {
-        return format!("auth:{}", hash_hex(a.to_str().unwrap_or("")));
-    }
-    if let Some(c) = crate::auth::parse_cookie(req.headers(), crate::auth::SESSION_COOKIE) {
-        return format!("sess:{}", hash_hex(c));
-    }
+/// The caller's address key (`ip:<addr>`).
+fn address(req: &Request, trust_forwarded_for: bool) -> String {
     client_ip(req, trust_forwarded_for)
         .map_or_else(|| "ip:unknown".to_owned(), |ip| format!("ip:{ip}"))
 }
 
+/// The credential the request carries (`auth:`/`sess:` key), not yet checked.
+fn credential(req: &Request) -> Option<String> {
+    if let Some(a) = req.headers().get(header::AUTHORIZATION) {
+        return Some(format!("auth:{}", hash_hex(a.to_str().unwrap_or(""))));
+    }
+    crate::auth::parse_cookie(req.headers(), crate::auth::SESSION_COOKIE)
+        .map(|c| format!("sess:{}", hash_hex(c)))
+}
+
 /// Middleware; install with `route_layer` so the matched route is known.
-pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next) -> Response {
+///
+/// SEC-AUD-007: the credential the request presents is only a claim when this layer runs (auth
+/// happens later, in the handler's extractor). A credential that has not authenticated recently
+/// is therefore also charged to the caller's address, so a made-up token per request does not buy
+/// a fresh bucket; once the extractor verifies it (marking [`CredentialProof`]), it keeps its own
+/// bucket without the address charge.
+pub async fn rate_limit(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
     let Some(matched) = req.extensions().get::<MatchedPath>() else {
         return next.run(req).await;
     };
     let pattern = normalise(matched.as_str()).to_owned();
     let route_key = format!("{} {}", req.method(), pattern);
-    let who = identity(&req, state.settings().trust_forwarded_for);
+    let addr = address(&req, state.settings().trust_forwarded_for);
+    let cred = credential(&req);
+    let who = cred.clone().unwrap_or_else(|| addr.clone());
+    let limiter = state.rate_limiter();
     // A webhook token's limit belongs to the token, whoever calls it (RDY-SEC-006).
-    let (resource, bucket_who) = if abuse_for(&route_key) == Some(Abuse::WebhookExecute) {
+    let webhook = abuse_for(&route_key) == Some(Abuse::WebhookExecute);
+    let (resource, bucket_who) = if webhook {
         (
             webhook_token_resource(req.uri().path()),
             "webhook-token".to_owned(),
         )
     } else {
-        (
-            major_resource(&pattern, req.uri().path()).to_owned(),
-            who.clone(),
-        )
+        (major_resource(&pattern, req.uri().path()), who.clone())
     };
-    match state
-        .rate_limiter()
-        .check_scoped(&route_key, &resource, &who, &bucket_who)
-    {
+    if let Some(c) = &cred {
+        if !limiter.is_proven(c) {
+            let by_address = if webhook {
+                // the token's own bucket is counted once, below; the address pays its global share
+                limiter.check_global(&addr)
+            } else {
+                match limiter.check(&route_key, &resource, &addr) {
+                    d @ Decision::Limited { .. } => Some(d),
+                    Decision::Allowed(_) => None,
+                }
+            };
+            if let Some(Decision::Limited {
+                retry_after,
+                global,
+                info,
+            }) = by_address
+            {
+                return limited(retry_after, global, info);
+            }
+        }
+        req.extensions_mut().insert(CredentialProof::default());
+    }
+    match limiter.check_scoped(&route_key, &resource, &who, &bucket_who) {
         Decision::Allowed(info) => {
+            let proof = req.extensions().get::<CredentialProof>().cloned();
             let mut resp = next.run(req).await;
+            if let (Some(c), Some(p)) = (&cred, proof)
+                && p.is_marked()
+            {
+                limiter.prove(c);
+            }
             if info.limit != u32::MAX {
                 apply_info(resp.headers_mut(), &info);
             }
@@ -761,32 +891,35 @@ pub async fn rate_limit(State(state): State<AppState>, req: Request, next: Next)
             retry_after,
             global,
             info,
-        } => {
-            metrics::counter!(names::RATE_LIMITED_TOTAL, "scope" => if global { "global" } else { "user" })
-                .increment(1);
-            let secs = retry_after.max(0.0);
-            let mut resp = (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({
-                    "code": ErrorCode::TooManyRequests.code(),
-                    "message": "You are being rate limited.",
-                    "retry_after": secs,
-                    "global": global,
-                })),
-            )
-                .into_response();
-            let h = resp.headers_mut();
-            if let Some(i) = &info {
-                apply_info(h, i);
-            }
-            if global {
-                set(h, "x-ratelimit-global", "true");
-                set(h, "x-ratelimit-scope", "global");
-            }
-            set(h, "retry-after", secs.ceil() as u64);
-            resp
-        }
+        } => limited(retry_after, global, info),
     }
+}
+
+/// The 429 answer.
+fn limited(retry_after: f64, global: bool, info: Option<RateInfo>) -> Response {
+    metrics::counter!(names::RATE_LIMITED_TOTAL, "scope" => if global { "global" } else { "user" })
+        .increment(1);
+    let secs = retry_after.max(0.0);
+    let mut resp = (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(json!({
+            "code": ErrorCode::TooManyRequests.code(),
+            "message": "You are being rate limited.",
+            "retry_after": secs,
+            "global": global,
+        })),
+    )
+        .into_response();
+    let h = resp.headers_mut();
+    if let Some(i) = &info {
+        apply_info(h, i);
+    }
+    if global {
+        set(h, "x-ratelimit-global", "true");
+        set(h, "x-ratelimit-scope", "global");
+    }
+    set(h, "retry-after", secs.ceil() as u64);
+    resp
 }
 
 #[cfg(test)]
@@ -1042,5 +1175,51 @@ mod tests {
             "42"
         );
         assert_eq!(major_resource("/users/@me", "/api/v1/users/@me"), "");
+    }
+
+    /// api-core MED: every spelling of one channel id shares the channel's bucket.
+    #[test]
+    fn respelled_ids_share_one_bucket() {
+        let p = "/channels/{channel_id}/messages";
+        for spelling in ["42", "0042", "+42", "%34%32", "%2B0042"] {
+            assert_eq!(
+                major_resource(p, &format!("/api/v1/channels/{spelling}/messages")),
+                "42",
+                "{spelling}"
+            );
+        }
+        assert_eq!(canonical_id("abc%"), "abc%");
+        assert_eq!(canonical_id("%zz"), "%zz");
+        assert_eq!(
+            webhook_token_resource("/api/v10/webhooks/007/tok%65n"),
+            webhook_token_resource("/api/v10/webhooks/7/token")
+        );
+        let rl = RateLimiter::new(RateLimitConfig {
+            default_bucket: BucketSpec::new(2, 60),
+            ..RateLimitConfig::default()
+        });
+        let r = |s: &str| major_resource(p, &format!("/api/v1/channels/{s}/messages"));
+        assert!(matches!(rl.check("k", &r("42"), "u"), Decision::Allowed(_)));
+        assert!(matches!(
+            rl.check("k", &r("0042"), "u"),
+            Decision::Allowed(_)
+        ));
+        assert!(matches!(
+            rl.check("k", &r("%34%32"), "u"),
+            Decision::Limited { .. }
+        ));
+    }
+
+    #[test]
+    fn only_verified_credentials_are_remembered() {
+        let rl = RateLimiter::new(RateLimitConfig::default());
+        assert!(!rl.is_proven("auth:1"));
+        rl.prove("auth:1");
+        assert!(rl.is_proven("auth:1"));
+        assert!(!rl.is_proven("auth:2"));
+        let p = CredentialProof::default();
+        assert!(!p.is_marked());
+        p.clone().mark();
+        assert!(p.is_marked());
     }
 }
