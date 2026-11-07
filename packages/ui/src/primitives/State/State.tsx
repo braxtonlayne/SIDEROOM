@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import styles from "./State.module.css";
 
 export interface EmptyStateProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
@@ -39,20 +40,21 @@ export interface ErrorPageProps {
 
 /** DS-PRIM-011: full-page error presentation. Uses role=alert so the failure is announced. */
 export function ErrorPage({
-  title = "Something went wrong",
-  description = "An unexpected error stopped this page from loading.",
+  title,
+  description,
   error,
   action,
   className,
 }: ErrorPageProps) {
+  const ui = useUiStrings();
   return (
     <div role="alert" className={cx(styles.errorPage, className)}>
-      <h1 className={styles.errorTitle}>{title}</h1>
-      <p className={styles.desc}>{description}</p>
+      <h1 className={styles.errorTitle}>{title ?? ui.errorTitle}</h1>
+      <p className={styles.desc}>{description ?? ui.errorDescription}</p>
       {action && <div className={styles.action}>{action}</div>}
       {error && (
         <details className={styles.details}>
-          <summary>Technical details</summary>
+          <summary>{ui.technicalDetails}</summary>
           <pre>{error.message}</pre>
         </details>
       )}
@@ -65,6 +67,16 @@ export interface ErrorBoundaryProps {
   /** Custom fallback; receives the error and a reset callback. Defaults to <ErrorPage>. */
   fallback?: (args: { error: Error; reset: () => void }) => ReactNode;
   onError?: (error: Error, info: ErrorInfo) => void;
+}
+
+/** The default retry of ErrorBoundary (a function component, so it can read the translated words). */
+function RetryButton({ onClick }: { onClick: () => void }) {
+  const ui = useUiStrings();
+  return (
+    <button type="button" className={styles.retry} onClick={onClick}>
+      {ui.tryAgain}
+    </button>
+  );
 }
 
 interface ErrorBoundaryState {
@@ -93,9 +105,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       <ErrorPage
         error={error}
         action={
-          <button type="button" className={styles.retry} onClick={this.reset}>
-            Try again
-          </button>
+          <RetryButton onClick={this.reset} />
         }
       />
     );

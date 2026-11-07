@@ -82,6 +82,8 @@ interface Row {
   voice?: boolean;
   /** Answer `GET /sr/auth/2fa/methods` with these methods (a pending Discord sign-in, D-557). */
   mfaMethods?: string[];
+  /** SEC-AUD-038 (D-564): an encrypted call where a member's identity key changed, with the shield popover open. */
+  keyChanged?: boolean;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -177,6 +179,13 @@ const SIGNED_IN: Row[] = [
     name: 'lounge-voice',
     path: (w) => (w.voiceChannelId ? `/channels/${w.guildId}/${w.voiceChannelId}` : null),
     voice: true,
+  },
+  {
+    name: 'lounge-voice-key-changed',
+    // The home list: the user panel (where the shield sits) is on screen at both widths.
+    path: () => '/channels/@me',
+    voice: true,
+    keyChanged: true,
   },
   { name: 'app-door', path: () => '/app' },
   ...USER_SETTINGS.map((s): Row => ({
@@ -457,6 +466,51 @@ async function connectVoiceForShot(page: Page, notes: string[]): Promise<void> {
     .catch((e) => notes.push(`voice session not set: ${String(e).slice(0, 120)}`));
 }
 
+/**
+ * SEC-AUD-038 (D-564): the call's E2EE view with another member whose identity key changed since this device pinned
+ * it, set through the dev server's module graph like the voice session above, then the shield popover opened.
+ */
+async function keyChangedForShot(page: Page, world: SweepWorld, notes: string[]): Promise<void> {
+  const { guildId } = world;
+  const voiceId = world.voiceChannelId ?? world.channelId;
+  const script = `(async () => {
+    const me = await (await fetch('/api/v1/users/@me', { credentials: 'include' })).json();
+    const ms = await (await fetch('/api/v1/guilds/${guildId}/members?limit=20', { credentials: 'include' })).json();
+    const other = (Array.isArray(ms) ? ms : []).map((m) => m.user).find((u) => u && u.id !== me.id) || { id: '2' };
+    const v = await import('/src/voice/session.ts');
+    v.useVoiceSession.setState({ status: 'connected', guildId: '${guildId}', channelId: '${voiceId}', channelName: 'General' });
+    const m = await import('/src/voice/e2ee/store.ts');
+    m.setE2ee({
+      active: true,
+      viewer: me.id,
+      selfKey: 'aa',
+      keyChanged: [other.id],
+      pairwise: { [other.id]: '31415 92653 58979 32384 62643 38327' },
+      call: {
+        status: 'secure',
+        epoch: 4,
+        callCode: '27182 81828 45904 52353 60287 47135',
+        members: [
+          { userId: me.id, identityKey: 'aa' },
+          { userId: other.id, identityKey: 'bb' },
+        ],
+        error: null,
+      },
+    });
+  })()`;
+  await page
+    .evaluate(script)
+    .then(() => page.waitForTimeout(200))
+    .then(() =>
+      page
+        .getByRole('button', { name: /privacy code changed/ })
+        .first()
+        .click({ timeout: 5000 }),
+    )
+    .then(() => page.waitForTimeout(300))
+    .catch((e) => notes.push(`key-changed shield not shown: ${String(e).slice(0, 160)}`));
+}
+
 /** The shelves of The Study, as study-shelves.spec.ts fakes them (BYOS needs a real bucket). */
 async function fakeShelves(page: Page) {
   const json = (r: Route, body: unknown) =>
@@ -730,6 +784,7 @@ async function capture(
     // Let lazy chunks, fonts and the catalog settle; skeletons fade.
     await page.waitForTimeout(900);
     if (row.voice) await connectVoiceForShot(page, rec.notes);
+    if (row.keyChanged) await keyChangedForShot(page, world, rec.notes);
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);

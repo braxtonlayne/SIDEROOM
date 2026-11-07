@@ -16,7 +16,7 @@
 }
 .item[data-open] > .heading .chevron { transform: rotate(45deg); }
 :global([data-reduced-motion="true"]) .chevron { transition: none; }
-.panel { padding: 0 16px 16px 30px; color: var(--ui-text-muted); }
+.panel { padding-block: 0 16px; padding-inline: 30px 16px; color: var(--ui-text-muted); }
 .panel[hidden] { display: none; }
 .category .trigger { padding: 6px 4px; font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
 .category .trigger:hover { background: transparent; color: var(--ui-text); }

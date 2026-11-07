@@ -1,4 +1,5 @@
 import type { MenuEntry } from '@sideroom/ui';
+import { t } from '../../i18n';
 import { useStore } from '../../store';
 import { useLoungeActions, type Channel, type Guild } from '../data';
 import { useDeveloperMode } from '../../settings/user/prefs';
@@ -47,25 +48,23 @@ export function useChannelMenu(
   const manage = channel.permissions?.manageChannels ?? guild.permissions.manageChannels;
   const cat = channel.type === 'category';
   const muted = isMuted(notif?.channels[channel.id]);
-  const fail = () => onError('Could not save that change. Try again.');
+  const fail = () => onError(t('lounge.menus.saveFailed'));
 
   const move = (delta: -1 | 1) => {
     const moves = planStep(channels, channel.id, delta);
     if (moves)
-      applyChannelMoves(guild.id, moves).catch(() =>
-        onError('Could not move that channel. You may not have permission.'),
-      );
+      applyChannelMoves(guild.id, moves).catch(() => onError(t('lounge.menus.moveFailed')));
   };
 
   const muteEntry: MenuEntry = muted
     ? {
-        label: cat ? 'Unmute Category' : 'Unmute Channel',
+        label: cat ? t('lounge.menus.unmuteCategory') : t('lounge.menus.unmuteChannel'),
         onSelect: () =>
           void patchChannel(guild.id, channel.id, { mute: { muted: false } }).catch(fail),
       }
     : {
         type: 'submenu',
-        label: cat ? 'Mute Category' : 'Mute Channel',
+        label: cat ? t('lounge.menus.muteCategory') : t('lounge.menus.muteChannel'),
         items: MUTE_DURATIONS.map((d) => ({
           label: d.label,
           onSelect: () =>
@@ -82,32 +81,32 @@ export function useChannelMenu(
       : [];
 
   const markRead: MenuEntry = {
-    label: 'Mark As Read',
+    label: t('lounge.menus.markRead'),
     disabled: unreadIds.length === 0,
     onSelect: () => unreadIds.forEach((id) => actions.markRead(id)),
   };
   const notifications: MenuEntry = {
-    label: 'Notification Settings',
+    label: t('lounge.menus.notificationSettings'),
     onSelect: () => openDialog({ kind: 'notifications', guildId: guild.id, channelId: channel.id }),
   };
   const moveUp: MenuEntry = {
-    label: 'Move Up',
+    label: t('lounge.menus.moveUp'),
     disabled: !manage || !canStep(channels, channel.id, -1),
     onSelect: () => move(-1),
   };
   const moveDown: MenuEntry = {
-    label: 'Move Down',
+    label: t('lounge.menus.moveDown'),
     disabled: !manage || !canStep(channels, channel.id, 1),
     onSelect: () => move(1),
   };
   const remove: MenuEntry = {
-    label: cat ? 'Delete Category' : 'Delete Channel',
+    label: cat ? t('lounge.menus.deleteCategory') : t('lounge.menus.deleteChannel'),
     danger: true,
     disabled: !manage,
     onSelect: () => openDialog({ kind: 'deleteChannel', guildId: guild.id, channelId: channel.id }),
   };
   const edit: MenuEntry = {
-    label: cat ? 'Edit Category' : 'Edit Channel',
+    label: cat ? t('lounge.menus.editCategory') : t('lounge.menus.editChannel'),
     disabled: !manage,
     onSelect: () => openDialog({ kind: 'editChannel', guildId: guild.id, channelId: channel.id }),
   };
@@ -116,11 +115,11 @@ export function useChannelMenu(
     return [
       markRead,
       {
-        label: collapsed ? 'Expand Category' : 'Collapse Category',
+        label: collapsed ? t('lounge.menus.expandCategory') : t('lounge.menus.collapseCategory'),
         onSelect: () => toggleCategory(channel.id),
       },
       {
-        label: 'Collapse All Categories',
+        label: t('lounge.menus.collapseAll'),
         onSelect: () => {
           const st = useLoungeUi.getState();
           for (const c of channels)
@@ -131,7 +130,7 @@ export function useChannelMenu(
       notifications,
       { type: 'separator' },
       {
-        label: 'Create Channel',
+        label: t('lounge.menus.createChannel'),
         disabled: !manage,
         onSelect: () =>
           openDialog({ kind: 'createChannel', guildId: guild.id, parentId: channel.id }),
@@ -144,7 +143,7 @@ export function useChannelMenu(
         ? [
             { type: 'separator' } as MenuEntry,
             {
-              label: 'Copy Category ID',
+              label: t('lounge.menus.copyCategoryId'),
               onSelect: () => void navigator.clipboard?.writeText(channel.id),
             },
           ]
@@ -155,7 +154,7 @@ export function useChannelMenu(
   return [
     markRead,
     {
-      label: 'Copy Link',
+      label: t('lounge.menus.copyLink'),
       onSelect: () =>
         void navigator.clipboard?.writeText(
           `${location.origin}/channels/${guild.id}/${channel.id}`,
@@ -168,7 +167,7 @@ export function useChannelMenu(
       ? []
       : [
           {
-            label: 'Invite People',
+            label: t('lounge.menus.invitePeople'),
             disabled: !(channel.permissions?.createInvite ?? guild.permissions.createInvite),
             onSelect: () =>
               openDialog({ kind: 'invite', guildId: guild.id, channelId: channel.id }),
@@ -176,7 +175,7 @@ export function useChannelMenu(
         ]),
     edit,
     {
-      label: 'Duplicate Channel',
+      label: t('lounge.menus.duplicateChannel'),
       disabled: !manage,
       onSelect: () =>
         void useStore
@@ -187,10 +186,10 @@ export function useChannelMenu(
             ...(channel.parentId ? { parent_id: channel.parentId } : {}),
             ...(channel.topic ? { topic: channel.topic } : {}),
           })
-          .catch(() => onError('Could not duplicate the channel.')),
+          .catch(() => onError(t('lounge.menus.duplicateFailed'))),
     },
     {
-      label: 'Create Channel',
+      label: t('lounge.menus.createChannel'),
       disabled: !manage,
       onSelect: () =>
         openDialog({
@@ -203,7 +202,7 @@ export function useChannelMenu(
     ...(manage && SLOWMODE_KINDS.has(channel.type)
       ? [
           {
-            label: 'Apply Slowmode Preset',
+            label: t('lounge.menus.slowmodePreset'),
             onSelect: () =>
               openDialog({ kind: 'slowmode', guildId: guild.id, channelId: channel.id }),
           } as MenuEntry,
@@ -217,7 +216,7 @@ export function useChannelMenu(
       ? [
           { type: 'separator' } as MenuEntry,
           {
-            label: 'Copy Channel ID',
+            label: t('lounge.menus.copyChannelId'),
             onSelect: () => void navigator.clipboard?.writeText(channel.id),
           },
         ]

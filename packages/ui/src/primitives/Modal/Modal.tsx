@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePortalTarget } from "../../theme/ThemeProvider";
 import { cx } from "../../util/cx";
+import { useUiStrings } from "../../util/uiStrings";
 import { Button } from "../Button/Button";
 import { TextInput } from "../Input/TextInput";
 import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
@@ -37,6 +38,7 @@ export function Modal({
   className,
   children,
 }: ModalProps) {
+  const ui = useUiStrings();
   const portalTarget = usePortalTarget();
   const titleId = useId();
   const descId = useId();
@@ -77,7 +79,7 @@ export function Modal({
           <h2 id={titleId} className={styles.title}>
             {title}
           </h2>
-          <button type="button" className={styles.close} aria-label="Close" onClick={onClose}>
+          <button type="button" className={styles.close} aria-label={ui.close} onClick={onClose}>
             <span aria-hidden="true">×</span>
           </button>
         </div>
@@ -113,14 +115,15 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   danger,
   requireText,
   loading,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const ui = useUiStrings();
   const [typed, setTyped] = useState("");
   useEffect(() => {
     if (!open) setTyped("");
@@ -136,17 +139,17 @@ export function ConfirmDialog({
       footer={
         <>
           <Button variant="ghost" onClick={onCancel} data-autofocus={requireText === undefined ? "" : undefined}>
-            {cancelLabel}
+            {cancelLabel ?? ui.cancel}
           </Button>
           <Button variant={danger ? "danger" : "primary"} disabled={!ready} loading={loading} onClick={onConfirm}>
-            {confirmLabel}
+            {confirmLabel ?? ui.confirm}
           </Button>
         </>
       }
     >
       {requireText !== undefined && (
         <TextInput
-          label={`Type "${requireText}" to confirm`}
+          label={ui.typeToConfirm(requireText)}
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
           autoComplete="off"

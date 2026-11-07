@@ -133,7 +133,7 @@ describe('The Study page (STU-SHF-001)', () => {
     const nav = await screen.findByRole('navigation', { name: 'Shelves by source' });
     expect(await within(nav).findByRole('button', { name: 'My Files' })).toBeInTheDocument();
     expect(within(nav).getByText("Friends' Shelves")).toBeInTheDocument();
-    expect(within(nav).getByText('Guild Shelves')).toBeInTheDocument();
+    expect(within(nav).getByText('Server Shelves')).toBeInTheDocument();
     // My Files is selected first.
     expect(await screen.findByRole('button', { name: /Open a, @me's bucket/ })).toBeInTheDocument();
     expect(screen.getAllByText("@me's bucket").length).toBeGreaterThanOrEqual(4);
@@ -145,8 +145,8 @@ describe('The Study page (STU-SHF-001)', () => {
     expect(screen.getByText("@alex's bucket")).toBeInTheDocument();
 
     await user.click(within(nav).getByRole('button', { name: 'Club' }));
-    expect(await screen.findByRole('button', { name: /Open e, Guild: Club/ })).toBeInTheDocument();
-    expect(screen.getByText('Guild: Club')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Open e, Server: Club/ })).toBeInTheDocument();
+    expect(screen.getByText('Server: Club')).toBeInTheDocument();
   });
 
   it('filters by file type', async () => {

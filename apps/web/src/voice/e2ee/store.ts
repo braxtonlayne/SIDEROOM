@@ -18,6 +18,10 @@ export interface E2eeView {
   frames?: MediaStats | null;
   /** The media worker failed to start (WASM did not load): no frame can be sent or played. */
   workerError?: string | null;
+  /** The signed-in viewer (the owner of this device's key pins). */
+  viewer?: string | null;
+  /** SEC-AUD-038 (D-564): people whose identity key differs from the one pinned on this device. */
+  keyChanged?: string[];
 }
 
 const EMPTY: E2eeView = {
@@ -27,6 +31,8 @@ const EMPTY: E2eeView = {
   pairwise: {},
   frames: null,
   workerError: null,
+  viewer: null,
+  keyChanged: [],
 };
 
 export const useE2ee = create<E2eeView>(() => EMPTY);

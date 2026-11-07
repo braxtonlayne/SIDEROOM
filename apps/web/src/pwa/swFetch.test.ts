@@ -8,6 +8,7 @@ const ORIGIN = 'https://side.example';
 const SURFACES = [
   { shell: 'index.html', paths: ['/', '/join/$code'] },
   { shell: 'auth.html', paths: ['/login', '/reset/$token'] },
+  { shell: 'profile.html', paths: ['/~$handle'] },
   { shell: null, paths: ['/house-notes'] },
 ];
 
@@ -163,8 +164,9 @@ const site = (url: string): Response => {
   if (p.startsWith('/entrance/') || p.startsWith('/app/')) {
     return new Response('code', { headers: { 'content-type': 'text/javascript' } });
   }
-  if (p === '/index.html' || p === '/auth.html') return html(SHELL_HTML);
-  if (p === '/' || p === '/login') return html(SHELL_HTML);
+  if (p === '/index.html' || p === '/auth.html' || p === '/profile.html') return html(SHELL_HTML);
+  if (p === '/' || p === '/login' || p.startsWith('/join/') || p.startsWith('/reset/'))
+    return html(SHELL_HTML);
   return html(APP_HTML);
 };
 
@@ -185,6 +187,7 @@ describe('install', () => {
       '/entrance/landing-a.js',
       '/index.html',
       '/offline.html',
+      '/profile.html',
     ]);
     expect(w.network.calls.some((p) => p.startsWith('/app'))).toBe(false);
   });
@@ -269,6 +272,39 @@ describe('the shell caches', () => {
     const w2 = boot('b1', () => html('<div id="root">oops</div>', { status: 500 }), store);
     await (await w2.fetchEvent(navigate('/login')))!.text();
     expect(await store.get('sr-static-b1')!.get('/auth.html')!.clone().text()).toBe(SHELL_HTML);
+  });
+});
+
+describe('SEC-AUD-039: the signed-in shell never lands under a public key', () => {
+  it('a member opening /~handle gets the app, which is not stored as the public profile shell', async () => {
+    const store = storeOf(['sr-static-b1', [['/profile.html', html(SHELL_HTML)]]]);
+    // The server answers a member's /~handle with the signed-in shell (PRF-PRO-001).
+    const w = boot('b1', () => html(APP_HTML), store);
+    expect(await (await w.fetchEvent(navigate('/~ana')))!.text()).toBe(APP_HTML);
+    expect(await store.get('sr-static-b1')!.get('/profile.html')!.clone().text()).toBe(SHELL_HTML);
+    expect([...store.keys()].filter((k) => k.startsWith('sr-app-'))).toEqual([]);
+  });
+
+  it('offline and signed out, /~handle falls back to the public shell, never the app', async () => {
+    const store = storeOf([
+      'sr-static-b1',
+      [
+        ['/profile.html', html(SHELL_HTML)],
+        ['/offline.html', html(OFFLINE_HTML)],
+      ],
+    ]);
+    const online = boot('b1', () => html(APP_HTML), store);
+    await (await online.fetchEvent(navigate('/~ana')))!.text();
+    const offline = boot('b1', down, store);
+    expect(await (await offline.fetchEvent(navigate('/~ana')))!.text()).toBe(SHELL_HTML);
+  });
+
+  it('a visitor opening /~handle still refreshes the public profile shell', async () => {
+    const fresh =
+      '<!doctype html><div id="root"></div><script src="/entrance/profile-b.js"></script>';
+    const w = boot('b1', () => html(fresh));
+    await (await w.fetchEvent(navigate('/~ana')))!.text();
+    expect(await w.caches.get('sr-static-b1')!.get('/profile.html')!.clone().text()).toBe(fresh);
   });
 });
 

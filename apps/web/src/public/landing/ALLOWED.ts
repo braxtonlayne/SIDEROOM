@@ -37,6 +37,7 @@ export const ALLOWED: AllowList = [
   'i18n/messages/en/entrance',
   'i18n/messages/en/a11y',
   'i18n/messages/en/pwa',
+  'i18n/messages/en/p54-webb-2',
   'a11y/announcer',
   'pwa/register',
   'pwa/PublicUpdateToast',

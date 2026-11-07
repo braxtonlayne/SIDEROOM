@@ -66,7 +66,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         onClick?.(e);
       }}
     >
-      {loading && <Spinner size="sm" label="Loading" className={styles.spinner} />}
+      {loading && <Spinner size="sm" className={styles.spinner} />}
       {!loading && leadingIcon}
       <span className={cx(styles.label, loading && styles.hidden)}>{children}</span>
       {!loading && trailingIcon}

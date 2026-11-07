@@ -29,8 +29,8 @@
   max-block-size: 24rem;
   overflow: auto;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background-color: var(--ui-bg-sunken);
+  border-radius: var(--ui-radius);
+  background-color: var(--ui-bg);
   background-image: repeating-conic-gradient(var(--ui-bg-hover) 0% 25%, transparent 0% 50%);
   background-size: 16px 16px;
   touch-action: none;
@@ -68,8 +68,8 @@
   padding-block: 0;
   padding-inline: 0.5rem;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-bg-sunken);
+  border-radius: calc(var(--ui-radius) / 2);
+  background: var(--ui-bg);
   color: var(--ui-text);
   box-sizing: border-box;
 }
@@ -104,7 +104,7 @@
   inline-size: 3rem;
   block-size: 3rem;
   border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
+  border-radius: var(--ui-radius);
   cursor: pointer;
 }
 .sr-st-swatch:focus-visible {
@@ -133,8 +133,8 @@
 .sr-st-video {
   max-inline-size: 100%;
   max-block-size: 14rem;
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-bg-sunken);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
 }
 .sr-st-result {
   display: flex;
@@ -145,5 +145,5 @@
 .sr-st-gif {
   max-inline-size: 100%;
   max-block-size: 16rem;
-  border-radius: var(--ui-radius-md);
+  border-radius: var(--ui-radius);
 }

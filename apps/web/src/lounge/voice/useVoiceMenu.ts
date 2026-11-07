@@ -1,4 +1,5 @@
 import type { MenuEntry } from '@sideroom/ui';
+import { t } from '../../i18n';
 import { useStore } from '../../store/store';
 import { useVoiceSettings, userVolumeOf } from '../../voice/settings';
 import { useChannels } from '../data';
@@ -31,27 +32,30 @@ export function useVoiceMenuEntries(
 
   if (!channelId || user.id === me) return [];
   const fail = (e: unknown) =>
-    onError?.(e instanceof Error ? e.message : 'The voice change was refused.');
+    onError?.(e instanceof Error ? e.message : t('lounge.menus.voiceRefused'));
   const act = (body: Parameters<typeof moderateVoiceState>[2]) =>
     void moderateVoiceState(guildId, user.id, body).catch(fail);
 
   const entries: MenuEntry[] = [
     {
       type: 'submenu',
-      label: 'User Volume',
+      label: t('lounge.menus.userVolume'),
       items: [
         {
           type: 'radio-group',
-          label: `${user.name}'s volume`,
+          label: t('lounge.menus.userVolumeOf', { name: user.name }),
           value: String(volume),
           onValueChange: (v) => setVolume(user.id, Number(v)),
-          options: VOLUME_PRESETS.map((p) => ({ value: String(p), label: `${p}%` })),
+          options: VOLUME_PRESETS.map((p) => ({
+            value: String(p),
+            label: t('lounge.menus.percent', { p }),
+          })),
         },
       ],
     },
     {
       type: 'checkbox',
-      label: 'Mute',
+      label: t('lounge.menus.localMute'),
       checked: localMuted,
       onCheckedChange: (on) => setLocalMuted(user.id, on),
     },
@@ -63,14 +67,14 @@ export function useVoiceMenuEntries(
     if (perms.muteMembers)
       entries.push({
         type: 'checkbox',
-        label: 'Server Mute',
+        label: t('lounge.menus.serverMute'),
         checked: !!state?.mute,
         onCheckedChange: (on) => act({ mute: on }),
       });
     if (perms.deafenMembers)
       entries.push({
         type: 'checkbox',
-        label: 'Server Deafen',
+        label: t('lounge.menus.serverDeafen'),
         checked: !!state?.deaf,
         onCheckedChange: (on) => act({ deaf: on }),
       });
@@ -78,13 +82,13 @@ export function useVoiceMenuEntries(
       const targets = channels.filter((c) => c.type === 'voice' && c.id !== channelId);
       entries.push({
         type: 'submenu',
-        label: 'Move To',
+        label: t('lounge.menus.moveTo'),
         items: targets.length
           ? targets.map((c) => ({ label: c.name, onSelect: () => act({ channel_id: c.id }) }))
-          : [{ label: 'No other voice channels', disabled: true }],
+          : [{ label: t('lounge.menus.noOtherVoice'), disabled: true }],
       });
       entries.push({
-        label: 'Disconnect',
+        label: t('lounge.menus.disconnect'),
         danger: true,
         onSelect: () => act({ channel_id: null }),
       });

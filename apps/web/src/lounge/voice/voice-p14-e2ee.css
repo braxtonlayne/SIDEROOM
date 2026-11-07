@@ -47,6 +47,34 @@
   justify-self: end;
 }
 
+/* SEC-AUD-038 (D-564): someone's identity key changed since this device pinned it. */
+.vc-e2ee-shield[data-key-changed] {
+  color: var(--ui-warning);
+}
+
+.vc-e2ee-changed {
+  margin-block-end: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--ui-warning);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  font-size: 0.8125rem;
+}
+
+.vc-e2ee-changed p {
+  margin: 0;
+}
+
+.vc-e2ee-changed p + p {
+  margin-block-start: 0.25rem;
+  color: var(--ui-text-muted);
+}
+
+.vc-e2ee-row[data-key-changed] .vc-e2ee-name {
+  color: var(--ui-warning);
+}
+
 .vc-e2ee-shield[data-pending] {
   opacity: 0.6;
 }

@@ -21,10 +21,10 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: help;
-  color: var(--sr-text-muted, #9a9a9a);
+  color: var(--ui-text-muted);
 }
 .vouch-badge[data-tier='pillar'] {
-  color: var(--sr-warning, #e0a030);
+  color: var(--ui-warning);
 }
 .vouch-badge[data-tier='elder'] {
   color: var(--sr-gold, #c9a24d);
@@ -42,5 +42,5 @@
 .vouch-hint {
   margin-block: 0;
   font-size: 0.85em;
-  color: var(--sr-text-muted, #9a9a9a);
+  color: var(--ui-text-muted);
 }

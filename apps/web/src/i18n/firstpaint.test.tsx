@@ -103,7 +103,8 @@ describe('core paths', () => {
 
 // ---- Static check: every key the entrance routes use is in the core fragments ----
 const SRC = resolve(__dirname, '..');
-const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa'];
+// Keep in step with the core glob of messages/en.ts (p54-webb-2: the sign-in checks and kit words, SEC-AUD-040).
+const CORE_FRAGMENTS = ['entrance', 'a11y', 'pwa', 'p54-webb-2'];
 
 function coreKeys(): Set<string> {
   const keys = new Set<string>();
@@ -135,7 +136,7 @@ function staticClosure(entry: string, seen = new Set<string>()): Set<string> {
 }
 
 describe('entrance routes only use core-fragment keys', () => {
-  it('every literal t("...") key in the entrance components is in entrance/a11y/pwa', () => {
+  it('every literal t("...") key in the entrance components is in a core fragment', () => {
     const dir = join(SRC, 'routes', 'entrance');
     const entries = readdirSync(dir)
       .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))

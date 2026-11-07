@@ -40,7 +40,7 @@
   display: block;
   padding: 8px;
   border-radius: 6px;
-  background: var(--ui-bg-sunken);
+  background: var(--ui-bg);
   word-break: break-all;
   font-family: var(--ui-font-mono, monospace);
 }
@@ -68,7 +68,7 @@
 .sup-steps li {
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--ui-bg-sunken);
+  background: var(--ui-bg);
   font-size: 0.8125rem;
 }
 .sup-steps li.done {

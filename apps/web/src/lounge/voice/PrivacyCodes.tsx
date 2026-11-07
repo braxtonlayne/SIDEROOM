@@ -3,11 +3,16 @@
  * the current MLS epoch) is the same for everyone in the call right now and is compared live;
  * each participant's pairwise verification code stays the same across calls until one of the
  * two identity keys changes, and backs the "verified" mark kept on this device per key.
+ *
+ * SEC-AUD-038 (D-564): the first identity key seen for a person is pinned on this device; when a
+ * call carries another key for them, the shield says their privacy code changed until the viewer
+ * compares the new code and marks them verified again.
  */
 import { useState } from 'react';
 import { Icon, Popover } from '@sideroom/ui';
 import { useT } from '../../i18n';
-import { useE2ee } from '../../voice/e2ee/store';
+import { acceptKey, devicePins } from '../../voice/e2ee/pins';
+import { setE2ee, useE2ee } from '../../voice/e2ee/store';
 import { useVoiceSettings } from '../../voice/settings';
 import { verifiedStore, type VerifiedStore } from '../../voice/e2ee/verified';
 import { useUsers } from '../data';
@@ -20,6 +25,8 @@ export interface PrivacyParticipant {
   code: string;
   /** Their identity key (hex): what a verification is tied to. */
   keyFingerprint: string;
+  /** SEC-AUD-038 (D-564): their key differs from the one pinned on this device. */
+  keyChanged?: boolean;
 }
 
 export interface PrivacyCodesProps {
@@ -29,9 +36,17 @@ export interface PrivacyCodesProps {
   store: VerifiedStore;
   /** Something went wrong in the key agreement (the call is being re-secured). */
   error?: boolean;
+  /** Called after the viewer marks someone verified or not (marking verified trusts their current key). */
+  onVerifiedChange?: (p: PrivacyParticipant, verified: boolean) => void;
 }
 
-export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCodesProps) {
+export function PrivacyCodes({
+  callCode,
+  participants,
+  store,
+  error,
+  onVerifiedChange,
+}: PrivacyCodesProps) {
   const t = useT();
   // Re-render after a toggle; the store is the source of truth.
   const [, setTick] = useState(0);
@@ -39,11 +54,14 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
     participants.length > 0 &&
     participants.every((p) => store.isVerified(p.userId, p.keyFingerprint));
   const showCodes = useVoiceSettings((s) => s.settings.showPrivacyCodes);
+  const changed = participants.filter((p) => p.keyChanged);
   const label = !callCode
     ? t('lounge.privacyCodes.securing')
-    : allVerified
-      ? t('lounge.privacyCodes.allVerified')
-      : t('lounge.privacyCodes.title');
+    : changed.length > 0
+      ? t('lounge.keyPins.shieldChanged')
+      : allVerified
+        ? t('lounge.privacyCodes.allVerified')
+        : t('lounge.privacyCodes.title');
   return (
     <Popover
       label={t('lounge.privacyCodes.title')}
@@ -56,11 +74,20 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
           aria-label={label}
           data-verified={allVerified || undefined}
           data-pending={!callCode || error || undefined}
+          data-key-changed={changed.length > 0 || undefined}
         >
           <Icon name="shield" size={20} />
         </button>
       }
     >
+      {changed.length > 0 && (
+        <div className="vc-e2ee-changed" role="status">
+          {changed.map((p) => (
+            <p key={p.userId}>{t('lounge.keyPins.changed', { name: p.name })}</p>
+          ))}
+          <p>{showCodes ? t('lounge.keyPins.compare') : t('lounge.keyPins.compareHidden')}</p>
+        </div>
+      )}
       <p className="vc-e2ee-intro">{t('lounge.privacyCodes.intro')}</p>
       {!showCodes ? (
         <p className="vc-e2ee-intro">{t('lounge.privacyCodes.hidden')}</p>
@@ -79,7 +106,12 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
           {participants.map((p) => {
             const isVerified = store.isVerified(p.userId, p.keyFingerprint);
             return (
-              <li key={p.userId} className="vc-e2ee-row" data-verified={isVerified || undefined}>
+              <li
+                key={p.userId}
+                className="vc-e2ee-row"
+                data-verified={isVerified || undefined}
+                data-key-changed={p.keyChanged || undefined}
+              >
                 <span className="vc-e2ee-name">{p.name}</span>
                 <code
                   className="vc-e2ee-code"
@@ -93,6 +125,7 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
                   aria-pressed={isVerified}
                   onClick={() => {
                     store.setVerified(p.userId, p.keyFingerprint, !isVerified);
+                    onVerifiedChange?.(p, !isVerified);
                     setTick((n) => n + 1);
                   }}
                 >
@@ -111,12 +144,29 @@ export function PrivacyCodes({ callCode, participants, store, error }: PrivacyCo
 
 const deviceVerified = verifiedStore();
 
+/** Marking a person verified after comparing the new code trusts the key their call carries now (D-564). */
+function trustCurrentKey(
+  viewer: string | null | undefined,
+  p: PrivacyParticipant,
+  verified: boolean,
+) {
+  if (!verified || !viewer) return;
+  void acceptKey(devicePins(), viewer, p.userId, p.keyFingerprint).then(
+    () =>
+      setE2ee({
+        keyChanged: (useE2ee.getState().keyChanged ?? []).filter((u) => u !== p.userId),
+      }),
+    () => undefined,
+  );
+}
+
 /** The shield for the viewer's current call; nothing when the call is not end-to-end encrypted. */
 export function E2eeShield() {
   const t = useT();
   const view = useE2ee();
   const users = useUsers();
   if (!view.active || !view.call) return null;
+  const changed = view.keyChanged ?? [];
   const participants = view.call.members
     .filter((m) => view.pairwise[m.userId])
     .map((m) => ({
@@ -124,6 +174,7 @@ export function E2eeShield() {
       name: users[m.userId]?.displayName ?? t('lounge.voiceChannel.unknown'),
       code: view.pairwise[m.userId]!,
       keyFingerprint: m.identityKey,
+      keyChanged: changed.includes(m.userId),
     }));
   return (
     <PrivacyCodes
@@ -131,6 +182,7 @@ export function E2eeShield() {
       participants={participants}
       store={deviceVerified}
       error={view.call.status === 'error'}
+      onVerifiedChange={(p, verified) => trustCurrentKey(view.viewer, p, verified)}
     />
   );
 }
