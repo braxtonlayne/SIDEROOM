@@ -1105,53 +1105,60 @@ impl SourceScanner {
                     )
                     .await
                     .map_err(|e| LibraryError::Conflict(e.to_string()))?;
-                self.review
-                    .register_item(
-                        owner,
-                        sub_id,
-                        sr_review::repo::NewItem {
-                            ref_id: chapter.id,
-                            label: format!("Chapter {}", chapter.number),
-                            position: (chapter.number.clamp(0.0, 1.0e6) * 100.0).round() as i32,
-                        },
-                    )
-                    .await
-                    .map_err(|e| LibraryError::Conflict(e.to_string()))?;
-                let name = c
-                    .rel_path
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or(&c.rel_path)
-                    .to_owned();
-                let slot = self
-                    .library
-                    .begin_upload(
-                        actor,
-                        chapter.id,
-                        UploadRequest {
-                            filename: name,
-                            size_bytes: c.size_bytes.max(1),
-                            multipart: false,
-                        },
-                    )
-                    .await?;
-                let key = self.library.upload_object_key(slot.upload.id).await?;
-                let copied = self
-                    .files
-                    .copy_to(src, &c.rel_path, c.size_bytes, &key)
-                    .await;
-                match copied {
-                    Ok(()) => {
-                        self.library.complete_upload(actor, slot.upload.id).await?;
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let _ = self.library.abort_upload(actor, slot.upload.id).await;
-                        let _ = ops.delete_chapter(&submission, owner, chapter.id).await;
-                        let _ = self.review.unregister_item(owner, sub_id, chapter.id).await;
-                        Err(LibraryError::Storage(e))
-                    }
+                // Everything from here on can fail with the draft chapter already created: any error removes it again
+                // (and its upload and submission item) instead of leaving an orphan (SEC-AUD-095).
+                let mut upload_id = None;
+                let inner: Result<(), LibraryError> = async {
+                    self.review
+                        .register_item(
+                            owner,
+                            sub_id,
+                            sr_review::repo::NewItem {
+                                ref_id: chapter.id,
+                                label: format!("Chapter {}", chapter.number),
+                                position: (chapter.number.clamp(0.0, 1.0e6) * 100.0).round() as i32,
+                            },
+                        )
+                        .await
+                        .map_err(|e| LibraryError::Conflict(e.to_string()))?;
+                    let name = c
+                        .rel_path
+                        .rsplit('/')
+                        .next()
+                        .unwrap_or(&c.rel_path)
+                        .to_owned();
+                    let slot = self
+                        .library
+                        .begin_upload(
+                            actor,
+                            chapter.id,
+                            UploadRequest {
+                                filename: name,
+                                size_bytes: c.size_bytes.max(1),
+                                multipart: false,
+                            },
+                        )
+                        .await?;
+                    upload_id = Some(slot.upload.id);
+                    let key = self.library.upload_object_key(slot.upload.id).await?;
+                    let copied = self
+                        .files
+                        .copy_to(src, &c.rel_path, c.size_bytes, &key)
+                        .await;
+                    copied.map_err(LibraryError::Storage)?;
+                    self.library.complete_upload(actor, slot.upload.id).await?;
+                    Ok(())
                 }
+                .await;
+                if let Err(e) = inner {
+                    if let Some(up) = upload_id {
+                        let _ = self.library.abort_upload(actor, up).await;
+                    }
+                    let _ = ops.delete_chapter(&submission, owner, chapter.id).await;
+                    let _ = self.review.unregister_item(owner, sub_id, chapter.id).await;
+                    return Err(e);
+                }
+                Ok(())
             }
             .await;
             let l = updated.iter_mut().find(|l| l.rel_path == c.rel_path);

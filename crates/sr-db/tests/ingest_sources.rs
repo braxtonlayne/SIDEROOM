@@ -557,3 +557,73 @@ async fn due_watched_folders_follow_their_poll_interval() {
     );
     assert!(w.scanner.store().delete(src.id).await.unwrap());
 }
+
+/// SEC-AUD-095: an upload that cannot start after its draft chapter was created leaves no chapter and no
+/// submission item behind.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_failed_upload_start_leaves_no_orphan_draft() {
+    let w = world(true).await;
+    let series = format!("P59FAIL Tale {}", uid());
+    let prefix = format!("imports/{}", uid());
+    w.storage
+        .put(
+            &format!("{prefix}/{series}/{series} c001.cbz"),
+            Bytes::from(cbz(2)),
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE OR REPLACE FUNCTION p59_refuse_upload() RETURNS trigger AS \
+         $$ BEGIN IF NEW.filename LIKE 'P59FAIL%' THEN RAISE EXCEPTION 'forced'; END IF; RETURN NEW; END $$ \
+         LANGUAGE plpgsql",
+    )
+    .execute(&w.pool)
+    .await
+    .unwrap();
+    sqlx::query("DROP TRIGGER IF EXISTS p59_refuse_upload ON reading_uploads")
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p59_refuse_upload BEFORE INSERT ON reading_uploads \
+         FOR EACH ROW EXECUTE FUNCTION p59_refuse_upload()",
+    )
+    .execute(&w.pool)
+    .await
+    .unwrap();
+    let src = w
+        .scanner
+        .create(
+            uid(),
+            input(&w, SourceKind::StorageImport, Backend::Storage, &prefix),
+        )
+        .await
+        .unwrap();
+    let done = w.scanner.scan(src.id, false).await.unwrap();
+    sqlx::query("DROP TRIGGER p59_refuse_upload ON reading_uploads")
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    assert_eq!((done.imported, done.failed), (0, 1), "{done:?}");
+    let subs: Vec<i64> = done
+        .submissions
+        .iter()
+        .map(|s| s.parse().unwrap())
+        .collect();
+    let items: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM submission_items WHERE submission_id = ANY($1)")
+            .bind(&subs)
+            .fetch_one(&w.pool)
+            .await
+            .unwrap();
+    assert_eq!(items, 0, "no submission item remains");
+    let chapters: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM reading_chapters c JOIN reading_series s ON s.id = c.series_id WHERE s.title = $1",
+    )
+    .bind(&series)
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    assert_eq!(chapters, 0, "no draft chapter remains");
+}
