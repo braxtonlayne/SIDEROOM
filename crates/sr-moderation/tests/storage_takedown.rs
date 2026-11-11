@@ -909,8 +909,8 @@ async fn fp(pool: &PgPool, id: i64, key: &str) -> Fp {
 
 /// D-588: the uphold reads nothing. Each item records the catalog tag and size (an object without a tag has no
 /// fingerprint yet) and one `storage.takedown_digest` job per item is queued; the job's result is written by
-/// `record_digest`: the sha256 beside the tag and size when the size is the one read, the tag dropped (and the size
-/// read recorded) when it is not, the sha256 and size for an object the catalog gave no tag; a second result is
+/// `record_digest`: the sha256 beside the tag and size when the size is the one read, nothing at all (D-591) when it
+/// is not, the sha256 and size for an object the catalog gave no tag; a second result is
 /// ignored.
 #[tokio::test]
 #[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
@@ -982,10 +982,7 @@ async fn the_uphold_queues_one_digest_job_per_item_and_the_job_adds_the_sha256()
     let read = item_of(w.pool(), id, "films/read.mkv").await;
     assert_eq!(
         w.m.record_digest(read, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 0
-        }
+        DigestRecorded::Written { copied: 0 }
     );
     assert_eq!(
         fp(w.pool(), id, "films/read.mkv").await,
@@ -993,25 +990,31 @@ async fn the_uphold_queues_one_digest_job_per_item_and_the_job_adds_the_sha256()
         "tag, sha256 and size"
     );
     let stale = item_of(w.pool(), id, "films/stale.mkv").await;
+    let before = fp(w.pool(), id, "films/stale.mkv").await;
+    assert!(
+        before.0.is_some() && before.1.is_none() && before.2 != Some(8),
+        "{before:?}"
+    );
     assert_eq!(
         w.m.record_digest(stale, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: true,
-            copied: 0
+        DigestRecorded::SizeChanged {
+            recorded: before.2.unwrap(),
+            read: 8
         }
     );
     assert_eq!(
         fp(w.pool(), id, "films/stale.mkv").await,
-        (None, Some(SHA.into()), Some(8)),
-        "the catalog size was not the bytes read: its tag is dropped"
+        before,
+        "D-591: the file is not the size the catalog saw: nothing is written, the item keeps tag and size"
+    );
+    assert!(
+        w.m.digest_target(stale).await.unwrap().is_some(),
+        "still waiting for a sha256 of the bytes staff upheld"
     );
     let untagged = item_of(w.pool(), id, "films/untagged.mkv").await;
     assert_eq!(
         w.m.record_digest(untagged, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 0
-        }
+        DigestRecorded::Written { copied: 0 }
     );
     assert_eq!(
         fp(w.pool(), id, "films/untagged.mkv").await,
@@ -1059,10 +1062,7 @@ async fn a_restored_item_is_skipped_and_the_sha256_reaches_the_derived_items() {
     assert_eq!(fp(w.pool(), id, "x/copy.mkv").await.1, None);
     assert_eq!(
         w.m.record_digest(item, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 1
-        }
+        DigestRecorded::Written { copied: 1 }
     );
     assert_eq!(
         fp(w.pool(), id, "x/copy.mkv").await,

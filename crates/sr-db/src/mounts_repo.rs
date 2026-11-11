@@ -37,6 +37,26 @@ fn repo_err(e: sqlx::Error) -> MountError {
     MountError::Repo(e.to_string())
 }
 
+/// D-592: whether the live mount `id` is `disabled` now (row locked for the rest of the transaction).
+async fn was_disabled(tx: &mut sqlx::PgConnection, id: i64) -> MountResult<bool> {
+    Ok(sqlx::query_scalar::<_, String>(
+        "SELECT status FROM storage_mounts WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(repo_err)?
+    .is_some_and(|s| s == "disabled"))
+}
+
+/// D-592: queue the digest jobs of the mount's waiting takedown items.
+async fn queue_digests(tx: &mut sqlx::PgConnection, id: i64) -> MountResult<()> {
+    crate::storage_legal::enqueue_mount_digests(tx, id)
+        .await
+        .map(|_| ())
+        .map_err(|e| MountError::Repo(e.to_string()))
+}
+
 fn row_to_mount(r: &PgRow) -> MountResult<Mount> {
     let get = |e: sqlx::Error| MountError::Repo(e.to_string());
     let kind: String = r.try_get("owner_kind").map_err(get)?;
@@ -166,6 +186,9 @@ impl MountRepo for PgMountRepo {
             Some((k, e, h)) => (Some(k), Some(e.as_bytes().to_vec()), Some(h)),
             None => (None, None, None),
         };
+        let mut tx = self.pool.begin().await.map_err(repo_err)?;
+        // D-592: remember whether the mount was switched off, to queue its waiting digests when it comes back.
+        let was_disabled = was_disabled(&mut tx, id).await?;
         let res = sqlx::query(
             "UPDATE storage_mounts SET
                 label = COALESCE($2, label), endpoint = COALESCE($3, endpoint),
@@ -187,24 +210,35 @@ impl MountRepo for PgMountRepo {
         .bind(enc)
         .bind(hint)
         .bind(patch.status.map(MountStatus::as_str))
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(insert_err)?;
         if res.rows_affected() == 0 {
             return Ok(None);
         }
+        if was_disabled && patch.status == Some(MountStatus::Active) {
+            queue_digests(&mut tx, id).await?;
+        }
+        tx.commit().await.map_err(repo_err)?;
         self.by_id(id).await
     }
 
     async fn soft_delete(&self, id: i64) -> MountResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(repo_err)?;
+        let was_disabled = was_disabled(&mut tx, id).await?;
         let res = sqlx::query(
             "UPDATE storage_mounts SET deleted_at = now(), updated_at = now()
              WHERE id = $1 AND deleted_at IS NULL",
         )
         .bind(id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(repo_err)?;
+        // D-592: deleting a disabled mount ends the wait of its takedown items.
+        if was_disabled {
+            queue_digests(&mut tx, id).await?;
+        }
+        tx.commit().await.map_err(repo_err)?;
         Ok(res.rows_affected() > 0)
     }
 
@@ -215,6 +249,8 @@ impl MountRepo for PgMountRepo {
         result_json: String,
         status: Option<MountStatus>,
     ) -> MountResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(repo_err)?;
+        let was_disabled = was_disabled(&mut tx, id).await?;
         let res = sqlx::query(
             "UPDATE storage_mounts SET last_test_at = to_timestamp($2::double precision / 1000.0),
                 last_test = $3::jsonb,
@@ -225,10 +261,15 @@ impl MountRepo for PgMountRepo {
         .bind(at_ms)
         .bind(result_json)
         .bind(status.map(MountStatus::as_str))
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(repo_err)?;
-        Ok(res.rows_affected() > 0)
+        let changed = res.rows_affected() > 0;
+        if changed && was_disabled && status == Some(MountStatus::Active) {
+            queue_digests(&mut tx, id).await?;
+        }
+        tx.commit().await.map_err(repo_err)?;
+        Ok(changed)
     }
 
     async fn set_cors_ok(&self, id: i64, at_ms: Option<i64>) -> MountResult<bool> {

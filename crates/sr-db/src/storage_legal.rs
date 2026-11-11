@@ -16,6 +16,34 @@ use sqlx::{PgConnection, PgPool, Row};
 
 use crate::DbResult;
 
+/// Kind of the job that reads a takedown item's object for its sha256 (D-588). The job runs in sr-server; the name
+/// is here so a mount's repository can queue it (D-592).
+pub const DIGEST_JOB_KIND: &str = "storage.takedown_digest";
+/// Attempts of a digest job (the backoff reaches about four hours before the last).
+pub const DIGEST_JOB_ATTEMPTS: i32 = 14;
+
+/// D-592: queue one digest job for each `disabled` storage-object item on `mount_id` that has a size, no sha256 and
+/// no queued or running digest job (the D-589 selection, limited to one mount). Called when a disabled mount comes
+/// back or is deleted: the job then reads the file, or finds the mount gone and alerts. Returns how many were queued.
+pub async fn enqueue_mount_digests(conn: &mut PgConnection, mount_id: i64) -> DbResult<u64> {
+    Ok(sqlx::query(
+        "INSERT INTO jobs (id, kind, payload, max_attempts)
+         SELECT nextval('takedown_digest_job_seq'), $2, jsonb_build_object('item_id', s.id), $3
+         FROM (SELECT i.id FROM takedown_items i
+               WHERE i.kind = 'storage_object' AND i.state = 'disabled' AND i.target_id = $1
+                 AND i.object_size IS NOT NULL AND i.object_sha256 IS NULL AND i.object_key IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.kind = $2 AND j.state IN ('queued', 'running')
+                                 AND (j.payload ->> 'item_id') = i.id::text)
+               ORDER BY i.id) s",
+    )
+    .bind(mount_id)
+    .bind(DIGEST_JOB_KIND)
+    .bind(DIGEST_JOB_ATTEMPTS)
+    .execute(&mut *conn)
+    .await?
+    .rows_affected())
+}
+
 /// Which of `keys` are delisted on `mount_id`.
 pub async fn delisted_keys(pool: &PgPool, mount_id: i64, keys: &[String]) -> DbResult<Vec<String>> {
     if keys.is_empty() {
@@ -441,6 +469,14 @@ pub struct Erased {
 /// (the associated data binds a blob to its row, so an empty blob can never be opened), and remove the shares
 /// they gave or received. The objects stay in the member's bucket: it is theirs.
 pub async fn erase_for(conn: &mut PgConnection, user: i64) -> DbResult<Erased> {
+    // D-592: a disabled mount that is deleted ends the wait of its takedown items.
+    let was_disabled: Vec<i64> = sqlx::query_scalar(
+        "SELECT id FROM storage_mounts
+         WHERE owner_kind = 'user' AND owner_id = $1 AND deleted_at IS NULL AND status = 'disabled'",
+    )
+    .bind(user)
+    .fetch_all(&mut *conn)
+    .await?;
     let shares = sqlx::query(
         "DELETE FROM storage_mount_shares s USING storage_mounts m
          WHERE m.id = s.mount_id AND (s.friend_id = $1 OR (m.owner_kind = 'user' AND m.owner_id = $1))",
@@ -459,6 +495,9 @@ pub async fn erase_for(conn: &mut PgConnection, user: i64) -> DbResult<Erased> {
     .execute(&mut *conn)
     .await?
     .rows_affected();
+    for id in was_disabled {
+        enqueue_mount_digests(&mut *conn, id).await?;
+    }
     Ok(Erased {
         mounts: i64::try_from(mounts).unwrap_or(i64::MAX),
         shares: i64::try_from(shares).unwrap_or(i64::MAX),
