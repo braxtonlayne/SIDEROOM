@@ -18,9 +18,9 @@ use sr_db::{
 };
 use sr_storage::ObjectStorage;
 use sr_storage::index::{
-    APPLY_BATCH, DEFAULT_MAX_OBJECTS, IndexStore, JOB_KIND, NameParser, Options, RunReport,
-    Sidecar, SidecarMap, StoreError, TaggedObject, VideoFacts, VideoRole, classify_all,
-    content_tag, is_sidecar_name,
+    APPLY_BATCH, DEFAULT_MAX_OBJECTS, HashedObject, IndexStore, JOB_KIND, NameParser, Options,
+    RunReport, Sidecar, SidecarMap, SizedObject, StoreError, TaggedObject, VideoFacts, VideoRole,
+    classify_all, content_tag, is_sidecar_name,
 };
 use sr_storage::mount_storage::MountStorages;
 use sr_storage::mounts::{INSTANCE_MOUNT_ID, MountOwner, MountRepo, MountStatus};
@@ -36,6 +36,28 @@ pub const INDEX_WALK_BUDGET: Duration = Duration::from_secs(60);
 const MAX_SIDECAR_BYTES: u64 = 64 * 1024;
 /// Most sidecars read in one run.
 const MAX_SIDECARS: usize = 2_000;
+
+/// What one run may read to fingerprint size candidates of a byte takedown (D-583). Sizes rarely collide, so a run
+/// reads few objects; what is over the cap waits for the next run (its object stays catalogued meanwhile).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HashLimits {
+    /// Most objects read.
+    pub max_reads: usize,
+    /// Most bytes read.
+    pub max_bytes: u64,
+    /// Wall-clock budget of the reads.
+    pub budget: Duration,
+}
+
+impl Default for HashLimits {
+    fn default() -> Self {
+        Self {
+            max_reads: 20,
+            max_bytes: 64 << 30,
+            budget: Duration::from_secs(30 * 60),
+        }
+    }
+}
 
 fn now_ms() -> i64 {
     std::time::SystemTime::now()
@@ -126,8 +148,41 @@ pub async fn index_mount(
     max_objects: u64,
     budget: Duration,
 ) -> Result<RunReport, IndexError> {
+    index_mount_with(
+        storage,
+        store,
+        mount_id,
+        opts,
+        max_objects,
+        budget,
+        HashLimits::default(),
+    )
+    .await
+}
+
+/// [`index_mount`] with the caps on the reads a byte takedown may ask for (D-583).
+pub async fn index_mount_with(
+    storage: &dyn ObjectStorage,
+    store: &dyn IndexStore,
+    mount_id: i64,
+    opts: Options,
+    max_objects: u64,
+    budget: Duration,
+    hash: HashLimits,
+) -> Result<RunReport, IndexError> {
     let run = store.begin(mount_id, now_ms()).await?;
-    match run_inner(storage, store, mount_id, run, opts, max_objects, budget).await {
+    match run_inner(
+        storage,
+        store,
+        mount_id,
+        run,
+        opts,
+        max_objects,
+        budget,
+        hash,
+    )
+    .await
+    {
         Ok((report, complete)) => {
             let gone = store
                 .finish(mount_id, run, &report, complete, None, now_ms())
@@ -154,6 +209,7 @@ pub async fn index_mount(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_inner(
     storage: &dyn ObjectStorage,
     store: &dyn IndexStore,
@@ -162,6 +218,7 @@ async fn run_inner(
     opts: Options,
     max_objects: u64,
     budget: Duration,
+    hash: HashLimits,
 ) -> Result<(RunReport, bool), IndexError> {
     let mut listing: Vec<(String, u64)> = Vec::new();
     // D-571: the fingerprint of each object's bytes, when the provider's entity tag is a content digest.
@@ -209,6 +266,8 @@ async fn run_inner(
         .collect();
     // Takedowns: a delisted key gets no catalog row, and neither do the same bytes under another name (D-571).
     let mut gone: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut shas: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let (mut reads, mut read_bytes, started) = (0_usize, 0_u64, std::time::Instant::now());
     for chunk in storable.chunks(APPLY_BATCH) {
         let keys: Vec<String> = chunk.iter().map(|c| c.key.clone()).collect();
         let delisted = store.delisted(mount_id, &keys).await?;
@@ -227,9 +286,69 @@ async fn run_inner(
         if !tagged.is_empty() {
             gone.extend(store.byte_matches(mount_id, &tagged).await?);
         }
+        // D-583: an object left over whose size equals a standing byte takedown's is read once and compared on its
+        // sha256 (a multipart upload cut into other parts has another tag for the same bytes). Only size
+        // candidates are read, an object already hashed at the same tag and size is not read again, and a run reads
+        // at most `hash` worth; the rest wait for the next run. A failed read changes nothing.
+        let rest: Vec<SizedObject> = chunk
+            .iter()
+            .filter(|c| !gone.contains(&c.key))
+            .map(|c| SizedObject {
+                key: c.key.clone(),
+                tag: c.content_tag.clone(),
+                size: c.size,
+            })
+            .collect();
+        if !rest.is_empty() {
+            let candidates = store.hash_candidates(mount_id, &rest).await?;
+            let mut hashed: Vec<HashedObject> = Vec::new();
+            for cand in candidates {
+                let Some(obj) = rest.iter().find(|o| o.key == cand.key) else {
+                    continue;
+                };
+                let (sha256, size) = match cand.known_sha256 {
+                    Some(s) => (s, obj.size),
+                    None => {
+                        if reads >= hash.max_reads
+                            || read_bytes >= hash.max_bytes
+                            || started.elapsed() >= hash.budget
+                        {
+                            tracing::info!(mount = mount_id, key = %obj.key, "storage.index: hash read deferred to the next run");
+                            continue;
+                        }
+                        match sr_storage::digest::sha256_object(storage, &obj.key).await {
+                            Ok((s, n)) => {
+                                reads += 1;
+                                read_bytes += n;
+                                (s, n)
+                            }
+                            Err(e) => {
+                                tracing::warn!(mount = mount_id, key = %obj.key, error = %e, "storage.index: could not read a size candidate");
+                                continue;
+                            }
+                        }
+                    }
+                };
+                if size == obj.size {
+                    shas.insert(obj.key.clone(), sha256.clone());
+                }
+                hashed.push(HashedObject {
+                    key: obj.key.clone(),
+                    tag: obj.tag.clone(),
+                    size,
+                    sha256,
+                });
+            }
+            if !hashed.is_empty() {
+                gone.extend(store.hash_matches(mount_id, &hashed).await?);
+            }
+        }
     }
     if !gone.is_empty() {
         storable.retain(|c| !gone.contains(&c.key));
+    }
+    for c in &mut storable {
+        c.content_sha256 = shas.remove(&c.key);
     }
     let mut added = 0u64;
     for chunk in storable.chunks(APPLY_BATCH) {
@@ -275,6 +394,29 @@ async fn setting_bool(pool: &PgPool, key: &str, default: bool) -> bool {
     }
 }
 
+/// The longest `disable_item`'s read of an upheld object may take (D-583): staff wait for the uphold, so a very
+/// large object that cannot be read in this time is recorded by tag and size only.
+const DIGEST_READ_CAP: Duration = Duration::from_secs(180);
+
+/// Reads a mount's object for the sha256 an upheld byte takedown records (D-583).
+pub struct MountObjectDigests {
+    pub mounts: MountStorages,
+}
+
+#[async_trait::async_trait]
+impl sr_moderation::ObjectDigests for MountObjectDigests {
+    async fn digest(&self, mount_id: i64, key: &str) -> Option<(String, u64)> {
+        let storage = self.mounts.for_mount(mount_id).await.ok()?;
+        tokio::time::timeout(
+            DIGEST_READ_CAP,
+            sr_storage::digest::sha256_object(storage.as_ref(), key),
+        )
+        .await
+        .ok()?
+        .ok()
+    }
+}
+
 /// Register the handler on `runner`; pair with [`schedule`].
 pub fn register(
     runner: JobRunner,
@@ -282,11 +424,17 @@ pub fn register(
     store: Arc<dyn IndexStore>,
     mounts: MountStorages,
     repo: Arc<dyn MountRepo>,
+    moderation: sr_moderation::Moderation,
 ) -> JobRunner {
     let pool = pool.clone();
     runner.register(JOB_KIND, 1, move |job: Job| {
-        let (pool, store, mounts, repo) =
-            (pool.clone(), store.clone(), mounts.clone(), repo.clone());
+        let (pool, store, mounts, repo, moderation) = (
+            pool.clone(),
+            store.clone(),
+            mounts.clone(),
+            repo.clone(),
+            moderation.clone(),
+        );
         Box::pin(async move {
             let one = job.payload.get("mount_id").and_then(|v| v.as_i64());
             let opts = Options {
@@ -340,6 +488,8 @@ pub fn register(
                     Ok(r) => tracing::info!(mount = id, report = ?r, "storage indexed"),
                     Err(e) => tracing::warn!(mount = id, error = %e, "storage index failed"),
                 }
+                // D-584: whoever owns an object the run delisted as a byte match is told, once.
+                moderation.notify_byte_matches().await;
             }
             if one.is_none() {
                 jobs::reschedule_running(
@@ -377,6 +527,9 @@ mod tests {
     use sr_storage::ObjectStoreStorage;
     use sr_storage::index::{Class, Classified};
 
+    /// (tag, size, sha256) the catalog holds for a key.
+    type KnownHash = (Option<String>, u64, String);
+
     #[derive(Default)]
     struct Memory {
         seen: Mutex<Vec<Classified>>,
@@ -386,6 +539,10 @@ mod tests {
         taken_bytes: Mutex<Vec<(String, u64)>>,
         /// What `byte_matches` was asked.
         asked: Mutex<Vec<TaggedObject>>,
+        /// (sha256, size) of the bytes a standing takedown recorded (D-583).
+        taken_shas: Mutex<Vec<(String, u64)>>,
+        /// What the catalog already holds: key -> (tag, size, sha256).
+        known: Mutex<std::collections::HashMap<String, KnownHash>>,
     }
 
     #[async_trait]
@@ -407,6 +564,37 @@ mod tests {
             Ok(objects
                 .iter()
                 .filter(|o| taken.iter().any(|(t, s)| *t == o.tag && *s == o.size))
+                .map(|o| o.key.clone())
+                .collect())
+        }
+        async fn hash_candidates(
+            &self,
+            _m: i64,
+            objects: &[SizedObject],
+        ) -> Result<Vec<sr_storage::index::HashCandidate>, StoreError> {
+            let taken = self.taken_shas.lock().unwrap();
+            let known = self.known.lock().unwrap();
+            Ok(objects
+                .iter()
+                .filter(|o| taken.iter().any(|(_, s)| *s == o.size))
+                .map(|o| sr_storage::index::HashCandidate {
+                    key: o.key.clone(),
+                    known_sha256: known
+                        .get(&o.key)
+                        .filter(|(t, s, _)| t.is_some() && *t == o.tag && *s == o.size)
+                        .map(|(_, _, sha)| sha.clone()),
+                })
+                .collect())
+        }
+        async fn hash_matches(
+            &self,
+            _m: i64,
+            objects: &[HashedObject],
+        ) -> Result<Vec<String>, StoreError> {
+            let taken = self.taken_shas.lock().unwrap();
+            Ok(objects
+                .iter()
+                .filter(|o| taken.iter().any(|(h, s)| *h == o.sha256 && *s == o.size))
                 .map(|o| o.key.clone())
                 .collect())
         }
@@ -563,7 +751,11 @@ mod tests {
     }
 
     /// A bucket whose listing tags every object the way S3 does: the MD5-shaped digest of its bytes.
-    struct S3Tags(ObjectStoreStorage);
+    struct S3Tags(
+        ObjectStoreStorage,
+        &'static str,
+        std::sync::atomic::AtomicUsize,
+    );
 
     fn s3_tag(bytes: &[u8]) -> String {
         // Not MD5, but a digest of the bytes in MD5's shape, which is all the indexer looks at.
@@ -583,6 +775,11 @@ mod tests {
             self.0.get(key).await
         }
         async fn get_range(&self, key: &str, s: u64, e: u64) -> sr_storage::Result<Bytes> {
+            // The indexer's reads of a size candidate (D-583) come through here.
+            self.2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if key.contains("broken") {
+                return Err(sr_storage::StorageError::Backend("connection reset".into()));
+            }
             self.0.get_range(key, s, e).await
         }
         async fn head(&self, key: &str) -> sr_storage::Result<sr_storage::ObjectInfo> {
@@ -594,7 +791,9 @@ mod tests {
         async fn list(&self, prefix: &str) -> sr_storage::Result<Vec<sr_storage::ObjectInfo>> {
             let mut out = self.0.list(prefix).await?;
             for o in &mut out {
-                o.etag = Some(s3_tag(&self.0.get(&o.key).await?));
+                // `self.1` is a multipart-style suffix (`-12`): the same bytes, tagged by another part size.
+                let t = s3_tag(&self.0.get(&o.key).await?);
+                o.etag = Some(format!("\"{}{}\"", t.trim_matches('"'), self.1));
             }
             Ok(out)
         }
@@ -617,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn taken_down_bytes_under_a_new_name_get_no_catalog_row() {
         // D-571: the leak was taken down as Movies/Leak.mp4; the same bytes come back as Movies/Renamed.mp4.
-        let storage = S3Tags(ObjectStoreStorage::in_memory());
+        let storage = S3Tags(ObjectStoreStorage::in_memory(), "", Default::default());
         let leak = Bytes::from_static(b"the very same film bytes");
         storage
             .put("Movies/Renamed.mp4", leak.clone())
@@ -712,6 +911,230 @@ mod tests {
         .unwrap();
         assert!(r.truncated);
         assert_eq!(store.finished.lock().unwrap().as_slice(), &[(false, None)]);
+    }
+
+    const FILM: &[u8] = b"the very same film bytes";
+
+    async fn sha_of(bytes: &'static [u8]) -> String {
+        let s = ObjectStoreStorage::in_memory();
+        s.put("x", Bytes::from_static(bytes)).await.unwrap();
+        sr_storage::digest::sha256_object(&s, "x").await.unwrap().0
+    }
+
+    fn reads(s: &S3Tags) -> usize {
+        s.2.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// A bucket of a re-upload made by another tool: the film again under another name, tagged by another part size
+    /// (so the tag the takedown recorded never matches), a same-size look-alike, and a file of another size.
+    async fn reupload() -> (S3Tags, Memory) {
+        let storage = S3Tags(ObjectStoreStorage::in_memory(), "-12", Default::default());
+        for (k, b) in [
+            ("Movies/Renamed.mp4", FILM),
+            // Same size as the film, other bytes.
+            ("Movies/Lookalike.mp4", b"the very same film BYTES"),
+            ("Movies/Other.mp4", b"another film"),
+        ] {
+            storage.put(k, Bytes::from_static(b)).await.unwrap();
+        }
+        let store = Memory::default();
+        // The takedown recorded the single-part tag and the sha256 of the film (D-583).
+        let single = content_tag(&s3_tag(FILM)).unwrap();
+        store
+            .taken_bytes
+            .lock()
+            .unwrap()
+            .push((single, FILM.len() as u64));
+        let film_sha = sha_of(FILM).await;
+        store
+            .taken_shas
+            .lock()
+            .unwrap()
+            .push((film_sha, FILM.len() as u64));
+        (storage, store)
+    }
+
+    #[tokio::test]
+    async fn the_same_bytes_under_another_part_size_are_delisted_and_look_alikes_are_not() {
+        // D-583: the tag of this upload differs from the taken-down object's, the bytes do not.
+        let (storage, store) = reupload().await;
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        let look_sha = sha_of(b"the very same film BYTES").await;
+        let seen = store.seen.lock().unwrap();
+        let mut keys: Vec<&str> = seen.iter().map(|c| c.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["Movies/Lookalike.mp4", "Movies/Other.mp4"],
+            "the re-upload under a multipart tag is delisted; same size alone and other sizes are kept"
+        );
+        // Only the size candidates were read: the film and its look-alike, never the file of another size.
+        assert_eq!(reads(&storage), 2);
+        // The look-alike's sha256 is kept on its catalog row, so it is never read for this again.
+        let look = seen
+            .iter()
+            .find(|c| c.key.ends_with("Lookalike.mp4"))
+            .unwrap();
+        assert_eq!(look.content_sha256.as_deref(), Some(look_sha.as_str()));
+        assert!(
+            seen.iter()
+                .find(|c| c.key.ends_with("Other.mp4"))
+                .unwrap()
+                .content_sha256
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn an_object_already_hashed_at_the_same_tag_is_not_read_again() {
+        let (storage, store) = reupload().await;
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reads(&storage), 2);
+        // The next run: the catalog holds the look-alike's sha256 at its tag and size, and the film's re-upload is
+        // delisted by key. Nothing is read.
+        let (tag, size, sha) = {
+            let seen = store.seen.lock().unwrap();
+            let c = seen
+                .iter()
+                .find(|c| c.key.ends_with("Lookalike.mp4"))
+                .unwrap();
+            (
+                c.content_tag.clone(),
+                c.size,
+                c.content_sha256.clone().unwrap(),
+            )
+        };
+        store
+            .known
+            .lock()
+            .unwrap()
+            .insert("Movies/Lookalike.mp4".into(), (tag.clone(), size, sha));
+        store
+            .delist
+            .lock()
+            .unwrap()
+            .push("Movies/Renamed.mp4".into());
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reads(&storage), 2, "no object was read twice");
+        // The same file under another tag is another upload, and is read again.
+        store.known.lock().unwrap().insert(
+            "Movies/Lookalike.mp4".into(),
+            (Some("0".repeat(32)), size, "0".repeat(64)),
+        );
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reads(&storage), 3);
+    }
+
+    #[tokio::test]
+    async fn the_reads_of_one_run_are_capped_and_the_rest_wait() {
+        let (storage, store) = reupload().await;
+        let limits = HashLimits {
+            max_reads: 1,
+            ..HashLimits::default()
+        };
+        index_mount_with(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+            limits,
+        )
+        .await
+        .unwrap();
+        assert_eq!(reads(&storage), 1, "one read, the other candidate waits");
+        // Whatever was not read stays catalogued (it is served until the next run reads it).
+        assert!(store.seen.lock().unwrap().len() >= 2);
+    }
+
+    #[tokio::test]
+    async fn a_failed_read_changes_nothing() {
+        // The film's re-upload cannot be read right now: it is neither delisted nor given a sha256, and the run
+        // still completes.
+        let storage = S3Tags(ObjectStoreStorage::in_memory(), "-12", Default::default());
+        storage
+            .put("Movies/broken.mp4", Bytes::from_static(FILM))
+            .await
+            .unwrap();
+        let store = Memory::default();
+        let film_sha = sha_of(FILM).await;
+        store
+            .taken_shas
+            .lock()
+            .unwrap()
+            .push((film_sha, FILM.len() as u64));
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        let seen = store.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].content_sha256, None);
+        assert_eq!(store.finished.lock().unwrap().as_slice(), &[(true, None)]);
+    }
+
+    #[tokio::test]
+    async fn a_listing_without_a_standing_byte_takedown_reads_nothing() {
+        let storage = S3Tags(ObjectStoreStorage::in_memory(), "-12", Default::default());
+        storage
+            .put("Movies/A.mp4", Bytes::from_static(FILM))
+            .await
+            .unwrap();
+        let store = Memory::default();
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert_eq!(reads(&storage), 0);
     }
 
     #[tokio::test]

@@ -248,6 +248,10 @@ pub struct Classified {
     /// The bytes' fingerprint from the listing's entity tag ([`crate::index::content_tag`]); `None` when the
     /// provider's tag is not a content digest. Set by the walker, not the classifier (D-571).
     pub content_tag: Option<String>,
+    /// The sha256 of the object's bytes (lower-case hex), when the indexer read it because its size equalled a
+    /// standing byte takedown's (D-583). Set by the walker, never by the classifier; kept on the catalog row while
+    /// the tag and size stay the same.
+    pub content_sha256: Option<String>,
 }
 
 impl Classified {

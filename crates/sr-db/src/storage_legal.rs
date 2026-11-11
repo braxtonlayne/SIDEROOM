@@ -31,12 +31,26 @@ pub async fn delisted_keys(pool: &PgPool, mount_id: i64, keys: &[String]) -> DbR
     .await?)
 }
 
+/// One listed object offered to the byte matcher (D-571, D-583): its mount-relative key, its size and the
+/// fingerprints known for it. A takedown item matches on (tag, size) or on (sha256, size).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Probe {
+    pub key: String,
+    pub tag: Option<String>,
+    pub sha256: Option<String>,
+    pub size: i64,
+}
+
 /// D-571 (migration 2450): which of the listed objects of `mount_id` carry the same bytes as an object a standing
-/// takedown delisted (same `object_hash` and `object_size` on a `disabled` storage item, on any mount). Each match
+/// takedown delisted (same `object_hash` and `object_size` on a `disabled` storage item, on any mount). The match is
+/// on the entity tag, the cheap path; [`delist_hash_matches`] is the same on the bytes' sha256 (D-583). Each match
 /// is recorded, in one transaction, as a new item of the SAME notice, already `disabled`, with `derived_from` the
 /// item it matched; the mount's CDN path of the key is blocked under that notice and the notice's timeline says
-/// so. Every reader of disabled items then delists it, and the notice's restore lifts it with the rest. The match
-/// names no subject: no strike and no message (staff add the item by hand for that).
+/// so. Every reader of disabled items then delists it, and the notice's restore lifts it with the rest.
+///
+/// D-584: the derived item names the owner of the object as its subject (`subject_account_id`: the mount's owner,
+/// on a server's bucket the uploader as P28-LEG-1 resolves it), so the notice's restore DM reaches them and
+/// the removal DM can be sent (the item's `notified_at` says whether it was). It never names a Person: no strike.
 /// `objects` are `(key, content tag, size)`. Returns the matched keys.
 pub async fn delist_byte_matches(
     pool: &PgPool,
@@ -44,23 +58,129 @@ pub async fn delist_byte_matches(
     mount_id: i64,
     objects: &[(String, String, i64)],
 ) -> DbResult<Vec<String>> {
+    let probes: Vec<Probe> = objects
+        .iter()
+        .map(|(k, t, s)| Probe {
+            key: k.clone(),
+            tag: Some(t.clone()),
+            sha256: None,
+            size: *s,
+        })
+        .collect();
+    delist_probes(pool, ids, mount_id, &probes).await
+}
+
+/// D-583: [`delist_byte_matches`] for objects the indexer read: matched on the sha256 the upheld item recorded
+/// (and, as before, on the tag when the probe carries one). Returns the matched keys.
+pub async fn delist_hash_matches(
+    pool: &PgPool,
+    ids: &(dyn Fn() -> i64 + Send + Sync),
+    mount_id: i64,
+    objects: &[Probe],
+) -> DbResult<Vec<String>> {
+    delist_probes(pool, ids, mount_id, objects).await
+}
+
+/// The sieve (D-583): of `(key, tag, size)` candidates, the ones whose size equals a standing byte takedown's that
+/// recorded a sha256, with the sha256 already stored for the object at this tag and size when there is one.
+pub async fn hash_candidates(
+    pool: &PgPool,
+    mount_id: i64,
+    objects: &[(String, Option<String>, i64)],
+) -> DbResult<Vec<(String, Option<String>)>> {
     if objects.is_empty() {
         return Ok(Vec::new());
     }
     let keys: Vec<&str> = objects.iter().map(|o| o.0.as_str()).collect();
-    let tags: Vec<&str> = objects.iter().map(|o| o.1.as_str()).collect();
+    let tags: Vec<Option<&str>> = objects.iter().map(|o| o.1.as_deref()).collect();
     let sizes: Vec<i64> = objects.iter().map(|o| o.2).collect();
+    let rows = sqlx::query(
+        "SELECT c.key,
+                CASE WHEN c.tag IS NOT NULL AND o.content_tag = c.tag AND o.size_bytes = c.size
+                     THEN o.content_sha256 END AS known
+         FROM unnest($2::text[], $3::text[], $4::bigint[]) AS c(key, tag, size)
+         LEFT JOIN storage_objects o ON o.mount_id = $1 AND o.key = c.key
+         WHERE EXISTS (SELECT 1 FROM takedown_items i
+                       WHERE i.kind = 'storage_object' AND i.state = 'disabled'
+                         AND i.object_sha256 IS NOT NULL AND i.object_size = c.size)",
+    )
+    .bind(mount_id)
+    .bind(&keys)
+    .bind(&tags)
+    .bind(&sizes)
+    .fetch_all(pool)
+    .await?;
+    rows.iter()
+        .map(|r| Ok((r.try_get("key")?, r.try_get("known")?)))
+        .collect()
+}
+
+/// Who answers for the object `key` of `mount_id`: the mount's owner; on a server's bucket the member whose latest
+/// completed upload of that key the ledger knows (P28-LEG-1), else the server owner. `None` for the instance bucket.
+async fn owner_of_object(
+    conn: &mut PgConnection,
+    mount_id: i64,
+    key: &str,
+) -> DbResult<Option<i64>> {
+    let Some(r) = sqlx::query(
+        "SELECT m.owner_kind, m.owner_id, g.owner_id AS guild_owner
+         FROM storage_mounts m LEFT JOIN guilds g ON m.owner_kind = 'guild' AND g.id = m.owner_id
+         WHERE m.id = $1 AND m.deleted_at IS NULL",
+    )
+    .bind(mount_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    else {
+        return Ok(None);
+    };
+    let kind: String = r.try_get("owner_kind")?;
+    match kind.as_str() {
+        "user" => Ok(Some(r.try_get("owner_id")?)),
+        "guild" => {
+            let uploader: Option<i64> = sqlx::query_scalar(
+                "SELECT user_id FROM storage_mount_uploads
+                 WHERE mount_id = $1 AND object_key = $2 AND state = 'completed'
+                 ORDER BY updated_at DESC LIMIT 1",
+            )
+            .bind(mount_id)
+            .bind(key)
+            .fetch_optional(&mut *conn)
+            .await?;
+            match uploader {
+                Some(u) => Ok(Some(u)),
+                None => Ok(r.try_get("guild_owner")?),
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
+async fn delist_probes(
+    pool: &PgPool,
+    ids: &(dyn Fn() -> i64 + Send + Sync),
+    mount_id: i64,
+    objects: &[Probe],
+) -> DbResult<Vec<String>> {
+    if objects.is_empty() {
+        return Ok(Vec::new());
+    }
+    let keys: Vec<&str> = objects.iter().map(|o| o.key.as_str()).collect();
+    let tags: Vec<Option<&str>> = objects.iter().map(|o| o.tag.as_deref()).collect();
+    let shas: Vec<Option<&str>> = objects.iter().map(|o| o.sha256.as_deref()).collect();
+    let sizes: Vec<i64> = objects.iter().map(|o| o.size).collect();
     let mut tx = pool.begin().await?;
     let rows = sqlx::query(
-        "SELECT DISTINCT ON (c.key, i.notice_id) c.key, c.tag, c.size, i.notice_id,
-                COALESCE(i.derived_from, i.id) AS source, i.label AS source_label
-         FROM unnest($1::text[], $2::text[], $3::bigint[]) AS c(key, tag, size)
-         JOIN takedown_items i ON i.kind = 'storage_object' AND i.state = 'disabled'
-                              AND i.object_hash = c.tag AND i.object_size = c.size
+        "SELECT DISTINCT ON (c.key, i.notice_id) c.key, c.tag, c.sha, c.size, i.notice_id,
+                COALESCE(i.derived_from, i.id) AS source, i.label AS source_label,
+                i.object_sha256 AS source_sha
+         FROM unnest($1::text[], $2::text[], $3::text[], $4::bigint[]) AS c(key, tag, sha, size)
+         JOIN takedown_items i ON i.kind = 'storage_object' AND i.state = 'disabled' AND i.object_size = c.size
+                              AND (i.object_hash = c.tag OR i.object_sha256 = c.sha)
          ORDER BY c.key, i.notice_id, COALESCE(i.derived_from, i.id)",
     )
     .bind(&keys)
     .bind(&tags)
+    .bind(&shas)
     .bind(&sizes)
     .fetch_all(&mut *tx)
     .await?;
@@ -75,20 +195,26 @@ pub async fn delist_byte_matches(
     let mut matched: Vec<String> = Vec::new();
     for r in &rows {
         let key: String = r.try_get("key")?;
-        let tag: String = r.try_get("tag")?;
+        let tag: Option<String> = r.try_get("tag")?;
+        let sha: Option<String> = r.try_get("sha")?;
         let size: i64 = r.try_get("size")?;
         let notice: i64 = r.try_get("notice_id")?;
         let source: i64 = r.try_get("source")?;
         let source_label: String = r.try_get("source_label")?;
+        let by = if sha.is_some() { "sha256" } else { "tag" };
+        // Both fingerprints are of the same bytes: keep the sha256 the upheld item recorded.
+        let source_sha: Option<String> = r.try_get("source_sha")?;
+        let item_sha = sha.or(source_sha);
         let label: String =
             format!("Object {key} in bucket {mount_label} (the same bytes as: {source_label})")
                 .chars()
                 .take(300)
                 .collect();
+        let owner = owner_of_object(&mut tx, mount_id, &key).await?;
         let inserted = sqlx::query(
             "INSERT INTO takedown_items (id, notice_id, kind, target_id, label, object_key, state, disabled_at,
-                                         object_hash, object_size, derived_from)
-             VALUES ($1, $2, 'storage_object', $3, $4, $5, 'disabled', now(), $6, $7, $8)
+                                         object_hash, object_sha256, object_size, derived_from, subject_account_id)
+             VALUES ($1, $2, 'storage_object', $3, $4, $5, 'disabled', now(), $6, $7, $8, $9, $10)
              ON CONFLICT DO NOTHING",
         )
         .bind(ids())
@@ -97,8 +223,10 @@ pub async fn delist_byte_matches(
         .bind(&label)
         .bind(&key)
         .bind(&tag)
+        .bind(&item_sha)
         .bind(size)
         .bind(source)
+        .bind(owner)
         .execute(&mut *tx)
         .await?
         .rows_affected();
@@ -119,7 +247,7 @@ pub async fn delist_byte_matches(
             .bind(ids())
             .bind(notice)
             .bind(json!({ "mount_id": mount_id.to_string(), "key": &key,
-                          "derived_from": source.to_string() }))
+                          "derived_from": source.to_string(), "by": by }))
             .execute(&mut *tx)
             .await?;
         }

@@ -1541,6 +1541,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             cinema: cinema_service.clone(),
         }))
         .with_blocklist(media_blocklist.clone())
+        .with_object_digests(Arc::new(crate::storage_jobs::MountObjectDigests {
+            mounts: mount_storages.clone(),
+        }))
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
         )));
@@ -1938,6 +1941,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         index_store.clone(),
         mount_storages.clone(),
         mount_repo.clone(),
+        moderation.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());

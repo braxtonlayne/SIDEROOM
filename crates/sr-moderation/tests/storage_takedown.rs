@@ -756,7 +756,7 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
             mnt,
             "films/renamed.mkv".into(),
             "disabled".into(),
-            None,
+            Some(w.owner),
             Some(source)
         )
     );
@@ -766,7 +766,7 @@ async fn a_storage_takedown_follows_the_bytes_and_the_restore_lifts_the_matches(
             theirs,
             "x/renamed.mkv".into(),
             "disabled".into(),
-            None,
+            Some(other),
             Some(source)
         )
     );
@@ -875,4 +875,417 @@ async fn an_uncatalogued_object_is_taken_down_by_path_only() {
             .len(),
         1
     );
+}
+
+// ---- SEC-AUD-053 / SEC-AUD-054 (D-583, D-584) ----------------------------------------------------------------------
+
+const SHA: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+/// A reader that "downloads" the listed objects (8 bytes, the sha256 above); any other key is a read failure.
+struct Reads(Vec<&'static str>);
+
+#[async_trait]
+impl sr_moderation::ObjectDigests for Reads {
+    async fn digest(&self, _mount_id: i64, key: &str) -> Option<(String, u64)> {
+        self.0.contains(&key).then(|| (SHA.to_owned(), 8))
+    }
+}
+
+/// D-583: the uphold reads the object once and records its sha256 beside the tag and size; a failed read keeps the
+/// tag and size only; an object read without a catalog tag still records the sha256 and size.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn the_uphold_records_the_sha256_beside_the_tag_and_size_and_a_failed_read_keeps_the_tag() {
+    let mut w = world().await;
+    w.m = w.m.clone().with_object_digests(Arc::new(Reads(vec![
+        "films/read.mkv",
+        "films/untagged.mkv",
+    ])));
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    catalogued(w.pool(), mnt, "films/read.mkv", LEAK_TAG, 8).await;
+    catalogued(w.pool(), mnt, "films/unreadable.mkv", LEAK_TAG, LEAK_SIZE).await;
+    // An object of the catalog without a content tag (a provider whose tag says nothing about the bytes).
+    sqlx::query(
+        "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class)
+         VALUES ($1, $2, 'films/untagged.mkv', 8, 'cinema', 'movie')",
+    )
+    .bind(uid())
+    .bind(mnt)
+    .execute(w.pool())
+    .await
+    .unwrap();
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let id = w.notice_with(mnt, "films/read.mkv").await;
+    for key in ["films/unreadable.mkv", "films/untagged.mkv"] {
+        w.m.add_item(
+            &who,
+            id,
+            &NewItem {
+                kind: ItemKind::StorageObject,
+                id: mnt,
+                key: Some(key.into()),
+            },
+        )
+        .await
+        .unwrap();
+    }
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    type Fp = (Option<String>, Option<String>, Option<i64>);
+    async fn fp(pool: &PgPool, id: i64, key: &str) -> Fp {
+        sqlx::query_as::<_, Fp>(
+            "SELECT object_hash, object_sha256, object_size FROM takedown_items
+             WHERE notice_id = $1 AND object_key = $2",
+        )
+        .bind(id)
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+    assert_eq!(
+        fp(w.pool(), id, "films/read.mkv").await,
+        (Some(LEAK_TAG.into()), Some(SHA.into()), Some(8)),
+        "tag, sha256 and size"
+    );
+    assert_eq!(
+        fp(w.pool(), id, "films/unreadable.mkv").await,
+        (Some(LEAK_TAG.into()), None, Some(LEAK_SIZE)),
+        "a failed read keeps the tag and size"
+    );
+    assert_eq!(
+        fp(w.pool(), id, "films/untagged.mkv").await,
+        (None, Some(SHA.into()), Some(8)),
+        "no catalog tag: the sha256 and the size read"
+    );
+}
+
+/// D-583: the sieve and the match on the sha256. A different tag with equal bytes is delisted; equal size with other
+/// bytes is not; the sieve names only sizes of a standing takedown that recorded a sha256, and says what is stored.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_different_tag_with_the_same_bytes_matches_and_the_same_size_alone_does_not() {
+    let mut w = world().await;
+    w.m =
+        w.m.clone()
+            .with_object_digests(Arc::new(Reads(vec!["films/leak.mkv"])));
+    let other = account(w.pool(), "reuploader").await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let theirs = mount(w.pool(), "user", other, "Their shelf").await;
+    catalogued(w.pool(), mnt, "films/leak.mkv", LEAK_TAG, 8).await;
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let ids = uid;
+    let multipart = "0123456789abcdef0123456789abcdef-12".to_owned();
+    let cands = |objs: &[(&str, Option<&str>, i64)]| {
+        objs.iter()
+            .map(|(k, t, s)| ((*k).to_owned(), t.map(str::to_owned), *s))
+            .collect::<Vec<_>>()
+    };
+    let probe_objs = [
+        ("a/film.mkv", Some(multipart.as_str()), 8),
+        ("a/notag.mkv", None, 8),
+        ("a/long.mkv", Some(multipart.as_str()), 9),
+    ];
+    // Not upheld yet: no sieve.
+    assert!(
+        storage_legal::hash_candidates(w.pool(), theirs, &cands(&probe_objs))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let mut got = storage_legal::hash_candidates(w.pool(), theirs, &cands(&probe_objs))
+        .await
+        .unwrap();
+    got.sort();
+    assert_eq!(
+        got,
+        vec![("a/film.mkv".into(), None), ("a/notag.mkv".into(), None)],
+        "only the sizes of a standing takedown with a sha256"
+    );
+    // What the indexer stored for an object at this tag and size is returned, and never at another tag.
+    sqlx::query(
+        "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, content_tag, content_sha256)
+         VALUES ($1, $2, 'a/hashed.mkv', 8, 'cinema', 'movie', $3, $4)",
+    )
+    .bind(uid())
+    .bind(theirs)
+    .bind(&multipart)
+    .bind("0".repeat(64))
+    .execute(w.pool())
+    .await
+    .unwrap();
+    let got = storage_legal::hash_candidates(
+        w.pool(),
+        theirs,
+        &cands(&[("a/hashed.mkv", Some(multipart.as_str()), 8)]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(got, vec![("a/hashed.mkv".into(), Some("0".repeat(64)))]);
+    let got = storage_legal::hash_candidates(
+        w.pool(),
+        theirs,
+        &cands(&[(
+            "a/hashed.mkv",
+            Some("ffffffffffffffffffffffffffffffff-3"),
+            8,
+        )]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        got,
+        vec![("a/hashed.mkv".into(), None)],
+        "another tag: read again"
+    );
+
+    let probe = |key: &str, tag: Option<&str>, sha: &str, size: i64| storage_legal::Probe {
+        key: key.to_owned(),
+        tag: tag.map(str::to_owned),
+        sha256: Some(sha.to_owned()),
+        size,
+    };
+    let mut got = storage_legal::delist_hash_matches(
+        w.pool(),
+        &ids,
+        theirs,
+        &[
+            probe("a/film.mkv", Some(multipart.as_str()), SHA, 8),
+            probe("a/notag.mkv", None, SHA, 8),
+            // Same size, other bytes.
+            probe(
+                "a/lookalike.mkv",
+                Some(multipart.as_str()),
+                &"1".repeat(64),
+                8,
+            ),
+            // Same bytes, other size (a different file).
+            probe("a/longer.mkv", Some(multipart.as_str()), SHA, 9),
+        ],
+    )
+    .await
+    .unwrap();
+    got.sort();
+    assert_eq!(got, vec!["a/film.mkv".to_owned(), "a/notag.mkv".to_owned()]);
+    type Row = (String, Option<String>, Option<String>, Option<i64>);
+    let rows: Vec<Row> = sqlx::query_as(
+        "SELECT object_key, object_hash, object_sha256, subject_account_id FROM takedown_items
+         WHERE notice_id = $1 AND derived_from IS NOT NULL ORDER BY object_key",
+    )
+    .bind(id)
+    .fetch_all(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                "a/film.mkv".into(),
+                Some(multipart.clone()),
+                Some(SHA.into()),
+                Some(other)
+            ),
+            ("a/notag.mkv".into(), None, Some(SHA.into()), Some(other)),
+        ]
+    );
+    // A tag match (the fast path) still works and the match carries the upheld item's sha256.
+    let tagged = listed(&[("b/same-tag.mkv", LEAK_TAG, 8)]);
+    assert_eq!(
+        storage_legal::delist_byte_matches(w.pool(), &ids, theirs, &tagged)
+            .await
+            .unwrap(),
+        vec!["b/same-tag.mkv".to_owned()]
+    );
+    let sha: Option<String> = sqlx::query_scalar(
+        "SELECT object_sha256 FROM takedown_items WHERE notice_id = $1 AND object_key = 'b/same-tag.mkv'",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(sha.as_deref(), Some(SHA));
+    // The restore ends the sieve.
+    w.m.restore_notice(&who, id, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    assert!(
+        storage_legal::hash_candidates(w.pool(), theirs, &cands(&probe_objs))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+/// D-584: a byte-matched item tells its owner the removal DM with the notice's reference (once, however often the
+/// indexer runs), without the other member's key or bucket, and no strike; the restore DM reaches them; on a server's
+/// bucket the owner is the uploader as P28-LEG-1 resolves it; a counter-notice is recorded against the notice.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_byte_matched_owner_is_told_on_removal_and_on_restore_and_is_never_struck() {
+    let w = world().await;
+    let reuploader = account(w.pool(), "reuploader").await;
+    let guild_owner = account(w.pool(), "guildowner").await;
+    let uploader = account(w.pool(), "guildmember").await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let theirs = mount(w.pool(), "user", reuploader, "Their shelf").await;
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'The Server', $2)")
+        .bind(guild)
+        .bind(guild_owner)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let shared = mount(w.pool(), "guild", guild, "Server shelf").await;
+    sqlx::query(
+        "INSERT INTO storage_mount_uploads (id, mount_id, user_id, object_key, s3_upload_id, size_bytes, part_size, part_count, state)
+         VALUES ($1, $2, $3, 'copy/leak.mkv', 'u1', 8, 16777216, 1, 'completed')",
+    )
+    .bind(uid())
+    .bind(shared)
+    .bind(uploader)
+    .execute(w.pool())
+    .await
+    .unwrap();
+    catalogued(w.pool(), mnt, "films/leak.mkv", LEAK_TAG, 8).await;
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let ids = uid;
+
+    // Nothing to tell before the uphold, and the indexer has found nothing yet.
+    assert_eq!(w.m.notify_byte_matches().await, 0);
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let owner_dms = |to: i64| {
+        w.dms
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(t, _)| *t == to)
+            .map(|(_, text)| text.clone())
+            .collect::<Vec<_>>()
+    };
+    let before = w.dms.0.lock().unwrap().len();
+    storage_legal::delist_byte_matches(
+        w.pool(),
+        &ids,
+        theirs,
+        &listed(&[("x/their-copy.mkv", LEAK_TAG, 8)]),
+    )
+    .await
+    .unwrap();
+    storage_legal::delist_byte_matches(
+        w.pool(),
+        &ids,
+        shared,
+        &listed(&[("copy/leak.mkv", LEAK_TAG, 8)]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        w.dms.0.lock().unwrap().len(),
+        before,
+        "recording a match sends nothing by itself"
+    );
+
+    // The removal DM: the re-uploader, the uploader on the server's bucket, and the server owner as the contact.
+    assert_eq!(w.m.notify_byte_matches().await, 2);
+    let reference = format!("TK-{id}");
+    let mine = owner_dms(reuploader);
+    assert_eq!(mine.len(), 1, "{mine:?}");
+    assert!(
+        mine[0].contains("was removed after a copyright notice"),
+        "{}",
+        mine[0]
+    );
+    assert!(mine[0].contains(&reference), "{}", mine[0]);
+    assert!(
+        mine[0].contains("x/their-copy.mkv") && mine[0].contains("Their shelf"),
+        "{}",
+        mine[0]
+    );
+    assert!(mine[0].contains("counter-notice"), "{}", mine[0]);
+    assert!(
+        !mine[0].contains("films/leak.mkv") && !mine[0].contains("My shelf"),
+        "another member's key and bucket stay off the DM: {}",
+        mine[0]
+    );
+    let up = owner_dms(uploader);
+    assert_eq!(up.len(), 1, "the uploader is told: {up:?}");
+    assert!(up[0].contains("copy/leak.mkv"));
+    assert_eq!(
+        owner_dms(guild_owner).len(),
+        1,
+        "the server owner is told as the mount's contact"
+    );
+    // Once: another run tells nobody again.
+    assert_eq!(w.m.notify_byte_matches().await, 0);
+    assert_eq!(owner_dms(reuploader).len(), 1);
+    let told: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM takedown_items WHERE notice_id = $1 AND derived_from IS NOT NULL AND notified_at IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(told, 2);
+    // No strike: the derived items name no Person, so no one but the owner staff named has a strike count.
+    let persons: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM takedown_items WHERE notice_id = $1 AND derived_from IS NOT NULL AND subject_person_id IS NOT NULL",
+    )
+    .bind(id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(persons, 0);
+    let d = w.m.get_notice(&who, id).await.unwrap();
+    let theirs_person = person_of(w.pool(), reuploader).await;
+    let uploader_person = person_of(w.pool(), uploader).await;
+    assert!(
+        d.strikes
+            .iter()
+            .all(|s| s.person_id != theirs_person && s.person_id != uploader_person),
+        "{:?}",
+        d.strikes
+    );
+
+    // A counter-notice is recorded against the notice like any item's; the restore tells them again.
+    w.m.record_counter_notice(&who, id, "I own this copy, here is my licence for it")
+        .await
+        .unwrap();
+    let notice_state: String =
+        sqlx::query_scalar("SELECT state FROM takedown_notices WHERE id = $1")
+            .bind(id)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+    assert_eq!(notice_state, NoticeState::CounterNoticed.as_str());
+    w.m.restore_notice(&who, id, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    let mine = owner_dms(reuploader);
+    assert_eq!(mine.len(), 2, "{mine:?}");
+    assert!(mine[1].contains("available again"), "{}", mine[1]);
+    assert!(
+        mine[1].contains("x/their-copy.mkv") && !mine[1].contains("films/leak.mkv"),
+        "{}",
+        mine[1]
+    );
+    assert_eq!(owner_dms(uploader).len(), 2);
+    // A match made after the restore finds no standing takedown, and nobody is told.
+    assert!(
+        storage_legal::delist_byte_matches(
+            w.pool(),
+            &ids,
+            theirs,
+            &listed(&[("x/again.mkv", LEAK_TAG, 8)])
+        )
+        .await
+        .unwrap()
+        .is_empty()
+    );
+    assert_eq!(w.m.notify_byte_matches().await, 0);
 }

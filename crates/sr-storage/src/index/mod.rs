@@ -46,6 +46,41 @@ pub struct TaggedObject {
     pub size: u64,
 }
 
+/// One listed object that is a size candidate for a byte takedown (D-583): the tag may be absent (a provider whose
+/// tag is not a content digest) or differ from the taken-down object's (a multipart upload cut into other parts).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SizedObject {
+    /// Mount-relative key.
+    pub key: String,
+    /// [`content_tag`] of the listing's entity tag, when it is one.
+    pub tag: Option<String>,
+    /// Size in bytes.
+    pub size: u64,
+}
+
+/// A size candidate the store has an answer for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashCandidate {
+    /// Mount-relative key.
+    pub key: String,
+    /// The sha256 already stored for this object at this tag and size (it is never read twice); `None` when the
+    /// indexer has to read it.
+    pub known_sha256: Option<String>,
+}
+
+/// An object whose bytes were hashed (D-583).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashedObject {
+    /// Mount-relative key.
+    pub key: String,
+    /// [`content_tag`] of the listing's entity tag, when it is one.
+    pub tag: Option<String>,
+    /// Size in bytes (what was read).
+    pub size: u64,
+    /// sha256 of the bytes, lower-case hex.
+    pub sha256: String,
+}
+
 /// The fingerprint of an object's bytes from the entity tag a listing gives (D-571), or `None` when the tag is not
 /// a content digest. S3-compatible stores (AWS, Garage, MinIO, R2, B2) tag a single-part upload with the MD5 of
 /// its bytes and a multipart upload with the MD5 of the part digests and `-<parts>`; both are kept, lower-cased
@@ -101,6 +136,25 @@ pub trait IndexStore: Send + Sync {
         &self,
         _mount_id: i64,
         _objects: &[TaggedObject],
+    ) -> Result<Vec<String>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// D-583: of the listed objects whose tag did not match a standing byte takedown, the ones whose size equals a
+    /// standing byte takedown's that carries a sha256 (the sieve), each with the sha256 already stored for it at
+    /// this tag and size when there is one. The indexer reads the others once. Fails closed.
+    async fn hash_candidates(
+        &self,
+        _mount_id: i64,
+        _objects: &[SizedObject],
+    ) -> Result<Vec<HashCandidate>, StoreError> {
+        Ok(Vec::new())
+    }
+    /// D-583: which of `objects` carry the same bytes (sha256 and size) as an object a standing takedown delisted.
+    /// Recorded and answered like [`Self::byte_matches`].
+    async fn hash_matches(
+        &self,
+        _mount_id: i64,
+        _objects: &[HashedObject],
     ) -> Result<Vec<String>, StoreError> {
         Ok(Vec::new())
     }
