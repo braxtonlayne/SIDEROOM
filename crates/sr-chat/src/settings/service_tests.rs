@@ -864,14 +864,15 @@ mod events_clock {
         assert_eq!(done[0].event.status, EventStatus::Completed);
     }
 
+    /// D-603 (SEC-AUD-070): a stage that cannot be opened (refused for the creator, or busy) does not stop the
+    /// event: a manual start still goes active, without a stage.
     #[tokio::test]
-    async fn a_stage_event_opens_and_closes_its_stage_instance() {
-        let (svc, clock) = setup();
+    async fn a_refused_stage_open_does_not_stop_a_manual_start() {
+        let (svc, _clock) = setup();
         let w = World::default();
         let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
-        // A stage already running there blocks the start.
         *w.stage_busy.lock().unwrap() = true;
-        let busy = svc
+        let ev = svc
             .update_event(
                 manage(),
                 ADMIN,
@@ -881,13 +882,43 @@ mod events_clock {
                 ChannelKind::Stage,
                 &w,
             )
-            .await;
-        assert!(busy.is_err());
+            .await
+            .unwrap();
+        assert_eq!(ev.status, EventStatus::Active);
+        assert_eq!(ev.entity_id, None, "no stage was opened");
+        assert!(w.log.lock().unwrap().is_empty());
         assert_eq!(
             svc.get_event(G, id).await.unwrap().status,
-            EventStatus::Scheduled
+            EventStatus::Active
         );
-        *w.stage_busy.lock().unwrap() = false;
+    }
+
+    /// D-603: the same on the voice-join path: the event goes active instead of staying scheduled forever.
+    #[tokio::test]
+    async fn a_refused_stage_open_does_not_stop_a_voice_join_start() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
+        clock.advance_ms(HOUR);
+        *w.stage_busy.lock().unwrap() = true;
+        let started = svc
+            .start_on_voice_join(G, STAGE, &w)
+            .await
+            .unwrap()
+            .expect("the event starts");
+        assert!(started.started());
+        assert_eq!(started.event.entity_id, None);
+        assert_eq!(
+            svc.get_event(G, id).await.unwrap().status,
+            EventStatus::Active
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stage_event_opens_and_closes_its_stage_instance() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
 
         let ev = svc
             .update_event(
@@ -955,4 +986,68 @@ mod events_clock {
         }
         assert_eq!(svc.all_interested(id).await.unwrap().len(), 130);
     }
+}
+
+/// D-604 (SEC-AUD-078): a ban beats a pending application: approving it is refused, and a ban placed on the
+/// applicant rejects the application.
+#[tokio::test]
+async fn a_ban_rejects_the_pending_application_and_refuses_its_approval() {
+    use super::applications::{Application, ApplicationStatus};
+    use super::repo::ApplicationRepository;
+    let (svc, _) = setup();
+    let pending = |id: u64, user: u64| Application {
+        id,
+        guild_id: G,
+        user_id: UserId::new(user),
+        answers: vec![],
+        status: ApplicationStatus::Pending,
+        created_at_ms: 1,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    assert!(
+        svc.repo()
+            .insert_application(&pending(1, 50))
+            .await
+            .unwrap()
+    );
+    assert!(
+        svc.repo()
+            .insert_application(&pending(2, 51))
+            .await
+            .unwrap()
+    );
+
+    // The ban landed behind the application's back (the chat store): approval is refused.
+    svc.repo().with(|s| s.bans.insert((G, UserId::new(50))));
+    assert!(matches!(
+        svc.decide_application(Permissions::MANAGE_GUILD, G, 1, true, ADMIN, None)
+            .await,
+        Err(SettingsError::Banned)
+    ));
+    let a = svc.repo().get_application(G, 1).await.unwrap().unwrap();
+    assert_eq!(a.status, ApplicationStatus::Pending);
+    // The repository refuses on its own too.
+    let e = svc
+        .repo()
+        .decide_application(G, 1, true, ADMIN, 5, None)
+        .await
+        .unwrap_err();
+    assert_eq!(e.0, super::repo::APPLICANT_BANNED);
+    // Rejecting a banned person's application stays possible.
+    svc.decide_application(Permissions::MANAGE_GUILD, G, 1, false, ADMIN, None)
+        .await
+        .unwrap();
+
+    // Placing a ban rejects the pending application.
+    svc.repo().place_ban(G, UserId::new(51), ADMIN, 9);
+    let b = svc.repo().get_application(G, 2).await.unwrap().unwrap();
+    assert_eq!(b.status, ApplicationStatus::Rejected);
+    assert_eq!(b.reviewed_by, Some(ADMIN));
+    assert!(matches!(
+        svc.decide_application(Permissions::MANAGE_GUILD, G, 2, true, ADMIN, None)
+            .await,
+        Err(SettingsError::UnknownApplication)
+    ));
 }

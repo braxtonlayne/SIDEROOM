@@ -293,6 +293,27 @@ pub async fn list_appeals(
         .map(Json)
 }
 
+/// Lifts the ban of an overturned appeal through the admin service, as the caller (`PLATFORM_BAN`). A Person who
+/// is no longer banned is a no-op here (the ban was lifted another way; the appeal still gets its decision).
+struct AppealUnban<'a> {
+    ctx: &'a crate::routes::admin::StaffCtx,
+}
+
+#[async_trait::async_trait]
+impl sr_moderation::AppealUnbanner for AppealUnban<'_> {
+    async fn unban(&self, person_id: i64, reason: &str) -> sr_moderation::ModResult<()> {
+        match self
+            .ctx
+            .svc()
+            .unban_person(&self.ctx.caller, person_id, Some(reason))
+            .await
+        {
+            Ok(_) | Err(sr_admin::AdminError::Conflict(_)) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
 /// Body of an appeal decision.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AppealDecisionBody {
@@ -339,7 +360,7 @@ pub async fn decide_appeal(
                     .is_some_and(|p| p.has(P::MANAGE_CASES)))
     });
     let checked = a.svc().check_appeal_review(&who, aid, others).await;
-    let appeal = staff_result(
+    staff_result(
         ctx,
         "moderation.appeal.decide",
         Some(("appeal", aid)),
@@ -347,15 +368,19 @@ pub async fn decide_appeal(
     )
     .await?;
 
-    if b.decision == AppealDecision::Overturned {
-        ctx.svc()
-            .unban_person(&ctx.caller, appeal.person_id, Some(&reason))
-            .await
-            .map_err(crate::routes::admin::map_err)?;
-    }
+    // One decision (SEC-AUD-085): the appeal is claimed first, the ban is lifted inside the claim and the
+    // decision is recorded last; a failure anywhere leaves the ban in place.
+    let unbanner = AppealUnban { ctx };
     let r = a
         .svc()
-        .decide_appeal(&who, aid, b.decision, Some(&reason), others)
+        .decide_appeal_with(
+            &who,
+            aid,
+            b.decision,
+            Some(&reason),
+            others,
+            Some(&unbanner),
+        )
         .await;
     staff_result(ctx, "moderation.appeal.decide", Some(("appeal", aid)), r)
         .await

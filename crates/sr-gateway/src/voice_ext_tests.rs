@@ -455,22 +455,22 @@ fn stage_patch(suppress: bool) -> ModPatch {
 }
 
 #[tokio::test]
-async fn a_stage_event_opens_and_closes_its_stage_without_a_moderator() {
+async fn a_stage_event_opens_and_closes_its_stage_for_a_moderator_creator() {
     let e = env();
     let mut watcher = client(&e, FRIEND).await;
-    // Only stage channels; the event's creator needs no stage permissions.
+    // Only stage channels, and only for a creator who holds stage-moderator rights (D-603).
     assert_eq!(
-        e.gw.stage_open_for_event(LOBBY, "Town hall", u(MEMBER), 77)
+        e.gw.stage_open_for_event(LOBBY, "Town hall", u(MOD), 77)
             .await,
         Err(StageError::NotStageChannel)
     );
     assert_eq!(
-        e.gw.stage_open_for_event(ChannelId::new(999), "x", u(MEMBER), 77)
+        e.gw.stage_open_for_event(ChannelId::new(999), "x", u(MOD), 77)
             .await,
         Err(StageError::UnknownChannel)
     );
     let inst =
-        e.gw.stage_open_for_event(STAGE, "Town hall", u(MEMBER), 77)
+        e.gw.stage_open_for_event(STAGE, "Town hall", u(MOD), 77)
             .await
             .unwrap();
     assert_eq!(inst.scheduled_event_id, Some(77));
@@ -479,8 +479,7 @@ async fn a_stage_event_opens_and_closes_its_stage_without_a_moderator() {
     assert_eq!(ev["guild_scheduled_event_id"], "77");
     // One stage per channel.
     assert_eq!(
-        e.gw.stage_open_for_event(STAGE, "again", u(MEMBER), 78)
-            .await,
+        e.gw.stage_open_for_event(STAGE, "again", u(MOD), 78).await,
         Err(StageError::AlreadyExists)
     );
     // Ending it for the event announces the delete; ending twice is harmless.
@@ -488,6 +487,27 @@ async fn a_stage_event_opens_and_closes_its_stage_without_a_moderator() {
     watcher.event("STAGE_INSTANCE_DELETE").await;
     assert!(e.gw.stage_instance(STAGE).is_none());
     e.gw.stage_end_for_event(STAGE).await;
+}
+
+/// SEC-AUD-070 (D-603): a scheduled start opens a stage only when its creator could.
+#[tokio::test]
+async fn stage_open_for_event_refuses_a_non_moderator_starter() {
+    let e = env();
+    let mut watcher = client(&e, FRIEND).await;
+    assert_eq!(
+        e.gw.stage_open_for_event(STAGE, "Town hall", u(MEMBER), 77)
+            .await,
+        Err(StageError::MissingPermissions)
+    );
+    assert!(e.gw.stage_instance(STAGE).is_none());
+    // A creator who left the guild (no permissions at all) opens nothing either.
+    assert_eq!(
+        e.gw.stage_open_for_event(STAGE, "Town hall", u(OUTSIDER), 77)
+            .await,
+        Err(StageError::MissingPermissions)
+    );
+    watcher.drain().await;
+    assert!(e.gw.stage_instance(STAGE).is_none());
 }
 
 #[tokio::test]

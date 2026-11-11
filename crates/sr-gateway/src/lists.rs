@@ -17,7 +17,8 @@ use sr_events::DomainEvent;
 
 use crate::hub::Gateway;
 use crate::member_list::{
-    Built, MemberListSource, build, diff_range, dispatch_body, parse_ranges, sync,
+    Built, MemberListSource, build, diff_range, dispatch_body, parse_ranges,
+    strip_blocked_presence, sync,
 };
 use crate::protocol::PresenceUpdate;
 use crate::session::Session;
@@ -123,6 +124,7 @@ impl Gateway {
             if !self.ensure_list(guild, channel).await {
                 continue;
             }
+            let blocked = self.inner.dir.blocked_peers(session.user).await;
             let body = {
                 let mut st = self.st();
                 let Some(list) = st.lists.get_mut(&(guild, channel)) else {
@@ -132,6 +134,8 @@ impl Gateway {
                 let ops: Vec<_> = ranges.iter().map(|r| sync(&list.built.items, *r)).collect();
                 dispatch_body(&guild.to_string(), &list.id, &list.built, &ops)
             };
+            let mut body = body;
+            strip_blocked_presence(&mut body, &blocked);
             session.deliver("GUILD_MEMBER_LIST_UPDATE", body);
         }
     }
@@ -247,6 +251,21 @@ impl Gateway {
                     }
                 }
             }
+            let mut blocked: HashMap<UserId, Vec<UserId>> = HashMap::new();
+            {
+                let users: HashSet<UserId> = {
+                    let st = self.st();
+                    st.lists
+                        .get(&key)
+                        .into_iter()
+                        .flat_map(|l| l.subs.keys())
+                        .filter_map(|sid| st.sessions.get(sid).map(|s| s.user))
+                        .collect()
+                };
+                for u in users {
+                    blocked.insert(u, self.inner.dir.blocked_peers(u).await);
+                }
+            }
             let live = self.live_presence();
             let sends: Vec<(Arc<Session>, Value)> = {
                 let mut st = self.st();
@@ -276,10 +295,11 @@ impl Gateway {
                         .flat_map(|r| diff_range(&list.built.items, &built.items, *r))
                         .collect();
                     if !ops.is_empty() {
-                        sends.push((
-                            s.clone(),
-                            dispatch_body(&key.0.to_string(), &list.id, &built, &ops),
-                        ));
+                        let mut body = dispatch_body(&key.0.to_string(), &list.id, &built, &ops);
+                        if let Some(b) = blocked.get(&s.user) {
+                            strip_blocked_presence(&mut body, b);
+                        }
+                        sends.push((s.clone(), body));
                     }
                     true
                 });

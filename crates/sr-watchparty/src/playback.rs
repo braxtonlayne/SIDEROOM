@@ -101,8 +101,15 @@ impl PartyService {
             Err(e) => return Err(e.into()),
         };
         if applied.changed {
-            store::save_playback(&mut tx, id, &applied.state, None, now).await?;
-            row.set_playback(&applied.state, None);
+            // A Seek or Rate during an auto-pause keeps `auto_paused`, so it must keep the buffering deadline too,
+            // or the sweep never resumes the party (SEC-AUD-096).
+            let wait = if applied.state.auto_paused {
+                row.buffer_wait_until_ms
+            } else {
+                None
+            };
+            store::save_playback(&mut tx, id, &applied.state, wait, now).await?;
+            row.set_playback(&applied.state, wait);
             notices.push(Notice::Playback {
                 party: id,
                 reason,

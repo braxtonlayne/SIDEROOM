@@ -368,13 +368,19 @@ impl MediaRepository for PgMediaRepo {
             .map_err(be)?;
         }
         if kind == "remux" {
-            // Failing back to queued can collide with a newer live entry; then the old one stays failed.
-            let _ = sqlx::query(
-                "UPDATE cinema_download_cache SET state = 'queued', error = NULL WHERE job_id = $1 AND state = 'failed'",
+            // Failing back to queued would collide with a newer live entry for the same asset and rendition; then
+            // the old one stays failed. Any other error aborts the retry instead of reporting success (SEC-AUD-092).
+            sqlx::query(
+                "UPDATE cinema_download_cache c SET state = 'queued', error = NULL \
+                 WHERE c.job_id = $1 AND c.state = 'failed' AND NOT EXISTS ( \
+                   SELECT 1 FROM cinema_download_cache o \
+                   WHERE o.asset_id = c.asset_id AND o.rendition = c.rendition AND o.id <> c.id \
+                     AND o.state IN ('queued', 'preparing', 'ready'))",
             )
             .bind(job_id)
             .execute(&mut *tx)
-            .await;
+            .await
+            .map_err(be)?;
         }
         tx.commit().await.map_err(be)?;
         Ok(true)

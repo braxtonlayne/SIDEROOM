@@ -12,6 +12,13 @@ use crate::model::{AppealDecision, AppealView, ReportCategory, Who};
 use crate::rules;
 use crate::service::{Moderation, log_staff, push_event, require_staff};
 
+/// Lifts the ban behind an overturned appeal (implemented over the admin service by the route).
+#[async_trait::async_trait]
+pub trait AppealUnbanner: Send + Sync {
+    /// Lift the ban of `person_id`. A Person who is no longer banned is not an error.
+    async fn unban(&self, person_id: i64, reason: &str) -> ModResult<()>;
+}
+
 const APPEAL_COLS: &str = "a.id, a.ban_id, a.case_id, a.appellant_account_id, a.message, a.state, \
     b.banned_by, b.person_id, a.decided_by, a.decision_reason, \
     (extract(epoch FROM a.created_at) * 1000)::bigint AS created_ms, \
@@ -207,8 +214,7 @@ impl Moderation {
         Ok(appeal)
     }
 
-    /// Record the decision. The route has lifted the ban for an overturned appeal. Closes the case with the
-    /// decision as its outcome, and closes the appellant's way back in: there is no second appeal.
+    /// Record the decision, with no ban lifted here (see [`Self::decide_appeal_with`]).
     pub async fn decide_appeal(
         &self,
         who: &Who<'_>,
@@ -217,6 +223,34 @@ impl Moderation {
         reason: Option<&str>,
         another_staff_can_review: bool,
     ) -> ModResult<AppealView> {
+        self.decide_appeal_with(
+            who,
+            appeal_id,
+            decision,
+            reason,
+            another_staff_can_review,
+            None,
+        )
+        .await
+    }
+
+    /// Record the decision and, for an overturned appeal, lift the ban as one decision (SEC-AUD-085). The open
+    /// appeal is claimed first (its row is locked `FOR UPDATE` for the whole call, so a second decision waits and
+    /// then finds it decided: it neither lifts nor records anything). Only then does `unbanner` lift the ban, and
+    /// the decision is recorded last, in the same transaction that holds the lock. An error anywhere rolls the
+    /// record back and leaves the ban in place; if the commit itself fails after the ban was lifted, the appeal is
+    /// still open and deciding it again lifts nothing twice (an unban of a Person who is not banned is a no-op).
+    /// Closes the case with the decision as its outcome, and closes the appellant's way back in: there is no
+    /// second appeal.
+    pub async fn decide_appeal_with(
+        &self,
+        who: &Who<'_>,
+        appeal_id: i64,
+        decision: AppealDecision,
+        reason: Option<&str>,
+        another_staff_can_review: bool,
+        unbanner: Option<&dyn AppealUnbanner>,
+    ) -> ModResult<AppealView> {
         let reason = rules::reason(reason)?;
         self.check_appeal_review(who, appeal_id, another_staff_can_review)
             .await?;
@@ -224,6 +258,11 @@ impl Moderation {
         let appeal = appeal_by_id(&mut tx, appeal_id, true).await?;
         if appeal.state != "open" {
             return Err(conflict("This appeal is already decided"));
+        }
+        if decision == AppealDecision::Overturned
+            && let Some(u) = unbanner
+        {
+            u.unban(appeal.person_id, &reason).await?;
         }
         sqlx::query(
             "UPDATE moderation_appeals SET state = $2, decided_by = $3, decision_reason = $4, decided_at = now() \

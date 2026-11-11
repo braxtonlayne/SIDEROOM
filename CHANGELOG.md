@@ -8,6 +8,14 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 59 - 2026-11-11
+
+- **Privacy.** When you're invisible, nobody sees what you're playing. Someone you've blocked no longer sees your online status anywhere, including the member list.
+- **Events.** An event in a channel you can't see no longer shows up for you. An event starts on time even if its creator can't open the stage; a stage moderator can open it.
+- **Safer moderation.** "Delete messages" on a ban also clears threads. A banned person can't be let back in by approving their application. A moderator can't move someone into an 18+ voice channel they haven't confirmed for, and webhooks can't be moved into channels their manager can't see.
+- **Reliability.** Posts are refused instead of slipping through if a posting restriction can't be checked, a trailing dot no longer gets a link past the AutoMod blocklist, and failed library uploads and imports clean up after themselves.
+- **For staff.** Automatic moderation never freezes or suspends a staff account on its own. Hold reviews, takedown reads and account searches are logged, and the audit logs can't be wiped from the database.
+
 ## Phase 58 - 2026-11-11
 
 - **Game shelves.** The messages about a removed game are clearer: the removal day says UTC, and a game removed because its shelf stopped answering says to list it again once the shelf is back.

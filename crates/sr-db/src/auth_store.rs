@@ -55,6 +55,28 @@ impl PgAuthStore {
     fn next_id(&self) -> i64 {
         (self.ids)()
     }
+
+    /// The platform audit row of a Discord link or unlink, written in the caller's transaction so the change
+    /// and its audit row stand or fall together (D-608).
+    async fn audit_discord(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        account_id: i64,
+        action: &str,
+        now: i64,
+    ) -> StoreResult<()> {
+        sqlx::query(
+            "INSERT INTO platform_audit_log (id, actor_id, action, target_id, note, created_at) \n             VALUES ($1, $2, $3, $2, '', to_timestamp($4::float8))",
+        )
+        .bind(self.next_id())
+        .bind(account_id)
+        .bind(action)
+        .bind(now as f64)
+        .execute(&mut **tx)
+        .await
+        .map_err(store_err)?;
+        Ok(())
+    }
 }
 
 /// `true` when a write changed a row, `false` on a unique violation (the value
@@ -301,6 +323,7 @@ impl AuthStore for PgAuthStore {
         account_id: i64,
         identity_id: i64,
         provider_user_id: &str,
+        now: i64,
     ) -> StoreResult<DiscordLink> {
         let mut tx = self.pool.begin().await.map_err(store_err)?;
         // Serialise the checks per account so two callbacks cannot link two identities.
@@ -334,6 +357,8 @@ impl AuthStore for PgAuthStore {
             .execute(&mut *tx)
             .await
             .map_err(store_err)?;
+            self.audit_discord(&mut tx, account_id, "auth.discord_link", now)
+                .await?;
             tx.commit().await.map_err(store_err)?;
             return Ok(DiscordLink::Linked);
         }
@@ -358,20 +383,28 @@ impl AuthStore for PgAuthStore {
         .execute(&mut *tx)
         .await
         .map_err(store_err)?;
+        self.audit_discord(&mut tx, account_id, "auth.discord_link", now)
+            .await?;
         tx.commit().await.map_err(store_err)?;
         Ok(DiscordLink::Linked)
     }
 
-    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool> {
+    async fn unlink_discord(&self, account_id: i64, now: i64) -> StoreResult<bool> {
+        let mut tx = self.pool.begin().await.map_err(store_err)?;
         let n = sqlx::query(
             "UPDATE external_identities SET unlinked_at = now(), updated_at = now() \
              WHERE account_id = $1 AND provider = 'discord' AND unlinked_at IS NULL",
         )
         .bind(account_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(store_err)?
         .rows_affected();
+        if n > 0 {
+            self.audit_discord(&mut tx, account_id, "auth.discord_unlink", now)
+                .await?;
+        }
+        tx.commit().await.map_err(store_err)?;
         Ok(n > 0)
     }
 

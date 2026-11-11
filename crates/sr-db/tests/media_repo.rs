@@ -1392,3 +1392,96 @@ async fn parallel_download_starts_cannot_pass_the_daily_allowance() {
         .unwrap();
     assert_eq!(rows, 2);
 }
+
+async fn remux_job_row(pool: &PgPool, asset: i64, state: &str) -> i64 {
+    let id = next_id();
+    sqlx::query(
+        "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, state) \
+         VALUES ($1, $2, 'remux', '{}'::jsonb, 'a.mkv', 1, 'mkv', $3)",
+    )
+    .bind(id)
+    .bind(asset)
+    .bind(state)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+async fn cache_row(pool: &PgPool, asset: i64, job: i64, state: &str) -> i64 {
+    let id = next_id();
+    sqlx::query(
+        "INSERT INTO cinema_download_cache (id, asset_id, rendition, state, job_id) VALUES ($1, $2, 'r1', $3, $4)",
+    )
+    .bind(id)
+    .bind(asset)
+    .bind(state)
+    .bind(job)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+/// SEC-AUD-092: a retry that collides with a newer live cache row still queues the job (the old cache entry stays
+/// failed); any other error is reported instead of `Ok(true)`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn retry_job_does_not_report_success_for_a_failed_cache_update() {
+    let w = world(probe_ok()).await;
+    let a = upload(&w, account(&w.pool).await, false).await;
+    let asset = a.id;
+    let old = remux_job_row(&w.pool, asset, "failed").await;
+    let newer = remux_job_row(&w.pool, asset, "running").await;
+    let old_cache = cache_row(&w.pool, asset, old, "failed").await;
+    let _live = cache_row(&w.pool, asset, newer, "preparing").await;
+    assert!(w.repo.retry_job(old).await.unwrap());
+    let state: String = sqlx::query_scalar("SELECT state FROM transcode_jobs WHERE id = $1")
+        .bind(old)
+        .fetch_one(&w.pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "queued");
+    let cache: String = sqlx::query_scalar("SELECT state FROM cinema_download_cache WHERE id = $1")
+        .bind(old_cache)
+        .fetch_one(&w.pool)
+        .await
+        .unwrap();
+    assert_eq!(cache, "failed");
+
+    // A forced error: the retry fails and the job stays failed.
+    let failed = remux_job_row(&w.pool, asset, "failed").await;
+    sqlx::query("DELETE FROM cinema_download_cache WHERE id <> $1 AND asset_id = $2")
+        .bind(0_i64)
+        .bind(asset)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let _c = cache_row(&w.pool, asset, failed, "failed").await;
+    sqlx::query(
+        "CREATE OR REPLACE FUNCTION p59_refuse_cache_update() RETURNS trigger AS \
+         $$ BEGIN RAISE EXCEPTION 'forced'; END $$ LANGUAGE plpgsql",
+    )
+    .execute(&w.pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p59_refuse_cache_update BEFORE UPDATE ON cinema_download_cache \
+         FOR EACH ROW EXECUTE FUNCTION p59_refuse_cache_update()",
+    )
+    .execute(&w.pool)
+    .await
+    .unwrap();
+    let r = w.repo.retry_job(failed).await;
+    sqlx::query("DROP TRIGGER p59_refuse_cache_update ON cinema_download_cache")
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    assert!(r.is_err(), "{r:?}");
+    let state: String = sqlx::query_scalar("SELECT state FROM transcode_jobs WHERE id = $1")
+        .bind(failed)
+        .fetch_one(&w.pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "failed");
+}

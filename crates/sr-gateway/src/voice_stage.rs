@@ -236,7 +236,9 @@ impl Gateway {
     }
 
     /// A starting stage event opens the stage of its channel with the event name as topic
-    /// (G-93, D-222). There is no moderator check: starting the event is the authority.
+    /// (G-93, D-222). The event's creator must
+    /// hold stage-moderator rights in the channel now: a scheduled start may not do more than the
+    /// creator could (SEC-AUD-070, D-603).
     pub async fn stage_open_for_event(
         &self,
         channel: ChannelId,
@@ -244,20 +246,9 @@ impl Gateway {
         started_by: UserId,
         event_id: u64,
     ) -> Result<StageInstance, StageError> {
-        if self.voice_cfg().is_none() {
-            return Err(StageError::Unavailable);
-        }
-        let dir = &self.inner.dir;
-        let guild = dir
-            .channel_guild(channel)
-            .await
-            .ok_or(StageError::UnknownChannel)?;
-        let info = dir
-            .voice_channel(guild, channel)
-            .await
-            .ok_or(StageError::UnknownChannel)?;
-        if info.kind != VoiceChannelKind::Stage {
-            return Err(StageError::NotStageChannel);
+        let (guild, perms) = self.stage_target(started_by, channel).await?;
+        if !is_stage_moderator(perms) {
+            return Err(StageError::MissingPermissions);
         }
         let inst = StageInstance {
             guild_id: guild,

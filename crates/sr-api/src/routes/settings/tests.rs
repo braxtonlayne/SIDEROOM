@@ -1889,6 +1889,184 @@ async fn webhooks_are_capped_per_channel_and_deletable_by_managers() {
     );
 }
 
+/// D-607 (SEC-AUD-076): moving a webhook needs VIEW_CHANNEL and MANAGE_WEBHOOKS in the destination.
+#[tokio::test]
+async fn a_webhook_cannot_be_moved_into_a_channel_the_manager_cannot_see() {
+    let e = env().await;
+    let (s, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{wh}");
+    let id = wh["id"].as_str().unwrap().to_owned();
+    let deny = |bit: Permissions| {
+        e.backend
+            .data()
+            .overwrites
+            .entry(e.voice)
+            .or_default()
+            .push(sr_core::permissions::Overwrite {
+                id: sr_core::Snowflake::new(e.guild.get()),
+                kind: sr_core::permissions::OverwriteKind::Role,
+                allow: Permissions::empty(),
+                deny: bit,
+            });
+    };
+    let move_to = |ch: ChannelId| json!({"channel_id": ch.to_string()});
+
+    // The destination cannot be seen: refused, and the webhook stays where it was.
+    deny(Permissions::VIEW_CHANNEL);
+    let (s, body) = e
+        .patch(&format!("/webhooks/{id}"), "mod", move_to(e.voice))
+        .await;
+    assert_eq!(s, StatusCode::FORBIDDEN, "{body}");
+    let (_, now) = e.get(&format!("/webhooks/{id}"), "mod").await;
+    assert_eq!(now["channel_id"], e.ch.to_string());
+    // Create answers the same for the same channel.
+    assert_eq!(
+        e.post(
+            &format!("/channels/{}/webhooks", e.voice),
+            "mod",
+            json!({"name": "x"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+}
+
+/// D-607: seeing the destination is not enough, MANAGE_WEBHOOKS must hold there; a plain move still works.
+#[tokio::test]
+async fn a_webhook_move_needs_manage_webhooks_in_the_destination() {
+    let e = env().await;
+    let (_, wh) = e
+        .post(
+            &format!("/channels/{}/webhooks", e.ch),
+            "mod",
+            json!({"name": "Deploys"}),
+        )
+        .await;
+    let id = wh["id"].as_str().unwrap().to_owned();
+    e.backend
+        .data()
+        .overwrites
+        .entry(e.voice)
+        .or_default()
+        .push(sr_core::permissions::Overwrite {
+            id: sr_core::Snowflake::new(e.guild.get()),
+            kind: sr_core::permissions::OverwriteKind::Role,
+            allow: Permissions::empty(),
+            deny: Permissions::MANAGE_WEBHOOKS,
+        });
+    let to_voice = json!({"channel_id": e.voice.to_string()});
+    assert_eq!(
+        e.patch(&format!("/webhooks/{id}"), "mod", to_voice).await.0,
+        StatusCode::FORBIDDEN
+    );
+    // The owner holds it everywhere and may still move it.
+    let (s, moved) = e
+        .patch(
+            &format!("/webhooks/{id}"),
+            "owner",
+            json!({"channel_id": e.voice.to_string()}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{moved}");
+}
+
+/// D-602 (SEC-AUD-077): an event tied to a channel exists only for members who can view that channel.
+#[tokio::test]
+async fn events_in_a_hidden_voice_channel_are_not_listed_got_or_rsvpable() {
+    let e = env().await;
+    let path = e.g("/scheduled-events");
+    let at = |h: i64| crate::routes::guilds::dto::iso8601(T0 + h * 3_600_000);
+    let (s, voice_ev) = e
+        .post(
+            &path,
+            "owner",
+            json!({"name": "Movie night", "entity_type": 2, "channel_id": e.voice.to_string(),
+                   "scheduled_start_time": at(1)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{voice_ev}");
+    let (s, ext_ev) = e
+        .post(
+            &path,
+            "owner",
+            json!({"name": "Park", "entity_type": 3, "entity_metadata": {"location": "the park"},
+                   "scheduled_start_time": at(2), "scheduled_end_time": at(3)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ext_ev}");
+    let (vid, xid) = (
+        voice_ev["id"].as_str().unwrap().to_owned(),
+        ext_ev["id"].as_str().unwrap().to_owned(),
+    );
+    let names = |v: &Value| -> Vec<String> {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x["name"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    // While the channel is visible, bob sees both and may RSVP.
+    let (_, list) = e.get(&path, "bob").await;
+    assert_eq!(names(&list), ["Movie night", "Park"]);
+    let rsvp = format!("{path}/{vid}/users/@me");
+    assert_eq!(
+        e.put(&rsvp, "bob", json!({})).await.0,
+        StatusCode::NO_CONTENT
+    );
+
+    // Hide the channel from @everyone: the event vanishes for bob in list, get, users and RSVP.
+    e.backend
+        .data()
+        .overwrites
+        .entry(e.voice)
+        .or_default()
+        .push(sr_core::permissions::Overwrite {
+            id: sr_core::Snowflake::new(e.guild.get()),
+            kind: sr_core::permissions::OverwriteKind::Role,
+            allow: Permissions::empty(),
+            deny: Permissions::VIEW_CHANNEL,
+        });
+    let (s, list) = e.get(&path, "bob").await;
+    assert_eq!(s, StatusCode::OK, "{list}");
+    assert_eq!(
+        names(&list),
+        ["Park"],
+        "the external event stays guild-wide"
+    );
+    assert_eq!(
+        code_of(&e.get(&format!("{path}/{vid}"), "bob").await),
+        (StatusCode::NOT_FOUND, Some(10070))
+    );
+    assert_eq!(
+        e.get(&format!("{path}/{vid}/users"), "bob").await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        e.put(&rsvp, "bob", json!({})).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(e.delete(&rsvp, "bob").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(
+        e.get(&format!("{path}/{xid}"), "bob").await.0,
+        StatusCode::OK
+    );
+    // Someone who still sees the channel keeps the event.
+    let (_, list) = e.get(&path, "owner").await;
+    assert_eq!(names(&list), ["Movie night", "Park"]);
+    assert_eq!(
+        e.get(&format!("{path}/{vid}"), "owner").await.0,
+        StatusCode::OK
+    );
+}
+
 // ---- templates -------------------------------------------------------------------
 
 #[tokio::test]

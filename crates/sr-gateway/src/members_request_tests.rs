@@ -264,3 +264,27 @@ async fn malformed_requests_close_with_4002_and_strangers_are_ignored() {
         .await;
     assert_eq!(c.recv_close().await, close::NOT_AUTHENTICATED);
 }
+
+/// SEC-AUD-067 (D-601): op 8 presences leave out a member the requester has a block with.
+#[tokio::test]
+async fn member_request_presences_omit_a_blocked_member() {
+    let w = world(0);
+    w.add_roster(GuildId::new(G), 2000, 2);
+    for u in [2000, 2001] {
+        w.add_member(UserId::new(u), GuildId::new(G));
+    }
+    let _a = w.connect_users(&[2000], intents::GUILDS).await;
+    let _b = w.connect_users(&[2001], intents::GUILDS).await;
+    // The bot (user 7) has a block with 2000.
+    w.block(UserId::new(7), UserId::new(2000));
+
+    let mut c = bot(&w, BOTH, intents::GUILDS | BOTH).await;
+    c.send(op8(
+        json!({"guild_id": "1", "query": "member200", "limit": 10, "presences": true}),
+    ))
+    .await;
+    let d = c.await_dispatch("GUILD_MEMBERS_CHUNK").await["d"].clone();
+    let presences = d["presences"].as_array().unwrap();
+    assert_eq!(presences.len(), 1, "{presences:?}");
+    assert_eq!(presences[0]["user"]["id"], "2001");
+}

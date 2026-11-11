@@ -207,6 +207,8 @@ struct Dispatch {
     channel: Option<ChannelId>,
     /// When set, only these users receive the dispatch (producer-computed audience).
     audience: Option<HashSet<UserId>>,
+    /// Channel whose 18+ flag gates the dispatch when `channel` is None (a deleted thread's parent).
+    age_channel: Option<ChannelId>,
 }
 
 /// Unix milliseconds as an ISO 8601 UTC timestamp (`2026-01-02T03:04:05.678000+00:00`).
@@ -240,6 +242,7 @@ fn passthrough(name: &'static str, payload: &Value, channel: Option<ChannelId>) 
         data: payload.clone(),
         channel,
         audience: None,
+        age_channel: None,
     }
 }
 
@@ -317,6 +320,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: data.clone(),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         // A moderator restored a deleted message (N-21): clients get the full object again, marked so they do
         // not treat it as new (no mention bump, no notification; D-338). Only the dispatch carries the flag; the
@@ -331,6 +335,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
                 data,
                 channel: Some(*channel),
                 audience: None,
+                age_channel: None,
             }
         }
         DomainEvent::MessageEdited { channel, data, .. } => Dispatch {
@@ -338,6 +343,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: data.clone(),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::MessageDeleted {
             guild,
@@ -350,6 +356,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::MessagesBulkDeleted {
             guild,
@@ -363,6 +370,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ReactionAdded {
             guild,
@@ -378,6 +386,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ReactionRemoved {
             guild,
@@ -393,6 +402,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ReactionsCleared {
             guild,
@@ -405,6 +415,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ReactionEmojiCleared {
             guild,
@@ -419,6 +430,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::PollVoteAdded {
             guild,
@@ -434,6 +446,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::PollVoteRemoved {
             guild,
@@ -449,6 +462,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ToolRoomUpdated {
             channel, payload, ..
@@ -465,6 +479,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::TypingStarted {
             guild,
@@ -478,6 +493,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ThreadCreated {
             thread, payload, ..
@@ -490,6 +506,12 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             payload, viewers, ..
         } => Dispatch {
             audience: Some(viewers.iter().copied().collect()),
+            // The thread row is gone: its parent decides the 18+ gate (SEC-AUD-068, D-199).
+            age_channel: payload
+                .get("parent_id")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(ChannelId::new),
             ..passthrough("THREAD_DELETE", payload, None)
         },
         DomainEvent::ThreadMembersUpdated {
@@ -504,6 +526,7 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             data: json!({ "guild_id": guild, "user": { "id": user } }),
             channel: None,
             audience: None,
+            age_channel: None,
         },
         DomainEvent::ChannelCreated {
             channel, payload, ..
@@ -557,14 +580,22 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
         DomainEvent::SoundboardUpdated { payload, .. } => {
             passthrough("GUILD_SOUNDBOARD_SOUNDS_UPDATE", payload, None)
         }
+        // An event tied to a channel is visible only to members who can view it; an external event
+        // has no channel and stays guild-wide (SEC-AUD-072, D-602).
         DomainEvent::ScheduledEvent { kind, payload, .. } => {
-            passthrough(kind.dispatch_name(), payload, None)
+            let channel = payload
+                .get("channel_id")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(ChannelId::new);
+            passthrough(kind.dispatch_name(), payload, channel)
         }
         DomainEvent::WebhooksUpdated { guild, channel } => Dispatch {
             name: "WEBHOOKS_UPDATE",
             data: json!({ "guild_id": guild, "channel_id": channel }),
             channel: Some(*channel),
             audience: None,
+            age_channel: None,
         },
         DomainEvent::AutoModRuleCreated { payload, .. } => {
             passthrough("AUTO_MODERATION_RULE_CREATE", payload, None)
@@ -869,10 +900,19 @@ impl Gateway {
                 .collect(),
             _ => return body,
         };
+        // A block hides presence both ways, also at connect (SEC-AUD-067, D-601).
+        let hidden: HashSet<UserId> = self
+            .inner
+            .dir
+            .blocked_peers(user)
+            .await
+            .into_iter()
+            .collect();
         let presences: Vec<Value> = {
             let st = self.st();
             members
                 .into_iter()
+                .filter(|u| !hidden.contains(u))
                 .filter_map(|u| {
                     let p = Self::effective(&st, u)?;
                     (p.visible_status() != "offline").then(|| presence_body(u, guild, &p))
@@ -951,8 +991,15 @@ impl Gateway {
                     self.dispatch_user(*u, d.name, d.data.clone()).await;
                 }
             }
-            self.dispatch_guild(guild, d.name, d.data, d.channel, d.audience.as_ref())
-                .await;
+            self.dispatch_guild_gated(
+                guild,
+                d.name,
+                d.data,
+                d.channel,
+                d.audience.as_ref(),
+                d.age_channel,
+            )
+            .await;
         }
     }
 
@@ -1124,6 +1171,20 @@ impl Gateway {
         channel: Option<ChannelId>,
         audience: Option<&HashSet<UserId>>,
     ) {
+        self.dispatch_guild_gated(guild, name, data, channel, audience, None)
+            .await;
+    }
+
+    /// [`Self::dispatch_guild`] with a channel that only decides the 18+ gate.
+    pub(crate) async fn dispatch_guild_gated(
+        &self,
+        guild: GuildId,
+        name: &str,
+        data: Value,
+        channel: Option<ChannelId>,
+        audience: Option<&HashSet<UserId>>,
+        age_channel: Option<ChannelId>,
+    ) {
         let targets: Vec<Arc<Session>> = {
             let st = self.st();
             st.by_guild
@@ -1147,7 +1208,7 @@ impl Gateway {
                 .dispatch_audience(guild, channel, needs, &users)
                 .await
         };
-        let gate = match channel {
+        let gate = match channel.or(age_channel) {
             Some(ch) if age_gated(name) => self.inner.dir.channel_age_restricted(ch).await,
             _ => false,
         };
@@ -1597,7 +1658,7 @@ fn session_entry(s: &Session) -> Value {
 pub(crate) fn friend_presence_body(user: UserId, p: &PresenceUpdate) -> Value {
     json!({
         "user": { "id": user },
-        "status": p.visible_status(), "activities": p.activities,
+        "status": p.visible_status(), "activities": p.visible_activities(),
         "client_status": client_status_of(p),
     })
 }
@@ -1614,7 +1675,7 @@ fn client_status_of(p: &PresenceUpdate) -> Value {
 fn presence_body(user: UserId, guild: GuildId, p: &PresenceUpdate) -> Value {
     json!({
         "user": { "id": user }, "guild_id": guild,
-        "status": p.visible_status(), "activities": p.activities,
+        "status": p.visible_status(), "activities": p.visible_activities(),
         "client_status": client_status_of(p),
     })
 }

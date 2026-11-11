@@ -1258,3 +1258,167 @@ async fn the_automatic_case_freeze_weighs_by_the_multiplier() {
         assert_eq!((weight, days), (1.5, 30));
     }
 }
+
+/// SEC-AUD-082 (D-605): a staff account in a banned subtree is left for review, never auto-frozen; a branch freeze
+/// by a non-Owner leaves it alone, and the Owner's reaches it.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn automatic_moderation_leaves_staff_for_review() {
+    let w = world().await;
+    let pool = w.pool();
+    let t = tree(&w).await;
+    // An old, silent staff member invited by the banned account: unactivated by every measure.
+    let mate = acct(pool, "staffmate", 40).await;
+    invite(pool, t.g3, mate).await;
+    appoint(pool, mate).await;
+    let op = acct(pool, "operator", 200).await;
+    let other = acct(pool, "approver", 100).await;
+    appoint(pool, op).await;
+    appoint(pool, other).await;
+    let owner_c = owner(op.account);
+    w.admin
+        .ban_person_with_reason(
+            &owner_c,
+            t.g3.person,
+            Some(t.g3.account),
+            BanCategory::Serious,
+            Some("spam"),
+            Some("spam ring"),
+        )
+        .await
+        .unwrap();
+    let case = the_case(pool, t.g3).await;
+    assert_eq!(node_status(pool, case, mate.account).await, "review");
+    assert_eq!(
+        restriction_state(pool, mate.account, "case_freeze").await,
+        None
+    );
+    // The unactivated non-staff sibling is still auto-frozen.
+    assert_eq!(
+        node_status(pool, case, t.g4_idle.account).await,
+        "auto_frozen"
+    );
+
+    // A branch freeze by a delegated (non-Owner) Operator skips the staff node.
+    let reason = "The whole branch was provisioned by one script; freezing it pending review.";
+    let req =
+        w.m.request_branch_action(&Who::Staff(&owner_c), case, "freeze", reason)
+            .await
+            .unwrap();
+    let approver = staff(other.account, P::PLATFORM_BAN | P::MANAGE_CASES);
+    w.m.approve_request(&Who::Staff(&approver), req.id)
+        .await
+        .unwrap();
+    struct NoBan;
+    #[async_trait]
+    impl NodeBanner for NoBan {
+        async fn ban_account(&self, _: &Caller, _: i64, _: &str, _: &str) -> Result<(), String> {
+            Err("never called for a freeze".into())
+        }
+    }
+    let delegate = acct(pool, "delegate", 100).await;
+    let delegated = staff(delegate.account, P::STAFF_BASIC | P::OPERATOR);
+    let out =
+        w.m.execute_branch_action(&Who::Staff(&delegated), req.id, &NoBan)
+            .await
+            .unwrap();
+    assert_eq!(out.nodes_actioned, 4, "the four non-staff descendants");
+    assert_eq!(node_status(pool, case, mate.account).await, "review");
+    assert_eq!(
+        restriction_state(pool, mate.account, "case_freeze").await,
+        None
+    );
+    assert_eq!(node_status(pool, case, t.g5.account).await, "frozen");
+
+    // The 30-day sweep never removes a staff account, even one that was frozen by an older build.
+    sqlx::query(
+        "INSERT INTO member_restrictions (id, account_id, kind, reason, case_id, imposed_by, state, starts_at, ends_at, removes_account) \
+         VALUES ($1, $2, 'case_freeze', 'old', $3, 1, 'active', now() - interval '31 days', now() - interval '1 day', true)",
+    )
+    .bind(uid())
+    .bind(mate.account)
+    .bind(case)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|e| panic!("seed an old freeze: {e}"));
+    w.m.sweep_restrictions().await.unwrap();
+    let state: String = sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = $1")
+        .bind(mate.account)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "active");
+}
+
+/// SEC-AUD-081: two racing `execute_branch_action` calls act once.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_branch_action_runs_once_under_a_race() {
+    let w = world().await;
+    let pool = w.pool();
+    let t = tree(&w).await;
+    let op = acct(pool, "operator", 200).await;
+    let other = acct(pool, "approver", 100).await;
+    appoint(pool, op).await;
+    appoint(pool, other).await;
+    let owner_c = owner(op.account);
+    w.admin
+        .ban_person_with_reason(
+            &owner_c,
+            t.g3.person,
+            Some(t.g3.account),
+            BanCategory::Serious,
+            Some("spam"),
+            Some("spam ring"),
+        )
+        .await
+        .unwrap();
+    let case = the_case(pool, t.g3).await;
+    let req =
+        w.m.request_branch_action(
+            &Who::Staff(&owner_c),
+            case,
+            "freeze",
+            "The whole branch was provisioned by one script; freezing it pending review.",
+        )
+        .await
+        .unwrap();
+    w.m.approve_request(
+        &Who::Staff(&staff(other.account, P::PLATFORM_BAN | P::MANAGE_CASES)),
+        req.id,
+    )
+    .await
+    .unwrap();
+    struct NoBan;
+    #[async_trait]
+    impl NodeBanner for NoBan {
+        async fn ban_account(&self, _: &Caller, _: i64, _: &str, _: &str) -> Result<(), String> {
+            Err("never called for a freeze".into())
+        }
+    }
+    let who_owner = Who::Staff(&owner_c);
+    let (a, b) = tokio::join!(
+        w.m.execute_branch_action(&who_owner, req.id, &NoBan),
+        w.m.execute_branch_action(&who_owner, req.id, &NoBan),
+    );
+    let oks = [a.is_ok(), b.is_ok()].iter().filter(|x| **x).count();
+    assert_eq!(oks, 1, "exactly one call acts: {a:?} / {b:?}");
+    let loser = if a.is_ok() { b } else { a };
+    assert!(matches!(loser, Err(ModError::Conflict(_))), "{loser:?}");
+    for d in [t.g4_active, t.g4_idle, t.g4_young, t.g5] {
+        let n: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM member_restrictions WHERE account_id = $1 AND kind = 'case_freeze' AND state = 'active'",
+        )
+        .bind(d.account)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        assert_eq!(n, 1, "one live case_freeze per account");
+    }
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_requests WHERE id = $1")
+        .bind(req.id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "executed");
+}

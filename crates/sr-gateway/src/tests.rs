@@ -32,6 +32,10 @@ struct FakeDir {
     sync: Mutex<HashMap<(UserId, GuildId), Value>>,
     lists: Mutex<HashMap<(GuildId, ChannelId), member_list::MemberListSource>>,
     offline: Mutex<Vec<UserId>>,
+    /// Users who have not given the 18+ answer.
+    unconfirmed: Mutex<HashSet<UserId>>,
+    blocks: Mutex<HashSet<(UserId, UserId)>>,
+    payloads: Mutex<HashMap<GuildId, Value>>,
     restricted: Mutex<HashSet<ChannelId>>,
     safety: Mutex<HashMap<UserId, (sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)>>,
     /// Audience sizes of the `dispatch_audience` calls, in order.
@@ -40,8 +44,8 @@ struct FakeDir {
 
 #[async_trait]
 impl GuildDirectory for FakeDir {
-    async fn age_confirmed(&self, _user: UserId) -> bool {
-        true
+    async fn age_confirmed(&self, user: UserId) -> bool {
+        !self.unconfirmed.lock().unwrap().contains(&user)
     }
     async fn channel_age_restricted(&self, channel: ChannelId) -> bool {
         self.restricted.lock().unwrap().contains(&channel)
@@ -51,6 +55,23 @@ impl GuildDirectory for FakeDir {
         user: UserId,
     ) -> Option<(sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)> {
         self.safety.lock().unwrap().get(&user).cloned()
+    }
+    async fn blocked_peers(&self, user: UserId) -> Vec<UserId> {
+        self.blocks
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(a, _)| *a == user)
+            .map(|(_, b)| *b)
+            .collect()
+    }
+    async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
+        self.payloads
+            .lock()
+            .unwrap()
+            .get(&guild)
+            .cloned()
+            .unwrap_or_else(|| json!({ "id": guild }))
     }
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         self.guilds
@@ -780,6 +801,133 @@ async fn presence_updates_fan_out_and_invisible_shows_offline() {
     assert_eq!(p["d"]["user"]["id"], "1");
     assert_eq!(p["d"]["status"], "offline");
     assert_eq!(e.gw.presence(u(1)).unwrap().status, "invisible");
+}
+
+/// SEC-AUD-066 (D-600): an invisible member looks exactly like an offline one, activities included.
+#[tokio::test]
+async fn an_invisible_members_presence_carries_no_activities() {
+    let e = env();
+    befriend(&e, 1, 5);
+    set_list(&e, eight());
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let mut friend = connect(&e);
+    friend.identify("user:5", 0, 0).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    friend.drain().await;
+
+    a.send(json!({"op": 3, "d": {"status": "invisible", "activities": [
+        {"type": 0, "name": "Secret Game"}
+    ]}}))
+    .await;
+    let p = b.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "offline");
+    assert_eq!(p["d"]["activities"], json!([]));
+    let p = friend.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "offline");
+    assert_eq!(p["d"]["activities"], json!([]));
+    assert!(
+        e.gw.presence(u(1))
+            .is_some_and(|p| !p.activities.is_empty())
+    );
+
+    b.drain().await;
+    b.send(ask(1, json!([[0, 9]]))).await;
+    let first = b.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    let item = first["d"]["ops"][0]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["member"]["user"]["id"] == "1")
+        .unwrap()
+        .clone();
+    assert_eq!(item["member"]["presence"]["status"], "offline");
+    assert_eq!(item["member"]["presence"]["activities"], json!([]));
+}
+
+/// SEC-AUD-067 (D-601): a block hides presence in the initial GUILD_CREATE too.
+#[tokio::test]
+async fn guild_create_presences_omit_a_blocked_member() {
+    let e = env();
+    e.dir.payloads.lock().unwrap().insert(
+        G1,
+        json!({"id": "1", "members": [
+            {"user": {"id": "1"}}, {"user": {"id": "2"}}, {"user": {"id": "4"}}
+        ]}),
+    );
+    e.dir.guilds.lock().unwrap().insert(u(4), vec![G1]);
+    e.dir.blocks.lock().unwrap().insert((u(1), u(2)));
+    e.dir.blocks.lock().unwrap().insert((u(2), u(1)));
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let mut c = connect(&e);
+    c.identify("user:4", 0, 1).await;
+    settle().await;
+
+    let mut a = connect(&e);
+    let hello = a.recv().await;
+    assert_eq!(hello["op"], 10);
+    a.send(json!({"op": 2, "d": {"token": "user:1", "intents": 0, "properties": {}}}))
+        .await;
+    a.expect_event("READY").await;
+    let gc = a.expect_event("GUILD_CREATE").await;
+    let ids: Vec<&str> = gc["d"]["presences"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["user"]["id"].as_str().unwrap())
+        .collect();
+    assert!(ids.contains(&"4"), "{ids:?}");
+    assert!(!ids.contains(&"2"), "the blocked member is hidden: {ids:?}");
+}
+
+/// SEC-AUD-067 (D-601): the shared member list drops the presence of a member the viewer blocked.
+#[tokio::test]
+async fn member_list_item_has_no_presence_for_a_blocked_viewer() {
+    let e = env();
+    set_list(&e, eight());
+    e.dir.guilds.lock().unwrap().insert(u(4), vec![G1]);
+    e.dir.blocks.lock().unwrap().insert((u(1), u(2)));
+    e.dir.blocks.lock().unwrap().insert((u(2), u(1)));
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&e);
+    b.identify("user:2", 0, 1).await;
+    let mut c = connect(&e);
+    c.identify("user:4", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    c.drain().await;
+
+    let find = |first: &Value, id: &str| {
+        first["d"]["ops"][0]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["member"]["user"]["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    a.send(ask(1, json!([[0, 9]]))).await;
+    let first = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert!(find(&first, "2")["member"].get("presence").is_none());
+    assert_eq!(find(&first, "1")["member"]["presence"]["status"], "online");
+    // The same shared list still shows the member to a viewer without the block.
+    c.send(ask(1, json!([[0, 9]]))).await;
+    let other = c.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert_eq!(find(&other, "2")["member"]["presence"]["status"], "online");
+
+    // Live updates strip it as well.
+    b.drain().await;
+    b.send(json!({"op": 3, "d": {"status": "dnd", "activities": []}}))
+        .await;
+    let upd = a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    assert!(!upd.to_string().contains("\"dnd\""), "{upd}");
 }
 
 #[tokio::test]
@@ -1832,6 +1980,69 @@ async fn thread_delete_goes_to_the_precomputed_audience() {
         "10"
     );
     b.silent().await;
+}
+
+/// SEC-AUD-068 (D-199): the thread row is gone, so the parent's 18+ flag gates THREAD_DELETE.
+#[tokio::test]
+async fn thread_delete_under_an_age_restricted_parent_skips_unconfirmed_sessions() {
+    let e = env();
+    e.dir.restricted.lock().unwrap().insert(OPEN);
+    e.dir.unconfirmed.lock().unwrap().insert(u(2));
+    let mut adult = connect(&e);
+    adult.identify("bot:1", intents::GUILDS, 1).await;
+    let mut minor = connect(&e);
+    minor.identify("bot:2", intents::GUILDS, 1).await;
+    settle().await;
+    let deleted = |parent: &str| DomainEvent::ThreadDeleted {
+        guild: G1,
+        thread: THREAD,
+        payload: json!({ "id": "12", "guild_id": "1", "parent_id": parent, "type": 11 }),
+        viewers: vec![u(1), u(2)],
+    };
+    emit(&e.bus, deleted("10")).await;
+    assert_eq!(
+        adult.expect_event("THREAD_DELETE").await["d"]["parent_id"],
+        "10"
+    );
+    minor.silent().await;
+    // Under an ordinary parent both still hear about it.
+    emit(&e.bus, deleted("11")).await;
+    adult.expect_event("THREAD_DELETE").await;
+    minor.expect_event("THREAD_DELETE").await;
+}
+
+/// SEC-AUD-072 (D-602): an event tied to a channel follows the channel's visibility; an external
+/// event has no channel and goes guild-wide.
+#[tokio::test]
+async fn scheduled_event_in_a_hidden_channel_is_not_dispatched_to_non_viewers() {
+    use sr_events::ScheduledEventKind;
+    let e = env();
+    let all = intents::GUILDS | intents::GUILD_SCHEDULED_EVENTS;
+    let mut viewer = connect(&e);
+    viewer.identify("bot:1", all, 1).await;
+    // User 2 cannot view SECRET.
+    let mut blind = connect(&e);
+    blind.identify("bot:2", all, 1).await;
+    settle().await;
+    let event = |channel: Value| DomainEvent::ScheduledEvent {
+        guild: G1,
+        kind: ScheduledEventKind::Create,
+        payload: json!({ "id": "50", "guild_id": "1", "channel_id": channel, "name": "Q&A" }),
+    };
+    emit(&e.bus, event(json!("11"))).await;
+    assert_eq!(
+        viewer.expect_event("GUILD_SCHEDULED_EVENT_CREATE").await["d"]["id"],
+        "50"
+    );
+    blind.silent().await;
+    // An external event has no channel: everybody in the guild hears it.
+    emit(&e.bus, event(Value::Null)).await;
+    viewer.expect_event("GUILD_SCHEDULED_EVENT_CREATE").await;
+    blind.expect_event("GUILD_SCHEDULED_EVENT_CREATE").await;
+    // A visible channel reaches both.
+    emit(&e.bus, event(json!("10"))).await;
+    viewer.expect_event("GUILD_SCHEDULED_EVENT_CREATE").await;
+    blind.expect_event("GUILD_SCHEDULED_EVENT_CREATE").await;
 }
 
 #[tokio::test]

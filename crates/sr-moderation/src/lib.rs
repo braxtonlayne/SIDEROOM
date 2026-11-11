@@ -41,6 +41,7 @@ pub use actions::{ActionError, CaseActions, PerformRequest, PerformedAction};
 pub use age::{
     AgeBand, AgeChange, AgeTargetKind, ChannelSink, ItemIndexSink, UNDER18_DM, UnderageOutcome,
 };
+pub use appeals::AppealUnbanner;
 pub use cases::{RECORDABLE_ACTIONS, SelfDeleteNote, Transition};
 pub use error::{ModError, ModResult};
 pub use graduated::{Blocked, SYSTEM_ACTOR, is_operator, is_sterilized};

@@ -367,6 +367,9 @@ pub enum ModError {
     /// `suppress` only means something in a stage channel.
     NotStageChannel,
     Unavailable,
+    /// A move the target could not make themselves: the destination is 18+ and they have not
+    /// given the answer, or their account is restricted (SEC-AUD-069, D-599).
+    TargetCannotJoin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1078,6 +1081,7 @@ impl Gateway {
             .ok_or(ModError::MissingPermissions)?;
         let mut dst = None;
         let mut dst_kind = None;
+        let mut dst_age_restricted = false;
         if let Some(Some(to)) = patch.channel {
             let info = dir
                 .voice_channel(guild, to)
@@ -1087,6 +1091,7 @@ impl Gateway {
                 return Err(ModError::NotVoiceChannel);
             }
             dst_kind = Some(info.kind);
+            dst_age_restricted = info.age_restricted;
             dst = dir.channel_permissions(actor, guild, to).await;
         }
         authorize(&patch, src, dst)?;
@@ -1142,6 +1147,15 @@ impl Gateway {
             .channel_permissions(target, guild, new.channel_id)
             .await
             .unwrap_or_else(Permissions::empty);
+        if moved {
+            // A moderator move is decided by the mover's rights, but the platform gates on the
+            // target always apply (SEC-AUD-069, D-599).
+            if dir.account_restricted(target).await
+                || (dst_age_restricted && !dir.age_confirmed(target).await)
+            {
+                return Err(ModError::TargetCannotJoin);
+            }
+        }
         if moved {
             new.afk = dir.voice_guild(guild).await.afk_channel == Some(new.channel_id);
             new.request_to_speak_ms = None;
@@ -1231,7 +1245,9 @@ impl Gateway {
             self.publish_voice(&new, true).await;
             self.voice_after_removal(cur).await;
             // The moved member reconnects to the new room with a fresh token.
-            let _ = self.voice_server_update(&new, flags);
+            if let Err(e) = self.voice_server_update(&new, flags) {
+                tracing::warn!(user = %new.user_id, channel = %new.channel_id, error = ?e, "voice server update failed after a move");
+            }
         } else {
             self.relay_flags(&new, flags).await;
         }

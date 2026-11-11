@@ -83,7 +83,7 @@ export interface ModRequest {
   reason: string;
   proposed_by: string;
   approved_by: string | null;
-  state: 'pending' | 'approved' | 'executed' | 'rejected' | 'cancelled';
+  state: 'pending' | 'approved' | 'executing' | 'executed' | 'rejected' | 'cancelled';
   created_at_ms: number;
   nodes_actioned: number | null;
 }

@@ -194,6 +194,7 @@ fn map_err(e: ModError) -> VoiceError {
         ModError::NotVoiceChannel => VoiceError::NotVoiceChannel,
         ModError::NotStageChannel => VoiceError::NotStageChannel,
         ModError::Unavailable => VoiceError::Unavailable,
+        ModError::TargetCannotJoin => VoiceError::TargetCannotJoin,
     }
 }
 

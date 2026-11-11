@@ -634,3 +634,25 @@ fn title_folders_split_the_year() {
         ("Spirited Away".to_owned(), Some(2001))
     );
 }
+
+/// SEC-AUD-093: lowercasing changes the byte length of some characters (U+0130), so the thumb suffix is checked on
+/// the name itself and slicing never lands inside a character.
+#[test]
+fn thumb_names_with_multibyte_characters_do_not_panic() {
+    let p = parse_path("\u{130}\u{130}\u{130}\u{130}\u{130}\u{130} thumb.jpg");
+    assert_eq!(p.artwork, Some(ArtworkKind::EpisodeThumb));
+    let p = parse_path("\u{130}\u{130}\u{130} THUMB.jpg");
+    assert_eq!(p.artwork, Some(ArtworkKind::EpisodeThumb));
+    let p = parse_path("Show - s01e01-Thumb.png");
+    assert_eq!(p.artwork, Some(ArtworkKind::EpisodeThumb));
+    // Names ending in multibyte characters (or too short for a suffix) still parse.
+    for n in [
+        "poster\u{e9}.jpg",
+        "\u{65e5}\u{672c}\u{8a9e}.jpg",
+        "\u{130}.png",
+        "x\u{1f3ac}.jpg",
+        "thumb.jpg",
+    ] {
+        let _ = parse_path(n);
+    }
+}

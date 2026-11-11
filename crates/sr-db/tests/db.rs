@@ -60,7 +60,10 @@ async fn job_lifecycle_backoff_and_dead_letter() {
 
     // First failure re-queues with backoff (not immediately claimable).
     assert_eq!(
-        jobs::fail(&pool, id, "boom").await.unwrap().as_deref(),
+        jobs::fail(&pool, id, "w1", 1, "boom")
+            .await
+            .unwrap()
+            .as_deref(),
         Some("queued")
     );
     assert!(
@@ -78,7 +81,10 @@ async fn job_lifecycle_backoff_and_dead_letter() {
     let c = jobs::claim(&pool, &kinds, "w1", 5).await.unwrap();
     assert_eq!(c[0].attempts, 2);
     assert_eq!(
-        jobs::fail(&pool, id, "boom2").await.unwrap().as_deref(),
+        jobs::fail(&pool, id, "w1", 2, "boom2")
+            .await
+            .unwrap()
+            .as_deref(),
         Some("dead")
     );
     assert!(
@@ -92,7 +98,7 @@ async fn job_lifecycle_backoff_and_dead_letter() {
     assert!(jobs::retry(&pool, id).await.unwrap());
     let c = jobs::claim(&pool, &kinds, "w1", 5).await.unwrap();
     assert_eq!(c[0].attempts, 1);
-    assert!(jobs::complete(&pool, id).await.unwrap());
+    assert!(jobs::complete(&pool, id, "w1", 1).await.unwrap());
 }
 
 /// SEC-AUD-029: a recurring singleton that keeps failing is never dead-lettered (nothing would re-arm it before the
@@ -119,7 +125,7 @@ async fn a_failing_singleton_keeps_retrying_and_is_reported() {
         assert_eq!(c.len(), 1, "attempt {n} was claimable");
         assert_eq!(c[0].attempts, n);
         assert_eq!(
-            jobs::fail(&pool, id, "storage down")
+            jobs::fail(&pool, id, "w1", n, "storage down")
                 .await
                 .unwrap()
                 .as_deref(),
@@ -259,4 +265,52 @@ async fn session_lock_is_exclusive() {
             .unwrap()
             .is_some()
     );
+}
+
+/// SEC-AUD-089: only the claiming attempt can finish a job; a stalled worker whose claim was reaped and
+/// re-claimed by another cannot complete or fail it.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn stalled_worker_cannot_finish_a_reclaimed_job() {
+    let pool = pool().await;
+    let kind = format!("t-{}", uid());
+    let kinds = vec![kind.clone()];
+    let id = uid();
+    jobs::enqueue(&pool, &NewJob::new(id, &kind, serde_json::json!({})))
+        .await
+        .unwrap();
+    let a = jobs::claim(&pool, &kinds, "worker-a", 1).await.unwrap();
+    assert_eq!(a[0].locked_by.as_deref(), Some("worker-a"));
+    sqlx::query("UPDATE jobs SET locked_at = now() - interval '1 hour' WHERE id = $1")
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let reaped = jobs::reap_stale(&pool, Duration::from_secs(60))
+        .await
+        .unwrap();
+    assert!(reaped.iter().any(|r| r.0 == id));
+    let b = jobs::claim(&pool, &kinds, "worker-b", 1).await.unwrap();
+    assert_eq!(b[0].attempts, 2);
+    // A is stale now: neither finishing nor failing takes effect.
+    assert!(
+        !jobs::complete(&pool, id, "worker-a", a[0].attempts)
+            .await
+            .unwrap()
+    );
+    assert!(
+        jobs::fail(&pool, id, "worker-a", a[0].attempts, "late")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    // Same worker name but an older attempt is fenced too.
+    assert!(!jobs::complete(&pool, id, "worker-b", 1).await.unwrap());
+    let state: String = sqlx::query_scalar("SELECT state::text FROM jobs WHERE id = $1")
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "running");
+    assert!(jobs::complete(&pool, id, "worker-b", 2).await.unwrap());
 }

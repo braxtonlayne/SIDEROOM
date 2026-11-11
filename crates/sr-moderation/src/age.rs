@@ -23,6 +23,7 @@ use utoipa::ToSchema;
 use crate::actions::ActionError;
 use crate::cases::load;
 use crate::error::{ModError, ModResult, conflict, invalid};
+use crate::graduated::guard_target;
 use crate::model::{Access, CaseState, Who};
 use crate::rules;
 use crate::service::{Moderation, log_staff, push_event, require_staff};
@@ -343,7 +344,20 @@ impl Moderation {
         let Who::Staff(by) = who else {
             return Err(ModError::Forbidden);
         };
-        // The suspension first: it is the part another service can refuse.
+        // Check before acting (D-605, SEC-AUD-080): the case must be one the caller may work (a case they cannot
+        // see answers NotFound, like an unknown one) and the account one staff may act on (`guard_target`: not
+        // the system user, not the caller, no staff account unless the caller is the Owner). Only then does the
+        // suspension run. The suspension is another service's own transaction (`CaseActions::suspend_account`,
+        // with its own audit row), so the whole act is not one atomic unit; the case is loaded again, locked,
+        // below.
+        {
+            let mut check = self.pool.begin().await?;
+            if let Some(c) = case_id {
+                load(&mut check, who, c, Access::Work, false).await?;
+            }
+            guard_target(&mut check, by, account_id).await?;
+        }
+        // The suspension next: it is the part another service can refuse.
         let mut suspended = false;
         if band == AgeBand::Under13 && state == "active" {
             let Some(actions) = self.case_actions.clone() else {

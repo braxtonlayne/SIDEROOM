@@ -6,9 +6,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sr_activities::{ChannelAccess, ChannelPerms};
 use sr_api::routes::activities::{ActivityFetcher, Fetched, Forwarded};
+use sr_chat::ChannelType;
 use sr_chat::repo::ChatRepository;
-use sr_chat::threads::access::guild_channel_permissions;
-use sr_chat::{ChannelType, perms};
+use sr_chat::threads::access::{
+    guild_channel_permissions, needs_thread_membership, overwrite_source,
+    permissions_with_overwrites,
+};
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, Clock, UserId};
 use sr_net::{ForwardMethod, NetError, Policy, SafeClient};
@@ -173,9 +176,14 @@ impl<R: ChatRepository + 'static> ChannelAccess for ChatActivityChannels<R> {
             return Ok(Vec::new());
         };
         let roles = self.repo.list_roles(gid).await.map_err(|e| e.to_string())?;
+        // A thread follows its parent's overwrites, and a private thread also needs membership
+        // (SEC-AUD-071).
+        let Some(source) = overwrite_source(&ch) else {
+            return Ok(Vec::new());
+        };
         let overwrites = self
             .repo
-            .get_overwrites(ch.id)
+            .get_overwrites(source)
             .await
             .map_err(|e| e.to_string())?;
         let now = self.clock.now_unix_ms();
@@ -188,7 +196,14 @@ impl<R: ChatRepository + 'static> ChannelAccess for ChatActivityChannels<R> {
                 .await
                 .map_err(|e| e.to_string())?;
             for m in &page {
-                let p = perms::channel_permissions(&guild, m, &roles, &overwrites, now);
+                let joined = needs_thread_membership(&ch)
+                    && self
+                        .repo
+                        .is_thread_member(ch.id, m.user_id)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                let p =
+                    permissions_with_overwrites(&guild, m, &roles, &ch, &overwrites, joined, now);
                 if p.has(Permissions::VIEW_CHANNEL) {
                     out.push(to_i64(m.user_id));
                 }

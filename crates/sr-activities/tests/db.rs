@@ -1603,3 +1603,48 @@ async fn the_list_stops_at_twenty() {
     );
     r.db.cleanup().await.unwrap();
 }
+
+/// SEC-AUD-097: after a host handoff the current host (what seating uses) may revoke guest links; the original
+/// starter, no longer the host, may not unless they minted the link.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_current_host_revokes_guest_links_after_a_handoff() {
+    let r = rig().await;
+    let game = app_with_caps(
+        &r,
+        "GuestsHandoff",
+        r#""datachannel","guest_play","lobby_channel""#,
+    )
+    .await;
+    let starter = account(r.db.pool()).await;
+    let new_host = account(r.db.pool()).await;
+    let third = account(r.db.pool()).await;
+    let inst = r.svc.launch(starter, game, 1).await.unwrap();
+    let id: i64 = inst.id.parse().unwrap();
+    r.svc.join(new_host, id).await.unwrap();
+    r.svc.join(third, id).await.unwrap();
+    let a = r.svc.create_guest_link(third, id).await.unwrap();
+    let b = r.svc.create_guest_link(third, id).await.unwrap();
+    sqlx::query("UPDATE activity_instances SET host_id = $2 WHERE id = $1")
+        .bind(id)
+        .bind(new_host)
+        .execute(r.db.pool())
+        .await
+        .unwrap();
+    assert!(matches!(
+        r.svc
+            .revoke_guest_link(starter, id, &a.lobby_token)
+            .await
+            .unwrap_err(),
+        ActivityError::Forbidden
+    ));
+    r.svc
+        .revoke_guest_link(new_host, id, &a.lobby_token)
+        .await
+        .unwrap();
+    // The link's creator still may.
+    r.svc
+        .revoke_guest_link(third, id, &b.lobby_token)
+        .await
+        .unwrap();
+}

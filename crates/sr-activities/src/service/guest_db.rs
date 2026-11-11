@@ -114,7 +114,8 @@ impl ActivityService {
             .running_by_id(instance)
             .await?
             .ok_or(ActivityError::NotFound("activity"))?;
-        let starter: i64 = row.try_get("started_by")?;
+        // The current host (what seating uses), not the original starter (SEC-AUD-097).
+        let starter: i64 = row.try_get("host")?;
         let participant: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM activity_participants \
              WHERE instance_id = $1 AND user_id = $2 AND left_at IS NULL)",

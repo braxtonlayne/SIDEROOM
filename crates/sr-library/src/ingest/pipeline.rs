@@ -195,9 +195,15 @@ where
     }
     // Dropping the receiver unblocks a producer that is waiting to send.
     drop(rx);
-    let (produced, hints) = producer
-        .await
-        .map_err(|e| IngestError::Archive(format!("ingest worker failed: {e}")))?;
+    // A panicking worker is an outcome like any other: the cleanup below must still delete the stored pages
+    // (SEC-AUD-094).
+    let (produced, hints) = match producer.await {
+        Ok(v) => v,
+        Err(e) => (
+            Err(IngestError::Archive(format!("ingest worker failed: {e}"))),
+            None,
+        ),
+    };
 
     let outcome = match (failure, produced) {
         (Some(e), _) | (None, Err(e)) => Err(e),
@@ -323,6 +329,52 @@ mod tests {
             matches!(e, IngestError::Image { ref page, .. } if page == "3.png"),
             "{e}"
         );
+        assert!(storage.list("library/").await.unwrap().is_empty());
+    }
+
+    /// A reader that panics once the second entry's data is being read (SEC-AUD-094).
+    struct PanicsInSecondEntry {
+        inner: Cursor<Vec<u8>>,
+        from: u64,
+        until: u64,
+    }
+    impl Read for PanicsInSecondEntry {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let pos = self.inner.position();
+            assert!(!(pos >= self.from && pos < self.until), "reader exploded");
+            self.inner.read(buf)
+        }
+    }
+    impl Seek for PanicsInSecondEntry {
+        fn seek(&mut self, p: std::io::SeekFrom) -> std::io::Result<u64> {
+            self.inner.seek(p)
+        }
+    }
+
+    #[tokio::test]
+    async fn a_panicking_worker_still_cleans_up_the_stored_pages() {
+        let storage = mem();
+        let bytes = cbz(&[("1.png", png(100, 100, 1)), ("2.png", png(100, 100, 2))]).into_inner();
+        let find = |needle: &[u8], nth: usize| {
+            bytes
+                .windows(needle.len())
+                .enumerate()
+                .filter(|(_, w)| *w == needle)
+                .nth(nth)
+                .map(|(i, _)| i as u64)
+                .unwrap()
+        };
+        let second = find(b"PK", 1);
+        let central = find(b"PK", 0);
+        let reader = PanicsInSecondEntry {
+            inner: Cursor::new(bytes),
+            from: second + 35,
+            until: central,
+        };
+        let e = ingest_archive(reader, storage.clone(), 1, 2, IngestLimits::default())
+            .await
+            .unwrap_err();
+        assert!(matches!(e, IngestError::Archive(_)), "{e}");
         assert!(storage.list("library/").await.unwrap().is_empty());
     }
 

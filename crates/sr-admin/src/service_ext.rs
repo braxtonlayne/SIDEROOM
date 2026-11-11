@@ -1091,6 +1091,9 @@ impl AdminService {
         reason: Option<&str>,
     ) -> AdminResult<()> {
         self.require(c, P::MANAGE_ACCOUNTS, "person.link").await?;
+        // The staff guard (D-605, SEC-AUD-087): only the Owner acts on a staff account, none on the system user or
+        // on oneself.
+        self.guard_account(c, account_id, false).await?;
         let reason = Self::reason(reason)?;
         let audit = self.entry(
             c,
@@ -1120,6 +1123,11 @@ impl AdminService {
     ) -> AdminResult<crate::model::IdentityMoved> {
         self.require(c, P::MANAGE_ACCOUNTS, "person.identity_move")
             .await?;
+        // Both ends: the account the identity is on now, and the one it moves to.
+        self.guard_account(c, to_account_id, false).await?;
+        if let Some(owner) = self.identity_account(person_id, identity_id).await? {
+            self.guard_account(c, owner, false).await?;
+        }
         let reason = Self::reason(reason)?;
         let audit = self.entry(
             c,
@@ -1154,6 +1162,7 @@ impl AdminService {
         reason: Option<&str>,
     ) -> AdminResult<i64> {
         self.require(c, P::MANAGE_ACCOUNTS, "person.unlink").await?;
+        self.guard_account(c, account_id, false).await?;
         let reason = Self::reason(reason)?;
         let audit = self.entry(
             c,

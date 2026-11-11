@@ -142,7 +142,7 @@ impl<R: SettingsRepository> SettingsService<R> {
         let mut new = events::plan_update(&old, patch, kind, self.now())?;
         if new != old {
             if old.status == EventStatus::Scheduled && new.status == EventStatus::Active {
-                open_stage(world, &mut new, actor).await?;
+                open_stage(world, &mut new, actor).await;
             } else if old.status == EventStatus::Active && !new.status.is_open() {
                 close_stage(world, &mut new).await;
             }
@@ -300,10 +300,7 @@ impl<R: SettingsRepository> SettingsService<R> {
             let Some(mut new) = events::start_on_join(&old, channel, now) else {
                 continue;
             };
-            if open_stage(world, &mut new, old.creator_id).await.is_err() {
-                // A stage is already running there; the event stays scheduled.
-                continue;
-            }
+            open_stage(world, &mut new, old.creator_id).await;
             self.repo.update_event(&new).await?;
             self.audit_clock(&old, &new).await?;
             return Ok(Some(EventChange {
@@ -343,23 +340,22 @@ impl EventChange {
 }
 
 /// A starting event: a stage event opens its stage instance (topic = event name) and keeps
-/// its id as `entity_id`; every start resets the empty-channel countdown.
-async fn open_stage(
-    world: &dyn EventWorld,
-    ev: &mut ScheduledEvent,
-    by: UserId,
-) -> SettingsResult<()> {
+/// its id as `entity_id`; every start resets the empty-channel countdown. A stage that cannot be opened (one is
+/// already running, or the event's creator may not run a stage there now) does not stop the event: it starts
+/// without a stage and a stage moderator can open one (D-603, SEC-AUD-070).
+async fn open_stage(world: &dyn EventWorld, ev: &mut ScheduledEvent, by: UserId) {
     ev.empty_since_ms = None;
     if let (EntityType::StageInstance, Some(ch)) = (ev.entity_type, ev.channel_id) {
-        world
+        match world
             .start_stage(ev.guild_id, ch, &ev.name, by, ev.id)
             .await
-            .map_err(|why| {
-                SettingsError::invalid("status", "GUILD_SCHEDULED_EVENT_STAGE_BUSY", &why)
-            })?;
-        ev.entity_id = Some(ch.get());
+        {
+            Ok(()) => ev.entity_id = Some(ch.get()),
+            Err(why) => {
+                tracing::warn!(event = ev.id, channel = %ch, reason = %why, "the event starts without a stage");
+            }
+        }
     }
-    Ok(())
 }
 
 /// An ending event: close its stage instance and drop `entity_id`.

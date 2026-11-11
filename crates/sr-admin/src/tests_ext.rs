@@ -1169,3 +1169,63 @@ async fn an_identity_does_not_move_from_or_to_suspended_or_banned_accounts() {
     assert_eq!(detail.identities.len(), 1);
     assert!(e.notes.dms.lock().unwrap().is_empty());
 }
+
+/// SEC-AUD-087 (D-605): the person-graph actions honour the staff guard: only the Owner acts on a staff account.
+#[tokio::test]
+async fn person_graph_actions_honour_the_staff_guard() {
+    let e = env();
+    let o = owner(&e).await;
+    let support = appointed(&e, SUPPORT, R_SUPPORT).await;
+    let _senior = appointed(&e, SENIOR, R_SENIOR).await;
+    let forbidden = |r: Result<(), AdminError>| {
+        assert!(matches!(r, Err(AdminError::Forbidden(_))), "{r:?}");
+    };
+
+    // Unlinking a staff account, or the Owner's.
+    forbidden(
+        e.svc
+            .unlink_account(&support, SENIOR, Some("x"))
+            .await
+            .map(|_| ()),
+    );
+    forbidden(
+        e.svc
+            .unlink_account(&support, OWNER, Some("x"))
+            .await
+            .map(|_| ()),
+    );
+    // Linking one under another Person.
+    forbidden(
+        e.svc
+            .link_account(&support, NEWBIE + 500_000, SENIOR, Some("x"))
+            .await,
+    );
+    // Moving an identity that sits on the Owner's account, or onto a staff account.
+    let identity = e.repo.add_identity(OWNER, "5151");
+    forbidden(
+        e.svc
+            .move_identity(&support, OWNER + 500_000, identity, NEWBIE, Some("x"))
+            .await
+            .map(|_| ()),
+    );
+    let other_identity = e.repo.add_identity(OTHER, "5252");
+    forbidden(
+        e.svc
+            .move_identity(&support, OTHER + 500_000, other_identity, SENIOR, Some("x"))
+            .await
+            .map(|_| ()),
+    );
+    // The Owner is still allowed.
+    e.svc
+        .link_account(&o, OWNER + 500_000, SENIOR, Some("join"))
+        .await
+        .unwrap();
+    e.svc
+        .unlink_account(&o, SENIOR, Some("split"))
+        .await
+        .unwrap();
+    e.svc
+        .move_identity(&o, OTHER + 500_000, other_identity, NEWBIE, Some("ok"))
+        .await
+        .unwrap();
+}

@@ -266,6 +266,16 @@ impl PresenceUpdate {
             &self.status
         }
     }
+
+    /// The activities other users see: none for an invisible user, who must look exactly
+    /// like an offline one (SEC-AUD-066, D-600).
+    pub fn visible_activities(&self) -> &[Value] {
+        if self.visible_status() == "offline" {
+            &[]
+        } else {
+            &self.activities
+        }
+    }
 }
 
 #[cfg(test)]
