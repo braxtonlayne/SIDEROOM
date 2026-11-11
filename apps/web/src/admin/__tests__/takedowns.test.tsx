@@ -269,6 +269,52 @@ describe('Admin > Moderation > Takedowns', () => {
     ]);
   });
 
+  it('says what the fingerprint of each delisted file is (D-595)', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS', 'MANAGE_CASES'] });
+    const file = (id: string, digest?: string) => ({
+      ...ITEM,
+      id,
+      kind: 'storage_object',
+      label: `File ${id}`,
+      object_key: `films/${id}.mkv`,
+      state: 'disabled',
+      ...(digest ? { digest_state: digest } : {}),
+    });
+    const detail = {
+      ...DETAIL,
+      state: 'removed',
+      removed_at_ms: 1_700_000_100_000,
+      items: [
+        file('1', 'recorded'),
+        file('2', 'pending'),
+        file('3', 'waiting_mount'),
+        file('4', 'tag_only'),
+        { ...ITEM, id: '5', label: 'Series Plain', state: 'disabled' },
+      ],
+    };
+    server.use(
+      http.get('*/api/v1/moderation/cases', () =>
+        HttpResponse.json({ items: [], next_cursor: null }),
+      ),
+      http.get('*/api/v1/moderation/takedowns', () =>
+        HttpResponse.json([{ ...SUMMARY, state: 'removed', items: 5 }]),
+      ),
+      http.get('*/api/v1/moderation/takedowns/5001', () => HttpResponse.json(detail)),
+    );
+    openAdmin('moderation');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Takedowns' }));
+    await user.click(await screen.findByRole('button', { name: 'Open takedown notice 5001' }));
+    await screen.findByRole('heading', { name: 'Takedown notice TK-5001' });
+    expect(screen.getByText('Fingerprint: recorded')).toBeInTheDocument();
+    expect(screen.getByText('Fingerprint: being taken')).toBeInTheDocument();
+    expect(
+      screen.getByText('Fingerprint: waiting, the owner has switched this bucket off'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Fingerprint: none, matched by tag and size only')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Fingerprint:/)).toHaveLength(4);
+  });
+
   it('rejects an incomplete notice and hands staff the templated reply', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_TAKEDOWNS'] });
     server.use(

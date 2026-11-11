@@ -399,11 +399,11 @@ describe('review queues hub', () => {
       ),
     );
     openAdmin('review');
-    await screen.findByRole('tab', { name: 'Apps' });
+    await screen.findByRole('tab', { name: 'App queue' });
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Cinema',
-      'Apps',
-      'Applications',
+      'App queue',
+      'All applications',
     ]);
   });
 

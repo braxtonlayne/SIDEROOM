@@ -270,17 +270,17 @@ const SIGNED_IN: Row[] = [
   { name: 'admin', path: () => '/admin' },
   ...ADMIN.map((s): Row => ({ name: `admin-${s}`, path: () => `/admin/${s}` })),
   // SEC-AUD-057 (D-587): the Applications tab of the Review hub (with a suspended row), and its Suspend dialog.
-  { name: 'admin-review-applications', path: () => '/admin/review', tab: 'Applications' },
+  { name: 'admin-review-applications', path: () => '/admin/review', tab: 'All applications' },
   {
     name: 'admin-review-applications-suspend',
     path: () => '/admin/review',
-    tab: 'Applications',
+    tab: 'All applications',
     press: /^Suspend (Projector Bot|Doodle Board)$/,
   },
   {
     name: 'admin-review-applications-unsuspend',
     path: () => '/admin/review',
-    tab: 'Applications',
+    tab: 'All applications',
     press: /^Unsuspend /,
   },
   { name: 'developers', path: () => '/developers' },

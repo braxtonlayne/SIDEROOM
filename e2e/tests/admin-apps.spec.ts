@@ -29,7 +29,7 @@ test('Staff suspends and unsuspends an application from the Review hub', async (
   const page = S.page;
 
   await page.goto('/admin/review');
-  await page.getByRole('tab', { name: 'Applications' }).click();
+  await page.getByRole('tab', { name: 'All applications' }).click();
   await page.getByLabel('Search', { exact: true }).fill(name);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();

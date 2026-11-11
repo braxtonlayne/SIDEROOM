@@ -148,6 +148,20 @@ async fn admin_for(deps: &MountsDeps, m: &Mount) -> MsgResult<S3Admin> {
     })
 }
 
+/// The status a mount takes after a test. D-596: a test never moves a switched-off mount (the result is recorded and
+/// `disabled` stays, pass or fail): only its owner turns it back on.
+fn status_after_test(current: MountStatus, failed: bool) -> Option<MountStatus> {
+    if current == MountStatus::Disabled {
+        None
+    } else if failed {
+        Some(MountStatus::Failing)
+    } else if current == MountStatus::Failing {
+        Some(MountStatus::Active)
+    } else {
+        None
+    }
+}
+
 async fn run_test(
     deps: &MountsDeps,
     scope: Scope,
@@ -158,13 +172,7 @@ async fn run_test(
     let result = probe::run(&admin, &m.prefix, deps.test_budget).await;
     let at = now_ms();
     let (json, obj) = result_json(at, &result);
-    let status = if result.failed() {
-        Some(MountStatus::Failing)
-    } else if m.status == MountStatus::Failing {
-        Some(MountStatus::Active)
-    } else {
-        None
-    };
+    let status = status_after_test(m.status, result.failed());
     let kept = deps
         .repo
         .record_test(m.id, at, json.to_string(), status)
@@ -342,3 +350,21 @@ pub async fn apply_guild(
     components(schemas(ProbeRowObject, TestResultObject, CorsResultObject))
 )]
 pub struct MountOpsApiDoc;
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+
+    /// D-596: a test of a switched-off mount never moves it, pass or fail; other mounts keep the old rules.
+    #[test]
+    fn a_test_never_moves_a_disabled_mount() {
+        use MountStatus::{Active, Delisted, Disabled, Failing};
+        assert_eq!(status_after_test(Disabled, true), None);
+        assert_eq!(status_after_test(Disabled, false), None);
+        assert_eq!(status_after_test(Active, true), Some(Failing));
+        assert_eq!(status_after_test(Active, false), None);
+        assert_eq!(status_after_test(Failing, false), Some(Active));
+        assert_eq!(status_after_test(Failing, true), Some(Failing));
+        assert_eq!(status_after_test(Delisted, false), None);
+    }
+}

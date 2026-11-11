@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 58 - 2026-11-11
+
+- **Game shelves.** The messages about a removed game are clearer: the removal day says UTC, and a game removed because its shelf stopped answering says to list it again once the shelf is back.
+- **Storage.** Pressing Test on a bucket you switched off no longer switches it back on.
+- **For staff.** The review tabs are now "App queue" and "All applications". A takedown's detail shows whether each file's fingerprint is recorded, being taken, waiting for a switched-off bucket, or matched by tag and size only. A fingerprint is never taken from a file whose size has changed since the takedown.
+
 ## Phase 57 - 2026-11-11
 
 - **For developers.** If staff suspend or unsuspend your application, you get a message saying so and why.

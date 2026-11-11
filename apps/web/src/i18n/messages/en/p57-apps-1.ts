@@ -1,6 +1,6 @@
 // Wave 57 apps (D-587): the Applications screen in the Admin Review area.
 export default {
-  'admin.reviewHub.tabApplications': 'Applications',
+  'admin.reviewHub.tabApplications': 'All applications',
   'admin.applications.tableLabel': 'Applications',
   'admin.applications.searchForm': 'Search applications',
   'admin.applications.searchLabel': 'Search',

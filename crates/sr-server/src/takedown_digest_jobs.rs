@@ -56,6 +56,11 @@ pub enum Outcome {
     Recorded(DigestRecorded),
     /// A definite answer, or the last attempt failed: staff were alerted, the item keeps tag and size.
     GaveUp(String),
+    /// D-591: the file is not the size the item recorded: nothing was written, staff were alerted once.
+    Changed { recorded: i64, read: u64 },
+    /// D-592: the item's mount is switched off (not deleted): nothing was written and nobody was told. Enabling
+    /// the mount queues the job again.
+    Waiting,
 }
 
 /// The alert text for an item whose sha256 could not be taken.
@@ -64,6 +69,14 @@ pub fn gave_up_detail(t: &DigestTarget, reason: &str) -> String {
         "Takedown TK-{}: the sha256 of the file in item {} (\"{}\") could not be taken: {reason}. The file stays \
          delisted, but it is found again only by its entity tag and size, so the same bytes uploaded through \
          another client are not matched. Check the bucket, or restore the item and uphold it again.",
+        t.notice_id, t.item_id, t.label
+    )
+}
+
+/// D-591: the alert text for a file whose size is not the one the item recorded.
+pub fn changed_detail(t: &DigestTarget, recorded: i64, read: u64) -> String {
+    format!(
+        "Takedown TK-{}: the file in item {} (\"{}\") is {read} bytes now; the item recorded {recorded}. The file changed after the catalog saw it, so no fingerprint of the bytes was recorded and the item keeps only its entity tag and size. If the takedown was meant for the file as it is now, restore the item and uphold it again once the index has run.",
         t.notice_id, t.item_id, t.label
     )
 }
@@ -123,9 +136,31 @@ pub async fn run_digest(
     }
     .await;
     match read {
-        Ok((sha, bytes)) => Ok(Outcome::Recorded(
-            moderation.record_digest(item_id, &sha, bytes).await?,
-        )),
+        Ok((sha, bytes)) => {
+            let done = moderation.record_digest(item_id, &sha, bytes).await?;
+            if let DigestRecorded::SizeChanged { recorded, read } = done {
+                tracing::warn!(
+                    item = item_id,
+                    notice = target.notice_id,
+                    recorded,
+                    read,
+                    "takedown digest: the file changed"
+                );
+                alert(bus, changed_detail(&target, recorded, read)).await;
+                return Ok(Outcome::Changed { recorded, read });
+            }
+            Ok(Outcome::Recorded(done))
+        }
+        // A mount that is switched off (not deleted) cannot be opened, but its bytes are still there: not a
+        // definite answer. The job ends; enabling the mount queues it again (D-592).
+        Err(StorageError::NotFound(_)) if moderation.mount_is_disabled(target.mount_id).await? => {
+            tracing::info!(
+                item = item_id,
+                mount = target.mount_id,
+                "takedown digest waits for a disabled mount"
+            );
+            Ok(Outcome::Waiting)
+        }
         Err(e) if definite(&e) || last_attempt => {
             let reason = if definite(&e) {
                 match e {
@@ -619,5 +654,393 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(state, "succeeded");
+    }
+
+    async fn set_status(w: &World, mount: i64, status: &str) {
+        sqlx::query("UPDATE storage_mounts SET status = $2 WHERE id = $1")
+            .bind(mount)
+            .bind(status)
+            .execute(w.db.pool())
+            .await
+            .unwrap();
+    }
+
+    async fn queued_digests(w: &World, item: i64) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM jobs WHERE kind = $1 AND state IN ('queued', 'running')
+               AND (payload ->> 'item_id') = $2",
+        )
+        .bind(DIGEST_JOB_KIND)
+        .bind(item.to_string())
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap()
+    }
+
+    /// Ends the digest jobs the uphold queued, as the runner does when the handler returns `Ok`.
+    async fn finish_jobs(w: &World) {
+        sqlx::query("UPDATE jobs SET state = 'succeeded' WHERE kind = $1")
+            .bind(DIGEST_JOB_KIND)
+            .execute(w.db.pool())
+            .await
+            .unwrap();
+    }
+
+    async fn item_on(w: &World, notice: i64, mount: i64) -> i64 {
+        sqlx::query_scalar("SELECT id FROM takedown_items WHERE notice_id = $1 AND target_id = $2")
+            .bind(notice)
+            .bind(mount)
+            .fetch_one(w.db.pool())
+            .await
+            .unwrap()
+    }
+
+    /// D-591: a file whose size is not the recorded one writes nothing (tag, size and sha256 stay), the job ends, and
+    /// staff get ONE alert with both sizes and the restore-and-uphold advice.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_file_of_another_size_writes_nothing_and_alerts_once() {
+        let w = world().await;
+        let mnt = mount(&w.db, w.owner, "Shelf").await;
+        catalogued(&w.db, mnt, "films/leak.mkv").await;
+        let notice = w.upheld(&[(mnt, "films/leak.mkv")]).await;
+        let item = w.item(notice, "films/leak.mkv").await;
+        let changed: &'static [u8] = b"replaced by something else entirely";
+        let bucket = Arc::new(ObjectStoreStorage::in_memory());
+        bucket
+            .put("films/leak.mkv", Bytes::from_static(changed))
+            .await
+            .unwrap();
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        let r = run_digest(&w.m, &Answer::Bucket(bucket), &w.bus, item, false)
+            .await
+            .unwrap();
+        let read = changed.len() as u64;
+        assert_eq!(
+            r,
+            Outcome::Changed {
+                recorded: FILM.len() as i64,
+                read
+            }
+        );
+        assert_eq!(
+            w.fingerprint(item).await,
+            (Some(TAG.into()), None, Some(FILM.len() as i64)),
+            "tag and size stay, no sha256"
+        );
+        let sent = alerts(&mut sub).await;
+        assert_eq!(sent.len(), 1, "{sent:?}");
+        for needle in [
+            format!("TK-{notice}"),
+            format!("item {item}"),
+            format!("{read} bytes"),
+            format!("recorded {}", FILM.len()),
+            "restore the item and uphold it again".to_owned(),
+        ] {
+            assert!(sent[0].contains(&needle), "{needle}: {}", sent[0]);
+        }
+    }
+
+    /// D-592: a digest job whose mount is `disabled` ends with no alert and writes nothing; a mount that is gone, or
+    /// an object missing on an enabled mount, still alerts at once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_disabled_mount_ends_the_job_quietly_but_a_gone_mount_or_object_alerts() {
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        let gone = mount(&w.db, w.owner, "Gone").await;
+        let on = mount(&w.db, w.owner, "On").await;
+        for m in [off, gone, on] {
+            catalogued(&w.db, m, "a.mkv").await;
+        }
+        let notice = w
+            .upheld(&[(off, "a.mkv"), (gone, "a.mkv"), (on, "a.mkv")])
+            .await;
+        let (i_off, i_gone, i_on) = (
+            item_on(&w, notice, off).await,
+            item_on(&w, notice, gone).await,
+            item_on(&w, notice, on).await,
+        );
+        set_status(&w, off, "disabled").await;
+        sqlx::query("UPDATE storage_mounts SET deleted_at = now() WHERE id = $1")
+            .bind(gone)
+            .execute(w.db.pool())
+            .await
+            .unwrap();
+        let mut sub = w.bus.subscribe(Topic::Platform);
+
+        // The mount cannot be opened (NotFound), as `MountStorages` answers for a disabled or a missing mount.
+        let r = run_digest(&w.m, &Answer::NoMount, &w.bus, i_off, false)
+            .await
+            .unwrap();
+        assert_eq!(r, Outcome::Waiting);
+        assert!(
+            alerts(&mut sub).await.is_empty(),
+            "no alert for a switched-off mount"
+        );
+        assert_eq!(
+            w.fingerprint(i_off).await,
+            (Some(TAG.into()), None, Some(FILM.len() as i64)),
+            "nothing written"
+        );
+
+        let r = run_digest(&w.m, &Answer::NoMount, &w.bus, i_gone, false)
+            .await
+            .unwrap();
+        assert!(matches!(r, Outcome::GaveUp(_)), "a deleted mount: {r:?}");
+        let empty = Arc::new(ObjectStoreStorage::in_memory());
+        let r = run_digest(&w.m, &Answer::Bucket(empty), &w.bus, i_on, false)
+            .await
+            .unwrap();
+        assert!(
+            matches!(r, Outcome::GaveUp(_)),
+            "object gone on an enabled mount: {r:?}"
+        );
+        let sent = alerts(&mut sub).await;
+        assert_eq!(sent.len(), 2, "{sent:?}");
+    }
+
+    /// D-592: when a disabled mount goes `active` one digest job is queued per waiting item (not for an item that has
+    /// its sha256, nor another mount's, nor twice), and the job reads the file and records the sha256. Other status
+    /// changes queue nothing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn re_enabling_a_disabled_mount_queues_its_waiting_items_once() {
+        use sr_storage::mounts::{MountPatch, MountRepo, MountStatus};
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        let other = mount(&w.db, w.owner, "Other").await;
+        for k in ["a.mkv", "b.mkv", "c.mkv"] {
+            catalogued(&w.db, off, k).await;
+        }
+        catalogued(&w.db, other, "z.mkv").await;
+        let notice = w
+            .upheld(&[
+                (off, "a.mkv"),
+                (off, "b.mkv"),
+                (off, "c.mkv"),
+                (other, "z.mkv"),
+            ])
+            .await;
+        let (a, b, c) = (
+            w.item(notice, "a.mkv").await,
+            w.item(notice, "b.mkv").await,
+            w.item(notice, "c.mkv").await,
+        );
+        let on_other = sqlx::query_scalar::<_, i64>(
+            "SELECT id FROM takedown_items WHERE notice_id = $1 AND target_id = $2",
+        )
+        .bind(notice)
+        .bind(other)
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+        // The uphold's jobs have run and ended quietly; c already has its sha256.
+        finish_jobs(&w).await;
+        sqlx::query("UPDATE takedown_items SET object_sha256 = $2 WHERE id = $1")
+            .bind(c)
+            .bind("1".repeat(64))
+            .execute(w.db.pool())
+            .await
+            .unwrap();
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        set_status(&w, off, "disabled").await;
+        set_status(&w, other, "disabled").await;
+        let patch = |s| MountPatch {
+            status: Some(s),
+            ..MountPatch::default()
+        };
+
+        // Not a re-enable: disabled again.
+        repo.update(off, patch(MountStatus::Disabled))
+            .await
+            .unwrap();
+        assert_eq!(queued_digests(&w, a).await, 0);
+
+        repo.update(off, patch(MountStatus::Active)).await.unwrap();
+        assert_eq!(queued_digests(&w, a).await, 1);
+        assert_eq!(queued_digests(&w, b).await, 1);
+        assert_eq!(queued_digests(&w, c).await, 0, "it has its sha256");
+        assert_eq!(queued_digests(&w, on_other).await, 0, "another mount");
+
+        // Active -> active queues nothing; a job already queued is not doubled.
+        repo.update(off, patch(MountStatus::Active)).await.unwrap();
+        set_status(&w, off, "disabled").await;
+        repo.update(off, patch(MountStatus::Active)).await.unwrap();
+        assert_eq!(
+            (queued_digests(&w, a).await, queued_digests(&w, b).await),
+            (1, 1)
+        );
+
+        // The queued job reads the file and records the sha256.
+        let bucket = Arc::new(ObjectStoreStorage::in_memory());
+        bucket.put("a.mkv", Bytes::from_static(FILM)).await.unwrap();
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        let r = run_digest(&w.m, &Answer::Bucket(bucket), &w.bus, a, false)
+            .await
+            .unwrap();
+        assert!(
+            matches!(r, Outcome::Recorded(DigestRecorded::Written { .. })),
+            "{r:?}"
+        );
+        assert_eq!(w.fingerprint(a).await.1.map(|s| s.len()), Some(64));
+        assert!(alerts(&mut sub).await.is_empty());
+    }
+
+    /// D-592: a passing test of a disabled mount (`record_test` with `active`) queues the same jobs.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_passing_test_of_a_disabled_mount_queues_its_waiting_items() {
+        use sr_storage::mounts::{MountRepo, MountStatus};
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        catalogued(&w.db, off, "a.mkv").await;
+        let notice = w.upheld(&[(off, "a.mkv")]).await;
+        let a = w.item(notice, "a.mkv").await;
+        finish_jobs(&w).await;
+        set_status(&w, off, "disabled").await;
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        repo.record_test(off, 1, "{}".into(), Some(MountStatus::Active))
+            .await
+            .unwrap();
+        assert_eq!(queued_digests(&w, a).await, 1);
+    }
+
+    /// D-592: deleting a disabled mount queues its waiting items once; the job then finds the mount gone and alerts
+    /// once. Deleting an enabled mount queues nothing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn deleting_a_disabled_mount_yields_the_one_alert() {
+        use sr_storage::mounts::MountRepo;
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        let on = mount(&w.db, w.owner, "On").await;
+        catalogued(&w.db, off, "a.mkv").await;
+        catalogued(&w.db, on, "a.mkv").await;
+        let notice = w.upheld(&[(off, "a.mkv"), (on, "a.mkv")]).await;
+        let item_off = item_on(&w, notice, off).await;
+        let item_on_ = item_on(&w, notice, on).await;
+        finish_jobs(&w).await;
+        set_status(&w, off, "disabled").await;
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        assert!(repo.soft_delete(on).await.unwrap());
+        assert_eq!(queued_digests(&w, item_on_).await, 0, "an enabled mount");
+        assert_eq!(queued_digests(&w, item_off).await, 0);
+        assert!(repo.soft_delete(off).await.unwrap());
+        assert_eq!(queued_digests(&w, item_off).await, 1);
+
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        let r = run_digest(&w.m, &Answer::NoMount, &w.bus, item_off, false)
+            .await
+            .unwrap();
+        assert!(matches!(r, Outcome::GaveUp(_)), "{r:?}");
+        let sent = alerts(&mut sub).await;
+        assert_eq!(sent.len(), 1, "{sent:?}");
+        assert!(sent[0].contains(&format!("item {item_off}")), "{}", sent[0]);
+    }
+    async fn off_world(w: &World, label: &str) -> (i64, i64, i64) {
+        let off = mount(&w.db, w.owner, label).await;
+        catalogued(&w.db, off, "a.mkv").await;
+        let notice = w.upheld(&[(off, "a.mkv")]).await;
+        let item = w.item(notice, "a.mkv").await;
+        finish_jobs(w).await;
+        set_status(w, off, "disabled").await;
+        (off, notice, item)
+    }
+
+    /// D-596: a mount that leaves `disabled` for `failing` (readable too) queues its waiting items once; a test of a
+    /// switched-off mount never moves it (see `status_after_test`), and relisting back to `disabled` queues nothing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn leaving_disabled_for_failing_queues_once_and_a_relist_back_to_disabled_does_not() {
+        use sr_storage::mounts::{MountPatch, MountRepo, MountStatus};
+        let w = world().await;
+        let (off, _notice, item) = off_world(&w, "Off").await;
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        // Delist from disabled and relist: back to disabled, nothing queued.
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::delist_mount(&mut conn, off, w.staff, "legal")
+            .await
+            .unwrap()
+            .unwrap();
+        sr_db::storage_legal::relist_mount(&mut conn, off)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(conn);
+        let status: String = sqlx::query_scalar("SELECT status FROM storage_mounts WHERE id = $1")
+            .bind(off)
+            .fetch_one(w.db.pool())
+            .await
+            .unwrap();
+        assert_eq!(status, "disabled");
+        assert_eq!(queued_digests(&w, item).await, 0);
+        // Disabled -> failing queues once.
+        repo.update(
+            off,
+            MountPatch {
+                status: Some(MountStatus::Failing),
+                ..MountPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(queued_digests(&w, item).await, 1);
+    }
+
+    /// D-596: deleting a mount that is `delisted` from `disabled` ends the wait: the job alerts once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn deleting_a_delisted_mount_whose_prior_status_was_disabled_yields_the_one_alert() {
+        use sr_storage::mounts::MountRepo;
+        let w = world().await;
+        let (off, _notice, item) = off_world(&w, "Off").await;
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::delist_mount(&mut conn, off, w.staff, "legal")
+            .await
+            .unwrap()
+            .unwrap();
+        drop(conn);
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        assert!(repo.soft_delete(off).await.unwrap());
+        assert_eq!(queued_digests(&w, item).await, 1);
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        let r = run_digest(&w.m, &Answer::NoMount, &w.bus, item, false)
+            .await
+            .unwrap();
+        assert!(matches!(r, Outcome::GaveUp(_)), "{r:?}");
+        assert_eq!(alerts(&mut sub).await.len(), 1);
+    }
+
+    /// D-596: account erasure of a member with a disabled mount queues once per waiting item, and each job alerts once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn erasing_a_member_with_a_disabled_mount_queues_each_waiting_item_once() {
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        for k in ["a.mkv", "b.mkv"] {
+            catalogued(&w.db, off, k).await;
+        }
+        let notice = w.upheld(&[(off, "a.mkv"), (off, "b.mkv")]).await;
+        let (a, b) = (w.item(notice, "a.mkv").await, w.item(notice, "b.mkv").await);
+        finish_jobs(&w).await;
+        set_status(&w, off, "disabled").await;
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::erase_for(&mut conn, w.owner)
+            .await
+            .unwrap();
+        drop(conn);
+        assert_eq!(
+            (queued_digests(&w, a).await, queued_digests(&w, b).await),
+            (1, 1)
+        );
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        for item in [a, b] {
+            let r = run_digest(&w.m, &Answer::NoMount, &w.bus, item, false)
+                .await
+                .unwrap();
+            assert!(matches!(r, Outcome::GaveUp(_)), "{r:?}");
+        }
+        assert_eq!(alerts(&mut sub).await.len(), 2, "one alert per item");
     }
 }

@@ -568,6 +568,21 @@ text_enum! {
     }
 }
 
+text_enum! {
+    /// D-595: what the fingerprint of a `disabled` storage-object item is, computed when it is read.
+    DigestState {
+        // The item has its sha256: the same bytes are found under any name.
+        Recorded => "recorded",
+        // A digest job is queued or running for it.
+        Pending => "pending",
+        // No sha256 and no job: the mount is switched off (or delisted from switched off); enabling or deleting it
+        // queues the job.
+        WaitingMount => "waiting_mount",
+        // None, and no job will run: the job gave up, the file changed (D-591) or the mount is gone.
+        TagOnly => "tag_only",
+    }
+}
+
 /// What staff enter for a notice (spec 5, step 1).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct NewNotice {
@@ -623,6 +638,9 @@ pub struct TakedownItem {
     pub hold_id: Option<i64>,
     pub disabled_at_ms: Option<i64>,
     pub restored_at_ms: Option<i64>,
+    /// D-595: only on a `disabled` storage-object item.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub digest_state: Option<DigestState>,
 }
 
 /// A row of the register.
