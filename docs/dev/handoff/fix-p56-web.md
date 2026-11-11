@@ -18,6 +18,16 @@ Branch `fix/p56-web`. Web only: no Rust, no migrations, no API change.
 
 Commits: SEC-AUD-056, SEC-AUD-055, sweep rows, handoff (see `git log fix/p56-web`).
 
+- **Follow-up (Fable, visual check of the denied state)**: sweep row `settings-server-channel-permissions-denied` (new
+  `asMember` option, member login saved to `e2e/.state/sweep/member.json`; the seed gives the member a "Channel
+  Keepers" role with Manage Channels + Manage Roles and denies Manage Roles for it in #general). The first run
+  showed the switch ENABLED and no hint: the WASM permission engine is only started by the Lounge shell, so opening
+  settings directly left channel permissions on the guild-level fallback (D-535's channel-level answer had the same gap).
+  Fix: `ChannelsSection` calls `loadPermEngine()` on mount. Re-shot: desktop and phone, light and dark, the Read only
+  notice shows and the sync switch, add role/member and the overwrite matrix are disabled. Vitest asserts the engine
+  load is requested when the section opens. Caveat: the member's account keeps its default theme, so its "dark" shots
+  render light (the sweep only sets the Owner's account theme).
+
 ## Tests
 - Vitest: `cinema.test.tsx` "replies ... (D-585)" (POST body with `parent_id` and spoiler; only one Reply button with a
   reply showing); `channels.test.tsx` two D-586 cases (guild-level allow + channel deny: switch disabled with hint;
