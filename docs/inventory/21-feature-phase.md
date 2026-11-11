@@ -486,3 +486,5 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-047** [FE] E2EE key pins are a set per person; only an unseen key shows the new-device notice (D-578). Handoff `fix-p55-webui.md`.
 - [x] **SEC-AUD-048** [BE] Storage-object takedowns follow the bytes (entity tag and size) across names and mounts (D-571). Handoff `fix-p55-store.md`.
 - [x] **SEC-AUD-049** [BE/FE] A deleted Cinema or Library comment with replies becomes a "Comment deleted" tombstone; Cinema comments gained a replies view (D-572). Handoff `fix-p55-store.md`.
+- [x] **SEC-AUD-055** [FE] The Cinema comments view has an inline Reply form like the Library's: one level, spoiler tag, `parent_id` (D-585). Handoff `fix-p56-web.md`.
+- [x] **SEC-AUD-056** [FE] The channel settings "Sync with category" switch (and the permissions tab) is gated by the member's channel-level Manage Roles, overwrites applied (D-586). Handoff `fix-p56-web.md`.
