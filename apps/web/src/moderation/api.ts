@@ -356,6 +356,8 @@ export interface NoticeSummary {
   restore_after_ms: number | null;
   court_filing_noted: boolean;
 }
+/** D-595: the fingerprint of a disabled storage-object item, derived when the notice is read. */
+export type TakedownDigestState = 'recorded' | 'pending' | 'waiting_mount' | 'tag_only';
 export interface TakedownItem {
   id: string;
   kind: TakedownItemKind;
@@ -368,6 +370,8 @@ export interface TakedownItem {
   hold_id: string | null;
   disabled_at_ms: number | null;
   restored_at_ms: number | null;
+  /** Only on a disabled storage-object item. */
+  digest_state?: TakedownDigestState;
 }
 export interface NoticeEvent {
   id: string;

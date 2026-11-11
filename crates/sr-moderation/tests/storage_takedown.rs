@@ -909,8 +909,8 @@ async fn fp(pool: &PgPool, id: i64, key: &str) -> Fp {
 
 /// D-588: the uphold reads nothing. Each item records the catalog tag and size (an object without a tag has no
 /// fingerprint yet) and one `storage.takedown_digest` job per item is queued; the job's result is written by
-/// `record_digest`: the sha256 beside the tag and size when the size is the one read, the tag dropped (and the size
-/// read recorded) when it is not, the sha256 and size for an object the catalog gave no tag; a second result is
+/// `record_digest`: the sha256 beside the tag and size when the size is the one read, nothing at all (D-591) when it
+/// is not, the sha256 and size for an object the catalog gave no tag; a second result is
 /// ignored.
 #[tokio::test]
 #[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
@@ -982,10 +982,7 @@ async fn the_uphold_queues_one_digest_job_per_item_and_the_job_adds_the_sha256()
     let read = item_of(w.pool(), id, "films/read.mkv").await;
     assert_eq!(
         w.m.record_digest(read, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 0
-        }
+        DigestRecorded::Written { copied: 0 }
     );
     assert_eq!(
         fp(w.pool(), id, "films/read.mkv").await,
@@ -993,25 +990,31 @@ async fn the_uphold_queues_one_digest_job_per_item_and_the_job_adds_the_sha256()
         "tag, sha256 and size"
     );
     let stale = item_of(w.pool(), id, "films/stale.mkv").await;
+    let before = fp(w.pool(), id, "films/stale.mkv").await;
+    assert!(
+        before.0.is_some() && before.1.is_none() && before.2 != Some(8),
+        "{before:?}"
+    );
     assert_eq!(
         w.m.record_digest(stale, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: true,
-            copied: 0
+        DigestRecorded::SizeChanged {
+            recorded: before.2.unwrap(),
+            read: 8
         }
     );
     assert_eq!(
         fp(w.pool(), id, "films/stale.mkv").await,
-        (None, Some(SHA.into()), Some(8)),
-        "the catalog size was not the bytes read: its tag is dropped"
+        before,
+        "D-591: the file is not the size the catalog saw: nothing is written, the item keeps tag and size"
+    );
+    assert!(
+        w.m.digest_target(stale).await.unwrap().is_some(),
+        "still waiting for a sha256 of the bytes staff upheld"
     );
     let untagged = item_of(w.pool(), id, "films/untagged.mkv").await;
     assert_eq!(
         w.m.record_digest(untagged, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 0
-        }
+        DigestRecorded::Written { copied: 0 }
     );
     assert_eq!(
         fp(w.pool(), id, "films/untagged.mkv").await,
@@ -1059,10 +1062,7 @@ async fn a_restored_item_is_skipped_and_the_sha256_reaches_the_derived_items() {
     assert_eq!(fp(w.pool(), id, "x/copy.mkv").await.1, None);
     assert_eq!(
         w.m.record_digest(item, SHA, 8).await.unwrap(),
-        DigestRecorded::Written {
-            tag_dropped: false,
-            copied: 1
-        }
+        DigestRecorded::Written { copied: 1 }
     );
     assert_eq!(
         fp(w.pool(), id, "x/copy.mkv").await,
@@ -1598,4 +1598,105 @@ async fn the_backfill_gives_earlier_derived_items_an_owner_and_every_unhashed_it
     );
     assert_eq!(again.unresolved.len(), 1, "still counted, still left");
     assert_eq!(w.dms.0.lock().unwrap().len(), before + 3);
+}
+
+/// D-595: the notice detail says what the fingerprint of each disabled storage-object item is: `recorded`,
+/// `pending` (a queued or running digest job), `waiting_mount` (a switched-off mount, or delisted from switched
+/// off) and `tag_only` (anything else). Restored items carry none.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn the_notice_detail_says_what_the_fingerprint_of_each_item_is() {
+    use sr_moderation::model::DigestState::{Pending, Recorded, TagOnly, WaitingMount};
+    let w = world().await;
+    let mut mounts = Vec::new();
+    for label in ["one", "two", "three", "four", "five"] {
+        let m = mount(w.pool(), "user", w.owner, label).await;
+        catalogued(w.pool(), m, "films/a.mkv", LEAK_TAG, 8).await;
+        mounts.push(m);
+    }
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let id = w.notice_with(mounts[0], "films/a.mkv").await;
+    for m in &mounts[1..] {
+        w.m.add_item(
+            &who,
+            id,
+            &NewItem {
+                kind: ItemKind::StorageObject,
+                id: *m,
+                key: Some("films/a.mkv".into()),
+            },
+        )
+        .await
+        .unwrap();
+    }
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let state_of = |detail: &sr_moderation::model::NoticeDetail, m: i64| {
+        detail
+            .items
+            .iter()
+            .find(|i| i.target_id == m)
+            .and_then(|i| i.digest_state)
+    };
+    let detail = w.m.get_notice(&who, id).await.unwrap();
+    assert!(
+        mounts
+            .iter()
+            .all(|m| state_of(&detail, *m) == Some(Pending)),
+        "every item has its digest job queued"
+    );
+
+    // The jobs ended; one item got its sha256; one mount is off; one is delisted from off.
+    sqlx::query("UPDATE jobs SET state = 'succeeded' WHERE kind = $1")
+        .bind(WORKER)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE takedown_items SET object_sha256 = $2 WHERE target_id = $1")
+        .bind(mounts[0])
+        .bind(SHA)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE storage_mounts SET status = 'disabled' WHERE id = $1")
+        .bind(mounts[1])
+        .execute(w.pool())
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE storage_mounts SET status = 'delisted', delist_prior = 'disabled' WHERE id = $1",
+    )
+    .bind(mounts[2])
+    .execute(w.pool())
+    .await
+    .unwrap();
+    sqlx::query(
+        "UPDATE storage_mounts SET status = 'delisted', delist_prior = 'active' WHERE id = $1",
+    )
+    .bind(mounts[3])
+    .execute(w.pool())
+    .await
+    .unwrap();
+    sqlx::query("UPDATE storage_mounts SET deleted_at = now() WHERE id = $1")
+        .bind(mounts[4])
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let detail = w.m.get_notice(&who, id).await.unwrap();
+    assert_eq!(state_of(&detail, mounts[0]), Some(Recorded));
+    assert_eq!(state_of(&detail, mounts[1]), Some(WaitingMount));
+    assert_eq!(state_of(&detail, mounts[2]), Some(WaitingMount));
+    assert_eq!(state_of(&detail, mounts[3]), Some(TagOnly));
+    assert_eq!(
+        state_of(&detail, mounts[4]),
+        Some(TagOnly),
+        "the mount is gone"
+    );
+
+    // A restored notice's items carry no state.
+    w.m.restore_notice(&who, id, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    let detail = w.m.get_notice(&who, id).await.unwrap();
+    assert!(detail.items.iter().all(|i| i.digest_state.is_none()));
 }

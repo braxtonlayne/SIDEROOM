@@ -561,6 +561,7 @@ pub fn router() -> Router<AppState> {
         sr_moderation::model::NoticeDetail,
         sr_moderation::model::NoticeEvent,
         sr_moderation::model::TakedownItem,
+        sr_moderation::model::DigestState,
         sr_moderation::model::StrikeCount,
         sr_moderation::model::UpholdOutcome,
         sr_moderation::model::RejectOutcome,
