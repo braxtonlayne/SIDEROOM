@@ -8,14 +8,17 @@ import { nextWindowCode, secretFromOtpauth, totp } from '../support/totp';
  * suspends it with a reason (the "Confirm it is you" dialog opens when the server demands the second-factor
  * window), sees the reason, who and when on the row, and unsuspends it. The developer gets a system DM on each.
  */
-test('Staff suspends and unsuspends an application from the Review hub', async ({ browser }) => {
+test('Staff suspends and unsuspends an application from the Review hub', async ({
+  browser,
+  request,
+}) => {
   test.setTimeout(120_000);
-  const dev = await registerUser((await browser.newContext()).request, 'appdev');
+  const dev = await registerUser(request, 'appdev');
   const D = await signIn(browser, dev);
   const name = `Relay ${Date.now().toString(36)}`;
   await apiPost(D.context.request, '/applications', { name, description: 'e2e relay' });
 
-  const staff = await registerUser(D.context.request, 'appstaff');
+  const staff = await registerUser(request, 'appstaff');
   runCli(['staff', 'appoint', staff.username, '--role', 'App Reviewer', '--reason', 'e2e apps']);
   const S = await signIn(browser, staff);
   const enroll = await apiPost<{ otpauth_uri: string }>(S.context.request, '/sr/auth/totp/enroll', {
@@ -53,8 +56,19 @@ test('Staff suspends and unsuspends an application from the Review hub', async (
   await page.getByRole('combobox', { name: 'Release state' }).click();
   await page.getByRole('option', { name: 'Suspended' }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
-  const dms = await D.context.request.get('/api/v1/users/@me/channels');
-  expect(await dms.text()).toContain('sideroom');
+  // The system user (id 1) wrote to the developer: one card with the application and the reason.
+  const api = D.context.request;
+  await expect
+    .poll(async () => {
+      const dms = (await (await api.get('/api/v1/users/@me/channels')).json()) as {
+        id: string;
+        recipients?: { id: string }[];
+      }[];
+      const dm = dms.find((c) => c.recipients?.some((r) => r.id === '1'));
+      if (!dm) return '';
+      return await (await api.get(`/api/v1/channels/${dm.id}/messages`)).text();
+    })
+    .toContain('e2e: relays unsolicited invites');
 
   await page.getByRole('button', { name: `Unsuspend ${name}` }).click();
   const lift = page.getByRole('dialog', { name: `Unsuspend ${name}` });

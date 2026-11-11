@@ -52,30 +52,36 @@ export function Applications() {
     },
   );
   const ownerName = (a: api.AdminApp) => (a.owner.username ? `@${a.owner.username}` : a.owner.id);
+  const rowActions = (a: api.AdminApp) =>
+    a.release_state === 'suspended' ? (
+      <Button
+        size="sm"
+        variant="secondary"
+        aria-label={t('admin.applications.unsuspendAria', { name: a.name })}
+        onClick={() => setPending({ app: a, suspend: false })}
+      >
+        {t('admin.applications.unsuspend')}
+      </Button>
+    ) : (
+      <Button
+        size="sm"
+        variant="danger"
+        aria-label={t('admin.applications.suspendAria', { name: a.name })}
+        onClick={() => setPending({ app: a, suspend: true })}
+      >
+        {t('admin.applications.suspend')}
+      </Button>
+    );
   const columns: Column<api.AdminApp>[] = [
     {
       id: 'name',
       header: t('admin.applications.colName'),
       locked: true,
       csv: (a) => a.name,
-      cell: (a) => <strong>{a.name}</strong>,
-    },
-    {
-      id: 'owner',
-      header: t('admin.applications.colOwner'),
-      csv: ownerName,
-      cell: ownerName,
-    },
-    {
-      id: 'state',
-      header: t('admin.applications.colState'),
-      locked: true,
-      csv: (a) => a.release_state,
       cell: (a) => (
         <>
-          <Badge variant={STATE_VARIANT[a.release_state] ?? 'neutral'}>
-            {STATE_LABEL[a.release_state] ? t(STATE_LABEL[a.release_state]!) : a.release_state}
-          </Badge>
+          <strong>{a.name}</strong>
+          <div className="ss-meta">{ownerName(a)}</div>
           {a.release_state === 'suspended' && (
             <div className="ss-meta">
               {a.suspended_reason && (
@@ -95,12 +101,32 @@ export function Applications() {
               )}
             </div>
           )}
+          <div className="adm-app-actions">{rowActions(a)}</div>
         </>
+      ),
+    },
+    {
+      id: 'owner',
+      header: t('admin.applications.colOwner'),
+      defaultHidden: true,
+      csv: ownerName,
+      cell: ownerName,
+    },
+    {
+      id: 'state',
+      header: t('admin.applications.colState'),
+      locked: true,
+      csv: (a) => a.release_state,
+      cell: (a) => (
+        <Badge variant={STATE_VARIANT[a.release_state] ?? 'neutral'}>
+          {STATE_LABEL[a.release_state] ? t(STATE_LABEL[a.release_state]!) : a.release_state}
+        </Badge>
       ),
     },
     {
       id: 'created',
       header: t('admin.applications.colCreated'),
+      defaultHidden: true,
       csv: (a) => a.created_at,
       cell: (a) => fmtMs(Date.parse(a.created_at)),
     },
@@ -132,27 +158,6 @@ export function Applications() {
         rowKey={(a) => a.id}
         emptyTitle={t('admin.applications.emptyTitle')}
         emptyDescription={t('admin.applications.emptyDescription')}
-        actions={(a) =>
-          a.release_state === 'suspended' ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              aria-label={t('admin.applications.unsuspendAria', { name: a.name })}
-              onClick={() => setPending({ app: a, suspend: false })}
-            >
-              {t('admin.applications.unsuspend')}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="danger"
-              aria-label={t('admin.applications.suspendAria', { name: a.name })}
-              onClick={() => setPending({ app: a, suspend: true })}
-            >
-              {t('admin.applications.suspend')}
-            </Button>
-          )
-        }
         filters={
           <form
             className="ss-toolbar"
