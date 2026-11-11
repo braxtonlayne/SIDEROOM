@@ -117,7 +117,7 @@ pub async fn hash_candidates(
 
 /// Who answers for the object `key` of `mount_id`: the mount's owner; on a server's bucket the member whose latest
 /// completed upload of that key the ledger knows (P28-LEG-1), else the server owner. `None` for the instance bucket.
-async fn owner_of_object(
+pub async fn owner_of_object(
     conn: &mut PgConnection,
     mount_id: i64,
     key: &str,

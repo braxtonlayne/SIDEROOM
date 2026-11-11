@@ -2,7 +2,13 @@
 // answers 900004 until the second-factor window is open; the web helpers go through withReauth, so the prompt
 // opens once and the call is retried once.
 import { http, HttpResponse, server } from '../../test/server';
-import { setDataRequestRestriction, suspendAccount, unsuspendAccount } from '../api';
+import {
+  setDataRequestRestriction,
+  suspendAccount,
+  suspendApp,
+  unsuspendAccount,
+  unsuspendApp,
+} from '../api';
 import { revokeGrant } from '../donations/api';
 import { registerReauthPrompt } from '../reauth';
 import {
@@ -86,6 +92,9 @@ const CASES: Case[] = [
     '/admin/moderation/subtree-cases/4/nodes/20/clear',
     () => clearNode('4', '20', 'r'),
   ],
+  // D-587: suspending and unsuspending a developer application.
+  ['app suspend', 'post', '/admin/developers/apps/9/suspend', () => suspendApp('9', 'abuse')],
+  ['app unsuspend', 'post', '/admin/developers/apps/9/unsuspend', () => unsuspendApp('9', '')],
   // D-581: the case warning and the data-request restriction.
   ['case warn', 'post', '/moderation/cases/6/warn', () => warnCase('6', 'text')],
   [

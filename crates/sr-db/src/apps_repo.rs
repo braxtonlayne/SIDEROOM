@@ -1801,6 +1801,68 @@ impl AppsRepository for PgAppsRepo {
         Ok(out)
     }
 
+    async fn list_applications_admin(
+        &self,
+        search: Option<&str>,
+        state: Option<&str>,
+        limit: i64,
+        before: Option<i64>,
+    ) -> AppsResult<Vec<AppAdminRow>> {
+        // A bare number also matches the application id and the owner id; the text part
+        // matches the name and the owner's username or display name (wildcards escaped).
+        let term = search.map(str::trim).filter(|q| !q.is_empty());
+        let num: Option<i64> = term.and_then(|q| q.parse().ok());
+        let like: Option<String> = term.map(|q| {
+            let esc = q
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            format!("%{esc}%")
+        });
+        let sql = format!(
+            "SELECT {cols}, \
+               (SELECT s.actor_id FROM application_audit s WHERE s.application_id = a.id \
+                  AND s.action = 'app.suspend' ORDER BY s.id DESC LIMIT 1) AS susp_by, \
+               (SELECT {susp_ms} FROM application_audit s WHERE s.application_id = a.id \
+                  AND s.action = 'app.suspend' ORDER BY s.id DESC LIMIT 1) AS susp_at \
+             FROM applications a LEFT JOIN accounts o ON o.id = a.owner_id \
+             WHERE ($1::text IS NULL OR a.name ILIKE $1 ESCAPE '\\' \
+                    OR o.username::text ILIKE $1 ESCAPE '\\' OR o.display_name ILIKE $1 ESCAPE '\\' \
+                    OR ($2::bigint IS NOT NULL AND (a.id = $2 OR a.owner_id = $2))) \
+               AND ($3::text IS NULL OR a.release_state::text = $3) \
+               AND ($4::bigint IS NULL OR a.id < $4) \
+             ORDER BY a.id DESC LIMIT $5",
+            cols = app_cols("a"),
+            susp_ms = "(extract(epoch FROM s.created_at) * 1000)::bigint"
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
+            .bind(like)
+            .bind(num)
+            .bind(state)
+            .bind(before)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                let app = app_from(r)?;
+                let suspended = app.release_state == ReleaseState::Suspended;
+                Ok(AppAdminRow {
+                    suspended_by: suspended
+                        .then(|| r.try_get("susp_by").map_err(db))
+                        .transpose()?
+                        .flatten(),
+                    suspended_at_ms: suspended
+                        .then(|| r.try_get("susp_at").map_err(db))
+                        .transpose()?
+                        .flatten(),
+                    app,
+                })
+            })
+            .collect()
+    }
+
     async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>> {
         let r = sqlx::query(
             "SELECT g.owner_id, (SELECT count(*) FROM guild_members m WHERE m.guild_id = g.id) AS members \

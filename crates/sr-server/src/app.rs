@@ -1541,9 +1541,6 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             cinema: cinema_service.clone(),
         }))
         .with_blocklist(media_blocklist.clone())
-        .with_object_digests(Arc::new(crate::storage_jobs::MountObjectDigests {
-            mounts: mount_storages.clone(),
-        }))
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
         )));
@@ -1943,6 +1940,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         mount_repo.clone(),
         moderation.clone(),
     );
+    // D-588 / D-589: the sha256 of an upheld storage object is taken by a job; the one-off backfill of earlier items.
+    let runner = crate::takedown_digest_jobs::register(
+        runner,
+        &pool,
+        moderation.clone(),
+        Arc::new(mount_storages.clone()),
+        bus.clone(),
+    );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());
     let runner = crate::cards_jobs::register(runner, &pool, card_jobs);
@@ -2011,6 +2016,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::jobs::schedule_attachment_gc(&pool).await?;
     crate::admin_jobs::schedule(&pool).await?;
     crate::storage_jobs::schedule(&pool).await?;
+    crate::takedown_digest_jobs::schedule(&pool).await?;
     crate::rich_jobs::schedule_poll_sweep(&pool).await?;
     crate::tool_rooms_jobs::schedule(&pool).await?;
     crate::cards_jobs::schedule(&pool).await?;

@@ -18,6 +18,7 @@ use sr_db::{
 };
 use sr_moderation::{
     ModError, Moderation, PolicySource, SubjectNotifier,
+    byte_digest::DigestRecorded,
     model::{
         ItemKind, ItemState, NewItem, NewNotice, NoticeState, TakedownKind, TakedownPolicy, Who,
     },
@@ -881,29 +882,43 @@ async fn an_uncatalogued_object_is_taken_down_by_path_only() {
 
 const SHA: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
-/// A reader that "downloads" the listed objects (8 bytes, the sha256 above); any other key is a read failure.
-struct Reads(Vec<&'static str>);
+const WORKER: &str = "storage.takedown_digest";
 
-#[async_trait]
-impl sr_moderation::ObjectDigests for Reads {
-    async fn digest(&self, _mount_id: i64, key: &str) -> Option<(String, u64)> {
-        self.0.contains(&key).then(|| (SHA.to_owned(), 8))
-    }
+async fn item_of(pool: &PgPool, notice: i64, key: &str) -> i64 {
+    sqlx::query_scalar("SELECT id FROM takedown_items WHERE notice_id = $1 AND object_key = $2")
+        .bind(notice)
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
-/// D-583: the uphold reads the object once and records its sha256 beside the tag and size; a failed read keeps the
-/// tag and size only; an object read without a catalog tag still records the sha256 and size.
+type Fp = (Option<String>, Option<String>, Option<i64>);
+
+async fn fp(pool: &PgPool, id: i64, key: &str) -> Fp {
+    sqlx::query_as::<_, Fp>(
+        "SELECT object_hash, object_sha256, object_size FROM takedown_items
+         WHERE notice_id = $1 AND object_key = $2",
+    )
+    .bind(id)
+    .bind(key)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// D-588: the uphold reads nothing. Each item records the catalog tag and size (an object without a tag has no
+/// fingerprint yet) and one `storage.takedown_digest` job per item is queued; the job's result is written by
+/// `record_digest`: the sha256 beside the tag and size when the size is the one read, the tag dropped (and the size
+/// read recorded) when it is not, the sha256 and size for an object the catalog gave no tag; a second result is
+/// ignored.
 #[tokio::test]
 #[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
-async fn the_uphold_records_the_sha256_beside_the_tag_and_size_and_a_failed_read_keeps_the_tag() {
-    let mut w = world().await;
-    w.m = w.m.clone().with_object_digests(Arc::new(Reads(vec![
-        "films/read.mkv",
-        "films/untagged.mkv",
-    ])));
+async fn the_uphold_queues_one_digest_job_per_item_and_the_job_adds_the_sha256() {
+    let w = world().await;
     let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
     catalogued(w.pool(), mnt, "films/read.mkv", LEAK_TAG, 8).await;
-    catalogued(w.pool(), mnt, "films/unreadable.mkv", LEAK_TAG, LEAK_SIZE).await;
+    catalogued(w.pool(), mnt, "films/stale.mkv", LEAK_TAG, LEAK_SIZE).await;
     // An object of the catalog without a content tag (a provider whose tag says nothing about the bytes).
     sqlx::query(
         "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class)
@@ -917,7 +932,7 @@ async fn the_uphold_records_the_sha256_beside_the_tag_and_size_and_a_failed_read
     let c = w.caller();
     let who = Who::Staff(&c);
     let id = w.notice_with(mnt, "films/read.mkv").await;
-    for key in ["films/unreadable.mkv", "films/untagged.mkv"] {
+    for key in ["films/stale.mkv", "films/untagged.mkv"] {
         w.m.add_item(
             &who,
             id,
@@ -931,33 +946,143 @@ async fn the_uphold_records_the_sha256_beside_the_tag_and_size_and_a_failed_read
         .unwrap();
     }
     w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
-    type Fp = (Option<String>, Option<String>, Option<i64>);
-    async fn fp(pool: &PgPool, id: i64, key: &str) -> Fp {
-        sqlx::query_as::<_, Fp>(
-            "SELECT object_hash, object_sha256, object_size FROM takedown_items
-             WHERE notice_id = $1 AND object_key = $2",
-        )
-        .bind(id)
-        .bind(key)
-        .fetch_one(pool)
-        .await
-        .unwrap()
-    }
+    assert_eq!(
+        fp(w.pool(), id, "films/read.mkv").await,
+        (Some(LEAK_TAG.into()), None, Some(8)),
+        "tag and size at once, no sha256 yet"
+    );
+    assert_eq!(
+        fp(w.pool(), id, "films/untagged.mkv").await,
+        (None, None, None),
+        "no catalog tag: nothing to record until the job has read it"
+    );
+    let queued: Vec<(i64, i32)> = sqlx::query_as(
+        "SELECT (payload ->> 'item_id')::bigint AS item, max_attempts FROM jobs WHERE kind = $1
+           AND (payload ->> 'item_id')::bigint IN (SELECT id FROM takedown_items WHERE notice_id = $2)
+         ORDER BY 1",
+    )
+    .bind(WORKER)
+    .bind(id)
+    .fetch_all(w.pool())
+    .await
+    .unwrap();
+    let mut items = vec![
+        item_of(w.pool(), id, "films/read.mkv").await,
+        item_of(w.pool(), id, "films/stale.mkv").await,
+        item_of(w.pool(), id, "films/untagged.mkv").await,
+    ];
+    items.sort_unstable();
+    assert_eq!(
+        queued.iter().map(|q| q.0).collect::<Vec<_>>(),
+        items,
+        "one job per item"
+    );
+    assert!(queued.iter().all(|q| q.1 == 14));
+
+    let read = item_of(w.pool(), id, "films/read.mkv").await;
+    assert_eq!(
+        w.m.record_digest(read, SHA, 8).await.unwrap(),
+        DigestRecorded::Written {
+            tag_dropped: false,
+            copied: 0
+        }
+    );
     assert_eq!(
         fp(w.pool(), id, "films/read.mkv").await,
         (Some(LEAK_TAG.into()), Some(SHA.into()), Some(8)),
         "tag, sha256 and size"
     );
+    let stale = item_of(w.pool(), id, "films/stale.mkv").await;
     assert_eq!(
-        fp(w.pool(), id, "films/unreadable.mkv").await,
-        (Some(LEAK_TAG.into()), None, Some(LEAK_SIZE)),
-        "a failed read keeps the tag and size"
+        w.m.record_digest(stale, SHA, 8).await.unwrap(),
+        DigestRecorded::Written {
+            tag_dropped: true,
+            copied: 0
+        }
+    );
+    assert_eq!(
+        fp(w.pool(), id, "films/stale.mkv").await,
+        (None, Some(SHA.into()), Some(8)),
+        "the catalog size was not the bytes read: its tag is dropped"
+    );
+    let untagged = item_of(w.pool(), id, "films/untagged.mkv").await;
+    assert_eq!(
+        w.m.record_digest(untagged, SHA, 8).await.unwrap(),
+        DigestRecorded::Written {
+            tag_dropped: false,
+            copied: 0
+        }
     );
     assert_eq!(
         fp(w.pool(), id, "films/untagged.mkv").await,
         (None, Some(SHA.into()), Some(8)),
         "no catalog tag: the sha256 and the size read"
     );
+    // The first answer stands.
+    assert_eq!(
+        w.m.record_digest(read, &"1".repeat(64), 9).await.unwrap(),
+        DigestRecorded::Skipped
+    );
+    assert!(w.m.digest_target(read).await.unwrap().is_none());
+}
+
+/// D-588: an item restored before the job runs is skipped (nothing is written, the job has nothing to read), and the
+/// sha256 is copied to the items derived from the upheld one whose size is the bytes read.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn a_restored_item_is_skipped_and_the_sha256_reaches_the_derived_items() {
+    let w = world().await;
+    let other = account(w.pool(), "reuploader").await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let theirs = mount(w.pool(), "user", other, "Their shelf").await;
+    catalogued(w.pool(), mnt, "films/leak.mkv", LEAK_TAG, 8).await;
+    catalogued(w.pool(), mnt, "films/restored.mkv", LEAK_TAG, 8).await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let item = item_of(w.pool(), id, "films/leak.mkv").await;
+    let target = w.m.digest_target(item).await.unwrap().expect("a target");
+    assert_eq!(
+        (target.mount_id, target.key.as_str(), target.notice_id),
+        (mnt, "films/leak.mkv", id)
+    );
+    // A byte match by tag made before the sha256 exists, then the job's result.
+    storage_legal::delist_byte_matches(
+        w.pool(),
+        &uid,
+        theirs,
+        &listed(&[("x/copy.mkv", LEAK_TAG, 8)]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(fp(w.pool(), id, "x/copy.mkv").await.1, None);
+    assert_eq!(
+        w.m.record_digest(item, SHA, 8).await.unwrap(),
+        DigestRecorded::Written {
+            tag_dropped: false,
+            copied: 1
+        }
+    );
+    assert_eq!(
+        fp(w.pool(), id, "x/copy.mkv").await,
+        (Some(LEAK_TAG.into()), Some(SHA.into()), Some(8)),
+        "the derived item carries the sha256 too"
+    );
+
+    // Restored before the job ran: skipped.
+    let id2 = w.notice_with(mnt, "films/restored.mkv").await;
+    w.m.uphold_notice(&who, id2, Some("valid")).await.unwrap();
+    let item2 = item_of(w.pool(), id2, "films/restored.mkv").await;
+    w.m.restore_notice(&who, id2, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    assert!(w.m.digest_target(item2).await.unwrap().is_none());
+    assert_eq!(
+        w.m.record_digest(item2, SHA, 8).await.unwrap(),
+        DigestRecorded::Skipped
+    );
+    assert_eq!(fp(w.pool(), id2, "films/restored.mkv").await.1, None);
 }
 
 /// D-583: the sieve and the match on the sha256. A different tag with equal bytes is delisted; equal size with other
@@ -965,10 +1090,7 @@ async fn the_uphold_records_the_sha256_beside_the_tag_and_size_and_a_failed_read
 #[tokio::test]
 #[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
 async fn a_different_tag_with_the_same_bytes_matches_and_the_same_size_alone_does_not() {
-    let mut w = world().await;
-    w.m =
-        w.m.clone()
-            .with_object_digests(Arc::new(Reads(vec!["films/leak.mkv"])));
+    let w = world().await;
     let other = account(w.pool(), "reuploader").await;
     let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
     let theirs = mount(w.pool(), "user", other, "Their shelf").await;
@@ -996,6 +1118,15 @@ async fn a_different_tag_with_the_same_bytes_matches_and_the_same_size_alone_doe
             .is_empty()
     );
     w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    // Until the job has read the object only the tag matches: no sieve yet (D-588).
+    assert!(
+        storage_legal::hash_candidates(w.pool(), theirs, &cands(&probe_objs))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let item = item_of(w.pool(), id, "films/leak.mkv").await;
+    w.m.record_digest(item, SHA, 8).await.unwrap();
     let mut got = storage_legal::hash_candidates(w.pool(), theirs, &cands(&probe_objs))
         .await
         .unwrap();
@@ -1288,4 +1419,183 @@ async fn a_byte_matched_owner_is_told_on_removal_and_on_restore_and_is_never_str
         .is_empty()
     );
     assert_eq!(w.m.notify_byte_matches().await, 0);
+}
+
+// ---- SEC-AUD-059 (D-589): the one-off backfill of earlier takedown items --------------------------------------------
+
+/// D-589: derived items from before D-584 get their owner (the mount owner, the uploader on a server's bucket; never a
+/// Person) and the removal DM once; one whose bucket is gone is left and returned; every disabled item with a size and
+/// no sha256 gets a digest job (none twice); a restored notice's items are not touched; a second run does nothing new.
+#[tokio::test]
+#[ignore = "needs Postgres (SR_TEST_DATABASE_URL)"]
+async fn the_backfill_gives_earlier_derived_items_an_owner_and_every_unhashed_item_a_job() {
+    let w = world().await;
+    let reuploader = account(w.pool(), "reuploader").await;
+    let uploader = account(w.pool(), "guildmember").await;
+    let guild_owner = account(w.pool(), "guildowner").await;
+    let gone_owner = account(w.pool(), "goneowner").await;
+    let mnt = mount(w.pool(), "user", w.owner, "My shelf").await;
+    let theirs = mount(w.pool(), "user", reuploader, "Their shelf").await;
+    let gone = mount(w.pool(), "user", gone_owner, "Gone shelf").await;
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'The Server', $2)")
+        .bind(guild)
+        .bind(guild_owner)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let shared = mount(w.pool(), "guild", guild, "Server shelf").await;
+    sqlx::query(
+        "INSERT INTO storage_mount_uploads (id, mount_id, user_id, object_key, s3_upload_id, size_bytes, part_size, part_count, state)
+         VALUES ($1, $2, $3, 'copy/leak.mkv', 'u1', 8, 16777216, 1, 'completed')",
+    )
+    .bind(uid())
+    .bind(shared)
+    .bind(uploader)
+    .execute(w.pool())
+    .await
+    .unwrap();
+    catalogued(w.pool(), mnt, "films/leak.mkv", LEAK_TAG, 8).await;
+    catalogued(
+        w.pool(),
+        mnt,
+        "films/second.mkv",
+        "ffffffffffffffffffffffffffffffff",
+        8,
+    )
+    .await;
+    let c = w.caller();
+    let who = Who::Staff(&c);
+    let id = w.notice_with(mnt, "films/leak.mkv").await;
+    w.m.uphold_notice(&who, id, Some("valid")).await.unwrap();
+    let id2 = w.notice_with(mnt, "films/second.mkv").await;
+    w.m.uphold_notice(&who, id2, Some("valid")).await.unwrap();
+    // Wave 55's derived items: matched by tag, no owner. One more under a notice that is then restored.
+    for (m, key) in [
+        (theirs, "x/their-copy.mkv"),
+        (shared, "copy/leak.mkv"),
+        (gone, "x/orphan.mkv"),
+    ] {
+        storage_legal::delist_byte_matches(w.pool(), &uid, m, &listed(&[(key, LEAK_TAG, 8)]))
+            .await
+            .unwrap();
+    }
+    storage_legal::delist_byte_matches(
+        w.pool(),
+        &uid,
+        theirs,
+        &listed(&[("x/restored-copy.mkv", "ffffffffffffffffffffffffffffffff", 8)]),
+    )
+    .await
+    .unwrap();
+    w.m.restore_notice(&who, id2, Some("counter-notice accepted"))
+        .await
+        .unwrap();
+    sqlx::query("UPDATE takedown_items SET subject_account_id = NULL, notified_at = NULL WHERE derived_from IS NOT NULL")
+        .execute(w.pool())
+        .await
+        .unwrap();
+    sqlx::query("UPDATE storage_mounts SET deleted_at = now() WHERE id = $1")
+        .bind(gone)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    // Drop the uphold's own jobs but keep one, to show an item with a job queued gets no second one.
+    let kept = item_of(w.pool(), id, "films/leak.mkv").await;
+    sqlx::query("DELETE FROM jobs WHERE kind = 'storage.takedown_digest' AND (payload ->> 'item_id')::bigint <> $1")
+        .bind(kept)
+        .execute(w.pool())
+        .await
+        .unwrap();
+    let before = w.dms.0.lock().unwrap().len();
+
+    let report = w.m.backfill_byte_takedowns().await.unwrap();
+    assert_eq!(report.owners_assigned, 2, "{report:?}");
+    assert_eq!(
+        report.told, 2,
+        "two owners (the server owner is a third DM as contact)"
+    );
+    let gone_item = item_of(w.pool(), id, "x/orphan.mkv").await;
+    assert_eq!(report.unresolved, vec![(id, gone_item)]);
+    let owner_of = |key: &'static str| {
+        let pool = w.pool().clone();
+        async move {
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT subject_account_id FROM takedown_items WHERE object_key = $1",
+            )
+            .bind(key)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(owner_of("x/their-copy.mkv").await, Some(reuploader));
+    assert_eq!(
+        owner_of("copy/leak.mkv").await,
+        Some(uploader),
+        "the uploader on a server's bucket"
+    );
+    assert_eq!(owner_of("x/orphan.mkv").await, None, "left as it is");
+    assert_eq!(
+        owner_of("x/restored-copy.mkv").await,
+        None,
+        "a restored notice's item is not touched"
+    );
+    let persons: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM takedown_items WHERE derived_from IS NOT NULL AND subject_person_id IS NOT NULL",
+    )
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(persons, 0, "no Person, so no strike");
+    // The removal DM, once each, with the reference and without the other member's key and bucket.
+    let sent: Vec<(i64, String)> = w.dms.0.lock().unwrap()[before..].to_vec();
+    assert_eq!(sent.len(), 3, "{sent:?}");
+    let to_reuploader: Vec<&String> = sent
+        .iter()
+        .filter(|(t, _)| *t == reuploader)
+        .map(|(_, x)| x)
+        .collect();
+    assert_eq!(to_reuploader.len(), 1);
+    assert!(
+        to_reuploader[0].contains(&format!("TK-{id}")),
+        "{}",
+        to_reuploader[0]
+    );
+    assert!(
+        !to_reuploader[0].contains("films/leak.mkv"),
+        "{}",
+        to_reuploader[0]
+    );
+    assert!(sent.iter().any(|(t, _)| *t == uploader));
+    assert!(sent.iter().any(|(t, _)| *t == guild_owner));
+    // Digest jobs: every disabled item with a size and no sha256, except the one that has a job queued already
+    // (`films/leak.mkv`); not the restored notice's two items, not an item without a size.
+    assert_eq!(report.digests_enqueued, 3, "{report:?}");
+    let queued: Vec<String> = sqlx::query_scalar(
+        "SELECT i.object_key FROM jobs j JOIN takedown_items i ON i.id = (j.payload ->> 'item_id')::bigint
+         WHERE j.kind = 'storage.takedown_digest' ORDER BY 1",
+    )
+    .fetch_all(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        queued,
+        vec![
+            "copy/leak.mkv".to_owned(),
+            "films/leak.mkv".to_owned(),
+            "x/orphan.mkv".to_owned(),
+            "x/their-copy.mkv".to_owned(),
+        ]
+    );
+
+    // Again: nobody is told twice and no job is added.
+    let again = w.m.backfill_byte_takedowns().await.unwrap();
+    assert_eq!(
+        (again.owners_assigned, again.told, again.digests_enqueued),
+        (0, 0, 0),
+        "{again:?}"
+    );
+    assert_eq!(again.unresolved.len(), 1, "still counted, still left");
+    assert_eq!(w.dms.0.lock().unwrap().len(), before + 3);
 }

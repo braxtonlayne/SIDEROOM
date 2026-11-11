@@ -62,16 +62,6 @@ pub trait RemovalSink: Send + Sync {
     async fn message_removed(&self, guild: Option<i64>, channel: i64, message_id: i64);
 }
 
-/// Reads a mount's object once and fingerprints it (D-583). `disable_item` asks it for the object a notice takes
-/// down, so the item records the sha256 of the bytes beside the tag and size. The server implements it over the
-/// mount's storage with a time cap; `None` (no such object, an unreadable bucket, the cap) leaves the item with
-/// the tag and size only.
-#[async_trait]
-pub trait ObjectDigests: Send + Sync {
-    /// `(sha256 as lower-case hex, bytes read)` of the object `key` of `mount_id`.
-    async fn digest(&self, mount_id: i64, key: &str) -> Option<(String, u64)>;
-}
-
 /// Where the strike policy and the operator details come from (the `compliance` feature module, D-293). The
 /// server implements it over the feature settings; without one the defaults apply.
 #[async_trait]
@@ -93,7 +83,6 @@ pub struct Moderation {
     pub(crate) case_actions: Option<Arc<dyn crate::actions::CaseActions>>,
     pub(crate) policy: Option<Arc<dyn PolicySource>>,
     pub(crate) removals: Option<Arc<dyn RemovalSink>>,
-    pub(crate) digests: Option<Arc<dyn ObjectDigests>>,
     pub(crate) blocklist: Option<Arc<MediaBlocklist>>,
     pub(crate) channel_sink: Option<Arc<dyn crate::age::ChannelSink>>,
     pub(crate) item_index_sink: Option<Arc<dyn crate::age::ItemIndexSink>>,
@@ -111,7 +100,6 @@ impl Moderation {
             case_actions: None,
             policy: None,
             removals: None,
-            digests: None,
             blocklist: None,
             channel_sink: None,
             item_index_sink: None,
@@ -188,12 +176,6 @@ impl Moderation {
     /// Where removed messages are announced to live clients.
     pub fn with_removals(mut self, r: Arc<dyn RemovalSink>) -> Self {
         self.removals = Some(r);
-        self
-    }
-
-    /// Where the bytes of an upheld storage-object takedown are read once for their sha256 (D-583).
-    pub fn with_object_digests(mut self, d: Arc<dyn ObjectDigests>) -> Self {
-        self.digests = Some(d);
         self
     }
 

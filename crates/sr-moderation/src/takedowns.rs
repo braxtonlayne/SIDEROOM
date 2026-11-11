@@ -6,7 +6,6 @@
 //! housekeeping job applies unless staff noted a court filing. Every state change writes the access log in the
 //! same transaction, and notices are kept forever.
 
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
@@ -38,7 +37,7 @@ fn now_ms() -> i64 {
         .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0))
 }
 
-fn notice_ref(id: i64) -> String {
+pub(crate) fn notice_ref(id: i64) -> String {
     format!("TK-{id}")
 }
 
@@ -615,7 +614,6 @@ async fn disable_item(
     ids: &IdSource,
     notice_id: i64,
     item: &ItemRow,
-    digest: Option<&(String, u64)>,
 ) -> ModResult<Value> {
     let id = item.target_id;
     let prior = match item.kind {
@@ -624,9 +622,9 @@ async fn disable_item(
         // notice's restore lifts it with the other blocks.
         // D-571 (migration 2450): the item also records the fingerprint of the bytes from the catalog row, so the
         // indexer delists the same bytes under another name or in another bucket under this notice.
-        // D-583: and the sha256 of the bytes when the read in `uphold_notice` succeeded, so the indexer can match
-        // an upload whose entity tag differs (another multipart part size) by reading it once. A failed read leaves
-        // the tag and size only, as before.
+        // D-588: the sha256 is not taken here. The item records the catalog's tag and size (the delist is immediate)
+        // and one `storage.takedown_digest` job per item streams the object afterwards, with no time cap, and adds
+        // the sha256 (see `byte_digest`); a restore before the job runs makes it skip.
         ItemKind::StorageObject => {
             if let Some(key) = &item.object_key {
                 block(conn, ids, notice_id, "key", &format!("mount/{id}/{key}")).await?;
@@ -637,33 +635,26 @@ async fn disable_item(
                 .bind(key)
                 .fetch_optional(&mut *conn)
                 .await?;
-                let (cat_tag, cat_size): (Option<String>, Option<i64>) = match &row {
-                    Some(r) => (r.try_get("content_tag")?, Some(r.try_get("size_bytes")?)),
-                    None => (None, None),
-                };
-                let fingerprint = match digest {
-                    // The catalog tag describes the bytes only when the catalog saw the same size.
-                    Some((sha, n)) => {
-                        let n = i64::try_from(*n).unwrap_or(i64::MAX);
-                        let tag = cat_tag.filter(|_| cat_size == Some(n));
-                        Some((tag, Some(sha.clone()), n))
+                if let Some(r) = &row {
+                    let tag: Option<String> = r.try_get("content_tag")?;
+                    let size: i64 = r.try_get("size_bytes")?;
+                    // A fingerprint is a tag and/or a sha256, always with a size: without a tag the size waits
+                    // for the job.
+                    if let Some(tag) = tag {
+                        sqlx::query(
+                            "UPDATE takedown_items SET object_hash = $2, object_size = $3 \
+                             WHERE id = $1 AND object_size IS NULL",
+                        )
+                        .bind(item.id)
+                        .bind(tag)
+                        .bind(size)
+                        .execute(&mut *conn)
+                        .await?;
                     }
-                    None => cat_tag
-                        .zip(cat_size)
-                        .map(|(tag, size)| (Some(tag), None, size)),
-                };
-                if let Some((tag, sha, size)) = fingerprint {
-                    sqlx::query(
-                        "UPDATE takedown_items SET object_hash = $2, object_sha256 = $3, object_size = $4 \
-                         WHERE id = $1 AND object_size IS NULL",
-                    )
-                    .bind(item.id)
-                    .bind(tag)
-                    .bind(sha)
-                    .bind(size)
-                    .execute(&mut *conn)
-                    .await?;
                 }
+                sr_db::jobs::enqueue(&mut *conn, &crate::byte_digest::digest_job(ids(), item.id))
+                    .await
+                    .map_err(|e| ModError::Storage(e.to_string()))?;
             }
             json!({})
         }
@@ -1654,9 +1645,6 @@ impl Moderation {
         Self::tk_staff(who)?;
         let reason = rules::reason(reason)?;
         let policy = self.policy().await;
-        // D-583: read each storage object the notice names once, before the transaction (a read of a film must not
-        // hold the notice's row lock); an item that cannot be read keeps its tag and size only.
-        let digests = self.read_digests(id).await;
         let now = now_ms();
         let mut tx = self.pool.begin().await?;
         let n = lock_notice(&mut tx, id, now).await?;
@@ -1675,8 +1663,7 @@ impl Moderation {
                 it.hold_id =
                     hold_item(&mut tx, &self.ids, &n, &it, Some(who.user_id()), &reason).await?;
             }
-            let digest = digests.get(&it.id);
-            disable_item(&mut tx, &self.ids, id, &it, digest).await?;
+            disable_item(&mut tx, &self.ids, id, &it).await?;
             disabled += 1;
         }
         move_state(&mut tx, id, NoticeState::Triage, NoticeState::Removed).await?;
@@ -1739,46 +1726,6 @@ impl Moderation {
             notified,
             review_case_id: review,
         })
-    }
-
-    /// D-583: the sha256 and byte count of every storage object a notice in triage names, by item id. An object the
-    /// reader cannot read (or no reader wired) is left out and its item records the tag and size only.
-    async fn read_digests(&self, notice_id: i64) -> HashMap<i64, (String, u64)> {
-        let mut out = HashMap::new();
-        let Some(reader) = &self.digests else {
-            return out;
-        };
-        let rows = sqlx::query(
-            "SELECT i.id, i.target_id, i.object_key FROM takedown_items i \
-             JOIN takedown_notices n ON n.id = i.notice_id \
-             WHERE i.notice_id = $1 AND n.state = 'triage' AND i.kind = 'storage_object' \
-               AND i.derived_from IS NULL AND i.object_key IS NOT NULL AND i.state IN ('identified', 'held') \
-             ORDER BY i.id",
-        )
-        .bind(notice_id)
-        .fetch_all(&self.pool)
-        .await;
-        let Ok(rows) = rows else { return out };
-        for r in rows {
-            let (Ok(item), Ok(mount), Ok(key)) = (
-                r.try_get::<i64, _>("id"),
-                r.try_get::<i64, _>("target_id"),
-                r.try_get::<String, _>("object_key"),
-            ) else {
-                continue;
-            };
-            match reader.digest(mount, &key).await {
-                Some(d) => {
-                    out.insert(item, d);
-                }
-                None => tracing::warn!(
-                    notice = notice_id,
-                    mount,
-                    "takedown: the object could not be read for its sha256; the item keeps the tag and size"
-                ),
-            }
-        }
-        out
     }
 
     /// D-584: tell the owner of each byte-matched item the notice's removal DM, once. The indexer records a match

@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 57 - 2026-11-11
+
+- **For developers.** If staff suspend or unsuspend your application, you get a message saying so and why.
+- **Game shelves.** A game whose shelf hasn't answered for 7 days running is taken off the list, and the person who listed it is told.
+- **For staff.** Review queues have an Applications tab: search every application, see who suspended one and why, and suspend or unsuspend it (with a second factor). Takedown fingerprints are taken in the background after a notice is upheld, so upholding no longer waits on large files, and older takedowns are brought up to date once.
+
 ## Phase 56 - 2026-11-11
 
 - **Recovery codes for passkey users.** If you sign in with a passkey and have no authenticator app, you can now regenerate your recovery codes from the passkeys card.

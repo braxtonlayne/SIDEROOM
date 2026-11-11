@@ -394,29 +394,6 @@ async fn setting_bool(pool: &PgPool, key: &str, default: bool) -> bool {
     }
 }
 
-/// The longest `disable_item`'s read of an upheld object may take (D-583): staff wait for the uphold, so a very
-/// large object that cannot be read in this time is recorded by tag and size only.
-const DIGEST_READ_CAP: Duration = Duration::from_secs(180);
-
-/// Reads a mount's object for the sha256 an upheld byte takedown records (D-583).
-pub struct MountObjectDigests {
-    pub mounts: MountStorages,
-}
-
-#[async_trait::async_trait]
-impl sr_moderation::ObjectDigests for MountObjectDigests {
-    async fn digest(&self, mount_id: i64, key: &str) -> Option<(String, u64)> {
-        let storage = self.mounts.for_mount(mount_id).await.ok()?;
-        tokio::time::timeout(
-            DIGEST_READ_CAP,
-            sr_storage::digest::sha256_object(storage.as_ref(), key),
-        )
-        .await
-        .ok()?
-        .ok()
-    }
-}
-
 /// Register the handler on `runner`; pair with [`schedule`].
 pub fn register(
     runner: JobRunner,
