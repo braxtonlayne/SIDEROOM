@@ -22,6 +22,19 @@ vi.mock('../../../lounge/data', async (orig) => {
   };
 });
 
+// D-586: settings opened directly (not through the Lounge shell) must start the permission engine itself.
+const engineLoads = vi.hoisted(() => ({ n: 0 }));
+vi.mock('../../../lounge/permEngine', async (orig) => {
+  const real = await orig<typeof import('../../../lounge/permEngine')>();
+  return {
+    ...real,
+    loadPermEngine: () => {
+      engineLoads.n += 1;
+      return Promise.reject(new Error('no wasm in tests'));
+    },
+  };
+});
+
 vi.mock('../../../store/connect', () => ({
   connectGateway: vi.fn(),
   disconnectGateway: vi.fn(),
@@ -188,6 +201,13 @@ describe('Sync with category follows the channel-level Manage Roles (D-586)', ()
     await openPerms();
     expect(await screen.findByText(/need the Manage Roles permission/)).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: /Sync permissions with category/ })).toBeDisabled();
+  });
+
+  it('starts the permission engine when the Channels section opens', async () => {
+    seed({ perms: [MANAGE.channels, MANAGE.roles] });
+    engineLoads.n = 0;
+    await openPerms();
+    expect(engineLoads.n).toBeGreaterThan(0);
   });
 
   it('is enabled when the channel grants it, even without the server-level bit', async () => {

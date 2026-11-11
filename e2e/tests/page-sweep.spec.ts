@@ -39,6 +39,7 @@ const DATA = resolve(OUT, 'data');
 const STATE = resolve(repoRoot, 'e2e', '.state', 'sweep');
 const WORLD_FILE = resolve(STATE, 'world.json');
 const OWNER_STATE = resolve(STATE, 'owner.json');
+const MEMBER_STATE = resolve(STATE, 'member.json');
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
 
 const VIEWPORTS = {
@@ -90,6 +91,8 @@ interface Row {
   press?: RegExp;
   /** Then reply under the first comment that offers Reply (D-585): open the form, type this, post it. */
   replyText?: string;
+  /** Sign in as the sweep member instead of the Owner (a role with Manage Channels, Manage Roles denied in #general). */
+  asMember?: boolean;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -235,6 +238,12 @@ const SIGNED_IN: Row[] = [
     path: (w) => `/cinema/t/${w.titleId}`,
     tab: 'Comments',
     replyText: 'Agreed, the final scene is the best part.',
+  },
+  // SEC-AUD-056 (D-586): the same tab as a member whose Manage Roles is denied in this channel (switch disabled, hint).
+  {
+    name: 'settings-server-channel-permissions-denied',
+    path: (w) => `/settings/server/${w.guildId}/channels?channel=${w.channelId}&tab=permissions`,
+    asMember: true,
   },
   { name: 'cinema-submit', path: () => '/cinema/submit' },
   {
@@ -742,7 +751,7 @@ async function capture(
     baseURL: ORIGIN,
     viewport: VIEWPORTS[opts.viewport],
     colorScheme: opts.theme === 'dark' ? 'dark' : 'light',
-    storageState: opts.signedIn ? OWNER_STATE : undefined,
+    storageState: opts.signedIn ? (row.asMember ? MEMBER_STATE : OWNER_STATE) : undefined,
     bypassCSP: true,
   });
   const theme = opts.theme === 'light' ? 'lounge-light' : DARK_THEME;
@@ -962,6 +971,20 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
     await step('assign role', () =>
       apiPut(o, `/guilds/${s.guildId}/members/${meMember}/roles/${role.id}`),
     );
+  // SEC-AUD-056 (D-586): a role with Manage Channels and Manage Roles, but Manage Roles denied in #general.
+  await step('channel-denied role', async () => {
+    const keepers = await apiPost<{ id: string }>(o, `/guilds/${s.guildId}/roles`, {
+      name: 'Channel Keepers',
+      permissions: String((1n << 4n) | (1n << 28n)),
+    });
+    await apiPut(o, `/guilds/${s.guildId}/members/${meMember}/roles/${keepers.id}`);
+    await apiPut(o, `/channels/${s.channelId}/permissions/${keepers.id}`, {
+      type: 0,
+      allow: '0',
+      deny: String(1n << 28n),
+    });
+    await mctx.storageState({ path: MEMBER_STATE });
+  });
   // FU-3: a Coming Soon entry the member asked to hear about, so Admin > Arcade shows the Release button.
   await step('coming soon entry', async () => {
     const entry = await apiPost<{ id: string }>(o, '/admin/arcade/coming-soon', {
