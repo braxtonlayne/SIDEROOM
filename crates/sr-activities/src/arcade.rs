@@ -479,6 +479,31 @@ pub trait CartridgeObjects: Send + Sync {
     async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String>;
 }
 
+/// A cartridge the manifest re-check delisted (D-579), for the staff alert that names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DelistedCartridge {
+    pub id: i64,
+    pub guild_id: i64,
+    pub guild_name: String,
+    pub title: String,
+    pub source_ref: String,
+    pub added_by: i64,
+    /// The lister's username (empty when the account is gone).
+    pub added_by_name: String,
+    /// Why, completing "its file ...", such as "has no sideroom.json".
+    pub reason: String,
+}
+
+/// One pass of [`ArcadeService::recheck_cartridges`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RecheckPass {
+    /// Rows looked at (0 when none is left to check).
+    pub checked: usize,
+    /// Rows whose tier or capabilities changed to what the manifest declares.
+    pub rewritten: usize,
+    pub delisted: Vec<DelistedCartridge>,
+}
+
 /// A tip link in a request.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
 #[schema(as = ArcadeTipInput)]
@@ -948,7 +973,7 @@ impl ArcadeService {
     /// whose shelf object is delisted is left out, like from every catalog response (P28-LEG-1).
     pub async fn cartridges(&self, guild: i64) -> ActivityResult<Vec<CartridgeView>> {
         let sql = format!(
-            "SELECT {} FROM arcade_guild_cartridges c WHERE guild_id = $1 \
+            "SELECT {} FROM arcade_guild_cartridges c WHERE guild_id = $1 AND c.delisted_at IS NULL \
              AND NOT EXISTS (SELECT 1 FROM shelf_objects o WHERE o.shelf_id = c.shelf_id \
                  AND o.object_hash = c.object_hash AND o.delisted_at IS NOT NULL) \
              ORDER BY added_at DESC, id DESC LIMIT {MAX_CARTRIDGES}",
@@ -1143,10 +1168,12 @@ impl ArcadeService {
             .execute(&mut *tx)
             .await?;
         let n: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM arcade_guild_cartridges WHERE guild_id = $1")
-                .bind(guild)
-                .fetch_one(&mut *tx)
-                .await?;
+            sqlx::query_scalar(
+                "SELECT count(*) FROM arcade_guild_cartridges WHERE guild_id = $1 AND delisted_at IS NULL",
+            )
+            .bind(guild)
+            .fetch_one(&mut *tx)
+            .await?;
         if n >= MAX_CARTRIDGES {
             return Err(ActivityError::Conflict(format!(
                 "A server lists at most {MAX_CARTRIDGES} cartridges."
@@ -1158,8 +1185,8 @@ impl ArcadeService {
         sqlx::query(
             "INSERT INTO arcade_guild_cartridges \
              (id, guild_id, title, description, kind, tier, source_ref, capabilities, tip_links, added_by, \
-              shelf_id, object_hash) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+              shelf_id, object_hash, manifest_checked_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())",
         )
         .bind(id)
         .bind(guild)
@@ -1173,6 +1200,17 @@ impl ArcadeService {
         .bind(user)
         .bind(shelf)
         .bind(&hash)
+        .execute(&mut *tx)
+        .await?;
+        // D-579: listing the file again replaces a row the manifest re-check delisted.
+        sqlx::query(
+            "DELETE FROM arcade_guild_cartridges WHERE guild_id = $1 AND delisted_at IS NOT NULL \
+             AND ((shelf_id = $2 AND object_hash = $3) OR source_ref = $4)",
+        )
+        .bind(guild)
+        .bind(shelf)
+        .bind(&hash)
+        .bind(&source)
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
@@ -1195,6 +1233,168 @@ impl ArcadeService {
             .execute(&self.pool)
             .await?;
         Ok(r.rows_affected() > 0)
+    }
+
+    /// One pass of the D-579 re-check: up to `limit` cartridges never checked against their manifest (listed
+    /// before D-568) have their file's `sideroom.json` read through `objects`, with the listing rules of
+    /// [`Self::add_cartridge`]. A readable manifest with a tier rewrites the row's tier and capabilities (and a
+    /// row named only by a path on the server's shelf gets that catalog object). A row whose file cannot be found
+    /// or read, has no manifest or no tier, or is not a zip is delisted with the reason; the caller alerts staff.
+    /// Every row looked at is marked checked, so repeated passes end; a pass that checks nothing means done.
+    pub async fn recheck_cartridges(
+        &self,
+        objects: &dyn CartridgeObjects,
+        limit: i64,
+    ) -> ActivityResult<RecheckPass> {
+        /// The file found (shelf, object hash), its declared tier and capabilities.
+        type Checked = ((i64, String), Tier, Vec<String>);
+        type Row = (
+            i64,
+            i64,
+            String,
+            String,
+            String,
+            i64,
+            String,
+            String,
+            Vec<String>,
+            Option<(i64, String, String, i64)>,
+        );
+        let rows = sqlx::query(
+            "SELECT c.id, c.guild_id, g.name AS guild_name, c.title, c.source_ref, c.added_by, \
+                    COALESCE(a.username::text, '') AS added_by_name, c.tier, c.capabilities, \
+                    o.shelf_id AS o_shelf, o.object_hash AS o_hash, o.path AS o_path, o.size AS o_size \
+             FROM arcade_guild_cartridges c JOIN guilds g ON g.id = c.guild_id \
+             LEFT JOIN accounts a ON a.id = c.added_by \
+             LEFT JOIN shelf_objects o ON o.shelf_id = c.shelf_id AND o.object_hash = c.object_hash \
+             WHERE c.manifest_checked_at IS NULL ORDER BY c.id LIMIT $1",
+        )
+        .bind(limit.max(1))
+        .fetch_all(&self.pool)
+        .await?;
+        let rows: Vec<Row> = rows
+            .iter()
+            .map(|r| -> Result<Row, sqlx::Error> {
+                let object = match r.try_get::<Option<i64>, _>("o_shelf")? {
+                    Some(s) => Some((
+                        s,
+                        r.try_get("o_hash")?,
+                        r.try_get("o_path")?,
+                        r.try_get("o_size")?,
+                    )),
+                    None => None,
+                };
+                Ok((
+                    r.try_get("id")?,
+                    r.try_get("guild_id")?,
+                    r.try_get("guild_name")?,
+                    r.try_get("title")?,
+                    r.try_get("source_ref")?,
+                    r.try_get("added_by")?,
+                    r.try_get("added_by_name")?,
+                    r.try_get("tier")?,
+                    r.try_get("capabilities")?,
+                    object,
+                ))
+            })
+            .collect::<Result<_, _>>()?;
+        let mut pass = RecheckPass {
+            checked: rows.len(),
+            ..RecheckPass::default()
+        };
+        for (
+            id,
+            guild,
+            guild_name,
+            title,
+            source,
+            added_by,
+            added_by_name,
+            old_tier,
+            old_caps,
+            object,
+        ) in rows
+        {
+            // A row from before wave 42 names its file by a path on the server's own shelf only.
+            let object =
+                match object {
+                    Some(o) => Some(o),
+                    None => match source_ref(&source) {
+                        Ok(path) => sqlx::query_as::<_, (i64, String, String, i64)>(
+                            "SELECT o.shelf_id, o.object_hash, o.path, o.size FROM shelf_objects o \
+                             JOIN storage_mounts m ON m.id = o.shelf_id \
+                             WHERE m.owner_kind = 'guild' AND m.owner_id = $1 AND o.path = $2 \
+                               AND o.listed AND o.delisted_at IS NULL \
+                             ORDER BY o.shelf_id LIMIT 1",
+                        )
+                        .bind(guild)
+                        .bind(&path)
+                        .fetch_optional(&self.pool)
+                        .await?,
+                        Err(_) => None,
+                    },
+                };
+            let read: Result<Checked, String> = match object {
+                None => {
+                    Err("is not a file on this server's shelf (or it was taken down).".to_owned())
+                }
+                Some((shelf, hash, path, size)) => {
+                    match self.cartridge_manifest(objects, shelf, &path, size).await {
+                        Ok(m) => match m.tier {
+                            Some(t) => Ok(((shelf, hash), t, m.capabilities)),
+                            None => Err(format!("has no tier in its {MANIFEST}.")),
+                        },
+                        Err(ActivityError::Invalid(_, m)) => Err(m),
+                        Err(e) => return Err(e),
+                    }
+                }
+            };
+            match read {
+                Ok(((shelf, hash), tier, caps)) => {
+                    let mut old_sorted = old_caps;
+                    old_sorted.sort();
+                    old_sorted.dedup();
+                    if old_tier != tier.as_str() || old_sorted != caps {
+                        pass.rewritten += 1;
+                    }
+                    sqlx::query(
+                        "UPDATE arcade_guild_cartridges SET tier = $2, capabilities = $3, \
+                             shelf_id = $4, object_hash = $5, manifest_checked_at = now() \
+                         WHERE id = $1",
+                    )
+                    .bind(id)
+                    .bind(tier.as_str())
+                    .bind(&caps)
+                    .bind(shelf)
+                    .bind(&hash)
+                    .execute(&self.pool)
+                    .await?;
+                }
+                Err(reason) => {
+                    let reason: String = reason.chars().take(400).collect();
+                    sqlx::query(
+                        "UPDATE arcade_guild_cartridges SET delisted_at = now(), delist_reason = $2, \
+                             manifest_checked_at = now() \
+                         WHERE id = $1",
+                    )
+                    .bind(id)
+                    .bind(&reason)
+                    .execute(&self.pool)
+                    .await?;
+                    pass.delisted.push(DelistedCartridge {
+                        id,
+                        guild_id: guild,
+                        guild_name,
+                        title,
+                        source_ref: source,
+                        added_by,
+                        added_by_name,
+                        reason,
+                    });
+                }
+            }
+        }
+        Ok(pass)
     }
 
     /// Whether the reviewed build of `app` is a desktop-only (Tier 2) game: the browser refuses to launch it.

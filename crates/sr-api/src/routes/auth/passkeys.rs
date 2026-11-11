@@ -27,8 +27,9 @@
 
 use super::{
     common::{AuthRouteError, AuthService, MFA_COOKIE, R, Svc, clear_mfa_cookie},
+    identity::{MfaProof, require_second_factor},
     login::no_match,
-    mfa::{PasswordBody, current_account, reauthenticate},
+    mfa::{PasswordBody, current_account, reauthenticate, reauthenticate_with_factor},
     recovery::issue_recovery_codes,
     sessions::session_id,
     store::{AccountState, PasskeyRecord},
@@ -432,8 +433,10 @@ pub struct BeginResponse {
     options: Value,
 }
 
-/// `POST /sr/auth/passkeys/register/begin {password}`: re-check the password and
-/// start a registration ceremony for the signed-in account.
+/// `POST /sr/auth/passkeys/register/begin {password, mfa?}`: re-check the password and
+/// start a registration ceremony for the signed-in account. An account that already has a
+/// second factor (TOTP or a passkey) proves it too (`mfa`, or a check on this session in the
+/// last 15 minutes; D-573).
 #[utoipa::path(
     post,
     path = "/sr/auth/passkeys/register/begin",
@@ -473,6 +476,7 @@ pub async fn register_begin(
         )
         .into());
     }
+    require_second_factor(&svc, now, &account, sid, body.mfa.as_ref()).await?;
     let handle = svc
         .store
         .passkey_user_handle(account.id, &sr_auth::random::bytes::<32>()?)
@@ -944,8 +948,8 @@ pub async fn rename(
     Ok(Json(view(&row)))
 }
 
-/// `DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).
-/// Removing the last second factor also drops the recovery codes.
+/// `DELETE /sr/auth/passkeys/{id} {password, mfa?}`: remove a passkey (password re-check and
+/// the second factor, D-573). Removing the last second factor also drops the recovery codes.
 #[utoipa::path(
     delete,
     path = "/sr/auth/passkeys/{id}",
@@ -966,11 +970,11 @@ pub async fn remove(
     Path(id): Path<String>,
     Json(body): Json<PasswordBody>,
 ) -> R<StatusCode> {
-    session_id(&p)?;
+    let sid = session_id(&p)?;
     let now = state.now_secs();
     let id = parse_id(&id)?;
     let account = current_account(&svc, p.user_id).await?;
-    reauthenticate(&svc, now, &account, &body.password).await?;
+    reauthenticate_with_factor(&svc, now, &account, sid, &body.password, body.mfa.as_ref()).await?;
     if !svc.store.passkey_delete(account.id, id).await? {
         return Err(ErrorCode::UnknownAccount.into());
     }
@@ -996,6 +1000,10 @@ pub struct PasswordBodyDoc {
     /// The current password.
     #[allow(dead_code)]
     password: String,
+    /// Second factor (D-573): required when the account has one, unless this session passed a
+    /// second-factor check in the last 15 minutes.
+    #[allow(dead_code)]
+    mfa: Option<MfaProof>,
 }
 
 /// OpenAPI fragment for the passkey routes.

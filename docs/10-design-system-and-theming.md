@@ -28,6 +28,7 @@ Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **p
 | `--sr-text-2` | `#a9a493` | secondary |
 | `--sr-text-3` | `#6f6c60` | muted labels |
 | `--sr-entrance-text-muted` | `#8c8878` | entrance copy that must be read (scoped to `.ent-root`; 5.1:1 on `--sr-bg-1`, where `--sr-text-3` is about 3.6:1, OQ-XC-6) |
+| `--sr-entrance-danger-text` | `#d97a68` | entrance danger text, e.g. a refused invite (scoped to `.ent-root`; the entrance palette's `--ui-danger-text`, 5.6:1 or better on `--sr-bg-0/1/2`, D-577) |
 | `--sr-gold` | `#c2b08f` | primary buttons, active tab underline, eyebrow labels |
 | `--sr-gold-ink` | `#1b1a15` | text on gold |
 | `--sr-olive-accent` | `#8c9a6a` | small accents ("Good reception" dot, quiet links) |
@@ -44,6 +45,8 @@ Treat these hex values as a starting point. Calibrate them against the mockup PN
 ## 3. `lounge-dark` tokens
 
 Mirror Discord's current dark palette semantics: `--bg-base-lowest` (server rail), `--bg-base-lower` (channel list), `--bg-base-low` (chat), `--bg-surface-overlay` (menus/modals), `--text-normal`, `--text-muted`, `--interactive-normal/hover/active`, `--brand` (blurple-like, `#5865f2`), `--status-online/idle/dnd/offline`, `--mention-bg`, `--danger`. Layout constants: server rail 72px, channel list 240px, member list 240px, header 48px, composer min-height 44px, message gutter 72px.
+
+**Danger colours (D-577).** One colour is one token: `--ui-danger` is the danger fill (buttons, borders), `--ui-danger-ink` is text on that fill, and `--ui-danger-text` is danger text on a surface (error lines, failed-load rows). Every built-in theme sets `--ui-danger-text` at 4.5:1 or better against `--ui-bg`, `--ui-bg-raised` and `--ui-bg-overlay` (`packages/ui/src/theme/tokens-contrast.test.ts`); the theme validator warns when a package's value is below 4.5:1 on its `--ui-bg`.
 
 Use our own original icon set (`packages/ui/icons`, drawn to match the weight and size of Discord's but not copied) and our own logo. Do **not** ship Discord's logo, wordmark, Clyde, Wumpus, or other brand assets. "Continue with Discord" uses Discord's official OAuth button guidelines.
 

@@ -1588,3 +1588,145 @@ async fn cached_rankings_are_shared_globally_and_kept_per_member_for_scopes() {
     assert_eq!(live.items.len(), 2);
     e.teardown().await;
 }
+
+/// SEC-AUD-049 (D-572): deleting a comment that has replies keeps it as a tombstone (body and author cleared,
+/// likes dropped) so the replies of others stay; one without replies is deleted; the tombstone goes with its last
+/// reply and takes no likes, edits, reports or new replies.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_deleted_comment_with_replies_becomes_a_tombstone() {
+    let e = Env::new().await;
+    let (a, b, c) = (e.user().await, e.user().await, e.user().await);
+    let s = e.series("Tombs", false).await;
+    let input = |body: &str, parent: Option<i64>| CommentInput {
+        body: body.into(),
+        spoiler: Some(true),
+        parent_id: parent,
+    };
+    let top = e
+        .svc
+        .post_comment(a, s, 0, input("Opening words", None))
+        .await
+        .unwrap();
+    let r1 = e
+        .svc
+        .post_comment(b, s, 0, input("A reply by b", Some(top.id)))
+        .await
+        .unwrap();
+    let r2 = e
+        .svc
+        .post_comment(c, s, 0, input("A reply by c", Some(top.id)))
+        .await
+        .unwrap();
+    e.svc.set_comment_like(b, top.id, true).await.unwrap();
+
+    e.svc.delete_comment(a, top.id).await.unwrap();
+    let page = e.svc.comments(b, s, 0, None, None).await.unwrap();
+    assert_eq!(page.items.len(), 1);
+    let t = &page.items[0];
+    assert!(t.deleted);
+    assert_eq!(
+        (t.author_id, t.author_name.as_str(), t.body.as_str()),
+        (None, "", "")
+    );
+    assert!(!t.spoiler && !t.liked && !t.mine && t.like_count == 0);
+    assert_eq!(t.reply_count, 2);
+    assert_eq!(
+        page.total, 2,
+        "the total counts the replies, not the tombstone"
+    );
+    let replies = e.svc.comment_replies(c, top.id, None, None).await.unwrap();
+    assert_eq!(
+        replies
+            .items
+            .iter()
+            .map(|r| r.body.as_str())
+            .collect::<Vec<_>>(),
+        ["A reply by b", "A reply by c"]
+    );
+    let likes: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM reading_comment_likes WHERE comment_id = $1")
+            .bind(top.id)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
+    assert_eq!(likes, 0);
+    // Nothing more happens to a tombstone: no like, report, edit, reply or second delete.
+    assert!(e.svc.set_comment_like(c, top.id, true).await.is_err());
+    assert!(e.svc.report_comment(c, top.id, "spam").await.is_err());
+    assert!(
+        e.svc
+            .edit_comment(
+                a,
+                top.id,
+                CommentPatch {
+                    body: Some("back".into()),
+                    spoiler: None
+                }
+            )
+            .await
+            .is_err()
+    );
+    assert!(
+        e.svc
+            .post_comment(c, s, 0, input("late", Some(top.id)))
+            .await
+            .is_err()
+    );
+    assert!(e.svc.delete_comment(a, top.id).await.is_err());
+
+    // A comment with no replies is deleted outright; the last reply takes the tombstone with it.
+    e.svc.delete_comment(b, r1.id).await.unwrap();
+    assert_eq!(
+        e.svc
+            .comments(b, s, 0, None, None)
+            .await
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    e.svc.delete_comment(c, r2.id).await.unwrap();
+    let left: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM reading_comments WHERE series_id = $1")
+            .bind(s)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
+    assert_eq!(left, 0);
+
+    // A tombstone whose only reply staff hid is not listed (and the reply is kept for the record).
+    let top2 = e
+        .svc
+        .post_comment(a, s, 0, input("Second thread", None))
+        .await
+        .unwrap();
+    let hidden = e
+        .svc
+        .post_comment(b, s, 0, input("Rude", Some(top2.id)))
+        .await
+        .unwrap();
+    e.svc.delete_comment(a, top2.id).await.unwrap();
+    sqlx::query("UPDATE reading_comments SET hidden = TRUE WHERE id = $1")
+        .bind(hidden.id)
+        .execute(e.pool())
+        .await
+        .unwrap();
+    assert!(
+        e.svc
+            .comments(b, s, 0, None, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    // The database refuses a raw delete of a comment that still has replies (no cascade any more).
+    assert!(
+        sqlx::query("DELETE FROM reading_comments WHERE id = $1")
+            .bind(top2.id)
+            .execute(e.pool())
+            .await
+            .is_err()
+    );
+    e.teardown().await;
+}

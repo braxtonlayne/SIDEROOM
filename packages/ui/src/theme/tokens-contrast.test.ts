@@ -69,6 +69,17 @@ describe("token set: normal contrast", () => {
       if (has(t, fg) && has(t, bg)) expect(contrastRatio(t[fg]!, t[bg]!), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
   });
 
+  it.each(ids)("%s: danger text reaches 4.5:1 on every surface, in both contrast settings (D-577)", (id) => {
+    for (const high of [false, true]) {
+      const t = effective(id, high);
+      expect(has(t, "--ui-danger-text"), "--ui-danger-text defined").toBe(true);
+      const all = [...pairs(t, ["--ui-danger-text"], SURFACES), ...pairs(t, ["--ui-danger-text"], LOUNGE_SURFACES)];
+      expect(all.length).toBeGreaterThanOrEqual(2);
+      for (const [f, b] of all)
+        expect(contrastRatio(t[f]!, t[b]!), `${high ? "high" : "normal"}: ${f} on ${b} ${t[b]}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it.each(ids)("%s: focus ring and status colours reach 3:1 on the base surface", (id) => {
     const t = effective(id, false);
     const bg = t["--ui-bg"]!;

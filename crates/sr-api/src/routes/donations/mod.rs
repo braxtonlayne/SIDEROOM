@@ -143,6 +143,29 @@ impl MoneyCtx {
             .map_err(admin_err)
     }
 
+    /// D-574: a staff member never grants a perk to their own account, the Owner included (a test of a perk needs
+    /// a second account). The refusal is in the access log as denied.
+    pub async fn refuse_self_grant(&self, user_id: i64) -> Result<(), HttpError> {
+        if user_id != self.user() {
+            return Ok(());
+        }
+        // Best effort: the refusal stands even if the log write fails.
+        let _ = self
+            .staff
+            .svc()
+            .record_denied(
+                &self.staff.caller,
+                "donations.entitlements.grant",
+                Some(("account", user_id)),
+                "a grant to the caller's own account",
+            )
+            .await;
+        Err(admin_err(sr_admin::AdminError::Forbidden(
+            "You cannot grant a perk to your own account. Another staff member has to do it."
+                .into(),
+        )))
+    }
+
     /// A trimmed, mandatory reason for a state-changing action.
     pub fn reason(reason: Option<&str>) -> Result<String, HttpError> {
         sr_admin::AdminService::require_reason(reason).map_err(admin_err)

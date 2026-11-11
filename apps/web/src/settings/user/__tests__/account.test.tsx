@@ -35,6 +35,44 @@ function accountEndpoints(
 
 beforeEach(resetPrefs);
 
+/** The server's answer when a sign-in change needs the second factor (D-573). */
+const MFA_REQUIRED = () =>
+  HttpResponse.json(
+    {
+      code: 50035,
+      message: 'Invalid Form Body',
+      errors: {
+        mfa: {
+          _errors: [
+            {
+              code: 'required',
+              message:
+                'Enter a code from your authenticator app, use a passkey, or enter a recovery code.',
+            },
+          ],
+        },
+      },
+    },
+    { status: 400 },
+  );
+
+/** A member (not staff): the admin route refuses, the member route opens the window. */
+const reauthRoutes = (onProof: (body: unknown) => void) => [
+  http.get('*/api/v1/admin/reauth', () =>
+    HttpResponse.json({ code: 50013, message: 'Missing Access' }, { status: 403 }),
+  ),
+  http.post('*/api/v1/admin/reauth', () =>
+    HttpResponse.json({ code: 50013, message: 'Missing Access' }, { status: 403 }),
+  ),
+  http.get('*/api/v1/sr/auth/reauth', () =>
+    HttpResponse.json({ fresh: false, enrolled: true, window_secs: 900 }),
+  ),
+  http.post('*/api/v1/sr/auth/reauth', async ({ request }) => {
+    onProof(await request.json());
+    return HttpResponse.json({ fresh: true, enrolled: true, window_secs: 900 });
+  }),
+];
+
 describe('My Account', () => {
   it('shows identity, masks and reveals the email, and shows verification state', async () => {
     signedIn();
@@ -113,6 +151,59 @@ describe('My Account', () => {
     await user.click(screen.getByRole('button', { name: 'Email me a reset link' }));
     expect(await screen.findByText('Reset link sent')).toBeInTheDocument();
     expect(body).toEqual({ email: 'alice@example.com' });
+  });
+
+  it('collects the second factor in the re-auth dialog when the password change needs it (D-573)', async () => {
+    signedIn({ mfa_enabled: true });
+    accountEndpoints();
+    const bodies: unknown[] = [];
+    let proof: unknown = null;
+    server.use(
+      http.post('*/api/v1/sr/auth/password', async ({ request }) => {
+        bodies.push(await request.json());
+        return proof ? new HttpResponse(null, { status: 204 }) : MFA_REQUIRED();
+      }),
+      ...reauthRoutes((b) => (proof = b)),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.type(await screen.findByLabelText('Current password'), 'old-secret-123');
+    await user.type(screen.getByLabelText('New password'), 'a-much-longer-passphrase-9');
+    await user.click(screen.getByRole('button', { name: 'Change password' }));
+    const reauth = await screen.findByRole('dialog', { name: 'Confirm it is you' });
+    await user.click(within(reauth).getByRole('radio', { name: 'Recovery code' }));
+    await user.type(within(reauth).getByLabelText('One of your recovery codes'), 'ABCD-EFGH');
+    await user.click(within(reauth).getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('Password changed')).toBeInTheDocument();
+    expect(proof).toEqual({ method: 'recovery', code: 'ABCD-EFGH' });
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+
+  it('keeps the authenticator when the re-auth dialog is cancelled (D-573)', async () => {
+    signedIn({ mfa_enabled: true });
+    accountEndpoints();
+    let calls = 0;
+    server.use(
+      http.delete('*/api/v1/sr/auth/totp', () => {
+        calls += 1;
+        return MFA_REQUIRED();
+      }),
+      ...reauthRoutes(() => {}),
+    );
+    const user = userEvent.setup();
+    openSettings('account');
+    await user.click(await screen.findByRole('button', { name: 'Remove authenticator' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Remove authenticator' });
+    await user.type(within(dialog).getByLabelText('Current password'), 'pw');
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    const reauth = await screen.findByRole('dialog', { name: 'Confirm it is you' });
+    await user.click(within(reauth).getByRole('button', { name: 'Cancel' }));
+    expect(
+      await within(dialog).findByText(/Enter a code from your authenticator app/),
+    ).toBeInTheDocument();
+    expect(calls).toBe(1);
+    expect(screen.queryByText('Two-factor authentication removed')).toBeNull();
   });
 
   it('shows a wrong current password on its field and a weak new password on the other', async () => {

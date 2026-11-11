@@ -23,6 +23,7 @@ import {
   type Sound,
 } from '../soundboard';
 import { fakeAudio } from './fakes';
+import { onActionError } from '../../lounge/actionError';
 
 const DEFAULTS = [
   {
@@ -365,6 +366,35 @@ describe('synced favorites (H-45)', () => {
     });
     expect(useSoundboard.getState().favorites).toEqual(['default:2']);
     stop();
+  });
+
+  it('SEC-AUD-046 (D-577): a failed sync is quiet, kept, and sent again when back online', async () => {
+    const reported: string[] = [];
+    const off = onActionError((k) => reported.push(k));
+    let down = true;
+    server.use(
+      http.patch('*/api/v1/users/@me/settings', async ({ request }) => {
+        const body = (await request.json()) as { settings: Record<string, unknown> };
+        if (down) return HttpResponse.json({ message: 'offline' }, { status: 503 });
+        patches.push(body.settings);
+        return HttpResponse.json({ version: 10, settings: body.settings });
+      }),
+    );
+    adoptFavorites({ version: 1, settings: { soundboardFavorites: ['default:1'] } });
+    useSoundboard.getState().toggleFavorite('default:2');
+    await vi.waitFor(() => expect(useSoundboard.getState().favoritesUnsynced).toBe(true));
+    expect(reported).toEqual([]);
+    // An older account copy arriving meanwhile does not undo the waiting change.
+    adoptFavorites({ version: 1, settings: { soundboardFavorites: ['default:1'] } });
+    expect(useSoundboard.getState().favorites).toEqual(['default:1', 'default:2']);
+    down = false;
+    window.dispatchEvent(new Event('online'));
+    await vi.waitFor(() =>
+      expect(patches).toEqual([{ soundboardFavorites: ['default:1', 'default:2'] }]),
+    );
+    await vi.waitFor(() => expect(useSoundboard.getState().favoritesUnsynced).toBe(false));
+    expect(reported).toEqual([]);
+    off();
   });
 });
 

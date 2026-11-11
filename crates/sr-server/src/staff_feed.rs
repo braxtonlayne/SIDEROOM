@@ -135,6 +135,7 @@ fn alert_meta(kind: StaffAlertKind) -> (&'static str, u32, &'static str) {
         StaffAlertKind::TranscodeFailed => ("Transcode job failed", AMBER, "/admin/transcoding"),
         StaffAlertKind::AlertTest => ("Alert path test", BLUE, "/admin/system"),
         StaffAlertKind::JobFailing => ("Background job keeps failing", AMBER, "/admin/system"),
+        StaffAlertKind::CartridgeDelisted => ("Server cartridge delisted", AMBER, "/admin/arcade"),
     }
 }
 

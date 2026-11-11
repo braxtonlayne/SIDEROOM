@@ -15,7 +15,6 @@ import { create } from 'zustand';
 import { apiFetch } from '../api/client';
 import { rest, useStore } from '../store';
 import type { UserSettingsBlob } from '../store';
-import { failWith } from '../lounge/actionError';
 
 export interface Sound {
   id: string;
@@ -115,6 +114,12 @@ interface SoundboardState extends Saved {
   /** null until loaded. */
   defaults: Sound[] | null;
   guilds: Record<string, Sound[]>;
+  /**
+   * SEC-AUD-046 (D-577): the last favourites change has not reached the account copy yet (offline, or the save
+   * failed). The soundboard panel says so in one line; the change is sent again on the next change and when the
+   * browser comes back online. No toast: it is a background sync, not the member's action failing.
+   */
+  favoritesUnsynced: boolean;
   toggleFavorite(key: string): void;
   setVolume(percent: number): void;
 }
@@ -123,6 +128,7 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
   ...load(),
   defaults: null,
   guilds: {},
+  favoritesUnsynced: false,
   toggleFavorite: (key) => {
     const cur = get().favorites;
     const favorites = (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]).slice(
@@ -141,15 +147,46 @@ export const useSoundboard = create<SoundboardState>()((set, get) => ({
 
 export const resetSoundboard = () => {
   favoritesAdopted = false;
-  useSoundboard.setState({ defaults: null, guilds: {}, favorites: [], volume: 100 });
+  useSoundboard.setState({
+    defaults: null,
+    guilds: {},
+    favorites: [],
+    volume: 100,
+    favoritesUnsynced: false,
+  });
 };
 
-/** Saves the favorites into the settings blob and records the new version; a failure keeps the local state. */
+const sameList = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((f, i) => f === b[i]);
+
+let retryOnOnline = false;
+/** Sends the waiting favourites again when the browser comes back online (installed once, on the first failure). */
+function retryWhenOnline(): void {
+  if (retryOnOnline || typeof window === 'undefined') return;
+  retryOnOnline = true;
+  window.addEventListener('online', () => {
+    const st = useSoundboard.getState();
+    if (st.favoritesUnsynced && favoritesAdopted) writeFavorites(st.favorites);
+  });
+}
+
+/**
+ * Saves the favorites into the settings blob and records the new version. A failure keeps the local state and
+ * marks it unsynced (no toast, D-577); the next change or coming back online sends it again.
+ */
 function writeFavorites(list: string[]): void {
-  void rest
-    .patchUserSettings({ [FAVORITES_KEY]: list })
-    .then((saved) => useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved))
-    .catch(failWith('lounge.actionError.soundFavorites'));
+  void rest.patchUserSettings({ [FAVORITES_KEY]: list }).then(
+    (saved) => {
+      // An answer for an older list leaves the mark to the newest write.
+      if (sameList(list, useSoundboard.getState().favorites))
+        useSoundboard.setState({ favoritesUnsynced: false });
+      useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', saved);
+    },
+    () => {
+      useSoundboard.setState({ favoritesUnsynced: true });
+      retryWhenOnline();
+    },
+  );
 }
 
 /**
@@ -160,6 +197,11 @@ export function adoptFavorites(blob: UserSettingsBlob | null): void {
   if (!blob) return;
   const raw = blob.settings[FAVORITES_KEY];
   if (Array.isArray(raw)) {
+    if (useSoundboard.getState().favoritesUnsynced) {
+      // A change of this session is still waiting to be saved: it is newer than the account copy, keep it.
+      favoritesAdopted = true;
+      return;
+    }
     const favorites = cleanFavorites(raw, knownServers());
     const cur = useSoundboard.getState().favorites;
     favoritesAdopted = true;

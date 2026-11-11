@@ -84,6 +84,10 @@ interface Row {
   mfaMethods?: string[];
   /** SEC-AUD-038 (D-564): an encrypted call where a member's identity key changed, with the shield popover open. */
   keyChanged?: boolean;
+  /** Open this tab (by its accessible name) before the shot, e.g. a title's Comments. */
+  tab?: string;
+  /** Then press the first button whose accessible name matches, e.g. "Show 1 reply". */
+  press?: RegExp;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -211,6 +215,13 @@ const SIGNED_IN: Row[] = [
   { name: 'cinema-anime', path: () => '/cinema/anime' },
   { name: 'cinema-search', path: () => '/cinema/search?q=film' },
   { name: 'cinema-title', path: (w) => `/cinema/t/${w.titleId}` },
+  // SEC-AUD-049 (D-572): the comment thread with a deleted comment kept for its reply ("Comment deleted").
+  {
+    name: 'cinema-title-comments',
+    path: (w) => `/cinema/t/${w.titleId}`,
+    tab: 'Comments',
+    press: /^Show \d+ repl/,
+  },
   { name: 'cinema-submit', path: () => '/cinema/submit' },
   {
     name: 'cinema-player',
@@ -503,7 +514,7 @@ async function keyChangedForShot(page: Page, world: SweepWorld, notes: string[])
     .then(() => page.waitForTimeout(200))
     .then(() =>
       page
-        .getByRole('button', { name: /privacy code changed/ })
+        .getByRole('button', { name: /new privacy code/ })
         .first()
         .click({ timeout: 5000 }),
     )
@@ -785,6 +796,24 @@ async function capture(
     await page.waitForTimeout(900);
     if (row.voice) await connectVoiceForShot(page, rec.notes);
     if (row.keyChanged) await keyChangedForShot(page, world, rec.notes);
+    if (row.tab) {
+      await page
+        .getByRole('tab', { name: row.tab })
+        .first()
+        .click({ timeout: 5000 })
+        .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
+        .then(() => page.waitForTimeout(500))
+        .catch((e) => rec.notes.push(`tab ${row.tab} not opened: ${String(e).slice(0, 160)}`));
+    }
+    if (row.press) {
+      await page
+        .getByRole('button', { name: row.press })
+        .first()
+        .click({ timeout: 5000 })
+        .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
+        .then(() => page.waitForTimeout(500))
+        .catch((e) => rec.notes.push(`${row.press} not pressed: ${String(e).slice(0, 160)}`));
+    }
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
     const c = await page.evaluate(CHECKS);
@@ -1087,6 +1116,22 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       { headers: await csrfHeaders(o) },
     );
     if (!r.ok()) throw new Error(String(r.status()));
+  });
+
+  // SEC-AUD-049 (D-572): a comment thread with a tombstone. The member asks, the Owner answers, the member deletes
+  // the question (it has a reply, so it stays as "Comment deleted"); then an ordinary comment.
+  await step('cinema comments with a tombstone', async () => {
+    const asked = await apiPost<{ id: string }>(m, `/cinema/titles/${w.titleId}/comments`, {
+      body: 'Does anyone know where this was filmed?',
+    });
+    await apiPost(o, `/cinema/titles/${w.titleId}/comments`, {
+      body: 'Mostly in Lisbon, the harbour scenes too.',
+      parent_id: asked.id,
+    });
+    await apiDelete(m, `cinema/comments/${asked.id}`);
+    await apiPost(m, `/cinema/titles/${w.titleId}/comments`, {
+      body: 'The score in the last act is wonderful.',
+    });
   });
 
   // A DM between the Owner and the member.

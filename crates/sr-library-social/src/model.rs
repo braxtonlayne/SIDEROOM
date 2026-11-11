@@ -270,10 +270,13 @@ pub struct Comment {
     #[serde(with = "opt_id")]
     #[schema(value_type = Option<String>)]
     pub parent_id: Option<i64>,
-    #[serde(with = "id")]
-    #[schema(value_type = String)]
-    pub author_id: i64,
+    /// `null` for a deleted comment kept for its replies (D-572).
+    #[serde(with = "opt_id")]
+    #[schema(value_type = Option<String>)]
+    pub author_id: Option<i64>,
+    /// `""` for a deleted comment.
     pub author_name: String,
+    /// `""` for a deleted comment.
     pub body: String,
     pub spoiler: bool,
     pub like_count: i32,
@@ -283,6 +286,9 @@ pub struct Comment {
     pub mine: bool,
     pub created_at_ms: i64,
     pub edited_at_ms: Option<i64>,
+    /// A tombstone (D-572): the author deleted a comment that has replies; it shows as "Comment deleted" with
+    /// its replies, and cannot be edited, liked, reported or replied to.
+    pub deleted: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]

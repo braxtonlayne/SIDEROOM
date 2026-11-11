@@ -26,8 +26,11 @@ export function onEnrollmentRequired(listener: () => void): () => void {
   };
 }
 
+/** Why the dialog opens: a guarded admin or moderator action, or a change to how the account signs in (D-573). */
+export type ReauthReason = 'action' | 'signIn';
+
 /** Resolves true once the window is open, false when the staff member gave up. */
-type Prompt = () => Promise<boolean>;
+type Prompt = (reason: ReauthReason) => Promise<boolean>;
 // A stack: the app root mounts a host (so Lounge staff cards can use it) and the admin shell mounts its own;
 // the most recently mounted one answers, and unmounting one hands over to the previous.
 const prompts: Prompt[] = [];
@@ -44,10 +47,10 @@ export function registerReauthPrompt(p: Prompt): () => void {
 }
 
 /** One dialog at a time: parallel refused calls wait for the same answer. */
-function ask(): Promise<boolean> {
+function ask(reason: ReauthReason = 'action'): Promise<boolean> {
   const prompt = prompts[prompts.length - 1];
   if (!prompt) return Promise.resolve(false);
-  pending ??= prompt().finally(() => {
+  pending ??= prompt(reason).finally(() => {
     pending = null;
   });
   return pending;
@@ -61,6 +64,29 @@ export async function withReauth<T>(call: () => Promise<T>): Promise<T> {
     // No second factor on the account: the re-auth dialog cannot help, point to Settings instead (G-97).
     if (isEnrollmentRequired(e)) enrollmentListeners[enrollmentListeners.length - 1]?.();
     if (!isReauthRequired(e) || !(await ask())) throw e;
+    return call();
+  }
+}
+
+/**
+ * D-573: a self-service sign-in change (password, TOTP, passkeys, recovery codes, Discord link) answers 400 with
+ * the `mfa` field `required` when the account has a second factor and this session's 15-minute window is closed.
+ * The password was already right by then (it is checked first), so the caller's password prompt is done.
+ */
+export const isSecondFactorRequired = (e: unknown): boolean =>
+  e instanceof ApiError &&
+  e.status === 400 &&
+  e.body?.errors?.mfa?._errors?.[0]?.code === 'required';
+
+/**
+ * Runs `call`; when the server wants the second factor (D-573), the same re-auth dialog collects it (which opens
+ * the session's window) and the call is retried once with the same password.
+ */
+export async function withSecondFactor<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (e) {
+    if (!isSecondFactorRequired(e) || !(await ask('signIn'))) throw e;
     return call();
   }
 }

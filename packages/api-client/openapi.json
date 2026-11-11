@@ -9416,7 +9416,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "Grant Patron time or a server pool contribution by hand.",
+        "summary": "Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused\nwith 403 for every staff member, the Owner included (D-574).",
         "operationId": "admin_donations_grant",
         "requestBody": {
           "content": {
@@ -67032,8 +67032,18 @@
     "/sr/auth/discord/link": {
       "post": {
         "tags": [],
-        "summary": "`POST /sr/auth/discord/link`: start linking a Discord identity to the signed-in account. The\nanswer sets the state cookie; the browser then goes to `url` and Discord returns to the\ncallback, which sends it back to Settings.",
+        "summary": "`POST /sr/auth/discord/link {password, mfa?}`: start linking a Discord identity to the\nsigned-in account. A new sign-in method takes the password and, when the account has one,\nthe second factor (D-573). The answer sets the state cookie; the browser then goes to `url`\nand Discord returns to the callback, which sends it back to Settings.",
         "operationId": "link_start",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscordLinkBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "",
@@ -67041,6 +67051,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DiscordLinkStart"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -67400,7 +67420,7 @@
     "/sr/auth/passkeys/register/begin": {
       "post": {
         "tags": [],
-        "summary": "`POST /sr/auth/passkeys/register/begin {password}`: re-check the password and\nstart a registration ceremony for the signed-in account.",
+        "summary": "`POST /sr/auth/passkeys/register/begin {password, mfa?}`: re-check the password and\nstart a registration ceremony for the signed-in account. An account that already has a\nsecond factor (TOTP or a passkey) proves it too (`mfa`, or a check on this session in the\nlast 15 minutes; D-573).",
         "operationId": "register_begin",
         "requestBody": {
           "content": {
@@ -67562,7 +67582,7 @@
     "/sr/auth/passkeys/{id}": {
       "delete": {
         "tags": [],
-        "summary": "`DELETE /sr/auth/passkeys/{id} {password}`: remove a passkey (password re-check).\nRemoving the last second factor also drops the recovery codes.",
+        "summary": "`DELETE /sr/auth/passkeys/{id} {password, mfa?}`: remove a passkey (password re-check and\nthe second factor, D-573). Removing the last second factor also drops the recovery codes.",
         "operationId": "remove",
         "parameters": [
           {
@@ -67693,7 +67713,7 @@
     "/sr/auth/password": {
       "post": {
         "tags": [],
-        "summary": "`POST /sr/auth/password {current_password, new_password, revoke_other_sessions?}`:\nchange the password of the signed-in account. The current password is checked\nfirst (and counts toward the login lockout). By default every other session and\nevery trusted device is revoked; the current session always stays. A notice goes\nto the account's email.",
+        "summary": "`POST /sr/auth/password {current_password, new_password, revoke_other_sessions?, mfa?}`:\nchange the password of the signed-in account. The current password is checked\nfirst (and counts toward the login lockout); an account with a second factor proves it\ntoo (`mfa`, D-573), after the new password passed its checks. By default every other session and\nevery trusted device is revoked; the current session always stays. A notice goes\nto the account's email.",
         "operationId": "change_password",
         "requestBody": {
           "content": {
@@ -88385,6 +88405,17 @@
             "type": "string",
             "description": "The password in use now."
           },
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor (D-573). Required when the account has two-factor authentication or a\npasskey, unless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
           "new_password": {
             "type": "string",
             "description": "At least 10 characters and not easy to guess (zxcvbn score 3 or more)."
@@ -89136,25 +89167,34 @@
           "id",
           "title_id",
           "episode_id",
-          "author_id",
           "body",
           "spoiler",
           "like_count",
           "reply_count",
           "liked",
           "mine",
-          "created_at_ms"
+          "created_at_ms",
+          "deleted"
         ],
         "properties": {
           "author_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` for a deleted comment kept for its replies (D-572)."
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "A tombstone (D-572): the author deleted a comment that has replies; it shows as \"Comment deleted\" with\nits replies, and cannot be edited, liked, reported or replied to."
           },
           "edited_at_ms": {
             "type": [
@@ -94878,6 +94918,30 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "DiscordLinkBody": {
+        "type": "object",
+        "description": "Body of the link call.",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor (D-573). Required when the account has two-factor authentication or a\npasskey, unless this session passed a second-factor check in the last 15 minutes."
+              }
+            ]
+          },
+          "password": {
+            "type": "string",
+            "description": "The account password (re-authentication)."
           }
         }
       },
@@ -100694,7 +100758,6 @@
           "id",
           "series_id",
           "chapter_id",
-          "author_id",
           "author_name",
           "body",
           "spoiler",
@@ -100702,17 +100765,24 @@
           "reply_count",
           "liked",
           "mine",
-          "created_at_ms"
+          "created_at_ms",
+          "deleted"
         ],
         "properties": {
           "author_id": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` for a deleted comment kept for its replies (D-572)."
           },
           "author_name": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "body": {
-            "type": "string"
+            "type": "string",
+            "description": "`\"\"` for a deleted comment."
           },
           "chapter_id": {
             "type": "string",
@@ -100721,6 +100791,10 @@
           "created_at_ms": {
             "type": "integer",
             "format": "int64"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "A tombstone (D-572): the author deleted a comment that has replies; it shows as \"Comment deleted\" with\nits replies, and cannot be edited, liked, reported or replied to."
           },
           "edited_at_ms": {
             "type": [
@@ -106840,6 +106914,17 @@
           "password"
         ],
         "properties": {
+          "mfa": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MfaProof",
+                "description": "Second factor (D-573): required when the account has one, unless this session passed a\nsecond-factor check in the last 15 minutes."
+              }
+            ]
+          },
           "password": {
             "type": "string",
             "description": "The current password."

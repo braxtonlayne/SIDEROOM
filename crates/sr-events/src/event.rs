@@ -51,6 +51,8 @@ pub enum StaffAlertKind {
     AlertTest,
     /// A recurring background job keeps failing (it retries with backoff; SEC-AUD-029).
     JobFailing,
+    /// A guild cartridge listed before D-568 was delisted: its manifest could not be read (D-579).
+    CartridgeDelisted,
 }
 
 /// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
@@ -94,6 +96,7 @@ impl StaffAlertKind {
             Self::TranscodeFailed => "transcode_failed",
             Self::AlertTest => "alert_test",
             Self::JobFailing => "job_failing",
+            Self::CartridgeDelisted => "cartridge_delisted",
         }
     }
 }

@@ -124,6 +124,7 @@ impl CinemaService {
              FROM cinema_reports r \
              LEFT JOIN cinema_reviews v ON r.target_kind = 'review' AND v.id = r.target_id \
              LEFT JOIN cinema_comments c ON r.target_kind = 'comment' AND c.id = r.target_id \
+                 AND c.deleted_at IS NULL \
              WHERE ($1::text IS NULL OR r.status = $1) AND ($2::bigint IS NULL OR r.id < $2) \
              ORDER BY r.id DESC LIMIT $3",
         )

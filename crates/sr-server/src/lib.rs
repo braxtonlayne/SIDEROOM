@@ -7,6 +7,7 @@ pub mod activities_jobs;
 pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;
+pub mod arcade_jobs;
 pub mod backends;
 pub mod bridge_inbound;
 pub mod bridge_sync_wiring;

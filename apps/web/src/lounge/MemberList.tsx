@@ -7,7 +7,15 @@ import { useDeveloperMode } from '../settings/user/prefs';
 import { useViewAsMembers } from '../settings/server/viewAsMode';
 import { useViewer, type Viewer } from '../settings/server/hooks';
 import { useAppsMenu } from './apps/useAppsMenu';
-import { useCurrentUser, useGuild, useMembers, usePresenceMap, useRoles } from './data';
+import {
+  useCurrentUser,
+  useGuild,
+  useListLoadFailure,
+  useMembers,
+  usePresenceMap,
+  useRoles,
+} from './data';
+import { ListLoadFailed } from './ListLoadFailed';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
 import { openProfilePopout } from './profile/popoutStore';
 import { setMemberRole } from './profile/memberRoles';
@@ -231,24 +239,32 @@ export function MemberList({
   }, [bridged, needle]);
   const total = rows.length;
   const extra = bridged.length === 0 ? 0 : 2 + shownBridged.length;
+  // SEC-AUD-046 (D-577): a failed load leads the list (the people known so far, often only you, stay below it).
+  const load = useListLoadFailure('members', guildId);
+  const lead = load.failed ? 1 : 0;
   return (
     <RovingScope selector=".lng-member">
       <VirtualList
         className="lng-members"
         aria-label={t('lounge.memberList.members')}
         role="list"
-        count={total + extra}
+        count={lead + total + extra}
         estimateSize={44}
-        getItemKey={(i) =>
-          i < total
+        getItemKey={(at) => {
+          if (at < lead) return 'load-failed';
+          const i = at - lead;
+          return i < total
             ? (rows[i]?.key ?? i)
             : i === total
               ? 'bridged:h'
               : i === total + 1
                 ? 'bridged:s'
-                : 'bridged:' + String(shownBridged[i - total - 2]?.id)
-        }
-        renderItem={(i) => {
+                : 'bridged:' + String(shownBridged[i - total - 2]?.id);
+        }}
+        renderItem={(at) => {
+          if (at < lead)
+            return <ListLoadFailed message={t('lounge.listLoad.members')} onRetry={load.retry} />;
+          const i = at - lead;
           if (i >= total) {
             if (i === total)
               return (

@@ -18,11 +18,8 @@
 .control[aria-invalid="true"] { border-color: var(--ui-danger); }
 .textarea { resize: vertical; line-height: 1.4; }
 .hint { margin: 0; font-size: 0.75rem; color: var(--ui-text-muted); }
-.error { margin: 0; font-size: 0.75rem; color: var(--ui-danger); }
-:global([data-theme^="lounge-dark"]) .error,
-:global([data-theme="lounge-ash"]) .error,
-:global([data-theme="lounge-onyx"]) .error { color: color-mix(in srgb, var(--ui-danger) 60%, var(--ui-text)); }
-:global([data-theme^="sideroom"]) .error { color: color-mix(in srgb, var(--ui-danger) 60%, var(--ui-text)); }
+/* Danger text on a surface (D-577): contrast-tested in every theme (tokens-contrast.test.ts). */
+.error { margin: 0; font-size: 0.75rem; color: var(--ui-danger-text, var(--ui-danger)); }
 
 .passwordWrap { position: relative; display: flex; }
 .hasToggle { padding-inline-end: 64px; }

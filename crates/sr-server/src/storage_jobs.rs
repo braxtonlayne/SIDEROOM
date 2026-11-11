@@ -19,7 +19,8 @@ use sr_db::{
 use sr_storage::ObjectStorage;
 use sr_storage::index::{
     APPLY_BATCH, DEFAULT_MAX_OBJECTS, IndexStore, JOB_KIND, NameParser, Options, RunReport,
-    Sidecar, SidecarMap, StoreError, VideoFacts, VideoRole, classify_all, is_sidecar_name,
+    Sidecar, SidecarMap, StoreError, TaggedObject, VideoFacts, VideoRole, classify_all,
+    content_tag, is_sidecar_name,
 };
 use sr_storage::mount_storage::MountStorages;
 use sr_storage::mounts::{INSTANCE_MOUNT_ID, MountOwner, MountRepo, MountStatus};
@@ -163,9 +164,14 @@ async fn run_inner(
     budget: Duration,
 ) -> Result<(RunReport, bool), IndexError> {
     let mut listing: Vec<(String, u64)> = Vec::new();
+    // D-571: the fingerprint of each object's bytes, when the provider's entity tag is a content digest.
+    let mut tags: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let complete = storage
-        .walk(max_objects, budget, &mut |k, s| {
+        .walk_tagged(max_objects, budget, &mut |k, s, etag| {
             listing.push((k.to_owned(), s));
+            if let Some(t) = etag.and_then(content_tag) {
+                tags.insert(k.to_owned(), t);
+            }
         })
         .await
         .map_err(|e| IndexError::List(e.to_string()))?;
@@ -196,12 +202,31 @@ async fn run_inner(
     let mut storable: Vec<_> = classified
         .into_iter()
         .filter(|c| !c.ignored && c.class.kind().is_some())
+        .map(|mut c| {
+            c.content_tag = tags.remove(&c.key);
+            c
+        })
         .collect();
-    // Takedowns: a delisted key gets no catalog row.
+    // Takedowns: a delisted key gets no catalog row, and neither do the same bytes under another name (D-571).
     let mut gone: std::collections::HashSet<String> = std::collections::HashSet::new();
     for chunk in storable.chunks(APPLY_BATCH) {
         let keys: Vec<String> = chunk.iter().map(|c| c.key.clone()).collect();
-        gone.extend(store.delisted(mount_id, &keys).await?);
+        let delisted = store.delisted(mount_id, &keys).await?;
+        let tagged: Vec<TaggedObject> = chunk
+            .iter()
+            .filter(|c| !delisted.contains(&c.key))
+            .filter_map(|c| {
+                c.content_tag.as_ref().map(|t| TaggedObject {
+                    key: c.key.clone(),
+                    tag: t.clone(),
+                    size: c.size,
+                })
+            })
+            .collect();
+        gone.extend(delisted);
+        if !tagged.is_empty() {
+            gone.extend(store.byte_matches(mount_id, &tagged).await?);
+        }
     }
     if !gone.is_empty() {
         storable.retain(|c| !gone.contains(&c.key));
@@ -357,6 +382,10 @@ mod tests {
         seen: Mutex<Vec<Classified>>,
         finished: Mutex<Vec<(bool, Option<String>)>>,
         delist: Mutex<Vec<String>>,
+        /// (content tag, size) of the bytes a standing takedown delisted.
+        taken_bytes: Mutex<Vec<(String, u64)>>,
+        /// What `byte_matches` was asked.
+        asked: Mutex<Vec<TaggedObject>>,
     }
 
     #[async_trait]
@@ -367,6 +396,19 @@ mod tests {
         async fn delisted(&self, _m: i64, keys: &[String]) -> Result<Vec<String>, StoreError> {
             let d = self.delist.lock().unwrap();
             Ok(keys.iter().filter(|k| d.contains(k)).cloned().collect())
+        }
+        async fn byte_matches(
+            &self,
+            _m: i64,
+            objects: &[TaggedObject],
+        ) -> Result<Vec<String>, StoreError> {
+            self.asked.lock().unwrap().extend_from_slice(objects);
+            let taken = self.taken_bytes.lock().unwrap();
+            Ok(objects
+                .iter()
+                .filter(|o| taken.iter().any(|(t, s)| *t == o.tag && *s == o.size))
+                .map(|o| o.key.clone())
+                .collect())
         }
         async fn apply(&self, _m: i64, _r: i64, b: &[Classified]) -> Result<u64, StoreError> {
             self.seen.lock().unwrap().extend_from_slice(b);
@@ -518,6 +560,134 @@ mod tests {
         let seen = store.seen.lock().unwrap();
         assert_eq!(seen.len(), 1);
         assert_eq!(seen[0].key, "Movies/B.mp4");
+    }
+
+    /// A bucket whose listing tags every object the way S3 does: the MD5-shaped digest of its bytes.
+    struct S3Tags(ObjectStoreStorage);
+
+    fn s3_tag(bytes: &[u8]) -> String {
+        // Not MD5, but a digest of the bytes in MD5's shape, which is all the indexer looks at.
+        let mut h: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
+        for b in bytes {
+            h = (h ^ u128::from(*b)).wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013b);
+        }
+        format!("\"{h:032x}\"")
+    }
+
+    #[async_trait]
+    impl ObjectStorage for S3Tags {
+        async fn put(&self, key: &str, data: Bytes) -> sr_storage::Result<()> {
+            self.0.put(key, data).await
+        }
+        async fn get(&self, key: &str) -> sr_storage::Result<Bytes> {
+            self.0.get(key).await
+        }
+        async fn get_range(&self, key: &str, s: u64, e: u64) -> sr_storage::Result<Bytes> {
+            self.0.get_range(key, s, e).await
+        }
+        async fn head(&self, key: &str) -> sr_storage::Result<sr_storage::ObjectInfo> {
+            self.0.head(key).await
+        }
+        async fn delete(&self, key: &str) -> sr_storage::Result<()> {
+            self.0.delete(key).await
+        }
+        async fn list(&self, prefix: &str) -> sr_storage::Result<Vec<sr_storage::ObjectInfo>> {
+            let mut out = self.0.list(prefix).await?;
+            for o in &mut out {
+                o.etag = Some(s3_tag(&self.0.get(&o.key).await?));
+            }
+            Ok(out)
+        }
+        async fn presign(
+            &self,
+            m: sr_storage::PresignMethod,
+            key: &str,
+            ttl: Duration,
+        ) -> sr_storage::Result<String> {
+            self.0.presign(m, key, ttl).await
+        }
+        async fn multipart_create(
+            &self,
+            key: &str,
+        ) -> sr_storage::Result<Box<dyn sr_storage::MultipartSession>> {
+            self.0.multipart_create(key).await
+        }
+    }
+
+    #[tokio::test]
+    async fn taken_down_bytes_under_a_new_name_get_no_catalog_row() {
+        // D-571: the leak was taken down as Movies/Leak.mp4; the same bytes come back as Movies/Renamed.mp4.
+        let storage = S3Tags(ObjectStoreStorage::in_memory());
+        let leak = Bytes::from_static(b"the very same film bytes");
+        storage
+            .put("Movies/Renamed.mp4", leak.clone())
+            .await
+            .unwrap();
+        storage
+            .put("Movies/Other.mp4", Bytes::from_static(b"another film"))
+            .await
+            .unwrap();
+        // Same size as the leak, other bytes: the size alone never matches.
+        storage
+            .put(
+                "Movies/Lookalike.mp4",
+                Bytes::from_static(b"the very same film BYTES"),
+            )
+            .await
+            .unwrap();
+        let store = Memory::default();
+        let tag = sr_storage::index::content_tag(&s3_tag(&leak)).unwrap();
+        store
+            .taken_bytes
+            .lock()
+            .unwrap()
+            .push((tag.clone(), leak.len() as u64));
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        let seen = store.seen.lock().unwrap();
+        let mut keys: Vec<&str> = seen.iter().map(|c| c.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["Movies/Lookalike.mp4", "Movies/Other.mp4"]);
+        // The catalog rows carry their fingerprint, so a later takedown of them can record it.
+        assert!(seen.iter().all(|c| c.content_tag.is_some()));
+        let asked = store.asked.lock().unwrap();
+        assert_eq!(asked.len(), 3);
+        assert!(
+            asked
+                .iter()
+                .any(|o| o.key == "Movies/Renamed.mp4" && o.tag == tag)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_listing_without_content_digests_asks_for_no_byte_match() {
+        // The in-memory store tags objects with a counter, which says nothing about the bytes.
+        let storage = ObjectStoreStorage::in_memory();
+        storage
+            .put("Movies/A.mp4", Bytes::from_static(b"x"))
+            .await
+            .unwrap();
+        let store = Memory::default();
+        index_mount(
+            &storage,
+            &store,
+            9,
+            Options::default(),
+            100,
+            Duration::from_secs(30),
+        )
+        .await
+        .unwrap();
+        assert!(store.asked.lock().unwrap().is_empty());
+        assert_eq!(store.seen.lock().unwrap()[0].content_tag, None);
     }
 
     #[tokio::test]

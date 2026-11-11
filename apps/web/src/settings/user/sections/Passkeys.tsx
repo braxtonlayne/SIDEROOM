@@ -8,6 +8,7 @@ import {
   renamePasskey,
   type Passkey,
 } from '../../../api/passkeys';
+import { withSecondFactor } from '../../../admin/reauth';
 import { useT } from '../../../i18n';
 import { createPasskey, isCancelled, passkeysSupported } from '../../../lib/webauthn';
 import { errorText, useResource } from '../api';
@@ -42,7 +43,8 @@ function AddPasskey({
     setBusy(true);
     setError(null);
     try {
-      const { ceremony_id, options } = await passkeyRegisterBegin(password);
+      // D-573: with a factor already on the account, the re-auth dialog collects its proof first.
+      const { ceremony_id, options } = await withSecondFactor(() => passkeyRegisterBegin(password));
       const credential = await createPasskey(options);
       const res = await passkeyRegisterFinish({ ceremony_id, name: name.trim(), credential });
       onAdded(res.passkey, res.recovery_codes);
@@ -254,7 +256,8 @@ export function PasskeysCard() {
         onClose={() => setRemoving(null)}
         onSubmit={async (pw) => {
           if (!removing) return;
-          await deletePasskey(removing.id, pw);
+          // D-573: removing a second factor also proves one (the re-auth dialog, when the window is closed).
+          await withSecondFactor(() => deletePasskey(removing.id, pw));
           res.setData((d) => d?.filter((x) => x.id !== removing.id));
           setRemoving(null);
           toast.show({ title: t('settings.passkeys.removed'), duration: 3000 });

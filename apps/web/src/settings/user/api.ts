@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearUploadsOnSignOut } from '../../lib/uploadLedger';
 import { ApiError, apiFetch, apiPost, clearCsrf, type ApiErrorBody } from '../../api/client';
 import { purgeOnSignOut } from '../../pwa/signOutPurge';
+import { withSecondFactor } from '../../admin/reauth';
 import { forgetSection } from '../../state/session';
 
 // ---- account ----
@@ -93,9 +94,12 @@ export interface ChangePasswordBody {
   /** Default true: every other session and trusted device is signed out. */
   revoke_other_sessions?: boolean;
 }
-/** `POST /sr/auth/password` (204). The current password is checked first and counts toward the lockout. */
+/**
+ * `POST /sr/auth/password` (204). The current password is checked first and counts toward the lockout; with a
+ * second factor on the account the re-auth dialog then collects it (D-573) and the call is sent again.
+ */
 export const changePassword = (body: ChangePasswordBody) =>
-  apiPost<void>('/sr/auth/password', body);
+  withSecondFactor(() => apiPost<void>('/sr/auth/password', body));
 /** `PUT /sr/auth/username`: password re-auth, 2 to 32 of a-z 0-9 _ . and two changes a day. */
 export const changeUsername = (username: string, password: string) =>
   apiFetch<{ username: string }>('/sr/auth/username', {
@@ -131,15 +135,22 @@ export interface TotpEnrollment {
   otpauth_uri: string;
   manual_entry_key: string;
 }
-/** SEC-AUD-022: enrolment re-checks the password first (a session alone cannot add an authenticator). */
+/**
+ * SEC-AUD-022: enrolment re-checks the password first (a session alone cannot add an authenticator). D-573: an
+ * account that already has a passkey proves it too, through the re-auth dialog, like the calls below.
+ */
 export const totpEnroll = (password: string) =>
-  apiPost<TotpEnrollment>('/sr/auth/totp/enroll', { password });
+  withSecondFactor(() => apiPost<TotpEnrollment>('/sr/auth/totp/enroll', { password }));
 export const totpVerify = (code: string) =>
   apiPost<{ recovery_codes: string[] }>('/sr/auth/totp/verify', { code });
 export const totpDisable = (password: string) =>
-  apiFetch<void>('/sr/auth/totp', { method: 'DELETE', json: { password }, retries: 0 });
+  withSecondFactor(() =>
+    apiFetch<void>('/sr/auth/totp', { method: 'DELETE', json: { password }, retries: 0 }),
+  );
 export const regenerateRecoveryCodes = (password: string) =>
-  apiPost<{ recovery_codes: string[] }>('/sr/auth/recovery-codes', { password });
+  withSecondFactor(() =>
+    apiPost<{ recovery_codes: string[] }>('/sr/auth/recovery-codes', { password }),
+  );
 
 export interface Connection {
   type: string;
@@ -578,7 +589,11 @@ export interface DiscordStatus {
   linked: boolean;
 }
 export const discordStatus = () => apiFetch<DiscordStatus>('/sr/auth/discord', { retries: 0 });
-/** Starts the link: the answer is Discord's authorize page, which the browser then opens. */
-export const discordLinkStart = () => apiPost<{ url: string }>('/sr/auth/discord/link', {});
+/**
+ * Starts the link: the answer is Discord's authorize page, which the browser then opens. A new way to sign in takes
+ * the password and, when the account has one, the second factor through the re-auth dialog (D-573).
+ */
+export const discordLinkStart = (password: string) =>
+  withSecondFactor(() => apiPost<{ url: string }>('/sr/auth/discord/link', { password }));
 export const discordUnlink = (password: string) =>
   apiPost<void>('/sr/auth/discord/unlink', { password });

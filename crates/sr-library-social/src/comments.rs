@@ -13,16 +13,22 @@ const NOT_BLOCKED: &str = "NOT EXISTS (SELECT 1 FROM relationships bl WHERE bl.u
      AND NOT EXISTS (SELECT 1 FROM user_ignores ig WHERE ig.user_id = $1 AND ig.target_id = c.user_id)";
 
 const COLS: &str = "c.id, c.series_id, c.chapter_id, c.parent_id, c.user_id, \
-     COALESCE(a.display_name, a.username::text) AS author_name, c.body, c.spoiler, c.like_count, \
+     COALESCE(a.display_name, a.username::text, '') AS author_name, c.body, c.spoiler, c.like_count, \
      (SELECT count(*) FROM reading_comments rc WHERE rc.parent_id = c.id AND NOT rc.hidden) AS reply_count, \
      EXISTS (SELECT 1 FROM reading_comment_likes l WHERE l.comment_id = c.id AND l.user_id = $1) AS liked, \
      (extract(epoch FROM c.created_at) * 1000)::bigint AS created_ms, \
-     (extract(epoch FROM c.edited_at) * 1000)::bigint AS edited_ms";
+     (extract(epoch FROM c.edited_at) * 1000)::bigint AS edited_ms, \
+     c.deleted_at IS NOT NULL AS deleted";
 
-const FROM: &str = "reading_comments c JOIN accounts a ON a.id = c.user_id";
+/// A tombstone (D-572) has no author, so the join is a left one.
+const FROM: &str = "reading_comments c LEFT JOIN accounts a ON a.id = c.user_id";
+
+/// A tombstone is listed only while it has a visible reply.
+const LIVE_OR_ANSWERED: &str = "(c.deleted_at IS NULL OR EXISTS (SELECT 1 FROM reading_comments rc \
+     WHERE rc.parent_id = c.id AND NOT rc.hidden))";
 
 fn comment_from(r: &PgRow, viewer: i64) -> SocialResult<Comment> {
-    let author: i64 = r.try_get("user_id")?;
+    let author: Option<i64> = r.try_get("user_id")?;
     Ok(Comment {
         id: r.try_get("id")?,
         series_id: r.try_get("series_id")?,
@@ -35,9 +41,10 @@ fn comment_from(r: &PgRow, viewer: i64) -> SocialResult<Comment> {
         like_count: r.try_get("like_count")?,
         reply_count: r.try_get("reply_count")?,
         liked: r.try_get("liked")?,
-        mine: author == viewer,
+        mine: author == Some(viewer),
         created_at_ms: r.try_get("created_ms")?,
         edited_at_ms: r.try_get("edited_ms")?,
+        deleted: r.try_get("deleted")?,
     })
 }
 
@@ -90,7 +97,7 @@ impl LibrarySocial {
         if let Some(parent) = input.parent_id {
             let ok: Option<bool> = sqlx::query_scalar(
                 "SELECT parent_id IS NULL FROM reading_comments \
-                 WHERE id = $1 AND series_id = $2 AND chapter_id = $3 AND NOT hidden",
+                 WHERE id = $1 AND series_id = $2 AND chapter_id = $3 AND NOT hidden AND deleted_at IS NULL",
             )
             .bind(parent)
             .bind(series)
@@ -155,7 +162,7 @@ impl LibrarySocial {
         let limit = rules::limit(limit);
         let rows = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {COLS} FROM {FROM} WHERE c.series_id = $2 AND c.chapter_id = $3 \
-               AND c.parent_id IS NULL AND NOT c.hidden AND {NOT_BLOCKED} \
+               AND c.parent_id IS NULL AND NOT c.hidden AND {LIVE_OR_ANSWERED} AND {NOT_BLOCKED} \
                AND ($4::bigint IS NULL OR ((extract(epoch FROM c.created_at) * 1000)::bigint, c.id) < ($4, $5)) \
              ORDER BY created_ms DESC, c.id DESC LIMIT $6"
         )))
@@ -169,7 +176,7 @@ impl LibrarySocial {
         .await?;
         let total: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM reading_comments \
-             WHERE series_id = $1 AND chapter_id = $2 AND NOT hidden",
+             WHERE series_id = $1 AND chapter_id = $2 AND NOT hidden AND deleted_at IS NULL",
         )
         .bind(series)
         .bind(chapter)
@@ -225,7 +232,7 @@ impl LibrarySocial {
         patch: CommentPatch,
     ) -> SocialResult<Comment> {
         let current = self.visible_comment(v.user_id, id).await?;
-        if current.author_id != v.user_id {
+        if current.author_id != Some(v.user_id) {
             return Err(SocialError::NotFound("comment"));
         }
         let body = match &patch.body {
@@ -243,23 +250,63 @@ impl LibrarySocial {
         self.comment_by_id(v.user_id, id).await
     }
 
-    /// Delete one's own comment (its replies go with it).
+    /// Delete one's own comment. D-572: a comment with replies becomes a tombstone (body and author cleared,
+    /// likes dropped, `deleted_at` set) so the replies of others stay; one without replies is deleted, and a
+    /// tombstone goes with its last reply.
     pub async fn delete_comment(&self, v: Viewer, id: i64) -> SocialResult<()> {
-        let n = sqlx::query("DELETE FROM reading_comments WHERE id = $1 AND user_id = $2")
+        let mut tx = self.pool.begin().await?;
+        let parent: Option<i64> = sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT parent_id FROM reading_comments \
+             WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL FOR UPDATE",
+        )
+        .bind(id)
+        .bind(v.user_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(SocialError::NotFound("comment"))?;
+        let has_replies: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM reading_comments WHERE parent_id = $1)",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if has_replies {
+            sqlx::query("DELETE FROM reading_comment_likes WHERE comment_id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "UPDATE reading_comments SET deleted_at = now(), user_id = NULL, body = '', \
+                   spoiler = FALSE, like_count = 0, edited_at = NULL WHERE id = $1",
+            )
             .bind(id)
-            .bind(v.user_id)
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
-        if n == 0 {
-            return Err(SocialError::NotFound("comment"));
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query("DELETE FROM reading_comments WHERE id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            if let Some(p) = parent {
+                sqlx::query(
+                    "DELETE FROM reading_comments p WHERE p.id = $1 AND p.deleted_at IS NOT NULL \
+                       AND NOT EXISTS (SELECT 1 FROM reading_comments r WHERE r.parent_id = p.id)",
+                )
+                .bind(p)
+                .execute(&mut *tx)
+                .await?;
+            }
         }
+        tx.commit().await?;
         Ok(())
     }
 
-    /// Like a comment, or take the like back. Returns the count.
+    /// Like a comment, or take the like back. Returns the count. A deleted comment takes no likes.
     pub async fn set_comment_like(&self, v: Viewer, id: i64, on: bool) -> SocialResult<i32> {
         let c = self.visible_comment(v.user_id, id).await?;
+        if c.deleted {
+            return Err(SocialError::NotFound("comment"));
+        }
         self.actionable_series(v, c.series_id).await?;
         let mut tx = self.pool.begin().await?;
         let changed = if on {
@@ -296,7 +343,10 @@ impl LibrarySocial {
     /// Report a comment for the curators. One report per reporter and comment.
     pub async fn report_comment(&self, v: Viewer, id: i64, reason: &str) -> SocialResult<()> {
         let c = self.visible_comment(v.user_id, id).await?;
-        if c.author_id == v.user_id {
+        if c.deleted {
+            return Err(SocialError::NotFound("comment"));
+        }
+        if c.author_id == Some(v.user_id) {
             return Err(SocialError::Conflict(
                 "you cannot report your own comment".into(),
             ));
@@ -334,7 +384,8 @@ impl LibrarySocial {
                 reason: r.try_get("reason")?,
                 status: r.try_get("status")?,
                 created_at_ms: r.try_get("created_ms")?,
-                comment: self.comment_by_id(0, cid).await.ok(),
+                // A comment its author deleted (a tombstone, D-572) has no content left to show.
+                comment: self.comment_by_id(0, cid).await.ok().filter(|c| !c.deleted),
             });
         }
         Ok(out)

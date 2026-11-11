@@ -27,7 +27,8 @@ macro_rules! comment_cols {
          (SELECT count(*) FROM cinema_comments rc WHERE rc.parent_id = c.id AND NOT rc.hidden) AS reply_count, \
          EXISTS (SELECT 1 FROM cinema_comment_likes l WHERE l.comment_id = c.id AND l.user_id = $1) AS liked, \
          (extract(epoch FROM c.created_at) * 1000)::bigint AS created_ms, \
-         (extract(epoch FROM c.edited_at) * 1000)::bigint AS edited_ms"
+         (extract(epoch FROM c.edited_at) * 1000)::bigint AS edited_ms, \
+         c.deleted_at IS NOT NULL AS deleted"
     };
 }
 
@@ -41,7 +42,7 @@ macro_rules! review_cols {
 }
 
 fn comment_from(r: &PgRow, viewer: i64) -> SocialResult<Comment> {
-    let author: i64 = r.try_get("user_id")?;
+    let author: Option<i64> = r.try_get("user_id")?;
     Ok(Comment {
         id: r.try_get("id")?,
         title_id: r.try_get("title_id")?,
@@ -53,9 +54,10 @@ fn comment_from(r: &PgRow, viewer: i64) -> SocialResult<Comment> {
         like_count: r.try_get("like_count")?,
         reply_count: r.try_get("reply_count")?,
         liked: r.try_get("liked")?,
-        mine: author == viewer,
+        mine: author == Some(viewer),
         created_at_ms: r.try_get("created_ms")?,
         edited_at_ms: r.try_get("edited_ms")?,
+        deleted: r.try_get("deleted")?,
     })
 }
 
@@ -372,7 +374,7 @@ impl CinemaService {
         if let Some(parent) = input.parent_id {
             let ok: Option<bool> = sqlx::query_scalar(
                 "SELECT parent_id IS NULL FROM cinema_comments \
-                 WHERE id = $1 AND title_id = $2 AND episode_id = $3 AND NOT hidden",
+                 WHERE id = $1 AND title_id = $2 AND episode_id = $3 AND NOT hidden AND deleted_at IS NULL",
             )
             .bind(parent)
             .bind(title_id)
@@ -436,7 +438,8 @@ impl CinemaService {
             "SELECT ",
             comment_cols!(),
             " FROM cinema_comments c WHERE c.title_id = $2 AND c.episode_id = $3 AND c.parent_id IS NULL \
-               AND NOT c.hidden AND ",
+               AND NOT c.hidden AND (c.deleted_at IS NULL OR EXISTS (SELECT 1 FROM cinema_comments rc \
+                   WHERE rc.parent_id = c.id AND NOT rc.hidden)) AND ",
             not_blocked!("c"),
             " AND ($4::bigint IS NULL OR ((extract(epoch FROM c.created_at) * 1000)::bigint, c.id) < ($4, $5)) \
              ORDER BY created_ms DESC, c.id DESC LIMIT $6"
@@ -517,7 +520,7 @@ impl CinemaService {
         patch: CommentPatch,
     ) -> SocialResult<Comment> {
         let current = self.visible_comment(v, id).await?;
-        if current.author_id != v.user_id {
+        if current.author_id != Some(v.user_id) {
             return Err(SocialError::NotFound("comment"));
         }
         let body = patch
@@ -540,20 +543,64 @@ impl CinemaService {
         self.comment_by_id(v.user_id, id).await
     }
 
-    /// Delete one's own comment (its replies go with it). Returns whether it existed.
+    /// Delete one's own comment. Returns whether it existed. D-572: a comment with replies becomes a tombstone
+    /// (body and author cleared, likes dropped, `deleted_at` set) so the replies of others stay; one without
+    /// replies is deleted, and a tombstone goes with its last reply.
     pub async fn delete_comment(&self, v: Viewer, id: i64) -> SocialResult<bool> {
-        let n = sqlx::query("DELETE FROM cinema_comments WHERE id = $1 AND user_id = $2")
+        let mut tx = self.pool.begin().await?;
+        let parent: Option<Option<i64>> = sqlx::query_scalar(
+            "SELECT parent_id FROM cinema_comments \
+             WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL FOR UPDATE",
+        )
+        .bind(id)
+        .bind(v.user_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(parent) = parent else {
+            return Ok(false);
+        };
+        let has_replies: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM cinema_comments WHERE parent_id = $1)",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if has_replies {
+            sqlx::query("DELETE FROM cinema_comment_likes WHERE comment_id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query(
+                "UPDATE cinema_comments SET deleted_at = now(), user_id = NULL, body = '', \
+                   spoiler = FALSE, like_count = 0, edited_at = NULL WHERE id = $1",
+            )
             .bind(id)
-            .bind(v.user_id)
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
-        Ok(n > 0)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            sqlx::query("DELETE FROM cinema_comments WHERE id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+            if let Some(p) = parent {
+                sqlx::query(
+                    "DELETE FROM cinema_comments p WHERE p.id = $1 AND p.deleted_at IS NOT NULL \
+                       AND NOT EXISTS (SELECT 1 FROM cinema_comments r WHERE r.parent_id = p.id)",
+                )
+                .bind(p)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+        tx.commit().await?;
+        Ok(true)
     }
 
-    /// Like a comment or take the like back. Returns the new like count.
+    /// Like a comment or take the like back. Returns the new like count. A deleted comment takes no likes.
     pub async fn set_like(&self, v: Viewer, id: i64, on: bool) -> SocialResult<i32> {
-        self.visible_comment(v, id).await?;
+        if self.visible_comment(v, id).await?.deleted {
+            return Err(SocialError::NotFound("comment"));
+        }
         let count: i32 = if on {
             sqlx::query_scalar(
                 "WITH ins AS (INSERT INTO cinema_comment_likes (comment_id, user_id) VALUES ($1, $2) \
@@ -593,7 +640,7 @@ impl CinemaService {
                 "SELECT title_id FROM cinema_reviews WHERE id = $1 AND NOT hidden",
             ),
             ContentKind::Comment => sqlx::query_scalar(
-                "SELECT title_id FROM cinema_comments WHERE id = $1 AND NOT hidden",
+                "SELECT title_id FROM cinema_comments WHERE id = $1 AND NOT hidden AND deleted_at IS NULL",
             ),
         }
         .bind(target)

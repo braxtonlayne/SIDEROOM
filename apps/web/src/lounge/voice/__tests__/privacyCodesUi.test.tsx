@@ -84,7 +84,7 @@ describe('privacy codes popover (VOX-E2E-007, D-250)', () => {
     expect(screen.queryByRole('button', { name: 'End-to-end encryption' })).toBeNull();
   });
 
-  it('SEC-AUD-038 (D-564): a changed key shows the notice until the person is verified again', async () => {
+  it('SEC-AUD-047 (D-578): a new key names a new device or sign-in until the person is verified', async () => {
     localStorage.clear();
     resetE2ee();
     const user = userEvent.setup();
@@ -113,15 +113,19 @@ describe('privacy codes popover (VOX-E2E-007, D-250)', () => {
       }),
     );
     const shield = screen.getByRole('button', {
-      name: 'End-to-end encryption: a privacy code changed',
+      name: 'End-to-end encryption: a new privacy code',
     });
     expect(shield).toHaveAttribute('data-key-changed', 'true');
     await user.click(shield);
-    expect(screen.getByRole('status')).toHaveTextContent(/changed since you last saw it/);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /has a new privacy code .a new device, or a new sign-in./,
+    );
     expect(await axeViolations(document.body)).toEqual([]);
     await user.click(screen.getByRole('button', { name: 'Mark as verified' }));
     await vi.waitFor(() => expect(useE2ee.getState().keyChanged).toEqual([]));
-    expect(screen.queryByText(/changed since you last saw it/)).toBeNull();
+    expect(
+      screen.queryByText(/has a new privacy code .a new device, or a new sign-in./),
+    ).toBeNull();
     expect(
       screen.getByRole('button', { name: 'End-to-end encrypted, everyone verified' }),
     ).toBeInTheDocument();

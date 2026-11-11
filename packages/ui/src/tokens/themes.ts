@@ -61,6 +61,8 @@ export const loungeDark: ThemeDefinition = {
     "--ui-text-faint": "#9aa0aa",
     "--ui-danger": "#da373c",
     "--ui-danger-ink": "#ffffff",
+    // Danger text on a surface (D-577), 4.5:1 or better on every surface; --ui-danger-ink is text on a danger fill.
+    "--ui-danger-text": "#fa777c",
     "--ui-success": "#23a55a",
     "--ui-warning": "#f0b232",
     "--ui-info": "#00a8fc",
@@ -99,6 +101,7 @@ export const loungeLight: ThemeDefinition = {
     "--ui-text-faint": "#62666e",
     "--ui-danger": "#d12d35",
     "--ui-danger-ink": "#ffffff",
+    "--ui-danger-text": "#c22a31",
     "--ui-success": "#1a7f45",
     "--ui-warning": "#a96b00",
     "--ui-info": "#0068c9",
@@ -133,6 +136,8 @@ export const loungeAsh: ThemeDefinition = {
     "--text-muted": "#a2a8b2",
     // #00a8fc is 4.33:1 on #383a40; the same hue lightened to 55% is 4.79:1 (5.57:1 on #2e3035).
     "--text-link": "#1ab2ff",
+    // #fa777c is 4.33:1 on #383a40.
+    "--ui-danger-text": "#ff8a8d",
   },
 };
 
@@ -202,6 +207,7 @@ export const loungeEditorial: ThemeDefinition = {
     "--ui-text-faint": "#a39d8b",
     "--ui-danger": "#b4503f",
     "--ui-danger-ink": "#fff6f2",
+    "--ui-danger-text": "#d97a68",
     "--ui-success": "#8c9a6a",
     "--ui-warning": "#c2b08f",
     "--ui-info": "#9aa8a0",
@@ -253,6 +259,7 @@ export const sideroom: ThemeDefinition = {
     "--ui-accent-ink": "#1b1a15",
     "--ui-danger": "#b4503f",
     "--ui-danger-ink": "#fff6f2",
+    "--ui-danger-text": "#d97a68",
     "--ui-success": "#8c9a6a",
     "--ui-warning": "#c2b08f",
     "--ui-info": "#9aa8a0",
