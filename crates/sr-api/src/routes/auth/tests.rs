@@ -2140,7 +2140,7 @@ async fn discord_sign_in_asks_a_passkey_only_account_for_its_second_factor() {
     // SEC-AUD-001: the Discord path checked TOTP only, so a passkey-only account got a session.
     let h = discord_harness();
     h.add_account(7, "sam", "sam@example.org", AccountState::Active);
-    h.store.link_discord(7, 70, "d-7").await.unwrap();
+    h.store.link_discord(7, 70, "d-7", 0).await.unwrap();
     let (location, cookies) = discord_sign_in(&h, "d-7", None).await;
     assert_eq!(location, "/");
     assert!(cookies.iter().any(|c| c.starts_with("sr_session=")));
@@ -2176,7 +2176,7 @@ async fn pending_second_factor_methods_come_from_the_cookie_not_the_url() {
     // SEC-AUD-017 (D-557): the 2FA page learns the methods from the pending `sr_mfa` cookie.
     let h = discord_harness();
     h.add_account(8, "pat", "pat@example.org", AccountState::Active);
-    h.store.link_discord(8, 80, "d-8").await.unwrap();
+    h.store.link_discord(8, 80, "d-8", 0).await.unwrap();
     h.store
         .passkey_insert(super::store::PasskeyRecord {
             id: 81,
@@ -2876,15 +2876,15 @@ async fn discord_link_status_start_and_unlink() {
 
     // Link through the store (the callback does the same after Discord answers).
     assert_eq!(
-        h.store.link_discord(1, 77, "999").await.unwrap(),
+        h.store.link_discord(1, 77, "999", 0).await.unwrap(),
         DiscordLink::Linked
     );
     assert_eq!(
-        h.store.link_discord(2, 78, "999").await.unwrap(),
+        h.store.link_discord(2, 78, "999", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
     assert_eq!(
-        h.store.link_discord(1, 79, "888").await.unwrap(),
+        h.store.link_discord(1, 79, "888", 0).await.unwrap(),
         DiscordLink::AlreadyLinked
     );
     let st = h.get("/api/v1/sr/auth/discord").session(&s).send().await;
@@ -2932,12 +2932,12 @@ async fn discord_link_status_start_and_unlink() {
     // Sign-in with the unlinked identity no longer finds the account, and nobody else can take it.
     assert!(h.store.find_by_discord("999").await.unwrap().is_none());
     assert_eq!(
-        h.store.link_discord(2, 80, "999").await.unwrap(),
+        h.store.link_discord(2, 80, "999", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
     // The owner can link it again.
     assert_eq!(
-        h.store.link_discord(1, 81, "999").await.unwrap(),
+        h.store.link_discord(1, 81, "999", 0).await.unwrap(),
         DiscordLink::Linked
     );
     assert!(h.store.find_by_discord("999").await.unwrap().is_some());
