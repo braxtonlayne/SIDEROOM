@@ -399,8 +399,12 @@ describe('review queues hub', () => {
       ),
     );
     openAdmin('review');
-    await screen.findByRole('tab', { name: 'Apps' });
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Cinema', 'Apps']);
+    await screen.findByRole('tab', { name: 'App queue' });
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'Cinema',
+      'App queue',
+      'All applications',
+    ]);
   });
 
   it('approves a developer application with a note', async () => {

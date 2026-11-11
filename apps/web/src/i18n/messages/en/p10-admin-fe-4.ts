@@ -1,7 +1,7 @@
 export default {
   'admin.reviewHub.tabsLabel': 'Review queues',
   'admin.reviewHub.tabCinema': 'Cinema',
-  'admin.reviewHub.tabApps': 'Apps',
+  'admin.reviewHub.tabApps': 'App queue',
   'admin.reviewHub.tabPackages': 'Packages',
   'admin.reviewHub.tabDirectory': 'Directory',
   'admin.reviewHub.packagesTitle': 'Package review',
