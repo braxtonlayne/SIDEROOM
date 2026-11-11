@@ -502,3 +502,10 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-063** [BE] The D-590 texts say what to do: the 24-hour shelf alert prints the delist day as `YYYY-MM-DD UTC`; the aged delisting quotes the last answer without "Try again later." and tells the lister (and staff) to list it again once the shelf is answering again (D-593). Handoff `fix-p58-texts.md`.
 - [x] **SEC-AUD-064** [FE] The Admin Review hub tabs are named "App queue" and "All applications" (D-594). Handoff `fix-p58-texts.md`.
 - [x] **SEC-AUD-065** [BE][FE] D-595..D-597: the staff takedown detail shows a derived, read-only `digest_state` per disabled storage-object item (`recorded`, `pending`, `waiting_mount`, `tag_only`) with a text line; a mount Test never moves a disabled mount; leaving `disabled` for `active` or `failing`, and deleting or erasing a disabled (or delisted-from-disabled) mount, queues the waiting digest jobs; the SQL job-id sequence is `jobs_sql_id_seq` (`sr_db::jobs::SQL_ID_SEQUENCE`). Handoff `fix-p58-store.md`.
+- [x] **SEC-AUD-073** [BE] D-598: the posting-restriction lookup fails closed: `AccountRestrictions::restricted_from_posting` returns `Result<bool, String>`, and an error answers 503 (`ApiResourceOverloaded`) on every posting route. Handoff `fix-p59-chat.md`.
+- [x] **SEC-AUD-074** [BE] AutoMod `extract_hosts` trims trailing dots, so `https://bad.net./x` matches the Links blocklist.
+- [x] **SEC-AUD-075** [BE] "Delete messages" on ban also covers messages inside threads.
+- [x] **SEC-AUD-076** [BE] D-607: moving a webhook needs VIEW_CHANNEL and MANAGE_WEBHOOKS in the destination channel.
+- [x] **SEC-AUD-077** [BE] D-602 (API half): scheduled events of a channel the caller cannot view are left out of list and answer 404 on get, RSVP and the interested list. The gateway half is SEC-AUD-072.
+- [x] **SEC-AUD-078** [BE] D-604: approving an application of a banned user is refused (`UserBanned`, nothing changes), and placing a ban rejects the user's pending applications in the ban transaction.
+- [x] **SEC-AUD-079** [BE] A mirrored Discord channel whose SIDE ROOM parent cannot be read is not created (fail closed).
