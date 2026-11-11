@@ -55,7 +55,16 @@ Base: `main` `9d83ee2c`. One migration, `2590_audit_append_only.sql`. No new rou
 - `sr-db/tests/audit_append_only.rs` (TRUNCATE on all ten tables, DELETE/UPDATE on the two audit tables); the
   retention purge test is `settings_repo.rs::an_audit_purge_that_removed_rows_is_itself_audited`.
 
-RESULTS_PLACEHOLDER
+## Tests run (all green, Postgres scratch DB `sr_p59_mod`)
+- `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-moderation -p sr-admin -p sr-api -p sr-db --all-targets -- -D warnings`.
+- `cargo test -p sr-moderation -- --include-ignored --test-threads=1` (every test file; age 3, db 17, graduated 11,
+  takedowns 17, others), `-p sr-admin` (80), `-p sr-db --test audit_append_only --test settings_repo --test admin_repo
+  --test admin_ext_repo --test apps_repo --test invoice_retention` (incl. the D-563 purge tests),
+  `-p sr-api --lib` (845) and `routes::moderation` with `--include-ignored` (19, the appeal route over Postgres),
+  `-p sr-api --test route_matrix` (6), `-p sr-server --test immutable_rules` (25, runs the new migration).
+- Not run: the full authz matrix, the whole sr-db suite, web gates (no web code touched). I did not run the new tests
+  against `main` to watch them fail; each asserts a behaviour that did not exist (a missing log row, a missing guard,
+  a second Ok), so they fail by construction, but that was not demonstrated.
 
 ## Proposed threat-model rows (the commander numbers them)
 - **Staff self-protection.** Threat: automatic or tool-driven moderation (invite-subtree freeze, branch freeze, age
