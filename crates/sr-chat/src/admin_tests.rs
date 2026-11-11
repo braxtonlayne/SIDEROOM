@@ -656,6 +656,60 @@ async fn member_edit_kick_and_ban() {
     assert!(f.svc.get_guild(BOB, f.guild).await.is_err());
 }
 
+/// SEC-AUD-075: "delete messages" on a ban also hides what the member said inside threads.
+#[tokio::test]
+async fn ban_purge_hides_messages_in_threads() {
+    use crate::threads::{rules::StartThread, service::ThreadService};
+    let f = fx().await;
+    let clock: Arc<dyn Clock> = Arc::new(ManualClock::new(T0));
+    let threads = ThreadService::new(
+        f.svc.repo_for_tests().clone(),
+        clock.clone(),
+        SnowflakeGenerator::new(clock, 1, 2).unwrap(),
+    );
+    let started = threads
+        .start_standalone(
+            OWNER,
+            f.general,
+            StartThread {
+                name: "Planning".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let thread = started.view.channel.id;
+    let in_thread = f
+        .svc
+        .send_message(CAROL, thread, say("in the thread"))
+        .await
+        .unwrap();
+    let in_channel = f
+        .svc
+        .send_message(CAROL, f.general, say("in the channel"))
+        .await
+        .unwrap();
+
+    let out = f
+        .svc
+        .ban_member_purging(OWNER, f.guild, CAROL, None, 3600)
+        .await
+        .unwrap();
+    let hidden = |ch: ChannelId| {
+        out.purged
+            .iter()
+            .find(|(c, _)| *c == ch)
+            .map(|(_, ids)| ids.clone())
+            .unwrap_or_default()
+    };
+    assert_eq!(hidden(f.general), vec![in_channel.id]);
+    assert_eq!(
+        hidden(thread),
+        vec![in_thread.id],
+        "the thread message is hidden too"
+    );
+}
+
 #[tokio::test]
 async fn timeouts_follow_hierarchy() {
     let f = fx().await;

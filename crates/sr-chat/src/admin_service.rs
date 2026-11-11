@@ -852,13 +852,21 @@ impl<R: ChatRepository + GuildAdminRepository> ChatService<R> {
         self.repo.insert_ban(&ban).await?;
         let mut purged = Vec::new();
         if delete_message_seconds > 0 {
-            let channels: Vec<ChannelId> = self
+            // Threads are channels too, and `list_guild_channels` leaves them out (SEC-AUD-075).
+            let mut channels: Vec<ChannelId> = self
                 .repo
                 .list_guild_channels(id)
                 .await?
                 .into_iter()
                 .map(|ch| ch.id)
                 .collect();
+            channels.extend(
+                self.repo
+                    .list_guild_threads(id)
+                    .await?
+                    .into_iter()
+                    .map(|ch| ch.id),
+            );
             let now = self.now();
             let since = now - i64::from(delete_message_seconds) * 1000;
             purged = self
