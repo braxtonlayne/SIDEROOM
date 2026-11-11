@@ -166,6 +166,32 @@ impl MoneyCtx {
         )))
     }
 
+    /// D-581: a pool level is perks for the server's owner, so a staff member never grants one to a server they own
+    /// (the Owner included). A server the caller only belongs to is fine. Logged as denied.
+    pub async fn refuse_own_pool_grant(&self, guild_id: i64) -> Result<(), HttpError> {
+        let access = self
+            .svc()
+            .guild_access(self.user(), guild_id)
+            .await
+            .map_err(map_pay)?;
+        if !access.owner {
+            return Ok(());
+        }
+        let _ = self
+            .staff
+            .svc()
+            .record_denied(
+                &self.staff.caller,
+                "donations.entitlements.grant",
+                Some(("guild", guild_id)),
+                "a server pool grant to a server the caller owns",
+            )
+            .await;
+        Err(admin_err(sr_admin::AdminError::Forbidden(
+            "You cannot grant a server level to a server you own. Another staff member has to do it.".into(),
+        )))
+    }
+
     /// A trimmed, mandatory reason for a state-changing action.
     pub fn reason(reason: Option<&str>) -> Result<String, HttpError> {
         sr_admin::AdminService::require_reason(reason).map_err(admin_err)

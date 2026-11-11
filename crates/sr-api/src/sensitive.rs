@@ -222,6 +222,40 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         "/moderation/appeals/{appeal_id}/decision",
         "Uphold or overturn a ban appeal (an overturn unbans)",
     ),
+    // SEC-AUD-051 (D-581): the case warning is the member warning from another screen, the data-request
+    // restriction places and ends a member's hiding, an application's suspension stops its owner's bot everywhere.
+    row(
+        "restrict.case_warn",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/moderation/cases/{case_id}/warn",
+        "Warn the member a case is about",
+    ),
+    row(
+        "restrict.data_hide",
+        "Member restriction",
+        Staff,
+        "POST",
+        "/admin/data-requests/{request_id}/restriction",
+        "Hide or show a member's shared activity while their data request is reviewed",
+    ),
+    row(
+        "app.suspend",
+        "Application suspension",
+        Staff,
+        "POST",
+        "/admin/developers/apps/{application_id}/suspend",
+        "Switch an application off",
+    ),
+    row(
+        "app.unsuspend",
+        "Application suspension",
+        Staff,
+        "POST",
+        "/admin/developers/apps/{application_id}/unsuspend",
+        "Lift an application's suspension",
+    ),
     row(
         "suspend.account",
         "Account suspension",
@@ -366,7 +400,7 @@ pub const SENSITIVE_ACTIONS: &[SensitiveAction] = &[
         Staff,
         "POST",
         "/admin/donations/entitlements",
-        "Grant a Patron or server perk by hand (never to the caller's own account, D-574)",
+        "Grant a Patron or server perk by hand (never to the caller's own account, or a server they own, D-574 and D-581)",
     ),
     row(
         "entitlement.revoke",
@@ -617,6 +651,11 @@ mod tests {
             "/admin/donations/entitlements",
             "/admin/accounts/{account_id}/suspend",
             "/admin/accounts/{account_id}/unsuspend",
+            // D-581
+            "/moderation/cases/{case_id}/warn",
+            "/admin/data-requests/{request_id}/restriction",
+            "/admin/developers/apps/{application_id}/suspend",
+            "/admin/developers/apps/{application_id}/unsuspend",
         ];
         let matrix = include_str!("../tests/route_matrix.tsv");
         let mut checked = 0;
@@ -635,7 +674,10 @@ mod tests {
             );
             checked += 1;
         }
-        assert!(checked >= 17, "only {checked} routes in the D-574 families");
+        assert!(
+            checked >= 21,
+            "only {checked} routes in the D-574 and D-581 families"
+        );
     }
 
     #[test]

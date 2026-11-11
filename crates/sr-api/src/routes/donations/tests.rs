@@ -745,6 +745,54 @@ async fn a_staff_member_never_grants_a_perk_to_their_own_account() {
     }
 }
 
+/// SEC-AUD-051 (D-581): a server pool grant to a server the caller owns is 403 `50001` for every staff member, the
+/// Owner included, and is logged as denied; a grant to a server the caller only belongs to goes through.
+#[tokio::test]
+async fn a_staff_member_never_grants_a_pool_level_to_a_server_they_own() {
+    let e = env(false).await;
+    const MONEY_OWNS: i64 = 701;
+    const OWNER_OWNS: i64 = 702;
+    e.repo.add_member(MONEY, MONEY_OWNS, true);
+    e.repo.add_member(OWNER, OWNER_OWNS, true);
+    // Both only belong to the server alice owns.
+    e.repo.add_member(MONEY, GUILD, false);
+    e.repo.add_member(OWNER, GUILD, false);
+    let pool = |guild: i64| json!({ "kind": "server_pool", "guild_id": guild.to_string(), "usd_cents": 500, "reason": "pool" });
+    for (who, own) in [(MONEY, MONEY_OWNS), (OWNER, OWNER_OWNS)] {
+        let (s, r) = e
+            .post(who, "/admin/donations/entitlements", pool(own))
+            .await;
+        assert_eq!(
+            (s, r["code"].as_u64()),
+            (StatusCode::FORBIDDEN, Some(50_001)),
+            "{who}: {r}"
+        );
+        let (_, lst) = e
+            .get(MONEY, "/admin/donations/entitlements?kind=server_pool")
+            .await;
+        assert!(
+            lst["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|g| g["guild_id"] != own.to_string()),
+            "nothing granted: {lst}"
+        );
+        // A server the caller only belongs to stays allowed.
+        let (s, g) = e
+            .post(who, "/admin/donations/entitlements", pool(GUILD))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{who}: {g}");
+    }
+    let (_, log) = e.get(OWNER, "/admin/access-log?limit=100").await;
+    let denied = log["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|i| i["action"] == "donations.entitlements.grant" && i["kind"] == "denied")
+        .count();
+    assert_eq!(denied, 2, "{log}");
+}
 #[tokio::test]
 async fn staff_wallet_config_invoices_resolution_and_grants() {
     let e = env(false).await;
