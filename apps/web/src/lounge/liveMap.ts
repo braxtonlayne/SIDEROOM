@@ -50,6 +50,7 @@ export const PERM = {
   ADMINISTRATOR: 1n << 3n,
   MANAGE_CHANNELS: 1n << 4n,
   MANAGE_GUILD: 1n << 5n,
+  MANAGE_ROLES: 1n << 28n,
   SEND_MESSAGES: 1n << 11n,
   EMBED_LINKS: 1n << 14n,
   USE_LIBRARY_EMBEDS: 1n << 58n,
@@ -96,6 +97,7 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
   return {
     manageGuild: has(PERM.MANAGE_GUILD),
     manageChannels: has(PERM.MANAGE_CHANNELS),
+    manageRoles: has(PERM.MANAGE_ROLES),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     moderate: has(PERM.MODERATE_MEMBERS),
     manageMessages: has(PERM.MANAGE_MESSAGES),

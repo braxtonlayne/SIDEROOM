@@ -4,13 +4,19 @@ import { overwriteApplies } from '../sections/Channels';
 import { bits, capture, http, HttpResponse, MANAGE, openSettings, seed, server } from './helpers';
 
 // The Lounge's per-channel permissions (overwrites applied) come from its data hook; one voice channel is added here.
-const loungeVoice = vi.hoisted(() => ({ channel: null as null | object }));
+const loungeVoice = vi.hoisted(() => ({
+  channel: null as null | object,
+  /** Channel-level permissions by channel id, as the Lounge computes them with overwrites applied. */
+  perms: {} as Record<string, object>,
+}));
 vi.mock('../../../lounge/data', async (orig) => {
   const real = await orig<typeof import('../../../lounge/data')>();
   return {
     ...real,
     useChannels: (g: string | undefined) => {
-      const list = real.useChannels(g);
+      const list = real
+        .useChannels(g)
+        .map((c) => (loungeVoice.perms[c.id] ? { ...c, permissions: loungeVoice.perms[c.id] } : c));
       return loungeVoice.channel ? [...list, loungeVoice.channel as never] : list;
     },
   };
@@ -47,6 +53,7 @@ const channels = (over: Record<string, object> = {}) => [
 
 afterEach(() => {
   loungeVoice.channel = null;
+  loungeVoice.perms = {};
 });
 
 describe('Channels', () => {
@@ -164,6 +171,32 @@ describe('Channels', () => {
     );
     await waitFor(() => expect(cap.calls).toHaveLength(1));
     expect(cap.calls[0]!.body).toEqual({ lock_permissions: true });
+  });
+});
+
+describe('Sync with category follows the channel-level Manage Roles (D-586)', () => {
+  const openPerms = async () => {
+    server.use(http.get('*/api/v1/guilds/g1/channels', () => HttpResponse.json(channels())));
+    await openSettings('channels');
+    await userEvent.click(await screen.findByRole('button', { name: '# general' }));
+    await userEvent.click(await screen.findByRole('tab', { name: 'Permissions' }));
+  };
+
+  it('is disabled with the hint when a channel overwrite denies it despite the server-level grant', async () => {
+    seed({ perms: [MANAGE.channels, MANAGE.roles] });
+    loungeVoice.perms = { c1: { manageRoles: false } };
+    await openPerms();
+    expect(await screen.findByText(/need the Manage Roles permission/)).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: /Sync permissions with category/ })).toBeDisabled();
+  });
+
+  it('is enabled when the channel grants it, even without the server-level bit', async () => {
+    seed({ perms: [MANAGE.channels] });
+    loungeVoice.perms = { c1: { manageRoles: true } };
+    await openPerms();
+    const sw = await screen.findByRole('switch', { name: /Sync permissions with category/ });
+    expect(sw).toBeEnabled();
+    expect(screen.queryByText(/need the Manage Roles permission/)).toBeNull();
   });
 });
 
