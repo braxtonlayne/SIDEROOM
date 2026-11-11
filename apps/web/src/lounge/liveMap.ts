@@ -97,7 +97,6 @@ export function toGuildPermissions(base: bigint): GuildPermissions {
   return {
     manageGuild: has(PERM.MANAGE_GUILD),
     manageChannels: has(PERM.MANAGE_CHANNELS),
-    manageRoles: has(PERM.MANAGE_ROLES),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     moderate: has(PERM.MODERATE_MEMBERS),
     manageMessages: has(PERM.MANAGE_MESSAGES),
@@ -174,6 +173,7 @@ function permissionsFromBits(bits: bigint): ChannelPermissions {
     pinMessages: has(PERM.PIN_MESSAGES),
     mentionEveryone: has(PERM.MENTION_EVERYONE),
     manageChannels: has(PERM.MANAGE_CHANNELS),
+    manageRoles: has(PERM.MANAGE_ROLES),
     createInvite: has(PERM.CREATE_INSTANT_INVITE),
     sendTts: has(PERM.SEND_TTS_MESSAGES),
     createThreads: has(PERM.CREATE_PUBLIC_THREADS),

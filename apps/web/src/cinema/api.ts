@@ -357,7 +357,10 @@ export const getComments = async (id: string) => {
   );
   return r.items ?? r.comments ?? [];
 };
-export const postComment = (id: string, body: { body: string; spoiler: boolean }) =>
+export const postComment = (
+  id: string,
+  body: { body: string; spoiler: boolean; parent_id?: string },
+) =>
   apiFetch<Comment>(`/cinema/titles/${enc(id)}/comments`, {
     method: 'POST',
     json: body,
