@@ -595,11 +595,19 @@ async fn deleting_the_message_removes_the_entry_and_the_copy_through_the_bus() {
         async move { shelf.list("").await.unwrap().is_empty() }
     })
     .await;
-    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM scrapbook_removals")
-        .fetch_one(&f.pool)
-        .await
-        .unwrap();
-    assert_eq!(rows, 0, "a clean cascade leaves no removal row behind");
+    // The removal row is deleted just after the copy goes: wait for it rather than racing it.
+    let pool = f.pool.clone();
+    wait_until("a clean cascade to leave no removal row behind", || {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>("SELECT count(*) FROM scrapbook_removals")
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+                == 0
+        }
+    })
+    .await;
 
     // The cascade does not depend on the module: switch it off and a second message still cleans up.
     let m2 = message_with_file(&f, "again", "h.png", 12).await;
