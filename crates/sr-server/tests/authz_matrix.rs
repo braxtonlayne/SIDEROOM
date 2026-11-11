@@ -5001,6 +5001,9 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
             r#"{"case_id":"{case_id}"}"#
         }
         ("POST", "/admin/data-requests") => r#"{"kind":"export","account_id":"{user_id}"}"#,
+        // SEC-AUD-087: the person-graph actions guard every account they touch, and the generic id fill ("1") is the
+        // system user, which the guard refuses: link a plain member instead.
+        ("POST", "/admin/persons/{person_id}/link") => r#"{"account_id":"{user_id}"}"#,
         ("POST", "/channels/{channel_id}/attachments") => {
             r#"{"files":[{"filename":"a.txt","file_size":3}]}"#
         }
