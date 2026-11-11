@@ -21,12 +21,12 @@ pub const SWEEP_JOB_ID: i64 = 2120;
 /// How often the job runs.
 pub const INTERVAL: Duration = Duration::from_secs(3600);
 
-/// A timeout or a case freeze in force stops posting. A failed lookup locks nobody out.
+/// A timeout or a case freeze in force stops posting. A failed lookup is an error that the posting routes answer with 503 (D-598); it never lets a post through.
 pub struct PgRestrictions(pub PgPool);
 
 #[async_trait]
 impl AccountRestrictions for PgRestrictions {
-    async fn restricted_from_posting(&self, user_id: i64) -> bool {
+    async fn restricted_from_posting(&self, user_id: i64) -> Result<bool, String> {
         sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS (SELECT 1 FROM member_restrictions WHERE account_id = $1 AND state = 'active' \
              AND ends_at > now() AND kind IN ('timeout', 'case_freeze'))",
@@ -34,7 +34,7 @@ impl AccountRestrictions for PgRestrictions {
         .bind(user_id)
         .fetch_one(&self.0)
         .await
-        .unwrap_or(false)
+        .map_err(|e| e.to_string())
     }
 }
 

@@ -35,10 +35,11 @@ pub enum AuthKind {
 }
 
 /// MOD-GRD-001: asks whether a timeout or a case freeze is in force on an account. Registered as an
-/// `AppState` extension (`RestrictionGate`) by the server; without one nobody is restricted.
+/// `AppState` extension (`RestrictionGate`) by the server; without one nobody is restricted. A lookup that errors
+/// fails closed (D-598): the posting routes answer 503 and let nothing through.
 #[async_trait::async_trait]
 pub trait AccountRestrictions: Send + Sync {
-    async fn restricted_from_posting(&self, user_id: i64) -> bool;
+    async fn restricted_from_posting(&self, user_id: i64) -> Result<bool, String>;
 }
 
 /// The extension holding the restriction check.
@@ -135,10 +136,14 @@ impl Principal {
         let Some(gate) = state.extension::<RestrictionGate>() else {
             return Ok(());
         };
-        if gate.0.restricted_from_posting(self.user_id).await {
-            return Err(ErrorCode::SrAccountRestricted.into());
+        match gate.0.restricted_from_posting(self.user_id).await {
+            Ok(false) => Ok(()),
+            Ok(true) => Err(ErrorCode::SrAccountRestricted.into()),
+            Err(e) => {
+                tracing::error!(error = %e, user = self.user_id, "restriction lookup failed; refusing the post");
+                Err(ErrorCode::ApiResourceOverloaded.into())
+            }
         }
-        Ok(())
     }
 }
 
