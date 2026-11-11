@@ -6,12 +6,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sr_activities::{ChannelAccess, ChannelPerms};
 use sr_api::routes::activities::{ActivityFetcher, Fetched, Forwarded};
+use sr_chat::ChannelType;
 use sr_chat::repo::ChatRepository;
 use sr_chat::threads::access::{
     guild_channel_permissions, needs_thread_membership, overwrite_source,
     permissions_with_overwrites,
 };
-use sr_chat::ChannelType;
 use sr_core::permissions::Permissions;
 use sr_core::{ChannelId, Clock, UserId};
 use sr_net::{ForwardMethod, NetError, Policy, SafeClient};
