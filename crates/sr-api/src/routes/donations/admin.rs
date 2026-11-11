@@ -482,8 +482,9 @@ pub async fn entitlements(
     Ok(Json(GrantPage { items, next_before }))
 }
 
-/// Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused
-/// with 403 for every staff member, the Owner included (D-574).
+/// Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account, and a
+/// pool grant to a server the caller owns, are refused with 403 for every staff member, the Owner included
+/// (D-574, D-581).
 #[utoipa::path(
     post, path = "/admin/donations/entitlements", operation_id = "admin_donations_grant",
     request_body = GrantBody,
@@ -514,6 +515,7 @@ pub async fn grant(ctx: MoneyCtx, Json(b): Json<GrantBody>) -> ApiResult<Json<Gr
         }
         GrantKind::ServerPool => {
             let guild = id(b.guild_id.as_deref().unwrap_or(""), "server")?;
+            ctx.refuse_own_pool_grant(guild).await?;
             if permanent || !b.usd_cents.is_some_and(|c| (1..=100_000_000).contains(&c)) {
                 return Err(bad("usd_cents", "Give the contribution in cents."));
             }

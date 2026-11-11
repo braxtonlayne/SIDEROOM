@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { CreateChannelDialog } from '../../../lounge/CreateChannelDialog';
 import { useChannels as useLoungeChannels } from '../../../lounge/data';
+import { loadPermEngine } from '../../../lounge/permEngine';
 import { useGuild, useMembers } from '../../../store';
 import * as api from '../api';
 import { useWholeMirrors } from '../bridge/mirrors';
@@ -72,6 +73,13 @@ function deepLink(key: string): string | null {
 export function ChannelsSection({ guildId, viewer }: SectionProps) {
   const t = useT();
   const res = useResource(`channels:${guildId}`, () => api.listChannels(guildId));
+  // The channel-level permission answers (D-535, D-586) need the WASM engine, which the Lounge shell only starts
+  // when the Lounge is entered first; opening settings directly must start it too.
+  useEffect(() => {
+    loadPermEngine().catch(() => {
+      /* stays on the server-level answers */
+    });
+  }, []);
   useGuildEvents(
     guildId,
     ['CHANNEL_CREATE', 'CHANNEL_UPDATE', 'CHANNEL_DELETE'],
@@ -677,7 +685,9 @@ function ChannelPermissions({
   ];
   const current = targets.find((tg) => tkey(tg) === targetKey) ?? targets[0];
 
-  const needsManageRoles = !viewer.can('MANAGE_ROLES');
+  // D-586: the channel-level answer (an overwrite can deny it), else the server-level one.
+  const loungeChannel = useLoungeChannels(guildId).find((c) => c.id === channel.id);
+  const needsManageRoles = !(loungeChannel?.permissions?.manageRoles ?? viewer.can('MANAGE_ROLES'));
   const sync = async () => {
     const ok = await action.run(async () => {
       await api.modifyChannel(channel.id, { lock_permissions: true });

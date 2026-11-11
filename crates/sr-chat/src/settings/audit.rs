@@ -125,6 +125,8 @@ audit_actions! {
     BridgePermissionReverted = 222,
     BridgeConflict = 223,
     BridgeObjectRemoved = 224,
+    // The manifest re-check delisted a server cartridge (`arcade.cartridge_delisted`, D-582); the system acts.
+    ArcadeCartridgeDelisted = 230,
 }
 
 /// One changed key, Discord shape: `{key, old_value, new_value}`.
@@ -315,6 +317,7 @@ mod tests {
             (AuditAction::BridgePermissionReverted, 222),
             (AuditAction::BridgeConflict, 223),
             (AuditAction::BridgeObjectRemoved, 224),
+            (AuditAction::ArcadeCartridgeDelisted, 230),
         ] {
             assert_eq!(a.code(), c);
         }

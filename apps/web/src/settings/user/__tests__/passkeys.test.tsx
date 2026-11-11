@@ -195,4 +195,53 @@ describe('Passkeys card', () => {
     expect(begins).toEqual([{ password: 'pw' }, { password: 'pw' }]);
     expect(create).toHaveBeenCalledOnce();
   });
+
+  // D-580: a passkey is a second factor, so recovery codes can be renewed whenever one exists.
+  describe('Regenerate recovery codes', () => {
+    const regenButton = (card: HTMLElement | null) =>
+      within(card as HTMLElement).queryByRole('button', { name: 'Regenerate recovery codes' });
+
+    it('sits in the passkeys card when the authenticator is off and a passkey exists', async () => {
+      signedIn({ mfa_enabled: false });
+      accountEndpoints([key('1', 'Work laptop')]);
+      let body: unknown;
+      server.use(
+        http.post('*/api/v1/sr/auth/recovery-codes', async ({ request }) => {
+          body = await request.json();
+          return HttpResponse.json({ recovery_codes: ['PK-0001', 'PK-0002'] });
+        }),
+      );
+      const user = userEvent.setup();
+      openSettings('account');
+      await screen.findByRole('list', { name: 'Passkeys' }, { timeout: 5000 });
+      expect(regenButton(document.getElementById('us-2fa'))).not.toBeInTheDocument();
+      const button = regenButton(document.getElementById('us-passkeys'));
+      expect(button).toBeInTheDocument();
+      await user.click(button as HTMLElement);
+      const dialog = await screen.findByRole('dialog', { name: 'Regenerate recovery codes' });
+      await user.type(within(dialog).getByLabelText('Current password'), 'pw');
+      await user.click(within(dialog).getByRole('button', { name: 'Regenerate' }));
+      expect(await screen.findByText('PK-0001')).toBeInTheDocument();
+      expect(body).toEqual({ password: 'pw' });
+    });
+
+    it('is not offered without any second factor', async () => {
+      signedIn({ mfa_enabled: false });
+      accountEndpoints([]);
+      openSettings('account');
+      await screen.findByText('No passkeys yet.');
+      expect(
+        screen.queryByRole('button', { name: 'Regenerate recovery codes' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('stays in the two-factor card, and only there, while the authenticator is on', async () => {
+      signedIn({ mfa_enabled: true });
+      accountEndpoints([key('1', 'Work laptop')]);
+      openSettings('account');
+      await screen.findByRole('list', { name: 'Passkeys' }, { timeout: 5000 });
+      expect(regenButton(document.getElementById('us-2fa'))).toBeInTheDocument();
+      expect(regenButton(document.getElementById('us-passkeys'))).not.toBeInTheDocument();
+    });
+  });
 });

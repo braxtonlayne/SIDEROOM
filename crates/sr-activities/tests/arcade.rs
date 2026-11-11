@@ -12,7 +12,8 @@ use std::sync::{
 use async_trait::async_trait;
 
 use sr_activities::arcade::{
-    ArcadeService, CartridgeInput, CartridgeObjects, ComingSoonInput, FeatureInput, Tier, TipInput,
+    ArcadeService, CartridgeInput, CartridgeObjects, CartridgeReadError, ComingSoonInput,
+    FeatureInput, Tier, TipInput,
 };
 use sr_activities::model::{ConfigInput, UrlMapping};
 use sr_activities::{ActivityError, ActivityService, ChannelAccess, ChannelPerms};
@@ -474,11 +475,11 @@ struct Files(std::sync::Mutex<std::collections::HashMap<(i64, String), Vec<u8>>>
 
 #[async_trait]
 impl CartridgeObjects for Files {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
         let g = self.0.lock().unwrap();
-        let b = g
-            .get(&(shelf, path.to_owned()))
-            .ok_or_else(|| "is not a file on that shelf.".to_owned())?;
+        let b = g.get(&(shelf, path.to_owned())).ok_or_else(|| {
+            CartridgeReadError::Definite("is not a file on that shelf.".to_owned())
+        })?;
         Ok(b[..usize::try_from(len).unwrap().min(b.len())].to_vec())
     }
 }
@@ -949,7 +950,7 @@ async fn cartridges_listed_before_d568_are_rechecked_against_their_manifest() {
     // Small passes until one checks nothing.
     let (mut rewritten, mut delisted, mut passes) = (0, Vec::new(), 0);
     loop {
-        let pass = r.arcade.recheck_cartridges(&files, 3).await.unwrap();
+        let pass = r.arcade.recheck_cartridges(&files, 3, 1).await.unwrap();
         passes += 1;
         if pass.checked == 0 {
             break;
@@ -1038,7 +1039,7 @@ async fn cartridges_listed_before_d568_are_rechecked_against_their_manifest() {
     // A new listing is checked already: the next pass finds nothing.
     assert_eq!(
         r.arcade
-            .recheck_cartridges(&files, 50)
+            .recheck_cartridges(&files, 50, 1)
             .await
             .unwrap()
             .checked,

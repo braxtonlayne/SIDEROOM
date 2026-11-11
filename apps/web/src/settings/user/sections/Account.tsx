@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
 import { useT } from '../../../i18n';
+import { useCompliancePublic } from '../../../lib/compliancePublic';
 import { cdnUrl } from '../../../store';
 import { useStreamer } from '../prefs';
 import {
@@ -278,41 +279,19 @@ export function TotpWizard({
   );
 }
 
-function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
+/**
+ * "Regenerate recovery codes" with its password prompt and the one-time list of new codes (D-580). Shown wherever a
+ * second factor exists: the two-factor card while the authenticator is on, the passkeys card otherwise.
+ */
+export function RegenerateCodes() {
   const t = useT();
-  const toast = useToast();
-  const [wizard, setWizard] = useState(false);
   const [regen, setRegen] = useState(false);
-  const [disable, setDisable] = useState(false);
   const [newCodes, setNewCodes] = useState<string[] | null>(null);
-  const on = !!me.mfa_enabled;
   return (
-    <Card
-      id="us-2fa"
-      title={t('settings.account.twoFactorTitle')}
-      description={t('settings.account.twoFactorDesc')}
-      actions={
-        on ? (
-          <>
-            <Button variant="secondary" onClick={() => setRegen(true)}>
-              {t('settings.account.regenCodes')}
-            </Button>
-            <Button variant="danger" onClick={() => setDisable(true)}>
-              {t('settings.account.removeAuth')}
-            </Button>
-          </>
-        ) : (
-          <Button onClick={() => setWizard(true)}>{t('settings.account.enableAuth')}</Button>
-        )
-      }
-    >
-      <p>
-        {t('settings.account.status')}{' '}
-        <span className="us-badge" data-tone={on ? 'good' : undefined}>
-          {on ? t('settings.account.enabled') : t('settings.account.off')}
-        </span>
-      </p>
-      <TotpWizard open={wizard} onClose={() => setWizard(false)} onEnabled={() => reload()} />
+    <>
+      <Button variant="secondary" onClick={() => setRegen(true)}>
+        {t('settings.account.regenCodes')}
+      </Button>
       <PasswordPrompt
         open={regen}
         title={t('settings.account.regenCodes')}
@@ -334,6 +313,41 @@ function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
       >
         {newCodes && <RecoveryCodes codes={newCodes} onDone={() => setNewCodes(null)} />}
       </Modal>
+    </>
+  );
+}
+
+function TwoFactorCard({ me, reload }: { me: Me; reload: () => void }) {
+  const t = useT();
+  const toast = useToast();
+  const [wizard, setWizard] = useState(false);
+  const [disable, setDisable] = useState(false);
+  const on = !!me.mfa_enabled;
+  return (
+    <Card
+      id="us-2fa"
+      title={t('settings.account.twoFactorTitle')}
+      description={t('settings.account.twoFactorDesc')}
+      actions={
+        on ? (
+          <>
+            <RegenerateCodes />
+            <Button variant="danger" onClick={() => setDisable(true)}>
+              {t('settings.account.removeAuth')}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={() => setWizard(true)}>{t('settings.account.enableAuth')}</Button>
+        )
+      }
+    >
+      <p>
+        {t('settings.account.status')}{' '}
+        <span className="us-badge" data-tone={on ? 'good' : undefined}>
+          {on ? t('settings.account.enabled') : t('settings.account.off')}
+        </span>
+      </p>
+      <TotpWizard open={wizard} onClose={() => setWizard(false)} onEnabled={() => reload()} />
       <PasswordPrompt
         open={disable}
         danger
@@ -584,6 +598,7 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
 /** Settings, Account removal (LNG-USET-006, G-82): the retention text and the delete dialog. */
 function RemovalCard({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const t = useT();
+  const compliance = useCompliancePublic();
   const [open, setOpen] = useState(false);
   return (
     <Card
@@ -591,7 +606,11 @@ function RemovalCard({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       title={t('settings.account.removalTitle')}
       description={t('settings.account.removalDesc')}
     >
-      <p>{t('settings.account.removalRetained')}</p>
+      <p>
+        {t('settings.account.removalRetained', {
+          years: compliance.invoice_retention_years ?? 10,
+        })}
+      </p>
       <div>
         <Button variant="danger" onClick={() => setOpen(true)}>
           {t('settings.account.deleteButton')}
@@ -619,7 +638,7 @@ export function AccountSection({ me, onSignedOut }: { me: Resource<Me>; onSigned
             <IdentityCard me={m} reload={me.reload} />
             <PasswordCard me={m} />
             <TwoFactorCard me={m} reload={me.reload} />
-            <PasskeysCard />
+            <PasskeysCard totpOn={!!m.mfa_enabled} />
             <DiscordCard />
             <RemovalCard me={m} onSignedOut={onSignedOut} />
           </>

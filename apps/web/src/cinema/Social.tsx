@@ -169,7 +169,7 @@ export function Reviews({ titleId }: { titleId: string }) {
   );
 }
 
-/** The replies under a top-level comment, oldest first, read-only here (D-572). */
+/** The replies under a top-level comment, oldest first (D-572). */
 function Replies({ commentId, titleId }: { commentId: string; titleId: string }) {
   const t = useT();
   const q = useQuery({
@@ -187,10 +187,66 @@ function Replies({ commentId, titleId }: { commentId: string; titleId: string })
   );
 }
 
+/** The inline reply form under a top-level comment (D-585): one level, a spoiler tag, like the Library's. */
+function ReplyForm({
+  commentId,
+  titleId,
+  onDone,
+}: {
+  commentId: string;
+  titleId: string;
+  onDone: () => void;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [text, setText] = useState('');
+  const [spoiler, setSpoiler] = useState(false);
+  const post = useMutation({
+    mutationFn: () => postComment(titleId, { body: text.trim(), spoiler, parent_id: commentId }),
+    onSuccess: () => {
+      // The title's thread (the reply count) and every replies list under it.
+      void qc.invalidateQueries({ queryKey: ['cinema', 'comments'] });
+      onDone();
+    },
+  });
+  return (
+    <form
+      className="cin-post-form cin-reply-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (text.trim()) post.mutate();
+      }}
+    >
+      <TextArea
+        label={t('cinema.social.replyLabel')}
+        value={text}
+        maxLength={2000}
+        rows={2}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="cin-post-form-row">
+        <Checkbox
+          label={t('cinema.social.containsSpoilers')}
+          checked={spoiler}
+          onChange={(e) => setSpoiler(e.target.checked)}
+        />
+        <Button type="submit" size="sm" disabled={!text.trim() || post.isPending}>
+          {t('cinema.social.postReply')}
+        </Button>
+        <Button variant="ghost" size="sm" type="button" onClick={onDone}>
+          {t('cinema.social.cancelReply')}
+        </Button>
+      </div>
+      {post.isError && <Notice variant="danger">{t('cinema.social.postError')}</Notice>}
+    </form>
+  );
+}
+
 function CommentItem({ c, titleId, reply }: { c: Comment; titleId: string; reply?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [replying, setReplying] = useState(false);
   // The title's thread and every replies list under it.
   const refresh = () => void qc.invalidateQueries({ queryKey: ['cinema', 'comments'] });
   const like = useMutation({
@@ -243,12 +299,32 @@ function CommentItem({ c, titleId, reply }: { c: Comment; titleId: string; reply
         >
           {c.liked ? t('cinema.social.liked') : t('cinema.social.like')} ({c.like_count})
         </button>
+        {!reply && (
+          <button
+            type="button"
+            className="cin-link-btn"
+            aria-expanded={replying}
+            onClick={() => setReplying((v) => !v)}
+          >
+            {t('cinema.social.reply')}
+          </button>
+        )}
         {c.mine && (
           <button type="button" className="cin-link-btn" onClick={() => remove.mutate()}>
             {t('cinema.social.deleteComment')}
           </button>
         )}
       </p>
+      {replying && (
+        <ReplyForm
+          commentId={c.id}
+          titleId={titleId}
+          onDone={() => {
+            setReplying(false);
+            setOpen(true);
+          }}
+        />
+      )}
       {replies}
     </li>
   );

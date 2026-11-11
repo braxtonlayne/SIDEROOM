@@ -573,6 +573,49 @@ describe('Title page', () => {
     );
   });
 
+  it('comments: replies to a comment with a spoiler tag, one level only (D-585)', async () => {
+    const comment = {
+      id: 'c1',
+      author_id: '9',
+      body: 'Great opening.',
+      spoiler: false,
+      like_count: 0,
+      reply_count: 1,
+      liked: false,
+      mine: false,
+      created_at_ms: 1_700_000_000_000,
+    };
+    const calls = useCinemaApi({ comments: [comment] });
+    server.use(
+      http.get('*/api/v1/cinema/comments/c1/replies', () =>
+        HttpResponse.json({
+          items: [{ ...comment, id: 'r1', body: 'First reply.', reply_count: 0 }],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAt('/cinema/t/1');
+    await user.click(await screen.findByRole('tab', { name: 'Comments' }));
+    await screen.findByText('Great opening.');
+    await user.click(screen.getByRole('button', { name: 'Show 1 reply' }));
+    await screen.findByText('First reply.');
+    // Only the top-level comment offers Reply.
+    expect(screen.getAllByRole('button', { name: 'Reply' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Reply' }));
+    await user.type(screen.getByLabelText('Write a reply'), 'Me too');
+    const form = screen.getByLabelText('Write a reply').closest('form')!;
+    await user.click(within(form).getByRole('checkbox', { name: 'Contains spoilers' }));
+    await user.click(screen.getByRole('button', { name: 'Post reply' }));
+    await waitFor(() =>
+      expect(calls.writes).toContainEqual({
+        method: 'POST',
+        url: '/cinema/titles/1/comments',
+        body: { body: 'Me too', spoiler: true, parent_id: 'c1' },
+      }),
+    );
+    await waitFor(() => expect(screen.queryByLabelText('Write a reply')).toBeNull());
+  });
+
   it('comments: a deleted comment with replies shows as a tombstone without actions (D-572)', async () => {
     useCinemaApi({
       comments: [

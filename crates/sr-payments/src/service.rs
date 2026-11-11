@@ -655,6 +655,15 @@ impl PaymentService {
     }
 
     /// Staff grant (Patron time or a pool contribution).
+    /// Whether `user_id` belongs to, and owns, `guild_id` (D-581: no staff pool grant to one's own server).
+    pub async fn guild_access(
+        &self,
+        user_id: i64,
+        guild_id: i64,
+    ) -> PayResult<crate::repo::GuildAccess> {
+        self.repo.guild_access(user_id, guild_id).await
+    }
+
     pub async fn admin_grant(
         &self,
         spec: GrantSpec,

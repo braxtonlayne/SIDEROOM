@@ -1541,6 +1541,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             cinema: cinema_service.clone(),
         }))
         .with_blocklist(media_blocklist.clone())
+        .with_object_digests(Arc::new(crate::storage_jobs::MountObjectDigests {
+            mounts: mount_storages.clone(),
+        }))
         .with_removals(Arc::new(crate::takedown_jobs::BusRemovalSink::new(
             bus.clone(),
         )));
@@ -1938,6 +1941,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         index_store.clone(),
         mount_storages.clone(),
         mount_repo.clone(),
+        moderation.clone(),
     );
     let runner = crate::rich_jobs::register(runner, &pool, messages.clone());
     let runner = crate::tool_rooms_jobs::register(runner, &pool, tool_room_store.clone());
@@ -1959,8 +1963,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::takedown_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::suspicion_jobs::register(runner, &pool, moderation.clone());
     let runner = crate::apps_jobs::register(runner, &pool, (*apps_service).clone());
-    let runner =
-        crate::arcade_jobs::register(runner, arcade_recheck.0, arcade_recheck.1, bus.clone());
+    let runner = crate::arcade_jobs::register(
+        runner,
+        pool.clone(),
+        arcade_recheck.0,
+        arcade_recheck.1,
+        bus.clone(),
+        arcade_dm.clone(),
+    );
     let runner = crate::watchparty::register(runner, &pool, watchparty_service.clone());
     // The event clock is a leased singleton job: one node advances events (G-92).
     let runner = crate::events_jobs::register(runner, &pool, events_deps.clone());

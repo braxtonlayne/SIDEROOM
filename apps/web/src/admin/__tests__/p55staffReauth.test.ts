@@ -1,11 +1,17 @@
-// SEC-AUD-042 (D-574): every staff call that places, changes or ends a member restriction, suspension or perk
+// SEC-AUD-042 (D-574) and SEC-AUD-051 (D-581): every staff call that places, changes or ends a member restriction, suspension or perk
 // answers 900004 until the second-factor window is open; the web helpers go through withReauth, so the prompt
 // opens once and the call is retried once.
 import { http, HttpResponse, server } from '../../test/server';
-import { suspendAccount, unsuspendAccount } from '../api';
+import { setDataRequestRestriction, suspendAccount, unsuspendAccount } from '../api';
 import { revokeGrant } from '../donations/api';
 import { registerReauthPrompt } from '../reauth';
-import { decideAppeal, handleUnderage, liftAgeLock, setAgeRestricted } from '../../moderation/api';
+import {
+  decideAppeal,
+  handleUnderage,
+  liftAgeLock,
+  setAgeRestricted,
+  warnCase,
+} from '../../moderation/api';
 import {
   clearNode,
   decideRestrictionAppeal,
@@ -80,9 +86,17 @@ const CASES: Case[] = [
     '/admin/moderation/subtree-cases/4/nodes/20/clear',
     () => clearNode('4', '20', 'r'),
   ],
+  // D-581: the case warning and the data-request restriction.
+  ['case warn', 'post', '/moderation/cases/6/warn', () => warnCase('6', 'text')],
+  [
+    'data-request restriction',
+    'post',
+    '/admin/data-requests/8/restriction',
+    () => setDataRequestRestriction('8', true, 'r'),
+  ],
 ];
 
-describe('D-574 staff calls ask for the second factor', () => {
+describe('D-574 and D-581 staff calls ask for the second factor', () => {
   beforeEach(() => {
     server.use(http.get('*/api/v1/sr/csrf', () => HttpResponse.json({ token: 't' })));
   });

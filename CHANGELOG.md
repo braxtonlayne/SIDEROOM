@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 56 - 2026-11-11
+
+- **Recovery codes for passkey users.** If you sign in with a passkey and have no authenticator app, you can now regenerate your recovery codes from the passkeys card.
+- **Reply in Cinema.** Cinema comments have a Reply button, like the Library.
+- **Clearer channel permissions.** The "Sync with category" switch and the Permissions tab follow your permissions in that channel, not just the server-wide ones.
+- **Game shelves.** A shelf that is briefly unreachable no longer pulls its games. A game removed because its file is gone or broken tells the person who listed it, and the server's audit log records it.
+- **For staff.** Warning from a case, restricting processing on a data request and suspending an application ask for a second factor; nobody can grant server-pool perks to a server they own. Takedowns also match a file by its contents, and the owner of a matched copy is told and can counter-notice.
+- **Fixed:** the account removal card showed "{years}" instead of the number.
+
 ## Phase 55 - 2026-11-07
 
 - **Your sign-in is harder to change behind your back.** Changing your password, removing an authenticator or passkey, regenerating recovery codes or linking Discord asks for your password and your second factor.
