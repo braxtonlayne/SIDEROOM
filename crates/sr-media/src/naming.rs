@@ -573,6 +573,15 @@ fn take_subtitle_tail(stem: &str, out: &mut ParsedVideoName) -> String {
     parts.join(".")
 }
 
+/// `name` without a trailing " thumb" or "-thumb" (ASCII case-insensitive), checked on `name` itself: lowercasing
+/// can change the byte length (U+0130), so offsets from a lowercased copy are not valid in the original (SEC-AUD-093).
+fn thumb_base(name: &str) -> Option<&str> {
+    let at = name.len().checked_sub(6)?;
+    let tail = name.get(at..)?;
+    (tail.eq_ignore_ascii_case(" thumb") || tail.eq_ignore_ascii_case("-thumb"))
+        .then(|| &name[..at])
+}
+
 fn parse_artwork(stem: &str, ext: String, folders: &Folders) -> ParsedVideoName {
     let mut out = blank(ext);
     out.role = Role::Artwork;
@@ -582,13 +591,10 @@ fn parse_artwork(stem: &str, ext: String, folders: &Folders) -> ParsedVideoName 
         out.artwork = Some(ArtworkKind::SeasonPoster);
         out.season = c[1].parse().ok();
         out.special = out.season == Some(0);
-    } else if let Some(base) = lower
-        .strip_suffix(" thumb")
-        .or_else(|| lower.strip_suffix("-thumb"))
-    {
+    } else if let Some(base) = thumb_base(&name) {
         out.artwork = Some(ArtworkKind::EpisodeThumb);
         // The thumb names the episode file it belongs to.
-        let inner = parse_path(&format!("{}.mkv", &name[..base.len()]));
+        let inner = parse_path(&format!("{base}.mkv"));
         out.title = inner.title;
         out.season = inner.season;
         out.episodes = inner.episodes;
