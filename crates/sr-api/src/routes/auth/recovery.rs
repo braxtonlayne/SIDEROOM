@@ -27,7 +27,8 @@ pub(super) async fn issue_recovery_codes(
 }
 
 /// `POST /sr/auth/recovery-codes {password, mfa?}`: regenerate the recovery codes
-/// (invalidating the old ones). Requires two-factor to be enabled, and its proof (D-573).
+/// (invalidating the old ones). Needs the password, a second factor (a
+/// confirmed TOTP or at least one passkey, D-580) and its proof (D-573).
 pub async fn regenerate(
     State(state): State<AppState>,
     UserOnly(p): UserOnly,
@@ -38,12 +39,12 @@ pub async fn regenerate(
     let now = state.now_secs();
     let account = current_account(&svc, p.user_id).await?;
     reauthenticate(&svc, now, &account, &body.password).await?;
-    if !svc
+    let has_totp = svc
         .store
         .totp_get(account.id)
         .await?
-        .is_some_and(|t| t.confirmed)
-    {
+        .is_some_and(|t| t.confirmed);
+    if !has_totp && !svc.has_passkeys(account.id).await? {
         return Err(ApiError::with_message(
             ErrorCode::General,
             "Enable two-factor authentication first.",

@@ -13,7 +13,7 @@ import { useT } from '../../../i18n';
 import { createPasskey, isCancelled, passkeysSupported } from '../../../lib/webauthn';
 import { errorText, useResource } from '../api';
 import { Card, fmtDate, Loaded } from '../parts';
-import { PasswordPrompt, RecoveryCodes } from './Account';
+import { PasswordPrompt, RecoveryCodes, RegenerateCodes } from './Account';
 
 /** Password plus a name, then the browser's own passkey prompt (ENT-AUTH-010, LNG-USET-005). */
 function AddPasskey({
@@ -163,8 +163,8 @@ function RenamePasskey({
   );
 }
 
-/** Passkeys list: add, rename, remove. Adding and removing re-check the password. */
-export function PasskeysCard() {
+/** Passkeys list: add, rename, remove, and regenerate the recovery codes when TOTP is off. Adding and removing re-check the password. */
+export function PasskeysCard({ totpOn }: { totpOn: boolean }) {
   const t = useT();
   const toast = useToast();
   const res = useResource(listPasskeys);
@@ -179,9 +179,13 @@ export function PasskeysCard() {
       title={t('settings.passkeys.title')}
       description={t('settings.passkeys.desc')}
       actions={
-        <Button disabled={!supported} onClick={() => setAdding(true)}>
-          {t('settings.passkeys.add')}
-        </Button>
+        <>
+          {/* D-580: a passkey is a second factor, so the codes can be renewed here while the authenticator is off. */}
+          {!totpOn && (res.data?.length ?? 0) > 0 && <RegenerateCodes />}
+          <Button disabled={!supported} onClick={() => setAdding(true)}>
+            {t('settings.passkeys.add')}
+          </Button>
+        </>
       }
     >
       {!supported && (
