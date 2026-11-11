@@ -8,7 +8,7 @@ export default {
   'admin.applications.search': 'Search',
   'admin.applications.filterByState': 'Release state',
   'admin.applications.stateAny': 'Any state',
-  'admin.applications.stateDevelopment': 'In development',
+  'admin.applications.stateDevelopment': 'Development',
   'admin.applications.stateInReview': 'In review',
   'admin.applications.stateReleased': 'Released',
   'admin.applications.stateSuspended': 'Suspended',
