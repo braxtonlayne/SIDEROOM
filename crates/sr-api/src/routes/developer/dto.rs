@@ -406,6 +406,18 @@ pub struct AppVersionAdmin {
     pub application: VersionApplication,
 }
 
+/// An application in the staff list (D-587): the staff view of the application plus, while it
+/// is suspended, who suspended it and when. The reason is `suspended_reason`.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AppAdminObject {
+    #[serde(flatten)]
+    pub application: ApplicationObject,
+    /// Staff member who suspended it (suspended applications only).
+    pub suspended_by: Option<OwnerObject>,
+    /// When it was suspended (ISO 8601; suspended applications only).
+    pub suspended_at: Option<String>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DecideVersionBody {
     /// `approve`, `reject` or `request_changes`.

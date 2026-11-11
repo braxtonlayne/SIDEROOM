@@ -8,6 +8,7 @@ import * as moderation from '../../moderation/api';
 import { useStudyFlag } from '../../study/flags';
 import { SectionHeader, useAdminViewer, useResource } from '../ui';
 import { AppsReview } from './AppsReview';
+import { Applications } from './Applications';
 import { DirectoryQueue } from './DirectoryQueue';
 import { CinemaReports } from './CinemaReports';
 import { LibraryReviewPanel } from './Review';
@@ -42,6 +43,12 @@ export function ReviewHubSection() {
     });
   if (viewer.can('REVIEW_APPS'))
     items.push({ id: 'apps', label: t('admin.reviewHub.tabApps'), content: <AppsReview /> });
+  if (viewer.can('REVIEW_APPS'))
+    items.push({
+      id: 'applications',
+      label: t('admin.reviewHub.tabApplications'),
+      content: <Applications />,
+    });
   if (viewer.can('REVIEW_PACKAGES'))
     items.push({
       id: 'packages',

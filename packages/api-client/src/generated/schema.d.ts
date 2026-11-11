@@ -1661,6 +1661,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/developers/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff: every application with its owner and release state (D-587). A suspended row carries
+         *     the reason, who suspended it and when. Newest first; page with `before`.
+         */
+        get: operations["admin_apps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/developers/apps/{application_id}/suspend": {
         parameters: {
             query?: never;
@@ -17606,6 +17626,15 @@ export interface components {
         AnswerDto: {
             question_id: string;
             value: string;
+        };
+        /**
+         * @description An application in the staff list (D-587): the staff view of the application plus, while it
+         *     is suspended, who suspended it and when. The reason is `suspended_reason`.
+         */
+        AppAdminObject: components["schemas"]["DeveloperApplicationObject"] & {
+            /** @description When it was suspended (ISO 8601; suspended applications only). */
+            suspended_at?: string | null;
+            suspended_by?: null | components["schemas"]["OwnerObject"];
         };
         AppAssetObject: {
             id: string;
@@ -36387,6 +36416,53 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_apps: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Search the application name, the application id or the owner (id, username or display
+                 *     name). At most 100 characters.
+                 */
+                q?: string;
+                /** @description Filter by release state: `development`, `in_review`, `released` or `suspended`. */
+                state?: string;
+                /** @description 1 to 100, default 50. */
+                limit?: number;
+                /** @description Return rows older than this application id. */
+                before?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppAdminObject"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

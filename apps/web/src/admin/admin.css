@@ -31,6 +31,10 @@
   color: var(--ui-text-faint);
   margin-top: 2px;
 }
+/* D-587: the Applications row keeps its Suspend button under the details so it stays on a phone. */
+.adm-app-actions {
+  margin-block-start: 8px;
+}
 .adm-more {
   display: flex;
   justify-content: center;

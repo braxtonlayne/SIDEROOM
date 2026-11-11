@@ -8424,6 +8424,94 @@
         ]
       }
     },
+    "/admin/developers/apps": {
+      "get": {
+        "tags": [
+          "developer"
+        ],
+        "summary": "Staff: every application with its owner and release state (D-587). A suspended row carries\nthe reason, who suspended it and when. Newest first; page with `before`.",
+        "operationId": "admin_apps",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search the application name, the application id or the owner (id, username or display\nname). At most 100 characters.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Filter by release state: `development`, `in_review`, `released` or `suspended`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 100, default 50.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Return rows older than this application id.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppAdminObject"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/developers/apps/{application_id}/suspend": {
       "post": {
         "tags": [
@@ -84230,6 +84318,37 @@
             "type": "string"
           }
         }
+      },
+      "AppAdminObject": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DeveloperApplicationObject"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "suspended_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When it was suspended (ISO 8601; suspended applications only)."
+              },
+              "suspended_by": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OwnerObject",
+                    "description": "Staff member who suspended it (suspended applications only)."
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "description": "An application in the staff list (D-587): the staff view of the application plus, while it\nis suspended, who suspended it and when. The reason is `suspended_reason`."
       },
       "AppAssetObject": {
         "type": "object",

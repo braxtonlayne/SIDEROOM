@@ -265,6 +265,18 @@ pub struct AuditRow {
     pub created_at_ms: i64,
 }
 
+/// One row of the staff application list: the application and, when it is suspended, who
+/// suspended it and when (read from the application audit trail).
+#[derive(Debug, Clone)]
+pub struct AppAdminRow {
+    /// The application.
+    pub app: Application,
+    /// Staff account that suspended it (suspended applications only).
+    pub suspended_by: Option<i64>,
+    /// When it was suspended, in milliseconds.
+    pub suspended_at_ms: Option<i64>,
+}
+
 /// A request to be a developer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeveloperRequest {

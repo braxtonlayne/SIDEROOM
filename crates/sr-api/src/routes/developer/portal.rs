@@ -1,12 +1,12 @@
 //! Developer onboarding, application management and staff review.
 
 use super::{
-    AppVersionAdmin, AppVersionObject, ApplicationObject, ApplyBody, AuditEntryObject,
-    CreateApplicationBody, CreatedApplication, DecideRequestBody, DecideVersionBody, DevDeps,
-    DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus, EndpointStatusObject,
-    InstallObject, InteractionsKeyObject, PasswordBody, PatchApplicationBody, PatchBotBody,
-    ResetSecretResult, ResetTokenResult, SubmitVersionBody, SuspendBody, app_err,
-    dto::VersionApplication, invalid, parse_id,
+    AppAdminObject, AppVersionAdmin, AppVersionObject, ApplicationObject, ApplyBody,
+    AuditEntryObject, CreateApplicationBody, CreatedApplication, DecideRequestBody,
+    DecideVersionBody, DevDeps, DeveloperRequestAdmin, DeveloperRequestObject, DeveloperStatus,
+    EndpointStatusObject, InstallObject, InteractionsKeyObject, PasswordBody, PatchApplicationBody,
+    PatchBotBody, ResetSecretResult, ResetTokenResult, SubmitVersionBody, SuspendBody, SystemCard,
+    app_err, dto::VersionApplication, invalid, parse_id,
 };
 use crate::{
     auth::SessionOnly,
@@ -859,6 +859,84 @@ pub async fn admin_decide_version(
     Ok(Json(AppVersionObject::new(&v, vec![])))
 }
 
+/// Listing parameters of the staff application list.
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct AppListQuery {
+    /// Search the application name, the application id or the owner (id, username or display
+    /// name). At most 100 characters.
+    pub q: Option<String>,
+    /// Filter by release state: `development`, `in_review`, `released` or `suspended`.
+    pub state: Option<String>,
+    /// 1 to 100, default 50.
+    pub limit: Option<i64>,
+    /// Return rows older than this application id.
+    pub before: Option<String>,
+}
+
+/// Staff: every application with its owner and release state (D-587). A suspended row carries
+/// the reason, who suspended it and when. Newest first; page with `before`.
+#[utoipa::path(
+    get, path = "/admin/developers/apps", tag = "developer", params(AppListQuery),
+    responses((status = 200, body = Vec<AppAdminObject>), (status = 400, body = ErrorBody),
+              (status = 403, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn admin_apps(
+    staff: StaffCtx,
+    Ext(deps): Ext<DevDeps>,
+    ApiQuery(q): ApiQuery<AppListQuery>,
+) -> MsgResult<Json<Vec<AppAdminObject>>> {
+    require_review(&staff)?;
+    let before = match &q.before {
+        Some(b) => Some(
+            parse_id(b, ErrorCode::SrNotFound)
+                .map_err(|_| invalid("before", "SNOWFLAKE_TYPE_INVALID", "Not a valid id."))?,
+        ),
+        None => None,
+    };
+    let state = q.state.as_deref().filter(|s| !s.is_empty());
+    let rows = deps
+        .apps
+        .admin_applications(q.q.as_deref(), state, q.limit.unwrap_or(50), before)
+        .await
+        .map_err(app_err)?;
+    // The list shows owners and suspensions: it is a read of staff-only detail.
+    if let Err(e) = staff
+        .svc()
+        .record_read(
+            &staff.caller,
+            "developer.apps_list",
+            None,
+            serde_json::json!({"state": state, "searched": q.q.is_some(), "rows": rows.len()}),
+        )
+        .await
+    {
+        tracing::error!(error = %e, "application list was not written to the access log");
+    }
+    let apps: Vec<Application> = rows.iter().map(|r| r.app.clone()).collect();
+    let mut ids: Vec<i64> = rows.iter().filter_map(|r| r.suspended_by).collect();
+    ids.extend(apps.iter().flat_map(|a| [a.owner_id, a.bot_user_id]));
+    let users = deps.users(&ids).await?;
+    Ok(Json(
+        rows.iter()
+            .map(|r| AppAdminObject {
+                application: ApplicationObject::new(&r.app, &users, false, true),
+                suspended_by: r.suspended_by.map(|id| {
+                    let u = users.get(&sr_core::UserId::new(id as u64));
+                    super::OwnerObject {
+                        id: id.to_string(),
+                        username: u.map(|u| u.username.clone()),
+                        global_name: u.and_then(|u| u.display_name.clone()),
+                        bot: false,
+                    }
+                }),
+                suspended_at: r.suspended_at_ms.map(super::iso),
+            })
+            .collect(),
+    ))
+}
+
 /// Staff: switch an application off.
 #[utoipa::path(
     post, path = "/admin/developers/apps/{application_id}/suspend", tag = "developer",
@@ -886,6 +964,21 @@ pub async fn admin_suspend(
         "developer.suspend",
         ("application", id),
         serde_json::json!({"reason": reason}),
+    )
+    .await;
+    // The owner is told why their bot stopped everywhere (D-587).
+    let why = app.suspended_reason.clone().unwrap_or_default();
+    deps.dm_user(
+        app.owner_id,
+        SystemCard {
+            content: format!("Your application {} was suspended.", app.name),
+            title: "Application suspended".to_owned(),
+            description: format!(
+                "SIDEROOM staff suspended {}. Its bot is switched off everywhere until the suspension is lifted.\n\nReason: {why}",
+                app.name
+            ),
+            buttons: Vec::new(),
+        },
     )
     .await;
     Ok(Json(
@@ -921,6 +1014,33 @@ pub async fn admin_unsuspend(
         "developer.unsuspend",
         ("application", id),
         serde_json::json!({"reason": body.reason}),
+    )
+    .await;
+    let note = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    deps.dm_user(
+        app.owner_id,
+        SystemCard {
+            content: format!(
+                "The suspension of your application {} was lifted.",
+                app.name
+            ),
+            title: "Application unsuspended".to_owned(),
+            description: match note {
+                Some(r) => format!(
+                    "SIDEROOM staff lifted the suspension of {}. Its bot works again.\n\nNote: {r}",
+                    app.name
+                ),
+                None => format!(
+                    "SIDEROOM staff lifted the suspension of {}. Its bot works again.",
+                    app.name
+                ),
+            },
+            buttons: Vec::new(),
+        },
     )
     .await;
     Ok(Json(
