@@ -759,6 +759,7 @@ async fn a_staff_member_never_grants_a_pool_level_to_a_server_they_own() {
     e.repo.add_member(OWNER, GUILD, false);
     let pool = |guild: i64| json!({ "kind": "server_pool", "guild_id": guild.to_string(), "usd_cents": 500, "reason": "pool" });
     for (who, own) in [(MONEY, MONEY_OWNS), (OWNER, OWNER_OWNS)] {
+        let own_s = own.to_string();
         let (s, r) = e
             .post(who, "/admin/donations/entitlements", pool(own))
             .await;
@@ -775,7 +776,7 @@ async fn a_staff_member_never_grants_a_pool_level_to_a_server_they_own() {
                 .as_array()
                 .unwrap()
                 .iter()
-                .all(|g| g["guild_id"] != own.to_string()),
+                .all(|g| g["guild_id"] != own_s),
             "nothing granted: {lst}"
         );
         // A server the caller only belongs to stays allowed.
