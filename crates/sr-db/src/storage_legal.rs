@@ -26,22 +26,24 @@ pub const DIGEST_JOB_ATTEMPTS: i32 = 14;
 /// no queued or running digest job (the D-589 selection, limited to one mount). Called when a disabled mount comes
 /// back or is deleted: the job then reads the file, or finds the mount gone and alerts. Returns how many were queued.
 pub async fn enqueue_mount_digests(conn: &mut PgConnection, mount_id: i64) -> DbResult<u64> {
-    Ok(sqlx::query(
+    let sql = format!(
         "INSERT INTO jobs (id, kind, payload, max_attempts)
-         SELECT nextval('takedown_digest_job_seq'), $2, jsonb_build_object('item_id', s.id), $3
+         SELECT nextval('{}'), $2, jsonb_build_object('item_id', s.id), $3
          FROM (SELECT i.id FROM takedown_items i
                WHERE i.kind = 'storage_object' AND i.state = 'disabled' AND i.target_id = $1
                  AND i.object_size IS NOT NULL AND i.object_sha256 IS NULL AND i.object_key IS NOT NULL
                  AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.kind = $2 AND j.state IN ('queued', 'running')
                                  AND (j.payload ->> 'item_id') = i.id::text)
                ORDER BY i.id) s",
-    )
-    .bind(mount_id)
-    .bind(DIGEST_JOB_KIND)
-    .bind(DIGEST_JOB_ATTEMPTS)
-    .execute(&mut *conn)
-    .await?
-    .rows_affected())
+        crate::jobs::SQL_ID_SEQUENCE
+    );
+    Ok(sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(mount_id)
+        .bind(DIGEST_JOB_KIND)
+        .bind(DIGEST_JOB_ATTEMPTS)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected())
 }
 
 /// Which of `keys` are delisted on `mount_id`.
@@ -469,10 +471,12 @@ pub struct Erased {
 /// (the associated data binds a blob to its row, so an empty blob can never be opened), and remove the shares
 /// they gave or received. The objects stay in the member's bucket: it is theirs.
 pub async fn erase_for(conn: &mut PgConnection, user: i64) -> DbResult<Erased> {
-    // D-592: a disabled mount that is deleted ends the wait of its takedown items.
+    // D-592, D-596: a switched-off mount (`disabled`, or `delisted` from `disabled`) that is deleted ends the wait
+    // of its takedown items.
     let was_disabled: Vec<i64> = sqlx::query_scalar(
         "SELECT id FROM storage_mounts
-         WHERE owner_kind = 'user' AND owner_id = $1 AND deleted_at IS NULL AND status = 'disabled'",
+         WHERE owner_kind = 'user' AND owner_id = $1 AND deleted_at IS NULL
+           AND (status = 'disabled' OR (status = 'delisted' AND delist_prior = 'disabled'))",
     )
     .bind(user)
     .fetch_all(&mut *conn)

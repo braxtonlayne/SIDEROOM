@@ -16,9 +16,9 @@ use sr_core::PlatformPermissions as P;
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::holds::{HoldRequest, HoldScope, place_hold_in, release_hold_in};
 use crate::model::{
-    CountedNotice, ItemKind, ItemState, ItemStatus, NewItem, NewNotice, NoticeDetail, NoticeEvent,
-    NoticeState, NoticeSummary, RejectOutcome, StrikeCount, TakedownItem, TakedownKind,
-    TakedownPolicy, UpholdOutcome, Who,
+    CountedNotice, DigestState, ItemKind, ItemState, ItemStatus, NewItem, NewNotice, NoticeDetail,
+    NoticeEvent, NoticeState, NoticeSummary, RejectOutcome, StrikeCount, TakedownItem,
+    TakedownKind, TakedownPolicy, UpholdOutcome, Who,
 };
 use crate::rules;
 use crate::service::{IdSource, Moderation, limits_in, log_staff, push_event, require_staff};
@@ -133,12 +133,26 @@ fn item_from(r: &sqlx::postgres::PgRow) -> ModResult<TakedownItem> {
         hold_id: r.try_get("hold_id")?,
         disabled_at_ms: r.try_get("disabled_ms")?,
         restored_at_ms: r.try_get("restored_ms")?,
+        digest_state: r
+            .try_get::<Option<String>, _>("digest_state")?
+            .and_then(|s| DigestState::parse(&s)),
     })
 }
 
 const ITEM_SELECT: &str = "SELECT id, kind, target_id, label, object_key, subject_account_id, state, hold_id, \
     (extract(epoch FROM disabled_at) * 1000)::bigint AS disabled_ms, \
-    (extract(epoch FROM restored_at) * 1000)::bigint AS restored_ms \
+    (extract(epoch FROM restored_at) * 1000)::bigint AS restored_ms, \
+    CASE WHEN kind = 'storage_object' AND state = 'disabled' THEN \
+      CASE WHEN object_sha256 IS NOT NULL THEN 'recorded' \
+           WHEN EXISTS (SELECT 1 FROM jobs j WHERE j.kind = 'storage.takedown_digest' \
+                          AND j.state IN ('queued', 'running') \
+                          AND (j.payload ->> 'item_id') = takedown_items.id::text) THEN 'pending' \
+           WHEN EXISTS (SELECT 1 FROM storage_mounts m WHERE m.id = takedown_items.target_id \
+                          AND m.deleted_at IS NULL \
+                          AND (m.status = 'disabled' OR (m.status = 'delisted' AND m.delist_prior = 'disabled'))) \
+             THEN 'waiting_mount' \
+           ELSE 'tag_only' END \
+    END AS digest_state \
     FROM takedown_items";
 
 async fn items_of(conn: &mut PgConnection, notice_id: i64) -> ModResult<Vec<TakedownItem>> {

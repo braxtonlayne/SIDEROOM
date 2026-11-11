@@ -15,6 +15,12 @@ const BACKOFF_CAP_SECS: u64 = 3600;
 /// health check reports it once it has failed [`SINGLETON_FAILING_AFTER`] times in a row (SEC-AUD-029).
 pub const SINGLETON_ID_LIMIT: i64 = 1 << 40;
 
+/// The ONE id source for any job enqueued from SQL (D-597): a sequence (migration 2560) that starts at, and never goes
+/// below, [`SINGLETON_ID_LIMIT`], does not cycle, and stays about five orders of magnitude under any Snowflake. A
+/// second sequence for `jobs.id` must never be made: two sequences starting at the same value would collide on the
+/// primary key. Use `nextval('<this>')` (see `storage_legal::enqueue_mount_digests`).
+pub const SQL_ID_SEQUENCE: &str = "jobs_sql_id_seq";
+
 /// Failed attempts in a row after which a singleton counts as failing.
 pub const SINGLETON_FAILING_AFTER: i32 = 5;
 
@@ -407,6 +413,28 @@ mod tests {
         assert!(
             delay_until_daily_utc(midnight + 5 * DAY + 123, 23, 59) < Duration::from_secs(86_400)
         );
+    }
+
+    /// D-597: the SQL id sequence hands out ids at or above the singleton limit, and keeps climbing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn the_sql_id_sequence_starts_at_the_singleton_limit() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = crate::connect(&crate::DbConfig::new(url))
+            .await
+            .expect("connect");
+        crate::migrate(&pool).await.expect("migrate");
+        let sql = format!("SELECT nextval('{SQL_ID_SEQUENCE}')");
+        let a: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql.clone()))
+            .fetch_one(&pool)
+            .await
+            .expect("nextval");
+        let b: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(sql))
+            .fetch_one(&pool)
+            .await
+            .expect("nextval");
+        assert!(a >= SINGLETON_ID_LIMIT, "{a}");
+        assert!(b > a);
     }
 
     #[tokio::test]

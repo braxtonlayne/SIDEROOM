@@ -41,6 +41,13 @@ const ITEM_KIND_KEYS: Record<api.TakedownItemKind, MessageKey> = {
 };
 const ITEM_KINDS = Object.keys(ITEM_KIND_KEYS) as api.TakedownItemKind[];
 
+const DIGEST_KEYS: Record<api.TakedownDigestState, MessageKey> = {
+  recorded: 'admin.takedowns.digest.recorded',
+  pending: 'admin.takedowns.digest.pending',
+  waiting_mount: 'admin.takedowns.digest.waitingMount',
+  tag_only: 'admin.takedowns.digest.tagOnly',
+};
+
 const ITEM_STATE_KEYS: Record<api.TakedownItemState, MessageKey> = {
   identified: 'admin.takedowns.itemState.identified',
   held: 'admin.takedowns.itemState.held',
@@ -482,6 +489,11 @@ function NoticePage({
                             ? ` · ${t('admin.takedowns.uploader', { id: i.subject_account_id })}`
                             : ''}
                         </div>
+                        {i.digest_state && (
+                          <div className="ss-meta" data-digest-state={i.digest_state}>
+                            {t(DIGEST_KEYS[i.digest_state])}
+                          </div>
+                        )}
                       </div>
                       {early && i.state === 'identified' && (
                         <Button

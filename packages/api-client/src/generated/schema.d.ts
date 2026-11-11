@@ -21155,6 +21155,11 @@ export interface components {
             is_developer: boolean;
             request?: null | components["schemas"]["DeveloperRequestObject"];
         };
+        /**
+         * @description D-595: what the fingerprint of a `disabled` storage-object item is, computed when it is read.
+         * @enum {string}
+         */
+        DigestState: "recorded" | "pending" | "waiting_mount" | "tag_only";
         DirectoryApp: {
             bot_id: string;
             description: string;
@@ -28819,6 +28824,7 @@ export interface components {
         TakeDiscordBody: Record<string, never>;
         /** @description One content item of a notice. */
         TakedownItem: {
+            digest_state?: null | components["schemas"]["DigestState"];
             /** Format: int64 */
             disabled_at_ms?: number | null;
             hold_id?: string | null;

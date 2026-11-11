@@ -94759,6 +94759,16 @@
           }
         }
       },
+      "DigestState": {
+        "type": "string",
+        "description": "D-595: what the fingerprint of a `disabled` storage-object item is, computed when it is read.",
+        "enum": [
+          "recorded",
+          "pending",
+          "waiting_mount",
+          "tag_only"
+        ]
+      },
       "DirectoryApp": {
         "type": "object",
         "required": [
@@ -117800,6 +117810,17 @@
           "state"
         ],
         "properties": {
+          "digest_state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DigestState",
+                "description": "D-595: only on a `disabled` storage-object item."
+              }
+            ]
+          },
           "disabled_at_ms": {
             "type": [
               "integer",

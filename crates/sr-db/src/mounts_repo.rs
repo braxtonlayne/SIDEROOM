@@ -49,6 +49,23 @@ async fn was_disabled(tx: &mut sqlx::PgConnection, id: i64) -> MountResult<bool>
     .is_some_and(|s| s == "disabled"))
 }
 
+/// D-596: switched off for the purpose of a delete: `disabled`, or `delisted` from `disabled`.
+async fn switched_off(tx: &mut sqlx::PgConnection, id: i64) -> MountResult<bool> {
+    Ok(sqlx::query_as::<_, (String, Option<String>)>(
+        "SELECT status, delist_prior FROM storage_mounts WHERE id = $1 AND deleted_at IS NULL FOR UPDATE",
+    )
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(repo_err)?
+    .is_some_and(|(s, prior)| s == "disabled" || (s == "delisted" && prior.as_deref() == Some("disabled"))))
+}
+
+/// D-596: a mount that left `disabled` for a status the storage jobs can read.
+fn readable(s: Option<MountStatus>) -> bool {
+    matches!(s, Some(MountStatus::Active | MountStatus::Failing))
+}
+
 /// D-592: queue the digest jobs of the mount's waiting takedown items.
 async fn queue_digests(tx: &mut sqlx::PgConnection, id: i64) -> MountResult<()> {
     crate::storage_legal::enqueue_mount_digests(tx, id)
@@ -216,7 +233,7 @@ impl MountRepo for PgMountRepo {
         if res.rows_affected() == 0 {
             return Ok(None);
         }
-        if was_disabled && patch.status == Some(MountStatus::Active) {
+        if was_disabled && readable(patch.status) {
             queue_digests(&mut tx, id).await?;
         }
         tx.commit().await.map_err(repo_err)?;
@@ -225,7 +242,7 @@ impl MountRepo for PgMountRepo {
 
     async fn soft_delete(&self, id: i64) -> MountResult<bool> {
         let mut tx = self.pool.begin().await.map_err(repo_err)?;
-        let was_disabled = was_disabled(&mut tx, id).await?;
+        let was_disabled = switched_off(&mut tx, id).await?;
         let res = sqlx::query(
             "UPDATE storage_mounts SET deleted_at = now(), updated_at = now()
              WHERE id = $1 AND deleted_at IS NULL",
@@ -265,7 +282,7 @@ impl MountRepo for PgMountRepo {
         .await
         .map_err(repo_err)?;
         let changed = res.rows_affected() > 0;
-        if changed && was_disabled && status == Some(MountStatus::Active) {
+        if changed && was_disabled && readable(status) {
             queue_digests(&mut tx, id).await?;
         }
         tx.commit().await.map_err(repo_err)?;

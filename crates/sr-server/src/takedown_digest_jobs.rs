@@ -851,13 +851,11 @@ mod tests {
             ..MountPatch::default()
         };
 
-        // Not a re-enable: disabled again, or failing.
+        // Not a re-enable: disabled again.
         repo.update(off, patch(MountStatus::Disabled))
             .await
             .unwrap();
-        repo.update(off, patch(MountStatus::Failing)).await.unwrap();
         assert_eq!(queued_digests(&w, a).await, 0);
-        set_status(&w, off, "disabled").await;
 
         repo.update(off, patch(MountStatus::Active)).await.unwrap();
         assert_eq!(queued_digests(&w, a).await, 1);
@@ -939,5 +937,110 @@ mod tests {
         let sent = alerts(&mut sub).await;
         assert_eq!(sent.len(), 1, "{sent:?}");
         assert!(sent[0].contains(&format!("item {item_off}")), "{}", sent[0]);
+    }
+    async fn off_world(w: &World, label: &str) -> (i64, i64, i64) {
+        let off = mount(&w.db, w.owner, label).await;
+        catalogued(&w.db, off, "a.mkv").await;
+        let notice = w.upheld(&[(off, "a.mkv")]).await;
+        let item = w.item(notice, "a.mkv").await;
+        finish_jobs(w).await;
+        set_status(w, off, "disabled").await;
+        (off, notice, item)
+    }
+
+    /// D-596: a mount that leaves `disabled` for `failing` (readable too) queues its waiting items once; a test of a
+    /// switched-off mount never moves it (see `status_after_test`), and relisting back to `disabled` queues nothing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn leaving_disabled_for_failing_queues_once_and_a_relist_back_to_disabled_does_not() {
+        use sr_storage::mounts::{MountPatch, MountRepo, MountStatus};
+        let w = world().await;
+        let (off, _notice, item) = off_world(&w, "Off").await;
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        // Delist from disabled and relist: back to disabled, nothing queued.
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::delist_mount(&mut conn, off, w.staff, "legal")
+            .await
+            .unwrap()
+            .unwrap();
+        sr_db::storage_legal::relist_mount(&mut conn, off)
+            .await
+            .unwrap()
+            .unwrap();
+        drop(conn);
+        let status: String = sqlx::query_scalar("SELECT status FROM storage_mounts WHERE id = $1")
+            .bind(off)
+            .fetch_one(w.db.pool())
+            .await
+            .unwrap();
+        assert_eq!(status, "disabled");
+        assert_eq!(queued_digests(&w, item).await, 0);
+        // Disabled -> failing queues once.
+        repo.update(
+            off,
+            MountPatch {
+                status: Some(MountStatus::Failing),
+                ..MountPatch::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(queued_digests(&w, item).await, 1);
+    }
+
+    /// D-596: deleting a mount that is `delisted` from `disabled` ends the wait: the job alerts once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn deleting_a_delisted_mount_whose_prior_status_was_disabled_yields_the_one_alert() {
+        use sr_storage::mounts::MountRepo;
+        let w = world().await;
+        let (off, _notice, item) = off_world(&w, "Off").await;
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::delist_mount(&mut conn, off, w.staff, "legal")
+            .await
+            .unwrap()
+            .unwrap();
+        drop(conn);
+        let repo = sr_db::mounts_repo::PgMountRepo::new(w.db.pool().clone());
+        assert!(repo.soft_delete(off).await.unwrap());
+        assert_eq!(queued_digests(&w, item).await, 1);
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        let r = run_digest(&w.m, &Answer::NoMount, &w.bus, item, false)
+            .await
+            .unwrap();
+        assert!(matches!(r, Outcome::GaveUp(_)), "{r:?}");
+        assert_eq!(alerts(&mut sub).await.len(), 1);
+    }
+
+    /// D-596: account erasure of a member with a disabled mount queues once per waiting item, and each job alerts once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn erasing_a_member_with_a_disabled_mount_queues_each_waiting_item_once() {
+        let w = world().await;
+        let off = mount(&w.db, w.owner, "Off").await;
+        for k in ["a.mkv", "b.mkv"] {
+            catalogued(&w.db, off, k).await;
+        }
+        let notice = w.upheld(&[(off, "a.mkv"), (off, "b.mkv")]).await;
+        let (a, b) = (w.item(notice, "a.mkv").await, w.item(notice, "b.mkv").await);
+        finish_jobs(&w).await;
+        set_status(&w, off, "disabled").await;
+        let mut conn = w.db.pool().acquire().await.unwrap();
+        sr_db::storage_legal::erase_for(&mut conn, w.owner)
+            .await
+            .unwrap();
+        drop(conn);
+        assert_eq!(
+            (queued_digests(&w, a).await, queued_digests(&w, b).await),
+            (1, 1)
+        );
+        let mut sub = w.bus.subscribe(Topic::Platform);
+        for item in [a, b] {
+            let r = run_digest(&w.m, &Answer::NoMount, &w.bus, item, false)
+                .await
+                .unwrap();
+            assert!(matches!(r, Outcome::GaveUp(_)), "{r:?}");
+        }
+        assert_eq!(alerts(&mut sub).await.len(), 2, "one alert per item");
     }
 }
