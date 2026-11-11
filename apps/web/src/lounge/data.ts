@@ -136,6 +136,8 @@ export interface ChannelPermissions {
   pinMessages: boolean;
   mentionEveryone: boolean;
   manageChannels: boolean;
+  /** MANAGE_ROLES in this channel (D-586: the category sync switch follows it). */
+  manageRoles?: boolean;
   createInvite: boolean;
   /** SEND_TTS_MESSAGES: the /tts command. */
   sendTts?: boolean;

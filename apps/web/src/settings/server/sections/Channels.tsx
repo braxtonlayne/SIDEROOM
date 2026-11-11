@@ -677,7 +677,9 @@ function ChannelPermissions({
   ];
   const current = targets.find((tg) => tkey(tg) === targetKey) ?? targets[0];
 
-  const needsManageRoles = !viewer.can('MANAGE_ROLES');
+  // D-586: the channel-level answer (an overwrite can deny it), else the server-level one.
+  const loungeChannel = useLoungeChannels(guildId).find((c) => c.id === channel.id);
+  const needsManageRoles = !(loungeChannel?.permissions?.manageRoles ?? viewer.can('MANAGE_ROLES'));
   const sync = async () => {
     const ok = await action.run(async () => {
       await api.modifyChannel(channel.id, { lock_permissions: true });
