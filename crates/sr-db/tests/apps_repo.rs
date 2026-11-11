@@ -1547,3 +1547,29 @@ async fn the_staff_list_searches_filters_pages_and_reads_who_suspended() {
         .unwrap();
     assert!(all.iter().all(|r| r.suspended_by.is_none()));
 }
+
+/// SEC-AUD-091: two concurrent installs of one app into one guild leave exactly one managed role.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn concurrent_installs_make_one_managed_role() {
+    let f = fx().await;
+    let c = f.app().await;
+    let want = (Permissions::SEND_MESSAGES | Permissions::VIEW_CHANNEL).bits();
+    let (a, b) = tokio::join!(
+        f.svc
+            .install(f.install(&c, f.owner, f.guild, Permissions::empty(), want)),
+        f.svc
+            .install(f.install(&c, f.owner, f.guild, Permissions::empty(), want)),
+    );
+    a.unwrap();
+    b.unwrap();
+    let roles: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM roles WHERE guild_id = $1 AND managed AND tags->>'bot_id' = $2",
+    )
+    .bind(f.guild)
+    .bind(c.application.bot_user_id.to_string())
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(roles, 1);
+}
