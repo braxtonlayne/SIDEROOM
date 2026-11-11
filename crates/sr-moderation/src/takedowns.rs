@@ -6,7 +6,6 @@
 //! housekeeping job applies unless staff noted a court filing. Every state change writes the access log in the
 //! same transaction, and notices are kept forever.
 
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};

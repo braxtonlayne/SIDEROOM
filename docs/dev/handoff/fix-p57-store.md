@@ -33,7 +33,8 @@ route-matrix change.
 - The job sends one staff alert (`TakedownBytes`) counting and naming (up to 10) the unresolved items.
 
 ## Tests run
-- `cargo fmt --all`; clippy and tests: see the end of this file.
+- `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-db -p sr-events -p sr-moderation -p sr-server --all-targets -- -D warnings` (clean).
+- `cargo test -p sr-moderation --test storage_takedown -- --include-ignored` (13 pass), `cargo test -p sr-db --lib jobs -- --include-ignored` (4 pass), `cargo test -p sr-server --lib -- storage_ takedown_ --include-ignored` (29 pass). The scratch DB `sr_p57_store` was dropped.
 - Postgres tests added or changed: `crates/sr-moderation/tests/storage_takedown.rs` (uphold queues one job per item and records tag + size only;
   `record_digest` branches: same size, size mismatch drops the tag, no catalog tag, second result ignored; restored item skipped; sha256 copied to
   derived items; the backfill: owners, uploader on a server bucket, unresolved left, no Person, DM once and without the other member's key/bucket,
