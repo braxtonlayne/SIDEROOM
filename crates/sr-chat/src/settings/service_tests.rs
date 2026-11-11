@@ -956,3 +956,67 @@ mod events_clock {
         assert_eq!(svc.all_interested(id).await.unwrap().len(), 130);
     }
 }
+
+/// D-604 (SEC-AUD-078): a ban beats a pending application: approving it is refused, and a ban placed on the
+/// applicant rejects the application.
+#[tokio::test]
+async fn a_ban_rejects_the_pending_application_and_refuses_its_approval() {
+    use super::applications::{Application, ApplicationStatus};
+    use super::repo::ApplicationRepository;
+    let (svc, _) = setup();
+    let pending = |id: u64, user: u64| Application {
+        id,
+        guild_id: G,
+        user_id: UserId::new(user),
+        answers: vec![],
+        status: ApplicationStatus::Pending,
+        created_at_ms: 1,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    assert!(
+        svc.repo()
+            .insert_application(&pending(1, 50))
+            .await
+            .unwrap()
+    );
+    assert!(
+        svc.repo()
+            .insert_application(&pending(2, 51))
+            .await
+            .unwrap()
+    );
+
+    // The ban landed behind the application's back (the chat store): approval is refused.
+    svc.repo().with(|s| s.bans.insert((G, UserId::new(50))));
+    assert!(matches!(
+        svc.decide_application(Permissions::MANAGE_GUILD, G, 1, true, ADMIN, None)
+            .await,
+        Err(SettingsError::Banned)
+    ));
+    let a = svc.repo().get_application(G, 1).await.unwrap().unwrap();
+    assert_eq!(a.status, ApplicationStatus::Pending);
+    // The repository refuses on its own too.
+    let e = svc
+        .repo()
+        .decide_application(G, 1, true, ADMIN, 5, None)
+        .await
+        .unwrap_err();
+    assert_eq!(e.0, super::repo::APPLICANT_BANNED);
+    // Rejecting a banned person's application stays possible.
+    svc.decide_application(Permissions::MANAGE_GUILD, G, 1, false, ADMIN, None)
+        .await
+        .unwrap();
+
+    // Placing a ban rejects the pending application.
+    svc.repo().place_ban(G, UserId::new(51), ADMIN, 9);
+    let b = svc.repo().get_application(G, 2).await.unwrap().unwrap();
+    assert_eq!(b.status, ApplicationStatus::Rejected);
+    assert_eq!(b.reviewed_by, Some(ADMIN));
+    assert!(matches!(
+        svc.decide_application(Permissions::MANAGE_GUILD, G, 2, true, ADMIN, None)
+            .await,
+        Err(SettingsError::UnknownApplication)
+    ));
+}

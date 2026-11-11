@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 use sr_core::{ChannelId, EmojiId, GuildId, SoundId, StickerId, UserId, WebhookId};
 
+use crate::error::RepoError;
 use crate::repo::RepoResult;
 
 use super::applications::{Application, ApplicationForm, ApplicationStatus};
@@ -15,9 +16,10 @@ use super::community::{CommunitySettings, Onboarding, WelcomeScreen};
 use super::expressions::{Emoji, Sticker};
 use super::invites::{GuildInvite, InviteStatus};
 use super::repo::{
-    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
-    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
-    ScheduledEventRepository, TagRepository, TemplateRepository, WebhookRepository,
+    APPLICANT_BANNED, ApplicationRepository, AuditRepository, AutoModRepository,
+    CommunityRepository, ExpressionRepository, GuideRepository, InsightsRepository,
+    InviteRepository, ScheduledEventRepository, TagRepository, TemplateRepository,
+    WebhookRepository,
 };
 use super::scheduled_events::{EventStatus, ScheduledEvent};
 use super::soundboard::Sound;
@@ -63,6 +65,22 @@ pub struct MemorySettingsRepo {
 }
 
 impl MemorySettingsRepo {
+    /// Mirror of a ban placed in the chat store (D-604): the user is banned and their pending applications
+    /// are rejected, as the Postgres ban transaction does.
+    pub fn place_ban(&self, guild: GuildId, user: UserId, by: UserId, now_ms: i64) {
+        self.with(|s| {
+            s.bans.insert((guild, user));
+            for a in s.applications.iter_mut().filter(|a| {
+                a.guild_id == guild && a.user_id == user && a.status == ApplicationStatus::Pending
+            }) {
+                a.status = ApplicationStatus::Rejected;
+                a.reviewed_by = Some(by);
+                a.reviewed_at_ms = Some(now_ms);
+                a.rejection_reason = Some(super::repo::BAN_REJECTION.to_owned());
+            }
+        });
+    }
+
     pub fn with<R>(&self, f: impl FnOnce(&mut Store) -> R) -> R {
         f(&mut self.store.lock().expect("store lock"))
     }
@@ -714,10 +732,21 @@ impl ApplicationRepository for MemorySettingsRepo {
         now_ms: i64,
         reason: Option<&str>,
     ) -> RepoResult<Option<Application>> {
-        Ok(self.with(|s| {
-            let a = s.applications.iter_mut().find(|a| {
+        self.with(|s| {
+            let banned = s.applications.iter().any(|a| {
+                a.guild_id == guild
+                    && a.id == id
+                    && a.status == ApplicationStatus::Pending
+                    && s.bans.contains(&(guild, a.user_id))
+            });
+            if approve && banned {
+                return Err(RepoError(APPLICANT_BANNED.to_owned()));
+            }
+            let Some(a) = s.applications.iter_mut().find(|a| {
                 a.guild_id == guild && a.id == id && a.status == ApplicationStatus::Pending
-            })?;
+            }) else {
+                return Ok(None);
+            };
             a.status = if approve {
                 ApplicationStatus::Approved
             } else {
@@ -726,8 +755,8 @@ impl ApplicationRepository for MemorySettingsRepo {
             a.reviewed_by = Some(reviewer);
             a.reviewed_at_ms = Some(now_ms);
             a.rejection_reason = reason.filter(|_| !approve).map(str::to_owned);
-            Some(a.clone())
-        }))
+            Ok(Some(a.clone()))
+        })
     }
 }
 

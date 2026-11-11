@@ -7,6 +7,13 @@ use std::collections::{HashMap, HashSet};
 
 use crate::repo::RepoResult;
 
+/// The reason recorded on a pending application that a ban rejected (D-604).
+pub const BAN_REJECTION: &str = "Banned from this server";
+
+/// The message of the `RepoError` a repository answers when an approval meets a banned applicant (D-604,
+/// SEC-AUD-078). The service turns it into `SettingsError::Banned`.
+pub const APPLICANT_BANNED: &str = "applicant is banned from this guild";
+
 use super::applications::{Application, ApplicationForm, ApplicationStatus};
 use super::audit::{AuditEntry, AuditQuery};
 use super::automod::{AutoModAlert, AutoModRule};
@@ -187,7 +194,7 @@ pub trait ApplicationRepository: Send + Sync {
     ) -> RepoResult<Vec<Application>>;
     /// Decide a pending application. Approving also adds the member (the Postgres
     /// implementation does both in one transaction). `None` when it is unknown or no
-    /// longer pending.
+    /// longer pending. Approving a banned applicant fails with [`APPLICANT_BANNED`] and changes nothing.
     async fn decide_application(
         &self,
         guild: GuildId,

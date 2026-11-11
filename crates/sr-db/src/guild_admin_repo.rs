@@ -513,6 +513,18 @@ impl GuildAdminRepository for PgChatRepo {
             .execute(&mut *tx)
             .await
             .map_err(db)?;
+        // A ban beats a pending join application: reject it in the same transaction (D-604, SEC-AUD-078).
+        sqlx::query(
+            "UPDATE guild_applications SET status = 'rejected', reviewed_by = $3,                reviewed_at = to_timestamp($4::bigint::double precision / 1000.0), rejection_reason = $5              WHERE guild_id = $1 AND user_id = $2 AND status = 'pending'",
+        )
+        .bind(i(ban.guild_id.get()))
+        .bind(i(ban.user_id.get()))
+        .bind(ban.banned_by.map(|b| i(b.get())))
+        .bind(ban.created_at_ms)
+        .bind(sr_chat::settings::repo::BAN_REJECTION)
+        .execute(&mut *tx)
+        .await
+        .map_err(db)?;
         tx.commit().await.map_err(db)
     }
 
