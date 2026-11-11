@@ -258,6 +258,30 @@ pub async fn schedule_singleton<'e>(
     Ok(r.rows_affected() == 1)
 }
 
+/// Arm a ONE-OFF job with a fixed `id`: inserted when no row has that id, otherwise left exactly as it is, however
+/// it ended. Unlike [`schedule_singleton`] a finished row is never re-armed, so calling this at every boot runs the
+/// job once (D-589). Returns `true` when the row was inserted.
+pub async fn schedule_once<'e>(
+    ex: impl PgExecutor<'e>,
+    id: i64,
+    kind: &str,
+    payload: &serde_json::Value,
+    delay: Duration,
+) -> DbResult<bool> {
+    let r = sqlx::query(
+        "INSERT INTO jobs (id, kind, payload, max_attempts, run_at) \
+         VALUES ($1, $2, $3, 5, now() + make_interval(secs => $4)) \
+         ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(id)
+    .bind(kind)
+    .bind(payload)
+    .bind(delay.as_secs_f64())
+    .execute(ex)
+    .await?;
+    Ok(r.rows_affected() == 1)
+}
+
 /// From inside its own handler, re-queue the running job `id` to run after
 /// `delay` (used by recurring singletons). The runner's later `complete` then
 /// finds the row no longer `running` and does nothing.
@@ -441,5 +465,44 @@ mod tests {
                 .await
                 .expect("nop")
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_one_off_arms_once_and_is_never_rearmed() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = crate::connect(&crate::DbConfig::new(url))
+            .await
+            .expect("connect");
+        crate::migrate(&pool).await.expect("migrate");
+        let id = 900_002_i64;
+        sqlx::query("DELETE FROM jobs WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .expect("clear");
+        let payload = serde_json::json!({});
+        assert!(
+            schedule_once(&pool, id, "test.once", &payload, Duration::ZERO)
+                .await
+                .expect("insert")
+        );
+        sqlx::query("UPDATE jobs SET state = 'succeeded' WHERE id = $1")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .expect("mark succeeded");
+        // A later boot leaves the finished row alone.
+        assert!(
+            !schedule_once(&pool, id, "test.once", &payload, Duration::ZERO)
+                .await
+                .expect("noop")
+        );
+        let state: String = sqlx::query_scalar("SELECT state::text FROM jobs WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("read");
+        assert_eq!(state, "succeeded");
     }
 }

@@ -152,7 +152,7 @@ mod bytes_follow {
     use sr_core::PlatformPermissions as P;
     use sr_db::accounts::{self, NewAccount};
     use sr_moderation::{
-        Moderation, ObjectDigests, SubjectNotifier,
+        Moderation, SubjectNotifier,
         model::{ItemKind, NewItem, NewNotice, TakedownKind, Who},
     };
 
@@ -178,16 +178,21 @@ mod bytes_follow {
         }
     }
 
-    /// The mounts' buckets, read by the uphold.
+    /// The mounts' buckets, read by the digest job.
     struct Buckets(HashMap<i64, Arc<ObjectStoreStorage>>);
 
     #[async_trait::async_trait]
-    impl ObjectDigests for Buckets {
-        async fn digest(&self, mount_id: i64, key: &str) -> Option<(String, u64)> {
-            let s = self.0.get(&mount_id)?;
-            sr_storage::digest::sha256_object(s.as_ref(), key)
-                .await
-                .ok()
+    impl crate::takedown_digest_jobs::MountReader for Buckets {
+        async fn open(
+            &self,
+            mount_id: i64,
+        ) -> Result<Arc<dyn ObjectStorage>, sr_storage::StorageError> {
+            let s: Arc<dyn ObjectStorage> = self
+                .0
+                .get(&mount_id)
+                .ok_or_else(|| sr_storage::StorageError::NotFound(format!("mount {mount_id}")))?
+                .clone();
+            Ok(s)
         }
     }
 
@@ -268,12 +273,9 @@ mod bytes_follow {
         put(&sa, "Movies/Leak (2001)/Leak (2001).mp4", FILM).await;
         run(&s, &sa, ma).await;
         let dms = Arc::new(Dms::default());
-        let m = Moderation::new(db.pool().clone(), Arc::new(uid))
-            .with_notifier(dms.clone())
-            .with_object_digests(Arc::new(Buckets(HashMap::from([
-                (ma, sa.clone()),
-                (mb, sb.clone()),
-            ]))));
+        let m = Moderation::new(db.pool().clone(), Arc::new(uid)).with_notifier(dms.clone());
+        let buckets = Buckets(HashMap::from([(ma, sa.clone()), (mb, sb.clone())]));
+        let bus: Arc<dyn sr_events::EventBus> = Arc::new(sr_events::InProcessBus::new());
         let caller = Caller {
             user_id: staff,
             permissions: P::MANAGE_TAKEDOWNS,
@@ -310,6 +312,24 @@ mod bytes_follow {
         .await
         .unwrap();
         m.uphold_notice(&who, notice, Some("valid")).await.unwrap();
+        // The uphold read nothing; the queued job streams the object and adds the sha256.
+        let item: i64 = sqlx::query_scalar(
+            "SELECT id FROM takedown_items WHERE notice_id = $1 AND derived_from IS NULL",
+        )
+        .bind(notice)
+        .fetch_one(db.pool())
+        .await
+        .unwrap();
+        let before: Option<String> =
+            sqlx::query_scalar("SELECT object_sha256 FROM takedown_items WHERE id = $1")
+                .bind(item)
+                .fetch_one(db.pool())
+                .await
+                .unwrap();
+        assert_eq!(before, None);
+        crate::takedown_digest_jobs::run_digest(&m, &buckets, &bus, item, false)
+            .await
+            .unwrap();
         let (sha, size): (Option<String>, Option<i64>) = sqlx::query_as(
             "SELECT object_sha256, object_size FROM takedown_items WHERE notice_id = $1 AND derived_from IS NULL",
         )
@@ -317,11 +337,7 @@ mod bytes_follow {
         .fetch_one(db.pool())
         .await
         .unwrap();
-        assert_eq!(
-            sha.map(|s| s.len()),
-            Some(64),
-            "the uphold read the object once"
-        );
+        assert_eq!(sha.map(|s| s.len()), Some(64), "the job read the object");
         assert_eq!(size, Some(FILM.len() as i64));
 
         // The other member's bucket: the film again, a look-alike of the same size, and an unrelated file.

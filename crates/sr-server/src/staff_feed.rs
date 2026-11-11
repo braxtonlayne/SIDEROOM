@@ -139,6 +139,11 @@ fn alert_meta(kind: StaffAlertKind) -> (&'static str, u32, &'static str) {
         StaffAlertKind::CartridgeShelfDeferred => {
             ("Cartridge shelf not answering", AMBER, "/admin/arcade")
         }
+        StaffAlertKind::TakedownBytes => (
+            "Takedown file check needs staff",
+            AMBER,
+            "/admin/moderation",
+        ),
     }
 }
 

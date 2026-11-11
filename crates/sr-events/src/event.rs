@@ -55,6 +55,8 @@ pub enum StaffAlertKind {
     CartridgeDelisted,
     /// A shelf has kept guild cartridges from being re-checked for 24 hours (D-582): nothing was delisted.
     CartridgeShelfDeferred,
+    /// An upheld storage object's sha256 could not be taken, or its owner could not be found (D-588, D-589).
+    TakedownBytes,
 }
 
 /// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
@@ -100,6 +102,7 @@ impl StaffAlertKind {
             Self::JobFailing => "job_failing",
             Self::CartridgeDelisted => "cartridge_delisted",
             Self::CartridgeShelfDeferred => "cartridge_shelf_deferred",
+            Self::TakedownBytes => "takedown_bytes",
         }
     }
 }
