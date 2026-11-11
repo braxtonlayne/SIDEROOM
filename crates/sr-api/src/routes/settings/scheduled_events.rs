@@ -386,6 +386,27 @@ async fn render(
 
 // ------------------------------------------------------------------ handlers
 
+/// Whether `user` may see the event: an event tied to a channel exists only for members who can view that
+/// channel (D-602, SEC-AUD-077); an external event (no channel), or one whose channel is gone, is guild-wide.
+async fn may_see(deps: &SettingsDeps, user: UserId, ev: &ScheduledEvent) -> ApiResult<bool> {
+    let Some(cid) = ev.channel_id else {
+        return Ok(true);
+    };
+    if deps.chat.get_channel(cid).await.map_err(re)?.is_none() {
+        return Ok(true);
+    }
+    Ok(deps.channel_access(user, cid).await.is_ok())
+}
+
+/// `may_see` as a gate: a hidden event answers exactly like an unknown one.
+async fn require_visible(deps: &SettingsDeps, user: UserId, ev: &ScheduledEvent) -> ApiResult<()> {
+    if may_see(deps, user, ev).await? {
+        Ok(())
+    } else {
+        Err(ErrorCode::UnknownScheduledEvent.into())
+    }
+}
+
 /// Open (scheduled or running) events of a server, soonest first (any member).
 #[utoipa::path(
     get,
@@ -406,7 +427,14 @@ pub async fn list_events(
     let user = actor(&p)?;
     let gid: GuildId = id("guild_id", &guild_id)?;
     deps.guild_access(user, gid).await?;
-    let list = deps.service.list_events(gid).await.map_err(se)?;
+    let mut list = deps.service.list_events(gid).await.map_err(se)?;
+    let mut seen = Vec::with_capacity(list.len());
+    for ev in list.drain(..) {
+        if may_see(&deps, user, &ev).await? {
+            seen.push(ev);
+        }
+    }
+    let list = seen;
     Ok(Json(
         render(&deps, user, &list, q.with_user_count.unwrap_or(false)).await?,
     ))
@@ -535,6 +563,7 @@ pub async fn get_event(
     let eid: u64 = id("event_id", &event_id)?;
     deps.guild_access(user, gid).await?;
     let ev = deps.service.get_event(gid, eid).await.map_err(se)?;
+    require_visible(&deps, user, &ev).await?;
     let mut out = render(
         &deps,
         user,
@@ -714,6 +743,8 @@ pub async fn list_interested(
     let gid: GuildId = id("guild_id", &guild_id)?;
     let eid: u64 = id("event_id", &event_id)?;
     deps.guild_access(user, gid).await?;
+    let ev = deps.service.get_event(gid, eid).await.map_err(se)?;
+    require_visible(&deps, user, &ev).await?;
     let before = q
         .before
         .as_deref()
@@ -761,6 +792,8 @@ async fn rsvp(
     let gid: GuildId = id("guild_id", guild_id)?;
     let eid: u64 = id("event_id", event_id)?;
     deps.guild_access(user, gid).await?;
+    let current = deps.service.get_event(gid, eid).await.map_err(se)?;
+    require_visible(deps, user, &current).await?;
     let (ev, changed) = deps
         .service
         .set_interested(gid, eid, user, interested)
