@@ -16,7 +16,10 @@ Branch `fix/p59-chat` on main `9d83ee2c`. No UI change, no migration, no new rou
 - Only `ban_member_purging` paths through `insert_ban` reject applications; the memory chat repo's `insert_ban` cannot reach the settings memory store (test mirror is `place_ban`).
 
 ## Tests run
-See the final summary in the reply (cargo fmt, clippy, lib suites; Postgres test result noted there).
+- `cargo fmt --all -- --check` clean. `cargo clippy -p sr-chat -p sr-api -p sr-db -p sr-server --all-targets -- -D warnings` clean.
+- `cargo test -p sr-chat --lib` 395 passed; `-p sr-api --lib` 849 passed (18 ignored); `-p sr-server --lib bridge_sync` 1 passed.
+- Postgres (`sr_p59_chat`, dropped after): `cargo test -p sr-db --test settings_repo -- --ignored`: 10 passed, 3 failed: `emoji_rules_templates_and_community_round_trip`, `an_audit_purge_that_removed_rows_is_itself_audited`, `insights_are_computed_per_day_and_read_back`. None touches this work; the tests in that file share snowflake worker ids across concurrent tests and the purge test deletes audit rows other tests write, so they look like parallel-run interference (not re-run alone or on main: not verified). The new test `approving_an_application_of_a_since_banned_user_adds_no_member` and the existing applications test pass.
+- Not run: sr-db/sr-server integration suites beyond the above, `authz_matrix` (CI runs them).
 
 ## Routes shot
 None (no UI change).
