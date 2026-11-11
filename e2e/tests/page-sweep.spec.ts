@@ -88,6 +88,8 @@ interface Row {
   tab?: string;
   /** Then press the first button whose accessible name matches, e.g. "Show 1 reply". */
   press?: RegExp;
+  /** Then reply under the first comment that offers Reply (D-585): open the form, type this, post it. */
+  replyText?: string;
 }
 
 // ---- the routes ----------------------------------------------------------------------------------------------------
@@ -201,6 +203,11 @@ const SIGNED_IN: Row[] = [
     name: `settings-server-${s}`,
     path: (w) => `/settings/server/${w.guildId}/${s}`,
   })),
+  // SEC-AUD-056 (D-586): a text channel's Permissions tab with the Sync with category switch.
+  {
+    name: 'settings-server-channel-permissions',
+    path: (w) => `/settings/server/${w.guildId}/channels?channel=${w.channelId}&tab=permissions`,
+  },
   {
     name: 'settings-server-channel-voice',
     path: (w) =>
@@ -221,6 +228,13 @@ const SIGNED_IN: Row[] = [
     path: (w) => `/cinema/t/${w.titleId}`,
     tab: 'Comments',
     press: /^Show \d+ repl/,
+  },
+  // SEC-AUD-055 (D-585): the Reply form opened under a comment, and the reply posted through it.
+  {
+    name: 'cinema-title-comments-reply',
+    path: (w) => `/cinema/t/${w.titleId}`,
+    tab: 'Comments',
+    replyText: 'Agreed, the final scene is the best part.',
   },
   { name: 'cinema-submit', path: () => '/cinema/submit' },
   {
@@ -813,6 +827,23 @@ async function capture(
         .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
         .then(() => page.waitForTimeout(500))
         .catch((e) => rec.notes.push(`${row.press} not pressed: ${String(e).slice(0, 160)}`));
+    }
+    if (row.replyText) {
+      await page
+        .getByRole('button', { name: 'Reply', exact: true })
+        .first()
+        .click({ timeout: 5000 })
+        .then(() => page.getByLabel('Write a reply').fill(row.replyText!))
+        .then(() =>
+          page.screenshot({
+            path: resolve(OUT, file.replace('.png', '-form.png')),
+            fullPage: true,
+          }),
+        )
+        .then(() => page.getByRole('button', { name: 'Post reply' }).click())
+        .then(() => page.waitForLoadState('networkidle', { timeout: 6000 }))
+        .then(() => page.waitForTimeout(700))
+        .catch((e) => rec.notes.push(`reply not posted: ${String(e).slice(0, 160)}`));
     }
     await page.evaluate(() => document.fonts?.ready).catch(() => undefined);
     rec.finalUrl = page.url().replace(ORIGIN, '');
