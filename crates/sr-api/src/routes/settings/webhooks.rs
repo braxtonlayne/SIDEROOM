@@ -386,6 +386,12 @@ async fn modify_inner(
             if !ok {
                 return Err(invalid("channel_id", "UNKNOWN_CHANNEL", "Unknown channel."));
             }
+            // The destination needs what creating a webhook there needs: VIEW_CHANNEL (the access check)
+            // and MANAGE_WEBHOOKS in that channel (D-607, SEC-AUD-076).
+            let dest = deps.channel_access(actor_id, cid).await?;
+            if !dest.perms.has(Permissions::MANAGE_WEBHOOKS) {
+                return Err(se(SettingsError::MissingPermissions));
+            }
             Some(cid)
         }
         _ => None,

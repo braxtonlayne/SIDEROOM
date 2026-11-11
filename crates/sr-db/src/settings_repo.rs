@@ -24,9 +24,10 @@ use sr_chat::settings::guide::{Guide, GuideResource, GuideTodo};
 use sr_chat::settings::insights::{Insights, InsightsDay, TOP_CHANNELS, TopChannel};
 use sr_chat::settings::invites::GuildInvite;
 use sr_chat::settings::repo::{
-    ApplicationRepository, AuditRepository, AutoModRepository, CommunityRepository,
-    ExpressionRepository, GuideRepository, InsightsRepository, InviteRepository,
-    ScheduledEventRepository, TagRepository, TemplateRepository, WebhookRepository,
+    APPLICANT_BANNED, ApplicationRepository, AuditRepository, AutoModRepository,
+    CommunityRepository, ExpressionRepository, GuideRepository, InsightsRepository,
+    InviteRepository, ScheduledEventRepository, TagRepository, TemplateRepository,
+    WebhookRepository,
 };
 use sr_chat::settings::scheduled_events::{EntityType, EventStatus, ScheduledEvent};
 use sr_chat::settings::soundboard::{Sound, SoundFormat};
@@ -1890,6 +1891,18 @@ impl ApplicationRepository for PgSettingsRepo {
         let Some(row) = row else { return Ok(None) };
         let app = application_from(&row)?;
         if approve {
+            // A ban beats a pending application (D-604, SEC-AUD-078): nothing changes, the decision is rolled back.
+            let banned: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM guild_bans WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(i(guild.get()))
+            .bind(i(app.user_id.get()))
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+            if banned {
+                return Err(RepoError(APPLICANT_BANNED.to_owned()));
+            }
             // The applicant may have joined another way meanwhile; the join is idempotent.
             sqlx::query(
                 "INSERT INTO guild_members (guild_id, user_id, join_source, join_ref) VALUES ($1, $2, 'application', $3) \

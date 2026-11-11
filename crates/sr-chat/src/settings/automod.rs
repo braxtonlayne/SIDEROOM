@@ -861,7 +861,9 @@ pub fn extract_hosts(content: &str) -> Vec<String> {
             .unwrap_or("")
             .split(':')
             .next()
-            .unwrap_or("");
+            .unwrap_or("")
+            // A fully qualified name ends in a dot (`bad.net.`); it is the same host (SEC-AUD-074).
+            .trim_end_matches('.');
         if host.contains('.') {
             hosts.push(host.to_owned());
         }
@@ -953,6 +955,24 @@ mod tests {
         evaluate_message(rules, &ctx(text))
             .first()
             .map(|m| m.matched.clone())
+    }
+
+    #[test]
+    fn a_trailing_dot_host_still_matches_the_blocklist() {
+        assert_eq!(extract_hosts("https://bad.net./x"), vec!["bad.net"]);
+        assert_eq!(extract_hosts("https://bad.net.:443/x"), vec!["bad.net"]);
+        assert_eq!(extract_hosts("see www.bad.net. now"), vec!["www.bad.net"]);
+        let rules = [compile(rule(
+            1,
+            Trigger::Links {
+                block_domains: vec!["bad.net".to_owned()],
+                allow_domains: vec![],
+                block_all: false,
+            },
+            block(),
+        ))];
+        assert!(hit(&rules, "go to https://bad.net./x").is_some());
+        assert!(hit(&rules, "go to https://bad.net.:443").is_some());
     }
 
     #[test]

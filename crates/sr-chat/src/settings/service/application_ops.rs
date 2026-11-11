@@ -137,10 +137,25 @@ impl<R: SettingsRepository> SettingsService<R> {
     ) -> SettingsResult<Application> {
         require(perms, Permissions::MANAGE_GUILD)?;
         let reason = applications::normalize_rejection_reason(reason)?;
+        // A ban beats a pending application (D-604); the repository checks again inside its transaction.
+        if approve
+            && let Some(a) = self.repo.get_application(guild, id).await?
+            && a.status == ApplicationStatus::Pending
+            && self.repo.is_banned(guild, a.user_id).await?
+        {
+            return Err(SettingsError::Banned);
+        }
         let app = self
             .repo
             .decide_application(guild, id, approve, reviewer, self.now(), reason.as_deref())
-            .await?
+            .await
+            .map_err(|e| {
+                if e.0 == crate::settings::repo::APPLICANT_BANNED {
+                    SettingsError::Banned
+                } else {
+                    SettingsError::Repo(e)
+                }
+            })?
             .ok_or(SettingsError::UnknownApplication)?;
         // G-33: the decision lands in the guild audit log; the applicant is the target.
         let entry = super::super::audit::AuditEntry::new(

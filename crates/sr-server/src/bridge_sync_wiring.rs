@@ -58,6 +58,23 @@ fn fail(e: impl std::fmt::Display) -> BridgeError {
     BridgeError::Conflict(format!("SIDE ROOM refused the change: {e}"))
 }
 
+/// The overwrites a mirrored channel copies from its SIDE ROOM parent. No parent means none; a parent that cannot
+/// be read is an error, never "no overwrites" (fail closed, SEC-AUD-079).
+async fn parent_overwrites<F, Fut, E>(
+    parent: Option<i64>,
+    read: F,
+) -> BridgeResult<Vec<sr_core::permissions::Overwrite>>
+where
+    F: FnOnce(i64) -> Fut,
+    Fut: std::future::Future<Output = Result<Vec<sr_core::permissions::Overwrite>, E>>,
+    E: std::fmt::Display,
+{
+    match parent {
+        Some(p) => read(p).await.map_err(fail),
+        None => Ok(Vec::new()),
+    }
+}
+
 impl ChatSrStructure {
     /// The actor of a change: the person who confirmed it when there is one, else the server owner.
     async fn actor(&self, guild: i64, origin: &BridgeOrigin) -> BridgeResult<UserId> {
@@ -120,15 +137,15 @@ impl SrStructure for ChatSrStructure {
         input.bitrate = new.bitrate.and_then(|b| u32::try_from(b).ok());
         input.user_limit = new.user_limit.and_then(|b| u32::try_from(b).ok());
         // As Discord's "synced to category": copy the SIDE ROOM parent's overwrites, nothing more.
-        let overwrites = match new.parent_id {
-            Some(p) => self
-                .backend
+        // A parent that cannot be read stops the creation: a channel made without its category's overwrites
+        // would be open to everyone (SEC-AUD-079).
+        let overwrites = parent_overwrites(new.parent_id, |p| async move {
+            self.backend
                 .get_channel(actor, cid(p))
                 .await
                 .map(|c| c.overwrites)
-                .unwrap_or_default(),
-            None => vec![],
-        };
+        })
+        .await?;
         let created = self
             .backend
             .create_channel(actor, gid(guild), input, overwrites)
@@ -387,5 +404,29 @@ async fn minute(engine: &SyncEngine, reconcile_minutes: i64) {
     }
     if let Err(e) = sr_bridge::sync::ops::prune_done(&engine.svc.pool).await {
         tracing::warn!(error = %e, "bridge sync: could not prune finished ops");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// The backend read of the parent errors: the helper errors, so `create_channel` (which uses `?` on it before
+    /// it calls the backend's `create_channel`) never creates anything. `GuildBackend` is too large a trait to
+    /// stub, so the read is injected as a closure.
+    #[tokio::test]
+    async fn create_channel_fails_when_the_parent_cannot_be_read() {
+        let created = AtomicUsize::new(0);
+        let r = parent_overwrites(Some(7), |_| async { Err::<Vec<_>, _>("database down") }).await;
+        assert!(matches!(r, Err(BridgeError::Conflict(_))), "{r:?}");
+        // Only a successful read leads on to the creation.
+        if r.is_ok() {
+            created.fetch_add(1, Ordering::SeqCst);
+        }
+        assert_eq!(created.load(Ordering::SeqCst), 0);
+        // No parent: no overwrites, no read.
+        let none = parent_overwrites(None, |_| async { Err::<Vec<_>, _>("never called") }).await;
+        assert!(none.unwrap().is_empty());
     }
 }

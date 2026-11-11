@@ -2280,9 +2280,71 @@ struct BobRestricted;
 
 #[async_trait]
 impl crate::auth::AccountRestrictions for BobRestricted {
-    async fn restricted_from_posting(&self, user_id: i64) -> bool {
-        user_id == i64::try_from(BOB).unwrap()
+    async fn restricted_from_posting(&self, user_id: i64) -> Result<bool, String> {
+        Ok(user_id == i64::try_from(BOB).unwrap())
     }
+}
+
+/// A restriction gate whose lookup always errors (a database blip).
+struct FailingGate;
+
+#[async_trait]
+impl crate::auth::AccountRestrictions for FailingGate {
+    async fn restricted_from_posting(&self, _user_id: i64) -> Result<bool, String> {
+        Err("the database is down".into())
+    }
+}
+
+/// D-598 (SEC-AUD-073): a restriction lookup that errors lets nothing through: the send answers 503.
+#[tokio::test]
+async fn a_failed_restriction_lookup_does_not_let_a_send_through() {
+    use sr_auth::{
+        repo::{SessionRecord, SessionRepository},
+        session::SessionToken,
+    };
+    let e = env().await;
+    let sessions = Arc::new(crate::auth::memory::MemorySessions::new());
+    let t = SessionToken::generate().unwrap();
+    sessions
+        .create(SessionRecord {
+            id: 7,
+            user_id: i64::try_from(BOB).unwrap(),
+            token_hash: t.hash(),
+            created_at: 0,
+            last_seen_at: i64::MAX / 4,
+            expires_at: i64::MAX / 4,
+            device_name: None,
+        })
+        .await
+        .unwrap();
+    let mut settings = ApiSettings::default();
+    settings.rate_limit.enabled = false;
+    let state = AppState::builder()
+        .settings(settings)
+        .sessions(sessions)
+        .extension(e.deps.clone())
+        .extension(Arc::new(crate::auth::RestrictionGate(Arc::new(
+            FailingGate,
+        ))))
+        .build();
+    let app = build_router(state, router());
+    let raw = t.expose().to_owned();
+    let req = Request::builder()
+        .method(Method::POST)
+        .uri(format!("/api/v1/channels/{}/messages", e.ch))
+        .header("cookie", format!("sr_session={raw}"))
+        .header(
+            crate::auth::csrf::CSRF_HEADER,
+            crate::auth::csrf::token_for(&raw),
+        )
+        .header("content-type", "application/json")
+        .body(Body::from(json!({"content": "sneaky"}).to_string()))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let (s, v) = e.get("/messages", "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert!(!v.to_string().contains("sneaky"), "nothing was posted: {v}");
 }
 
 /// D-566 (SEC-AUD-024): a restricted member edits no new content, crossposts nothing and votes in no poll; an

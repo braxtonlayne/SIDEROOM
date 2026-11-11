@@ -509,6 +509,13 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-070** [BE] A stage opened at an event's start needs the creator's stage-moderator rights at that moment (D-603). Handoff `fix-p59-gate.md`.
 - [x] **SEC-AUD-071** [BE] Thread member lists and activity viewers follow a private parent's overwrites and thread membership. Handoff `fix-p59-gate.md`.
 - [x] **SEC-AUD-072** [BE] Channel-bound scheduled-event dispatches reach only members who can view the channel (D-602, gateway half). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-073** [BE] D-598: the posting-restriction lookup fails closed: `AccountRestrictions::restricted_from_posting` returns `Result<bool, String>`, and an error answers 503 (`ApiResourceOverloaded`) on every posting route. Handoff `fix-p59-chat.md`.
+- [x] **SEC-AUD-074** [BE] AutoMod `extract_hosts` trims trailing dots, so `https://bad.net./x` matches the Links blocklist.
+- [x] **SEC-AUD-075** [BE] "Delete messages" on ban also covers messages inside threads.
+- [x] **SEC-AUD-076** [BE] D-607: moving a webhook needs VIEW_CHANNEL and MANAGE_WEBHOOKS in the destination channel.
+- [x] **SEC-AUD-077** [BE] D-602 (API half): scheduled events of a channel the caller cannot view are left out of list and answer 404 on get, RSVP and the interested list. The gateway half is SEC-AUD-072.
+- [x] **SEC-AUD-078** [BE] D-604: approving an application of a banned user is refused (`UserBanned`, nothing changes), and placing a ban rejects the user's pending applications in the ban transaction.
+- [x] **SEC-AUD-079** [BE] A mirrored Discord channel whose SIDE ROOM parent cannot be read is not created (fail closed).
 - [x] **SEC-AUD-080** [BE] D-605: `handle_underage` loads the case with `Access::Work` and runs `guard_target` before it suspends anything (the suspension is another service's transaction, so the act is checked first, not atomic). Handoff `fix-p59-mod.md`.
 - [x] **SEC-AUD-081** [BE] `execute_branch_action` claims its request with a conditional UPDATE `approved` -> `executing` (a racing call answers Conflict); the finish needs `executing`; an error hands the claim back to `approved`. Migration 2590 widens the state CHECK.
 - [x] **SEC-AUD-082** [BE] D-605: a staff account in a banned subtree goes to `review`, never the automatic freeze; the branch freeze and ban skip staff unless the caller is the Owner; the 30-day sweep never removes staff.

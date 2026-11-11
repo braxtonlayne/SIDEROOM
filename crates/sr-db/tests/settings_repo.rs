@@ -829,3 +829,88 @@ async fn audit_purge_works_through_more_than_one_batch() {
         .await
         .unwrap();
 }
+
+/// D-604 (SEC-AUD-078): a ban beats a pending application. Approving the application of a since-banned user is
+/// refused and adds no member; placing the ban rejects the user's pending applications.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn approving_an_application_of_a_since_banned_user_adds_no_member() {
+    use sr_chat::admin_repo::{Ban, GuildAdminRepository};
+    use sr_chat::settings::applications::{Answer, Application, ApplicationStatus};
+    use sr_chat::settings::repo::{APPLICANT_BANNED, ApplicationRepository};
+
+    let pool = pool().await;
+    let test_ids = ids(11);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let chat = PgChatRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let banned_user = account(&pool, &test_ids).await;
+    let later_banned = account(&pool, &test_ids).await;
+    let app = |user: UserId| Application {
+        id: test_ids.generate().get(),
+        guild_id: gid,
+        user_id: user,
+        answers: vec![Answer {
+            question_id: 5,
+            value: "because".into(),
+        }],
+        status: ApplicationStatus::Pending,
+        created_at_ms: NOW,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    let member_of = |user: UserId| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(gid.get() as i64)
+            .bind(user.get() as i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+
+    // A ban row placed behind the application's back: the approval is refused and rolled back.
+    let first = app(banned_user);
+    assert!(repo.insert_application(&first).await.unwrap());
+    sqlx::query("INSERT INTO guild_bans (guild_id, user_id, banned_by) VALUES ($1, $2, $3)")
+        .bind(gid.get() as i64)
+        .bind(banned_user.get() as i64)
+        .bind(owner.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let err = repo
+        .decide_application(gid, first.id, true, owner, NOW + 1, None)
+        .await
+        .unwrap_err();
+    assert_eq!(err.0, APPLICANT_BANNED);
+    assert!(!member_of(banned_user).await, "no member was added");
+    let still = repo.get_application(gid, first.id).await.unwrap().unwrap();
+    assert_eq!(
+        still.status,
+        ApplicationStatus::Pending,
+        "the decision rolled back"
+    );
+
+    // Placing a ban rejects that user's pending application, in the ban transaction.
+    let second = app(later_banned);
+    assert!(repo.insert_application(&second).await.unwrap());
+    chat.insert_ban(&Ban {
+        guild_id: gid,
+        user_id: later_banned,
+        reason: None,
+        banned_by: Some(owner),
+        created_at_ms: NOW + 2,
+    })
+    .await
+    .unwrap();
+    let done = repo.get_application(gid, second.id).await.unwrap().unwrap();
+    assert_eq!(done.status, ApplicationStatus::Rejected);
+    assert_eq!(done.reviewed_by, Some(owner));
+    assert!(!member_of(later_banned).await);
+}
