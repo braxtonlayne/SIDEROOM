@@ -45,11 +45,13 @@ pub struct Job {
     pub attempts: i32,
     pub max_attempts: i32,
     pub last_error: Option<String>,
+    /// The worker holding the claim; `complete`/`fail` fence on it together with `attempts`.
+    pub locked_by: Option<String>,
 }
 
 macro_rules! cols {
     () => {
-        "id, kind, payload, state::text AS state, priority, attempts, max_attempts, last_error"
+        "id, kind, payload, state::text AS state, priority, attempts, max_attempts, last_error, locked_by"
     };
 }
 
@@ -146,31 +148,48 @@ pub async fn claim<'e>(
         .await?)
 }
 
-/// Mark a running job succeeded.
-pub async fn complete<'e>(ex: impl PgExecutor<'e>, id: i64) -> DbResult<bool> {
+/// Mark a running job succeeded. Only the claiming attempt (`worker`, `attempt` as returned by [`claim`]) can
+/// finish it: a stalled worker whose claim was reaped and re-claimed gets `false` (SEC-AUD-089).
+pub async fn complete<'e>(
+    ex: impl PgExecutor<'e>,
+    id: i64,
+    worker: &str,
+    attempt: i32,
+) -> DbResult<bool> {
     let r = sqlx::query(
         "UPDATE jobs SET state = 'succeeded', finished_at = now(), locked_at = NULL, \
                 locked_by = NULL, updated_at = now() \
-         WHERE id = $1 AND state = 'running'",
+         WHERE id = $1 AND state = 'running' AND locked_by = $2 AND attempts = $3",
     )
     .bind(id)
+    .bind(worker)
+    .bind(attempt)
     .execute(ex)
     .await?;
     Ok(r.rows_affected() == 1)
 }
 
 /// [`complete`] for several running jobs in one statement (a handler that batched them). Returns how many were
-/// marked.
-pub async fn complete_many<'e>(ex: impl PgExecutor<'e>, ids: &[i64]) -> DbResult<u64> {
+/// marked. Each entry is `(id, attempt)` and must still be held by `worker`.
+pub async fn complete_many<'e>(
+    ex: impl PgExecutor<'e>,
+    worker: &str,
+    claims: &[(i64, i32)],
+) -> DbResult<u64> {
+    let ids: Vec<i64> = claims.iter().map(|c| c.0).collect();
+    let attempts: Vec<i32> = claims.iter().map(|c| c.1).collect();
     if ids.is_empty() {
         return Ok(0);
     }
     let r = sqlx::query(
         "UPDATE jobs SET state = 'succeeded', finished_at = now(), locked_at = NULL, \
                 locked_by = NULL, updated_at = now() \
-         WHERE id = ANY($1) AND state = 'running'",
+         WHERE state = 'running' AND locked_by = $3 AND (id, attempts) IN \
+               (SELECT * FROM unnest($1::bigint[], $2::int[]))",
     )
     .bind(ids)
+    .bind(attempts)
+    .bind(worker)
     .execute(ex)
     .await?;
     Ok(r.rows_affected())
@@ -180,7 +199,13 @@ pub async fn complete_many<'e>(ex: impl PgExecutor<'e>, ids: &[i64]) -> DbResult
 /// `max_attempts` is reached. A recurring singleton (id below [`SINGLETON_ID_LIMIT`]) is never dead-lettered: it
 /// re-queues with the capped backoff, because nothing would re-arm it before the next boot (SEC-AUD-029).
 /// Returns the resulting state (`queued`/`dead`), or `None` if the job was not running.
-pub async fn fail<'e>(ex: impl PgExecutor<'e>, id: i64, error: &str) -> DbResult<Option<String>> {
+pub async fn fail<'e>(
+    ex: impl PgExecutor<'e>,
+    id: i64,
+    worker: &str,
+    attempt: i32,
+    error: &str,
+) -> DbResult<Option<String>> {
     Ok(sqlx::query_scalar(
         "UPDATE jobs SET \
              state = CASE WHEN attempts >= max_attempts AND id >= $5 THEN 'dead'::job_state \
@@ -190,7 +215,7 @@ pub async fn fail<'e>(ex: impl PgExecutor<'e>, id: i64, error: &str) -> DbResult
                           LEAST($3::float8 * power(2, LEAST(attempts - 1, 20)), $4::float8)) END, \
              finished_at = CASE WHEN attempts >= max_attempts AND id >= $5 THEN now() ELSE NULL END, \
              last_error = $2, locked_at = NULL, locked_by = NULL, updated_at = now() \
-         WHERE id = $1 AND state = 'running' \
+         WHERE id = $1 AND state = 'running' AND locked_by = $6 AND attempts = $7 \
          RETURNING state::text",
     )
     .bind(id)
@@ -198,6 +223,8 @@ pub async fn fail<'e>(ex: impl PgExecutor<'e>, id: i64, error: &str) -> DbResult
     .bind(BACKOFF_BASE_SECS as f64)
     .bind(BACKOFF_CAP_SECS as f64)
     .bind(SINGLETON_ID_LIMIT)
+    .bind(worker)
+    .bind(attempt)
     .fetch_optional(ex)
     .await?)
 }

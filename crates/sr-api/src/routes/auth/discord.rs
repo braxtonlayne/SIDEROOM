@@ -435,16 +435,10 @@ pub async fn callback(
             let identity_id = svc.next_id();
             let back = match svc
                 .store
-                .link_discord(account_id, identity_id, &user.id)
+                .link_discord(account_id, identity_id, &user.id, now)
                 .await?
             {
-                DiscordLink::Linked => {
-                    let _ = svc
-                        .store
-                        .audit(account_id, "auth.discord_link", Some(account_id), "", now)
-                        .await;
-                    SETTINGS_PAGE.to_owned()
-                }
+                DiscordLink::Linked => SETTINGS_PAGE.to_owned(),
                 DiscordLink::TakenByOther => format!("{SETTINGS_PAGE}?error=discord_taken"),
                 DiscordLink::AlreadyLinked => format!("{SETTINGS_PAGE}?error=discord_already"),
             };
@@ -641,21 +635,15 @@ pub async fn unlink(
     session_id(&p)?;
     let account = current_account(&svc, p.user_id).await?;
     reauthenticate(&svc, state.now_secs(), &account, &body.password).await?;
-    if !svc.store.unlink_discord(account.id).await? {
+    if !svc
+        .store
+        .unlink_discord(account.id, state.now_secs())
+        .await?
+    {
         return Err(
             ApiError::with_message(ErrorCode::General, "No Discord account is linked.").into(),
         );
     }
-    let _ = svc
-        .store
-        .audit(
-            account.id,
-            "auth.discord_unlink",
-            Some(account.id),
-            "",
-            state.now_secs(),
-        )
-        .await;
     Ok(StatusCode::NO_CONTENT)
 }
 

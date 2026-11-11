@@ -497,23 +497,26 @@ async fn index_handler(indexer: Arc<Indexer>, pool: PgPool, job: Job) -> Result<
         match index_payload(j) {
             Ok(p) => {
                 payloads.push(p);
-                claimed.push(j.id);
+                claimed.push((j.id, j.attempts));
             }
             Err(e) => {
-                let _ = jobs::fail(&pool, j.id, &e.to_string()).await;
+                let _ =
+                    jobs::fail(&pool, j.id, INDEX_BATCH_WORKER, j.attempts, &e.to_string()).await;
             }
         }
     }
     let outcome = indexer.handle_many(&payloads).await;
     match &outcome {
         Ok(()) => {
-            if let Err(e) = jobs::complete_many(&pool, &claimed).await {
+            if let Err(e) = jobs::complete_many(&pool, INDEX_BATCH_WORKER, &claimed).await {
                 tracing::error!(error = %e, "recording batched search index jobs failed");
             }
         }
         Err(err) => {
-            for &id in &claimed {
-                if let Err(e) = jobs::fail(&pool, id, &err.to_string()).await {
+            for &(id, attempt) in &claimed {
+                if let Err(e) =
+                    jobs::fail(&pool, id, INDEX_BATCH_WORKER, attempt, &err.to_string()).await
+                {
                     tracing::error!(job_id = id, error = %e, "recording a search index job failed");
                 }
             }

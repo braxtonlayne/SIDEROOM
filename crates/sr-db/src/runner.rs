@@ -109,8 +109,10 @@ async fn kind_loop(
         };
         let pool = pool.clone();
         let handler = reg.handler.clone();
+        let owner = worker.clone();
         tokio::spawn(async move {
             let id = job.id;
+            let attempt = job.attempts;
             // Inner spawn isolates handler panics.
             let outcome = match tokio::spawn(handler(job)).await {
                 Ok(Ok(())) => Ok(()),
@@ -118,10 +120,12 @@ async fn kind_loop(
                 Err(join) => Err(format!("handler panicked: {join}")),
             };
             let res = match outcome {
-                Ok(()) => jobs::complete(&pool, id).await.map(|_| ()),
+                Ok(()) => jobs::complete(&pool, id, &owner, attempt).await.map(|_| ()),
                 Err(msg) => {
                     tracing::warn!(job_id = id, error = %msg, "job failed");
-                    jobs::fail(&pool, id, &msg).await.map(|_| ())
+                    jobs::fail(&pool, id, &owner, attempt, &msg)
+                        .await
+                        .map(|_| ())
                 }
             };
             if let Err(e) = res {

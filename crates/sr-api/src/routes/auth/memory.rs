@@ -398,12 +398,19 @@ impl AuthStore for MemoryAuthStore {
         account_id: i64,
         _identity_id: i64,
         provider_user_id: &str,
+        _now: i64,
     ) -> StoreResult<DiscordLink> {
         let mut g = self.lock();
         match g.discord.get(provider_user_id) {
             Some(owner) if *owner != account_id => return Ok(DiscordLink::TakenByOther),
             Some(_) => {
                 g.discord_unlinked.remove(provider_user_id);
+                g.audit.push((
+                    account_id,
+                    "auth.discord_link".to_owned(),
+                    Some(account_id),
+                    String::new(),
+                ));
                 return Ok(DiscordLink::Linked);
             }
             None => {}
@@ -416,10 +423,16 @@ impl AuthStore for MemoryAuthStore {
             return Ok(DiscordLink::AlreadyLinked);
         }
         g.discord.insert(provider_user_id.to_owned(), account_id);
+        g.audit.push((
+            account_id,
+            "auth.discord_link".to_owned(),
+            Some(account_id),
+            String::new(),
+        ));
         Ok(DiscordLink::Linked)
     }
 
-    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool> {
+    async fn unlink_discord(&self, account_id: i64, _now: i64) -> StoreResult<bool> {
         let mut g = self.lock();
         let mine: Vec<String> = g
             .discord
@@ -429,6 +442,14 @@ impl AuthStore for MemoryAuthStore {
             .collect();
         let any = !mine.is_empty();
         g.discord_unlinked.extend(mine);
+        if any {
+            g.audit.push((
+                account_id,
+                "auth.discord_unlink".to_owned(),
+                Some(account_id),
+                String::new(),
+            ));
+        }
         Ok(any)
     }
 

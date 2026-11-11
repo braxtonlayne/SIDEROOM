@@ -336,15 +336,18 @@ pub trait AuthStore: Send + Sync {
     async fn discord_linked(&self, account_id: i64) -> StoreResult<bool>;
     /// Link a Discord identity to an existing account (ENT-AUTH-011). `identity_id` is the row id used
     /// when a new link is created. An identity that was unlinked from this same account is relinked.
+    /// The `auth.discord_link` audit row (at `now`, unix seconds) is written in the same transaction: no audit
+    /// row, no change (D-608).
     async fn link_discord(
         &self,
         account_id: i64,
         identity_id: i64,
         provider_user_id: &str,
+        now: i64,
     ) -> StoreResult<DiscordLink>;
     /// Unlink the account's Discord identity. The record is kept so the identity is not freed for
-    /// another account. `false` when nothing was linked.
-    async fn unlink_discord(&self, account_id: i64) -> StoreResult<bool>;
+    /// another account. `false` when nothing was linked. Audited in the same transaction as the change (D-608).
+    async fn unlink_discord(&self, account_id: i64, now: i64) -> StoreResult<bool>;
     /// Replace the password hash.
     async fn set_password_hash(&self, id: i64, hash: &str) -> StoreResult<()>;
     /// Mark the email verified (idempotent).

@@ -678,3 +678,107 @@ async fn the_declared_minimum_age_is_recorded_once_and_bounded() {
     // The column refuses anything outside 13..=18.
     assert!(store.set_declared_min_age(a, 12).await.is_err());
 }
+
+/// SEC-AUD-098 (D-608): linking and unlinking Discord write their audit row in the same transaction, and a failing
+/// audit insert leaves the sign-in method unchanged.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn discord_link_and_unlink_are_audited_in_the_same_transaction() {
+    use sr_auth::store::{AuthStore, DiscordLink};
+    let pool = pool().await;
+    let store = sr_db::auth_store::PgAuthStore::new(pool.clone(), repo(&pool), Arc::new(uid));
+    let user = account(&pool).await;
+    let count = |action: &'static str| {
+        let pool = pool.clone();
+        async move {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT count(*) FROM platform_audit_log WHERE actor_id = $1 AND action = $2",
+            )
+            .bind(user)
+            .bind(action)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let did = format!("d-{}", uid());
+    assert_eq!(
+        store
+            .link_discord(user, uid(), &did, 1_700_000_000)
+            .await
+            .unwrap(),
+        DiscordLink::Linked
+    );
+    assert_eq!(count("auth.discord_link").await, 1);
+    // No change, no audit row.
+    assert_eq!(
+        store
+            .link_discord(user, uid(), "d-other", 1_700_000_001)
+            .await
+            .unwrap(),
+        DiscordLink::AlreadyLinked
+    );
+    assert_eq!(count("auth.discord_link").await, 1);
+    assert!(store.unlink_discord(user, 1_700_000_002).await.unwrap());
+    assert_eq!(count("auth.discord_unlink").await, 1);
+    assert!(!store.unlink_discord(user, 1_700_000_003).await.unwrap());
+    assert_eq!(count("auth.discord_unlink").await, 1);
+
+    // A failing audit insert rolls the change back (the trigger only refuses rows of the accounts listed in
+    // `p59_refuse_audit_for`, so other tests are unaffected).
+    sqlx::query("CREATE TABLE IF NOT EXISTS p59_refuse_audit_for (actor BIGINT PRIMARY KEY)")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE OR REPLACE FUNCTION p59_refuse_audit() RETURNS trigger AS $$ BEGIN \
+         IF EXISTS (SELECT 1 FROM p59_refuse_audit_for WHERE actor = NEW.actor_id) THEN \
+           RAISE EXCEPTION 'forced'; END IF; RETURN NEW; END $$ LANGUAGE plpgsql",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query("DROP TRIGGER IF EXISTS p59_refuse_audit ON platform_audit_log")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p59_refuse_audit BEFORE INSERT ON platform_audit_log \
+         FOR EACH ROW EXECUTE FUNCTION p59_refuse_audit()",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    let refuse = |on: bool| {
+        let pool = pool.clone();
+        async move {
+            let q = if on {
+                "INSERT INTO p59_refuse_audit_for (actor) VALUES ($1) ON CONFLICT DO NOTHING"
+            } else {
+                "DELETE FROM p59_refuse_audit_for WHERE actor = $1"
+            };
+            sqlx::query(q).bind(user).execute(&pool).await.unwrap();
+        }
+    };
+    refuse(true).await;
+    let linked = store.link_discord(user, uid(), &did, 1_700_000_004).await;
+    assert!(linked.is_err(), "{linked:?}");
+    assert!(!store.discord_linked(user).await.unwrap(), "still unlinked");
+    refuse(false).await;
+    assert_eq!(
+        store
+            .link_discord(user, uid(), &did, 1_700_000_005)
+            .await
+            .unwrap(),
+        DiscordLink::Linked
+    );
+    refuse(true).await;
+    let unlinked = store.unlink_discord(user, 1_700_000_006).await;
+    refuse(false).await;
+    sqlx::query("DROP TRIGGER p59_refuse_audit ON platform_audit_log")
+        .execute(&pool)
+        .await
+        .unwrap();
+    assert!(unlinked.is_err(), "{unlinked:?}");
+    assert!(store.discord_linked(user).await.unwrap(), "still linked");
+}

@@ -1377,10 +1377,11 @@ impl ProfileRepository for PgSocialRepo {
     }
 
     async fn put_profile(&self, p: &Profile) -> RepoResult<()> {
-        sqlx::query(
+        let n = sqlx::query(
             "UPDATE accounts SET banner_key = $2, accent_color = $3, bio = $4, pronouns = $5, \
              avatar_key = $6, display_name = $7, avatar_decoration = $8, profile_effect = $9, \
-             theme_primary = $10, theme_accent = $11, updated_at = now() WHERE id = $1",
+             theme_primary = $10, theme_accent = $11, updated_at = now() \
+             WHERE id = $1 AND state = 'active'",
         )
         .bind(i(p.user.get()))
         .bind(p.banner_key.as_deref())
@@ -1395,7 +1396,14 @@ impl ProfileRepository for PgSocialRepo {
         .bind(p.theme_colors.map(|c| c[1] as i32))
         .execute(&self.pool)
         .await
-        .map_err(db)?;
+        .map_err(db)?
+        .rows_affected();
+        if n == 0 {
+            // Erased (or never existed): a stale save must not write the profile back (SEC-AUD-090).
+            return Err(RepoError(
+                "account not found or no longer active".to_owned(),
+            ));
+        }
         Ok(())
     }
 

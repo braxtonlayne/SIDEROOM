@@ -1904,6 +1904,14 @@ impl AppsRepository for PgAppsRepo {
 
     async fn install(&self, req: InstallWrite) -> AppsResult<InstallOutcome> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        // One install of an app per guild at a time, so two concurrent installs cannot each create a managed
+        // role and orphan one (SEC-AUD-091).
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('app_install:' || $1::text || ':' || $2::text, 0))")
+            .bind(req.application_id)
+            .bind(req.guild_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(db)?;
         sqlx::query("SELECT 1 FROM guilds WHERE id = $1 AND deleted_at IS NULL FOR SHARE")
             .bind(req.guild_id)
             .fetch_optional(&mut *tx)

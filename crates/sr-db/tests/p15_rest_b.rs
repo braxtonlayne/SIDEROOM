@@ -48,28 +48,28 @@ async fn discord_identity_links_unlinks_and_is_never_freed() {
 
     assert!(!store.discord_linked(a).await.unwrap());
     assert_eq!(
-        store.link_discord(a, 100, "d-1").await.unwrap(),
+        store.link_discord(a, 100, "d-1", 0).await.unwrap(),
         DiscordLink::Linked
     );
     assert!(store.discord_linked(a).await.unwrap());
     assert_eq!(store.find_by_discord("d-1").await.unwrap().unwrap().id, a);
     // One identity per account, and an identity belongs to one account.
     assert_eq!(
-        store.link_discord(a, 101, "d-2").await.unwrap(),
+        store.link_discord(a, 101, "d-2", 0).await.unwrap(),
         DiscordLink::AlreadyLinked
     );
     assert_eq!(
-        store.link_discord(b, 102, "d-1").await.unwrap(),
+        store.link_discord(b, 102, "d-1", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
 
-    assert!(store.unlink_discord(a).await.unwrap());
-    assert!(!store.unlink_discord(a).await.unwrap());
+    assert!(store.unlink_discord(a, 0).await.unwrap());
+    assert!(!store.unlink_discord(a, 0).await.unwrap());
     assert!(!store.discord_linked(a).await.unwrap());
     assert!(store.find_by_discord("d-1").await.unwrap().is_none());
     // The record stays: nobody else can claim the identity, the owner can take it back.
     assert_eq!(
-        store.link_discord(b, 103, "d-1").await.unwrap(),
+        store.link_discord(b, 103, "d-1", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
     let rows: i64 = sqlx::query_scalar(
@@ -81,12 +81,12 @@ async fn discord_identity_links_unlinks_and_is_never_freed() {
     assert_eq!(rows, 1);
     // After unlinking, a different identity may be linked.
     assert_eq!(
-        store.link_discord(a, 104, "d-2").await.unwrap(),
+        store.link_discord(a, 104, "d-2", 0).await.unwrap(),
         DiscordLink::Linked
     );
-    assert!(store.unlink_discord(a).await.unwrap());
+    assert!(store.unlink_discord(a, 0).await.unwrap());
     assert_eq!(
-        store.link_discord(a, 105, "d-1").await.unwrap(),
+        store.link_discord(a, 105, "d-1", 0).await.unwrap(),
         DiscordLink::Linked
     );
     assert_eq!(store.find_by_discord("d-1").await.unwrap().unwrap().id, a);
@@ -111,7 +111,7 @@ async fn a_moved_identity_belongs_to_the_account_it_moved_to() {
     let a = account(&pool, 11).await;
     let c = account(&pool, 12).await;
     assert_eq!(
-        store.link_discord(a, 200, "d-9").await.unwrap(),
+        store.link_discord(a, 200, "d-9", 0).await.unwrap(),
         DiscordLink::Linked
     );
     // What `move_identity` writes: the old row becomes history, a new live row on `c`.
@@ -132,17 +132,17 @@ async fn a_moved_identity_belongs_to_the_account_it_moved_to() {
     .unwrap();
     assert_eq!(store.find_by_discord("d-9").await.unwrap().unwrap().id, c);
     assert_eq!(
-        store.link_discord(a, 202, "d-9").await.unwrap(),
+        store.link_discord(a, 202, "d-9", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
-    assert!(store.unlink_discord(c).await.unwrap());
+    assert!(store.unlink_discord(c, 0).await.unwrap());
     // Still held by `c` after its own unlink; the old account cannot take it back.
     assert_eq!(
-        store.link_discord(a, 203, "d-9").await.unwrap(),
+        store.link_discord(a, 203, "d-9", 0).await.unwrap(),
         DiscordLink::TakenByOther
     );
     assert_eq!(
-        store.link_discord(c, 204, "d-9").await.unwrap(),
+        store.link_discord(c, 204, "d-9", 0).await.unwrap(),
         DiscordLink::Linked
     );
     let live: Vec<i64> = sqlx::query_scalar(
