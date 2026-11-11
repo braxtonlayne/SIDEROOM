@@ -12,6 +12,7 @@ import {
 import { useEffect, useState } from 'react';
 import { ApiError } from '../../../api/client';
 import { useT } from '../../../i18n';
+import { useCompliancePublic } from '../../../lib/compliancePublic';
 import { cdnUrl } from '../../../store';
 import { useStreamer } from '../prefs';
 import {
@@ -597,6 +598,7 @@ function IdentityCard({ me, reload }: { me: Me; reload: () => void }) {
 /** Settings, Account removal (LNG-USET-006, G-82): the retention text and the delete dialog. */
 function RemovalCard({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
   const t = useT();
+  const compliance = useCompliancePublic();
   const [open, setOpen] = useState(false);
   return (
     <Card
@@ -604,7 +606,11 @@ function RemovalCard({ me, onSignedOut }: { me: Me; onSignedOut: () => void }) {
       title={t('settings.account.removalTitle')}
       description={t('settings.account.removalDesc')}
     >
-      <p>{t('settings.account.removalRetained')}</p>
+      <p>
+        {t('settings.account.removalRetained', {
+          years: compliance.invoice_retention_years ?? 10,
+        })}
+      </p>
       <div>
         <Button variant="danger" onClick={() => setOpen(true)}>
           {t('settings.account.deleteButton')}
