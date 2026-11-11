@@ -39,6 +39,7 @@ fn job_for(export: i64, attempts: i32) -> Job {
         attempts,
         max_attempts: 5,
         last_error: None,
+        locked_by: None,
     }
 }
 
