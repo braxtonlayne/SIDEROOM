@@ -6,6 +6,7 @@
 //! housekeeping job applies unless staff noted a court filing. Every state change writes the access log in the
 //! same transaction, and notices are kept forever.
 
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
@@ -614,6 +615,7 @@ async fn disable_item(
     ids: &IdSource,
     notice_id: i64,
     item: &ItemRow,
+    digest: Option<&(String, u64)>,
 ) -> ModResult<Value> {
     let id = item.target_id;
     let prior = match item.kind {
@@ -622,20 +624,46 @@ async fn disable_item(
         // notice's restore lifts it with the other blocks.
         // D-571 (migration 2450): the item also records the fingerprint of the bytes from the catalog row, so the
         // indexer delists the same bytes under another name or in another bucket under this notice.
+        // D-583: and the sha256 of the bytes when the read in `uphold_notice` succeeded, so the indexer can match
+        // an upload whose entity tag differs (another multipart part size) by reading it once. A failed read leaves
+        // the tag and size only, as before.
         ItemKind::StorageObject => {
             if let Some(key) = &item.object_key {
                 block(conn, ids, notice_id, "key", &format!("mount/{id}/{key}")).await?;
-                sqlx::query(
-                    "UPDATE takedown_items i SET object_hash = o.content_tag, object_size = o.size_bytes \
-                     FROM storage_objects o \
-                     WHERE i.id = $1 AND i.object_hash IS NULL AND o.mount_id = $2 AND o.key = $3 \
-                       AND o.content_tag IS NOT NULL",
+                let row = sqlx::query(
+                    "SELECT content_tag, size_bytes FROM storage_objects WHERE mount_id = $1 AND key = $2",
                 )
-                .bind(item.id)
                 .bind(id)
                 .bind(key)
-                .execute(&mut *conn)
+                .fetch_optional(&mut *conn)
                 .await?;
+                let (cat_tag, cat_size): (Option<String>, Option<i64>) = match &row {
+                    Some(r) => (r.try_get("content_tag")?, Some(r.try_get("size_bytes")?)),
+                    None => (None, None),
+                };
+                let fingerprint = match digest {
+                    // The catalog tag describes the bytes only when the catalog saw the same size.
+                    Some((sha, n)) => {
+                        let n = i64::try_from(*n).unwrap_or(i64::MAX);
+                        let tag = cat_tag.filter(|_| cat_size == Some(n));
+                        Some((tag, Some(sha.clone()), n))
+                    }
+                    None => cat_tag
+                        .zip(cat_size)
+                        .map(|(tag, size)| (Some(tag), None, size)),
+                };
+                if let Some((tag, sha, size)) = fingerprint {
+                    sqlx::query(
+                        "UPDATE takedown_items SET object_hash = $2, object_sha256 = $3, object_size = $4 \
+                         WHERE id = $1 AND object_size IS NULL",
+                    )
+                    .bind(item.id)
+                    .bind(tag)
+                    .bind(sha)
+                    .bind(size)
+                    .execute(&mut *conn)
+                    .await?;
+                }
             }
             json!({})
         }
@@ -1092,6 +1120,15 @@ fn clip(s: &str, n: usize) -> String {
         format!("{t}...")
     } else {
         t
+    }
+}
+
+/// A label as the DM shows it. A byte-matched item's label ends with the label of the item it matched, which is
+/// another member's object (its key and bucket): that stays on the staff side, the owner is told their own object.
+fn dm_label(label: &str) -> String {
+    match label.find(" (the same bytes as: ") {
+        Some(at) => label[..at].to_owned(),
+        None => label.to_owned(),
     }
 }
 
@@ -1617,6 +1654,9 @@ impl Moderation {
         Self::tk_staff(who)?;
         let reason = rules::reason(reason)?;
         let policy = self.policy().await;
+        // D-583: read each storage object the notice names once, before the transaction (a read of a film must not
+        // hold the notice's row lock); an item that cannot be read keeps its tag and size only.
+        let digests = self.read_digests(id).await;
         let now = now_ms();
         let mut tx = self.pool.begin().await?;
         let n = lock_notice(&mut tx, id, now).await?;
@@ -1635,7 +1675,8 @@ impl Moderation {
                 it.hold_id =
                     hold_item(&mut tx, &self.ids, &n, &it, Some(who.user_id()), &reason).await?;
             }
-            disable_item(&mut tx, &self.ids, id, &it).await?;
+            let digest = digests.get(&it.id);
+            disable_item(&mut tx, &self.ids, id, &it, digest).await?;
             disabled += 1;
         }
         move_state(&mut tx, id, NoticeState::Triage, NoticeState::Removed).await?;
@@ -1700,6 +1741,114 @@ impl Moderation {
         })
     }
 
+    /// D-583: the sha256 and byte count of every storage object a notice in triage names, by item id. An object the
+    /// reader cannot read (or no reader wired) is left out and its item records the tag and size only.
+    async fn read_digests(&self, notice_id: i64) -> HashMap<i64, (String, u64)> {
+        let mut out = HashMap::new();
+        let Some(reader) = &self.digests else {
+            return out;
+        };
+        let rows = sqlx::query(
+            "SELECT i.id, i.target_id, i.object_key FROM takedown_items i \
+             JOIN takedown_notices n ON n.id = i.notice_id \
+             WHERE i.notice_id = $1 AND n.state = 'triage' AND i.kind = 'storage_object' \
+               AND i.derived_from IS NULL AND i.object_key IS NOT NULL AND i.state IN ('identified', 'held') \
+             ORDER BY i.id",
+        )
+        .bind(notice_id)
+        .fetch_all(&self.pool)
+        .await;
+        let Ok(rows) = rows else { return out };
+        for r in rows {
+            let (Ok(item), Ok(mount), Ok(key)) = (
+                r.try_get::<i64, _>("id"),
+                r.try_get::<i64, _>("target_id"),
+                r.try_get::<String, _>("object_key"),
+            ) else {
+                continue;
+            };
+            match reader.digest(mount, &key).await {
+                Some(d) => {
+                    out.insert(item, d);
+                }
+                None => tracing::warn!(
+                    notice = notice_id,
+                    mount,
+                    "takedown: the object could not be read for its sha256; the item keeps the tag and size"
+                ),
+            }
+        }
+        out
+    }
+
+    /// D-584: tell the owner of each byte-matched item the notice's removal DM, once. The indexer records a match
+    /// as a new item of the notice already `disabled` and naming its owner (`subject_account_id`, never a Person:
+    /// no strike); this sends the DM with the notice's reference and the counter-notice way (a counter-notice from
+    /// them is recorded against the notice like any item's) and marks the item notified. Safe to call after every
+    /// indexer run: it only touches items not yet told, in a notice still standing. Returns how many owners were
+    /// told.
+    pub async fn notify_byte_matches(&self) -> i64 {
+        let rows = sqlx::query(
+            "SELECT DISTINCT i.notice_id FROM takedown_items i JOIN takedown_notices n ON n.id = i.notice_id \
+             WHERE i.derived_from IS NOT NULL AND i.notified_at IS NULL AND i.subject_account_id IS NOT NULL \
+               AND i.state = 'disabled' AND n.state IN ('removed', 'counter_noticed') \
+             ORDER BY 1 LIMIT 50",
+        )
+        .fetch_all(&self.pool)
+        .await;
+        let Ok(rows) = rows else { return 0 };
+        let policy = self.policy().await;
+        let mut told = 0;
+        for r in rows {
+            let Ok(notice_id) = r.try_get::<i64, _>("notice_id") else {
+                continue;
+            };
+            let sql = format!(
+                "{ITEM_SELECT} WHERE notice_id = $1 AND derived_from IS NOT NULL AND notified_at IS NULL \
+                 AND subject_account_id IS NOT NULL AND state = 'disabled' ORDER BY id"
+            );
+            let Ok(items) = sqlx::query(sqlx::AssertSqlSafe(sql))
+                .bind(notice_id)
+                .fetch_all(&self.pool)
+                .await
+            else {
+                continue;
+            };
+            let Ok(items) = items.iter().map(item_from).collect::<ModResult<Vec<_>>>() else {
+                continue;
+            };
+            let Ok(Some(notice)) =
+                sqlx::query("SELECT kind, legal_basis FROM takedown_notices WHERE id = $1")
+                    .bind(notice_id)
+                    .fetch_optional(&self.pool)
+                    .await
+            else {
+                continue;
+            };
+            let (Ok(kind), Ok(basis)) = (
+                notice.try_get::<String, _>("kind"),
+                notice.try_get::<String, _>("legal_basis"),
+            ) else {
+                continue;
+            };
+            let Some(kind) = TakedownKind::parse(&kind) else {
+                continue;
+            };
+            let reference = notice_ref(notice_id);
+            told += self
+                .notify_subjects(&items, |labels| {
+                    removal_dm(kind, labels, &basis, &reference, &policy)
+                })
+                .await;
+            let ids: Vec<i64> = items.iter().map(|i| i.id).collect();
+            let _ = sqlx::query("UPDATE takedown_items SET notified_at = now() WHERE id = ANY($1)")
+                .bind(&ids)
+                .execute(&self.pool)
+                .await;
+        }
+        told
+    }
+
     /// Tell live clients about every message the notice removed from view (once per message, after the commit).
     async fn announce_removed_messages(&self, notice_id: i64) {
         let Some(sink) = &self.removals else { return };
@@ -1732,7 +1881,7 @@ impl Moderation {
             let labels: Vec<String> = items
                 .iter()
                 .filter(|i| i.subject_account_id == Some(account))
-                .map(|i| i.label.clone())
+                .map(|i| dm_label(&i.label))
                 .collect();
             if self.dm_subject(account, &text(&labels)).await {
                 delivered += 1;
@@ -1749,8 +1898,8 @@ impl Moderation {
                 continue;
             }
             match contacts.iter_mut().find(|(c, _)| *c == contact) {
-                Some((_, labels)) => labels.push(i.label.clone()),
-                None => contacts.push((contact, vec![i.label.clone()])),
+                Some((_, labels)) => labels.push(dm_label(&i.label)),
+                None => contacts.push((contact, vec![dm_label(&i.label)])),
             }
         }
         for (contact, labels) in contacts {

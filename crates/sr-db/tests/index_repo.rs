@@ -565,3 +565,69 @@ async fn the_index_keeps_the_content_tag_of_each_object() {
     let r = s.begin(77, 0).await.unwrap();
     assert!(s.apply(77, r, &bad).await.is_err());
 }
+
+/// D-583 (migration 2510): the sha256 the indexer computed is kept on the catalog row while the tag and size stay
+/// the same (so an object is never read twice) and dropped when either changes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_index_keeps_a_sha256_only_while_the_tag_and_size_stay_the_same() {
+    let db = TestDb::new().await.expect("db");
+    let s = store(&db);
+    let key = "Movies/Alien (1979)/Alien.mp4";
+    let batch = |tag: Option<&str>, sha: Option<&str>| {
+        let mut all: Vec<_> = classify_all(
+            &listing(&[key]),
+            &Fake,
+            &SidecarMap::new(),
+            Options::default(),
+        )
+        .into_iter()
+        .filter(|c| !c.ignored && c.class.kind().is_some())
+        .collect();
+        for c in &mut all {
+            c.content_tag = tag.map(str::to_owned);
+            c.content_sha256 = sha.map(str::to_owned);
+        }
+        all
+    };
+    let apply = |b: Vec<sr_storage::index::Classified>| {
+        let s = &s;
+        async move {
+            let r = s.begin(78, 0).await.unwrap();
+            s.apply(78, r, &b).await.unwrap();
+            s.finish(78, r, &RunReport::default(), true, None, 0)
+                .await
+                .unwrap();
+        }
+    };
+    let sha_of = || async {
+        sqlx::query_scalar::<_, Option<String>>(
+            "SELECT content_sha256 FROM storage_objects WHERE mount_id = 78",
+        )
+        .fetch_one(db.pool())
+        .await
+        .unwrap()
+    };
+    let tag = "e4d909c290d0fb1ca068ffaddf22cbd0-3";
+    let sha = "a".repeat(64);
+    apply(batch(Some(tag), Some(&sha))).await;
+    assert_eq!(sha_of().await.as_deref(), Some(sha.as_str()));
+    // The next run did not read it again (no sha256 in the batch) and the tag is the same: kept.
+    apply(batch(Some(tag), None)).await;
+    assert_eq!(sha_of().await.as_deref(), Some(sha.as_str()));
+    // Another tag: other bytes, the sha256 no longer describes them.
+    apply(batch(Some("0123456789abcdef0123456789abcdef-9"), None)).await;
+    assert_eq!(sha_of().await, None);
+    // A tag-less object keeps no sha256 it was not just given (nothing says the bytes did not change).
+    apply(batch(None, Some(&sha))).await;
+    assert_eq!(sha_of().await.as_deref(), Some(sha.as_str()));
+    apply(batch(None, None)).await;
+    assert_eq!(sha_of().await, None);
+    // Not a sha256: refused.
+    let r = s.begin(78, 0).await.unwrap();
+    assert!(
+        s.apply(78, r, &batch(Some(tag), Some("xyz")))
+            .await
+            .is_err()
+    );
+}

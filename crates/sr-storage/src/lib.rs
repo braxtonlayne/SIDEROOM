@@ -8,6 +8,7 @@
 pub mod browse;
 pub mod cdn;
 pub mod cors_check;
+pub mod digest;
 pub mod error;
 pub mod guard;
 pub mod img;

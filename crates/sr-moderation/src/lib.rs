@@ -46,8 +46,8 @@ pub use graduated::{Blocked, SYSTEM_ACTOR, is_operator, is_sterilized};
 pub use holds::{HoldOutcome, HoldRequest, HoldScope, ReleaseOutcome};
 pub use rings::HeldRing;
 pub use service::{
-    GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, PolicySource, RemovalSink,
-    SubjectNotifier,
+    GuildAudit, GuildAuditKind, GuildAuditRow, IdSource, Moderation, ObjectDigests, PolicySource,
+    RemovalSink, SubjectNotifier,
 };
 pub use sr_db::shelf_access_repo::Delisted as ShelfObjectDelisted;
 pub use sr_db::storage_legal::{AdminMountRow, MountLegal};

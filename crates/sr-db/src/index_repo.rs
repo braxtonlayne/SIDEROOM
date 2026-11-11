@@ -16,8 +16,8 @@ use async_trait::async_trait;
 use serde_json::json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use sr_storage::index::{
-    Class, Classified, IndexControl, IndexStore, JOB_KIND, RunReport, RunStatus, StoreError,
-    TaggedObject,
+    Class, Classified, HashCandidate, HashedObject, IndexControl, IndexStore, JOB_KIND, RunReport,
+    RunStatus, SizedObject, StoreError, TaggedObject,
 };
 
 /// Source of snowflake ids.
@@ -163,7 +163,7 @@ impl IndexStore for PgIndexStore {
             // needs signed segments, so it is not a direct key). Shelves play COALESCE(playable_key, key).
             sqlx::query(
                 "INSERT INTO storage_objects (id, mount_id, key, size_bytes, kind, class, container, \
-                    web_native, parsed, state, seen_run, playable_key, converter, converted_at, content_tag) \
+                    web_native, parsed, state, seen_run, playable_key, converter, converted_at, content_tag, content_sha256) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'indexed', $10, \
                     COALESCE($12::text, (SELECT t.prefix || t.entry FROM storage_object_transcodes t \
                         WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4')), \
@@ -172,11 +172,15 @@ impl IndexStore for PgIndexStore {
                             WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') THEN 'worker' END, \
                     CASE WHEN $12::text IS NOT NULL THEN now() \
                          ELSE (SELECT t.finished_at FROM storage_object_transcodes t \
-                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') END, $13) \
+                            WHERE t.mount_id = $2 AND t.key = $3 AND t.format = 'mp4') END, $13, $14) \
                  ON CONFLICT (mount_id, key) DO UPDATE SET size_bytes = EXCLUDED.size_bytes, \
                     kind = EXCLUDED.kind, class = EXCLUDED.class, container = EXCLUDED.container, \
                     web_native = EXCLUDED.web_native, parsed = EXCLUDED.parsed, state = 'indexed', \
                     seen_run = EXCLUDED.seen_run, vanished_at = NULL, content_tag = EXCLUDED.content_tag, \
+                    content_sha256 = CASE WHEN EXCLUDED.content_sha256 IS NOT NULL THEN EXCLUDED.content_sha256 \
+                        WHEN EXCLUDED.content_tag IS NOT NULL AND storage_objects.content_tag = EXCLUDED.content_tag \
+                             AND storage_objects.size_bytes = EXCLUDED.size_bytes THEN storage_objects.content_sha256 \
+                        ELSE NULL END, \
                     indexed_at = CASE WHEN $11 THEN now() ELSE storage_objects.indexed_at END, \
                     playable_key = EXCLUDED.playable_key, \
                     converter = CASE WHEN EXCLUDED.playable_key IS NULL THEN NULL \
@@ -201,6 +205,7 @@ impl IndexStore for PgIndexStore {
             .bind(changed)
             .bind(c.playable_key.as_deref())
             .bind(c.content_tag.as_deref())
+            .bind(c.content_sha256.as_deref())
             .execute(&mut *tx)
             .await
             .map_err(se)?;
@@ -243,6 +248,50 @@ impl IndexStore for PgIndexStore {
             })
             .collect();
         crate::storage_legal::delist_byte_matches(&self.pool, &*self.ids, mount_id, &rows)
+            .await
+            .map_err(|e| StoreError(e.to_string()))
+    }
+
+    async fn hash_candidates(
+        &self,
+        mount_id: i64,
+        objects: &[SizedObject],
+    ) -> Result<Vec<HashCandidate>, StoreError> {
+        // D-583: the sieve is the size of a standing byte takedown that recorded a sha256 (migration 2510).
+        let rows: Vec<(String, Option<String>, i64)> = objects
+            .iter()
+            .map(|o| {
+                (
+                    o.key.clone(),
+                    o.tag.clone(),
+                    i64::try_from(o.size).unwrap_or(i64::MAX),
+                )
+            })
+            .collect();
+        let got = crate::storage_legal::hash_candidates(&self.pool, mount_id, &rows)
+            .await
+            .map_err(|e| StoreError(e.to_string()))?;
+        Ok(got
+            .into_iter()
+            .map(|(key, known_sha256)| HashCandidate { key, known_sha256 })
+            .collect())
+    }
+
+    async fn hash_matches(
+        &self,
+        mount_id: i64,
+        objects: &[HashedObject],
+    ) -> Result<Vec<String>, StoreError> {
+        let probes: Vec<crate::storage_legal::Probe> = objects
+            .iter()
+            .map(|o| crate::storage_legal::Probe {
+                key: o.key.clone(),
+                tag: o.tag.clone(),
+                sha256: Some(o.sha256.clone()),
+                size: i64::try_from(o.size).unwrap_or(i64::MAX),
+            })
+            .collect();
+        crate::storage_legal::delist_hash_matches(&self.pool, &*self.ids, mount_id, &probes)
             .await
             .map_err(|e| StoreError(e.to_string()))
     }
