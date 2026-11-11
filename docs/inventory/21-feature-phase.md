@@ -486,3 +486,4 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-047** [FE] E2EE key pins are a set per person; only an unseen key shows the new-device notice (D-578). Handoff `fix-p55-webui.md`.
 - [x] **SEC-AUD-048** [BE] Storage-object takedowns follow the bytes (entity tag and size) across names and mounts (D-571). Handoff `fix-p55-store.md`.
 - [x] **SEC-AUD-049** [BE/FE] A deleted Cinema or Library comment with replies becomes a "Comment deleted" tombstone; Cinema comments gained a replies view (D-572). Handoff `fix-p55-store.md`.
+- [x] **SEC-AUD-052** [BE] The cartridge manifest re-check tells a definite answer (delist) from a transient one (defer, hourly retry, one staff alert per shelf after 24 hours); a delisted cartridge DMs its lister and writes a server audit entry (D-582). Handoff `fix-p56-media.md`.

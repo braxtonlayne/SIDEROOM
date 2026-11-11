@@ -475,8 +475,29 @@ pub struct CartridgeInput {
 /// implements it with the shelf's sealed credentials and the endpoint guard; the service never holds a bucket.
 #[async_trait::async_trait]
 pub trait CartridgeObjects: Send + Sync {
-    /// The first `len` bytes of the object at `path` on shelf (mount) `shelf`. `Err` is the reason for the lister.
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String>;
+    /// The first `len` bytes of the object at `path` on shelf (mount) `shelf`. `Err` is the reason for the lister,
+    /// and says whether the answer is final or the shelf may answer differently later (D-582).
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError>;
+}
+
+/// Why a cartridge's file could not be read (D-582). The manifest re-check delists on a definite answer and
+/// defers on a transient one; a listing refuses either, with the reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CartridgeReadError {
+    /// The shelf answered and the file is not there: no mount, object not found, and the like. Final.
+    Definite(String),
+    /// The shelf could not be asked or did not answer: a backend error, a client that could not be built, an
+    /// endpoint check that failed. The file may well be fine.
+    Transient(String),
+}
+
+/// Why [`ArcadeService::cartridge_manifest`] gave no manifest.
+enum ManifestFail {
+    /// A final answer: the file is not a cartridge (or not there).
+    Definite(String),
+    /// The shelf could not be asked.
+    Transient(String),
+    Other(ActivityError),
 }
 
 /// A cartridge the manifest re-check delisted (D-579), for the staff alert that names it.
@@ -502,7 +523,29 @@ pub struct RecheckPass {
     /// Rows whose tier or capabilities changed to what the manifest declares.
     pub rewritten: usize,
     pub delisted: Vec<DelistedCartridge>,
+    /// Rows whose shelf could not be asked (D-582): left unchecked, not delisted.
+    pub deferred: usize,
 }
+
+/// A shelf whose cartridges have been deferred for 24 hours or more (D-582): one staff alert each.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeferredShelf {
+    pub shelf_id: i64,
+    pub cartridges: usize,
+    /// The servers waiting on the shelf.
+    pub guild_names: Vec<String>,
+    /// The latest reason the shelf gave.
+    pub reason: String,
+}
+
+/// How long a shelf's cartridges stay deferred before staff are told (D-582).
+pub const DEFER_ALERT_HOURS: i64 = 24;
+
+/// The audit-log action number of `arcade.cartridge_delisted` (`sr_chat::settings::audit::AuditAction::
+/// ArcadeCartridgeDelisted`; a test there pins it).
+pub const AUDIT_CARTRIDGE_DELISTED: i16 = 230;
+/// The system account that acts in the audit log for a delisting (`sr_admin::SYSTEM_USER_ID`).
+const SYSTEM_ACTOR: i64 = 1;
 
 /// A tip link in a request.
 #[derive(Debug, Clone, PartialEq, Deserialize, ToSchema)]
@@ -997,24 +1040,45 @@ impl ArcadeService {
         path: &str,
         size: i64,
     ) -> ActivityResult<Manifest> {
+        match self
+            .read_cartridge_manifest(objects, shelf, path, size)
+            .await
+        {
+            Ok(m) => Ok(m),
+            Err(ManifestFail::Definite(m) | ManifestFail::Transient(m)) => {
+                Err(invalid("object_hash", m))
+            }
+            Err(ManifestFail::Other(e)) => Err(e),
+        }
+    }
+
+    /// [`Self::cartridge_manifest`] that keeps a final answer apart from a shelf that could not be asked (D-582).
+    async fn read_cartridge_manifest(
+        &self,
+        objects: &dyn CartridgeObjects,
+        shelf: i64,
+        path: &str,
+        size: i64,
+    ) -> Result<Manifest, ManifestFail> {
         let len = u64::try_from(size).unwrap_or(0);
         if len == 0 {
-            return Err(invalid("object_hash", "is an empty file, not a game."));
-        }
-        if len > bundle::MAX_UNPACKED_BYTES {
-            return Err(invalid(
-                "object_hash",
-                "is larger than 32 MiB, too large for a cartridge.",
+            return Err(ManifestFail::Definite(
+                "is an empty file, not a game.".to_owned(),
             ));
         }
-        let bytes = objects
-            .read(shelf, path, len)
-            .await
-            .map_err(|m| invalid("object_hash", m))?;
+        if len > bundle::MAX_UNPACKED_BYTES {
+            return Err(ManifestFail::Definite(
+                "is larger than 32 MiB, too large for a cartridge.".to_owned(),
+            ));
+        }
+        let bytes = objects.read(shelf, path, len).await.map_err(|e| match e {
+            CartridgeReadError::Definite(m) => ManifestFail::Definite(m),
+            CartridgeReadError::Transient(m) => ManifestFail::Transient(m),
+        })?;
         tokio::task::spawn_blocking(move || bundle::read_manifest(&bytes))
             .await
-            .map_err(|e| ActivityError::Storage(e.to_string()))?
-            .map_err(|e| invalid("object_hash", format!("could not be read: {}", e.text())))
+            .map_err(|e| ManifestFail::Other(ActivityError::Storage(e.to_string())))?
+            .map_err(|e| ManifestFail::Definite(format!("could not be read: {}", e.text())))
     }
 
     /// List a cartridge on a server. The cartridge names a file: a catalog object (`shelf_id` and `object_hash`)
@@ -1240,14 +1304,25 @@ impl ArcadeService {
     /// [`Self::add_cartridge`]. A readable manifest with a tier rewrites the row's tier and capabilities (and a
     /// row named only by a path on the server's shelf gets that catalog object). A row whose file cannot be found
     /// or read, has no manifest or no tier, or is not a zip is delisted with the reason; the caller alerts staff.
-    /// Every row looked at is marked checked, so repeated passes end; a pass that checks nothing means done.
+    /// A shelf that could not be asked (D-582: a backend error, a client that would not build, a failed endpoint
+    /// check) defers the row instead: it stays unchecked and nothing is delisted. Every other row looked at is
+    /// marked checked. `run` names this run of the job: a row deferred in it is skipped by the later passes of the
+    /// same run, so passes end; a pass that finds nothing to look at means done.
     pub async fn recheck_cartridges(
         &self,
         objects: &dyn CartridgeObjects,
         limit: i64,
+        run: i64,
     ) -> ActivityResult<RecheckPass> {
-        /// The file found (shelf, object hash), its declared tier and capabilities.
-        type Checked = ((i64, String), Tier, Vec<String>);
+        /// What the re-check made of one row.
+        enum Verdict {
+            /// The file found (shelf, object hash), its declared tier and capabilities.
+            Listed((i64, String), Tier, Vec<String>),
+            /// A final answer: delist, with the reason.
+            Delist(String),
+            /// The shelf could not be asked: (shelf, reason).
+            Defer(i64, String),
+        }
         type Row = (
             i64,
             i64,
@@ -1267,9 +1342,12 @@ impl ArcadeService {
              FROM arcade_guild_cartridges c JOIN guilds g ON g.id = c.guild_id \
              LEFT JOIN accounts a ON a.id = c.added_by \
              LEFT JOIN shelf_objects o ON o.shelf_id = c.shelf_id AND o.object_hash = c.object_hash \
-             WHERE c.manifest_checked_at IS NULL ORDER BY c.id LIMIT $1",
+             WHERE c.manifest_checked_at IS NULL \
+               AND (c.manifest_defer_run IS NULL OR c.manifest_defer_run <> $2) \
+             ORDER BY c.id LIMIT $1",
         )
         .bind(limit.max(1))
+        .bind(run)
         .fetch_all(&self.pool)
         .await?;
         let rows: Vec<Row> = rows
@@ -1334,23 +1412,43 @@ impl ArcadeService {
                         Err(_) => None,
                     },
                 };
-            let read: Result<Checked, String> = match object {
-                None => {
-                    Err("is not a file on this server's shelf (or it was taken down).".to_owned())
-                }
+            let read: Verdict = match object {
+                None => Verdict::Delist(
+                    "is not a file on this server's shelf (or it was taken down).".to_owned(),
+                ),
                 Some((shelf, hash, path, size)) => {
-                    match self.cartridge_manifest(objects, shelf, &path, size).await {
+                    match self
+                        .read_cartridge_manifest(objects, shelf, &path, size)
+                        .await
+                    {
                         Ok(m) => match m.tier {
-                            Some(t) => Ok(((shelf, hash), t, m.capabilities)),
-                            None => Err(format!("has no tier in its {MANIFEST}.")),
+                            Some(t) => Verdict::Listed((shelf, hash), t, m.capabilities),
+                            None => Verdict::Delist(format!("has no tier in its {MANIFEST}.")),
                         },
-                        Err(ActivityError::Invalid(_, m)) => Err(m),
-                        Err(e) => return Err(e),
+                        Err(ManifestFail::Definite(m)) => Verdict::Delist(m),
+                        Err(ManifestFail::Transient(m)) => Verdict::Defer(shelf, m),
+                        Err(ManifestFail::Other(e)) => return Err(e),
                     }
                 }
             };
             match read {
-                Ok(((shelf, hash), tier, caps)) => {
+                Verdict::Defer(shelf, reason) => {
+                    let reason: String = reason.chars().take(400).collect();
+                    sqlx::query(
+                        "UPDATE arcade_guild_cartridges SET manifest_defer_shelf = $2, \
+                             manifest_deferred_since = COALESCE(manifest_deferred_since, now()), \
+                             manifest_defer_run = $3, manifest_defer_reason = $4 \
+                         WHERE id = $1",
+                    )
+                    .bind(id)
+                    .bind(shelf)
+                    .bind(run)
+                    .bind(&reason)
+                    .execute(&self.pool)
+                    .await?;
+                    pass.deferred += 1;
+                }
+                Verdict::Listed((shelf, hash), tier, caps) => {
                     let mut old_sorted = old_caps;
                     old_sorted.sort();
                     old_sorted.dedup();
@@ -1370,8 +1468,9 @@ impl ArcadeService {
                     .execute(&self.pool)
                     .await?;
                 }
-                Err(reason) => {
+                Verdict::Delist(reason) => {
                     let reason: String = reason.chars().take(400).collect();
+                    let mut tx = self.pool.begin().await?;
                     sqlx::query(
                         "UPDATE arcade_guild_cartridges SET delisted_at = now(), delist_reason = $2, \
                              manifest_checked_at = now() \
@@ -1379,8 +1478,30 @@ impl ArcadeService {
                     )
                     .bind(id)
                     .bind(&reason)
-                    .execute(&self.pool)
+                    .execute(&mut *tx)
                     .await?;
+                    // D-582: the guild audit log says so too (`arcade.cartridge_delisted`), in the same transaction.
+                    sqlx::query(
+                        "INSERT INTO audit_log_entries (id, guild_id, actor_id, target_id, action, changes, \
+                             options, reason) \
+                         VALUES ($1, $2, $3, $4, $5, '[]'::jsonb, $6, $7)",
+                    )
+                    .bind((self.ids)())
+                    .bind(guild)
+                    .bind(SYSTEM_ACTOR)
+                    .bind(id)
+                    .bind(AUDIT_CARTRIDGE_DELISTED)
+                    .bind(serde_json::json!({
+                        "event": "arcade.cartridge_delisted",
+                        "cartridge_id": id.to_string(),
+                        "title": title,
+                        "source_ref": source,
+                        "listed_by": added_by.to_string(),
+                    }))
+                    .bind(format!("its file {reason}").chars().take(512).collect::<String>())
+                    .execute(&mut *tx)
+                    .await?;
+                    tx.commit().await?;
                     pass.delisted.push(DelistedCartridge {
                         id,
                         guild_id: guild,
@@ -1395,6 +1516,70 @@ impl ArcadeService {
             }
         }
         Ok(pass)
+    }
+
+    /// How many cartridges the re-check has deferred and not yet settled (D-582): the job runs again in an hour
+    /// while this is not zero.
+    pub async fn deferred_cartridges(&self) -> ActivityResult<i64> {
+        Ok(sqlx::query_scalar(
+            "SELECT count(*) FROM arcade_guild_cartridges \
+             WHERE manifest_checked_at IS NULL AND delisted_at IS NULL AND manifest_deferred_since IS NOT NULL",
+        )
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
+    /// The shelves whose cartridges have been deferred for [`DEFER_ALERT_HOURS`] hours or more and that staff have
+    /// not been told about (D-582). Each shelf is returned once: its deferred rows are marked told in the same
+    /// statement, so a later run (or a second job) returns nothing for it.
+    pub async fn stale_deferred_shelves(&self) -> ActivityResult<Vec<DeferredShelf>> {
+        let rows = sqlx::query(
+            "UPDATE arcade_guild_cartridges c SET manifest_defer_alerted_at = now() \
+             WHERE c.manifest_checked_at IS NULL AND c.delisted_at IS NULL \
+               AND c.manifest_defer_shelf IN ( \
+                   SELECT d.manifest_defer_shelf FROM arcade_guild_cartridges d \
+                   WHERE d.manifest_checked_at IS NULL AND d.delisted_at IS NULL \
+                     AND d.manifest_deferred_since <= now() - make_interval(hours => $1::int) \
+                     AND d.manifest_defer_shelf IS NOT NULL \
+                   GROUP BY d.manifest_defer_shelf \
+                   HAVING count(d.manifest_defer_alerted_at) = 0) \
+             RETURNING c.manifest_defer_shelf AS shelf, c.guild_id, c.manifest_defer_reason AS reason",
+        )
+        .bind(i32::try_from(DEFER_ALERT_HOURS).unwrap_or(24))
+        .fetch_all(&self.pool)
+        .await?;
+        let mut out: Vec<DeferredShelf> = Vec::new();
+        for r in &rows {
+            let shelf: i64 = r.try_get("shelf")?;
+            let guild: i64 = r.try_get("guild_id")?;
+            let reason: Option<String> = r.try_get("reason")?;
+            let name: Option<String> = sqlx::query_scalar("SELECT name FROM guilds WHERE id = $1")
+                .bind(guild)
+                .fetch_optional(&self.pool)
+                .await?;
+            let entry = match out.iter().position(|d| d.shelf_id == shelf) {
+                Some(i) => &mut out[i],
+                None => {
+                    out.push(DeferredShelf {
+                        shelf_id: shelf,
+                        cartridges: 0,
+                        guild_names: Vec::new(),
+                        reason: String::new(),
+                    });
+                    out.last_mut().expect("just pushed")
+                }
+            };
+            entry.cartridges += 1;
+            if let Some(n) = name
+                && !entry.guild_names.contains(&n)
+            {
+                entry.guild_names.push(n);
+            }
+            if let Some(reason) = reason {
+                entry.reason = reason;
+            }
+        }
+        Ok(out)
     }
 
     /// Whether the reviewed build of `app` is a desktop-only (Tier 2) game: the browser refuses to launch it.
