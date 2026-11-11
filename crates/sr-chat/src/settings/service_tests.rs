@@ -864,14 +864,15 @@ mod events_clock {
         assert_eq!(done[0].event.status, EventStatus::Completed);
     }
 
+    /// D-603 (SEC-AUD-070): a stage that cannot be opened (refused for the creator, or busy) does not stop the
+    /// event: a manual start still goes active, without a stage.
     #[tokio::test]
-    async fn a_stage_event_opens_and_closes_its_stage_instance() {
-        let (svc, clock) = setup();
+    async fn a_refused_stage_open_does_not_stop_a_manual_start() {
+        let (svc, _clock) = setup();
         let w = World::default();
         let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
-        // A stage already running there blocks the start.
         *w.stage_busy.lock().unwrap() = true;
-        let busy = svc
+        let ev = svc
             .update_event(
                 manage(),
                 ADMIN,
@@ -881,13 +882,43 @@ mod events_clock {
                 ChannelKind::Stage,
                 &w,
             )
-            .await;
-        assert!(busy.is_err());
+            .await
+            .unwrap();
+        assert_eq!(ev.status, EventStatus::Active);
+        assert_eq!(ev.entity_id, None, "no stage was opened");
+        assert!(w.log.lock().unwrap().is_empty());
         assert_eq!(
             svc.get_event(G, id).await.unwrap().status,
-            EventStatus::Scheduled
+            EventStatus::Active
         );
-        *w.stage_busy.lock().unwrap() = false;
+    }
+
+    /// D-603: the same on the voice-join path: the event goes active instead of staying scheduled forever.
+    #[tokio::test]
+    async fn a_refused_stage_open_does_not_stop_a_voice_join_start() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
+        clock.advance_ms(HOUR);
+        *w.stage_busy.lock().unwrap() = true;
+        let started = svc
+            .start_on_voice_join(G, STAGE, &w)
+            .await
+            .unwrap()
+            .expect("the event starts");
+        assert!(started.started());
+        assert_eq!(started.event.entity_id, None);
+        assert_eq!(
+            svc.get_event(G, id).await.unwrap().status,
+            EventStatus::Active
+        );
+    }
+
+    #[tokio::test]
+    async fn a_stage_event_opens_and_closes_its_stage_instance() {
+        let (svc, clock) = setup();
+        let w = World::default();
+        let id = make(&svc, EntityType::StageInstance, Some(STAGE), T0 + HOUR).await;
 
         let ev = svc
             .update_event(

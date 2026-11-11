@@ -30,3 +30,6 @@ None (no UI change).
 
 ## Threat-model rows proposed
 - Posting restriction lookup fails closed (D-598). Hidden-channel scheduled events (D-602). Ban beats pending application (D-604). Webhook move needs destination rights (D-607).
+
+## Follow-up: SEC-AUD-070 (D-603), stage open is non-fatal at event start
+`event_ops.rs` `open_stage` no longer returns an error: a refused stage open (busy, or, with the gate branch, the creator lacks stage-moderator rights) is logged and the event still goes `active` with no `entity_id` (no stage). Both paths: manual start in `update_event` and `start_on_voice_join` (which used to leave the event `scheduled` forever). Tests (stub world that refuses the open): `a_refused_stage_open_does_not_stop_a_manual_start`, `a_refused_stage_open_does_not_stop_a_voice_join_start`. The old "a busy stage blocks the start" assertion was removed from `a_stage_event_opens_and_closes_its_stage_instance`, since a busy stage now also starts the event without a stage (same rule, D-603). `sr-chat --lib` 397 passed, clippy clean. The `GUILD_SCHEDULED_EVENT_STAGE_BUSY` 400 is gone; no OpenAPI change.
