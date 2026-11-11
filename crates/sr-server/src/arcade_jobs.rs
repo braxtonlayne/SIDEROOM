@@ -661,11 +661,12 @@ mod tests {
 
     /// Backdate every deferral of the server's cartridges to `interval` ago.
     async fn deferred_ago(w: &World, interval: &str) {
-        sqlx::query(&format!(
-            "UPDATE arcade_guild_cartridges SET manifest_deferred_since = now() - interval '{interval}' \
-             WHERE guild_id = $1 AND manifest_deferred_since IS NOT NULL"
-        ))
+        sqlx::query(
+            "UPDATE arcade_guild_cartridges SET manifest_deferred_since = now() - $2::text::interval \
+             WHERE guild_id = $1 AND manifest_deferred_since IS NOT NULL",
+        )
         .bind(w.guild)
+        .bind(interval)
         .execute(w.db.pool())
         .await
         .unwrap();
