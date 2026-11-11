@@ -116,6 +116,7 @@ export function NodeRow({
 const REQUEST_STATE_KEYS: Record<g.ModRequest['state'], MessageKey> = {
   pending: 'admin.moderation.grd.req.pending',
   approved: 'admin.moderation.grd.req.approved',
+  executing: 'admin.moderation.grd.req.executing',
   executed: 'admin.moderation.grd.req.executed',
   rejected: 'admin.moderation.grd.req.rejected',
   cancelled: 'admin.moderation.grd.req.cancelled',
