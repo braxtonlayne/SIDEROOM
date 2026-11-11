@@ -45,13 +45,17 @@ pub fn alert_detail(c: &DelistedCartridge) -> String {
         format!("@{} ({})", c.added_by_name, c.added_by)
     };
     format!(
-        "Cartridge \"{}\" ({}) on server \"{}\" ({}), listed by {lister}, was delisted: {} \
-         The lister can list it again once the file has a sideroom.json that declares its tier.",
+        "Cartridge \"{}\" ({}) on server \"{}\" ({}), listed by {lister}, was delisted: {} {}",
         c.title,
         c.id,
         c.guild_name,
         c.guild_id,
-        delist_clause(c)
+        delist_clause(c),
+        if c.aged {
+            "The lister can list it again once the shelf is answering again."
+        } else {
+            "The lister can list it again once the file has a sideroom.json that declares its tier."
+        }
     )
 }
 
@@ -74,7 +78,7 @@ pub fn deferred_detail(d: &DeferredShelf) -> String {
     format!(
         "Shelf {} has not answered for {DEFER_ALERT_HOURS} hours, so {} server cartridge(s) ({servers}) \
          could not be re-checked against their sideroom.json. Nothing was delisted yet; the re-check tries \
-         again every hour. If the shelf still has not answered, they are delisted on {} ({DEFER_DELIST_DAYS} \
+         again every hour. If the shelf still has not answered, they are delisted on {} UTC ({DEFER_DELIST_DAYS} \
          days after the first failed check). Last reason: its file {}",
         d.shelf_id, d.cartridges, d.delist_on, d.reason
     )
@@ -83,11 +87,15 @@ pub fn deferred_detail(d: &DeferredShelf) -> String {
 /// The DM a delisted cartridge's lister gets (D-582): the cartridge, the server, why, and what to do.
 pub fn lister_dm_text(c: &DelistedCartridge) -> String {
     format!(
-        "Your cartridge \"{}\" on the server \"{}\" was delisted: {} \
-         List it again once the file is fixed.",
+        "Your cartridge \"{}\" on the server \"{}\" was delisted: {} List it again once {}.",
         c.title,
         c.guild_name,
-        c.why()
+        c.why(),
+        if c.aged {
+            "the shelf is answering again"
+        } else {
+            "the file is fixed"
+        }
     )
 }
 
@@ -293,6 +301,31 @@ mod tests {
         ] {
             assert!(d.contains(part), "{d}");
         }
+    }
+
+    /// D-593: an aged delisting tells the lister (and staff) to wait for the shelf, not to fix the file.
+    #[test]
+    fn an_aged_delisting_says_list_it_again_once_the_shelf_answers() {
+        let c = DelistedCartridge {
+            id: 7,
+            guild_id: 9,
+            guild_name: "Night Owls".into(),
+            title: "Pong".into(),
+            source_ref: "games/pong.zip".into(),
+            added_by: 3,
+            added_by_name: "ada".into(),
+            reason: "its shelf has not answered for 7 days (last answer: its file could not be read from its shelf)."
+                .into(),
+            aged: true,
+        };
+        let dm = lister_dm_text(&c);
+        assert!(dm.ends_with("(last answer: its file could not be read from its shelf). List it again once the shelf is answering again."), "{dm}");
+        let alert = alert_detail(&c);
+        assert!(
+            alert.ends_with("The lister can list it again once the shelf is answering again."),
+            "{alert}"
+        );
+        assert!(!alert.contains("sideroom.json"), "{alert}");
     }
 
     #[test]
@@ -724,7 +757,8 @@ mod tests {
         let reason = reason.unwrap();
         assert!(
             reason.contains("its shelf has not answered for 7 days")
-                && reason.contains("could not be read from its shelf"),
+                && reason.contains("(last answer: its file could not be read from its shelf).")
+                && !reason.contains("Try again later"),
             "{reason}"
         );
 
@@ -734,8 +768,8 @@ mod tests {
         for part in [
             "\"Silent Game\"",
             "\"Night Owls\"",
-            "its shelf has not answered for 7 days",
-            "List it again once the file is fixed",
+            "its shelf has not answered for 7 days (last answer: its file could not be read from its shelf).",
+            "List it again once the shelf is answering again.",
         ] {
             assert!(dms[0].1.contains(part), "{}", dms[0].1);
         }
@@ -768,7 +802,9 @@ mod tests {
         assert!(
             detail.contains("\"Silent Game\"")
                 && detail.contains("its shelf has not answered for 7 days")
-                && detail.contains("games/silent.zip"),
+                && detail.contains("games/silent.zip")
+                && detail
+                    .ends_with("The lister can list it again once the shelf is answering again."),
             "{detail}"
         );
 
@@ -858,7 +894,7 @@ mod tests {
             panic!("expected a staff alert");
         };
         assert!(
-            detail.contains(&format!("delisted on {day}")) && detail.contains("7 days"),
+            detail.contains(&format!("delisted on {day} UTC")) && detail.contains("7 days"),
             "{detail}"
         );
         w.db.cleanup().await.unwrap();

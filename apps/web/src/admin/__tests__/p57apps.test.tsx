@@ -20,7 +20,9 @@ const app = (over: object = {}) => ({
 async function openApplications() {
   openAdmin('review');
   const user = userEvent.setup();
-  await user.click(await screen.findByRole('tab', { name: 'Applications' }, { timeout: 15000 }));
+  await user.click(
+    await screen.findByRole('tab', { name: 'All applications' }, { timeout: 15000 }),
+  );
   return user;
 }
 
@@ -147,6 +149,6 @@ describe('review hub: Applications (D-587)', () => {
     server.use(http.get('*/api/v1/admin/developers/packages', () => HttpResponse.json([])));
     openAdmin('review');
     expect(await screen.findByRole('tab', { name: 'Packages' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Applications' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'All applications' })).toBeNull();
   });
 });
