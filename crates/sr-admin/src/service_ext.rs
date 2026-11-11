@@ -1125,10 +1125,8 @@ impl AdminService {
             .await?;
         // Both ends: the account the identity is on now, and the one it moves to.
         self.guard_account(c, to_account_id, false).await?;
-        if let Some(p) = self.repo.person_detail(person_id).await?
-            && let Some(i) = p.identities.iter().find(|i| i.id == identity_id)
-        {
-            self.guard_account(c, i.account_id, false).await?;
+        if let Some(owner) = self.identity_account(person_id, identity_id).await? {
+            self.guard_account(c, owner, false).await?;
         }
         let reason = Self::reason(reason)?;
         let audit = self.entry(

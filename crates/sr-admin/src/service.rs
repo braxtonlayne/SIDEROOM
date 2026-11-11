@@ -623,6 +623,21 @@ impl AdminService {
         Ok(d)
     }
 
+    /// The account an identity of the Person sits on now (`None` when the Person or identity is unknown; the repo
+    /// then answers NotFound itself).
+    pub(crate) async fn identity_account(
+        &self,
+        person_id: i64,
+        identity_id: i64,
+    ) -> AdminResult<Option<i64>> {
+        Ok(self.repo.person_detail(person_id).await?.and_then(|p| {
+            p.identities
+                .iter()
+                .find(|i| i.id == identity_id)
+                .map(|i| i.account_id)
+        }))
+    }
+
     /// Guard shared by actions on a single account.
     pub(crate) async fn guard_account(
         &self,

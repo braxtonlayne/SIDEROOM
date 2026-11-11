@@ -1217,6 +1217,10 @@ async fn person_graph_actions_honour_the_staff_guard() {
     );
     // The Owner is still allowed.
     e.svc
+        .link_account(&o, OWNER + 500_000, SENIOR, Some("join"))
+        .await
+        .unwrap();
+    e.svc
         .unlink_account(&o, SENIOR, Some("split"))
         .await
         .unwrap();

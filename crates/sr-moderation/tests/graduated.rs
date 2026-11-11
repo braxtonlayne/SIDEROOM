@@ -1396,9 +1396,10 @@ async fn a_branch_action_runs_once_under_a_race() {
             Err("never called for a freeze".into())
         }
     }
+    let who_owner = Who::Staff(&owner_c);
     let (a, b) = tokio::join!(
-        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan),
-        w.m.execute_branch_action(&Who::Staff(&owner_c), req.id, &NoBan),
+        w.m.execute_branch_action(&who_owner, req.id, &NoBan),
+        w.m.execute_branch_action(&who_owner, req.id, &NoBan),
     );
     let oks = [a.is_ok(), b.is_ok()].iter().filter(|x| **x).count();
     assert_eq!(oks, 1, "exactly one call acts: {a:?} / {b:?}");

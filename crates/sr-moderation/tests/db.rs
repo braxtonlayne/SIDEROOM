@@ -2130,11 +2130,12 @@ async fn an_overturned_appeal_and_its_unban_are_one_decision() {
         .unwrap();
     assert_eq!(state, "open");
 
+    let who_other = Who::Staff(&other);
     // Overturned and upheld at once: the ban is lifted if, and only if, the recorded decision is overturned.
     let lifts = Lifts(w.pool().clone(), false, w.other_staff_id);
     let (a, b) = tokio::join!(
         w.m.decide_appeal_with(
-            &Who::Staff(&other),
+            &who_other,
             id,
             AppealDecision::Overturned,
             Some("mistake"),
@@ -2142,7 +2143,7 @@ async fn an_overturned_appeal_and_its_unban_are_one_decision() {
             Some(&lifts)
         ),
         w.m.decide_appeal_with(
-            &Who::Staff(&other),
+            &who_other,
             id,
             AppealDecision::Upheld,
             Some("no"),
