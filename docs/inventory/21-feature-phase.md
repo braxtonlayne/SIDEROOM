@@ -493,3 +493,4 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-054** [BE] A byte-matched takedown item tells its owner (the uploader on a server bucket) with the removal and restore DMs; no strike; counter-notice as for any item (D-584). Handoff `fix-p56-store.md`.
 - [x] **SEC-AUD-055** [FE] The Cinema comments view has an inline Reply form like the Library's: one level, spoiler tag, `parent_id` (D-585). Handoff `fix-p56-web.md`.
 - [x] **SEC-AUD-056** [FE] The channel settings "Sync with category" switch (and the permissions tab) is gated by the member's channel-level Manage Roles, overwrites applied (D-586). Handoff `fix-p56-web.md`.
+- [x] **SEC-AUD-060** [BE] A cartridge deferred by the manifest re-check for 7 days running is delisted as a definite answer ("its shelf has not answered for 7 days") through the existing DM, audit and alert path; the 24-hour shelf alert names the delist day (D-590). Handoff `fix-p57-media.md`.
