@@ -23,7 +23,7 @@ Commits: SEC-AUD-056, SEC-AUD-055, sweep rows, handoff (see `git log fix/p56-web
   reply showing); `channels.test.tsx` two D-586 cases (guild-level allow + channel deny: switch disabled with hint;
   channel allow without guild bit: enabled). The channel test mock now overrides per-channel permissions.
 - Gates: web tsc clean, prettier, css-tokens, i18n-audit, playwright `--list` loads (950 tests). Wider vitest run of
-  cinema, settings/server, lounge, i18n: see the result below.
+  cinema, settings/server, lounge, i18n: 133 files, 1169 tests passed.
 
 ## Visual check
 `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p56-web`: `cinema-title-comments`, `cinema-title-comments-reply`
