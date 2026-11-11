@@ -68,6 +68,8 @@ pub enum VoiceError {
     Cooldown,
     /// Voice is not enabled on this installation.
     Unavailable,
+    /// A moderator move the target could not make themselves (18+ answer missing, or restricted).
+    TargetCannotJoin,
 }
 
 /// TURN credentials, coturn REST style.
@@ -343,6 +345,10 @@ impl From<VoiceError> for HttpError {
                 "Every recipient must be a member of this conversation.",
             ),
             VoiceError::Unavailable => ApiError::new(ErrorCode::SrFeatureDisabled),
+            VoiceError::TargetCannotJoin => ApiError::with_message(
+                ErrorCode::SrConflict,
+                "That member cannot join this channel: it is age-restricted and they have not confirmed their age, or their account is restricted.",
+            ),
         })
     }
 }

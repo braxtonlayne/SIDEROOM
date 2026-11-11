@@ -152,7 +152,7 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
                     json!({
                         "user": { "id": m.user.to_string() },
                         "status": p.visible_status(),
-                        "activities": p.activities,
+                        "activities": p.visible_activities(),
                         "client_status": if p.client_status.is_null() || p.visible_status() == "offline" {
                             json!({})
                         } else {
@@ -177,6 +177,37 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
     push_group(GROUP_OFFLINE, offline, &mut out);
     out.online_count = online_total;
     out
+}
+
+/// Drop the `presence` of every member in `blocked` from a `GUILD_MEMBER_LIST_UPDATE` body. The
+/// list is shared by everybody who views the channel, so this runs per session at send time
+/// (SEC-AUD-067, D-601).
+pub fn strip_blocked_presence(body: &mut Value, blocked: &[UserId]) {
+    if blocked.is_empty() {
+        return;
+    }
+    match body {
+        Value::Array(a) => a
+            .iter_mut()
+            .for_each(|v| strip_blocked_presence(v, blocked)),
+        Value::Object(o) => {
+            if let Some(Value::Object(m)) = o.get_mut("member") {
+                let hidden = m
+                    .get("user")
+                    .and_then(|u| u.get("id"))
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .is_some_and(|id| blocked.contains(&UserId::new(id)));
+                if hidden {
+                    m.remove("presence");
+                }
+            } else {
+                o.values_mut()
+                    .for_each(|v| strip_blocked_presence(v, blocked));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Parse `[[0, 99], [100, 199]]`: at most [`MAX_RANGES`] ranges of at most

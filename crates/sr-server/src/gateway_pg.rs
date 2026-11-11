@@ -523,6 +523,9 @@ impl GuildDirectory for PgGuildDirectory {
         guild: GuildId,
         channel: ChannelId,
     ) -> Option<sr_gateway::member_list::MemberListSource> {
+        use sr_chat::threads::access::{
+            needs_thread_membership, overwrite_source, permissions_with_overwrites,
+        };
         use sr_gateway::member_list::{ListMember, MemberListSource};
         /// Lists beyond this many members are not served lazily; the sidebar falls back to
         /// the paged `GET /guilds/{id}/members`.
@@ -531,7 +534,16 @@ impl GuildDirectory for PgGuildDirectory {
             let g = self.chat.get_guild(guild).await?;
             let Some(g) = g else { return Ok(None) };
             let roles = self.chat.list_roles(guild).await?;
-            let overwrites = self.chat.get_overwrites(channel).await?;
+            // A thread follows its parent's overwrites, and a private thread also needs membership
+            // (SEC-AUD-071), as `dispatch_audience` does.
+            let thread = match self.chat.get_channel(channel).await? {
+                Some(ch) if ch.guild_id == Some(guild) => ch,
+                _ => return Ok(None),
+            };
+            let overwrites = match overwrite_source(&thread) {
+                Some(source) => self.chat.get_overwrites(source).await?,
+                None => return Ok(None),
+            };
             let now = self.clock.now_unix_ms();
             let mut all = Vec::new();
             let mut after = None;
@@ -548,13 +560,16 @@ impl GuildDirectory for PgGuildDirectory {
                 }
             }
             let total = all.len();
-            let visible: Vec<_> = all
-                .into_iter()
-                .filter(|m| {
-                    sr_chat::perms::channel_permissions(&g, m, &roles, &overwrites, now)
-                        .contains(Permissions::VIEW_CHANNEL)
-                })
-                .collect();
+            let mut visible = Vec::new();
+            for m in all {
+                let joined = needs_thread_membership(&thread)
+                    && self.chat.is_thread_member(thread.id, m.user_id).await?;
+                if permissions_with_overwrites(&g, &m, &roles, &thread, &overwrites, joined, now)
+                    .contains(Permissions::VIEW_CHANNEL)
+                {
+                    visible.push(m);
+                }
+            }
             let mut users = std::collections::HashMap::new();
             for chunk in visible.chunks(1000) {
                 let ids: Vec<UserId> = chunk.iter().map(|m| m.user_id).collect();
@@ -1501,6 +1516,140 @@ mod tests {
                 .await
                 .is_none()
         );
+    }
+
+    /// SEC-AUD-071: the member list of a thread follows its parent's overwrites, and a private
+    /// thread also needs membership.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn member_list_of_a_thread_follows_its_private_parent() {
+        use sr_chat::{ChatLimits, ChatService, role_rules::NewRole};
+        use sr_core::permissions::{Overwrite, OverwriteKind};
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 4) * 4) as u8 + 2;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let svc = ChatService::new(
+            PgChatRepo::new(pool.clone()),
+            clock.clone(),
+            SnowflakeGenerator::new(clock.clone(), w + 16, w + 16).expect("ids"),
+            ChatLimits::default(),
+        );
+        let (owner, regular, outsider) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let bp = svc.create_guild(owner, "Thread Club").await.unwrap();
+        let (guild, general) = (bp.guild.id, bp.channels[2].id);
+        for u in [regular, outsider] {
+            sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+                .bind(guild.get() as i64)
+                .bind(u.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let mods = svc
+            .create_role(
+                owner,
+                guild,
+                NewRole {
+                    name: Some("mods".into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(guild.get() as i64)
+            .bind(regular.get() as i64)
+            .bind(mods.id.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        // The parent is private to the mods role.
+        svc.set_overwrite(
+            owner,
+            general,
+            Overwrite {
+                id: guild.snowflake(),
+                kind: OverwriteKind::Role,
+                allow: Permissions::empty(),
+                deny: Permissions::VIEW_CHANNEL,
+            },
+        )
+        .await
+        .unwrap();
+        svc.set_overwrite(
+            owner,
+            general,
+            Overwrite {
+                id: mods.id.snowflake(),
+                kind: OverwriteKind::Role,
+                allow: Permissions::VIEW_CHANNEL,
+                deny: Permissions::empty(),
+            },
+        )
+        .await
+        .unwrap();
+        let thread = |kind: i16| {
+            let id = ids.generate();
+            let pool = pool.clone();
+            async move {
+                sqlx::query(
+                    "INSERT INTO channels (id, guild_id, type, name, parent_id) VALUES ($1, $2, $3, 't', $4)",
+                )
+                .bind(id.get() as i64)
+                .bind(guild.get() as i64)
+                .bind(kind)
+                .bind(general.get() as i64)
+                .execute(&pool)
+                .await
+                .unwrap();
+                ChannelId::new(id.get())
+            }
+        };
+        let dir = PgGuildDirectory::new(pool.clone(), clock.clone());
+        let users = |l: sr_gateway::member_list::MemberListSource| {
+            let mut v: Vec<_> = l.members.iter().map(|m| m.user).collect();
+            v.sort();
+            v
+        };
+        let mut both = vec![owner, regular];
+        both.sort();
+
+        // A public thread under the private parent: the parent's viewers, not everybody.
+        let public = thread(11).await;
+        let list = dir.member_list(guild, public).await.expect("a list");
+        assert!(!list.everyone);
+        assert_eq!(users(list), both);
+
+        // A private thread: the parent's viewers who joined it (the owner manages threads).
+        let private = thread(12).await;
+        let list = dir.member_list(guild, private).await.expect("a list");
+        assert_eq!(users(list), vec![owner]);
+        sqlx::query("INSERT INTO thread_members (channel_id, user_id) VALUES ($1, $2)")
+            .bind(private.get() as i64)
+            .bind(regular.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let list = dir.member_list(guild, private).await.expect("a list");
+        assert_eq!(users(list), both);
+        // Joining a thread never lets a member who cannot see the parent in.
+        sqlx::query("INSERT INTO thread_members (channel_id, user_id) VALUES ($1, $2)")
+            .bind(private.get() as i64)
+            .bind(outsider.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let list = dir.member_list(guild, private).await.expect("a list");
+        assert_eq!(users(list), both);
     }
 
     /// Op 8 (D-242): members by name, by id (missing ids reported) and the whole list, as the REST

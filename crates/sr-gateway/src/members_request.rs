@@ -167,7 +167,7 @@ impl Gateway {
                 body["not_found"] = json!(not_found);
             }
             if p.presences {
-                body["presences"] = Value::Array(self.presences_of(members));
+                body["presences"] = Value::Array(self.presences_of(session.user, members).await);
             }
             if let Some(n) = &p.nonce {
                 body["nonce"] = json!(n);
@@ -178,12 +178,16 @@ impl Gateway {
     }
 
     /// Presences of the online members among `members` (member objects with `user.id`).
-    fn presences_of(&self, members: &[Value]) -> Vec<Value> {
+    async fn presences_of(&self, viewer: UserId, members: &[Value]) -> Vec<Value> {
+        let hidden = self.inner.dir.blocked_peers(viewer).await;
         let st = self.st();
         members
             .iter()
             .filter_map(|m| {
                 let id = m.pointer("/user/id").and_then(snowflake).map(UserId::new)?;
+                if hidden.contains(&id) {
+                    return None;
+                }
                 let p = Self::effective(&st, id)?;
                 (p.visible_status() != "offline").then(|| friend_presence_body(id, &p))
             })

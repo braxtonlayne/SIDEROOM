@@ -84,6 +84,8 @@ pub struct TestDirectory {
     hidden: Mutex<HashSet<(UserId, ChannelId)>>,
     restricted: Mutex<HashSet<ChannelId>>,
     adults: Mutex<HashSet<UserId>>,
+    /// Block pairs, stored both ways (SEC-AUD-067).
+    blocks: Mutex<HashSet<(UserId, UserId)>>,
     /// Guild -> (user, display name) rows served by op 8.
     roster: Mutex<HashMap<GuildId, Vec<(UserId, String)>>>,
 }
@@ -101,6 +103,13 @@ impl GuildDirectory for TestDirectory {
     }
     async fn age_confirmed(&self, user: UserId) -> bool {
         lock(&self.adults).contains(&user)
+    }
+    async fn blocked_peers(&self, user: UserId) -> Vec<UserId> {
+        lock(&self.blocks)
+            .iter()
+            .filter(|(a, _)| *a == user)
+            .map(|(_, b)| *b)
+            .collect()
     }
     async fn request_members(
         &self,
@@ -176,6 +185,13 @@ impl TestWorld {
             .entry(guild)
             .or_default()
             .extend((first..first + n).map(|i| (UserId::new(i), format!("member{i}"))));
+    }
+
+    /// Put a block between `a` and `b` (either direction hides presence).
+    pub fn block(&self, a: UserId, b: UserId) {
+        let mut blocks = lock(&self.dir.blocks);
+        blocks.insert((a, b));
+        blocks.insert((b, a));
     }
 
     /// Deny `user` `VIEW_CHANNEL` on `channel`.

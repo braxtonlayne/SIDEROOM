@@ -58,6 +58,8 @@ struct Dir {
     perms: Mutex<HashMap<(UserId, ChannelId), Permissions>>,
     /// Users who answered yes to "Are you 18 or older?".
     adults: Mutex<Vec<UserId>>,
+    /// Accounts under a posting/voice restriction.
+    restricted_accounts: Mutex<Vec<UserId>>,
     afk: Mutex<VoiceGuildInfo>,
     limits: Mutex<HashMap<UserId, VoiceLimits>>,
     default_limits: Mutex<VoiceLimits>,
@@ -84,6 +86,7 @@ impl Dir {
         Self {
             perms: Mutex::new(p),
             adults: Mutex::new(Vec::new()),
+            restricted_accounts: Mutex::new(Vec::new()),
             afk: Mutex::new(VoiceGuildInfo::default()),
             limits: Mutex::new(HashMap::new()),
             default_limits: Mutex::new(VoiceLimits::free()),
@@ -198,6 +201,10 @@ impl GuildDirectory for Dir {
 
     async fn age_confirmed(&self, user: UserId) -> bool {
         self.adults.lock().unwrap().contains(&user)
+    }
+
+    async fn account_restricted(&self, user: UserId) -> bool {
+        self.restricted_accounts.lock().unwrap().contains(&user)
     }
 
     async fn voice_limits(&self, user: UserId, _guild: Option<GuildId>) -> VoiceLimits {
@@ -1265,4 +1272,65 @@ async fn voice_joins_moves_and_leaves_are_published_on_the_bus() {
         voice_events(&mut stream).await.is_empty(),
         "nothing to leave"
     );
+}
+
+fn patch_move(to: ChannelId) -> ModPatch {
+    ModPatch {
+        channel: Some(Some(to)),
+        ..ModPatch::default()
+    }
+}
+
+/// SEC-AUD-069 (D-599): the mover's rights decide a move, but the target's 18+ answer and
+/// account restriction always apply.
+#[tokio::test]
+async fn a_moderator_cannot_move_an_unconfirmed_member_into_an_age_restricted_channel() {
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    assert_eq!(
+        e.gw.moderate_voice(u(MOD), G, u(MEMBER), patch_move(ADULT))
+            .await,
+        Err(ModError::TargetCannotJoin)
+    );
+    assert_eq!(e.gw.voice_state(u(MEMBER)).unwrap().channel_id, LOBBY);
+
+    // A confirmed member is still moved.
+    e.dir.adults.lock().unwrap().push(u(MEMBER));
+    let out =
+        e.gw.moderate_voice(u(MOD), G, u(MEMBER), patch_move(ADULT))
+            .await
+            .unwrap();
+    assert_eq!(
+        out.actions,
+        vec![ModAction::Moved {
+            from: LOBBY,
+            to: ADULT
+        }]
+    );
+    // An unconfirmed member may still be moved between ordinary rooms.
+    e.dir.adults.lock().unwrap().clear();
+    e.gw.moderate_voice(u(MOD), G, u(MEMBER), patch_move(ROOM_B))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_moderator_cannot_move_an_account_restricted_member() {
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    a.event("VOICE_SERVER_UPDATE").await;
+    e.dir.restricted_accounts.lock().unwrap().push(u(MEMBER));
+    assert_eq!(
+        e.gw.moderate_voice(u(MOD), G, u(MEMBER), patch_move(ROOM_B))
+            .await,
+        Err(ModError::TargetCannotJoin)
+    );
+    assert_eq!(e.gw.voice_state(u(MEMBER)).unwrap().channel_id, LOBBY);
+    // Muting or disconnecting a restricted member stays allowed.
+    e.gw.moderate_voice(u(MOD), G, u(MEMBER), patch_mute(true))
+        .await
+        .unwrap();
 }
