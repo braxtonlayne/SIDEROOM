@@ -1459,7 +1459,10 @@ impl ArcadeService {
                         Err(ManifestFail::Transient(m)) if overdue => Verdict::DelistAged(format!(
                             // D-593: the quoted last answer drops its "Try again later." tail.
                             "its shelf has not answered for {DEFER_DELIST_DAYS} days (last answer: its file {}).",
-                            m.trim_end().trim_end_matches("Try again later.").trim_end()
+                            m.trim_end()
+                                .trim_end_matches("Try again later.")
+                                .trim_end()
+                                .trim_end_matches('.')
                         )),
                         Err(ManifestFail::Transient(m)) => Verdict::Defer(shelf, m),
                         Err(ManifestFail::Other(e)) => return Err(e),
