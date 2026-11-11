@@ -580,6 +580,17 @@ impl AdminService {
             );
             self.repo.append_log(&e).await?;
         }
+        // Every search lists email addresses and names, so every search is logged with its terms (SEC-AUD-086).
+        // The IP search keeps its own row above (it shows which accounts shared an address).
+        let e = self.entry(
+            c,
+            AccessKind::Read,
+            "accounts.search",
+            None,
+            "",
+            json!({ "q": q.q, "discord_id": q.discord_id, "ip": q.ip }),
+        );
+        self.repo.append_log(&e).await?;
         let mut rows = self.repo.search_accounts(&q).await?;
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);

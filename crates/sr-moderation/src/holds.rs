@@ -670,16 +670,37 @@ impl Moderation {
     /// keep it, not a release.
     pub async fn mark_hold_reviewed(&self, who: &Who<'_>, hold_id: i64) -> ModResult<()> {
         require_staff(who, P::MANAGE_CASES, "MANAGE_CASES")?;
-        let n = sqlx::query(
-            "UPDATE moderation_holds SET reviewed_at = now() WHERE id = $1 AND released_at IS NULL",
+        // One transaction (SEC-AUD-083): the change, the case's timeline entry and the staff access-log row.
+        let mut tx = self.pool.begin().await?;
+        let case_id: Option<i64> = sqlx::query_scalar(
+            "UPDATE moderation_holds SET reviewed_at = now() WHERE id = $1 AND released_at IS NULL RETURNING case_id",
         )
         .bind(hold_id)
-        .execute(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?
-        .rows_affected();
-        if n == 0 {
-            return Err(ModError::NotFound("hold"));
+        .ok_or(ModError::NotFound("hold"))?;
+        if let Some(case_id) = case_id {
+            push_event(
+                &mut tx,
+                self.next_id(),
+                case_id,
+                Some(who.user_id()),
+                "hold_reviewed",
+                json!({ "hold_id": hold_id.to_string() }),
+            )
+            .await?;
         }
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::AdminAction,
+            "moderation.hold.reviewed",
+            ("hold", hold_id),
+            "",
+            json!({ "case_id": case_id.map(|c| c.to_string()) }),
+        )
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 

@@ -21,8 +21,8 @@ use sr_core::PlatformPermissions as P;
 
 use crate::error::{ModError, ModResult, conflict, invalid};
 use crate::graduated::{
-    SYSTEM_ACTOR, Span, caller_of, guard_target, insert_restriction, require_operator,
-    revoke_open_codes,
+    SYSTEM_ACTOR, Span, caller_of, guard_target, insert_restriction, is_staff_account,
+    require_operator, revoke_open_codes,
 };
 use crate::graduated_model::{
     BranchOutcome, CategoryCount, ModRequest, NoticeView, SubtreeCaseDetail, SubtreeCaseSummary,
@@ -246,9 +246,11 @@ impl Moderation {
             let messages: i64 = r.try_get("messages")?;
             let voice: i64 = r.try_get("voice")?;
             let unactivated = gr::is_unactivated(age, messages, voice);
+            // Automatic moderation never acts on a staff account on its own (D-605): it waits in review.
+            let staff = is_staff_account(&mut *conn, id).await?;
             let status = if state != "active" {
                 "not_active"
-            } else if unactivated {
+            } else if unactivated && !staff {
                 "auto_frozen"
             } else {
                 "review"
@@ -1095,6 +1097,45 @@ impl Moderation {
         .await?
         .ok_or_else(|| conflict("That case is closed"))?;
 
+        // Claim the request (SEC-AUD-081): exactly one caller moves it `approved` -> `executing`; a second, racing
+        // call finds no row and answers Conflict. On an error the claim is handed back (`approved`, so the Operator
+        // can run it again: the per-node steps skip what is already done); a crash mid-run leaves `executing`,
+        // which nobody can run twice (an operator resets it by hand).
+        let claimed: Option<i64> = sqlx::query_scalar(
+            "UPDATE moderation_requests SET state = 'executing' \n             WHERE id = $1 AND state = 'approved' AND kind = 'branch_action' RETURNING id",
+        )
+        .bind(request_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        if claimed.is_none() {
+            return Err(conflict("That request is not waiting for the Operator"));
+        }
+        let out = self
+            .run_branch_action(who, c, &req, approver, &action, &category, banner)
+            .await;
+        if out.is_err() {
+            let _ = sqlx::query(
+                "UPDATE moderation_requests SET state = 'approved' WHERE id = $1 AND state = 'executing'",
+            )
+            .bind(request_id)
+            .execute(&self.pool)
+            .await;
+        }
+        out
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn run_branch_action(
+        &self,
+        who: &Who<'_>,
+        c: &Caller,
+        req: &ModRequest,
+        approver: i64,
+        action: &str,
+        category: &str,
+        banner: &dyn NodeBanner,
+    ) -> ModResult<BranchOutcome> {
+        let request_id = req.id;
         let todo: Vec<i64> = sqlx::query_scalar(
             "SELECT n.account_id FROM moderation_subtree_nodes n WHERE n.case_id = $1 AND n.role = 'descendant' \
              AND n.status IN ('auto_frozen', 'review', 'frozen', 'cleared') ORDER BY n.depth, n.account_id",
@@ -1114,6 +1155,11 @@ impl Moderation {
         if action == "freeze" {
             let mut tx = self.pool.begin().await?;
             for account in &todo {
+                // Automatic moderation never acts on staff on its own (D-605): only the Owner's branch action
+                // reaches a staff account; for anyone else the node stays as it is, in review.
+                if !c.is_owner && is_staff_account(&mut tx, *account).await? {
+                    continue;
+                }
                 // A node already frozen keeps its freeze (an automatic one is replaced by the 12-month one).
                 sqlx::query(
                     "UPDATE member_restrictions SET state = 'lifted', lifted_by = $3, lifted_at = now(), \
@@ -1155,8 +1201,13 @@ impl Moderation {
             tx.commit().await?;
         } else {
             for account in &todo {
+                if !c.is_owner
+                    && is_staff_account(&mut *self.pool.acquire().await?, *account).await?
+                {
+                    continue;
+                }
                 match banner
-                    .ban_account(c, *account, ban_category_for(&category), &req.reason)
+                    .ban_account(c, *account, ban_category_for(category), &req.reason)
                     .await
                 {
                     Ok(()) => {
@@ -1198,15 +1249,18 @@ impl Moderation {
         .fetch_one(&mut *tx)
         .await?;
         let (_, notice) = self
-            .emit_notice(&mut tx, "branch_action", &category, actioned, frozen)
+            .emit_notice(&mut tx, "branch_action", category, actioned, frozen)
             .await?;
-        sqlx::query(
-            "UPDATE moderation_requests SET state = 'executed', executed_at = now(), nodes_actioned = $2 WHERE id = $1",
+        let done = sqlx::query(
+            "UPDATE moderation_requests SET state = 'executed', executed_at = now(), nodes_actioned = $2 \n             WHERE id = $1 AND state = 'executing'",
         )
         .bind(request_id)
         .bind(actioned as i32)
         .execute(&mut *tx)
         .await?;
+        if done.rows_affected() != 1 {
+            return Err(conflict("That request is not waiting for the Operator"));
+        }
         log_staff(
             &mut tx,
             who,
@@ -1226,7 +1280,7 @@ impl Moderation {
         Ok(BranchOutcome {
             request_id,
             case_id: req.case_id,
-            action,
+            action: action.to_owned(),
             nodes_actioned: actioned,
             already_banned_or_gone: gone,
             notice,
@@ -1329,6 +1383,25 @@ impl Moderation {
         for r in &due {
             let (rid, account): (i64, i64) = (r.try_get("id")?, r.try_get("account_id")?);
             let case: Option<i64> = r.try_get("case_id")?;
+            // Backstop (D-605): the sweep never removes a staff account. A freeze that landed on one before the
+            // classification learned to skip staff is let run out (`expired`) and its node goes back to review.
+            if is_staff_account(&mut tx, account).await? {
+                sqlx::query(
+                    "UPDATE member_restrictions SET state = 'expired', lifted_at = now() WHERE id = $1",
+                )
+                .bind(rid)
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "UPDATE moderation_subtree_nodes SET status = 'review', note = 'staff account: left for review' \
+                     WHERE account_id = $1 AND case_id = $2 AND status = 'auto_frozen'",
+                )
+                .bind(account)
+                .bind(case)
+                .execute(&mut *tx)
+                .await?;
+                continue;
+            }
             sqlx::query(
                 "UPDATE member_restrictions SET state = 'removed', lifted_at = now() WHERE id = $1",
             )
