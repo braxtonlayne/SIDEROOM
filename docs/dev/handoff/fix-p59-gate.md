@@ -33,7 +33,12 @@ No sr-chat change.
 - No separate test for `activities.rs::viewers`.
 
 ## Tests run
-See the bottom of this file (filled in after the gate run).
+- `cargo fmt --all -- --check`: clean.
+- `cargo clippy -j 4 -p sr-gateway -p sr-server -p sr-api --all-targets -- -D warnings`: clean.
+- `cargo test -p sr-gateway`: 226 passed (all new tests included).
+- `cargo test -p sr-server --lib`: 153 passed (157 Postgres tests ignored); `-- --ignored gateway_pg` against `sr_p59_gate`: 6 passed, including `member_list_of_a_thread_follows_its_private_parent`.
+- `cargo test -p sr-api --lib voice`: 27 passed.
+- "Each test must fail on main" was checked by reading, not by running the tests on main (lock time was scarce): every new assertion exercises a path that main leaves unfiltered (activities field, blocked list, `None` age channel, no target check, no stage permission check, thread's own empty overwrites, `None` dispatch channel). The first run of the member-list test also failed once for a test-ordering reason (a PRESENCE_UPDATE arrived first) and was fixed in the test.
 
 ## Owner questions
 - D-599: the error text for a refused move is shared between the 18+ and the account-restriction case. Should they say different things (the mover does not need to learn why a stranger's account is restricted, so one generic text was chosen on purpose)?
