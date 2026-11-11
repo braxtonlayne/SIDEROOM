@@ -654,3 +654,89 @@ async fn underage_handling_resets_and_locks_and_under_thirteen_also_suspends() {
     );
     assert_eq!(state(other).await, ("active".into(), Some(true), false));
 }
+
+/// SEC-AUD-080 (D-605): `handle_underage` checks the case and the target before it suspends anything.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn underage_checks_the_case_and_the_staff_guard_before_acting() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let sus = Arc::new(Suspender {
+        pool: pool.clone(),
+        refuse: false,
+        reasons: Mutex::default(),
+    });
+    let m = Moderation::new(pool.clone(), Arc::new(uid)).with_case_actions(sus.clone());
+    let boss = account(&pool, "boss80").await;
+    let kid = account(&pool, "kid80").await;
+    let colleague = account(&pool, "colleague80").await;
+    let s = staff(boss, P::MANAGE_CASES);
+    let who = Who::Staff(&s);
+
+    // A case routed to a server's moderators is not one this staff caller can work: NotFound, no suspension.
+    let case = m
+        .open_case(
+            &who,
+            &NewCase {
+                category: ReportCategory::NsfwPolicy,
+                target_kind: TargetKind::User,
+                target_id: Some(kid),
+                subject_account_id: Some(kid),
+                summary: "x".into(),
+            },
+        )
+        .await
+        .unwrap();
+    exec(
+        &pool,
+        "UPDATE moderation_cases SET routing = 'guild' WHERE id = $1",
+        &[case.id],
+    )
+    .await;
+    assert_eq!(
+        m.handle_underage(&who, kid, AgeBand::Under13, Some("x"), Some(case.id))
+            .await
+            .err(),
+        Some(ModError::NotFound("case"))
+    );
+    let (state, locked): (String, bool) =
+        sqlx::query_as("SELECT state::text, age_locked_at IS NOT NULL FROM accounts WHERE id = $1")
+            .bind(kid)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!((state.as_str(), locked), ("active", false));
+    assert!(sus.reasons.lock().unwrap().is_empty());
+
+    // A staff account: a non-Owner is refused and nothing is locked; the Owner may.
+    exec(
+        &pool,
+        "INSERT INTO staff_appointments (id, account_id, appointed_by) VALUES ($1, $2, $2)",
+        &[uid(), colleague],
+    )
+    .await;
+    assert_eq!(
+        m.handle_underage(&who, colleague, AgeBand::Under18, Some("x"), None)
+            .await
+            .err(),
+        Some(ModError::Forbidden)
+    );
+    let locked: bool =
+        sqlx::query_scalar("SELECT age_locked_at IS NOT NULL FROM accounts WHERE id = $1")
+            .bind(colleague)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(!locked, "age_locked_at stays NULL");
+    let mut owner = staff(boss, P::MANAGE_CASES);
+    owner.is_owner = true;
+    m.handle_underage(
+        &Who::Staff(&owner),
+        colleague,
+        AgeBand::Under18,
+        Some("x"),
+        None,
+    )
+    .await
+    .unwrap();
+}

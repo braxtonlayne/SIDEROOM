@@ -580,6 +580,17 @@ impl AdminService {
             );
             self.repo.append_log(&e).await?;
         }
+        // Every search lists email addresses and names, so every search is logged with its terms (SEC-AUD-086).
+        // The IP search keeps its own row above (it shows which accounts shared an address).
+        let e = self.entry(
+            c,
+            AccessKind::Read,
+            "accounts.search",
+            None,
+            "",
+            json!({ "q": q.q, "discord_id": q.discord_id, "ip": q.ip }),
+        );
+        self.repo.append_log(&e).await?;
         let mut rows = self.repo.search_accounts(&q).await?;
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);
@@ -610,6 +621,21 @@ impl AdminService {
         );
         self.repo.append_log(&e).await?;
         Ok(d)
+    }
+
+    /// The account an identity of the Person sits on now (`None` when the Person or identity is unknown; the repo
+    /// then answers NotFound itself).
+    pub(crate) async fn identity_account(
+        &self,
+        person_id: i64,
+        identity_id: i64,
+    ) -> AdminResult<Option<i64>> {
+        Ok(self.repo.person_detail(person_id).await?.and_then(|p| {
+            p.identities
+                .iter()
+                .find(|i| i.id == identity_id)
+                .map(|i| i.account_id)
+        }))
     }
 
     /// Guard shared by actions on a single account.

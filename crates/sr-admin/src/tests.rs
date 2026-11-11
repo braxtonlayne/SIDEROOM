@@ -788,6 +788,52 @@ async fn account_search_paginates() {
     assert_eq!(f.items[0].username, "bob");
 }
 
+/// SEC-AUD-086: a search by name or email with no IP still writes an `accounts.search` Read row with its terms.
+#[tokio::test]
+async fn every_account_search_is_logged() {
+    let e = env();
+    let owner = e.svc.resolve(OWNER, None).await.unwrap();
+    let m = appointed(&e, MOD, R_MOD).await;
+    let count = |action: &'static str| {
+        let (e, owner) = (&e, &owner);
+        async move {
+            e.svc
+                .access_log(
+                    owner,
+                    AccessLogFilter {
+                        action: Some(action.into()),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await
+                .unwrap()
+                .items
+        }
+    };
+    assert!(count("accounts.search").await.is_empty());
+    e.svc
+        .search_accounts(
+            &m,
+            AccountQuery {
+                q: Some("ali.test".into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    let rows = count("accounts.search").await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].kind, AccessKind::Read);
+    assert_eq!(rows[0].actor_id, MOD);
+    assert!(
+        rows[0].detail.to_string().contains("ali.test"),
+        "{:?}",
+        rows[0].detail
+    );
+}
+
 #[tokio::test]
 async fn settings_are_validated_and_thresholds_ordered() {
     let e = env();

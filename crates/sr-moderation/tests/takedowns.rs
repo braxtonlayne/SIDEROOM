@@ -984,6 +984,17 @@ async fn the_register_exports_to_csv_and_the_read_is_logged() {
     assert!(row.contains("Rights Holder Ltd"));
     assert!(row.contains("removed"));
     assert_eq!(log_count(w.pool(), "moderation.takedown.export").await, 1);
+    // SEC-AUD-084: reading one notice is logged, once per read.
+    assert_eq!(log_count(w.pool(), "moderation.takedown.read").await, 0);
+    w.m.get_notice(&who, id).await.unwrap();
+    assert_eq!(log_count(w.pool(), "moderation.takedown.read").await, 1);
+    let kind: String = sqlx::query_scalar(
+        "SELECT kind::text FROM staff_access_log WHERE action = 'moderation.takedown.read'",
+    )
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(kind, "read");
     // Without the bit: refused.
     let other = staff(w.staff_id, P::MANAGE_CASES);
     assert!(w.m.export_register(&Who::Staff(&other)).await.is_err());

@@ -509,6 +509,15 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-070** [BE] A stage opened at an event's start needs the creator's stage-moderator rights at that moment (D-603). Handoff `fix-p59-gate.md`.
 - [x] **SEC-AUD-071** [BE] Thread member lists and activity viewers follow a private parent's overwrites and thread membership. Handoff `fix-p59-gate.md`.
 - [x] **SEC-AUD-072** [BE] Channel-bound scheduled-event dispatches reach only members who can view the channel (D-602, gateway half). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-080** [BE] D-605: `handle_underage` loads the case with `Access::Work` and runs `guard_target` before it suspends anything (the suspension is another service's transaction, so the act is checked first, not atomic). Handoff `fix-p59-mod.md`.
+- [x] **SEC-AUD-081** [BE] `execute_branch_action` claims its request with a conditional UPDATE `approved` -> `executing` (a racing call answers Conflict); the finish needs `executing`; an error hands the claim back to `approved`. Migration 2590 widens the state CHECK.
+- [x] **SEC-AUD-082** [BE] D-605: a staff account in a banned subtree goes to `review`, never the automatic freeze; the branch freeze and ban skip staff unless the caller is the Owner; the 30-day sweep never removes staff.
+- [x] **SEC-AUD-083** [BE] `mark_hold_reviewed` runs in one transaction with a `hold_reviewed` case event and a `moderation.hold.reviewed` access-log row.
+- [x] **SEC-AUD-084** [BE] `get_notice` writes a `moderation.takedown.read` Read row.
+- [x] **SEC-AUD-085** [BE] An overturned appeal and its unban are one decision: `decide_appeal_with` locks the open appeal, lifts the ban through an `AppealUnbanner` (a Person no longer banned is a no-op), then records; an error leaves the ban in place.
+- [x] **SEC-AUD-086** [BE] Every staff account search writes an `accounts.search` Read row with its terms.
+- [x] **SEC-AUD-087** [BE] D-605: `link_account`, `move_identity` and `unlink_account` call `guard_account` on every account they touch.
+- [x] **SEC-AUD-088** [BE] D-606: migration 2590 adds TRUNCATE guards on every append-only audit table and DELETE guards on `application_audit` and `payment_audit`; `audit_log_entries` keeps its D-563 purge path.
 - [x] **SEC-AUD-089** [BE] Job completion and failure are fenced by worker and attempt, so a stalled worker cannot complete another's attempt. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-090** [BE] A profile save only updates an active account, so it cannot write erased fields back after deletion. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-091** [BE] Two installs of the same app in one server at once no longer leave an orphaned role (per app and server lock). Handoff `fix-p59-data.md`.

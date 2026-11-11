@@ -1064,6 +1064,16 @@ async fn holds_are_platform_staff_only_and_release_makes_old_rows_purgeable() {
     .unwrap();
     assert!(w.m.list_holds(&who, true, 50).await.unwrap()[0].review_due);
     w.m.mark_hold_reviewed(&who, hold).await.unwrap();
+    // SEC-AUD-083: the review is recorded: one access-log row and one timeline event.
+    assert_eq!(log_count(w.pool(), "moderation.hold.reviewed").await, 1);
+    let events: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM moderation_case_events WHERE case_id = $1 AND kind = 'hold_reviewed'",
+    )
+    .bind(case.id)
+    .fetch_one(w.pool())
+    .await
+    .unwrap();
+    assert_eq!(events, 1);
     assert!(
         !w.m.list_holds(&who, true, 50).await.unwrap()[0].review_due,
         "reviewed holds leave the warning list"
@@ -2039,4 +2049,116 @@ async fn parallel_reports_do_not_pass_the_daily_limit_together() {
     );
     let ok = [a, b, c, d].iter().filter(|r| r.is_ok()).count();
     assert_eq!(ok, 1, "exactly one report within the limit of one a day");
+}
+
+/// SEC-AUD-085: an overturned appeal and its unban are one decision.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_overturned_appeal_and_its_unban_are_one_decision() {
+    use async_trait::async_trait;
+    use sr_moderation::AppealUnbanner;
+
+    struct Lifts(PgPool, bool, i64);
+    #[async_trait]
+    impl AppealUnbanner for Lifts {
+        async fn unban(&self, person_id: i64, _: &str) -> Result<(), ModError> {
+            if self.1 {
+                return Err(ModError::Storage("unban failed".into()));
+            }
+            sqlx::query(
+                "UPDATE person_bans SET lifted_at = now(), lifted_by = $2 WHERE person_id = $1 AND lifted_at IS NULL",
+            )
+            .bind(person_id)
+            .bind(self.2)
+            .execute(&self.0)
+            .await?;
+            Ok(())
+        }
+    }
+    let w = world().await;
+    let other = staff(w.other_staff_id, P::MANAGE_CASES);
+    let banned = |pool: PgPool, person: i64| async move {
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM person_bans WHERE person_id = $1 AND lifted_at IS NULL)",
+        )
+        .bind(person)
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+    };
+    let mut appeals = Vec::new();
+    for name in ["appeal_a", "appeal_b"] {
+        let acct = account(w.pool(), name).await;
+        let person: i64 = sqlx::query_scalar("SELECT person_id FROM accounts WHERE id = $1")
+            .bind(acct)
+            .fetch_one(w.pool())
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO person_bans (id, person_id, category, note, banned_by) VALUES ($1, $2, 'standard', 'n', $3)",
+        )
+        .bind(uid())
+        .bind(person)
+        .bind(w.staff_id)
+        .execute(w.pool())
+        .await
+        .unwrap();
+        let a = w.m.create_appeal(acct, "please").await.unwrap();
+        appeals.push((a.id, person));
+    }
+
+    // An error after the claim leaves the ban in place and the appeal open.
+    let (id, person) = appeals[0];
+    let failing = Lifts(w.pool().clone(), true, w.other_staff_id);
+    assert!(
+        w.m.decide_appeal_with(
+            &Who::Staff(&other),
+            id,
+            AppealDecision::Overturned,
+            Some("mistake"),
+            true,
+            Some(&failing)
+        )
+        .await
+        .is_err()
+    );
+    assert!(banned(w.pool().clone(), person).await);
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_appeals WHERE id = $1")
+        .bind(id)
+        .fetch_one(w.pool())
+        .await
+        .unwrap();
+    assert_eq!(state, "open");
+
+    let who_other = Who::Staff(&other);
+    // Overturned and upheld at once: the ban is lifted if, and only if, the recorded decision is overturned.
+    let lifts = Lifts(w.pool().clone(), false, w.other_staff_id);
+    let (a, b) = tokio::join!(
+        w.m.decide_appeal_with(
+            &who_other,
+            id,
+            AppealDecision::Overturned,
+            Some("mistake"),
+            true,
+            Some(&lifts)
+        ),
+        w.m.decide_appeal_with(
+            &who_other,
+            id,
+            AppealDecision::Upheld,
+            Some("no"),
+            true,
+            Some(&lifts)
+        ),
+    );
+    assert_eq!([a.is_ok(), b.is_ok()].iter().filter(|x| **x).count(), 1);
+    let state: String = sqlx::query_scalar("SELECT state FROM moderation_appeals WHERE id = $1")
+        .bind(id)
+        .fetch_one(w.pool())
+        .await
+        .unwrap();
+    assert_eq!(
+        banned(w.pool().clone(), person).await,
+        state != "overturned"
+    );
 }

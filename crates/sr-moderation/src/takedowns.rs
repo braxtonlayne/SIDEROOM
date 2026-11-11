@@ -1369,8 +1369,21 @@ impl Moderation {
 
     pub async fn get_notice(&self, who: &Who<'_>, id: i64) -> ModResult<NoticeDetail> {
         Self::tk_staff(who)?;
-        let mut conn = self.pool.acquire().await?;
-        self.detail_in(&mut conn, id, now_ms()).await
+        // Reading a notice shows a third party's contact details and text: it is logged (SEC-AUD-084).
+        let mut tx = self.pool.begin().await?;
+        let detail = self.detail_in(&mut tx, id, now_ms()).await?;
+        log_staff(
+            &mut tx,
+            who,
+            AccessKind::Read,
+            "moderation.takedown.read",
+            ("takedown", id),
+            "",
+            json!({}),
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(detail)
     }
 
     // ---- triage ---------------------------------------------------------------------------------------------
