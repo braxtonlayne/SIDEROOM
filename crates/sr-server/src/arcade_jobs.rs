@@ -16,7 +16,8 @@ use std::time::Duration;
 
 use serde_json::json;
 use sr_activities::arcade::{
-    ArcadeService, CartridgeObjects, DEFER_ALERT_HOURS, DeferredShelf, DelistedCartridge,
+    ArcadeService, CartridgeObjects, DEFER_ALERT_HOURS, DEFER_DELIST_DAYS, DeferredShelf,
+    DelistedCartridge,
 };
 use sr_api::routes::developer::{SystemCard, SystemDm};
 use sr_api::routes::review::DmSlot;
@@ -44,10 +45,27 @@ pub fn alert_detail(c: &DelistedCartridge) -> String {
         format!("@{} ({})", c.added_by_name, c.added_by)
     };
     format!(
-        "Cartridge \"{}\" ({}) on server \"{}\" ({}), listed by {lister}, was delisted: its file {} {} \
+        "Cartridge \"{}\" ({}) on server \"{}\" ({}), listed by {lister}, was delisted: {} \
          The lister can list it again once the file has a sideroom.json that declares its tier.",
-        c.title, c.id, c.guild_name, c.guild_id, c.source_ref, c.reason
+        c.title,
+        c.id,
+        c.guild_name,
+        c.guild_id,
+        delist_clause(c)
     )
+}
+
+/// What follows "was delisted: " in the staff alert: the source path with the reason, or the aged clause (D-590).
+fn delist_clause(c: &DelistedCartridge) -> String {
+    if c.aged {
+        format!(
+            "{} (file {}).",
+            c.reason.trim_end_matches('.'),
+            c.source_ref
+        )
+    } else {
+        format!("its file {} {}", c.source_ref, c.reason)
+    }
 }
 
 /// The staff alert for a shelf that has kept cartridges deferred for a day (D-582).
@@ -55,18 +73,21 @@ pub fn deferred_detail(d: &DeferredShelf) -> String {
     let servers = d.guild_names.join(", ");
     format!(
         "Shelf {} has not answered for {DEFER_ALERT_HOURS} hours, so {} server cartridge(s) ({servers}) \
-         could not be re-checked against their sideroom.json. Nothing was delisted; the re-check tries again \
-         every hour. Last reason: its file {}",
-        d.shelf_id, d.cartridges, d.reason
+         could not be re-checked against their sideroom.json. Nothing was delisted yet; the re-check tries \
+         again every hour. If the shelf still has not answered, they are delisted on {} ({DEFER_DELIST_DAYS} \
+         days after the first failed check). Last reason: its file {}",
+        d.shelf_id, d.cartridges, d.delist_on, d.reason
     )
 }
 
 /// The DM a delisted cartridge's lister gets (D-582): the cartridge, the server, why, and what to do.
 pub fn lister_dm_text(c: &DelistedCartridge) -> String {
     format!(
-        "Your cartridge \"{}\" on the server \"{}\" was delisted: its file {} \
+        "Your cartridge \"{}\" on the server \"{}\" was delisted: {} \
          List it again once the file is fixed.",
-        c.title, c.guild_name, c.reason
+        c.title,
+        c.guild_name,
+        c.why()
     )
 }
 
@@ -262,6 +283,7 @@ mod tests {
             added_by: 3,
             added_by_name: "ada".into(),
             reason: "has no sideroom.json.".into(),
+            aged: false,
         });
         for part in [
             "\"Pong\" (7)",
@@ -284,6 +306,7 @@ mod tests {
             added_by: 3,
             added_by_name: "ada".into(),
             reason: "has no sideroom.json.".into(),
+            aged: false,
         });
         for part in [
             "\"Pong\"",
@@ -633,6 +656,211 @@ mod tests {
                 .is_err()
         );
         assert_eq!(w.arcade.cartridges(w.guild).await.unwrap().len(), 2);
+        w.db.cleanup().await.unwrap();
+    }
+
+    /// Backdate every deferral of the server's cartridges to `interval` ago.
+    async fn deferred_ago(w: &World, interval: &str) {
+        sqlx::query(
+            "UPDATE arcade_guild_cartridges SET manifest_deferred_since = now() - $2::text::interval \
+             WHERE guild_id = $1 AND manifest_deferred_since IS NOT NULL",
+        )
+        .bind(w.guild)
+        .bind(interval)
+        .execute(w.db.pool())
+        .await
+        .unwrap();
+    }
+
+    /// D-590: six days and 23 hours of silence is not yet seven days: the cartridge stays listed.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_cartridge_deferred_for_six_days_and_23_hours_stays_listed() {
+        let w = world().await;
+        w.cartridge("Patient Game", "games/patient.zip").await;
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+        let dm = Dms::default();
+        run(&w.arcade, &backend_down(), &bus, Some(&dm), 1)
+            .await
+            .unwrap();
+        deferred_ago(&w, "6 days 23 hours").await;
+        let out = run(&w.arcade, &backend_down(), &bus, Some(&dm), 2)
+            .await
+            .unwrap();
+        assert_eq!((out.delisted, out.deferred), (0, 1));
+        assert_eq!(w.arcade.cartridges(w.guild).await.unwrap().len(), 1);
+        assert!(dm.0.lock().unwrap().is_empty());
+        w.db.cleanup().await.unwrap();
+    }
+
+    /// D-590: at seven days the next transient answer delists, as a definite one: lister DM, audit entry (action
+    /// 230, the whole reason), staff alert; and nothing is repeated afterwards.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_cartridge_deferred_for_seven_days_is_delisted_with_dm_audit_and_alert() {
+        let w = world().await;
+        let pool = w.db.pool();
+        let cartridge = w.cartridge("Silent Game", "games/silent.zip").await;
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+        let mut alerts = bus.subscribe(Topic::Platform);
+        let dm = Dms::default();
+        run(&w.arcade, &backend_down(), &bus, Some(&dm), 1)
+            .await
+            .unwrap();
+        deferred_ago(&w, "7 days").await;
+
+        let out = run(&w.arcade, &backend_down(), &bus, Some(&dm), 2)
+            .await
+            .unwrap();
+        assert_eq!((out.delisted, out.deferred), (1, 0));
+        assert!(w.arcade.cartridges(w.guild).await.unwrap().is_empty());
+        assert_eq!(w.arcade.deferred_cartridges().await.unwrap(), 0);
+        let reason: Option<String> =
+            sqlx::query_scalar("SELECT delist_reason FROM arcade_guild_cartridges WHERE id = $1")
+                .bind(cartridge)
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        let reason = reason.unwrap();
+        assert!(
+            reason.contains("its shelf has not answered for 7 days")
+                && reason.contains("could not be read from its shelf"),
+            "{reason}"
+        );
+
+        let dms = dm.0.lock().unwrap().clone();
+        assert_eq!(dms.len(), 1, "{dms:?}");
+        assert_eq!(dms[0].0, w.user);
+        for part in [
+            "\"Silent Game\"",
+            "\"Night Owls\"",
+            "its shelf has not answered for 7 days",
+            "List it again once the file is fixed",
+        ] {
+            assert!(dms[0].1.contains(part), "{}", dms[0].1);
+        }
+
+        let rows: Vec<(i16, Option<i64>, Option<String>)> = sqlx::query_as(
+            "SELECT action, target_id, reason FROM audit_log_entries WHERE guild_id = $1",
+        )
+        .bind(w.guild)
+        .fetch_all(pool)
+        .await
+        .unwrap();
+        assert_eq!(rows.len(), 1, "{rows:?}");
+        assert_eq!((rows[0].0, rows[0].1), (230, Some(cartridge)));
+        assert!(
+            rows[0]
+                .2
+                .as_deref()
+                .unwrap()
+                .starts_with("its shelf has not answered for 7 days")
+        );
+
+        let ev = tokio::time::timeout(Duration::from_secs(2), alerts.next())
+            .await
+            .unwrap()
+            .unwrap();
+        let DomainEvent::StaffAlert { kind, detail } = ev else {
+            panic!("expected a staff alert");
+        };
+        assert_eq!(kind, StaffAlertKind::CartridgeDelisted);
+        assert!(
+            detail.contains("\"Silent Game\"")
+                && detail.contains("its shelf has not answered for 7 days")
+                && detail.contains("games/silent.zip"),
+            "{detail}"
+        );
+
+        // Once: the next run does nothing more.
+        run(&w.arcade, &backend_down(), &bus, Some(&dm), 3)
+            .await
+            .unwrap();
+        assert_eq!(dm.0.lock().unwrap().len(), 1);
+        w.db.cleanup().await.unwrap();
+    }
+
+    /// D-590: an answer in between ends the deferral for good: a readable file is checked and listed, however old
+    /// its first deferral was.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn an_answer_in_between_resets_the_clock() {
+        use std::io::Write;
+        let w = world().await;
+        let pool = w.db.pool();
+        let cartridge = w.cartridge("Back Game", "games/back.zip").await;
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+        let dm = Dms::default();
+        run(&w.arcade, &backend_down(), &bus, Some(&dm), 1)
+            .await
+            .unwrap();
+        deferred_ago(&w, "6 days").await;
+
+        let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        z.start_file("sideroom.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        z.write_all(br#"{"tier":"TIER_1_ORIGINAL"}"#).unwrap();
+        let bytes = z.finish().unwrap().into_inner();
+        let out = run(&w.arcade, &Shelves(Ok(bytes)), &bus, Some(&dm), 2)
+            .await
+            .unwrap();
+        assert_eq!((out.delisted, out.deferred), (0, 0));
+        assert_eq!(w.arcade.deferred_cartridges().await.unwrap(), 0);
+
+        // Days later the shelf is down again, but this cartridge is settled: nothing is looked at or delisted.
+        deferred_ago(&w, "30 days").await;
+        let out = run(&w.arcade, &backend_down(), &bus, Some(&dm), 3)
+            .await
+            .unwrap();
+        assert_eq!((out.delisted, out.deferred), (0, 0));
+        let delisted: bool = sqlx::query_scalar(
+            "SELECT delisted_at IS NOT NULL FROM arcade_guild_cartridges WHERE id = $1",
+        )
+        .bind(cartridge)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+        assert!(!delisted);
+        assert!(dm.0.lock().unwrap().is_empty());
+        w.db.cleanup().await.unwrap();
+    }
+
+    /// D-590: the 24-hour alert names the day the cartridges will be delisted (seven days after the first
+    /// deferral, UTC).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn the_24_hour_alert_names_the_delist_day() {
+        let w = world().await;
+        w.cartridge("One", "games/one.zip").await;
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::new());
+        let mut alerts = bus.subscribe(Topic::Platform);
+        run(&w.arcade, &backend_down(), &bus, None, 1)
+            .await
+            .unwrap();
+        deferred_ago(&w, "25 hours").await;
+        let day: String = sqlx::query_scalar(
+            "SELECT to_char((manifest_deferred_since AT TIME ZONE 'UTC') + interval '7 days', 'YYYY-MM-DD') \
+             FROM arcade_guild_cartridges WHERE guild_id = $1",
+        )
+        .bind(w.guild)
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+        let out = run(&w.arcade, &backend_down(), &bus, None, 2)
+            .await
+            .unwrap();
+        assert_eq!((out.shelves_alerted, out.delisted), (1, 0));
+        let ev = tokio::time::timeout(Duration::from_secs(2), alerts.next())
+            .await
+            .unwrap()
+            .unwrap();
+        let DomainEvent::StaffAlert { detail, .. } = ev else {
+            panic!("expected a staff alert");
+        };
+        assert!(
+            detail.contains(&format!("delisted on {day}")) && detail.contains("7 days"),
+            "{detail}"
+        );
         w.db.cleanup().await.unwrap();
     }
 }

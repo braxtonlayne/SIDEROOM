@@ -511,8 +511,22 @@ pub struct DelistedCartridge {
     pub added_by: i64,
     /// The lister's username (empty when the account is gone).
     pub added_by_name: String,
-    /// Why, completing "its file ...", such as "has no sideroom.json".
+    /// Why, completing "its file ...", such as "has no sideroom.json" (or, when `aged`, a whole clause).
     pub reason: String,
+    /// D-590: delisted because its shelf had not answered for [`DEFER_DELIST_DAYS`] days; `reason` is then the
+    /// whole clause ("its shelf has not answered for 7 days ...").
+    pub aged: bool,
+}
+
+impl DelistedCartridge {
+    /// The reason as a clause that completes "was delisted: ...".
+    pub fn why(&self) -> String {
+        if self.aged {
+            self.reason.clone()
+        } else {
+            format!("its file {}", self.reason)
+        }
+    }
 }
 
 /// One pass of [`ArcadeService::recheck_cartridges`].
@@ -536,10 +550,14 @@ pub struct DeferredShelf {
     pub guild_names: Vec<String>,
     /// The latest reason the shelf gave.
     pub reason: String,
+    /// The day (UTC, `YYYY-MM-DD`) the earliest of its cartridges will be delisted (D-590).
+    pub delist_on: String,
 }
 
 /// How long a shelf's cartridges stay deferred before staff are told (D-582).
 pub const DEFER_ALERT_HOURS: i64 = 24;
+/// How many days a cartridge may stay deferred before it is delisted as a definite answer (D-590).
+pub const DEFER_DELIST_DAYS: i64 = 7;
 
 /// The audit-log action number of `arcade.cartridge_delisted` (`sr_chat::settings::audit::AuditAction::
 /// ArcadeCartridgeDelisted`; a test there pins it).
@@ -1322,6 +1340,8 @@ impl ArcadeService {
             Delist(String),
             /// The shelf could not be asked: (shelf, reason).
             Defer(i64, String),
+            /// D-590: deferred for `DEFER_DELIST_DAYS` days running: delist, with the whole clause.
+            DelistAged(String),
         }
         type Row = (
             i64,
@@ -1338,7 +1358,9 @@ impl ArcadeService {
         let rows = sqlx::query(
             "SELECT c.id, c.guild_id, g.name AS guild_name, c.title, c.source_ref, c.added_by, \
                     COALESCE(a.username::text, '') AS added_by_name, c.tier, c.capabilities, \
-                    o.shelf_id AS o_shelf, o.object_hash AS o_hash, o.path AS o_path, o.size AS o_size \
+                    o.shelf_id AS o_shelf, o.object_hash AS o_hash, o.path AS o_path, o.size AS o_size, \
+                    COALESCE(c.manifest_deferred_since <= now() - make_interval(days => $3::int), false) \
+                        AS overdue \
              FROM arcade_guild_cartridges c JOIN guilds g ON g.id = c.guild_id \
              LEFT JOIN accounts a ON a.id = c.added_by \
              LEFT JOIN shelf_objects o ON o.shelf_id = c.shelf_id AND o.object_hash = c.object_hash \
@@ -1348,8 +1370,13 @@ impl ArcadeService {
         )
         .bind(limit.max(1))
         .bind(run)
+        .bind(i32::try_from(DEFER_DELIST_DAYS).unwrap_or(7))
         .fetch_all(&self.pool)
         .await?;
+        let overdue: Vec<bool> = rows
+            .iter()
+            .map(|r| r.try_get("overdue"))
+            .collect::<Result<_, _>>()?;
         let rows: Vec<Row> = rows
             .iter()
             .map(|r| -> Result<Row, sqlx::Error> {
@@ -1381,17 +1408,20 @@ impl ArcadeService {
             ..RecheckPass::default()
         };
         for (
-            id,
-            guild,
-            guild_name,
-            title,
-            source,
-            added_by,
-            added_by_name,
-            old_tier,
-            old_caps,
-            object,
-        ) in rows
+            (
+                id,
+                guild,
+                guild_name,
+                title,
+                source,
+                added_by,
+                added_by_name,
+                old_tier,
+                old_caps,
+                object,
+            ),
+            overdue,
+        ) in rows.into_iter().zip(overdue)
         {
             // A row from before wave 42 names its file by a path on the server's own shelf only.
             let object =
@@ -1426,6 +1456,9 @@ impl ArcadeService {
                             None => Verdict::Delist(format!("has no tier in its {MANIFEST}.")),
                         },
                         Err(ManifestFail::Definite(m)) => Verdict::Delist(m),
+                        Err(ManifestFail::Transient(m)) if overdue => Verdict::DelistAged(format!(
+                            "its shelf has not answered for {DEFER_DELIST_DAYS} days (last answer: its file {m})"
+                        )),
                         Err(ManifestFail::Transient(m)) => Verdict::Defer(shelf, m),
                         Err(ManifestFail::Other(e)) => return Err(e),
                     }
@@ -1468,7 +1501,12 @@ impl ArcadeService {
                     .execute(&self.pool)
                     .await?;
                 }
-                Verdict::Delist(reason) => {
+                v @ (Verdict::Delist(_) | Verdict::DelistAged(_)) => {
+                    let (aged, reason) = match v {
+                        Verdict::DelistAged(r) => (true, r),
+                        Verdict::Delist(r) => (false, r),
+                        _ => unreachable!("matched above"),
+                    };
                     let reason: String = reason.chars().take(400).collect();
                     let mut tx = self.pool.begin().await?;
                     sqlx::query(
@@ -1498,7 +1536,16 @@ impl ArcadeService {
                         "source_ref": source,
                         "listed_by": added_by.to_string(),
                     }))
-                    .bind(format!("its file {reason}").chars().take(512).collect::<String>())
+                    .bind(
+                        if aged {
+                            reason.clone()
+                        } else {
+                            format!("its file {reason}")
+                        }
+                        .chars()
+                        .take(512)
+                        .collect::<String>(),
+                    )
                     .execute(&mut *tx)
                     .await?;
                     tx.commit().await?;
@@ -1511,6 +1558,7 @@ impl ArcadeService {
                         added_by,
                         added_by_name,
                         reason,
+                        aged,
                     });
                 }
             }
@@ -1543,9 +1591,12 @@ impl ArcadeService {
                      AND d.manifest_defer_shelf IS NOT NULL \
                    GROUP BY d.manifest_defer_shelf \
                    HAVING count(d.manifest_defer_alerted_at) = 0) \
-             RETURNING c.manifest_defer_shelf AS shelf, c.guild_id, c.manifest_defer_reason AS reason",
+             RETURNING c.manifest_defer_shelf AS shelf, c.guild_id, c.manifest_defer_reason AS reason, \
+                 to_char((c.manifest_deferred_since AT TIME ZONE 'UTC') + make_interval(days => $2::int), \
+                         'YYYY-MM-DD') AS delist_on",
         )
         .bind(i32::try_from(DEFER_ALERT_HOURS).unwrap_or(24))
+        .bind(i32::try_from(DEFER_DELIST_DAYS).unwrap_or(7))
         .fetch_all(&self.pool)
         .await?;
         let mut out: Vec<DeferredShelf> = Vec::new();
@@ -1553,6 +1604,7 @@ impl ArcadeService {
             let shelf: i64 = r.try_get("shelf")?;
             let guild: i64 = r.try_get("guild_id")?;
             let reason: Option<String> = r.try_get("reason")?;
+            let delist_on: String = r.try_get("delist_on")?;
             let name: Option<String> = sqlx::query_scalar("SELECT name FROM guilds WHERE id = $1")
                 .bind(guild)
                 .fetch_optional(&self.pool)
@@ -1565,11 +1617,15 @@ impl ArcadeService {
                         cartridges: 0,
                         guild_names: Vec::new(),
                         reason: String::new(),
+                        delist_on: delist_on.clone(),
                     });
                     out.last_mut().expect("just pushed")
                 }
             };
             entry.cartridges += 1;
+            if delist_on < entry.delist_on {
+                entry.delist_on = delist_on;
+            }
             if let Some(n) = name
                 && !entry.guild_names.contains(&n)
             {
