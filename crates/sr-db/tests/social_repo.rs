@@ -599,3 +599,28 @@ async fn user_settings_blob_default_level_and_privacy_persist() {
     assert_eq!(svc.privacy(a).await.unwrap(), p);
     assert!(svc.privacy(b).await.unwrap().friend_requests.everyone);
 }
+
+/// SEC-AUD-090: a profile save that raced an account erasure cannot write the erased fields back.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn put_profile_after_erasure_is_refused() {
+    use sr_chat::social::repo::ProfileRepository;
+    let pool = pool().await;
+    let (_svc, ids) = service(&pool);
+    let a = account(&pool, &ids).await;
+    let repo = PgSocialRepo::new(pool.clone());
+    let mut profile = repo.get_profile(a).await.unwrap().expect("profile");
+    sqlx::query("UPDATE accounts SET state = 'deleted', bio = NULL WHERE id = $1")
+        .bind(a.get() as i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+    profile.bio = Some("back from the dead".into());
+    assert!(repo.put_profile(&profile).await.is_err());
+    let bio: Option<String> = sqlx::query_scalar("SELECT bio FROM accounts WHERE id = $1")
+        .bind(a.get() as i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(bio, None);
+}
