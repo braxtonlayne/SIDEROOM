@@ -76,7 +76,7 @@ pub fn gave_up_detail(t: &DigestTarget, reason: &str) -> String {
 /// D-591: the alert text for a file whose size is not the one the item recorded.
 pub fn changed_detail(t: &DigestTarget, recorded: i64, read: u64) -> String {
     format!(
-        "Takedown TK-{}: the file in item {} (\"{}\") is {read} bytes now; the item recorded {recorded}. The file          changed after the catalog saw it, so no fingerprint of the bytes was recorded and the item keeps only its          entity tag and size. If the takedown was meant for the file as it is now, restore the item and uphold it          again once the index has run.",
+        "Takedown TK-{}: the file in item {} (\"{}\") is {read} bytes now; the item recorded {recorded}. The file changed after the catalog saw it, so no fingerprint of the bytes was recorded and the item keeps only its entity tag and size. If the takedown was meant for the file as it is now, restore the item and uphold it again once the index has run.",
         t.notice_id, t.item_id, t.label
     )
 }

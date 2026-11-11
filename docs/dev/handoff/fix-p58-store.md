@@ -32,7 +32,7 @@ OpenAPI change, so no visual check, no api-client regeneration and no route-matr
   not for failing/disabled, other mounts, items with a sha256, or twice; then the job records the sha256), `a_passing_test_of_a_disabled_mount_queues_its_waiting_items`
   (`record_test` path), `deleting_a_disabled_mount_yields_the_one_alert` (delete queues once, the job alerts once; an enabled mount's delete queues nothing).
 - `node --test scripts/threat-model.test.mjs`: pass (5).
-- RESULTS_PLACEHOLDER
+- `cargo fmt --all -- --check`; `cargo clippy -j 4 -p sr-db -p sr-moderation -p sr-server --all-targets -- -D warnings` (clean); `cargo test -p sr-moderation --test storage_takedown -- --include-ignored` (13 pass); `cargo test -p sr-db --test mounts_repo --test mount_attachments -- --include-ignored` (4 pass); `cargo test -p sr-server --lib -- takedown_ storage_ --include-ignored` (all pass after fixing the alert text whitespace; the 9 `takedown_digest` tests re-run green).
 
 ## Docs
 - T31 in `docs/15-threat-model.md`: residual now says a changed file is never fingerprinted (D-591) and that a switched-off mount waits and is queued again (D-592).
