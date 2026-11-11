@@ -53,6 +53,8 @@ pub enum StaffAlertKind {
     JobFailing,
     /// A guild cartridge listed before D-568 was delisted: its manifest could not be read (D-579).
     CartridgeDelisted,
+    /// A shelf has kept guild cartridges from being re-checked for 24 hours (D-582): nothing was delisted.
+    CartridgeShelfDeferred,
 }
 
 /// Which Staff Server feed a [`DomainEvent::StaffFeed`] card goes to.
@@ -97,6 +99,7 @@ impl StaffAlertKind {
             Self::AlertTest => "alert_test",
             Self::JobFailing => "job_failing",
             Self::CartridgeDelisted => "cartridge_delisted",
+            Self::CartridgeShelfDeferred => "cartridge_shelf_deferred",
         }
     }
 }

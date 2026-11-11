@@ -25,8 +25,8 @@ use serde::Deserialize;
 use serde_json::json;
 use sr_activities::ActivityError;
 use sr_activities::arcade::{
-    ArcadeFront, ArcadeService, CandidateView, CartridgeInput, CartridgeObjects, CartridgeView,
-    ComingSoonCard, ComingSoonInput, FeatureInput, FeaturedCard,
+    ArcadeFront, ArcadeService, CandidateView, CartridgeInput, CartridgeObjects,
+    CartridgeReadError, CartridgeView, ComingSoonCard, ComingSoonInput, FeatureInput, FeaturedCard,
 };
 use sr_chat::cards::reminders::Verdict;
 use sr_core::permissions::Permissions;
@@ -215,28 +215,38 @@ pub struct ShelfCartridgeFiles(pub std::sync::Arc<ScopeDeps>);
 
 #[async_trait::async_trait]
 impl CartridgeObjects for ShelfCartridgeFiles {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
         ShelfFiles(&self.0).read(shelf, path, len).await
     }
 }
 
+/// What the shelf's answer means (D-582): no mount and an object that is not there are final; everything that
+/// stops us asking (the mount lookup failing, the endpoint check, the client, a backend error) may pass.
 #[async_trait::async_trait]
 impl CartridgeObjects for ShelfFiles<'_> {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, String> {
-        use sr_storage::ObjectStorage as _;
-        let unreadable = || "could not be read from its shelf. Try again later.".to_owned();
+    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
+        use sr_storage::{ObjectStorage as _, StorageError};
+        let unreadable = || {
+            CartridgeReadError::Transient(
+                "could not be read from its shelf. Try again later.".to_owned(),
+            )
+        };
         let mount = match self.0.mounts.by_id(shelf).await {
             Ok(Some(m)) => m,
-            Ok(None) => return Err("is not a file on that shelf.".to_owned()),
+            Ok(None) => {
+                return Err(CartridgeReadError::Definite(
+                    "is not a file on that shelf.".to_owned(),
+                ));
+            }
             Err(e) => {
                 tracing::error!(error = %e, shelf, "cartridge shelf lookup failed");
                 return Err(unreadable());
             }
         };
         if vet_endpoint(self.0, &mount).await.is_err() {
-            return Err(
+            return Err(CartridgeReadError::Transient(
                 "is on a shelf whose bucket is not reachable from the public internet.".to_owned(),
-            );
+            ));
         }
         let storage = mount.storage(&*self.0.sealer).map_err(|e| {
             tracing::error!(error = %e, shelf, "cartridge shelf client could not be built");
@@ -247,7 +257,12 @@ impl CartridgeObjects for ShelfFiles<'_> {
             .await
             .map_err(|e| {
                 tracing::warn!(error = %e, shelf, "cartridge file read failed");
-                unreadable()
+                match e {
+                    StorageError::NotFound(_) => CartridgeReadError::Definite(
+                        "is not on its shelf (the object was not found).".to_owned(),
+                    ),
+                    _ => unreadable(),
+                }
             })?;
         Ok(bytes.to_vec())
     }
