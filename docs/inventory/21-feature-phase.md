@@ -502,3 +502,20 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-063** [BE] The D-590 texts say what to do: the 24-hour shelf alert prints the delist day as `YYYY-MM-DD UTC`; the aged delisting quotes the last answer without "Try again later." and tells the lister (and staff) to list it again once the shelf is answering again (D-593). Handoff `fix-p58-texts.md`.
 - [x] **SEC-AUD-064** [FE] The Admin Review hub tabs are named "App queue" and "All applications" (D-594). Handoff `fix-p58-texts.md`.
 - [x] **SEC-AUD-065** [BE][FE] D-595..D-597: the staff takedown detail shows a derived, read-only `digest_state` per disabled storage-object item (`recorded`, `pending`, `waiting_mount`, `tag_only`) with a text line; a mount Test never moves a disabled mount; leaving `disabled` for `active` or `failing`, and deleting or erasing a disabled (or delisted-from-disabled) mount, queues the waiting digest jobs; the SQL job-id sequence is `jobs_sql_id_seq` (`sr_db::jobs::SQL_ID_SEQUENCE`). Handoff `fix-p58-store.md`.
+- [x] **SEC-AUD-066** [BE] An invisible member's presence carries no activities on any path (friend, guild, member list) (D-600). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-067** [BE] A block hides presence in the initial server payload, member requests and per-session member-list items, not only live updates (D-601). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-068** [BE] THREAD_DELETE takes its 18+ gate from the thread's parent channel. Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-069** [BE] A moderator voice move of a member without the 18+ answer into an 18+ channel, or of an account-restricted member, is refused (D-599). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-070** [BE] A stage opened at an event's start needs the creator's stage-moderator rights at that moment (D-603). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-071** [BE] Thread member lists and activity viewers follow a private parent's overwrites and thread membership. Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-072** [BE] Channel-bound scheduled-event dispatches reach only members who can view the channel (D-602, gateway half). Handoff `fix-p59-gate.md`.
+- [x] **SEC-AUD-089** [BE] Job completion and failure are fenced by worker and attempt, so a stalled worker cannot complete another's attempt. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-090** [BE] A profile save only updates an active account, so it cannot write erased fields back after deletion. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-091** [BE] Two installs of the same app in one server at once no longer leave an orphaned role (per app and server lock). Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-092** [BE] A failed cache retry reports its error instead of success. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-093** [BE] Media naming no longer panics on names whose lowercase is longer (many `İ`). Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-094** [BE] A failed library ingest cleans up its pages. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-095** [BE] A failed library upload deletes its draft chapter and unregisters the item. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-096** [BE] A seek or rate change during a watch-party auto-pause keeps the buffering deadline. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-097** [BE] Guest-link revoke checks the current host (or the link creator), not the original starter. Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-098** [BE] Discord link and unlink write their audit row in the same transaction: no audit row, no change (D-608). Handoff `fix-p59-data.md`.
