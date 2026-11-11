@@ -486,3 +486,5 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-047** [FE] E2EE key pins are a set per person; only an unseen key shows the new-device notice (D-578). Handoff `fix-p55-webui.md`.
 - [x] **SEC-AUD-048** [BE] Storage-object takedowns follow the bytes (entity tag and size) across names and mounts (D-571). Handoff `fix-p55-store.md`.
 - [x] **SEC-AUD-049** [BE/FE] A deleted Cinema or Library comment with replies becomes a "Comment deleted" tombstone; Cinema comments gained a replies view (D-572). Handoff `fix-p55-store.md`.
+- [x] **SEC-AUD-050** [BE/FE] Recovery-code regeneration takes the password, the D-573 proof and a second factor, a confirmed TOTP or a passkey; "Regenerate recovery codes" also sits in the passkeys card while TOTP is off (D-580). Handoff `fix-p56-auth.md`.
+- [x] **SEC-AUD-051** [BE] The case warning, the data-request restriction and an application's suspend and unsuspend are `SENSITIVE_ACTIONS` rows; a server-pool grant to a guild the caller owns is 403 `50001` for everyone, logged `denied` (D-581). Handoff `fix-p56-auth.md`.

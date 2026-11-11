@@ -913,3 +913,42 @@ fn rp_id_comes_from_the_public_url() {
         vec!["https://chat.example.com:8443", "https://alt.example.com"]
     );
 }
+
+/// D-580: a passkey is a full second factor, so a passkey-only account can renew its recovery codes (with the
+/// password and the D-573 proof); an account with no factor, or a wrong password, is refused.
+#[tokio::test]
+async fn recovery_codes_regenerate_for_a_passkey_only_account() {
+    let h = harness();
+    alice(&h);
+    let s = h.login("alice").await;
+    let regen = |password: &str, mfa: Option<Value>| {
+        let mut body = json!({ "password": password });
+        if let Some(mfa) = mfa {
+            body["mfa"] = mfa;
+        }
+        h.post("/api/v1/sr/auth/recovery-codes", body)
+            .session(&s)
+            .send()
+    };
+    // No factor at all: refused, whatever the password.
+    let none = regen(PW, None).await;
+    assert_eq!(none.status, StatusCode::BAD_REQUEST);
+
+    let mut auth = Soft::new(21);
+    let reg = register(&h, &s, &mut auth, "k").await;
+    assert_eq!(reg.status, StatusCode::OK, "{:?}", reg.body);
+
+    // Wrong password: refused before anything else.
+    let wrong = regen("nope", None).await;
+    assert_eq!(wrong.status, StatusCode::FORBIDDEN);
+    // The password alone does not do it (D-573).
+    let bare = regen(PW, None).await;
+    assert_eq!(bare.status, StatusCode::BAD_REQUEST);
+    assert_eq!(bare.body["errors"]["mfa"]["_errors"][0]["code"], "required");
+    // The passkey's proof does.
+    let proof = passkey_proof(&h, &s, &mut auth).await;
+    let ok = regen(PW, Some(proof)).await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert_eq!(ok.body["recovery_codes"].as_array().unwrap().len(), 10);
+    assert_eq!(h.store.recovery_list_unused(1).await.unwrap().len(), 10);
+}

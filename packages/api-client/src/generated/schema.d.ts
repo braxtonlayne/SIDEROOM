@@ -1909,8 +1909,9 @@ export interface paths {
         get: operations["admin_donations_entitlements"];
         put?: never;
         /**
-         * Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account is refused
-         *     with 403 for every staff member, the Owner included (D-574).
+         * Grant Patron time or a server pool contribution by hand. A Patron grant to the caller's own account, and a
+         *     pool grant to a server the caller owns, are refused with 403 for every staff member, the Owner included
+         *     (D-574, D-581).
          */
         post: operations["admin_donations_grant"];
         delete?: never;
