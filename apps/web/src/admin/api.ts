@@ -1113,3 +1113,24 @@ export interface CspSnapshot {
 }
 /** The CSP violation counters (OPERATOR). */
 export const getCspReports = () => get<CspSnapshot>('/admin/system/csp-reports');
+
+// ---- developer applications (REVIEW_APPS, D-587) ----
+
+export interface AdminApp {
+  id: string;
+  name: string;
+  /** `development`, `in_review`, `released` or `suspended`. */
+  release_state: string;
+  owner: { id: string; username?: string | null; global_name?: string | null };
+  /** Suspended applications only. */
+  suspended_reason?: string | null;
+  suspended_by?: { id: string; username?: string | null; global_name?: string | null } | null;
+  suspended_at?: string | null;
+  created_at: string;
+}
+export const listAdminApps = (p: { q?: string; state?: string; before?: string | null } = {}) =>
+  get<AdminApp[]>(`/admin/developers/apps${qs({ ...p, limit: 50 })}`);
+export const suspendApp = (id: string, reason: string) =>
+  send<unknown>(`/admin/developers/apps/${id}/suspend`, 'POST', { reason });
+export const unsuspendApp = (id: string, reason: string) =>
+  send<unknown>(`/admin/developers/apps/${id}/unsuspend`, 'POST', { reason: reason || null });

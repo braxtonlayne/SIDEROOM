@@ -1089,6 +1089,56 @@ impl AppsRepository for MemoryAppsRepo {
         Ok(out)
     }
 
+    async fn list_applications_admin(
+        &self,
+        search: Option<&str>,
+        state: Option<&str>,
+        limit: i64,
+        before: Option<i64>,
+    ) -> AppsResult<Vec<AppAdminRow>> {
+        let s = self.st();
+        let q = search.map(str::to_lowercase);
+        let num = search.and_then(|q| q.trim().parse::<i64>().ok());
+        let mut rows: Vec<AppAdminRow> = s
+            .apps
+            .values()
+            .filter(|a| before.is_none_or(|b| a.id < b))
+            .filter(|a| state.is_none_or(|st| a.release_state.as_str() == st))
+            .filter(|a| {
+                let Some(q) = q.as_deref() else {
+                    return true;
+                };
+                let owner = s.accounts.get(&a.owner_id);
+                a.name.to_lowercase().contains(q)
+                    || num.is_some_and(|n| n == a.id || n == a.owner_id)
+                    || owner.is_some_and(|o| {
+                        o.username.to_lowercase().contains(q)
+                            || o.display_name
+                                .as_deref()
+                                .is_some_and(|d| d.to_lowercase().contains(q))
+                    })
+            })
+            .map(|a| {
+                let last = (a.release_state == ReleaseState::Suspended)
+                    .then(|| {
+                        s.audit
+                            .iter()
+                            .filter(|r| r.application_id == a.id && r.action == "app.suspend")
+                            .max_by_key(|r| r.id)
+                    })
+                    .flatten();
+                AppAdminRow {
+                    app: a.clone(),
+                    suspended_by: last.map(|r| r.actor_id),
+                    suspended_at_ms: last.map(|r| r.created_at_ms),
+                }
+            })
+            .collect();
+        rows.sort_by_key(|r| std::cmp::Reverse(r.app.id));
+        rows.truncate(limit.max(0) as usize);
+        Ok(rows)
+    }
+
     async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>> {
         Ok(self.st().guilds.get(&guild).map(|g| GuildStats {
             owner_id: g.owner,

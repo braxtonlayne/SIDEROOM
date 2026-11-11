@@ -1448,3 +1448,102 @@ async fn the_directory_lists_released_public_apps_and_escapes_search_text() {
     // the page carries one extra row when more follow
     assert!(f.svc.directory(None, None, 0, 1).await.unwrap().len() <= 2);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_staff_list_searches_filters_pages_and_reads_who_suspended() {
+    let f = fx().await;
+    let staff = account(f.db.pool(), &f.ids, "reviewer").await;
+    let a = f
+        .svc
+        .create_application(f.owner, "Alpha Bot", "a")
+        .await
+        .unwrap();
+    let b = f
+        .svc
+        .create_application(f.other, "Bravo_1%", "b")
+        .await
+        .unwrap();
+    let ids =
+        |rows: &[sr_apps::AppAdminRow]| -> Vec<i64> { rows.iter().map(|r| r.app.id).collect() };
+
+    // newest first; search by name, application id, owner name, owner id
+    let all = f
+        .svc
+        .admin_applications(None, None, 50, None)
+        .await
+        .unwrap();
+    assert_eq!(ids(&all), vec![b.application.id, a.application.id]);
+    let by = |q: &str| {
+        let q = q.to_owned();
+        let svc = f.svc.clone();
+        async move {
+            svc.admin_applications(Some(&q), None, 50, None)
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(ids(&by("alpha").await), vec![a.application.id]);
+    assert_eq!(
+        ids(&by(&b.application.id.to_string()).await),
+        vec![b.application.id]
+    );
+    assert_eq!(ids(&by("devother").await), vec![b.application.id]);
+    assert_eq!(ids(&by(&f.owner.to_string()).await), vec![a.application.id]);
+    // LIKE wildcards are literal
+    assert_eq!(ids(&by("%").await), vec![b.application.id]);
+    assert_eq!(ids(&by("_").await), vec![b.application.id]);
+    assert!(by("nothing like it").await.is_empty());
+
+    // suspension: filter, reason, who and when
+    f.svc
+        .suspend(staff, a.application.id, "spam")
+        .await
+        .unwrap();
+    let s = f
+        .svc
+        .admin_applications(None, Some("suspended"), 50, None)
+        .await
+        .unwrap();
+    assert_eq!(ids(&s), vec![a.application.id]);
+    assert_eq!(s[0].app.suspended_reason.as_deref(), Some("spam"));
+    assert_eq!(s[0].suspended_by, Some(staff));
+    assert!(s[0].suspended_at_ms.is_some_and(|t| t > 0));
+    let dev = f
+        .svc
+        .admin_applications(None, Some("development"), 50, None)
+        .await
+        .unwrap();
+    assert_eq!(ids(&dev), vec![b.application.id]);
+    assert_eq!(dev[0].suspended_by, None);
+
+    // paging by id
+    let p1 = f.svc.admin_applications(None, None, 1, None).await.unwrap();
+    let p2 = f
+        .svc
+        .admin_applications(None, None, 1, Some(p1[0].app.id))
+        .await
+        .unwrap();
+    assert_eq!(
+        (ids(&p1), ids(&p2)),
+        (vec![b.application.id], vec![a.application.id])
+    );
+    assert!(matches!(
+        f.svc
+            .admin_applications(None, Some("bogus"), 50, None)
+            .await,
+        Err(AppsError::Invalid(_))
+    ));
+
+    // lifted: the row loses the suspension
+    f.svc
+        .unsuspend(staff, a.application.id, None)
+        .await
+        .unwrap();
+    let all = f
+        .svc
+        .admin_applications(None, None, 50, None)
+        .await
+        .unwrap();
+    assert!(all.iter().all(|r| r.suspended_by.is_none()));
+}

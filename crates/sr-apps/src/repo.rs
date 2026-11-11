@@ -332,6 +332,17 @@ pub trait AppsRepository: Send + Sync {
         audit: AuditRow,
     ) -> AppsResult<Application>;
 
+    /// Staff list of every application, newest first. `search` matches the application name,
+    /// the application id or the owner (id, username or display name); `state` filters by
+    /// release state; `before` pages by application id.
+    async fn list_applications_admin(
+        &self,
+        search: Option<&str>,
+        state: Option<&str>,
+        limit: i64,
+        before: Option<i64>,
+    ) -> AppsResult<Vec<AppAdminRow>>;
+
     // ----- installs
     /// Owner and member count of a guild.
     async fn guild_stats(&self, guild: i64) -> AppsResult<Option<GuildStats>>;

@@ -192,6 +192,7 @@ GET	/admin/data-requests	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/admin/data-requests/{request_id}	authenticated	staff	deny	-	MANAGE_TAKEDOWNS
 GET	/admin/developers/activities	authenticated	staff	deny	-	REVIEW_APPS
 GET	/admin/developers/activities/{application_id}/bundles/{bundle_id}/download	authenticated	staff	deny	-	REVIEW_APPS
+GET	/admin/developers/apps	authenticated	staff	deny	-	REVIEW_APPS
 GET	/admin/developers/packages	authenticated	staff	deny	-	REVIEW_PACKAGES
 GET	/admin/developers/packages/versions/{version_id}/download	authenticated	staff	deny	-	REVIEW_PACKAGES
 GET	/admin/developers/requests	authenticated	staff	deny	-	REVIEW_APPS

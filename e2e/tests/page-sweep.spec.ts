@@ -260,6 +260,20 @@ const SIGNED_IN: Row[] = [
   { name: 'emulator', path: () => '/games/emulator' },
   { name: 'admin', path: () => '/admin' },
   ...ADMIN.map((s): Row => ({ name: `admin-${s}`, path: () => `/admin/${s}` })),
+  // SEC-AUD-057 (D-587): the Applications tab of the Review hub (with a suspended row), and its Suspend dialog.
+  { name: 'admin-review-applications', path: () => '/admin/review', tab: 'Applications' },
+  {
+    name: 'admin-review-applications-suspend',
+    path: () => '/admin/review',
+    tab: 'Applications',
+    press: /^Suspend (Projector Bot|Doodle Board)$/,
+  },
+  {
+    name: 'admin-review-applications-unsuspend',
+    path: () => '/admin/review',
+    tab: 'Applications',
+    press: /^Unsuspend /,
+  },
   { name: 'developers', path: () => '/developers' },
   { name: 'developers-applications', path: () => '/developers/applications' },
   ...APP_TABS.map((tab): Row => ({
@@ -1202,6 +1216,18 @@ async function seedWorld(browser: Browser, owner: ReturnType<typeof bootstrapSta
       description: 'Posts the movie night schedule.',
     });
     return r.application.id;
+  });
+  // SEC-AUD-057 (D-587): a suspended application for the Review hub's Applications tab (needs
+  // SR_ADMIN_REQUIRE_REAUTH=0 on a development host, like the other staff steps of this sweep).
+  await step('suspended app', async () => {
+    const { application } = await apiPost<{ application: { id: string } }>(m, '/applications', {
+      name: 'Sketchy Relay',
+      description: 'Relays messages between servers.',
+    });
+    await apiPost(o, `/admin/developers/apps/${application.id}/suspend`, {
+      reason: 'Relays unsolicited invites to other servers.',
+    });
+    return application.id;
   });
   const activity = await step('activity', async () => {
     // The member is the developer: nobody reviews their own application.

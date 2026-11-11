@@ -74,6 +74,8 @@ pub(crate) use interactions::try_followup;
 #[cfg(test)]
 mod app_media_tests;
 #[cfg(test)]
+mod apps_list_tests;
+#[cfg(test)]
 mod directory_tests;
 #[cfg(test)]
 mod endpoint_health_tests;
@@ -440,6 +442,7 @@ pub fn router() -> Router<AppState> {
             "/admin/developers/requests/{request_id}/decision",
             post(portal::admin_decide_request),
         )
+        .route("/admin/developers/apps", get(portal::admin_apps))
         .route("/admin/developers/versions", get(portal::admin_versions))
         .route(
             "/admin/developers/versions/{version_id}/decision",
@@ -611,7 +614,7 @@ pub fn router() -> Router<AppState> {
 #[openapi(
     paths(
         portal::apply, portal::status, portal::admin_requests, portal::admin_decide_request,
-        portal::admin_versions, portal::admin_decide_version, portal::admin_suspend,
+        portal::admin_versions, portal::admin_decide_version, portal::admin_apps, portal::admin_suspend,
         portal::admin_unsuspend, portal::list_apps, portal::create_app, portal::get_app,
         portal::patch_app, portal::ensure_interactions_key, portal::verify_endpoint,
         testers::list, testers::invite, testers::remove, testers::respond,
@@ -639,7 +642,7 @@ pub fn router() -> Router<AppState> {
         InstallParamsObject, CreatedApplication, CreateApplicationBody, PatchApplicationBody,
         PatchBotBody, InteractionsKeyObject, TesterObject, TesterBody, TesterRespondBody,
         TesterRespondResult, EndpointStatusObject, PasswordBody, ResetSecretResult, ResetTokenResult, AuditEntryObject,
-        InstallObject, SubmitVersionBody, AppVersionObject, AppVersionAdmin,
+        InstallObject, SubmitVersionBody, AppVersionObject, AppVersionAdmin, AppAdminObject,
         DecideVersionBody, SuspendBody, AuthorizeInfo, AuthorizeBody, AuthorizeResult,
         ScopeObject, GuildChoice, AuthorizedApp, OAuthMe, TokenResponseBody, TokenRequestBody,
         OAuthErrorBody, IntrospectionBody, GatewayInfo, GatewayBotInfo, SessionStartLimit,

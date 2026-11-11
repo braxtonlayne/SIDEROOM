@@ -854,6 +854,33 @@ impl AppsService {
             .await
     }
 
+    /// Staff: every application, newest first (D-587). `search` matches the name, the
+    /// application id or the owner; `state` is a release state.
+    pub async fn admin_applications(
+        &self,
+        search: Option<&str>,
+        state: Option<&str>,
+        limit: i64,
+        before: Option<i64>,
+    ) -> AppsResult<Vec<AppAdminRow>> {
+        if let Some(s) = state
+            && ReleaseState::parse(s).is_none()
+        {
+            return Err(invalid("state", "BASE_TYPE_CHOICES", "Unknown state."));
+        }
+        let search = search.map(str::trim).filter(|q| !q.is_empty());
+        if search.is_some_and(|q| q.chars().count() > 100) {
+            return Err(invalid(
+                "search",
+                "BASE_TYPE_MAX_LENGTH",
+                "Must be 100 or fewer in length.",
+            ));
+        }
+        self.repo
+            .list_applications_admin(search, state, limit.clamp(1, 100), before)
+            .await
+    }
+
     /// Staff: suspend an application.
     pub async fn suspend(&self, staff: i64, id: i64, reason: &str) -> AppsResult<Application> {
         if !len_between(reason, 1, 500) {
