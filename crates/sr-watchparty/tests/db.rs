@@ -2206,3 +2206,44 @@ async fn a_lapsed_host_rejoins_their_empty_party_and_retakes_the_seat_only_when_
     let you = h.you.unwrap();
     assert!(you.member && !you.host);
 }
+
+/// SEC-AUD-096: a Seek during an auto-pause keeps the buffering deadline, so the sweep still resumes the party
+/// once `max_wait` passes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn seek_during_an_auto_pause_keeps_the_buffering_deadline() {
+    let e = env().await;
+    let (host, slow) = (e.user().await, e.user().await);
+    let hv = e.v(host).await;
+    let party = e.svc.create(hv, create(1)).await.unwrap();
+    join_all(&e, &party, &[slow]).await;
+    e.svc
+        .command(hv, party.id, cmd(Action::Play))
+        .await
+        .unwrap();
+    e.advance(4_000);
+    e.svc
+        .heartbeat(
+            e.v(slow).await,
+            party.id,
+            HeartbeatInput {
+                buffering: Some(true),
+                ..HeartbeatInput::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert!(e.svc.get(hv, party.id).await.unwrap().playback.auto_paused);
+    e.svc.command(hv, party.id, seek(1_000)).await.unwrap();
+    let wait: Option<i64> =
+        sqlx::query_scalar("SELECT buffer_wait_until_ms FROM watch_parties WHERE id = $1")
+            .bind(party.id)
+            .fetch_one(e.pool())
+            .await
+            .unwrap();
+    assert!(wait.is_some(), "the deadline survives the seek");
+    e.advance(12_000);
+    e.svc.tick(party.id).await.unwrap();
+    let cont = e.svc.get(hv, party.id).await.unwrap();
+    assert!(cont.playback.playing && !cont.playback.auto_paused);
+}
