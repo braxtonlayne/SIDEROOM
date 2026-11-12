@@ -1919,6 +1919,11 @@ impl AppsRepository for PgAppsRepo {
             .map_err(db)?
             .ok_or(AppsError::NotFound("guild"))?;
         if req.with_bot {
+            // Serialize with a ban of this bot: the ban check below then sees a committed ban, or the ban's
+            // member delete runs after this install commits (SEC-AUD-128, D-625).
+            crate::guild_admin_repo::lock_membership(&mut tx, req.guild_id, req.bot_user_id)
+                .await
+                .map_err(db)?;
             let banned: bool = sqlx::query_scalar(
                 "SELECT EXISTS (SELECT 1 FROM guild_bans WHERE guild_id = $1 AND user_id = $2)",
             )
