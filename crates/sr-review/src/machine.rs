@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! draft ──submit──► submitted ──claim──► in_review ──approve──► approved ──publish──► published
-//!   │ publish_now ─────────────────────────────────────────────────────────────────────▲
+//!   │ publish_now (claims: draft or changes_requested ──► approved, then the publish; a retry from approved) ──▲
 //!   ▲                  ▲  release ◄──────────┤  ├─request_changes──► changes_requested
 //!   └──── resubmit ────┴────────────────────────┘ └─reject──► rejected
 //! withdraw: draft | submitted | in_review | changes_requested ──► withdrawn
@@ -71,7 +71,9 @@ impl Action {
 pub fn sources(a: Action) -> &'static [S] {
     match a {
         Action::Submit => &[S::Draft],
-        Action::PublishNow => &[S::Draft, S::ChangesRequested],
+        // Draft and changes requested are claimed (-> approved); an approved one is the submitter's retry after a
+        // failed publish (D-618).
+        Action::PublishNow => &[S::Draft, S::ChangesRequested, S::Approved],
         Action::Resubmit => &[S::ChangesRequested],
         Action::Withdraw => &[S::Draft, S::Submitted, S::InReview, S::ChangesRequested],
         Action::Claim => &[S::Submitted, S::InReview],
@@ -92,12 +94,12 @@ pub fn next(from: S, a: Action) -> ReviewResult<S> {
     }
     Ok(match a {
         Action::Submit | Action::Resubmit | Action::Release => S::Submitted,
-        Action::PublishNow | Action::Publish => S::Published,
+        Action::Publish => S::Published,
         Action::Withdraw => S::Withdrawn,
         Action::Claim => S::InReview,
         Action::RequestChanges => S::ChangesRequested,
         Action::Reject => S::Rejected,
-        Action::Approve => S::Approved,
+        Action::Approve | Action::PublishNow => S::Approved,
     })
 }
 
@@ -169,6 +171,25 @@ mod tests {
         assert!(next(S::Submitted, Action::Approve).is_err());
         assert!(next(S::ChangesRequested, Action::Claim).is_err());
         assert!(next(S::InReview, Action::Submit).is_err());
+    }
+
+    #[test]
+    fn publish_now_claims_to_approved_and_retries_from_approved() {
+        assert_eq!(next(S::Draft, Action::PublishNow).unwrap(), S::Approved);
+        assert_eq!(
+            next(S::ChangesRequested, Action::PublishNow).unwrap(),
+            S::Approved
+        );
+        assert_eq!(next(S::Approved, Action::PublishNow).unwrap(), S::Approved);
+        for s in [
+            S::Submitted,
+            S::InReview,
+            S::Published,
+            S::Withdrawn,
+            S::Rejected,
+        ] {
+            assert!(next(s, Action::PublishNow).is_err(), "{s:?}");
+        }
     }
 
     #[test]

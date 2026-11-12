@@ -1319,3 +1319,120 @@ async fn the_requester_is_told_when_the_restriction_starts_and_ends() {
             .is_none()
     );
 }
+
+/// SEC-AUD-116 (D-616): an erasure run is one transaction with its audit row.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_erasure_that_fails_after_the_scrub_leaves_the_account_and_writes_no_row() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let r = repo(pool);
+    let q = r
+        .create(
+            &new(DataRequestKind::Erasure, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    r.verify(q.id, STAFF, T0, &entry("data_request.verify", q.id))
+        .await
+        .unwrap();
+    // The completion UPDATE, the last step, fails.
+    sqlx::query(
+        "CREATE FUNCTION p60_refuse_completion() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN RAISE EXCEPTION 'completion refused'; END $$",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p60_refuse BEFORE UPDATE ON data_requests FOR EACH ROW \
+         WHEN (NEW.state = 'completed') EXECUTE FUNCTION p60_refuse_completion()",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    let opts = ErasureOptions {
+        delete_messages: true,
+        invoice_years: 10,
+    };
+    assert!(
+        r.run_erasure(
+            q.id,
+            T0 + 5000,
+            opts,
+            &entry("data_request.run_erasure", q.id)
+        )
+        .await
+        .is_err()
+    );
+    let st: String = sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = 100")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(st, "active", "the scrub rolled back");
+    assert_eq!(log_count(pool, "data_request.run_erasure").await, 0);
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM message_self_deletes")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(queued, 0, "no message-deletion run was queued");
+    assert_eq!(
+        r.get(q.id).await.unwrap().unwrap().state,
+        DataRequestState::Verified
+    );
+    let archived: i64 = sqlx::query_scalar("SELECT count(*) FROM deleted_accounts")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(archived, 0);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn two_concurrent_erasure_runs_do_the_work_once() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    setup(pool).await;
+    let r = repo(pool);
+    let q = r
+        .create(
+            &new(DataRequestKind::Erasure, 100),
+            &entry("data_request.create", 0),
+        )
+        .await
+        .unwrap();
+    r.verify(q.id, STAFF, T0, &entry("data_request.verify", q.id))
+        .await
+        .unwrap();
+    let opts = ErasureOptions {
+        delete_messages: true,
+        invoice_years: 10,
+    };
+    let run = |repo: PgAdminRepo| {
+        let id = q.id;
+        tokio::spawn(async move {
+            repo.run_erasure(id, T0 + 5000, opts, &entry("data_request.run_erasure", id))
+                .await
+        })
+    };
+    let (a, b) = tokio::join!(run(repo(pool)), run(repo(pool)));
+    let results = [a.unwrap(), b.unwrap()];
+    assert_eq!(
+        results.iter().filter(|x| x.is_ok()).count(),
+        1,
+        "{results:?}"
+    );
+    assert!(
+        results
+            .iter()
+            .any(|x| matches!(x, Err(AdminError::Conflict(_))))
+    );
+    let queued: i64 = sqlx::query_scalar("SELECT count(*) FROM message_self_deletes")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(queued, 1, "one self-delete run queued");
+    assert_eq!(log_count(pool, "data_request.run_erasure").await, 1);
+}

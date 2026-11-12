@@ -13,7 +13,7 @@ use crate::error::{ReviewError, ReviewResult};
 use crate::kind::{KindDraft, KindRegistry, SubmissionKind};
 use crate::memory::MemoryReviewRepo;
 use crate::model::*;
-use crate::repo::NewItem;
+use crate::repo::{ClaimPatch, LeaseGuard, NewEvent, NewItem, SubmissionRepository, Transition};
 use crate::service::{Caller, LEASE_MS, MAX_OPEN_PER_MEMBER, ReviewEvents, ReviewService};
 
 struct TestClock(AtomicI64);
@@ -32,6 +32,8 @@ struct FakeKind {
     replacements: Mutex<Vec<i64>>,
     purged: Mutex<Vec<i64>>,
     dupes: Mutex<Vec<DuplicateMatch>>,
+    /// Withdraws submission `.1` through the repo `.0` the first time the items are read (a racing withdraw).
+    race_withdraw: Mutex<Option<(Arc<MemoryReviewRepo>, i64)>>,
 }
 
 #[async_trait]
@@ -60,6 +62,28 @@ impl SubmissionKind for FakeKind {
         })
     }
     async fn items(&self, _: &Submission, _: &[SubmissionItem]) -> ReviewResult<Vec<NewItem>> {
+        let race = self.race_withdraw.lock().unwrap().take();
+        if let Some((repo, id)) = race {
+            let t = Transition {
+                from: vec![SubmissionState::Draft],
+                to: SubmissionState::Withdrawn,
+                claim: ClaimPatch::Clear,
+                lease: LeaseGuard::None,
+                stamp_submitted: false,
+                decision: None,
+                stamp_published: false,
+                now_ms: 1_000,
+            };
+            let ev = NewEvent {
+                id: 9_000,
+                kind: "withdrawn".into(),
+                actor_id: Some(MEMBER),
+                body: None,
+                internal: false,
+                data: json!({}),
+            };
+            assert!(repo.transition(id, &t, &ev).await.unwrap().is_some());
+        }
         Ok(self.items.lock().unwrap().clone())
     }
     async fn validate(&self, _: &Submission, items: &[NewItem]) -> ReviewResult<Vec<String>> {
@@ -1863,4 +1887,54 @@ async fn reviewers_never_see_another_members_unsent_drafts() {
     w.svc.get_for_review(r, sent).await.unwrap();
     // The submitter still reads their own draft.
     w.svc.get_mine(MEMBER, unsent).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_withdraw_that_wins_the_race_leaves_nothing_published() {
+    let w = world();
+    let c = curator();
+    let id = w
+        .svc
+        .create(c, new_sub("Racing"))
+        .await
+        .unwrap()
+        .submission
+        .id;
+    // The submitter's withdraw commits between the load and the claim.
+    *w.kind.race_withdraw.lock().unwrap() = Some((w.repo.clone(), id));
+    let err = w.svc.publish_now(c, id).await.unwrap_err();
+    assert!(matches!(err, ReviewError::Conflict(_)), "{err:?}");
+    assert!(w.kind.published.lock().unwrap().is_empty());
+    assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 0);
+    let s = w.svc.get_mine(CURATOR, id).await.unwrap();
+    assert_eq!(s.submission.state, SubmissionState::Withdrawn);
+    assert!(s.items.iter().all(|i| i.state != ItemState::Published));
+}
+
+#[tokio::test]
+async fn a_failed_direct_publish_can_be_retried_by_the_submitter() {
+    let w = world();
+    let c = curator();
+    let id = w
+        .svc
+        .create(c, new_sub("Retry"))
+        .await
+        .unwrap()
+        .submission
+        .id;
+    w.kind.fail_publish.store(true, Ordering::SeqCst);
+    assert!(w.svc.publish_now(c, id).await.is_err());
+    let d = w.svc.get_mine(CURATOR, id).await.unwrap();
+    assert_eq!(d.submission.state, SubmissionState::Approved);
+    assert_eq!(d.submission.decided_by, Some(CURATOR));
+    assert!(d.events.iter().any(|e| e.kind == "approved"));
+    assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 0);
+    // The submitter retries once it is fixed; nobody else can.
+    w.kind.fail_publish.store(false, Ordering::SeqCst);
+    assert!(w.svc.publish_now(reviewer(REVIEWER), id).await.is_err());
+    let d = w.svc.publish_now(c, id).await.unwrap();
+    assert_eq!(d.submission.state, SubmissionState::Published);
+    assert!(d.items.iter().all(|i| i.state == ItemState::Published));
+    assert_eq!(*w.kind.published.lock().unwrap(), vec![1, 2]);
+    assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 2);
 }

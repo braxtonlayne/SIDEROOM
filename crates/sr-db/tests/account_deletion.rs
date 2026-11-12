@@ -479,3 +479,173 @@ async fn erasure_removes_vouches_and_keeps_the_moderation_record() {
         "{row}"
     );
 }
+
+/// Seed rows without their parents: foreign keys are not checked on this connection while it holds the replica role.
+async fn seed(pool: &PgPool, statements: &[&str], me: i64) {
+    let mut c = pool.acquire().await.unwrap();
+    sqlx::query("SET session_replication_role = replica")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+    for s in statements {
+        sqlx::query(sqlx::AssertSqlSafe((*s).to_owned()))
+            .bind(me)
+            .execute(&mut *c)
+            .await
+            .unwrap();
+    }
+    sqlx::query("SET session_replication_role = DEFAULT")
+        .execute(&mut *c)
+        .await
+        .unwrap();
+}
+
+/// SEC-AUD-117 (D-617): personal state goes with the account; what the member contributed stays.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn account_deletion_removes_personal_state_and_keeps_contributions() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    let me = 1101_i64;
+    account(pool, me, "leaving").await;
+    seed(
+        pool,
+        &[
+            "INSERT INTO cinema_progress (user_id, title_id, duration_secs) VALUES ($1, 7, 100)",
+            "INSERT INTO reading_progress (user_id, chapter_id, series_id) VALUES ($1, 8, 9)",
+            "INSERT INTO reading_bookmarks (id, user_id, chapter_id) VALUES (8001, $1, 8)",
+            "INSERT INTO scratch_notes (user_id, note_id, ciphertext) VALUES ($1, \
+             '00000000-0000-4000-8000-000000000001', '\\x01')",
+            "INSERT INTO loot_tables (id, owner_user_id, name, rows) VALUES (8002, $1, 'mine', '[1]')",
+            "INSERT INTO cinema_lists (id, owner_id, kind, name, visibility) VALUES \
+               (8003, $1, 'saved', 'Saved', 'private'), (8004, $1, 'custom', 'Private', 'private'), \
+               (8005, $1, 'custom', 'Pals', 'friends'), (8006, $1, 'custom', 'Public picks', 'public')",
+            "INSERT INTO cinema_list_items (list_id, title_id, position) VALUES (8004, 7, 0), (8006, 7, 0)",
+            "INSERT INTO invite_cards (id, channel_id, kind, title, starts_at, seats) VALUES \
+               (8010, 1, 'cinema', 'Soon', now() + interval '1 day', 5), \
+               (8011, 1, 'cinema', 'Past', now() - interval '1 day', 5)",
+            "INSERT INTO invite_card_claims (card_id, user_id) VALUES (8010, $1), (8011, $1)",
+            "INSERT INTO cinema_reviews (id, user_id, title_id, body) VALUES (8020, $1, 7, 'great')",
+            "INSERT INTO cinema_ratings (user_id, title_id, score) VALUES ($1, 7, 9)",
+        ],
+        me,
+    )
+    .await;
+
+    let report = delete_account(pool, me, 9001).await.unwrap().unwrap();
+    // 1 + 1 + 1 + 1 + 1 + (saved, private, friends) + 1 upcoming claim.
+    assert_eq!(report.personal_rows_deleted, 9);
+
+    for (table, col) in [
+        ("cinema_progress", "user_id"),
+        ("reading_progress", "user_id"),
+        ("reading_bookmarks", "user_id"),
+        ("scratch_notes", "user_id"),
+        ("loot_tables", "owner_user_id"),
+    ] {
+        assert_eq!(
+            count(
+                pool,
+                &format!("SELECT count(*) FROM {table} WHERE {col} = $1"),
+                me
+            )
+            .await,
+            0,
+            "{table}"
+        );
+    }
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM cinema_lists WHERE owner_id = $1",
+            me
+        )
+        .await,
+        1,
+        "only the public list stays"
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM cinema_list_items WHERE list_id IN (8003, 8004, 8005) AND $1 > 0",
+            me
+        )
+        .await,
+        0,
+        "items went with their lists"
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM cinema_list_items WHERE list_id = 8006 AND $1 > 0",
+            me
+        )
+        .await,
+        1
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM invite_card_claims WHERE user_id = $1 AND card_id = 8011",
+            me
+        )
+        .await,
+        1,
+        "a past card keeps its claim until its own purge"
+    );
+    assert_eq!(
+        count(
+            pool,
+            "SELECT count(*) FROM invite_card_claims WHERE user_id = $1 AND card_id = 8010",
+            me
+        )
+        .await,
+        0
+    );
+    // Contributions stay under the same account id.
+    for sql in [
+        "SELECT count(*) FROM cinema_reviews WHERE user_id = $1",
+        "SELECT count(*) FROM cinema_ratings WHERE user_id = $1",
+        "SELECT count(*) FROM cinema_lists WHERE owner_id = $1 AND visibility = 'public'",
+    ] {
+        assert_eq!(count(pool, sql, me).await, 1, "{sql}");
+    }
+}
+
+/// SEC-AUD-118 (D-617): an account's exports end with the account.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn deleting_an_account_expires_its_ready_export() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    let me = 1201_i64;
+    account(pool, me, "leaving").await;
+    sqlx::query(
+        "INSERT INTO data_exports (id, user_id, state, storage_key, expires_at, ready_at) \
+         VALUES (7001, $1, 'ready', 'exports/1201/7001.zip', now() + interval '6 days', now())",
+    )
+    .bind(me)
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO data_exports (id, user_id, state) VALUES (7002, $1, 'pending')")
+        .bind(me)
+        .execute(pool)
+        .await
+        .unwrap();
+    assert!(sr_db::data_export::lapsed(pool).await.unwrap().is_empty());
+
+    let report = delete_account(pool, me, 9002).await.unwrap().unwrap();
+    assert_eq!(report.exports_expired, 1);
+    let lapsed = sr_db::data_export::lapsed(pool).await.unwrap();
+    assert_eq!(lapsed, vec![(7001, "exports/1201/7001.zip".to_owned())]);
+    let (state, error): (String, Option<String>) =
+        sqlx::query_as("SELECT state, error FROM data_exports WHERE id = 7002")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        (state.as_str(), error.as_deref()),
+        ("failed", Some("account deleted"))
+    );
+}
