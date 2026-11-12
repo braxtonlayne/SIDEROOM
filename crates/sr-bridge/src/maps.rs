@@ -153,19 +153,10 @@ impl BridgeService {
                     "discord_channel_id: the bot cannot see that channel in the connected Discord server.".into(),
                 )
             })?;
-        let taken: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM bridge_channel_maps WHERE channel_id = $1 OR (guild_id = $2 AND discord_channel_id = $3)",
-        )
-        .bind(channel)
-        .bind(guild)
-        .bind(discord_channel)
-        .fetch_optional(&self.pool)
-        .await?;
-        if taken.is_some() {
-            return Err(BridgeError::Conflict(
-                "That channel, or that Discord channel, is already mapped.".into(),
-            ));
-        }
+        // One Discord channel, one SIDE ROOM server on this instance (D-609): the message never names the other
+        // server.
+        self.refuse_taken(&self.pool, channel, discord_channel)
+            .await?;
         let map_id = self.next_id();
         // The webhook as Discord made it (plain token, only in memory) and as we store it (sealed).
         let created = if direction.sends() {
@@ -189,26 +180,40 @@ impl BridgeService {
                 return Err(e);
             }
         };
-        let inserted = sqlx::query(
-            "INSERT INTO bridge_channel_maps (id, guild_id, channel_id, discord_channel_id, discord_channel_name, \
-             discord_webhook_id, webhook_token_enc, direction, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        )
-        .bind(map_id)
-        .bind(guild)
-        .bind(channel)
-        .bind(discord_channel)
-        .bind(&target.name)
-        .bind(created.as_ref().map(|w| w.id))
-        .bind(sealed_webhook)
-        .bind(direction.as_str())
-        .bind(actor)
-        .execute(&self.pool)
+        // The check above ran before the webhook call; another server may have mapped the same Discord channel
+        // since. Re-check inside the insert transaction, serialised per Discord channel.
+        let inserted: BridgeResult<()> = async {
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("SELECT pg_advisory_xact_lock($1)")
+                .bind(discord_channel)
+                .execute(&mut *tx)
+                .await?;
+            self.refuse_taken(&mut *tx, channel, discord_channel)
+                .await?;
+            sqlx::query(
+                "INSERT INTO bridge_channel_maps (id, guild_id, channel_id, discord_channel_id, discord_channel_name, \
+                 discord_webhook_id, webhook_token_enc, direction, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+            )
+            .bind(map_id)
+            .bind(guild)
+            .bind(channel)
+            .bind(discord_channel)
+            .bind(&target.name)
+            .bind(created.as_ref().map(|w| w.id))
+            .bind(sealed_webhook)
+            .bind(direction.as_str())
+            .bind(actor)
+            .execute(&mut *tx)
+            .await?;
+            tx.commit().await?;
+            Ok(())
+        }
         .await;
         if let Err(e) = inserted {
             // The row did not land: do not leave a webhook behind on Discord.
             self.discard_webhook(guild, discord_channel, created.as_ref())
                 .await;
-            return Err(e.into());
+            return Err(e);
         }
         let map = self.map_by_id(map_id).await?;
         self.notices
@@ -222,6 +227,38 @@ impl BridgeService {
             .await;
         self.notices.channel_changed(channel).await;
         Ok(map)
+    }
+
+    /// Conflict when the SIDE ROOM channel is mapped, or the Discord channel is mapped by any server on this
+    /// instance.
+    async fn refuse_taken<'e, E>(
+        &self,
+        db: E,
+        channel: i64,
+        discord_channel: i64,
+    ) -> BridgeResult<()>
+    where
+        E: sqlx::PgExecutor<'e>,
+    {
+        let (own, discord): (bool, bool) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM bridge_channel_maps WHERE channel_id = $1), \
+                    EXISTS (SELECT 1 FROM bridge_channel_maps WHERE discord_channel_id = $2)",
+        )
+        .bind(channel)
+        .bind(discord_channel)
+        .fetch_one(db)
+        .await?;
+        if discord {
+            return Err(BridgeError::Conflict(
+                "That Discord channel is already bridged on this instance.".into(),
+            ));
+        }
+        if own {
+            return Err(BridgeError::Conflict(
+                "That channel is already mapped.".into(),
+            ));
+        }
+        Ok(())
     }
 
     /// A webhook was created but the map that should own it could not be stored: delete it again, or remember

@@ -185,6 +185,16 @@ pub struct State {
     pub fail_next: u32,
     /// After each webhook execution, answer `remaining: 0, reset-after: N` seconds.
     pub exhaust_bucket_secs: Option<f64>,
+    /// Next N webhook message deletions answer 500.
+    pub fail_message_delete_next: u32,
+}
+
+/// Holds the next webhook execution "on the wire" until the test lets it go: the test runs whatever should happen
+/// while a post is in flight between `entered` and `release`.
+#[derive(Default)]
+pub struct Gate {
+    pub entered: tokio::sync::Notify,
+    pub release: tokio::sync::Notify,
 }
 
 impl State {
@@ -197,6 +207,8 @@ impl State {
 /// A fake Discord behind the SDK's transport trait.
 pub struct FakeDiscord {
     pub state: Mutex<State>,
+    /// Set to hold the next webhook execution (see [`Gate`]).
+    pub gate: Mutex<Option<Arc<Gate>>>,
 }
 
 pub const BASE: &str = "http://fake.discord/api/v10";
@@ -208,6 +220,7 @@ impl FakeDiscord {
                 next_id: 9_000_000_000_000_000,
                 ..State::default()
             }),
+            gate: Mutex::new(None),
         })
     }
 
@@ -308,6 +321,13 @@ impl HttpTransport for FakeDiscord {
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
             .map(|(_, v)| v.clone());
+        if method == "POST" && path.starts_with("/webhooks/") {
+            let gate = self.gate.lock().unwrap().take();
+            if let Some(g) = gate {
+                g.entered.notify_one();
+                g.release.notified().await;
+            }
+        }
         let mut s = self.state.lock().unwrap();
         s.seen.push(Seen {
             method,
@@ -436,7 +456,10 @@ impl HttpTransport for FakeDiscord {
             ("DELETE", ["webhooks", id, token, "messages", mid]) => {
                 let (id, mid): (i64, i64) = (id.parse().unwrap_or(0), mid.parse().unwrap_or(0));
                 let ok = s.webhooks.get(&id).is_some_and(|(t, _)| t == token);
-                if ok && s.messages.remove(&(id, mid)).is_some() {
+                if s.fail_message_delete_next > 0 {
+                    s.fail_message_delete_next -= 1;
+                    reply(500, vec![], json!({"message": "boom"}))
+                } else if ok && s.messages.remove(&(id, mid)).is_some() {
                     reply(204, vec![], Value::Null)
                 } else {
                     reply(404, vec![], json!({"message": "Unknown Message"}))

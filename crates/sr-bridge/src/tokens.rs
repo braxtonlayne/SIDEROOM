@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::discord::CallError;
 use crate::error::{BridgeError, BridgeResult};
 use crate::model::{Bridge, get_bridge};
-use crate::service::{AUDIT_INTEGRATION_CREATE, AuditRow, BridgeService};
+use crate::service::{AUDIT_INTEGRATION_CREATE, AUDIT_INTEGRATION_UPDATE, AuditRow, BridgeService};
 
 /// Longest bot token accepted (Discord's are about 70 characters).
 const MAX_TOKEN_LEN: usize = 200;
@@ -75,18 +75,25 @@ impl BridgeService {
         };
         let sealed = self.sealer.seal(&Self::bot_aad(guild), token.as_bytes())?;
         let mut tx = self.pool.begin().await?;
-        let existing: Option<(i64,)> =
-            sqlx::query_as("SELECT bot_user_id FROM bridges WHERE guild_id = $1 FOR UPDATE")
-                .bind(guild)
-                .fetch_optional(&mut *tx)
-                .await?;
+        let existing: Option<(i64, i64)> = sqlx::query_as(
+            "SELECT bot_user_id, discord_guild_id FROM bridges WHERE guild_id = $1 FOR UPDATE",
+        )
+        .bind(guild)
+        .fetch_optional(&mut *tx)
+        .await?;
         match existing {
-            Some((bot,)) if bot != me.id => {
+            Some((bot, _)) if bot != me.id => {
                 return Err(BridgeError::Conflict(
                     "A different bot is already connected. Revoke its token first.".into(),
                 ));
             }
-            Some(_) => {
+            Some((_, discord_guild)) => {
+                // A token change keeps the bridge on its Discord server (D-611): another server is a new bridge.
+                if chosen.id != discord_guild {
+                    return Err(BridgeError::Conflict(
+                        "This bridge is connected to another Discord server. Disconnect it first to change servers.".into(),
+                    ));
+                }
                 sqlx::query(
                     "UPDATE bridges SET bot_token_enc = $2, bot_name = $3, status = 'connecting', updated_at = now() \
                      WHERE guild_id = $1",
@@ -95,6 +102,19 @@ impl BridgeService {
                 .bind(&sealed)
                 .bind(&me.name)
                 .execute(&mut *tx)
+                .await?;
+                self.audit(
+                    &mut tx,
+                    AuditRow {
+                        guild,
+                        actor,
+                        action: AUDIT_INTEGRATION_UPDATE,
+                        target: Some(chosen.id),
+                        // Never the token: only that the credential was replaced.
+                        changes: json!([{"key": "bot_token", "new_value": null}]),
+                        options: json!({"integration": "discord_bridge", "bot_user_id": me.id.to_string()}),
+                    },
+                )
                 .await?;
             }
             None => {
