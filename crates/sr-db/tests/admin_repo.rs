@@ -1198,3 +1198,54 @@ async fn appointments_record_how_they_ended() {
             .all(|f| f.account_id != current)
     );
 }
+
+/// SEC-AUD-122: a staff rename answers the same 30-day hold as the self-service one.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_staff_rename_to_a_held_username_is_refused() {
+    let pool = pool().await;
+    let r = repo(&pool);
+    let staff = account(&pool, None).await;
+    let target = account(&pool, None).await;
+    let leaver = account(&pool, None).await;
+    let held = format!("t{leaver}");
+    sr_db::account_deletion::delete_account(&pool, leaver, uid())
+        .await
+        .unwrap()
+        .unwrap();
+    let err = r
+        .rename_account(
+            target,
+            Some(&held),
+            None,
+            &entry(staff, "account.rename", Some(target)),
+        )
+        .await
+        .unwrap_err();
+    match err {
+        AdminError::Conflict(m) => {
+            assert!(m.starts_with("That username is reserved until "), "{m}")
+        }
+        other => panic!("{other:?}"),
+    }
+    let name: String = sqlx::query_scalar("SELECT username::text FROM accounts WHERE id = $1")
+        .bind(target)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_ne!(name, held);
+    // Once the hold lapses the name is free.
+    sqlx::query("UPDATE deleted_accounts SET username_release_at = now() - interval '1 day' WHERE account_id = $1")
+        .bind(leaver)
+        .execute(&pool)
+        .await
+        .unwrap();
+    r.rename_account(
+        target,
+        Some(&held),
+        None,
+        &entry(staff, "account.rename", Some(target)),
+    )
+    .await
+    .unwrap();
+}

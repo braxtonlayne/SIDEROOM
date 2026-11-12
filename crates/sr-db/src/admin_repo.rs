@@ -1814,6 +1814,24 @@ impl AdminRepository for PgAdminRepo {
     ) -> AdminResult<AccountSummary> {
         let mut tx = self.pool.begin().await.map_err(db)?;
         Self::account_summary(&mut tx, id).await?;
+        // SEC-AUD-122: a username held after an account deletion (30 days) is not free to take, as in the
+        // self-service rename.
+        if let Some(name) = username {
+            let held: Option<String> = sqlx::query_scalar(
+                "SELECT to_char(username_release_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') FROM deleted_accounts \
+                 WHERE username = $1::citext AND username_release_at > now() \
+                 ORDER BY username_release_at DESC LIMIT 1",
+            )
+            .bind(name)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?;
+            if let Some(until) = held {
+                return Err(AdminError::Conflict(format!(
+                    "That username is reserved until {until}"
+                )));
+            }
+        }
         sqlx::query(
             "UPDATE accounts SET username = COALESCE($2::citext, username), \
                     display_name = CASE WHEN $3 THEN $4 ELSE display_name END, updated_at = now() \
