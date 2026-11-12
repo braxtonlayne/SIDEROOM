@@ -65,7 +65,8 @@ function FriendRow({
         aria-label={t('lounge.friends.messageLabel', { name })}
         onClick={() => actions.message(r)}
       >
-        <Icon name="reply" size={16} /> {t('lounge.friends.message')}
+        <Icon name="reply" size={16} />{' '}
+        <span className="lng-friend-msg">{t('lounge.friends.message')}</span>
       </Button>
       <DropdownMenu
         label={t('lounge.friends.actionsLabel', { name })}

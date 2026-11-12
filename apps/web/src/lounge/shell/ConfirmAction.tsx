@@ -31,7 +31,7 @@ export function ConfirmAction({
           : t('lounge.confirm.endStageTitle');
   const body =
     k === 'block'
-      ? t('lounge.confirm.blockBody')
+      ? t('lounge.confirm.blockBodyFull')
       : k === 'removeFriend'
         ? t('lounge.confirm.removeFriendBody')
         : k === 'endPoll'
