@@ -201,7 +201,12 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
   if (!guildId) return null;
   if (onScrapbook && guildId !== HOME)
     return <ScrapbookGallery guildId={guildId} onBack={isMobile ? onBack : undefined} />;
-  if (!channelId) return guildId === HOME ? <HomeFriends /> : <PickChannel guildId={guildId} />;
+  if (!channelId)
+    return guildId === HOME ? (
+      <HomeFriends onBack={isMobile ? onBack : undefined} />
+    ) : (
+      <PickChannel guildId={guildId} />
+    );
   if (resolved.pending) return null;
   return (
     <>
@@ -282,6 +287,7 @@ function Shell() {
   }, [channelId, onScrapbook]);
 
   const goList = useCallback(() => setPane('list'), []);
+  const showChat = useCallback(() => setPane('chat'), []);
   const swipe = useSwipe(['list', 'chat', 'members'], pane, setPane);
 
   const dm = dms.find((d) => d.id === channelId);
@@ -325,7 +331,7 @@ function Shell() {
             <GuildRail />
             <div className="lng-left-col">
               {isHome ? (
-                <HomeSidebar onOpenSwitcher={() => openDrawer('goto')} />
+                <HomeSidebar onOpenSwitcher={() => openDrawer('goto')} onOpenPage={showChat} />
               ) : (
                 <ChannelSidebar guildId={guildId!} />
               )}

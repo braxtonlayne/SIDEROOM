@@ -217,7 +217,7 @@ function FriendList({
 }
 
 /** Friends page (LNG-FRD-005..014): Online / All / Pending / Add Friend, search, row actions. */
-export function FriendsPage() {
+export function FriendsPage({ onBack }: { onBack?: (() => void) | undefined } = {}) {
   const t = useT();
   const rows = useSocial((s) => s.relationships);
   const status = useSocial((s) => s.status);
@@ -345,6 +345,16 @@ export function FriendsPage() {
   return (
     <section className="lng-channel-view lng-friends" aria-label={t('lounge.friends.title')}>
       <header className="lng-header">
+        {onBack && (
+          <button
+            type="button"
+            className="lng-icon-btn lng-back"
+            aria-label={t('lounge.channelHeader.backToChannels')}
+            onClick={onBack}
+          >
+            <Icon name="arrow-left" size={20} />
+          </button>
+        )}
         <Icon name="users" size={24} />
         <h1 className="lng-header-title">{t('lounge.friends.title')}</h1>
         <Tabs

@@ -10,7 +10,7 @@ import { requestReasonText } from './requestReason';
 import { useSocial, wireName } from './social';
 
 /** Message Requests (LNG-DM-008): conversations from people who are not friends yet. */
-export function MessageRequestsPage() {
+export function MessageRequestsPage({ onBack }: { onBack?: (() => void) | undefined } = {}) {
   const t = useT();
   const list = useSocial((s) => s.messageRequests);
   const forget = useSocial((s) => s.forgetMessageRequest);
@@ -99,6 +99,16 @@ export function MessageRequestsPage() {
   return (
     <section className="lng-channel-view" aria-label={t('lounge.messageRequests.title')}>
       <header className="lng-header">
+        {onBack && (
+          <button
+            type="button"
+            className="lng-icon-btn lng-back"
+            aria-label={t('lounge.channelHeader.backToChannels')}
+            onClick={onBack}
+          >
+            <Icon name="arrow-left" size={20} />
+          </button>
+        )}
         <Icon name="user" size={24} />
         <h1 className="lng-header-title">{t('lounge.messageRequests.title')}</h1>
       </header>
