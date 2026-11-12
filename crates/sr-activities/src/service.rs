@@ -47,6 +47,8 @@ const PUT_CONCURRENCY: usize = 8;
 pub const LOBBY_SCAN: i64 = 100;
 /// Lobbies returned to the Arcade (D-485).
 pub const LOBBY_MAX: usize = 20;
+/// How long a superseded bundle's objects stay before the cleanup may delete them (SEC-AUD-139, D-630).
+const GC_GRACE: std::time::Duration = std::time::Duration::from_secs(24 * 3600);
 
 /// A timestamp column as epoch milliseconds.
 fn ms(col: &str) -> String {
@@ -843,18 +845,24 @@ impl ActivityService {
     /// deleted.
     pub async fn gc(&self) -> ActivityResult<usize> {
         let storage = self.storage()?.clone();
+        // List first, read the live set second (SEC-AUD-139): a bundle's row is committed before its objects are
+        // written, so a bundle uploaded between the two reads is in the live set whenever its objects are listed.
+        let objects = storage
+            .list("activities/")
+            .await
+            .map_err(|e| ActivityError::Storage(e.to_string()))?;
+        // A bundle superseded within `GC_GRACE` stays: members who opened the Activity before the change still load
+        // its files. Rows superseded before `superseded_at` existed are NULL, i.e. long ago.
         let live: HashSet<(i64, String)> = sqlx::query(
-            "SELECT application_id, sha256 FROM application_activity_bundles WHERE state <> 'superseded'",
+            "SELECT application_id, sha256 FROM application_activity_bundles \
+             WHERE state <> 'superseded' OR superseded_at > now() - make_interval(secs => $1)",
         )
+        .bind(GC_GRACE.as_secs_f64())
         .fetch_all(self.pool())
         .await?
         .iter()
         .map(|r| Ok((r.try_get("application_id")?, r.try_get("sha256")?)))
         .collect::<Result<_, sqlx::Error>>()?;
-        let objects = storage
-            .list("activities/")
-            .await
-            .map_err(|e| ActivityError::Storage(e.to_string()))?;
         let mut removed = 0;
         for o in objects {
             let mut parts = o.key.strip_prefix("activities/").unwrap_or("").split('/');

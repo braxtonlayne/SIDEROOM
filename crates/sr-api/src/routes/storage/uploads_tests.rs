@@ -1057,3 +1057,60 @@ async fn a_taken_down_file_cannot_be_moved_or_renamed() {
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
 }
+
+#[test]
+fn an_active_content_type_is_stored_as_octet_stream() {
+    for t in [
+        "text/html",
+        "TEXT/HTML; charset=utf-8",
+        "image/svg+xml",
+        "application/xhtml+xml",
+        "text/xml",
+        "application/rss+xml",
+        "text/javascript",
+        "application/javascript",
+        "text/css",
+    ] {
+        assert_eq!(
+            super::uploads::clean_content_type(Some(t)).unwrap(),
+            "application/octet-stream",
+            "{t}"
+        );
+    }
+}
+
+#[test]
+fn a_media_type_is_kept_as_declared() {
+    for t in [
+        "video/mp4",
+        "video/x-matroska",
+        "audio/flac",
+        "image/png",
+        "application/pdf",
+        "application/epub+zip",
+        "text/plain; charset=utf-8",
+        "text/vtt",
+    ] {
+        assert_eq!(
+            super::uploads::clean_content_type(Some(t)).unwrap(),
+            t,
+            "{t}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn begin_answers_with_the_coerced_content_type() {
+    let e = env().await;
+    let m = e.user_mount;
+    let base = format!("/storage/mounts/{m}/uploads");
+    let (st, up) = e
+        .post(
+            OWNER,
+            &base,
+            json!({"key": "page.html", "size": 5, "content_type": "text/html"}),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{up}");
+    assert_eq!(up["content_type"], "application/octet-stream");
+}

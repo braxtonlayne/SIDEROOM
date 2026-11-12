@@ -87261,6 +87261,7 @@
           "queued",
           "dead_letters",
           "leftovers",
+          "erasure_leftovers",
           "is_owner"
         ],
         "properties": {
@@ -87282,6 +87283,13 @@
             "type": "integer",
             "format": "int64",
             "description": "Posts that failed for good (the dead-letter counter)."
+          },
+          "erasure_leftovers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErasureLeftoverObject"
+            },
+            "description": "Discord deletions owed to an account erasure that could not be done yet (retried daily): delete the copies on\nDiscord by hand. Where the copy is, never who wrote it."
           },
           "is_owner": {
             "type": "boolean",
@@ -96269,6 +96277,22 @@
           }
         }
       },
+      "ErasureLeftoverObject": {
+        "type": "object",
+        "description": "A Discord message the bridge owes a deletion to an account erasure for and could not delete.",
+        "required": [
+          "discord_channel_id",
+          "discord_message_id"
+        ],
+        "properties": {
+          "discord_channel_id": {
+            "type": "string"
+          },
+          "discord_message_id": {
+            "type": "string"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Discord-style error body (doc 05 section 3).",
@@ -102227,6 +102251,7 @@
           "has_webhook",
           "queued",
           "dead",
+          "shared_on_instance",
           "created_at"
         ],
         "properties": {
@@ -102265,6 +102290,10 @@
             "type": "integer",
             "format": "int64",
             "description": "Posts waiting for their turn under Discord's rate limits."
+          },
+          "shared_on_instance": {
+            "type": "boolean",
+            "description": "Another server on this instance also bridges this Discord channel. Never says which."
           }
         }
       },

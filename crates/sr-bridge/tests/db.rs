@@ -1277,3 +1277,377 @@ async fn replacing_the_token_writes_an_audit_row() {
     );
     let _ = w.db.cleanup().await;
 }
+
+// ---- wave 61: SEC-AUD-129..133 ----
+
+/// A second server with its own bot connection and no map yet.
+async fn second_server(w: &World, token: &str) -> (i64, i64, i64, Vec<i64>) {
+    let owner = account(w.db.pool()).await;
+    let (g, ch) = guild(w.db.pool(), owner).await;
+    let (_dg, dch) = w.discord.with_bot(token);
+    w.features
+        .set_enabled(sr_features::BRIDGE_MODULE_ID, &guild_scope(g), Some(true))
+        .await
+        .unwrap();
+    w.svc.connect(g, owner, token, None).await.unwrap();
+    (g, owner, ch, dch)
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_discord_channel_shared_by_two_servers_is_flagged_on_both() {
+    let w = world().await;
+    let a = w.bridged().await;
+    let b = w.bridged_with("Bot-token-two").await;
+    // An install from before D-609: server B's map points at the Discord channel server A holds.
+    sqlx::query("UPDATE bridge_channel_maps SET discord_channel_id = $2 WHERE id = $1")
+        .bind(b.map)
+        .bind(a.discord_channels[0])
+        .execute(w.db.pool())
+        .await
+        .unwrap();
+    let (ra, rb) = (
+        w.svc.status(a.guild).await.unwrap(),
+        w.svc.status(b.guild).await.unwrap(),
+    );
+    assert!(ra.maps[0].shared_on_instance, "A is told");
+    assert!(rb.maps[0].shared_on_instance, "B is told");
+    let (ja, jb) = (
+        serde_json::to_string(&ra).unwrap(),
+        serde_json::to_string(&rb).unwrap(),
+    );
+    for (json, other) in [(&ja, &b), (&jb, &a)] {
+        assert!(
+            !json.contains(&other.guild.to_string()) && !json.contains(&other.owner.to_string()),
+            "never identifies the other server"
+        );
+        assert!(!json.contains("Test guild"), "never names the other server");
+    }
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_map_nobody_else_holds_is_not_flagged() {
+    let w = world().await;
+    let a = w.bridged().await;
+    let _b = w.bridged_with("Bot-token-two").await;
+    let ra = w.svc.status(a.guild).await.unwrap();
+    assert_eq!(ra.maps.len(), 1);
+    assert!(!ra.maps[0].shared_on_instance);
+    let _ = w.db.cleanup().await;
+}
+
+/// What the data-request erasure writes for a posted message whose map row then goes (see `bridge_dsr`).
+async fn queue_erasure_delete(w: &World, b: &Bridged, id: i64, sr: i64) {
+    let mm = model::message_map_for(w.db.pool(), sr)
+        .await
+        .unwrap()
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO bridge_outbox (id, guild_id, map_id, kind, sr_message_id, payload) \
+         VALUES ($1, $2, $3, 'delete', $4, $5)",
+    )
+    .bind(id)
+    .bind(b.guild)
+    .bind(b.map)
+    .bind(sr)
+    .bind(json!({
+        "discord_message_id": mm.discord_message_id.to_string(),
+        "webhook_id": mm.webhook_id.unwrap().to_string(),
+        "reason": "erasure"
+    }))
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    sqlx::query("DELETE FROM bridge_message_map WHERE sr_message_id = $1")
+        .bind(sr)
+        .execute(w.db.pool())
+        .await
+        .unwrap();
+}
+
+async fn run_until_dead(w: &World) {
+    for _ in 0..10 {
+        w.svc.run_outbox_once().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(8)).await;
+    }
+}
+
+async fn age_dead_rows(w: &World) {
+    sqlx::query(
+        "UPDATE bridge_outbox SET due_at = now() - interval '2 hours' WHERE state = 'dead'",
+    )
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_dead_erasure_delete_is_retried_after_the_rearm_interval() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 14_001, ann, msg("erase me")))
+        .await;
+    w.svc.drain_outbox().await.unwrap();
+    queue_erasure_delete(&w, &b, -14_001, 14_001).await;
+    w.discord.state.lock().unwrap().fail_message_delete_next = 100;
+    run_until_dead(&w).await;
+    let state: String = sqlx::query_scalar("SELECT state FROM bridge_outbox WHERE id = -14001")
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(state, "dead");
+    // Not yet due for another go: the interval has not passed.
+    w.discord.state.lock().unwrap().fail_message_delete_next = 0;
+    w.svc.run_outbox_once().await.unwrap();
+    assert_eq!(
+        count(&w, "bridge_outbox").await,
+        1,
+        "still dead, not retried"
+    );
+    assert_eq!(w.discord.state.lock().unwrap().messages.len(), 1);
+    // A day later (the test sets it back) the worker pass re-arms it and Discord answers.
+    age_dead_rows(&w).await;
+    w.svc.run_outbox_once().await.unwrap();
+    assert_eq!(count(&w, "bridge_outbox").await, 0, "the row is gone");
+    assert!(
+        w.discord.state.lock().unwrap().messages.is_empty(),
+        "the Discord copy is deleted"
+    );
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_dead_erasure_delete_that_fails_again_waits_another_interval() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 14_051, ann, msg("erase me")))
+        .await;
+    w.svc.drain_outbox().await.unwrap();
+    queue_erasure_delete(&w, &b, -14_051, 14_051).await;
+    w.discord.state.lock().unwrap().fail_message_delete_next = 1000;
+    run_until_dead(&w).await;
+    age_dead_rows(&w).await;
+    w.svc.run_outbox_once().await.unwrap();
+    let state: String = sqlx::query_scalar("SELECT state FROM bridge_outbox WHERE id = -14051")
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(state, "dead", "one failed attempt puts it straight back");
+    let seen = w.discord.count("DELETE", "/webhooks/");
+    w.svc.run_outbox_once().await.unwrap();
+    assert_eq!(
+        w.discord.count("DELETE", "/webhooks/"),
+        seen,
+        "and it waits another interval"
+    );
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_dead_ordinary_post_is_not_rearmed() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.discord.state.lock().unwrap().fail_next = 100;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 14_101, ann, msg("doomed")))
+        .await;
+    run_until_dead(&w).await;
+    assert_eq!(w.svc.dead_letter_count().await.unwrap(), 1);
+    let tries = w.discord.posted().len();
+    age_dead_rows(&w).await;
+    w.discord.state.lock().unwrap().fail_next = 0;
+    w.svc.run_outbox_once().await.unwrap();
+    assert_eq!(w.svc.dead_letter_count().await.unwrap(), 1, "still dead");
+    assert_eq!(w.discord.posted().len(), tries, "no further attempt");
+    assert!(
+        w.discord.state.lock().unwrap().messages.is_empty(),
+        "never posted"
+    );
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_erasure_delete_without_a_webhook_is_listed_not_dropped() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 14_201, ann, msg("erase me")))
+        .await;
+    w.svc.drain_outbox().await.unwrap();
+    queue_erasure_delete(&w, &b, -14_201, 14_201).await;
+    sqlx::query(
+        "UPDATE bridge_channel_maps SET discord_webhook_id = NULL, webhook_token_enc = NULL WHERE id = $1",
+    )
+    .bind(b.map)
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    w.svc.run_outbox_once().await.unwrap();
+    let (state, why): (String, Option<String>) =
+        sqlx::query_as("SELECT state, last_error FROM bridge_outbox WHERE id = -14201")
+            .fetch_one(w.db.pool())
+            .await
+            .expect("the row is not dropped");
+    assert_eq!(state, "dead");
+    assert_eq!(why.as_deref(), Some("no webhook to delete with"));
+    let status = w.svc.status(b.guild).await.unwrap();
+    assert_eq!(status.erasure_leftovers.len(), 1);
+    // An ordinary row of a map without a webhook is still dropped.
+    sqlx::query(
+        "INSERT INTO bridge_outbox (id, guild_id, map_id, kind, sr_message_id, payload) \
+         VALUES (-14202, $1, $2, 'delete', 14202, '{}')",
+    )
+    .bind(b.guild)
+    .bind(b.map)
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    w.svc.run_outbox_once().await.unwrap();
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_outbox WHERE id = -14202")
+        .fetch_one(w.db.pool())
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn dead_erasure_deletes_are_listed_for_the_owner_without_the_author() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 14_301, ann, msg("erase me")))
+        .await;
+    w.svc.drain_outbox().await.unwrap();
+    let mm = model::message_map_for(w.db.pool(), 14_301)
+        .await
+        .unwrap()
+        .unwrap();
+    queue_erasure_delete(&w, &b, -14_301, 14_301).await;
+    w.discord.state.lock().unwrap().fail_message_delete_next = 100;
+    run_until_dead(&w).await;
+    let status = w.svc.status(b.guild).await.unwrap();
+    assert_eq!(status.erasure_leftovers.len(), 1);
+    let l = &status.erasure_leftovers[0];
+    assert_eq!(l.discord_channel_id, b.discord_channels[0]);
+    assert_eq!(l.discord_message_id, mm.discord_message_id);
+    let json = serde_json::to_string(&status).unwrap();
+    assert!(
+        !json.contains(&ann.to_string()),
+        "the erased member is not in the report"
+    );
+    assert!(!json.contains("14301"), "nor is the SIDE ROOM message id");
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_map_insert_failure_after_the_post_leaves_one_discord_copy() {
+    let w = world().await;
+    let b = w.bridged().await;
+    let ann = named_member(&w, b.guild, "Ann", None).await;
+    // The map insert fails for the first attempt of the row (all three tries), then works again.
+    sqlx::query(
+        "CREATE FUNCTION p61_refuse_map() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN RAISE EXCEPTION 'map insert refused'; END $$",
+    )
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p61_refuse_map BEFORE INSERT ON bridge_message_map \
+         FOR EACH ROW EXECUTE FUNCTION p61_refuse_map()",
+    )
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    w.svc
+        .handle_event(&sent(b.guild, b.channel, 15_001, ann, msg("once only")))
+        .await;
+    w.svc.run_outbox_once().await.unwrap();
+    sqlx::query("DROP TRIGGER p61_refuse_map ON bridge_message_map")
+        .execute(w.db.pool())
+        .await
+        .unwrap();
+    assert!(
+        w.discord.state.lock().unwrap().messages.is_empty(),
+        "the copy that could not be mapped was removed"
+    );
+    for _ in 0..5 {
+        w.svc.run_outbox_once().await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(8)).await;
+    }
+    assert_eq!(
+        w.discord.state.lock().unwrap().messages.len(),
+        1,
+        "exactly one live copy"
+    );
+    assert_eq!(count(&w, "bridge_message_map").await, 1);
+    assert_eq!(count(&w, "bridge_outbox").await, 0);
+    let _ = w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_map_created_by_another_server_during_the_webhook_call_is_refused() {
+    let w = world().await;
+    let a = w.bridged().await;
+    let (g2, owner2, ch2, dch2) = second_server(&w, "Bot-token-two").await;
+    let hooks_before = w.discord.webhook_ids().len();
+    // Server B asks for a free Discord channel; its webhook creation is held on the wire.
+    let gate = std::sync::Arc::new(Gate::default());
+    *w.discord.create_gate.lock().unwrap() = Some(gate.clone());
+    let svc = w.svc.clone();
+    let target = dch2[0];
+    let create = tokio::spawn(async move {
+        svc.create_map(g2, owner2, ch2, target, Direction::Both)
+            .await
+    });
+    gate.entered.notified().await;
+    // Meanwhile server A's map of the same Discord channel lands.
+    let ach = channel(w.db.pool(), a.guild, "second").await;
+    sqlx::query(
+        "INSERT INTO bridge_channel_maps (id, guild_id, channel_id, discord_channel_id, direction, created_by) \
+         VALUES ($1, $2, $3, $4, 'from_discord', $5)",
+    )
+    .bind(uid())
+    .bind(a.guild)
+    .bind(ach)
+    .bind(target)
+    .bind(a.owner)
+    .execute(w.db.pool())
+    .await
+    .unwrap();
+    gate.release.notify_one();
+    let err = create.await.unwrap().unwrap_err();
+    match &err {
+        BridgeError::Conflict(m) => {
+            assert_eq!(
+                m,
+                "That Discord channel is already bridged on this instance."
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        w.discord.webhook_ids().len(),
+        hooks_before,
+        "B's just-created webhook was deleted again"
+    );
+    assert!(w.discord.count("DELETE", "/webhooks/") >= 1);
+    let _ = w.db.cleanup().await;
+}

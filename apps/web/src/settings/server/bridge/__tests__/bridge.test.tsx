@@ -60,12 +60,15 @@ const wireMap = (over: object = {}) => ({
   has_webhook: true,
   queued: 0,
   dead: 0,
+  shared_on_instance: false,
   created_at: 0,
   ...over,
 });
 
 /** `BridgeStatusObject`; `bridge: null` is a server whose owner has not connected a bot. */
-const status = (over: { bridge?: object | null; maps?: object[] } = {}) => ({
+const status = (
+  over: { bridge?: object | null; maps?: object[]; erasure_leftovers?: object[] } = {},
+) => ({
   platform_on: true,
   module_on: true,
   connected: over.bridge !== null,
@@ -74,6 +77,7 @@ const status = (over: { bridge?: object | null; maps?: object[] } = {}) => ({
   queued: 0,
   dead_letters: 0,
   leftovers: [],
+  erasure_leftovers: over.erasure_leftovers ?? [],
   is_owner: true,
 });
 
@@ -337,6 +341,80 @@ describe('the Discord bridge screen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop mirroring #general' }));
     await waitFor(() => expect(del.calls).toHaveLength(1));
     await waitFor(() => expect(within(table).queryByText('#general-chat')).toBeNull());
+  });
+
+  it("says on a map's row that another server bridges the same Discord channel, and only there", async () => {
+    seed({ perms: [MANAGE.guild], ...OWNER });
+    server.use(
+      on(),
+      http.get(STATUS, () =>
+        HttpResponse.json(
+          status({
+            maps: [
+              wireMap({ shared_on_instance: true }),
+              wireMap({
+                id: 'm2',
+                channel_id: 'c2',
+                discord_channel_id: 'dc2',
+                discord_channel_name: 'off-topic',
+              }),
+            ],
+          }),
+        ),
+      ),
+      http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
+    );
+    await openSettings('bridge');
+    const table = await screen.findByRole('table', { name: 'Mirrored channels' });
+    const warning =
+      'Another server on this instance also bridges this Discord channel. Messages from both appear there. Remove this map to stop.';
+    expect(within(table).getAllByText(warning)).toHaveLength(1);
+    // The line sits in its own row right under the flagged map; the other map has none, and no button came with it.
+    const rows = within(table).getAllByRole('row');
+    const flagged = rows.findIndex((r) => within(r).queryByText('#general-chat'));
+    expect(within(rows[flagged + 1]!).getByText(warning)).toBeInTheDocument();
+    expect(within(rows[flagged + 1]!).queryByRole('button')).toBeNull();
+    expect(within(rows[flagged + 2]!).getByText('#off-topic')).toBeInTheDocument();
+  });
+
+  it('lists the Discord messages of deleted accounts the bridge could not remove', async () => {
+    seed({ perms: [MANAGE.guild], ...OWNER });
+    server.use(
+      on(),
+      http.get(STATUS, () =>
+        HttpResponse.json(
+          status({
+            erasure_leftovers: [
+              { discord_channel_id: 'dc1', discord_message_id: '9001' },
+              { discord_channel_id: 'dc77', discord_message_id: '9002' },
+            ],
+          }),
+        ),
+      ),
+      http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
+    );
+    await openSettings('bridge');
+    expect(
+      await screen.findByText(
+        'Messages of deleted accounts the bridge could not remove from Discord. Delete them there by hand.',
+      ),
+    ).toBeVisible();
+    // The channel name comes from the maps, else the id.
+    expect(screen.getByText('#general-chat, message 9001')).toBeInTheDocument();
+    expect(screen.getByText('#dc77, message 9002')).toBeInTheDocument();
+  });
+
+  it('has no list of deleted-account messages and no sharing warning when there is nothing to say', async () => {
+    seed({ perms: [MANAGE.guild], ...OWNER });
+    server.use(
+      on(),
+      http.get(STATUS, () => HttpResponse.json(status())),
+      http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
+    );
+    await openSettings('bridge');
+    await screen.findByRole('table', { name: 'Mirrored channels' });
+    expect(screen.queryByText('Messages to delete on Discord')).toBeNull();
+    expect(screen.queryByText(/Another server on this instance/)).toBeNull();
   });
 
   it('shows the refusal of an encrypted channel', async () => {

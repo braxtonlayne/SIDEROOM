@@ -10,7 +10,7 @@ import { useLoungeUi } from '../store';
 import { connectionMessage } from '../shell/Banners';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useSelfPresence } from '../shell/selfPresence';
-import { usePlatformStaff } from '../shell/platformStaff';
+import { resetPlatformStaffCheck, usePlatformStaff } from '../shell/platformStaff';
 import { useSocial } from '../shell/social';
 import { warmLoungeRoute } from '../../test/warmRoutes';
 import { byosMockHandlers, mockMount } from '../../settings/user/storage/mocks';
@@ -663,7 +663,7 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
   beforeEach(() => {
     seed();
     quiet();
-    usePlatformStaff.setState({ staff: false, loaded: false });
+    resetPlatformStaffCheck();
   });
 
   it('shows Platform Admin in the user menu to staff and opens /admin', async () => {

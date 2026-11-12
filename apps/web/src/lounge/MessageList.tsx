@@ -458,10 +458,15 @@ export function MessageList({
   const onViewReactions = useCallback((m: Message, emoji?: string) => {
     setReactors(emoji ? { m, emoji } : { m });
   }, []);
+  // The editor closes only once the save went through; a failed save keeps it open with the typed text (SEC-AUD-135).
+  const editingRef = useRef(editingId);
+  editingRef.current = editingId;
   const onSaveEdit = useCallback(
-    (m: Message, content: string) => {
-      actions.editMessage(m.channelId, m.id, content);
-      onCancelEdit?.();
+    async (m: Message, content: string): Promise<boolean> => {
+      const saved = await actions.editMessage(m.channelId, m.id, content);
+      // Escape (or another edit) while the save was out: do not close an editor that is no longer this one.
+      if (saved && editingRef.current === m.id) onCancelEdit?.();
+      return saved;
     },
     [actions, onCancelEdit],
   );

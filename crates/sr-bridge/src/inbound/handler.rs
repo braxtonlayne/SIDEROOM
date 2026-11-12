@@ -171,7 +171,7 @@ impl Inbound {
             return Ok(Outcome::Ignored(Why::NoReconciler));
         };
         if d.name == "GUILD_AUDIT_LOG_ENTRY_CREATE" {
-            if structure::is_echo(&d.data) {
+            if structure::is_echo(&d.data, bridge.bot_user_id) {
                 return Ok(Outcome::Ignored(Why::Echo));
             }
             let target = d.data.get("target_id").and_then(convert::id_of);
@@ -403,8 +403,20 @@ impl Inbound {
         let post = post_of(bridge, as_user, map.channel_id, reply_to, m);
         let discord_id = post_discord_id(data);
         let sr = self.sink.post(post).await?;
-        if let Some(did) = discord_id {
-            store::insert_inbound_map(&self.pool, sr, did, map.id).await?;
+        if let Some(did) = discord_id
+            && let Err(e) = store::insert_inbound_map(&self.pool, sr, did, map.id).await
+        {
+            // Stored together with its mapping or not at all (D-627): remove the message just stored, so a replayed
+            // dispatch stores it once.
+            if let Err(d) = self.sink.delete(map.channel_id, sr).await {
+                tracing::warn!(
+                    sr_message = sr,
+                    discord_message = did,
+                    error = %d,
+                    "could not remove a stored message after its mapping failed"
+                );
+            }
+            return Err(e);
         }
         Ok(Outcome::Posted(sr))
     }

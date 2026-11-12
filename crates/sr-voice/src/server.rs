@@ -726,6 +726,8 @@ fn merge_snapshots(all: &[Snapshot]) -> Snapshot {
         governor_severity: all.iter().map(|s| s.governor_severity).max().unwrap_or(0),
         keyframe_requests: all.iter().map(|s| s.keyframe_requests).sum(),
         unkeyed_frames: all.iter().map(|s| s.unkeyed_frames).sum(),
+        ingress_dropped_audio: all.iter().map(|s| s.ingress_dropped_audio).sum(),
+        ingress_dropped_video: all.iter().map(|s| s.ingress_dropped_video).sum(),
         music_packets: all.iter().map(|s| s.music_packets).sum(),
         music_egress_bps: all.iter().map(|s| s.music_egress_bps).sum(),
     }

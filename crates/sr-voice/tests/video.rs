@@ -75,6 +75,8 @@ struct World {
     now: Instant,
     clients: Vec<Client>,
     frame: u32,
+    /// Multiplies the size of every camera frame (1 = the usual 100/200/300 bytes per layer).
+    cam_scale: usize,
 }
 
 fn sfu_addr() -> SocketAddr {
@@ -101,6 +103,7 @@ impl World {
             now: Instant::now(),
             clients: Vec::new(),
             frame: 0,
+            cam_scale: 1,
         }
     }
 
@@ -338,6 +341,7 @@ impl World {
     fn video_frame(&mut self, senders: &[(usize, Source)]) {
         let rtp = MediaTime::new(u64::from(self.frame) * 3_000, Frequency::NINETY_KHZ);
         let first = self.frame == 0;
+        let cam_scale = self.cam_scale;
         self.frame += 1;
         for &(i, source) in senders {
             let pt = self.pt_vp8(i);
@@ -351,7 +355,7 @@ impl World {
                         let key = first || due.iter().any(|d| d == rid);
                         // Byte 0: layer in the high nibble, delta (1) or key (0) in the low bit.
                         let tag = (u8::try_from(code).unwrap() << 4) | u8::from(!key);
-                        let size = 100 * (code + 1);
+                        let size = 100 * (code + 1) * cam_scale;
                         let mut payload = vec![tag; size];
                         payload[1] = c.user.get() as u8;
                         c.rtc
@@ -941,4 +945,63 @@ fn a_low_bandwidth_estimate_moves_a_subscriber_down_at_once_and_back_up_slowly()
         w.core.layer_of(sp, pp, TrackSource::Camera),
         Some(Layer::High)
     );
+}
+
+/// A camera publisher and one subscriber on a core whose camera cap is `cap_kbps` (a tiny burst
+/// floor, so the cap is reachable with a loopback's frame sizes).
+fn camera_world(cap_kbps: u32) -> (World, usize, usize) {
+    let core = SfuCore::new(100, 99).with_video_caps(14_000, cap_kbps, 1_000);
+    let mut w = World::with(core);
+    let p = w.join(1, base_flags(), CAMERA_ONLY);
+    let s = w.join(2, base_flags(), Tracks::default());
+    w.connect_all();
+    w.publish(p, Source::Camera, true);
+    w.run(Duration::from_millis(800));
+    (w, p, s)
+}
+
+/// SEC-AUD-143 (D-631): a video source over its cap is dropped for every subscriber, and when it
+/// is back under the cap and forwarding resumes the SFU asks the publisher for a keyframe.
+#[test]
+fn a_video_source_over_its_cap_is_dropped_and_a_keyframe_is_requested_when_it_resumes() {
+    // 400 kbit/s = 50 000 bytes/s. A 30 ms frame period at scale 1 is 600 bytes (20 kB/s): fine.
+    let (mut w, p, _s) = camera_world(400);
+    w.stream(Duration::from_secs(2), &[(p, Source::Camera)]);
+    assert_eq!(w.core.snapshot().ingress_dropped_video, 0, "under the cap");
+
+    // Five times the frame size (100 kB/s): twice the cap.
+    w.cam_scale = 5;
+    w.stream(Duration::from_secs(4), &[(p, Source::Camera)]);
+    let dropped = w.core.snapshot().ingress_dropped_video;
+    assert!(dropped > 0, "frames over the cap are dropped");
+
+    // Back under the cap, after the bucket had time to refill and the keyframe pacing to expire.
+    w.cam_scale = 1;
+    w.run(Duration::from_secs(3));
+    let requests = w.clients[p].keyframe_requests.len();
+    let dropped_before = w.core.snapshot().ingress_dropped_video;
+    w.stream(Duration::from_secs(1), &[(p, Source::Camera)]);
+    assert_eq!(w.core.snapshot().ingress_dropped_video, dropped_before);
+    assert!(
+        w.clients[p].keyframe_requests.len() > requests,
+        "forwarding resumed after a drop: the publisher was asked for a keyframe"
+    );
+}
+
+/// A source's simulcast layers share one cap: each layer alone is under it, the three together
+/// are not.
+#[test]
+fn simulcast_layers_share_one_cap() {
+    // Scale 3: 300, 600 and 900 bytes per 30 ms = 10, 20 and 30 kB/s. The cap is 50 kB/s: every
+    // layer alone fits, the sum (60 kB/s) does not.
+    let (mut w, p, _s) = camera_world(400);
+    w.cam_scale = 3;
+    w.stream(Duration::from_secs(10), &[(p, Source::Camera)]);
+    assert!(w.core.snapshot().ingress_dropped_video > 0);
+
+    // The same layers under a cap of 100 kB/s lose nothing.
+    let (mut w, p, _s) = camera_world(800);
+    w.cam_scale = 3;
+    w.stream(Duration::from_secs(10), &[(p, Source::Camera)]);
+    assert_eq!(w.core.snapshot().ingress_dropped_video, 0);
 }

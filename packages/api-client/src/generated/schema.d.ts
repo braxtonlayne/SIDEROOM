@@ -18615,6 +18615,11 @@ export interface components {
              * @description Posts that failed for good (the dead-letter counter).
              */
             dead_letters: number;
+            /**
+             * @description Discord deletions owed to an account erasure that could not be done yet (retried daily): delete the copies on
+             *     Discord by hand. Where the copy is, never who wrote it.
+             */
+            erasure_leftovers: components["schemas"]["ErasureLeftoverObject"][];
             /** @description The viewer is the server owner (may paste and revoke the token and switch the module off). */
             is_owner: boolean;
             leftovers: components["schemas"]["LeftoverObject"][];
@@ -21639,6 +21644,11 @@ export interface components {
             next_cursor?: string | null;
             seasons: components["schemas"]["Season"][];
         };
+        /** @description A Discord message the bridge owes a deletion to an account erasure for and could not delete. */
+        ErasureLeftoverObject: {
+            discord_channel_id: string;
+            discord_message_id: string;
+        };
         /** @description Discord-style error body (doc 05 section 3). */
         ErrorBody: {
             /**
@@ -23644,6 +23654,8 @@ export interface components {
              * @description Posts waiting for their turn under Discord's rate limits.
              */
             queued: number;
+            /** @description Another server on this instance also bridges this Discord channel. Never says which. */
+            shared_on_instance: boolean;
         };
         Marker: {
             /** Format: int32 */

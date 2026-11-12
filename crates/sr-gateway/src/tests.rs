@@ -2887,3 +2887,32 @@ async fn scheduled_event_user_add_in_a_hidden_channel_is_not_dispatched_to_non_v
     viewer.expect_event("GUILD_SCHEDULED_EVENT_USER_ADD").await;
     blind.expect_event("GUILD_SCHEDULED_EVENT_USER_ADD").await;
 }
+
+/// SEC-AUD-141 (D-628): a member list whose guild topic lagged is rebuilt, since a MemberLeft or MemberJoined
+/// may be among the lost events.
+#[tokio::test]
+async fn a_lagged_guild_topic_refreshes_the_member_list() {
+    let l = Lagging::new();
+    set_list(&l.e, eight());
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    a.drain().await;
+    a.send(ask(1, json!([[0, 9]]))).await;
+    a.expect_event("GUILD_MEMBER_LIST_UPDATE").await;
+    settle().await;
+    // A member leaves, and the topic overflows before the pump reads the event that said so.
+    let mut rest = eight();
+    rest.retain(|m| m.user != u(3));
+    set_list(&l.e, rest);
+    for n in 0..12 {
+        emit(&l.e.bus, msg(G1, OPEN, 100 + n)).await;
+    }
+    // The flood itself is dispatched as messages; the list update follows the lag.
+    let upd = loop {
+        let v = a.recv().await;
+        if v["t"] == "GUILD_MEMBER_LIST_UPDATE" {
+            break v;
+        }
+    };
+    assert_eq!(upd["d"]["member_count"], 7, "{upd}");
+}

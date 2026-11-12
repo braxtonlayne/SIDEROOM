@@ -30,6 +30,16 @@ pub struct MapView {
     pub queued: i64,
     /// Posts that failed for good (the dead-letter counter of this map).
     pub dead: i64,
+    /// Another server on this instance also holds a map of the same Discord channel (D-623). Never says which.
+    pub shared_on_instance: bool,
+}
+
+/// A Discord deletion owed to an account erasure that the bridge could not do (D-626): the owner deletes the copy on
+/// Discord by hand. Only where the copy is, never who wrote it and never the SIDE ROOM message id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ErasureLeftover {
+    pub discord_channel_id: i64,
+    pub discord_message_id: i64,
 }
 
 /// Everything the owner's screen shows.
@@ -46,6 +56,8 @@ pub struct StatusReport {
     pub queued: i64,
     pub dead_letters: i64,
     pub leftovers: Vec<Leftover>,
+    /// Discord deletions owed to an account erasure that could not be done (still retried daily).
+    pub erasure_leftovers: Vec<ErasureLeftover>,
 }
 
 /// A member's bridged messages, ids only.
@@ -89,6 +101,28 @@ impl BridgeService {
             .collect()
     }
 
+    /// The dead erasure deletions of a server, by Discord channel and message id (never the author).
+    pub async fn erasure_leftovers(&self, guild: i64) -> BridgeResult<Vec<ErasureLeftover>> {
+        let rows = sqlx::query(
+            "SELECT m.discord_channel_id, (o.payload ->> 'discord_message_id')::bigint AS discord_message_id \
+             FROM bridge_outbox o JOIN bridge_channel_maps m ON m.id = o.map_id \
+             WHERE o.guild_id = $1 AND o.state = 'dead' AND o.kind = 'delete' \
+               AND o.payload ->> 'reason' = 'erasure' AND o.payload ->> 'discord_message_id' IS NOT NULL \
+             ORDER BY o.id",
+        )
+        .bind(guild)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.iter()
+            .map(|r| {
+                Ok(ErasureLeftover {
+                    discord_channel_id: r.try_get("discord_channel_id")?,
+                    discord_message_id: r.try_get("discord_message_id")?,
+                })
+            })
+            .collect()
+    }
+
     /// The owner's screen.
     pub async fn status(&self, guild: i64) -> BridgeResult<StatusReport> {
         let bridge = get_bridge(&self.pool, guild).await?;
@@ -98,6 +132,15 @@ impl BridgeService {
                     count(*) FILTER (WHERE state = 'pending') AS queued, \
                     count(*) FILTER (WHERE state = 'dead') AS dead \
              FROM bridge_outbox WHERE guild_id = $1 GROUP BY map_id",
+        )
+        .bind(guild)
+        .fetch_all(&self.pool)
+        .await?;
+        // The maps of this server whose Discord channel another map (of any server) also holds (D-623).
+        let shared: Vec<i64> = sqlx::query_scalar(
+            "SELECT m.id FROM bridge_channel_maps m WHERE m.guild_id = $1 AND EXISTS \
+             (SELECT 1 FROM bridge_channel_maps o \
+              WHERE o.discord_channel_id = m.discord_channel_id AND o.id <> m.id)",
         )
         .bind(guild)
         .fetch_all(&self.pool)
@@ -118,6 +161,7 @@ impl BridgeService {
             queued += q;
             dead_letters += d;
             views.push(MapView {
+                shared_on_instance: shared.contains(&map.id),
                 map,
                 queued: q,
                 dead: d,
@@ -132,6 +176,7 @@ impl BridgeService {
             queued,
             dead_letters,
             leftovers: self.leftovers(guild).await?,
+            erasure_leftovers: self.erasure_leftovers(guild).await?,
         })
     }
 

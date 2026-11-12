@@ -49,9 +49,12 @@ pub trait StructureSink: Send + Sync {
     async fn attribute(&self, bridge: &Bridge, target: i64, user: i64, action_type: i64);
 }
 
-/// Whether an audit-log entry payload carries the bridge's own reason.
-pub fn is_echo(data: &Value) -> bool {
+/// Whether an audit-log entry payload is the bridge's own write coming back: it carries the bridge's reason AND was
+/// made by the bridge's own bot. A Discord member who writes the same reason is attributed like anyone else
+/// (SEC-AUD-132).
+pub fn is_echo(data: &Value, bot_user_id: i64) -> bool {
     is_bridge_reason(data.get("reason").and_then(Value::as_str))
+        && data.get("user_id").and_then(super::convert::id_of) == Some(bot_user_id)
 }
 
 fn thread_kind(v: &Value) -> bool {
@@ -203,10 +206,23 @@ mod tests {
     }
 
     #[test]
+    fn a_member_writing_the_bridge_reason_is_still_attributed() {
+        // The prefix alone is not enough: the entry must come from the bridge's own bot.
+        assert!(!is_echo(
+            &json!({"reason": "sr-bridge:99", "user_id": "31"}),
+            7
+        ));
+        assert!(!is_echo(&json!({"reason": "sr-bridge:99"}), 7));
+    }
+
+    #[test]
     fn the_bridges_own_audit_entries_are_echoes() {
-        assert!(is_echo(&json!({"reason": "sr-bridge:99"})));
-        assert!(!is_echo(&json!({"reason": "cleanup"})));
-        assert!(!is_echo(&json!({})));
+        assert!(is_echo(
+            &json!({"reason": "sr-bridge:99", "user_id": "7"}),
+            7
+        ));
+        assert!(!is_echo(&json!({"reason": "cleanup", "user_id": "7"}), 7));
+        assert!(!is_echo(&json!({}), 7));
         assert!(is_structural("GUILD_AUDIT_LOG_ENTRY_CREATE"));
         assert!(!is_structural("MESSAGE_CREATE"));
     }

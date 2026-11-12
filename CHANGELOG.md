@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 61 - 2026-11-12
+
+- **Discord bridge.** If another server on this instance also bridges one of your Discord channels, the bridge screen says so on that channel. Messages a deleted account left on Discord are retried every day, and any that still can't be removed are listed so you can delete them by hand. A hiccup no longer leaves a message posted twice.
+- **Editing and settings.** If an edit fails to save, the editor stays open with what you typed. Layout changes you make while the app is offline are no longer lost.
+- **Group DMs.** If some people can't be added, the group still opens and tells you who was missed.
+- **Signing out.** Signing out also removes the Notes key from the device, so on a shared browser each account unlocks its notes again next time.
+- **Voice.** The voice server limits how much each person can send, so one modified client can't flood a call.
+- **For operators.** Files uploaded straight to a storage bucket can't be served as web pages or images that run code, and an Activity's old files are kept for a day after an update so people mid-session aren't cut off.
+
 ## Phase 60 - 2026-11-12
 
 - **Discord bridge.** Deleting or editing a message reaches Discord even if you do it while the message is still being sent, and a queued post is no longer lost on a hiccup. A Discord channel can be bridged into only one server, and replacing the bot token keeps the bridge on the same Discord server.

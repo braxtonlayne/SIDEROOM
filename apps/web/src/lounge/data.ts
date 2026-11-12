@@ -397,7 +397,8 @@ export interface LoungeActions {
     replyToId?: Snowflake | null,
     extras?: SendExtras,
   ): void;
-  editMessage(channelId: Snowflake, messageId: Snowflake, content: string): void;
+  /** Resolves true when the edit was saved, false when it was not (the editor then stays open, SEC-AUD-135). */
+  editMessage(channelId: Snowflake, messageId: Snowflake, content: string): Promise<boolean>;
   deleteMessage?(channelId: Snowflake, messageId: Snowflake): void;
   pinMessage?(channelId: Snowflake, messageId: Snowflake, pinned: boolean): void;
   /** Forward a message to up to five channels, each optionally followed by a note. */

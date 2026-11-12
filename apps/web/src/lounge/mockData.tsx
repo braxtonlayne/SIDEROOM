@@ -524,6 +524,7 @@ function MockDataSource({ children, now, historySize = HISTORY_TOTAL }: MockData
             },
           };
         });
+        return Promise.resolve(true);
       },
       deleteMessage(channelId, messageId) {
         patchMessage(channelId, messageId, null);
