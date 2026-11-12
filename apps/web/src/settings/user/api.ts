@@ -45,15 +45,9 @@ const endPlayer = () =>
     (m) => m.forgetPlayer(),
     () => undefined,
   );
-/** The signed-in account's id, for the purge (its Notes key goes). The store is already loaded when anyone is signed in. */
-const currentAccountId = () =>
-  import('../../store').then(
-    (m) => m.useStore.getState().currentUserId,
-    () => null,
-  );
 export const logout = async () => {
   await clearUploadsOnSignOut(); // aborts the open chat upload slots while the session still works
-  await purgeOnSignOut(await currentAccountId()); // app files, shared files, Library chapters, Notes key (SEC-AUD-039, 136)
+  await purgeOnSignOut(); // app files, shared files and Library offline chapters (SEC-AUD-039)
   await apiPost<void>('/sr/auth/logout');
   clearCsrf();
   forgetSection();
@@ -62,7 +56,7 @@ export const logout = async () => {
 /** Revokes every session, this one included. */
 export const logoutAll = async () => {
   await clearUploadsOnSignOut();
-  await purgeOnSignOut(await currentAccountId()); // app files, shared files, Library chapters, Notes key
+  await purgeOnSignOut(); // app files, shared files and Library offline chapters (SEC-AUD-039)
   await apiPost<void>('/sr/auth/logout-all');
   clearCsrf();
   forgetSection();
