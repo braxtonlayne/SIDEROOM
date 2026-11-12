@@ -1469,7 +1469,10 @@ async fn a_dead_ordinary_post_is_not_rearmed() {
     w.svc.run_outbox_once().await.unwrap();
     assert_eq!(w.svc.dead_letter_count().await.unwrap(), 1, "still dead");
     assert_eq!(w.discord.posted().len(), tries, "no further attempt");
-    assert!(w.discord.state.lock().unwrap().messages.is_empty(), "never posted");
+    assert!(
+        w.discord.state.lock().unwrap().messages.is_empty(),
+        "never posted"
+    );
     let _ = w.db.cleanup().await;
 }
 

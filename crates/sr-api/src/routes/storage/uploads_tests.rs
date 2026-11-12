@@ -1091,7 +1091,11 @@ fn a_media_type_is_kept_as_declared() {
         "text/plain; charset=utf-8",
         "text/vtt",
     ] {
-        assert_eq!(super::uploads::clean_content_type(Some(t)).unwrap(), t, "{t}");
+        assert_eq!(
+            super::uploads::clean_content_type(Some(t)).unwrap(),
+            t,
+            "{t}"
+        );
     }
 }
 
