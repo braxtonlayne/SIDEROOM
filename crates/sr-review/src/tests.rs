@@ -1938,3 +1938,51 @@ async fn a_failed_direct_publish_can_be_retried_by_the_submitter() {
     assert_eq!(*w.kind.published.lock().unwrap(), vec![1, 2]);
     assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 2);
 }
+
+#[tokio::test]
+async fn a_submitter_retry_of_a_reviewer_approval_keeps_rejected_items_out() {
+    // SEC-AUD-127 (D-624): a reviewer approved with one item rejected and the publish failed; the submitter's
+    // retry must publish and credit only the approved item.
+    let w = world();
+    let c = curator();
+    let r = reviewer(REVIEWER);
+    let id = w
+        .svc
+        .create(c, new_sub("Reviewed"))
+        .await
+        .unwrap()
+        .submission
+        .id;
+    w.svc.submit(CURATOR, id).await.unwrap();
+    w.svc.claim(r, id, false).await.unwrap();
+    let items = w.svc.get_for_review(r, id).await.unwrap().items;
+    w.svc
+        .decide_item(
+            r,
+            id,
+            items[1].id,
+            ItemDecisionInput {
+                state: ItemState::Rejected,
+                note: Some("blurry".into()),
+            },
+        )
+        .await
+        .unwrap();
+    w.kind.fail_publish.store(true, Ordering::SeqCst);
+    // The failed publish leaves it approved (the reviewer may or may not see the error).
+    let _ = w.svc.approve(r, id, DecisionInput::default()).await;
+    let d = w.svc.get_mine(CURATOR, id).await.unwrap();
+    assert_eq!(d.submission.state, SubmissionState::Approved);
+    assert_eq!(d.submission.decided_by, Some(REVIEWER));
+    w.kind.fail_publish.store(false, Ordering::SeqCst);
+    let d = w.svc.publish_now(c, id).await.unwrap();
+    assert_eq!(d.submission.state, SubmissionState::Published);
+    let rejected: Vec<_> = d
+        .items
+        .iter()
+        .filter(|i| i.state == ItemState::Rejected)
+        .collect();
+    assert_eq!(rejected.len(), 1, "the rejected item stays rejected");
+    assert_eq!(*w.kind.published.lock().unwrap(), vec![1]);
+    assert_eq!(w.svc.credit_total(CURATOR).await.unwrap(), 1);
+}

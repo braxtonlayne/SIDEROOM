@@ -496,6 +496,17 @@ impl ReviewService {
         let kind = self.kinds.get(&s.kind)?.clone();
         need(c, kind.publish_permission())?;
         machine::next(s.state, Action::PublishNow)?;
+        // A reviewer's approval is already final (its items were decided with it): the submitter's retry only
+        // re-runs the publish, so it never re-readies, re-syncs or re-approves items the reviewer rejected
+        // (SEC-AUD-127, D-624). The direct case still re-runs the item steps below.
+        if s.state == SubmissionState::Approved && s.decided_by != Some(c.user_id) {
+            if let Err(e) = self.publish_approved(c, s).await {
+                tracing::warn!(submission = id, error = %e, "a publish retry failed");
+                return Err(e);
+            }
+            let s = self.load(id).await?;
+            return self.detail(s, false).await;
+        }
         let items = self.check_ready(&s, kind.as_ref()).await?;
         let mut s = s;
         if s.state != SubmissionState::Approved {
