@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 64 - 2026-11-12
+
+- **Phones.** Tapping Friends or Message Requests opens the page, with a back button. In a DM, the header keeps the name, call and video in view and puts the rest under "More".
+- **For operators.** The storage settings screen knows the connection test's new download-type check.
+
 ## Phase 63 - 2026-11-12
 
 - **Friends on phones.** The Friends page, message requests and the inbox fit a phone screen, and a friend's menu opens where you can tap it.
