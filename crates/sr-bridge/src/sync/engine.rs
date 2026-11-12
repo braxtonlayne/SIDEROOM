@@ -91,6 +91,14 @@ pub struct SeedReport {
     /// Roles whose Discord-side permissions the owner chose to import, with the shared bits imported.
     pub imported: Vec<(i64, u64)>,
 }
+/// An object a pass created whose map insert was ignored (see `SyncEngine::undo_unmapped`).
+#[derive(Debug, Clone, Copy)]
+pub(super) enum Unmapped {
+    DiscordRole(i64),
+    DiscordChannel(i64),
+    SrRole(i64),
+    SrChannel(i64),
+}
 
 #[derive(Clone)]
 pub struct SyncEngine {
@@ -653,6 +661,47 @@ impl SyncEngine {
         Ok(out)
     }
 
+    /// A map insert was ignored (a row already holds this object): remove the object just created so no object is
+    /// left without a map, and answer the pass with a conflict (SEC-AUD-107). The next pass starts clean.
+    pub(super) async fn undo_unmapped(
+        &self,
+        guild: i64,
+        token: &str,
+        dg: i64,
+        origin: &BridgeOrigin,
+        what: Unmapped,
+    ) -> BridgeError {
+        let reason = reason_for_op(self.svc.next_id());
+        let api = &self.svc.discord;
+        let undone: Result<(), String> = match what {
+            Unmapped::DiscordRole(id) => api
+                .delete_role(token, dg, id, &reason)
+                .await
+                .map_err(|e| e.to_string()),
+            Unmapped::DiscordChannel(id) => api
+                .delete_channel(token, id, &reason)
+                .await
+                .map_err(|e| e.to_string()),
+            Unmapped::SrRole(id) => self
+                .sr
+                .delete_role(guild, id, origin)
+                .await
+                .map_err(|e| e.to_string()),
+            Unmapped::SrChannel(id) => self
+                .sr
+                .delete_channel(guild, id, origin)
+                .await
+                .map_err(|e| e.to_string()),
+        };
+        if let Err(error) = undone {
+            tracing::warn!(guild, ?what, %error, "could not remove an object whose map was refused");
+        }
+        BridgeError::Conflict(
+            "A map for that object appeared while the pass ran; the pass stopped and the next one starts clean."
+                .into(),
+        )
+    }
+
     pub(super) async fn sr_channels(&self, guild: i64) -> BridgeResult<HashMap<i64, SrChanRow>> {
         let rows = sqlx::query(
             "SELECT id, type, name, topic, parent_id, position, nsfw, rate_limit_per_user, bitrate, user_limit \
@@ -829,7 +878,17 @@ impl SyncEngine {
                         synced,
                         sync_status: "mapped".into(),
                     };
-                    store::insert_role_map(self.pool(), &m).await?;
+                    if !store::insert_role_map(self.pool(), &m).await? {
+                        return Err(self
+                            .undo_unmapped(
+                                guild,
+                                &token,
+                                dg,
+                                &origin,
+                                Unmapped::DiscordRole(created.id),
+                            )
+                            .await);
+                    }
                     role_sr_to_d.insert(sid, created.id);
                     report.roles_created_on_discord += 1;
                 }
@@ -880,7 +939,11 @@ impl SyncEngine {
                         synced,
                         sync_status: "mapped".into(),
                     };
-                    store::insert_role_map(self.pool(), &m).await?;
+                    if !store::insert_role_map(self.pool(), &m).await? {
+                        return Err(self
+                            .undo_unmapped(guild, &token, dg, &origin, Unmapped::SrRole(sid))
+                            .await);
+                    }
                     role_sr_to_d.insert(sid, did);
                     report.roles_created_here += 1;
                 }
@@ -1001,7 +1064,7 @@ impl SyncEngine {
                         let mut synced = SyncedState::new();
                         synced.record("name", json!(src.name), json!(created.name));
                         let parent_map = self.parent_map_of(src.parent_id).await?;
-                        store::insert_structure_map(
+                        let mapped = store::insert_structure_map(
                             self.pool(),
                             &NewStructureMap {
                                 id: self.svc.next_id(),
@@ -1018,6 +1081,17 @@ impl SyncEngine {
                             },
                         )
                         .await?;
+                        if !mapped {
+                            return Err(self
+                                .undo_unmapped(
+                                    guild,
+                                    &token,
+                                    dg,
+                                    &origin,
+                                    Unmapped::DiscordChannel(created.id),
+                                )
+                                .await);
+                        }
                         if let Some(why) = degraded {
                             if let Some(m) =
                                 store::structure_map_for_channel(self.pool(), sid).await?
@@ -1064,7 +1138,7 @@ impl SyncEngine {
                         let mut synced = SyncedState::new();
                         synced.record("name", json!(dc.name), json!(dc.name));
                         let parent_map = self.parent_map_of(parent_sr).await?;
-                        store::insert_structure_map(
+                        let mapped = store::insert_structure_map(
                             self.pool(),
                             &NewStructureMap {
                                 id: self.svc.next_id(),
@@ -1081,6 +1155,11 @@ impl SyncEngine {
                             },
                         )
                         .await?;
+                        if !mapped {
+                            return Err(self
+                                .undo_unmapped(guild, &token, dg, &origin, Unmapped::SrChannel(sid))
+                                .await);
+                        }
                         sr_to_d.insert(sid, did);
                         d_to_sr.insert(did, sid);
                         report.channels_created_here += 1;

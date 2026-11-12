@@ -254,7 +254,10 @@ pub fn is_discord_cdn(url: &str) -> bool {
         && (host == "discordapp.com"
             || host.ends_with(".discordapp.com")
             || host.ends_with(".discordapp.net"));
-    let local_fake = url.starts_with("http://") && (host == "127.0.0.1" || host == "localhost");
+    // Debug builds only (SEC-AUD-108): a release build never fetches plain http from localhost. Tests run in debug.
+    let local_fake = cfg!(debug_assertions)
+        && url.starts_with("http://")
+        && (host == "127.0.0.1" || host == "localhost");
     secure_discord || local_fake
 }
 
