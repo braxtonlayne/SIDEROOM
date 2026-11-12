@@ -1,5 +1,5 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { FollowButton } from './header/FollowButton';
 import { NotifyButton } from './header/NotifyButton';
@@ -82,8 +82,20 @@ export function ChannelHeader({
 }: ChannelHeaderProps) {
   const t = useT();
   const [topicOpen, setTopicOpen] = useState(false);
+  // SEC-AUD-164: on a phone a DM header keeps back, the name, and the two call buttons; the other controls open
+  // from a "More" button, as the same buttons (nothing is removed, popovers keep their own state).
+  const [moreOpen, setMoreOpen] = useState(false);
+  const dmHeader = !!(isDm && dm);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [moreOpen]);
   return (
-    <header className="lng-header">
+    <header className="lng-header" data-dm={dmHeader || undefined}>
       {onBack && (
         <button
           type="button"
@@ -161,72 +173,87 @@ export function ChannelHeader({
             </Tooltip>
           </>
         )}
-        {!isDm && followable && channelId && <FollowButton channelId={channelId} />}
-        {!isDm && guildId && channelId && <ThreadsButton guildId={guildId} channelId={channelId} />}
-        {guildId && channelId ? (
-          <>
-            <NotifyButton guildId={guildId} channelId={channelId} />
-            <PinsButton guildId={guildId} channelId={channelId} canUnpin={!!canUnpin} />
-            <SavedButton />
-          </>
-        ) : (
-          <>
-            <Soon icon="bell" label={t('lounge.channelHeader.notificationSettings')} />
-            <Soon icon="pin" label={t('lounge.channelHeader.pinnedMessages')} />
-          </>
+        {dmHeader && (
+          <button
+            type="button"
+            className="lng-icon-btn lng-dm-more"
+            aria-label={t('lounge.channelHeader.moreActions')}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen((o) => !o)}
+          >
+            <Icon name="more-horizontal" size={20} />
+          </button>
         )}
-        {isDm && dm && (
-          <Tooltip content={t('lounge.channelHeader.addFriendsToDm')}>
+        <div className="lng-dm-extra" data-open={moreOpen || undefined}>
+          {!isDm && followable && channelId && <FollowButton channelId={channelId} />}
+          {!isDm && guildId && channelId && (
+            <ThreadsButton guildId={guildId} channelId={channelId} />
+          )}
+          {guildId && channelId ? (
+            <>
+              <NotifyButton guildId={guildId} channelId={channelId} />
+              <PinsButton guildId={guildId} channelId={channelId} canUnpin={!!canUnpin} />
+              <SavedButton />
+            </>
+          ) : (
+            <>
+              <Soon icon="bell" label={t('lounge.channelHeader.notificationSettings')} />
+              <Soon icon="pin" label={t('lounge.channelHeader.pinnedMessages')} />
+            </>
+          )}
+          {isDm && dm && (
+            <Tooltip content={t('lounge.channelHeader.addFriendsToDm')}>
+              <button
+                type="button"
+                className="lng-icon-btn"
+                aria-label={t('lounge.channelHeader.addFriendsToDm')}
+                onClick={dm.onAddFriends}
+              >
+                <Icon name="plus" size={20} />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip
+            content={
+              isDm && dm && !dm.group
+                ? membersOpen
+                  ? t('lounge.channelHeader.hideProfile')
+                  : t('lounge.channelHeader.showProfile')
+                : membersOpen
+                  ? t('lounge.channelHeader.hideMembers')
+                  : t('lounge.channelHeader.showMembers')
+            }
+          >
             <button
               type="button"
               className="lng-icon-btn"
-              aria-label={t('lounge.channelHeader.addFriendsToDm')}
-              onClick={dm.onAddFriends}
+              aria-label={
+                isDm && dm && !dm.group
+                  ? t('lounge.channelHeader.userProfile')
+                  : t('lounge.channelHeader.memberList')
+              }
+              aria-pressed={membersOpen}
+              onClick={onToggleMembers}
             >
-              <Icon name="plus" size={20} />
+              <Icon name="users" size={20} />
             </button>
           </Tooltip>
-        )}
-        <Tooltip
-          content={
-            isDm && dm && !dm.group
-              ? membersOpen
-                ? t('lounge.channelHeader.hideProfile')
-                : t('lounge.channelHeader.showProfile')
-              : membersOpen
-                ? t('lounge.channelHeader.hideMembers')
-                : t('lounge.channelHeader.showMembers')
-          }
-        >
-          <button
-            type="button"
-            className="lng-icon-btn"
-            aria-label={
-              isDm && dm && !dm.group
-                ? t('lounge.channelHeader.userProfile')
-                : t('lounge.channelHeader.memberList')
-            }
-            aria-pressed={membersOpen}
-            onClick={onToggleMembers}
-          >
-            <Icon name="users" size={20} />
-          </button>
-        </Tooltip>
-        {channelId ? (
-          <SearchBox guildId={guildId} channelId={channelId} label={searchLabel} />
-        ) : (
-          <label className="lng-search">
-            <Icon name="search" size={16} />
-            <input
-              type="search"
-              placeholder={t('lounge.channelHeader.search')}
-              aria-label={searchLabel}
-              readOnly
-            />
-          </label>
-        )}
-        <InboxButton />
-        <HelpButton />
+          {channelId ? (
+            <SearchBox guildId={guildId} channelId={channelId} label={searchLabel} />
+          ) : (
+            <label className="lng-search">
+              <Icon name="search" size={16} />
+              <input
+                type="search"
+                placeholder={t('lounge.channelHeader.search')}
+                aria-label={searchLabel}
+                readOnly
+              />
+            </label>
+          )}
+          <InboxButton />
+          <HelpButton />
+        </div>
       </div>
       <Modal
         open={topicOpen}

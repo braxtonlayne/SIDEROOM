@@ -63,6 +63,7 @@ async function seeded(browser: Browser, label: string) {
 }
 
 async function inside(page: Page, locator: ReturnType<Page['locator']>, what: string) {
+  await page.waitForTimeout(600); // the pane slide
   const vp = page.viewportSize()!;
   const box = (await locator.boundingBox())!;
   expect(box, what).not.toBeNull();
@@ -139,4 +140,91 @@ test('Friends and Message Requests open on a tap and go back (phone), unchanged 
       await c.close();
     }
   }
+});
+
+test('the DM header on a phone: name width, no overlap, every control reachable from More', async ({
+  browser,
+}) => {
+  mkdirSync(OUT, { recursive: true });
+  const owner = bootstrapState().owner;
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, owner);
+  const o = octx.request;
+  const amy = await seeded(browser, 'amy');
+  const dm = await apiPost<{ id: string }>(o, '/users/@me/channels', { recipient_id: amy.id });
+  const guild = await apiPost<{ channels: { id: string; type: number }[] }>(o, '/guilds', {
+    name: 'Header Check',
+  });
+  const text = guild.channels.find((c) => c.type === 0)!.id;
+  const gid = (guild as unknown as { id: string }).id;
+
+  for (const theme of THEMES) {
+    await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: { theme, zoom: 100 } } });
+    for (const [vp, size] of [
+      ['phone', PHONE],
+      ['desktop', DESKTOP],
+    ] as const) {
+      if (vp === 'desktop' && theme !== 'lounge-light') continue;
+      const tag = `${vp}-${theme}`;
+      const c = await context(browser, octx, size, theme);
+      const page = await c.newPage();
+      page.setDefaultTimeout(20_000);
+      const shot = async (name: string) => {
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: resolve(OUT, `${name}-${tag}.png`) });
+      };
+      await page.goto(`/channels/@me/${dm.id}`);
+      const header = page.locator('.lng-header[data-dm]');
+      await expect(header).toBeVisible();
+      const name = header.locator('.lng-header-title');
+      const nb = (await name.boundingBox())!;
+      const av = (await header.locator('.lng-dm-identity').boundingBox())!;
+      const call = (await header
+        .getByRole('button', { name: /^Start .*Call/ })
+        .first()
+        .boundingBox())!;
+      console.log(`DM header ${tag}: name width ${Math.round(nb.width)}`);
+      expect(av.x + av.width, `identity overlaps the call button at ${tag}`).toBeLessThanOrEqual(
+        call.x + 1,
+      );
+      if (vp === 'phone') {
+        expect(nb.width, 'DM name width').toBeGreaterThanOrEqual(96);
+        await shot('dm-header');
+        await header.getByRole('button', { name: 'More actions' }).click();
+        await shot('dm-header-more');
+        const extras = header.locator('.lng-dm-extra button');
+        const n = await extras.count();
+        console.log(`DM More strip ${tag}: ${n} buttons`);
+        expect(n, 'controls offered in the More strip').toBeGreaterThanOrEqual(6);
+        for (let i = 0; i < n; i++) {
+          const b = extras.nth(i);
+          if (!(await b.isVisible())) continue;
+          await inside(page, b, `More control ${i}`);
+          const bb = (await b.boundingBox())!;
+          expect(bb.y + bb.height, `More control ${i} bottom`).toBeLessThanOrEqual(size.height);
+        }
+        // A popover control still opens from the strip.
+        await extras.nth(1).click();
+        await expect(page.getByRole('dialog').or(page.getByRole('region')).first()).toBeVisible();
+        await shot('dm-header-pins');
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await expect(header.locator('.lng-dm-extra')).toBeHidden();
+      } else {
+        await expect(header.getByRole('button', { name: 'More actions' })).toBeHidden();
+        await shot('dm-header');
+      }
+      await c.close();
+    }
+  }
+
+  // The server channel header at 375 px: measured and reported, not fixed here.
+  const c = await context(browser, octx, PHONE, 'lounge-light');
+  const page = await c.newPage();
+  await page.goto(`/channels/${gid}/${text}`);
+  const title = page.locator('.lng-header .lng-header-title').first();
+  await expect(title).toBeVisible();
+  console.log(`SERVER header 375px: name width ${Math.round((await title.boundingBox())!.width)}`);
+  await page.screenshot({ path: resolve(OUT, 'server-header-phone-lounge-light.png') });
+  await c.close();
 });
