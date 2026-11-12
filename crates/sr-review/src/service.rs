@@ -487,13 +487,51 @@ impl ReviewService {
         self.detail(s, false).await
     }
 
-    /// Skip review: a submitter holding the kind's publish permission publishes at once.
+    /// Skip review: a submitter holding the kind's publish permission publishes at once. The submission is claimed
+    /// first (draft or changes requested -> approved, guarded), so a racing withdraw either wins before anything is
+    /// published or credited, or loses with a Conflict (D-618). A failed publish leaves it approved with a
+    /// `publish_failed` note; calling this again retries it.
     pub async fn publish_now(&self, c: Caller, id: i64) -> ReviewResult<SubmissionDetail> {
         let s = self.load_own(c.user_id, id).await?;
         let kind = self.kinds.get(&s.kind)?.clone();
         need(c, kind.publish_permission())?;
         machine::next(s.state, Action::PublishNow)?;
+        // A reviewer's approval is already final (its items were decided with it): the submitter's retry only
+        // re-runs the publish, so it never re-readies, re-syncs or re-approves items the reviewer rejected
+        // (SEC-AUD-127, D-624). The direct case still re-runs the item steps below.
+        if s.state == SubmissionState::Approved && s.decided_by != Some(c.user_id) {
+            if let Err(e) = self.publish_approved(c, s).await {
+                tracing::warn!(submission = id, error = %e, "a publish retry failed");
+                return Err(e);
+            }
+            let s = self.load(id).await?;
+            return self.detail(s, false).await;
+        }
         let items = self.check_ready(&s, kind.as_ref()).await?;
+        let mut s = s;
+        if s.state != SubmissionState::Approved {
+            let ev = self.event(
+                "approved",
+                c.user_id,
+                None,
+                false,
+                json!({ "direct": true }),
+            );
+            let t = Transition {
+                from: vec![SubmissionState::Draft, SubmissionState::ChangesRequested],
+                to: machine::next(s.state, Action::PublishNow)?,
+                claim: ClaimPatch::Clear,
+                lease: LeaseGuard::None,
+                stamp_submitted: true,
+                decision: Some((c.user_id, None)),
+                stamp_published: false,
+                now_ms: self.now(),
+            };
+            s = match self.repo.transition(id, &t, &ev).await? {
+                Some(s) => s,
+                None => return Err(self.why_not_claimed(id).await),
+            };
+        }
         self.sync_items(id, items, true).await?;
         self.repo
             .move_items(id, ItemState::Pending, ItemState::Approved)
@@ -501,34 +539,28 @@ impl ReviewService {
         self.repo
             .move_items(id, ItemState::Rejected, ItemState::Approved)
             .await?;
-        let approved = self.approved_items(id).await?;
-        kind.publish(&s, &approved).await?;
-        self.repo
-            .move_items(id, ItemState::Approved, ItemState::Published)
-            .await?;
-        self.grant_credits(&s, kind.as_ref(), &approved).await;
-        let ev = self.event(
-            "published",
-            c.user_id,
-            None,
-            false,
-            json!({ "direct": true }),
-        );
-        let t = Transition {
-            from: machine::sources(Action::PublishNow).to_vec(),
-            to: SubmissionState::Published,
-            claim: ClaimPatch::Clear,
-            lease: LeaseGuard::None,
-            stamp_submitted: true,
-            decision: Some((c.user_id, None)),
-            stamp_published: true,
-            now_ms: self.now(),
-        };
-        let s = match self.repo.transition(id, &t, &ev).await? {
-            Some(s) => s,
-            None => return Err(self.why_not(id, Action::PublishNow).await),
-        };
+        if let Err(e) = self.publish_approved(c, s).await {
+            // The submission stays approved; the submitter retries with publish now.
+            tracing::warn!(submission = id, error = %e, "a direct publish failed");
+            return Err(e);
+        }
+        let s = self.load(id).await?;
         self.detail(s, false).await
+    }
+
+    /// Why the publish-now claim matched nothing: the state moved under the caller.
+    async fn why_not_claimed(&self, id: i64) -> ReviewError {
+        match self.repo.get(id).await {
+            Ok(Some(s)) if s.state == SubmissionState::Approved => {
+                ReviewError::Conflict("this submission is already being published".into())
+            }
+            Ok(Some(s)) => match machine::next(s.state, Action::PublishNow) {
+                Err(e) => e,
+                Ok(_) => ReviewError::Conflict("the submission changed; try again".into()),
+            },
+            Ok(None) => ReviewError::NotFound("submission"),
+            Err(e) => e,
+        }
     }
 
     pub async fn withdraw(&self, user: i64, id: i64) -> ReviewResult<SubmissionDetail> {
@@ -1025,7 +1057,10 @@ impl ReviewService {
         };
         match self.repo.transition(s.id, &t, &ev).await? {
             Some(done) => {
-                self.notify(&done, "published", json!({})).await;
+                // The submitter publishing their own submission directly needs no notice of it.
+                if done.submitter_id != Some(c.user_id) {
+                    self.notify(&done, "published", json!({})).await;
+                }
                 self.card(&done, Some("published")).await;
                 Ok(())
             }

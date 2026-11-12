@@ -44,6 +44,59 @@ impl PgChatRepo {
             patron_grace_ms: i64::from(DEFAULT_PATRON_GRACE_DAYS) * 86_400_000,
         }
     }
+    /// One page of members by user id, optionally only those holding one of `roles` (SEC-AUD-126). The
+    /// `role_ids` of each member are all their roles, not just the matching ones.
+    async fn page_members_q(
+        &self,
+        guild: GuildId,
+        roles: Option<Vec<i64>>,
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let rows = sqlx::query(
+            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
+    gm.profile_effect, gm.avatar_decoration, gm.flags, \
+             (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
+             (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
+             COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
+                       WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
+             FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id > $2 \
+             AND ($4::bigint[] IS NULL OR EXISTS (SELECT 1 FROM member_roles mf \
+                  WHERE mf.guild_id = gm.guild_id AND mf.user_id = gm.user_id AND mf.role_id = ANY($4))) \
+             AND NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id \
+                             AND (sys.flags & 1) <> 0) \
+             ORDER BY gm.user_id LIMIT $3",
+        )
+        .bind(i(guild.get()))
+        .bind(after.map_or(0, |a| i(a.get())))
+        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
+        .bind(roles)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        rows.iter()
+            .map(|r| {
+                Ok(Member {
+                    guild_id: guild,
+                    user_id: UserId::new(u(r.try_get("user_id").map_err(db)?)),
+                    nick: r.try_get("nick").map_err(db)?,
+                    role_ids: r
+                        .try_get::<Vec<i64>, _>("role_ids")
+                        .map_err(db)?
+                        .into_iter()
+                        .map(|v| RoleId::new(u(v)))
+                        .collect(),
+                    joined_at_ms: r.try_get("joined_ms").map_err(db)?,
+                    communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
+                    pending: r.try_get("pending").map_err(db)?,
+                    avatar_key: r.try_get("avatar_key").map_err(db)?,
+                    banner_key: r.try_get("banner_key").map_err(db)?,
+                    bio: r.try_get("bio").map_err(db)?,
+                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
+                })
+            })
+            .collect()
+    }
 
     /// Use the configured Patron grace period (D-073, D-256, K-19).
     #[must_use]
@@ -572,46 +625,18 @@ impl GuildRepository for PgChatRepo {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
-        let rows = sqlx::query(
-            "SELECT gm.user_id, gm.nick, gm.pending, gm.avatar_key, gm.banner_key, gm.bio, gm.pronouns, gm.theme_primary, gm.theme_accent, \
-    gm.profile_effect, gm.avatar_decoration, gm.flags, \
-             (extract(epoch FROM gm.joined_at) * 1000)::bigint AS joined_ms, \
-             (extract(epoch FROM gm.communication_disabled_until) * 1000)::bigint AS timeout_ms, \
-             COALESCE((SELECT array_agg(mr.role_id) FROM member_roles mr \
-                       WHERE mr.guild_id = gm.guild_id AND mr.user_id = gm.user_id), '{}') AS role_ids \
-             FROM guild_members gm WHERE gm.guild_id = $1 AND gm.user_id > $2 \
-             AND NOT EXISTS (SELECT 1 FROM accounts sys WHERE sys.id = gm.user_id \
-                             AND (sys.flags & 1) <> 0) \
-             ORDER BY gm.user_id LIMIT $3",
-        )
-        .bind(i(guild.get()))
-        .bind(after.map_or(0, |a| i(a.get())))
-        .bind(i64::try_from(limit).unwrap_or(i64::MAX))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db)?;
-        rows.iter()
-            .map(|r| {
-                Ok(Member {
-                    guild_id: guild,
-                    user_id: UserId::new(u(r.try_get("user_id").map_err(db)?)),
-                    nick: r.try_get("nick").map_err(db)?,
-                    role_ids: r
-                        .try_get::<Vec<i64>, _>("role_ids")
-                        .map_err(db)?
-                        .into_iter()
-                        .map(|v| RoleId::new(u(v)))
-                        .collect(),
-                    joined_at_ms: r.try_get("joined_ms").map_err(db)?,
-                    communication_disabled_until_ms: r.try_get("timeout_ms").map_err(db)?,
-                    pending: r.try_get("pending").map_err(db)?,
-                    avatar_key: r.try_get("avatar_key").map_err(db)?,
-                    banner_key: r.try_get("banner_key").map_err(db)?,
-                    bio: r.try_get("bio").map_err(db)?,
-                    extras: crate::chat_repo::extras_from(r).map_err(db)?,
-                })
-            })
-            .collect()
+        self.page_members_q(guild, None, after, limit).await
+    }
+
+    async fn page_members_with_roles(
+        &self,
+        guild: GuildId,
+        roles: &[RoleId],
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let ids: Vec<i64> = roles.iter().map(|r| i(r.get())).collect();
+        self.page_members_q(guild, Some(ids), after, limit).await
     }
 
     async fn user_guild_ids(&self, user: UserId) -> RepoResult<Vec<GuildId>> {

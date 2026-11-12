@@ -369,7 +369,7 @@ impl Inbound {
             return Ok(Outcome::Ignored(Why::OwnBot));
         }
         if let Some(w) = m.webhook_id
-            && store::is_own_webhook(&self.pool, bridge.guild_id, w).await?
+            && store::is_own_webhook(&self.pool, w).await?
         {
             return Ok(Outcome::Ignored(Why::OwnWebhook));
         }

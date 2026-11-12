@@ -1441,6 +1441,72 @@ async fn settings_features_system_and_jobs() {
     assert!(b["items"].as_array().unwrap().len() >= 2);
 }
 
+async fn feature_rows(e: &Env, action: &str) -> usize {
+    let (_, b) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/admin/access-log?action={action}"),
+            None,
+        )
+        .await;
+    b["items"].as_array().unwrap().len()
+}
+
+#[tokio::test]
+async fn a_feature_patch_with_a_bad_setting_changes_nothing() {
+    let e = env().await;
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::PATCH,
+            "/admin/features/demo.thing",
+            Some(json!({ "enabled": false, "settings": { "unknown_key": 1 } })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    let (_, b) = e
+        .call(Some(OWNER), Method::GET, "/admin/features", None)
+        .await;
+    assert_eq!(b[0]["enabled"], true, "the kill switch was not applied");
+    assert_eq!(feature_rows(&e, "features.patch").await, 0);
+}
+
+#[tokio::test]
+async fn a_feature_patch_writes_its_audit_row_before_applying() {
+    let e = env().await;
+    e.repo.set_log_failing(true);
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::PATCH,
+            "/admin/features/demo.thing",
+            Some(json!({ "enabled": false, "settings": { "limit": 50 } })),
+        )
+        .await;
+    assert!(s.is_server_error(), "{s} {b}");
+    e.repo.set_log_failing(false);
+    let (_, b) = e
+        .call(Some(OWNER), Method::GET, "/admin/features", None)
+        .await;
+    assert_eq!(
+        (b[0]["enabled"].clone(), b[0]["settings"]["limit"].clone()),
+        (json!(true), json!(10)),
+        "nothing applied without its row"
+    );
+    // And with the log working the row exists and the change applies as one record.
+    let (s, b) = e
+        .call(
+            Some(OWNER),
+            Method::PATCH,
+            "/admin/features/demo.thing",
+            Some(json!({ "enabled": false, "settings": { "limit": 50 } })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert_eq!(feature_rows(&e, "features.patch").await, 1);
+}
+
 #[test]
 fn openapi_lists_every_admin_path() {
     let doc = serde_json::to_value(crate::routes::openapi()).unwrap();

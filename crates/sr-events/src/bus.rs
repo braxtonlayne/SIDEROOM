@@ -7,6 +7,7 @@ use futures::stream::BoxStream;
 use thiserror::Error;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
 use crate::event::{DomainEvent, Topic};
 
@@ -27,6 +28,15 @@ pub trait EventBus: Send + Sync {
     /// Slow subscribers may miss events (lagged items are skipped).
     /// [`Topic::Firehose`] sees everything published to any topic.
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent>;
+    /// Like [`subscribe`](Self::subscribe), but a subscriber that fell behind is told: `Err(missed)` carries the
+    /// number of events dropped before the next item (SEC-AUD-124, D-620). A consumer whose state depends on every
+    /// event (the gateway's membership pump) reconciles on `Err`. Default: no gap is ever reported.
+    fn subscribe_lagging(
+        &self,
+        topic: Topic,
+    ) -> BoxStream<'static, std::result::Result<DomainEvent, u64>> {
+        self.subscribe(topic).map(Ok).boxed()
+    }
     /// Whether every publisher and subscriber of this bus lives in this process. Only then can
     /// in-memory state (voice occupancy, say) answer for the whole deployment. Default: no.
     fn is_single_node(&self) -> bool {
@@ -104,6 +114,15 @@ impl EventBus for InProcessBus {
     }
 
     fn subscribe(&self, topic: Topic) -> BoxStream<'static, DomainEvent> {
+        self.subscribe_lagging(topic)
+            .filter_map(|r| async move { r.ok() }) // skip Lagged
+            .boxed()
+    }
+
+    fn subscribe_lagging(
+        &self,
+        topic: Topic,
+    ) -> BoxStream<'static, std::result::Result<DomainEvent, u64>> {
         let capacity = self.capacity_of(topic);
         let rx = self
             .lock()
@@ -111,7 +130,7 @@ impl EventBus for InProcessBus {
             .or_insert_with(|| broadcast::channel(capacity).0)
             .subscribe();
         BroadcastStream::new(rx)
-            .filter_map(|r| async move { r.ok() }) // skip Lagged
+            .map(|r| r.map_err(|BroadcastStreamRecvError::Lagged(n)| n))
             .boxed()
     }
 
@@ -128,6 +147,48 @@ mod tests {
     #[tokio::test]
     async fn contract() {
         crate::contract::run_all(InProcessBus::new).await;
+    }
+
+    #[tokio::test]
+    async fn in_process_subscribe_lagging_reports_the_gap() {
+        let bus = InProcessBus::with_capacity(2);
+        let mut s = bus.subscribe_lagging(Topic::Platform);
+        for n in 1..=5 {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::GuildDeleted {
+                    guild: GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(s.next().await, Some(Err(3)));
+        let next = s.next().await.unwrap().unwrap();
+        assert_eq!(
+            next,
+            DomainEvent::GuildDeleted {
+                guild: GuildId::new(4)
+            }
+        );
+        // The plain subscription still skips the gap silently.
+        let mut plain = bus.subscribe(Topic::Platform);
+        for n in 6..=10 {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::GuildDeleted {
+                    guild: GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        assert_eq!(
+            plain.next().await,
+            Some(DomainEvent::GuildDeleted {
+                guild: GuildId::new(9)
+            })
+        );
     }
 
     #[tokio::test]

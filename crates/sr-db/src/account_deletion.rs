@@ -13,11 +13,21 @@
 //! * the original username, e-mail and display name are archived in `deleted_accounts`
 //!   for staff, and the username stays reserved for 30 days;
 //! * Discord links (`external_identities`) stay, so the same Discord identity cannot be
-//!   used to register again (D-030).
+//!   used to register again (D-030);
+//! * personal state that only served the member goes (D-617): Cinema progress, reading
+//!   progress and bookmarks, scratch notes, personal loot tables, saved, private and
+//!   friends-only Cinema lists, and claims on invite cards that have not started;
+//! * the member's data exports end with the account (SEC-AUD-118): a ready package expires
+//!   now (the lapsed sweep deletes the object), an unbuilt one fails.
 //!
-//! Everything runs in one transaction.
+//! What the member contributed for others stays under "Deleted User" (D-029, D-572):
+//! messages, reactions, poll votes, Cinema and Library reviews, ratings and comments, and
+//! public lists. A member who wants those gone uses the bulk self-delete first (D-324).
+//!
+//! Everything runs in one transaction; [`delete_account_in`] runs inside the caller's (a staff
+//! erasure run commits it with its audit row, SEC-AUD-116).
 
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, PgPool, Row};
 
 use crate::DbResult;
 
@@ -49,6 +59,11 @@ pub struct DeletionReport {
     pub mounts_erased: i64,
     /// Discord bridge (BRG-UI-001): webhook messages queued for deletion on Discord.
     pub bridge_deletions_queued: i64,
+    /// D-617: personal-state rows deleted (Cinema and reading progress, bookmarks, notes, loot tables, saved and
+    /// private lists, claims on invite cards that had not started).
+    pub personal_rows_deleted: i64,
+    /// SEC-AUD-118: ready data exports set to expire now.
+    pub exports_expired: i64,
 }
 
 /// Why a deletion did not happen.
@@ -64,13 +79,28 @@ pub enum Blocked {
     Owner,
 }
 
-/// Delete (scrub) account `id`.
+/// Delete (scrub) account `id` in its own transaction.
 pub async fn delete_account(
     pool: &PgPool,
     id: i64,
     credit_ledger_id: i64,
 ) -> DbResult<Result<DeletionReport, Blocked>> {
     let mut tx = pool.begin().await?;
+    let out = delete_account_in(&mut tx, id, credit_ledger_id).await?;
+    // A refused deletion changed nothing; dropping the transaction rolls it back.
+    if out.is_ok() {
+        tx.commit().await?;
+    }
+    Ok(out)
+}
+
+/// Delete (scrub) account `id` inside the caller's transaction (SEC-AUD-116: a staff erasure run commits the
+/// scrub together with its audit row). Nothing is committed here; on a `Blocked` answer the caller rolls back.
+pub async fn delete_account_in(
+    tx: &mut PgConnection,
+    id: i64,
+    credit_ledger_id: i64,
+) -> DbResult<Result<DeletionReport, Blocked>> {
     let Some(row) = sqlx::query(
         "SELECT state::text AS state, username::text AS username, email::text AS email, \
          display_name, avatar_key, banner_key FROM accounts WHERE id = $1 FOR UPDATE",
@@ -180,15 +210,15 @@ pub async fn delete_account(
     report.invites_revoked = i32::try_from(revoked).unwrap_or(i32::MAX);
 
     // PRF-RNG-001: status rings (and their viewer lists) go before the mounts they may live on are erased.
-    crate::rings_dsr::erase_for(&mut tx, id).await?;
+    crate::rings_dsr::erase_for(&mut *tx, id).await?;
 
     // BYOS-LEG-001: the member's bucket connections go with the account; the bucket and its objects are theirs.
-    report.mounts_erased = crate::storage_legal::erase_for(&mut tx, id).await?.mounts;
+    report.mounts_erased = crate::storage_legal::erase_for(&mut *tx, id).await?.mounts;
     // BRG-UI-001: the bridge's message-map rows for the member go; the webhook messages are queued.
-    let bridge = crate::bridge_dsr::erase_for(&mut tx, id).await?;
+    let bridge = crate::bridge_dsr::erase_for(&mut *tx, id).await?;
     report.bridge_deletions_queued = i64::try_from(bridge.deletions_queued).unwrap_or(i64::MAX);
     // PRF-SCR-001: scrapbook entries about the member go, and their bucket copies are queued for removal.
-    crate::scrapbook_legal::erase_for(&mut tx, id).await?;
+    crate::scrapbook_legal::erase_for(&mut *tx, id).await?;
 
     // Credentials and sessions.
     sqlx::query("UPDATE sessions SET revoked_at = now(), updated_at = now() WHERE account_id = $1 AND revoked_at IS NULL")
@@ -331,6 +361,48 @@ pub async fn delete_account(
         .await?;
     }
 
+    // D-617: personal state that only served the member goes; what they contributed for others (messages,
+    // reactions, poll votes, Cinema and Library reviews, ratings and comments, public lists) stays under
+    // "Deleted User" (D-029, D-572).
+    let mut personal = 0u64;
+    for sql in [
+        "DELETE FROM cinema_progress WHERE user_id = $1",
+        "DELETE FROM reading_progress WHERE user_id = $1",
+        "DELETE FROM reading_bookmarks WHERE user_id = $1",
+        "DELETE FROM scratch_notes WHERE user_id = $1",
+        "DELETE FROM loot_tables WHERE owner_user_id = $1",
+        // Items cascade.
+        "DELETE FROM cinema_lists WHERE owner_id = $1 AND (kind = 'saved' OR visibility IN ('private', 'friends'))",
+        // Only claims on cards that have not started; a past card's list is purged by its own job.
+        "DELETE FROM invite_card_claims WHERE user_id = $1 \
+         AND card_id IN (SELECT id FROM invite_cards WHERE starts_at > now())",
+    ] {
+        personal += sqlx::query(sql)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+    }
+    report.personal_rows_deleted = i64::try_from(personal).unwrap_or(i64::MAX);
+    // SEC-AUD-118: an export of the account ends with it. A ready package expires now (the lapsed sweep deletes
+    // the object); an unbuilt one fails.
+    report.exports_expired = sqlx::query(
+        "UPDATE data_exports SET expires_at = now() WHERE user_id = $1 AND state = 'ready'",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+    .try_into()
+    .unwrap_or(i64::MAX);
+    sqlx::query(
+        "UPDATE data_exports SET state = 'failed', error = 'account deleted' \
+         WHERE user_id = $1 AND state IN ('pending', 'building')",
+    )
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
     // The archive, then the scrub.
     sqlx::query(
         "INSERT INTO deleted_accounts \
@@ -365,7 +437,6 @@ pub async fn delete_account(
     .bind(id)
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
     Ok(Ok(report))
 }
 

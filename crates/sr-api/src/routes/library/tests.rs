@@ -92,6 +92,8 @@ struct Stub {
     multipart: Mutex<HashMap<i64, (String, u64)>>,
     /// Keys queued for the storage collector.
     gc: Mutex<Vec<String>>,
+    /// Series ids passed to `delete_series`.
+    deleted: Mutex<Vec<i64>>,
     clock: std::sync::atomic::AtomicI64,
 }
 
@@ -243,7 +245,8 @@ impl LibraryRepository for Stub {
     async fn set_series_published(&self, _: i64, _: bool) -> LibraryResult<Option<SeriesRecord>> {
         Ok(None)
     }
-    async fn delete_series(&self, _: i64) -> LibraryResult<bool> {
+    async fn delete_series(&self, id: i64) -> LibraryResult<bool> {
+        self.deleted.lock().unwrap().push(id);
         Ok(true)
     }
     async fn merge_series(&self, _: i64, _: i64) -> LibraryResult<SeriesRecord> {
@@ -815,6 +818,43 @@ async fn a_curator_cannot_delete_but_the_owner_can() {
         )
         .await;
     assert_eq!(s, StatusCode::NOT_FOUND, "{body}");
+}
+
+#[tokio::test]
+async fn a_library_staff_delete_is_refused_when_the_access_log_cannot_be_written() {
+    let e = env().await;
+    e.admin.set_log_failing(true);
+    let (s, body) = e
+        .call(Some(OWNER), Method::DELETE, "/admin/library/series/7", None)
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    assert!(
+        e.stub.deleted.lock().unwrap().is_empty(),
+        "the series was not deleted without its row"
+    );
+    // A create has no id before the change: it is made, then the 500 says the row is missing.
+    let (s, body) = e
+        .call(
+            Some(CURATOR),
+            Method::POST,
+            "/admin/library/series",
+            Some(series_body()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    // With the log back, the delete goes through and is recorded.
+    e.admin.set_log_failing(false);
+    let (s, _) = e
+        .call(Some(OWNER), Method::DELETE, "/admin/library/series/7", None)
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(e.stub.deleted.lock().unwrap().as_slice(), [7]);
+    assert!(
+        e.admin
+            .log_rows()
+            .iter()
+            .any(|r| r.action == "library.series.delete" && r.target_id == Some(7))
+    );
 }
 
 #[tokio::test]

@@ -28,21 +28,16 @@ pub async fn begin(
     Path(chapter_id): Path<String>,
     Json(b): Json<UploadRequest>,
 ) -> ApiResult<(StatusCode, Json<UploadSlot>)> {
+    let cid = id(&chapter_id, "chapter")?;
+    let detail = json!({ "filename": b.filename, "size_bytes": b.size_bytes });
     let slot = ctx
-        .svc()
-        .begin_upload(ctx.actor(), id(&chapter_id, "chapter")?, b)
-        .await
-        .map_err(map_err)?;
-    ctx.audit(
-        "library.upload.begin",
-        ("chapter", slot.upload.chapter_id),
-        json!({
-            "upload": slot.upload.id.to_string(),
-            "filename": slot.upload.filename,
-            "size_bytes": slot.upload.size_bytes,
-        }),
-    )
-    .await;
+        .audited(
+            "library.upload.begin",
+            ("chapter", cid),
+            detail,
+            ctx.svc().begin_upload(ctx.actor(), cid, b),
+        )
+        .await?;
     Ok((StatusCode::CREATED, Json(slot)))
 }
 
@@ -65,12 +60,12 @@ pub async fn complete(
         .complete_upload(ctx.actor(), id(&upload_id, "upload")?)
         .await
         .map_err(map_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.upload.complete",
         ("chapter", up.chapter_id),
         json!({ "upload": up.id.to_string(), "status": up.status.as_str() }),
     )
-    .await;
+    .await?;
     Ok((StatusCode::ACCEPTED, Json(up)))
 }
 
@@ -143,12 +138,12 @@ pub async fn abort(ctx: PublisherCtx, Path(upload_id): Path<String>) -> ApiResul
         .abort_upload(ctx.actor(), id(&upload_id, "upload")?)
         .await
         .map_err(map_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.upload.abort",
         ("chapter", up.chapter_id),
         json!({ "upload": up.id.to_string() }),
     )
-    .await;
+    .await?;
     Ok(Json(up))
 }
 

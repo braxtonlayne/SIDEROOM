@@ -104,14 +104,14 @@ impl PgAdminRepo {
     /// MOD-DSR-005: flag every hold still keeping a row of the erased account for a staff decision (release, or
     /// retain with a stated legal basis), and tell each hold's case on its timeline. Nothing is released or
     /// deleted. A hold flagged by an earlier request keeps its first flag.
-    async fn flag_held_holds(
+    async fn flag_held_holds_in(
         &self,
+        tx: &mut PgConnection,
         account: i64,
         request_id: i64,
         actor: i64,
         report: &mut ErasureReport,
     ) -> AdminResult<()> {
-        let mut tx = self.pool().begin().await.map_err(db)?;
         let flagged: Vec<(i64, Option<i64>)> = sqlx::query_as(
             "WITH held AS ( \
                SELECT hold_id FROM messages WHERE author_id = $1 AND hold_id IS NOT NULL \
@@ -158,7 +158,6 @@ impl PgAdminRepo {
                 .await
                 .map_err(db)?;
         }
-        tx.commit().await.map_err(db)?;
         report.held_holds = i64::try_from(flagged.len()).unwrap_or(i64::MAX);
         report.held_cases = cases;
         Ok(())
@@ -511,10 +510,10 @@ impl DataRequestRepository for PgAdminRepo {
         opts: ErasureOptions,
         audit: &AuditEntry,
     ) -> AdminResult<ErasureRun> {
-        let r = {
-            let mut c = self.pool().acquire().await.map_err(db)?;
-            load(&mut c, id, false).await?
-        };
+        // SEC-AUD-116 (D-616): one transaction from the claim to the audit row. The request is locked and must still
+        // be `verified`, so a second run waits and then answers Conflict without repeating any side effect.
+        let mut tx = self.pool().begin().await.map_err(db)?;
+        let r = load(&mut tx, id, true).await?;
         if r.kind != DataRequestKind::Erasure {
             return Err(AdminError::Conflict("This is an export request".into()));
         }
@@ -523,15 +522,12 @@ impl DataRequestRepository for PgAdminRepo {
                 "Verify who is asking before running the erasure".into(),
             ));
         }
-        let held_rows = {
-            let mut c = self.pool().acquire().await.map_err(db)?;
-            Self::held_rows(&mut c, r.account_id).await?
-        };
+        let held_rows = Self::held_rows(&mut tx, r.account_id).await?;
         let mut report = ErasureReport {
             held_rows,
             ..ErasureReport::default()
         };
-        match account_deletion::delete_account(self.pool(), r.account_id, self.next_id())
+        match account_deletion::delete_account_in(&mut tx, r.account_id, self.next_id())
             .await
             .map_err(|e| AdminError::Storage(e.to_string()))?
         {
@@ -553,7 +549,7 @@ impl DataRequestRepository for PgAdminRepo {
                 let state: Option<String> =
                     sqlx::query_scalar("SELECT state::text FROM accounts WHERE id = $1")
                         .bind(r.account_id)
-                        .fetch_optional(self.pool())
+                        .fetch_optional(&mut *tx)
                         .await
                         .map_err(db)?;
                 if state.as_deref() != Some("deleted") {
@@ -592,8 +588,8 @@ impl DataRequestRepository for PgAdminRepo {
                 .await
                 .map_err(|e| AdminError::Storage(e.to_string()))?;
             // An open run already covers them; the staff run skips only the 24-hour limit.
-            let _ = crate::self_delete::request(
-                self.pool(),
+            let _ = crate::self_delete::request_in(
+                &mut tx,
                 self.next_id(),
                 self.next_id(),
                 r.account_id,
@@ -607,11 +603,10 @@ impl DataRequestRepository for PgAdminRepo {
             report.votes_queued = visible.poll_votes;
         }
         if report.held_rows > 0 {
-            self.flag_held_holds(r.account_id, id, audit.actor_id, &mut report)
+            self.flag_held_holds_in(&mut tx, r.account_id, id, audit.actor_id, &mut report)
                 .await?;
         }
         let outcome = erasure_outcome(&report, opts.invoice_years);
-        let mut tx = self.pool().begin().await.map_err(db)?;
         let done = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE data_requests SET state = 'completed', outcome = $2, retained = $3, completed_at = {} \
              WHERE id = $1 AND state = 'verified'",

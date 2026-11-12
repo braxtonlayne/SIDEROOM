@@ -27,6 +27,7 @@ use sr_bridge::inbound::{
 };
 use sr_bridge::{BridgeError, BridgeResult, BridgeService};
 use sr_chat::message_rules::{DeletePlan, EditPlan, ResolvedMentions};
+use sr_chat::repo::MessageRepository;
 use sr_chat::rich_repo::{BridgeAuthor, BridgeLink};
 use sr_chat::{Message, MessageType, Visibility};
 use sr_core::{ChannelId, MessageId, UserId};
@@ -65,6 +66,33 @@ fn links_of(links: &[InLink]) -> Vec<BridgeLink> {
             expires_at_ms: (l.expires_at_ms > 0).then_some(l.expires_at_ms),
         })
         .collect()
+}
+
+/// Store a bridged message and the link to its Discord author. The two writes are on different stores, so they
+/// cannot share one transaction: when the author link fails, the message just stored is removed again (deleted,
+/// purge due at once) before the error is returned. A message without its author link would be shown as the
+/// integration bot and a replay would post it a second time (SEC-AUD-103).
+async fn insert_with_author(
+    repo: &dyn MessageRepository,
+    m: &Message,
+    link: Option<impl std::future::Future<Output = sr_chat::repo::StoreResult<()>>>,
+    now_ms: i64,
+) -> BridgeResult<()> {
+    repo.insert_message(m).await.map_err(storage)?;
+    let Some(link) = link else { return Ok(()) };
+    if let Err(e) = link.await {
+        let plan = DeletePlan {
+            message_id: m.id,
+            visibility: Visibility::UserDeleted,
+            deleted_at_ms: now_ms,
+            purge_after_ms: Some(now_ms),
+        };
+        if let Err(undo) = repo.apply_delete(&plan).await {
+            tracing::error!(error = %undo, message = m.id.get(), "could not remove a bridged message that has no author link");
+        }
+        return Err(storage(e.0));
+    }
+    Ok(())
 }
 
 /// The production chat side of the inbound bridge.
@@ -170,24 +198,26 @@ impl ChatSink for ChatInbound {
             purge_after_ms: None,
             hold_id: None,
         };
-        self.messages
-            .repo
-            .insert_message(&m)
-            .await
-            .map_err(storage)?;
-        if let Some(store) = &self.messages.rich.store {
-            let author = BridgeAuthor {
-                platform: post.author.platform.to_owned(),
-                author_name: post.author.name.clone(),
-                author_avatar: post.author.avatar.clone(),
-                discord_user_id: Some(post.author.discord_user_id.to_string()),
-                links: links_of(&post.author.links),
-            };
-            store
-                .set_bridge_author(m.id, &author)
-                .await
-                .map_err(|e| storage(e.0))?;
-        }
+        let author = BridgeAuthor {
+            platform: post.author.platform.to_owned(),
+            author_name: post.author.name.clone(),
+            author_avatar: post.author.avatar.clone(),
+            discord_user_id: Some(post.author.discord_user_id.to_string()),
+            links: links_of(&post.author.links),
+        };
+        let link = self
+            .messages
+            .rich
+            .store
+            .as_ref()
+            .map(|s| s.set_bridge_author(m.id, &author));
+        insert_with_author(
+            self.messages.repo.as_ref(),
+            &m,
+            link,
+            self.messages.now_ms(),
+        )
+        .await?;
         match event_payload(&self.messages, &m).await {
             Ok(data) => {
                 self.messages
@@ -446,5 +476,76 @@ pub fn spawn_inbound(
         manager,
         supervisor,
         refresher,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sr_chat::memory::MemoryBackend;
+    use sr_chat::repo::StoreError;
+
+    fn bridged_message(id: u64) -> Message {
+        Message {
+            id: MessageId::new(id),
+            channel_id: ChannelId::new(7),
+            guild_id: None,
+            author_id: UserId::new(9),
+            kind: MessageType::Default,
+            content: "from Discord".into(),
+            flags: 0,
+            edited_at_ms: None,
+            reference: None,
+            attachment_ids: Vec::new(),
+            embeds: Vec::new(),
+            components: Vec::new(),
+            sticker_ids: Vec::new(),
+            poll: None,
+            mention_everyone: false,
+            mention_user_ids: Vec::new(),
+            mention_role_ids: Vec::new(),
+            mention_channel_ids: Vec::new(),
+            pinned: false,
+            visibility: Visibility::Visible,
+            deleted_at_ms: None,
+            purge_after_ms: None,
+            hold_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_author_link_leaves_no_bridged_message() {
+        let repo = MemoryBackend::new();
+        let m = bridged_message(1001);
+        let err = insert_with_author(
+            &repo,
+            &m,
+            Some(async { Err::<(), _>(StoreError("author table unavailable".into())) }),
+            5_000,
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, BridgeError::Storage(_)), "{err:?}");
+        let stored = repo
+            .get_message(m.channel_id, m.id)
+            .await
+            .unwrap()
+            .expect("the row is there until it is purged");
+        assert!(
+            !stored.is_visible(),
+            "the message must not stay visible without its author link"
+        );
+        assert_eq!(stored.purge_after_ms, Some(5_000));
+    }
+
+    #[tokio::test]
+    async fn a_stored_author_link_keeps_the_message_visible() {
+        let repo = MemoryBackend::new();
+        let m = bridged_message(1002);
+        insert_with_author(&repo, &m, Some(async { Ok::<(), StoreError>(()) }), 5_000)
+            .await
+            .unwrap();
+        let stored = repo.get_message(m.channel_id, m.id).await.unwrap().unwrap();
+        assert!(stored.is_visible());
     }
 }

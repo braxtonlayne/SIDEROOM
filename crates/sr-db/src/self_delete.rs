@@ -8,7 +8,7 @@
 //! time (unique index), one member run per 24 hours; a staff erasure run skips the 24-hour limit.
 
 use serde_json::json;
-use sqlx::{PgPool, Row};
+use sqlx::{PgConnection, PgPool, Row};
 
 use crate::{
     DbResult,
@@ -219,6 +219,22 @@ pub async fn request(
     via: Via,
 ) -> DbResult<Result<Run, Refusal>> {
     let mut tx = pool.begin().await?;
+    let out = request_in(&mut tx, id, job_id, account, scope, via).await?;
+    if out.is_ok() {
+        tx.commit().await?;
+    }
+    Ok(out)
+}
+
+/// [`request`] inside the caller's transaction (SEC-AUD-116); the caller commits.
+pub async fn request_in(
+    tx: &mut PgConnection,
+    id: i64,
+    job_id: i64,
+    account: i64,
+    scope: Scope,
+    via: Via,
+) -> DbResult<Result<Run, Refusal>> {
     // Serialise one account's requests.
     sqlx::query("SELECT id FROM accounts WHERE id = $1 FOR UPDATE")
         .bind(account)
@@ -277,7 +293,6 @@ pub async fn request(
     .bind(id)
     .fetch_one(&mut *tx)
     .await?;
-    tx.commit().await?;
     Ok(Ok(run(&row)?))
 }
 

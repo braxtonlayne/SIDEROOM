@@ -115,7 +115,8 @@ pub enum ScheduledEventKind {
     Update,
     Delete,
     /// A member marked themselves interested; `payload` is
-    /// `{guild_scheduled_event_id, user_id, guild_id}`.
+    /// `{guild_scheduled_event_id, user_id, guild_id, channel_id}` (`channel_id` is the event's channel or null:
+    /// the gateway gates it like every other scheduled-event dispatch, SEC-AUD-125).
     UserAdd,
     UserRemove,
 }

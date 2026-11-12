@@ -302,11 +302,11 @@ pub async fn resolve(
         .resolve_comment_report(ctx.staff.caller.user_id, rid, b.hide)
         .await
         .map_err(social_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.comment.report.resolve",
         ("comment", cid),
         json!({ "report": rid.to_string(), "hide": b.hide }),
     )
-    .await;
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -59,6 +59,26 @@ impl Mailer for LogMailer {
     }
 }
 
+/// Sends nothing (release builds with no `[smtp]` host, D-613). A mail body holds
+/// single-use links, so it is never logged; only the subject and the recipient's
+/// domain are, at warn.
+#[derive(Debug, Default)]
+pub struct DisabledMailer;
+
+#[async_trait]
+impl Mailer for DisabledMailer {
+    async fn send(&self, mail: OutgoingMail) -> Result<(), MailError> {
+        let domain = mail.to.rsplit_once('@').map_or("?", |(_, d)| d);
+        tracing::warn!(
+            target: "sr_api::mail",
+            subject = %mail.subject,
+            to_domain = %domain,
+            "mail is off: not sent"
+        );
+        Ok(())
+    }
+}
+
 /// Captures messages in memory.
 #[derive(Debug, Default)]
 pub struct MemoryMailer(Mutex<Vec<OutgoingMail>>);
@@ -311,6 +331,37 @@ pub fn new_login(to: &str, device: &str, when: &str, locale: &str) -> OutgoingMa
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn disabled_mailer_logs_no_body() {
+        use std::sync::{Arc, Mutex};
+        #[derive(Clone)]
+        struct Buf(Arc<Mutex<Vec<u8>>>);
+        impl std::io::Write for Buf {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(b);
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let buf = Buf(Arc::default());
+        let sink = buf.clone();
+        let sub = tracing_subscriber::fmt()
+            .with_writer(move || sink.clone())
+            .with_ansi(false)
+            .finish();
+        let _g = tracing::subscriber::set_default(sub);
+        let m = reset_password("alice@secret.test", "https://x.test/reset/TOKEN123", "en");
+        assert!(m.text.contains("TOKEN123"));
+        DisabledMailer.send(m).await.unwrap();
+        let out = String::from_utf8(buf.0.lock().unwrap().clone()).unwrap();
+        assert!(out.contains("secret.test"), "{out}");
+        assert!(!out.contains("TOKEN123"), "{out}");
+        assert!(!out.contains("alice"), "{out}");
+        assert!(!out.contains("https://x.test"), "{out}");
+    }
 
     #[test]
     fn templates_contain_link_and_escape() {

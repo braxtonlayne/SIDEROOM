@@ -1573,3 +1573,48 @@ async fn concurrent_installs_make_one_managed_role() {
     .unwrap();
     assert_eq!(roles, 1);
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_ban_racing_a_bot_install_never_leaves_a_banned_member() {
+    // SEC-AUD-128 (D-625): the install takes the same per-(guild, user) membership lock as a ban, so a ban that
+    // holds it makes the install wait, then see the committed ban and refuse; the bot is never a member.
+    let f = fx().await;
+    let c = f.app().await;
+    let bot: i64 = sqlx::query_scalar("SELECT bot_user_id FROM applications WHERE id = $1")
+        .bind(c.application.id)
+        .fetch_one(f.db.pool())
+        .await
+        .unwrap();
+    let mut tx = f.db.pool().begin().await.unwrap();
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('membership:' || $1::text || ':' || $2::text, 0))",
+    )
+    .bind(f.guild)
+    .bind(bot)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    let req = f.install(&c, f.owner, f.guild, Permissions::empty(), 0);
+    let svc = f.svc.clone();
+    let task = tokio::spawn(async move { svc.install(req).await });
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    assert!(!task.is_finished(), "the install must wait for the lock");
+    sqlx::query("INSERT INTO guild_bans (guild_id, user_id, created_at) VALUES ($1, $2, now())")
+        .bind(f.guild)
+        .bind(bot)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert!(task.await.unwrap().is_err(), "the banned bot is refused");
+    let members: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM guild_members WHERE guild_id = $1 AND user_id = $2",
+    )
+    .bind(f.guild)
+    .bind(bot)
+    .fetch_one(f.db.pool())
+    .await
+    .unwrap();
+    assert_eq!(members, 0);
+}

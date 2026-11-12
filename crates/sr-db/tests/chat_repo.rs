@@ -287,3 +287,90 @@ async fn guild_from_template_is_created_whole() {
         .unwrap();
     assert_eq!(level, 1);
 }
+
+/// SEC-AUD-126: `page_members_with_roles` returns only the holders of the given roles, in user-id order, with the
+/// same cursor paging as `page_members`, and each member's `role_ids` stay complete.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn page_members_with_roles_filters_and_pages() {
+    use sr_chat::repo::GuildRepository;
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let owner = account(&pool, &ids).await;
+    let gid = svc
+        .create_guild(owner, "Role Pages")
+        .await
+        .unwrap()
+        .guild
+        .id;
+    let mut users = Vec::new();
+    for _ in 0..5 {
+        let user = account(&pool, &ids).await;
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(gid.get() as i64)
+            .bind(user.get() as i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        users.push(user);
+    }
+    let mut roles = Vec::new();
+    for name in ["crew", "other"] {
+        let id = ids.generate().get() as i64;
+        sqlx::query(
+            "INSERT INTO roles (id, guild_id, name, color, hoist, position, permissions, mentionable, managed) \
+             VALUES ($1, $2, $3, 0, false, 5, 0, true, false)",
+        )
+        .bind(id)
+        .bind(gid.get() as i64)
+        .bind(name)
+        .execute(&pool)
+        .await
+        .unwrap();
+        roles.push(id);
+    }
+    // Holders of `crew`: users 0, 2, 3 (user 3 also holds `other`); `other` alone: user 4.
+    for (u, r) in [(0, 0), (2, 0), (3, 0), (3, 1), (4, 1)] {
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(gid.get() as i64)
+            .bind(users[u].get() as i64)
+            .bind(roles[r])
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    let crew = [sr_core::RoleId::new(roles[0] as u64)];
+    let repo = PgChatRepo::new(pool.clone());
+    let mut expected = vec![users[0], users[2], users[3]];
+    expected.sort();
+    let all = repo
+        .page_members_with_roles(gid, &crew, None, 10)
+        .await
+        .unwrap();
+    let got: Vec<UserId> = all.iter().map(|m| m.user_id).collect();
+    assert_eq!(got, expected);
+    let last = all.last().unwrap();
+    assert_eq!(
+        last.role_ids.len(),
+        if last.user_id == users[3] { 2 } else { 1 }
+    );
+    // Paging: two at a time, strictly after the cursor.
+    let first = repo
+        .page_members_with_roles(gid, &crew, None, 2)
+        .await
+        .unwrap();
+    assert_eq!(first.len(), 2);
+    let rest = repo
+        .page_members_with_roles(gid, &crew, Some(first[1].user_id), 2)
+        .await
+        .unwrap();
+    assert_eq!(rest.len(), 1);
+    assert_eq!(rest[0].user_id, expected[2]);
+    // No roles, no members.
+    assert!(
+        repo.page_members_with_roles(gid, &[], None, 10)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

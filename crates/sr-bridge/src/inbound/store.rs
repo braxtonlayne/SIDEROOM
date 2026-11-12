@@ -24,12 +24,13 @@ pub async fn map_for_discord_channel(
     row.as_ref().map(map_from).transpose()
 }
 
-/// Whether `webhook` is one of the webhooks this server's bridge created (the loop guard).
-pub async fn is_own_webhook(pool: &PgPool, guild: i64, webhook: i64) -> BridgeResult<bool> {
+/// Whether `webhook` is one of the webhooks a bridge on this instance created (the loop guard). Not scoped to one
+/// server: a Discord channel that two servers both mapped (an install from before D-609) must not carry one
+/// server's posts into the other (SEC-AUD-102).
+pub async fn is_own_webhook(pool: &PgPool, webhook: i64) -> BridgeResult<bool> {
     Ok(sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM bridge_channel_maps WHERE guild_id = $1 AND discord_webhook_id = $2)",
+        "SELECT EXISTS (SELECT 1 FROM bridge_channel_maps WHERE discord_webhook_id = $1)",
     )
-    .bind(guild)
     .bind(webhook)
     .fetch_one(pool)
     .await?)

@@ -58,14 +58,17 @@ pub async fn create(
 ) -> ApiResult<(StatusCode, Json<IngestSource>)> {
     publisher(&ctx)?;
     let new_id = ctx.svc().next_id();
-    let s = scanner(&ctx)?.create(new_id, b).await.map_err(map_err)?;
-    ctx.audit(
-        "ingest_source.create",
-        ("ingest_source", s.id),
-        json!({ "label": s.label, "kind": s.kind.as_str(), "backend": s.backend.as_str(),
-                "location": s.location, "owner": s.owner_id.to_string() }),
-    )
-    .await;
+    let scanner = scanner(&ctx)?;
+    let detail = json!({ "label": b.label, "kind": b.kind.as_str(), "backend": b.backend.as_str(),
+            "location": b.location, "owner": b.owner_id.to_string() });
+    let s = ctx
+        .audited(
+            "ingest_source.create",
+            ("ingest_source", new_id),
+            detail,
+            scanner.create(new_id, b),
+        )
+        .await?;
     Ok((StatusCode::CREATED, Json(s)))
 }
 
@@ -84,13 +87,17 @@ pub async fn update(
 ) -> ApiResult<Json<IngestSource>> {
     publisher(&ctx)?;
     let sid = id(&source_id, "ingest source")?;
-    let s = scanner(&ctx)?.patch(sid, b).await.map_err(map_err)?;
-    ctx.audit(
-        "ingest_source.update",
-        ("ingest_source", s.id),
-        json!({ "label": s.label, "enabled": s.enabled, "owner": s.owner_id.to_string() }),
-    )
-    .await;
+    let scanner = scanner(&ctx)?;
+    let detail = json!({ "label": b.label, "enabled": b.enabled, "poll_secs": b.poll_secs,
+            "stable_secs": b.stable_secs, "owner": b.owner_id.map(|o| o.to_string()) });
+    let s = ctx
+        .audited(
+            "ingest_source.update",
+            ("ingest_source", sid),
+            detail,
+            scanner.patch(sid, b),
+        )
+        .await?;
     Ok(Json(s))
 }
 
@@ -104,11 +111,20 @@ pub async fn update(
 pub async fn remove(ctx: PublisherCtx, Path(source_id): Path<String>) -> ApiResult<StatusCode> {
     publisher(&ctx)?;
     let sid = id(&source_id, "ingest source")?;
-    if !scanner(&ctx)?.store().delete(sid).await.map_err(map_err)? {
-        return Err(map_err(LibraryError::NotFound("ingest source")));
-    }
-    ctx.audit("ingest_source.delete", ("ingest_source", sid), json!({}))
-        .await;
+    let scanner = scanner(&ctx)?;
+    ctx.audited_with(
+        "ingest_source.delete",
+        ("ingest_source", sid),
+        json!({}),
+        async {
+            if scanner.store().delete(sid).await.map_err(map_err)? {
+                Ok(())
+            } else {
+                Err(map_err(LibraryError::NotFound("ingest source")))
+            }
+        },
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -146,9 +162,17 @@ pub async fn dry_run(
 pub async fn scan(ctx: PublisherCtx, Path(source_id): Path<String>) -> ApiResult<Json<ScanReport>> {
     publisher(&ctx)?;
     let sid = id(&source_id, "ingest source")?;
-    let report = scanner(&ctx)?.scan(sid, false).await.map_err(map_err)?;
-    ctx.audit(
-        "ingest_source.scan",
+    let scanner = scanner(&ctx)?;
+    let report = ctx
+        .audited(
+            "ingest_source.scan",
+            ("ingest_source", sid),
+            json!({}),
+            scanner.scan(sid, false),
+        )
+        .await?;
+    ctx.audit_note(
+        "ingest_source.scan.result",
         ("ingest_source", sid),
         json!({ "files_seen": report.files_seen, "imported": report.imported,
                 "failed": report.failed, "submissions": report.submissions }),

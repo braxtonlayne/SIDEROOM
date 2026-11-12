@@ -483,9 +483,15 @@ impl BridgeService {
 
     /// Send one row. `Ok(true)` when it left the queue.
     async fn send_row(&self, row: &QueueRow) -> BridgeResult<bool> {
-        let Some((webhook, token)) = self.webhook_of(row.map_id).await.unwrap_or(None) else {
-            // The map lost its webhook (direction changed, map removed): nothing can send this.
-            return self.drop_row(row.id).await.map(|()| true);
+        let (webhook, token) = match self.webhook_of(row.map_id).await {
+            Ok(Some(w)) => w,
+            Ok(None) => {
+                // The map lost its webhook (direction changed, map removed): nothing can send this.
+                return self.drop_row(row.id).await.map(|()| true);
+            }
+            // A lookup that failed (database or unseal error) says nothing about the map: keep the row, like any
+            // other transient failure (SEC-AUD-100).
+            Err(e) => return self.retry_or_kill(row, &e.to_string()).await,
         };
         if self
             .discord
@@ -497,7 +503,11 @@ impl BridgeService {
         let outcome = self.attempt(row, webhook, &token).await;
         match outcome {
             Ok(()) => {
-                self.drop_row(row.id).await?;
+                if row.kind == "create" && row.sr_message_id.is_some() {
+                    self.finish_create(row).await?;
+                } else {
+                    self.drop_row(row.id).await?;
+                }
                 Ok(true)
             }
             Err(CallError::RateLimited(wait)) => {
@@ -516,29 +526,75 @@ impl BridgeService {
                     .await?;
                 Ok(true)
             }
-            Err(e) => {
-                let attempts = row.attempts + 1;
-                if attempts >= self.tuning.max_attempts {
-                    tracing::warn!(
-                        guild = row.guild_id,
-                        map = row.map_id,
-                        "bridge post is a dead letter"
-                    );
-                    self.kill_row(row.id, &e.to_string()).await?;
-                    Ok(true)
-                } else {
-                    let exp = u32::try_from(row.attempts).unwrap_or(0).min(16);
-                    let wait = self
-                        .tuning
-                        .retry_base
-                        .saturating_mul(2u32.saturating_pow(exp))
-                        .min(self.tuning.retry_cap);
-                    self.reschedule(row.id, wait.as_secs_f64(), Some(&e.to_string()), true)
-                        .await?;
-                    Ok(false)
-                }
+            Err(e) => self.retry_or_kill(row, &e.to_string()).await,
+        }
+    }
+
+    /// A failure that may pass: back off and count the attempt, or dead-letter the row at `max_attempts`.
+    async fn retry_or_kill(&self, row: &QueueRow, error: &str) -> BridgeResult<bool> {
+        let attempts = row.attempts + 1;
+        if attempts >= self.tuning.max_attempts {
+            tracing::warn!(
+                guild = row.guild_id,
+                map = row.map_id,
+                "bridge post is a dead letter"
+            );
+            self.kill_row(row.id, error).await?;
+            Ok(true)
+        } else {
+            let exp = u32::try_from(row.attempts).unwrap_or(0).min(16);
+            let wait = self
+                .tuning
+                .retry_base
+                .saturating_mul(2u32.saturating_pow(exp))
+                .min(self.tuning.retry_cap);
+            self.reschedule(row.id, wait.as_secs_f64(), Some(error), true)
+                .await?;
+            Ok(false)
+        }
+    }
+
+    /// The post of a `create` row landed and its map row exists: remove the row, and see whether the message was
+    /// deleted or edited while the post was on the wire (SEC-AUD-101). Only the worker and `mirror_delete` remove
+    /// a create row, so no row back means a delete; a different payload means an edit that found the row still
+    /// queued. Either way the follow-up goes through the ordinary `delete` / `edit` rows.
+    async fn finish_create(&self, row: &QueueRow) -> BridgeResult<()> {
+        let Some(sr) = row.sr_message_id else {
+            return self.drop_row(row.id).await;
+        };
+        let mut tx = self.pool.begin().await?;
+        let now: Option<Value> =
+            sqlx::query_scalar("DELETE FROM bridge_outbox WHERE id = $1 RETURNING payload")
+                .bind(row.id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        let follow_up = match now {
+            None => Some(("delete", json!({}))),
+            Some(p) if p != row.payload => Some(("edit", p)),
+            Some(_) => None,
+        };
+        if let Some((kind, payload)) = follow_up {
+            // Skipped (zero rows) when the map was removed meanwhile.
+            let queued = sqlx::query(
+                "INSERT INTO bridge_outbox (id, guild_id, map_id, kind, sr_message_id, payload) \
+                 SELECT $1, $2, $3, $4, $5, $6 \
+                 WHERE EXISTS (SELECT 1 FROM bridge_channel_maps WHERE id = $3)",
+            )
+            .bind(self.next_id())
+            .bind(row.guild_id)
+            .bind(row.map_id)
+            .bind(kind)
+            .bind(sr)
+            .bind(payload)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
+            if queued == 0 {
+                tracing::debug!(map = row.map_id, "no follow-up queued: the map is gone");
             }
         }
+        tx.commit().await?;
+        Ok(())
     }
 
     async fn attempt(&self, row: &QueueRow, webhook: i64, token: &str) -> Result<(), CallError> {

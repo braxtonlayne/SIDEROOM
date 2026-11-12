@@ -1095,3 +1095,38 @@ async fn structural_dispatches_reach_the_reconciler_and_the_bridges_own_echoes_d
     assert_eq!(o, Outcome::Ignored(Why::NoReconciler));
     let _ = f.db.cleanup().await;
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_post_from_another_servers_bridge_webhook_is_not_imported() {
+    // SEC-AUD-102: two servers bridged to one Discord channel (an install from before D-609). Server A's webhook
+    // posts must not be copied into server B.
+    let a = fx().await;
+    let owner_b = account(a.db.pool()).await;
+    let (guild_b, ch_b) = guild(a.db.pool(), owner_b).await;
+    let (map_b, _, _) = bridge_for(a.db.pool(), owner_b, guild_b, ch_b, "both").await;
+    sqlx::query("UPDATE bridge_channel_maps SET discord_channel_id = $2 WHERE id = $1")
+        .bind(map_b)
+        .bind(a.dch)
+        .execute(a.db.pool())
+        .await
+        .unwrap();
+    let bridge_b = get_bridge(a.db.pool(), guild_b).await.unwrap().unwrap();
+    let mut echo = a.msg(77, 4242, "from A's members");
+    echo["webhook_id"] = json!(a.webhook.to_string());
+    let out = a
+        .inbound
+        .handle(
+            &bridge_b,
+            &Dispatch {
+                shard: 0,
+                name: "MESSAGE_CREATE".into(),
+                data: echo,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(out, Outcome::Ignored(Why::OwnWebhook));
+    assert!(a.sink.posts().is_empty(), "nothing is stored in server B");
+    let _ = a.db.cleanup().await;
+}

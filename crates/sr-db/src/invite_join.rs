@@ -13,6 +13,7 @@ use sr_chat::settings::join::{InviteJoin, InviteJoinRepository};
 use sr_core::{ChannelId, GuildId, UserId};
 
 use crate::chat_repo::{db, i, u};
+use crate::guild_admin_repo::lock_membership;
 use crate::settings_repo::{INVITE_USABLE, invite_cols, invite_from};
 
 #[derive(Clone)]
@@ -119,6 +120,8 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         };
         classify(&inv, now_ms)?;
         let (guild, uid) = (i(inv.guild_id.get()), i(user.get()));
+        // Serialize with a concurrent ban of this user (SEC-AUD-123, D-619); the ban check below then sees it.
+        lock_membership(&mut tx, guild, uid).await.map_err(db)?;
 
         // Nobody joins the Staff Server by invite; staff arrive by appointment (doc 07 section 4).
         let staff: bool = sqlx::query_scalar(
@@ -262,6 +265,7 @@ impl InviteJoinRepository for PgInviteJoinRepo {
     ) -> SettingsResult<Option<Member>> {
         let (g, uid) = (i(guild.get()), i(user.get()));
         let mut tx = self.pool.begin().await.map_err(db)?;
+        lock_membership(&mut tx, g, uid).await.map_err(db)?;
         let paused: bool = sqlx::query_scalar(
             "SELECT COALESCE((SELECT invites_paused OR COALESCE(invites_disabled_until > to_timestamp($2::bigint / 1000.0), FALSE) \n             FROM guild_community WHERE guild_id = $1), FALSE)",
         )

@@ -33,6 +33,8 @@ pub struct Store {
     pub users: HashMap<UserId, crate::repo::UserSummary>,
     /// How members joined (H-37); tests seed this.
     pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
+    /// How many member pages `page_members` or `page_members_with_roles` served (tests assert fan-out cost).
+    pub member_page_reads: u32,
 }
 
 /// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
@@ -102,11 +104,36 @@ impl GuildRepository for MemoryRepo {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>> {
+        self.lock()?.member_page_reads += 1;
         let mut out: Vec<Member> = self
             .lock()?
             .members
             .iter()
             .filter(|m| m.guild_id == guild && after.is_none_or(|a| m.user_id > a))
+            .cloned()
+            .collect();
+        out.sort_by_key(|m| m.user_id);
+        out.truncate(limit);
+        Ok(out)
+    }
+
+    async fn page_members_with_roles(
+        &self,
+        guild: GuildId,
+        roles: &[RoleId],
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        self.lock()?.member_page_reads += 1;
+        let mut out: Vec<Member> = self
+            .lock()?
+            .members
+            .iter()
+            .filter(|m| {
+                m.guild_id == guild
+                    && after.is_none_or(|a| m.user_id > a)
+                    && m.role_ids.iter().any(|r| roles.contains(r))
+            })
             .cloned()
             .collect();
         out.sort_by_key(|m| m.user_id);

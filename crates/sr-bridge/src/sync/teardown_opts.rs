@@ -65,27 +65,25 @@ impl BridgeService {
         })
     }
 
-    /// Act on Discord for the chosen options. Best effort: a failure is a [`FailedObject`], never an abort.
+    /// Act on Discord for the chosen options. A failure of Discord is a [`FailedObject`], never an abort; a failed read
+    /// of our own tables is an error, so the teardown stops before it deletes anything (SEC-AUD-105).
     pub(crate) async fn teardown_discord_structure(
         &self,
         guild: i64,
         opts: &TeardownOptions,
-    ) -> RemovalReport {
+    ) -> BridgeResult<RemovalReport> {
         let mut rep = RemovalReport::default();
         let Ok(token) = self.open_bot_token(guild).await else {
-            return rep;
+            return Ok(rep);
         };
         let reason = reason_for_op(self.next_id());
         let api = &self.discord;
-        let Ok(dg) = sqlx::query_scalar::<_, i64>(
+        let dg = sqlx::query_scalar::<_, i64>(
             "SELECT discord_guild_id FROM bridges WHERE guild_id = $1",
         )
         .bind(guild)
         .fetch_one(&self.pool)
-        .await
-        else {
-            return rep;
-        };
+        .await?;
 
         // Restore first: it touches objects that survive.
         if opts.restore_permissions {
@@ -95,10 +93,8 @@ impl BridgeService {
             .bind(guild)
             .fetch_all(&self.pool)
             .await
-            .unwrap_or_default();
-            let snap_roles = super::holds::load_snapshot(&self.pool, guild, "role")
-                .await
-                .unwrap_or_default();
+            ?;
+            let snap_roles = super::holds::load_snapshot(&self.pool, guild, "role").await?;
             for (id, data) in snap_roles.iter().filter(|(id, _)| roles.contains(id)) {
                 let Some(word) = data
                     .get("permissions")
@@ -134,11 +130,8 @@ impl BridgeService {
             )
             .bind(guild)
             .fetch_all(&self.pool)
-            .await
-            .unwrap_or_default();
-            let snap_chans = super::holds::load_snapshot(&self.pool, guild, "channel")
-                .await
-                .unwrap_or_default();
+            .await?;
+            let snap_chans = super::holds::load_snapshot(&self.pool, guild, "channel").await?;
             for (id, data) in snap_chans.iter().filter(|(id, _)| chans.contains(id)) {
                 let ows: Vec<Overwrite> = data
                     .get("overwrites")
@@ -176,7 +169,7 @@ impl BridgeService {
             .bind(guild)
             .fetch_all(&self.pool)
             .await
-            .unwrap_or_default();
+            ?;
             for (id, _kind) in objs {
                 match api.delete_channel(&token, id, &reason).await {
                     Ok(()) => rep.channels += 1,
@@ -193,7 +186,7 @@ impl BridgeService {
             .bind(guild)
             .fetch_all(&self.pool)
             .await
-            .unwrap_or_default();
+            ?;
             for id in roles {
                 match api.delete_role(&token, dg, id, &reason).await {
                     Ok(()) => rep.roles += 1,
@@ -205,6 +198,6 @@ impl BridgeService {
                 }
             }
         }
-        rep
+        Ok(rep)
     }
 }

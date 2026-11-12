@@ -36,7 +36,11 @@ struct GuildState {
     features: Vec<String>,
 }
 
-struct GuildFake(Mutex<GuildState>);
+type Hook = std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>;
+
+/// The state, and a future to run once just before the next role is created on Discord (a map row that appears
+/// meanwhile, for example).
+struct GuildFake(Mutex<GuildState>, Mutex<Option<Hook>>);
 
 fn reply(status: u16, body: Value) -> HttpResponse {
     HttpResponse {
@@ -65,16 +69,19 @@ impl GuildFake {
                    "permissions": if admin { "8" } else { "0" }, "managed": true, "mentionable": false,
                    "tags": {"bot_id": bot_user.to_string()}}),
         );
-        Arc::new(Self(Mutex::new(GuildState {
-            guild_id: guild,
-            bot_user,
-            next: 800_000,
-            roles,
-            channels: BTreeMap::new(),
-            threads: BTreeMap::new(),
-            log: vec![],
-            features: vec!["COMMUNITY".into()],
-        })))
+        Arc::new(Self(
+            Mutex::new(GuildState {
+                guild_id: guild,
+                bot_user,
+                next: 800_000,
+                roles,
+                channels: BTreeMap::new(),
+                threads: BTreeMap::new(),
+                log: vec![],
+                features: vec!["COMMUNITY".into()],
+            }),
+            Mutex::new(None),
+        ))
     }
 
     fn add_role(&self, id: i64, name: &str, position: i64, perms: u64) {
@@ -182,6 +189,12 @@ impl HttpTransport for GuildFake {
             .as_deref()
             .and_then(|b| serde_json::from_slice(b).ok())
             .unwrap_or(Value::Null);
+        if m == "POST" && path.ends_with("/roles") {
+            let hook = self.1.lock().unwrap().take();
+            if let Some(h) = hook {
+                h.await;
+            }
+        }
         let mut s = self.0.lock().unwrap();
         s.log.push((m.to_owned(), path.clone(), body.clone()));
         let g = s.guild_id.to_string();
@@ -337,6 +350,8 @@ struct SqlSr {
     pool: sr_db::PgPool,
     log: Mutex<SrLog>,
     denies: Mutex<Vec<i64>>,
+    /// A SIDE ROOM channel to create (by name) the next time `apply` runs: a channel born in the middle of a pass.
+    mid_pass_channel: Mutex<Option<String>>,
 }
 
 #[async_trait]
@@ -374,10 +389,19 @@ impl SrStructure for SqlSr {
 
     async fn apply(
         &self,
-        _guild: i64,
+        guild: i64,
         patch: &SrStructuralPatch,
         origin: &BridgeOrigin,
     ) -> BridgeResult<()> {
+        let born = self.mid_pass_channel.lock().unwrap().take();
+        if let Some(name) = born {
+            sqlx::query("INSERT INTO channels (id, guild_id, type, name) VALUES ($1, $2, 0, $3)")
+                .bind(uid())
+                .bind(guild)
+                .bind(name)
+                .execute(&self.pool)
+                .await?;
+        }
         if let SrStructuralPatch::Channel {
             channel_id,
             patch: p,
@@ -484,6 +508,7 @@ async fn scene(admin: bool) -> Scene {
         pool: pool.clone(),
         log: Mutex::new(SrLog::default()),
         denies: Mutex::new(vec![]),
+        mid_pass_channel: Mutex::new(None),
     });
     let eng = SyncEngine::new(svc, sr.clone());
     // Align the stored bot user with the fake's, and grant the intents the preflight wants.
@@ -1296,6 +1321,29 @@ async fn new_objects_on_either_side_appear_on_the_other_without_permissions() {
 
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_channel_created_during_a_reconcile_pass_does_not_panic() {
+    // SEC-AUD-099: the pass reads SIDE ROOM's channels twice; a channel born between the reads used to index a map
+    // that did not hold it.
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    s.fake.set_channel(9101, "name", json!("lobby"));
+    *s.sr.mid_pass_channel.lock().unwrap() = Some("born-mid-pass".into());
+    s.eng
+        .reconcile_guild(s.guild)
+        .await
+        .expect("the pass finishes");
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    assert!(
+        s.fake
+            .names("channels")
+            .contains(&"born-mid-pass".to_owned()),
+        "a later pass maps the channel"
+    );
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn deletions_on_discord_are_guarded_and_held() {
     let s = seeded().await;
     let pool = s.w.db.pool();
@@ -1797,5 +1845,90 @@ async fn gateway_and_sideroom_changes_queue_looks_only_while_the_whole_guild_syn
     };
     s.eng.handle_sr_event(&other).await;
     assert_eq!(pending().await, 2);
+    let _ = s.w.db.cleanup().await;
+}
+
+// ---- wave 60: SEC-AUD-105, SEC-AUD-107 ----
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_teardown_whose_list_query_fails_deletes_nothing() {
+    let s = seeded().await;
+    let pool = s.w.db.pool();
+    let maps_before: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_channel_maps")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let (roles, chans) = (s.fake.names("roles"), s.fake.names("channels"));
+    // The restore step reads the role maps by `origin`; make that read fail.
+    sqlx::query("ALTER TABLE bridge_role_maps RENAME COLUMN origin TO origin_gone")
+        .execute(pool)
+        .await
+        .unwrap();
+    let opts = sr_bridge::TeardownOptions {
+        remove_created: true,
+        restore_permissions: true,
+    };
+    let r = s
+        .eng
+        .svc
+        .teardown_with(s.guild, s.owner, sr_bridge::TeardownReason::Owner, opts)
+        .await;
+    assert!(r.is_err(), "the teardown stops: {r:?}");
+    let bridges: i64 = sqlx::query_scalar("SELECT count(*) FROM bridges WHERE guild_id = $1")
+        .bind(s.guild)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(bridges, 1, "the bridge row (and its token) is still there");
+    let maps_after: i64 = sqlx::query_scalar("SELECT count(*) FROM bridge_channel_maps")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(maps_after, maps_before, "no map was removed");
+    assert_eq!(
+        (s.fake.names("roles"), s.fake.names("channels")),
+        (roles, chans),
+        "nothing was deleted on Discord"
+    );
+    let _ = s.w.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_role_map_conflict_removes_the_new_discord_role() {
+    let s = seeded().await;
+    s.eng.reconcile_guild(s.guild).await.unwrap();
+    let pool = s.w.db.pool().clone();
+    // A new SIDE ROOM role; while the pass creates its Discord copy, a map row for it appears (another pass).
+    let role = uid();
+    sqlx::query("INSERT INTO roles (id, guild_id, name, position, permissions) VALUES ($1, $2, 'Helpers', 5, 2)")
+        .bind(role)
+        .bind(s.guild)
+        .execute(&pool)
+        .await
+        .unwrap();
+    let guild = s.guild;
+    *s.fake.1.lock().unwrap() = Some(Box::pin(async move {
+        sqlx::query(
+            "INSERT INTO bridge_role_maps (id, guild_id, role_id, discord_role_id, origin) \
+             VALUES ($1, $2, $3, 424242, 'sr')",
+        )
+        .bind(uid())
+        .bind(guild)
+        .bind(role)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }));
+    let r = s.eng.reconcile_guild(s.guild).await;
+    assert!(
+        matches!(r, Err(BridgeError::Conflict(_))),
+        "the pass reports the conflict: {r:?}"
+    );
+    assert!(
+        !s.fake.names("roles").contains(&"Helpers".to_owned()),
+        "the Discord role created for the refused map is removed again"
+    );
     let _ = s.w.db.cleanup().await;
 }

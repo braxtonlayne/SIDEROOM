@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
 
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt};
 use serde_json::{Value, json};
 use sr_core::{ChannelId, GuildId, Permissions, UserId};
 use sr_events::{DomainEvent, EventBus, Topic};
@@ -666,11 +666,36 @@ impl Gateway {
     /// Call once from within a tokio runtime.
     pub fn start(&self) {
         let weak = Arc::downgrade(&self.inner);
-        let mut platform = self.inner.bus.subscribe(Topic::Platform);
+        let mut platform = self.inner.bus.subscribe_lagging(Topic::Platform);
         let pump = tokio::spawn(async move {
-            while let Some(ev) = platform.next().await {
+            while let Some(item) = platform.next().await {
                 let Some(inner) = weak.upgrade() else { break };
-                Gateway { inner }.handle_platform(ev).await;
+                let gw = Gateway { inner };
+                match item {
+                    Ok(ev) => gw.handle_platform(ev).await,
+                    Err(missed) => {
+                        // Events were dropped: a MemberLeft or MemberJoined may be among them, and access
+                        // follows membership (SEC-AUD-124, D-620). Coalesce a burst of gaps into one reconcile;
+                        // an event that arrives while draining is handled right after it.
+                        tracing::warn!(missed, "platform pump lagged; reconciling memberships");
+                        let mut pending = None;
+                        while let Some(next) = platform.next().now_or_never().flatten() {
+                            match next {
+                                Err(more) => {
+                                    tracing::warn!(missed = more, "platform pump lagged again")
+                                }
+                                Ok(ev) => {
+                                    pending = Some(ev);
+                                    break;
+                                }
+                            }
+                        }
+                        gw.reconcile_memberships().await;
+                        if let Some(ev) = pending {
+                            gw.handle_platform(ev).await;
+                        }
+                    }
+                }
             }
         });
         let weak = Arc::downgrade(&self.inner);
@@ -1319,6 +1344,32 @@ impl Gateway {
         for s in sessions {
             if s.wants(name) {
                 deliver_to(&s, name, data);
+            }
+        }
+    }
+
+    /// Bring every connected session's guild set back in line with the directory after the platform pump missed
+    /// events (SEC-AUD-124, D-620): leave the guilds the user no longer belongs to (GUILD_DELETE, voice leave), join
+    /// the ones they gained. Runs on the pump task, so it is ordered with later events.
+    pub(crate) async fn reconcile_memberships(&self) {
+        let mut held: HashMap<UserId, HashSet<GuildId>> = HashMap::new();
+        for s in self.st().sessions.values() {
+            held.entry(s.user).or_default().extend(s.guilds());
+        }
+        for (user, have) in held {
+            let want: HashSet<GuildId> = self
+                .inner
+                .dir
+                .guilds_for_user(user)
+                .await
+                .into_iter()
+                .collect();
+            for &guild in have.difference(&want) {
+                self.leave_user(user, guild);
+                self.voice_member_left(guild, user).await;
+            }
+            for &guild in want.difference(&have) {
+                self.join_user(user, guild).await;
             }
         }
     }

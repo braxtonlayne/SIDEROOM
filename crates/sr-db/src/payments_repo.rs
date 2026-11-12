@@ -1183,10 +1183,13 @@ impl PaymentRepo for PgPaymentRepo {
         now_ms: i64,
         grace_days: u32,
     ) -> PayResult<Vec<PatronTransition>> {
+        // SEC-AUD-120: the reads and every notice upsert are one transaction; the list is returned after the commit,
+        // so a failed upsert advances no notice and the next call returns the transitions again.
+        let mut tx = self.pool.begin().await.map_err(pe)?;
         let rows = dynq(format!(
             "SELECT {GRANT_COLS} FROM entitlement_grants WHERE kind = 'patron' AND revoked_ms IS NULL"
         ))
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await
         .map_err(pe)?;
         let mut by_user: HashMap<i64, Vec<Grant>> = HashMap::new();
@@ -1198,7 +1201,7 @@ impl PaymentRepo for PgPaymentRepo {
         }
         let notices: Vec<(i64, i16)> =
             sqlx::query("SELECT user_id, level FROM user_patron_notices")
-                .fetch_all(&self.pool)
+                .fetch_all(&mut *tx)
                 .await
                 .map_err(pe)?
                 .iter()
@@ -1234,11 +1237,12 @@ impl PaymentRepo for PgPaymentRepo {
                 )
                 .bind(u)
                 .bind(i16::from(want))
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await
                 .map_err(pe)?;
             }
         }
+        tx.commit().await.map_err(pe)?;
         Ok(out)
     }
 

@@ -23,6 +23,8 @@ pub const SYSTEM_USER_ID: i64 = 1;
 /// Discord audit-log event number the bridge writes: `IntegrationCreate` when it is connected,
 /// `IntegrationDelete` when it is torn down.
 pub const AUDIT_INTEGRATION_CREATE: i16 = 80;
+/// Discord's `IntegrationUpdate`: the bot token of a connected bridge was replaced.
+pub const AUDIT_INTEGRATION_UPDATE: i16 = 81;
 pub const AUDIT_INTEGRATION_DELETE: i16 = 82;
 
 /// Seals and opens the bridge's secrets (the bot token, the webhook tokens) with `server.secret_key`, the same
