@@ -500,7 +500,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
             tcp: HashMap::new(),
             next_sock: 0,
             draining: false,
-            last_counts: (0, 0, 0, 0),
+            last_counts: metrics::Counts::default(),
             pending_flags: HashMap::new(),
             pending_keyed: HashMap::new(),
             events: events.clone(),
@@ -693,7 +693,7 @@ struct Actor {
     tcp: HashMap<SocketAddr, mpsc::Sender<Vec<u8>>>,
     next_sock: usize,
     draining: bool,
-    last_counts: (u64, u64, u64, u64),
+    last_counts: metrics::Counts,
     /// Flag changes that arrived before the participant joined (a moderator muted someone
     /// between `VOICE_SERVER_UPDATE` and their connection). Applied at join, dropped after
     /// the token lifetime.
@@ -826,20 +826,12 @@ impl Actor {
             forwarded_frames: own.forwarded_frames,
             keyframe_requests: own.keyframe_requests,
             unkeyed_frames: own.unkeyed_frames,
+            ingress_dropped_audio: own.ingress_dropped_audio,
+            ingress_dropped_video: own.ingress_dropped_video,
             ..snap
         };
-        let counts = (
-            snap.forwarded_packets,
-            snap.forwarded_frames,
-            snap.keyframe_requests,
-            snap.unkeyed_frames,
-        );
-        let deltas = metrics::Deltas {
-            packets: counts.0.saturating_sub(self.last_counts.0),
-            frames: counts.1.saturating_sub(self.last_counts.1),
-            keyframes: counts.2.saturating_sub(self.last_counts.2),
-            unkeyed: counts.3.saturating_sub(self.last_counts.3),
-        };
+        let counts = metrics::Counts::of(&snap);
+        let deltas = counts.since(&self.last_counts);
         self.last_counts = counts;
         metrics::publish(&snap, deltas);
         self.live.rooms.store(snap.rooms as u64, Ordering::Relaxed);
