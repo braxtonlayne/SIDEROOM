@@ -2,8 +2,9 @@ import { createRoute, type AnyRoute } from '@tanstack/react-router';
 import { HiddenWhenOff } from '../study/Hidden';
 import { createShelfRoutes } from '../storage/shelves/routes';
 import { lazyNamed } from '../lib/lazyRoute';
-import { Browse, validateBrowseSearch } from './Browse';
+import { validateBrowseSearch } from './browseSearch';
 // Pages load on demand (XC-PERF-001); the reader alone is the bulk of the section.
+const Browse = lazyNamed(() => import('./Browse'), 'Browse');
 const Home = lazyNamed(() => import('./Home'), 'Home');
 const UpdatesPage = lazyNamed(() => import('./Pages'), 'UpdatesPage');
 const MyLibraryPage = lazyNamed(() => import('./Pages'), 'MyLibraryPage');

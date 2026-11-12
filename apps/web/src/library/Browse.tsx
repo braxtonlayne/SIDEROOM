@@ -20,28 +20,10 @@ import { GenrePicker, TagField } from './BrowseFilters';
 import { VirtualGrid } from './VirtualGrid';
 import { ShelfEmptyState } from '../storage/ShelfEmpty';
 import { defaultAgeFilter, useLibrarySettings } from './prefs';
-import type { AgeFilter, BrowseParams, SeriesKind, SeriesStatus, SortKey } from './types';
+import type { AgeFilter, BrowseParams, SeriesKind, SortKey } from './types';
+import { AGES, KINDS, STATUSES, validateBrowseSearch, type BrowseSearch } from './browseSearch';
 import { AgeBadge, KIND_LABEL, label, SeriesCard, STATUS_LABEL } from './ui';
 
-export interface BrowseSearch {
-  q?: string;
-  kind?: SeriesKind;
-  status?: SeriesStatus;
-  genres?: string;
-  exclude?: string;
-  tags?: string;
-  language?: string;
-  year_from?: number;
-  year_to?: number;
-  rating_min?: number;
-  age?: AgeFilter;
-  sort?: SortKey;
-  order?: 'asc' | 'desc';
-  view?: 'grid' | 'list';
-}
-
-const KINDS = Object.keys(KIND_LABEL) as SeriesKind[];
-const STATUSES = Object.keys(STATUS_LABEL) as SeriesStatus[];
 const SORTS: { value: SortKey; labelKey: MessageKey }[] = [
   { value: 'updated', labelKey: 'library.browse.sort.updated' },
   { value: 'newest', labelKey: 'library.browse.sort.newest' },
@@ -49,7 +31,6 @@ const SORTS: { value: SortKey; labelKey: MessageKey }[] = [
   { value: 'followers', labelKey: 'library.browse.sort.followers' },
   { value: 'rating', labelKey: 'library.browse.sort.rating' },
 ];
-const AGES: AgeFilter[] = ['include', 'hide', 'only'];
 const PAGE = 24;
 const DEFAULT_GENRES = [
   'action',
@@ -63,46 +44,6 @@ const DEFAULT_GENRES = [
   'slice of life',
   'sci-fi',
 ];
-
-const oneOf = <T extends string>(v: unknown, all: readonly T[]): T | undefined =>
-  typeof v === 'string' && (all as readonly string[]).includes(v) ? (v as T) : undefined;
-const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-const num = (v: unknown) => {
-  const n = typeof v === 'string' ? Number(v) : v;
-  return typeof n === 'number' && Number.isInteger(n) ? n : undefined;
-};
-
-/** Router `validateSearch`: unknown keys and bad values are dropped, never thrown. */
-export function validateBrowseSearch(s: Record<string, unknown>): BrowseSearch {
-  const out: BrowseSearch = {};
-  const set = <K extends keyof BrowseSearch>(k: K, v: BrowseSearch[K] | undefined) => {
-    if (v !== undefined) out[k] = v;
-  };
-  set('q', str(s.q));
-  set('kind', oneOf(s.kind, KINDS));
-  set('status', oneOf(s.status, STATUSES));
-  set('genres', str(s.genres));
-  set('exclude', str(s.exclude));
-  set('tags', str(s.tags));
-  set('language', str(s.language));
-  set('year_from', num(s.year_from));
-  set('year_to', num(s.year_to));
-  set(
-    'rating_min',
-    ((n) => (n !== undefined && n >= 1 && n <= 10 ? n : undefined))(num(s.rating_min)),
-  );
-  set('age', oneOf(s.age, AGES));
-  set(
-    'sort',
-    oneOf(
-      s.sort,
-      SORTS.map((x) => x.value),
-    ),
-  );
-  set('order', oneOf(s.order, ['asc', 'desc'] as const));
-  set('view', oneOf(s.view, ['grid', 'list'] as const));
-  return out;
-}
 
 const csv = (v?: string) =>
   v

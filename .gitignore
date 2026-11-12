@@ -23,3 +23,6 @@ e2e/test-results/
 
 # Emulator cores are fetched at install time by pinned SHA-256 and never committed (deploy/EMULATOR.md)
 /apps/web/public/emu/cores/
+
+# SEC-AUD-145: written by a build with SR_BUNDLE_REPORT=1
+/apps/web/bundle-report.json

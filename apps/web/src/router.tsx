@@ -28,13 +28,31 @@ import { createEmuRoutes } from './emu/routes';
 import { isPublicPath } from './player/scope';
 import { rememberSection } from './state/session';
 import { parseSearchValue, stringifySearchValue } from './lib/searchCodec';
-import { Help } from './help/HelpPage';
-import { HelpOperators } from './help/Operators';
 import { HelpSkeleton } from './help/HelpSkeleton';
 import { AppServerInvite } from './app/AppServerInvite';
 import { AppServerTemplate } from './app/AppServerTemplate';
 import { AppDoor } from './app/AppDoor';
 import { reportRenderError } from './crash/install';
+
+// The handbook pages are not first-paint code (SEC-AUD-144): their own chunks, the entrance skeleton meanwhile.
+const HelpPageLazy = lazy(() => import('./help/HelpPage').then((m) => ({ default: m.Help })));
+const HelpOperatorsLazy = lazy(() =>
+  import('./help/Operators').then((m) => ({ default: m.HelpOperators })),
+);
+function Help() {
+  return (
+    <Suspense fallback={<HelpSkeleton />}>
+      <HelpPageLazy />
+    </Suspense>
+  );
+}
+function HelpOperators() {
+  return (
+    <Suspense fallback={<HelpSkeleton />}>
+      <HelpOperatorsLazy />
+    </Suspense>
+  );
+}
 
 // /help/whats-new carries the whole changelog text, so it is its own chunk (RDY-ONB-003).
 const WhatsNewPage = lazy(() => import('./help/WhatsNew').then((m) => ({ default: m.WhatsNew })));
