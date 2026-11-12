@@ -563,3 +563,5 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-124** [BE] The gateway's platform pump learns of lag (`subscribe_lagging`) and reconciles every connected session's guilds against the directory, sending GUILD_DELETE/voice leave or GUILD_CREATE as needed. D-620. Handoff `fix-p60-guild.md`.
 - [x] **SEC-AUD-125** [BE] GUILD_SCHEDULED_EVENT_USER_ADD/REMOVE carry the event's `channel_id` and follow its visibility. D-621. Handoff `fix-p60-guild.md`.
 - [x] **SEC-AUD-126** [BE] A role mention reads only the role's holders (`page_members_with_roles`); `@everyone` still pages all members. Handoff `fix-p60-guild.md`.
+- [x] **SEC-AUD-127** [BE] A submitter's publish-now retry of a reviewer's approval publishes only what the reviewer approved (D-624). Handoff `fix-p60-followup.md`.
+- [x] **SEC-AUD-128** [BE] A bot install takes the per-server-and-user membership lock before the ban check, so a racing ban never leaves a banned bot as a member (D-625). Handoff `fix-p60-followup.md`.
