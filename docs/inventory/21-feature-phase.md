@@ -535,6 +535,16 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-096** [BE] A seek or rate change during a watch-party auto-pause keeps the buffering deadline. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-097** [BE] Guest-link revoke checks the current host (or the link creator), not the original starter. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-098** [BE] Discord link and unlink write their audit row in the same transaction: no audit row, no change (D-608). Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-099** [BE] A reconcile pass skips a SIDE ROOM channel created between its two reads (the next pass maps it) instead of panicking on `sr_ch[&id]`.
+- [x] **SEC-AUD-100** [BE] A webhook lookup error (database, unseal) reschedules the queued post with backoff and dead-letters it at `max_attempts` with the reason; only "no webhook" drops it (D-610).
+- [x] **SEC-AUD-101** [BE] A delete or edit made while a bridged post is in flight reaches Discord: the worker removes its row with `DELETE .. RETURNING` and queues a `delete` (row gone) or an `edit` (payload changed) (D-610).
+- [x] **SEC-AUD-102** [BE] One Discord channel is bridged into at most one SIDE ROOM server per instance (re-checked under an advisory lock in the insert transaction); inbound ignores posts of any bridge webhook on the instance. Migration 2610 adds a plain index (D-609).
+- [x] **SEC-AUD-103** [BE] A bridged message whose author link could not be stored is removed again (deleted, purge due) before the error is returned.
+- [x] **SEC-AUD-104** [BE] `erase_for` deletes a map row only after Discord confirmed the copy is gone.
+- [x] **SEC-AUD-105** [BE] A failed list read during the whole-guild teardown stops the teardown before anything is deleted.
+- [x] **SEC-AUD-106** [BE] Replacing the bot token keeps the bridge on its Discord server (another server: Conflict) and writes an INTEGRATION_UPDATE (81) audit row in the same transaction (D-611).
+- [x] **SEC-AUD-107** [BE] An ignored map insert removes the object the pass just created (Discord or SIDE ROOM) and fails the pass with a Conflict.
+- [x] **SEC-AUD-108** [BE] The localhost attachment exception of `is_discord_cdn` exists in debug builds only.
 - [x] **SEC-AUD-109** [BE] Wrong second-factor answers also count against the account, whatever address or pending login they come from; a correct answer clears it (D-612). Handoff `fix-p60-access.md`.
 - [x] **SEC-AUD-110** [BE] A password-reset link only changes the password of an active account; a link minted before a suspension or ban answers as expired. Handoff `fix-p60-access.md`.
 - [x] **SEC-AUD-111** [BE] A release build with no `[smtp]` host uses a mailer that sends nothing and never logs a mail body (subject and recipient domain only, with a startup warning); debug builds keep the log mailer (D-613). Handoff `fix-p60-access.md`.
