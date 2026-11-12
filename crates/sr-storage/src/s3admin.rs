@@ -432,6 +432,23 @@ impl S3Admin {
             .await
     }
 
+    /// `GetObject` with the response overrides `response-content-type` and `response-content-disposition`
+    /// (the signed query parameters a presigned link carries; the connection test checks they are honoured).
+    pub async fn get_object_as(
+        &self,
+        key: &str,
+        content_type: &str,
+        disposition: &str,
+        timeout: Duration,
+    ) -> Result<S3Reply> {
+        let q = [
+            ("response-content-disposition", disposition),
+            ("response-content-type", content_type),
+        ];
+        self.call("GET", Some(key), &q, None, &[], Some(timeout))
+            .await
+    }
+
     /// `DeleteObject`.
     pub async fn delete_object(&self, key: &str, timeout: Duration) -> Result<S3Reply> {
         self.call("DELETE", Some(key), &[], None, &[], Some(timeout))

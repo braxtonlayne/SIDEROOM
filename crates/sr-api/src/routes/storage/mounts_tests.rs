@@ -640,6 +640,27 @@ use std::sync::Mutex;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+/// The value of query parameter `name` of a request target, percent-decoded.
+fn query_value(target: &str, name: &str) -> Option<String> {
+    let q = target.split_once('?')?.1;
+    let raw = q
+        .split('&')
+        .find_map(|p| p.strip_prefix(&format!("{name}=")))?;
+    let bytes = raw.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
 /// A fake S3 for one bucket named `shelf`: a healthy key whose CORS document is whatever was PUT last.
 /// `deny_put` makes writes fail so the test goes red.
 async fn fake_s3(deny_put: bool) -> (String, Arc<Mutex<Option<String>>>) {
@@ -688,6 +709,9 @@ async fn fake_s3(deny_put: bool) -> (String, Arc<Mutex<Option<String>>>) {
                                 (200, String::new())
                             }
                         }
+                        ("GET", t) if t.contains(".sideroom-probe?response-content") => {
+                            (200, "sideroom probe".to_owned())
+                        }
                         ("GET", t) if t.ends_with(".sideroom-probe") => {
                             (200, "sideroom probe".to_owned())
                         }
@@ -712,8 +736,18 @@ async fn fake_s3(deny_put: bool) -> (String, Arc<Mutex<Option<String>>>) {
                         _ => (500, String::new()),
                     };
                     let reply = if m == "HEAD" { String::new() } else { reply };
+                    // A real bucket answers a signed GET with the response overrides it carries.
+                    let mut extra = String::new();
+                    if m == "GET" && status == 200 {
+                        if let Some(v) = query_value(t, "response-content-type") {
+                            extra.push_str(&format!("content-type: {v}\r\n"));
+                        }
+                        if let Some(v) = query_value(t, "response-content-disposition") {
+                            extra.push_str(&format!("content-disposition: {v}\r\n"));
+                        }
+                    }
                     let resp = format!(
-                        "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                        "HTTP/1.1 {status} X\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{reply}",
                         reply.len()
                     );
                     let _ = sock.write_all(resp.as_bytes()).await;
@@ -759,6 +793,7 @@ async fn the_connection_test_stores_its_result_and_flips_the_status() {
             "head_bucket",
             "list",
             "put",
+            "response_type",
             "multipart",
             "cors",
             "list_buckets"
@@ -774,7 +809,7 @@ async fn the_connection_test_stores_its_result_and_flips_the_status() {
     let (_, list, _) = e.call(Some(MEMBER), Method::GET, base, None).await;
     let m = &list.as_array().unwrap()[0];
     assert_eq!(m["status"], "active");
-    assert_eq!(m["last_test"]["rows"].as_array().unwrap().len(), 6);
+    assert_eq!(m["last_test"]["rows"].as_array().unwrap().len(), 7);
     assert!(m["last_test_at"].is_string());
 
     // A failing key turns it `failing`; a clean run turns it back.

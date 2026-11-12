@@ -1,6 +1,6 @@
 //! Operations on a mount: the connection test (BYOS-MNT-002) and the CORS check and apply (BYOS-MNT-003).
 //!
-//! * `POST {base}/{mount_id}/test` runs the six probes inside a 20 s budget, stores the result as `last_test`
+//! * `POST {base}/{mount_id}/test` runs the seven probes inside a 20 s budget, stores the result as `last_test`
 //!   and sets the mount `failing` on any failed row (back to `active` on a clean run). Rate limited by
 //!   `abuse.storage_tests_per_hour`.
 //! * `POST {base}/{mount_id}/cors/check` and `.../cors/apply` answer `ok|missing|different|manual`. `ok` stamps

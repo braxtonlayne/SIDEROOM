@@ -26,7 +26,7 @@ use sr_storage::scopes::{
     Access, Refused, ResolveError, Scope, ScopeFacts, Viewer, check_range, presign_ttl_secs,
 };
 use sr_storage::uploads::{FOLDER_OP_CAP, MoveError, plan_move};
-use sr_storage::{ObjectStorage, StorageError};
+use sr_storage::{ObjectStorage, ResponseAs, StorageError};
 use sr_storage::{PresignMethod, mounts::Sealer};
 use std::time::Duration;
 use utoipa::ToSchema;
@@ -587,18 +587,26 @@ pub async fn presign(
         return Err(ErrorCode::Unauthorized.into());
     };
     let storage = storage_for(&d, &r.mount)?;
-    let url = storage
-        .presign(
-            if put {
-                PresignMethod::Put
-            } else {
-                PresignMethod::Get
-            },
-            &r.mount.bucket_key(&body.key),
-            Duration::from_secs(secs),
-        )
-        .await
-        .map_err(|e| bucket_error(&e))?;
+    let bucket_key = r.mount.bucket_key(&body.key);
+    let ttl = Duration::from_secs(secs);
+    let url = if put {
+        // A PUT has no response override (an emulator's saves go through here unchanged).
+        storage.presign(PresignMethod::Put, &bucket_key, ttl).await
+    } else {
+        // D-641: a GET is signed with the app's type table, never the object's stored type.
+        let (content_type, disposition) = crate::routes::cdn::content::response_for(&body.key);
+        storage
+            .presign_get_as(
+                &bucket_key,
+                ttl,
+                &ResponseAs {
+                    content_type,
+                    disposition: &disposition,
+                },
+            )
+            .await
+    }
+    .map_err(|e| bucket_error(&e))?;
     log_staff(admin.as_deref(), &r, "presign", &body.key).await?;
     let expires_ms = state
         .now_secs()
