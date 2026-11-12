@@ -512,3 +512,20 @@ fn openapi_documents_search_paths() {
     assert!(paths.contains_key("/guilds/{guild_id}/messages/search"));
     assert!(paths.contains_key("/channels/{channel_id}/messages/search"));
 }
+
+#[tokio::test]
+async fn clear_access_forgets_a_cached_allow_list() {
+    let e = env(&[]).await;
+    let room = e.add_channel(9_004, "lag-room", false, false);
+    let id = e.say(room, "owner", "lagged message").await;
+    e.index_all();
+    let q = e.guild_search("content=lagged");
+    assert_eq!(e.ids(&q, "bob").await, vec![id]);
+
+    // The member loses the channel and the event that said so was lost: the cache still lists it...
+    e.hide(room);
+    assert_eq!(e.ids(&q, "bob").await.len(), 1);
+    // ...until the lag recovery clears the access caches.
+    e.search.clear_access();
+    assert!(e.ids(&q, "bob").await.is_empty());
+}

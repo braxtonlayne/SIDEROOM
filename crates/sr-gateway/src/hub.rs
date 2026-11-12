@@ -960,14 +960,17 @@ impl Gateway {
         if st.guild_tasks.contains_key(&g) {
             return;
         }
-        let mut stream = self.inner.bus.subscribe(Topic::Guild(g));
+        let mut stream = self.inner.bus.subscribe_lagging(Topic::Guild(g));
         let weak: Weak<Inner> = Arc::downgrade(&self.inner);
         st.guild_tasks.insert(
             g,
             tokio::spawn(async move {
-                while let Some(ev) = stream.next().await {
+                while let Some(item) = stream.next().await {
                     let Some(inner) = weak.upgrade() else { break };
-                    Gateway { inner }.on_guild_event(g, ev).await;
+                    match item {
+                        Ok(ev) => Gateway { inner }.on_guild_event(g, ev).await,
+                        Err(missed) => Gateway { inner }.on_guild_lag(g, missed),
+                    }
                 }
             }),
         );
@@ -978,17 +981,39 @@ impl Gateway {
         if st.user_tasks.contains_key(&user) {
             return;
         }
-        let mut stream = self.inner.bus.subscribe(Topic::User(user));
+        let mut stream = self.inner.bus.subscribe_lagging(Topic::User(user));
         let weak: Weak<Inner> = Arc::downgrade(&self.inner);
         st.user_tasks.insert(
             user,
             tokio::spawn(async move {
-                while let Some(ev) = stream.next().await {
+                while let Some(item) = stream.next().await {
                     let Some(inner) = weak.upgrade() else { break };
-                    Gateway { inner }.on_user_event(user, ev).await;
+                    match item {
+                        Ok(ev) => Gateway { inner }.on_user_event(user, ev).await,
+                        Err(missed) => Gateway { inner }.on_user_lag(user, missed),
+                    }
                 }
             }),
         );
+    }
+
+    /// The guild pump fell behind (SEC-AUD-141, D-628): a membership change may be among the lost events, so the
+    /// member list is rebuilt. Lost dispatches are not replayed; clients resync on their next reconnect.
+    fn on_guild_lag(&self, guild: GuildId, missed: u64) {
+        tracing::warn!(%guild, missed, "guild pump lagged; refreshing the member list");
+        self.schedule_list_refresh(guild, true);
+    }
+
+    /// The user pump fell behind (SEC-AUD-141, D-628): a `SessionsRevoked` or a safety change may be among the
+    /// lost events, so every session of the user re-checks its credential and drops its cached age and safety
+    /// state. Lost dispatches are not replayed.
+    fn on_user_lag(&self, user: UserId, missed: u64) {
+        tracing::warn!(%user, missed, "user pump lagged; re-checking the user's sessions");
+        for s in self.user_sessions(user) {
+            s.send_recheck();
+            s.clear_age_cache();
+            s.clear_safety_cache();
+        }
     }
 
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
