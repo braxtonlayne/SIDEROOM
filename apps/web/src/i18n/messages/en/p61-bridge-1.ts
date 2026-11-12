@@ -5,6 +5,6 @@ export default {
     'Another server on this instance also bridges this Discord channel. Messages from both appear there. Remove this map to stop.',
   'settings.bridge.erasure.title': 'Messages to delete on Discord',
   'settings.bridge.erasure.notice':
-    'Messages of deleted accounts that could not be removed from Discord. Delete them on Discord by hand; this list empties by itself within a day.',
+    'Messages of deleted accounts the bridge could not remove from Discord. Delete them there by hand.',
   'settings.bridge.erasure.entry': '#{channel}, message {id}',
 } satisfies Record<string, string>;

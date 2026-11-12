@@ -396,7 +396,7 @@ describe('the Discord bridge screen', () => {
     await openSettings('bridge');
     expect(
       await screen.findByText(
-        'Messages of deleted accounts that could not be removed from Discord. Delete them on Discord by hand; this list empties by itself within a day.',
+        'Messages of deleted accounts the bridge could not remove from Discord. Delete them there by hand.',
       ),
     ).toBeVisible();
     // The channel name comes from the maps, else the id.
