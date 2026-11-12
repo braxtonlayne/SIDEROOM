@@ -535,3 +535,21 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-096** [BE] A seek or rate change during a watch-party auto-pause keeps the buffering deadline. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-097** [BE] Guest-link revoke checks the current host (or the link creator), not the original starter. Handoff `fix-p59-data.md`.
 - [x] **SEC-AUD-098** [BE] Discord link and unlink write their audit row in the same transaction: no audit row, no change (D-608). Handoff `fix-p59-data.md`.
+- [x] **SEC-AUD-109** [BE] Wrong second-factor answers also count against the account, whatever address or pending login they come from; a correct answer clears it (D-612). Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-110** [BE] A password-reset link only changes the password of an active account; a link minted before a suspension or ban answers as expired. Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-111** [BE] A release build with no `[smtp]` host uses a mailer that sends nothing and never logs a mail body (subject and recipient domain only, with a startup warning); debug builds keep the log mailer (D-613). Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-112** [BE] `sr-cli seed` on a non-local instance needs `--force` and its own `--password` (12+ characters, not the built-in development password) (D-614). Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-113** [BE] A platform feature change is validated completely, audited, then applied as one write of one record; a failed apply adds `features.patch_failed` (D-615). Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-114** [BE] Library staff changes write their access-log row first and are not made if it cannot be written; creates write it right after and answer 500 if it is missing (D-615). Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-115** [BE] The re-auth lock comment names its own `reauth:<id>` key. Handoff `fix-p60-access.md`.
+- [x] **SEC-AUD-116** [BE] An erasure run is one transaction with its audit row; a concurrent second run answers Conflict (D-616). Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-117** [BE] Account deletion removes personal state (progress, bookmarks, notes, personal loot tables, saved/private/friends lists, upcoming card claims) and keeps contributions (D-617). Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-118** [BE] A deleted account's data exports expire at once or fail (D-617). Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-119** [BE] Export finish and fail are one transaction each. Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-120** [BE] Patron notice transitions are one transaction. Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-121** [BE] Publish-now claims the submission before publishing; a failure leaves it Approved for a retry (D-618). Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-122** [BE] A staff rename cannot take a username held after an account deletion. Handoff `fix-p60-dsr.md`.
+- [x] **SEC-AUD-123** [BE] A ban and every join of the same (guild, user) are serialized by a transaction advisory lock taken before the ban check (insert_ban, invite join, listed join, application approval). A ban committing during a join can no longer leave a banned member. D-619. Handoff `fix-p60-guild.md`.
+- [x] **SEC-AUD-124** [BE] The gateway's platform pump learns of lag (`subscribe_lagging`) and reconciles every connected session's guilds against the directory, sending GUILD_DELETE/voice leave or GUILD_CREATE as needed. D-620. Handoff `fix-p60-guild.md`.
+- [x] **SEC-AUD-125** [BE] GUILD_SCHEDULED_EVENT_USER_ADD/REMOVE carry the event's `channel_id` and follow its visibility. D-621. Handoff `fix-p60-guild.md`.
+- [x] **SEC-AUD-126** [BE] A role mention reads only the role's holders (`page_members_with_roles`); `@everyone` still pages all members. Handoff `fix-p60-guild.md`.
