@@ -272,6 +272,49 @@ impl FeatureService {
         self.write(id, scope, rec).await
     }
 
+    /// Check a platform-scope patch without writing anything: the feature exists, the platform level is one it
+    /// declares, and the settings pass its schema (D-615: validate completely before anything is audited or applied).
+    pub fn validate_platform(
+        &self,
+        id: &str,
+        settings: Option<&Map<String, Value>>,
+    ) -> Result<(), FeatureError> {
+        let feature = self.feature(id)?;
+        if let Some(values) = settings {
+            if !feature.scopes().contains(&Scope::Platform) {
+                return Err(FeatureError::UnsupportedScope {
+                    feature: id.to_owned(),
+                    scope: Scope::Platform,
+                });
+            }
+            feature
+                .settings_schema()
+                .validate_at(Scope::Platform, values)?;
+        }
+        Ok(())
+    }
+
+    /// Apply a platform-scope change as ONE write of one record: `enabled` is `None` to leave the flag,
+    /// `Some(None)` to clear it and `Some(Some(b))` to set it; `settings` replaces the platform overrides.
+    /// Validates first, so a refusal changes nothing.
+    pub async fn set_platform(
+        &self,
+        id: &str,
+        enabled: Option<Option<bool>>,
+        settings: Option<Map<String, Value>>,
+    ) -> Result<(), FeatureError> {
+        self.validate_platform(id, settings.as_ref())?;
+        let scope = ScopeRef::Platform;
+        let mut rec = self.inner.store.get(id, &scope).await?.unwrap_or_default();
+        if let Some(e) = enabled {
+            rec.enabled = e;
+        }
+        if let Some(values) = settings {
+            rec.values = values;
+        }
+        self.write(id, &scope, rec).await
+    }
+
     /// Defaults for the scope kind overlaid by overrides from platform down to `scope`.
     pub async fn effective_settings(
         &self,

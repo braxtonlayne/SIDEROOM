@@ -178,6 +178,8 @@ impl State {
 pub struct MemoryAdminRepo {
     state: Mutex<State>,
     clock: Arc<dyn Clock>,
+    /// Tests: make every access-log append fail.
+    log_failing: std::sync::atomic::AtomicBool,
 }
 
 impl Default for MemoryAdminRepo {
@@ -194,7 +196,14 @@ impl MemoryAdminRepo {
                 ..State::default()
             }),
             clock,
+            log_failing: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// Tests: while on, `append_log` answers a storage error and writes nothing.
+    pub fn set_log_failing(&self, on: bool) {
+        self.log_failing
+            .store(on, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn s(&self) -> MutexGuard<'_, State> {
@@ -1345,6 +1354,9 @@ impl AdminRepository for MemoryAdminRepo {
     }
 
     async fn append_log(&self, entry: &AuditEntry) -> AdminResult<AccessLogEntry> {
+        if self.log_failing.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(AdminError::Storage("access log unavailable".into()));
+        }
         let now = self.now();
         Ok(self.s().append(now, entry))
     }

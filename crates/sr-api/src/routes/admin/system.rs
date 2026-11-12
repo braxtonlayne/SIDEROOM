@@ -193,35 +193,35 @@ pub async fn patch_feature(
         .get(&feature_id)
         .cloned()
         .ok_or_else(|| feature_err(FeatureError::UnknownFeature(feature_id.clone())))?;
-    if let Some(e) = b.enabled {
-        svc.set_enabled(&feature_id, &ScopeRef::Platform, Some(e))
-            .await
-            .map_err(feature_err)?;
-    } else if b.reset_enabled {
-        svc.set_enabled(&feature_id, &ScopeRef::Platform, None)
-            .await
-            .map_err(feature_err)?;
-    }
-    if let Some(values) = &b.settings {
-        svc.set_settings(&feature_id, &ScopeRef::Platform, values.clone())
-            .await
-            .map_err(feature_err)?;
-    }
+    // D-615: validate everything first, then write the audit row, then apply as one write.
+    svc.validate_platform(&feature_id, b.settings.as_ref())
+        .map_err(feature_err)?;
+    let enabled = match (b.enabled, b.reset_enabled) {
+        (Some(e), _) => Some(Some(e)),
+        (None, true) => Some(None),
+        (None, false) => None,
+    };
+    let detail = json!({
+        "feature": feature_id,
+        "enabled": b.enabled,
+        "reset_enabled": b.reset_enabled,
+        "settings_changed": b.settings.is_some(),
+    });
     ctx.svc()
-        .record(
-            &ctx.caller,
-            "features.patch",
-            None,
-            &reason,
-            json!({
-                "feature": feature_id,
-                "enabled": b.enabled,
-                "reset_enabled": b.reset_enabled,
-                "settings_changed": b.settings.is_some(),
-            }),
-        )
+        .record(&ctx.caller, "features.patch", None, &reason, detail.clone())
         .await
         .map_err(map_err)?;
+    if let Err(e) = svc.set_platform(&feature_id, enabled, b.settings).await {
+        // Best effort: the row above says what was asked; this one says it did not happen.
+        if let Err(log) = ctx
+            .svc()
+            .record(&ctx.caller, "features.patch_failed", None, &reason, detail)
+            .await
+        {
+            tracing::warn!(error = %log, "features.patch_failed row not written");
+        }
+        return Err(feature_err(e));
+    }
     Ok(Json(
         feature_view(svc, &feature).await.map_err(feature_err)?,
     ))
