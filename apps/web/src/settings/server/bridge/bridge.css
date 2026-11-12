@@ -83,15 +83,50 @@
   font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
-/* On a phone the table scrolls sideways; the warning stays as wide as what is visible and sticks to the start edge, so
-   it reads in full while the row's columns scroll. */
+/* SEC-AUD-146: on a phone each map is a stacked block (labelled lines, Test and Remove side by side, then its
+   warning, then a separator); the header row stays in the accessibility tree only. */
 @media (max-width: 720px) {
-  .ss-table:has(.ss-bridge-shared) {
-    container-type: inline-size;
+  .ss-bridge-maps,
+  .ss-bridge-maps tbody,
+  .ss-bridge-maps tr,
+  .ss-bridge-maps td {
+    display: block;
   }
-  .ss-bridge-shared-line {
-    position: sticky;
-    inset-inline-start: 0;
-    inline-size: calc(100cqw - 16px);
+  .ss-bridge-maps thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ss-bridge-maps tr {
+    padding-block: 8px;
+    border-block-start: 1px solid var(--ui-border);
+  }
+  .ss-bridge-maps tbody tr:first-child {
+    border-block-start: 0;
+  }
+  .ss-bridge-maps tr.ss-bridge-shared {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+  .ss-bridge-maps tr.ss-bridge-row-shared {
+    padding-block-end: 0;
+  }
+  .ss-bridge-maps td {
+    border-top: 0;
+    padding: 4px 0;
+    overflow-wrap: anywhere;
+  }
+  .ss-bridge-maps td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ui-text-muted);
+  }
+  .ss-bridge-maps .ss-bridge-map-actions {
+    padding-block-start: 8px;
   }
 }

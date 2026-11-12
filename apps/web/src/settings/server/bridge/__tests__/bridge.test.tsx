@@ -377,6 +377,32 @@ describe('the Discord bridge screen', () => {
     expect(within(rows[flagged + 2]!).getByText('#off-topic')).toBeInTheDocument();
   });
 
+  it('labels every cell of a map row with its column name for the phone layout (SEC-AUD-146)', async () => {
+    seed({ perms: [MANAGE.guild], ...OWNER });
+    server.use(
+      on(),
+      http.get(STATUS, () =>
+        HttpResponse.json(status({ maps: [wireMap({ shared_on_instance: true })] })),
+      ),
+      http.get('*/api/v1/guilds/g1/bridge/discord-channels', () => HttpResponse.json([])),
+    );
+    await openSettings('bridge');
+    const table = await screen.findByRole('table', { name: 'Mirrored channels' });
+    expect(table).toHaveClass('ss-bridge-maps');
+    const rows = within(table).getAllByRole('row');
+    const row = rows.find((r) => within(r).queryByText('#general-chat'))!;
+    const cells = within(row).getAllByRole('cell');
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual([
+      'Channel here',
+      'Channel on Discord',
+      'Direction',
+      null,
+    ]);
+    // The warning row still follows its map and sits inside the same table.
+    const next = rows[rows.indexOf(row) + 1]!;
+    expect(next).toHaveClass('ss-bridge-shared');
+  });
+
   it('lists the Discord messages of deleted accounts the bridge could not remove', async () => {
     seed({ perms: [MANAGE.guild], ...OWNER });
     server.use(
