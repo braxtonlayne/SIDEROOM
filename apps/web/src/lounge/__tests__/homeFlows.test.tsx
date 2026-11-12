@@ -262,6 +262,10 @@ describe('Friends page', () => {
     await screen.findByRole('list', { name: 'Online' });
     await userEvent.click(screen.getByRole('button', { name: 'More actions for Bob B' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove Friend' }));
+    expect(removed).toBe(0);
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove Friend' }),
+    );
     await waitFor(() => expect(removed).toBe(1));
     const info = screen.getByText(/blocked or ignored/).closest('[role="status"]') as HTMLElement;
     await userEvent.click(within(info).getByRole('button', { name: 'Dismiss' }));

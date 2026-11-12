@@ -276,7 +276,7 @@ function MapCard({
       {status.maps.length === 0 ? (
         <p className="ss-na">{t('settings.bridge.map.none')}</p>
       ) : (
-        <table className="ss-table" aria-label={t('settings.bridge.map.title')}>
+        <table className="ss-table ss-bridge-maps" aria-label={t('settings.bridge.map.title')}>
           <thead>
             <tr>
               <th scope="col">{t('settings.bridge.map.colOurs')}</th>
@@ -291,10 +291,14 @@ function MapCard({
             {status.maps.map((m) => (
               <Fragment key={m.id}>
                 <tr className={m.shared_on_instance ? 'ss-bridge-row-shared' : undefined}>
-                  <td>#{nameOf(m.channel_id)}</td>
-                  <td>#{m.discord_channel_name ?? m.discord_channel_id}</td>
-                  <td>{directionLabel(m.direction)}</td>
-                  <td>
+                  <td data-label={t('settings.bridge.map.colOurs')}>#{nameOf(m.channel_id)}</td>
+                  <td data-label={t('settings.bridge.map.colTheirs')}>
+                    #{m.discord_channel_name ?? m.discord_channel_id}
+                  </td>
+                  <td data-label={t('settings.bridge.map.colDirection')}>
+                    {directionLabel(m.direction)}
+                  </td>
+                  <td className="ss-bridge-map-actions">
                     <div className="ss-actions">
                       <Button
                         size="sm"
@@ -320,9 +324,7 @@ function MapCard({
                 {m.shared_on_instance && (
                   <tr className="ss-bridge-shared">
                     <td colSpan={4}>
-                      <div className="ss-bridge-shared-line">
-                        <Notice variant="warning">{t('settings.bridge.shared.warning')}</Notice>
-                      </div>
+                      <Notice variant="warning">{t('settings.bridge.shared.warning')}</Notice>
                     </td>
                   </tr>
                 )}

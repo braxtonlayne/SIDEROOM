@@ -51,6 +51,7 @@ export type LoungeDialog =
   | { kind: 'addToDm'; channelId: string }
   | { kind: 'customStatus' }
   | { kind: 'note'; userId: string; name: string }
+  | { kind: 'confirmRelationship'; action: 'block' | 'removeFriend'; userId: string; name: string }
   | { kind: 'nickname'; guildId: string; userId: string }
   | { kind: 'memberAction'; action: 'timeout' | 'kick' | 'ban'; guildId: string; userId: string }
   | { kind: 'editChannel'; guildId: string; channelId: string }

@@ -522,6 +522,43 @@ describe('message actions', () => {
     expect(await screen.findByRole('dialog', { name: 'Delete Message' })).toBeInTheDocument();
   });
 
+  it('End Poll asks first: Cancel ends nothing, Confirm ends it once (SEC-AUD-147)', async () => {
+    seed({
+      messages: [
+        msg('300', {
+          author: me,
+          poll: {
+            question: { text: 'Mine?' },
+            answers: [{ answer_id: 1, poll_media: { text: 'Yes' } }],
+            expiry: new Date(NOW + 3 * 3_600_000).toISOString(),
+            allow_multiselect: false,
+            results: { is_finalized: false, answer_counts: [{ id: 1, count: 0, me_voted: false }] },
+          },
+        }),
+      ],
+    });
+    server.use(
+      http.post('*/api/v1/channels/:cid/polls/:mid/expire', async (ctx) => {
+        await record('POST')(ctx);
+        return HttpResponse.json({});
+      }),
+    );
+    at('/channels/g1/c1');
+    const poll = await screen.findByRole('region', { name: 'Poll: Mine?' });
+    await userEvent.click(within(poll).getByRole('button', { name: 'End Poll' }));
+    let dialog = await screen.findByRole('dialog', { name: 'End this poll now?' });
+    expect(calls).toHaveLength(0);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(calls).toHaveLength(0);
+    await userEvent.click(within(poll).getByRole('button', { name: 'End Poll' }));
+    dialog = await screen.findByRole('dialog', { name: 'End this poll now?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'End Poll' }));
+    await waitFor(() =>
+      expect(calls.map((c) => c.key)).toEqual(['POST /channels/c1/polls/300/expire']),
+    );
+  });
+
   it('votes in a poll and shows results', async () => {
     at('/channels/g1/c1');
     const poll = await screen.findByRole('region', { name: 'Poll: Best snack?' });
