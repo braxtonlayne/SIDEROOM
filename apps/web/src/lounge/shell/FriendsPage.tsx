@@ -25,6 +25,7 @@ import {
   type RelationshipRow,
 } from './api';
 import { ActiveNow } from './ActiveNow';
+import { ConfirmAction, type ConfirmKind } from './ConfirmAction';
 import { useOpenDm } from './dm';
 import { friendsOf, incomingOf, outgoingOf, useSocial, wireName } from './social';
 
@@ -49,6 +50,8 @@ function FriendRow({
   const p = presence[r.id];
   const name = wireName(r.user);
   const [shareOpen, setShareOpen] = useState(false);
+  // SEC-AUD-147 (D-638): Remove Friend and Block ask first.
+  const [ask, setAsk] = useState<ConfirmKind | null>(null);
   return (
     <li className="lng-friend-row">
       <Avatar name={name} size={32} status={p?.status ?? 'offline'} />
@@ -77,8 +80,7 @@ function FriendRow({
           {
             label: t('lounge.friends.removeFriend'),
             danger: true,
-            onSelect: () =>
-              void actions.run(removeRelationship(r.id), t('lounge.friends.removeError')),
+            onSelect: () => setAsk('removeFriend'),
           },
           {
             label: t('lounge.friends.ignore'),
@@ -87,7 +89,7 @@ function FriendRow({
           {
             label: t('lounge.friends.block'),
             danger: true,
-            onSelect: () => void actions.run(blockUser(r.id), t('lounge.friends.blockError')),
+            onSelect: () => setAsk('block'),
           },
         ]}
         trigger={
@@ -99,6 +101,17 @@ function FriendRow({
             <Icon name="more-horizontal" size={20} />
           </button>
         }
+      />
+      <ConfirmAction
+        kind={ask}
+        name={name}
+        onCancel={() => setAsk(null)}
+        onConfirm={() => {
+          const kind = ask;
+          setAsk(null);
+          if (kind === 'block') void actions.run(blockUser(r.id), t('lounge.friends.blockError'));
+          else void actions.run(removeRelationship(r.id), t('lounge.friends.removeError'));
+        }}
       />
       {shareOpen && (
         <div className="sto-share-row">

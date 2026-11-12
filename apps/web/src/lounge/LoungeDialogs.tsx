@@ -17,6 +17,7 @@ import { EditChannelDialog } from './shell/EditChannelDialog';
 import { FolderDialog } from './shell/FolderDialog';
 import { MemberActionDialog } from './shell/MemberDialogs';
 import { NicknameDialog, NoteDialog } from './shell/UserDialogs';
+import { RelationshipConfirmDialog } from './shell/ConfirmAction';
 import { LeaveServerDialog } from './shell/LeaveServerDialog';
 import { NotificationDialog } from './shell/NotificationDialog';
 import { BrowseChannelsDialog } from './shell/BrowseChannelsDialog';
@@ -102,6 +103,15 @@ export function LoungeDialogs() {
       );
     case 'note':
       return <NoteDialog userId={dialog.userId} name={dialog.name} onClose={close} />;
+    case 'confirmRelationship':
+      return (
+        <RelationshipConfirmDialog
+          action={dialog.action}
+          userId={dialog.userId}
+          name={dialog.name}
+          onClose={close}
+        />
+      );
     case 'nickname':
       return <NicknameDialog guildId={dialog.guildId} userId={dialog.userId} onClose={close} />;
     case 'customStatus':

@@ -17,6 +17,8 @@ import { SystemMessage } from '../msg/SystemMessage';
 import { NotificationDialog } from '../shell/NotificationDialog';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useUserMenuEntries } from '../shell/userMenu';
+import { RelationshipConfirmDialog } from '../shell/ConfirmAction';
+import { useLoungeUi } from '../store';
 import { at, baseHandlers, msg, seedLounge } from './gapsHelpers';
 
 vi.mock('../../store/connect', () => ({
@@ -167,6 +169,18 @@ describe('menus and rows about other people', () => {
         onSelect: () => void;
       };
     byLabel('Block').onSelect();
+    // The menu asks first (SEC-AUD-147): the confirm host does the block.
+    expect(useLoungeUi.getState().dialog).toMatchObject({
+      kind: 'confirmRelationship',
+      action: 'block',
+      userId: '2',
+    });
+    render(
+      <RelationshipConfirmDialog action="block" userId="2" name="Bob" onClose={() => undefined} />,
+    );
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }),
+    );
     await waitFor(() => expect(reported).toContain('lounge.friends.blockError'));
     byLabel('Ignore').onSelect();
     await waitFor(() => expect(reported).toContain('lounge.friends.ignoreError'));

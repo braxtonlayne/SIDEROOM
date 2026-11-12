@@ -6,7 +6,7 @@ import { isTextLike } from '../channels';
 import { useAllChannels, useGuilds } from '../data';
 import { inviteUrl } from '../inviteFlow';
 import { useLoungeUi } from '../store';
-import { blockUser, createDm, ignoreUser, removeRelationship } from './api';
+import { createDm, ignoreUser } from './api';
 import { rememberDm } from './dm';
 import { friendsOf, useSocial } from './social';
 import { entryList, useReportEntry } from '../../moderation/reports';
@@ -72,7 +72,13 @@ export function useUserMenuEntries(
           {
             label: t('lounge.menus.removeFriend'),
             danger: true,
-            onSelect: () => after(removeRelationship(user.id), 'lounge.friends.removeError'),
+            onSelect: () =>
+              openDialog({
+                kind: 'confirmRelationship',
+                action: 'removeFriend',
+                userId: user.id,
+                name: user.name,
+              }),
           } as MenuEntry,
         ]
       : []),
@@ -83,7 +89,13 @@ export function useUserMenuEntries(
     {
       label: t('lounge.menus.block'),
       danger: true,
-      onSelect: () => after(blockUser(user.id), 'lounge.friends.blockError'),
+      onSelect: () =>
+        openDialog({
+          kind: 'confirmRelationship',
+          action: 'block',
+          userId: user.id,
+          name: user.name,
+        }),
     },
     ...entryList(reportEntry({ kind: 'user', id: user.id, authorId: user.id, guildId })),
   ];
