@@ -610,3 +610,65 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* SEC-AUD-154: the Friends page fits a phone. The header wraps (title and plus on the first line, the tabs on
+   their own line and scrolling inside themselves), a row shrinks its text and shows the Message button as an icon,
+   and the Active Now column is already hidden on a phone (`data-mobile`, above). */
+@media (max-width: 720px) {
+  .lng-friends {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .lng-friends .lng-header {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--lounge-header, 48px);
+    row-gap: 0;
+    padding-block: 0;
+  }
+  .lng-friends .lng-header-title {
+    flex: 1;
+  }
+  .lng-friends .lng-friends-tabs {
+    order: 3;
+    flex: 0 0 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    margin-inline-start: 0;
+    padding-block: 4px 8px;
+  }
+  .lng-friends .lng-friends-tabs [role='tablist'] {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+  .lng-friends .lng-friends-body,
+  .lng-friends .lng-friends-main {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .lng-friends .lng-friend-row {
+    gap: 8px;
+    min-inline-size: 0;
+  }
+  .lng-friends .lng-friend-text {
+    min-inline-size: 0;
+  }
+  .lng-friends .lng-friend-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lng-friends .lng-friend-row > button,
+  .lng-friends .lng-friend-row > [data-ui-dropdown] {
+    flex: none;
+  }
+  .lng-friends .lng-friend-msg {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
