@@ -106,3 +106,29 @@ async fn a_revoked_session_cannot_resume() {
         .await;
     assert_eq!(again.recv_close().await, close::AUTHENTICATION_FAILED);
 }
+
+/// SEC-AUD-141 (D-628): a user topic that lagged may have lost a `SessionsRevoked`, so the user's sockets
+/// re-check their credential without any event.
+#[tokio::test]
+async fn a_lagged_user_topic_rechecks_that_users_sessions() {
+    use sr_events::{EventBus, Topic};
+    let w = TestWorld::new(event_only());
+    let mut gone = connect(&w, "user:7:0:a").await;
+    let mut other = connect(&w, "user:8:0:x").await;
+    w.auth.revoke("user:7:0:a");
+    // Overflow user 7's topic before its pump runs (the test runtime is single-threaded): no event names the
+    // revocation.
+    for n in 1..=300 {
+        w.bus
+            .publish(
+                Topic::User(UserId::new(7)),
+                DomainEvent::GuildDeleted {
+                    guild: sr_core::GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    assert_eq!(gone.recv_close().await, close::AUTHENTICATION_FAILED);
+    other.assert_silent().await;
+}
