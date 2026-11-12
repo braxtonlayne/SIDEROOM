@@ -10,6 +10,11 @@
  * the server wins for keys it has; keys only this device has are pushed up once (migration). Changes are
  * written as a merge patch, debounced by one second. `SR_USER_SETTINGS_UPDATE` from other sessions lands in the
  * store's `userSettings` slice and is applied here.
+ *
+ * A first read that fails (offline at page load) is retried on the `online` event and on the next local change
+ * (SEC-AUD-134, the shape SEC-AUD-037 gave `settings/user/prefsSync.ts`). Keys changed on this device that the
+ * account copy has not taken are remembered in localStorage (`UNSYNCED_KEY`), so when a read finally succeeds,
+ * in this page or after a reload, those keys are pushed from this device instead of being overwritten.
  */
 import { useEffect } from 'react';
 import { rest, useStore } from '../../store';
@@ -186,6 +191,43 @@ function mergePatch(synced: Settings, patch: Settings): Settings {
   return out;
 }
 
+/** Marks the synced keys changed on this device that the account copy has not taken (survives a reload). */
+export const UNSYNCED_KEY = 'sr.lounge.layout.unsynced';
+
+function readMarks(): Set<string> {
+  try {
+    const raw = localStorage.getItem(UNSYNCED_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as { user?: unknown; keys?: unknown };
+    const me = useStore.getState().currentUserId;
+    // A mark made under another account is not this account's change.
+    if (typeof parsed.user === 'string' && me && parsed.user !== me) {
+      localStorage.removeItem(UNSYNCED_KEY);
+      return new Set();
+    }
+    return new Set(
+      Array.isArray(parsed.keys)
+        ? parsed.keys.filter((k): k is string => typeof k === 'string')
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function writeMarks(keys: ReadonlySet<string>): void {
+  try {
+    if (!keys.size) localStorage.removeItem(UNSYNCED_KEY);
+    else
+      localStorage.setItem(
+        UNSYNCED_KEY,
+        JSON.stringify({ user: useStore.getState().currentUserId ?? null, keys: [...keys] }),
+      );
+  } catch {
+    /* private mode: the in-memory set still covers this page */
+  }
+}
+
 const SYNC_KEYS = [
   'guild_positions',
   'guild_folders',
@@ -204,24 +246,65 @@ export function startUserSettingsSync(debounceMs = SETTINGS_DEBOUNCE_MS): () => 
   let inflight = false;
   let again = false;
   let ownWrite = false;
+  let fetching = false;
+  /** True while a server value is being applied to the UI store (not a change made on this device). */
+  let applying = false;
+  /** Synced keys changed on this device that the account copy has not taken. */
+  let unsynced = readMarks();
+
+  const mark = (keys: readonly string[]) => {
+    for (const k of keys) unsynced.add(k);
+    writeMarks(unsynced);
+  };
 
   const schedule = () => {
-    if (stopped || !loaded) return;
+    if (stopped) return;
+    if (!loaded) {
+      fetchFirst();
+      return;
+    }
     clearTimeout(timer);
     timer = setTimeout(() => void flush(), debounceMs);
   };
 
+  // The first read: at most one in flight; tried again on `online` and on the next local change.
+  function fetchFirst(): void {
+    if (stopped || loaded || fetching) return;
+    fetching = true;
+    rest
+      .fetchUserSettings()
+      .then((blob) => {
+        if (stopped) return;
+        useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', blob);
+        // An equal-version blob leaves the slice alone but still unlocks writing.
+        if (!loaded) adopt(useStore.getState().userSettings);
+      })
+      .catch(() => {
+        /* offline: the localStorage copy keeps working; the next change or `online` tries again */
+      })
+      .finally(() => {
+        fetching = false;
+      });
+  }
+
   const adopt = (blob: UserSettingsBlob | null) => {
     if (!blob) return;
     const wanted: Settings = {};
-    for (const k of SYNC_KEYS) if (k in blob.settings) wanted[k] = blob.settings[k];
-    applySettingsToUi(wanted);
+    // Keys changed on this device and not yet taken by the account keep the device's value (SEC-AUD-134).
+    for (const k of SYNC_KEYS)
+      if (k in blob.settings && !unsynced.has(k)) wanted[k] = blob.settings[k];
+    applying = true;
+    try {
+      applySettingsToUi(wanted);
+    } finally {
+      applying = false;
+    }
     // Remember the server's values in local normal form so applying them does not echo back as a patch.
     const local = readLocal(useLoungeUi.getState());
     const next: Settings = {};
     for (const k of SYNC_KEYS) {
       if (!(k in blob.settings)) continue;
-      next[k] = k in local ? local[k] : blob.settings[k];
+      next[k] = k in local && !unsynced.has(k) ? local[k] : blob.settings[k];
     }
     synced = next;
     loaded = true;
@@ -236,11 +319,18 @@ export function startUserSettingsSync(debounceMs = SETTINGS_DEBOUNCE_MS): () => 
       return;
     }
     const patch = diffSettings(withoutDefaults(readLocal(useLoungeUi.getState()), synced), synced);
-    if (!Object.keys(patch).length) return;
+    // What this write covers; changes made while it is in flight are marked again by the subscription.
+    const covered = unsynced;
+    unsynced = new Set();
+    if (!Object.keys(patch).length) {
+      writeMarks(unsynced);
+      return;
+    }
     inflight = true;
     try {
       const saved = await rest.patchUserSettings(patch);
       synced = mergePatch(synced, patch);
+      writeMarks(unsynced);
       // Record the new version in the store without re-adopting our own write (no echo, no loop).
       ownWrite = true;
       try {
@@ -249,7 +339,10 @@ export function startUserSettingsSync(debounceMs = SETTINGS_DEBOUNCE_MS): () => 
         ownWrite = false;
       }
     } catch {
-      // Offline or rejected: localStorage still has it; the next change or the `online` event retries.
+      // Offline or rejected: localStorage still has it, and the mark stays so a reload still pushes it; the
+      // next change or the `online` event retries.
+      for (const k of covered) unsynced.add(k);
+      writeMarks(unsynced);
     } finally {
       inflight = false;
       if (again) {
@@ -260,13 +353,15 @@ export function startUserSettingsSync(debounceMs = SETTINGS_DEBOUNCE_MS): () => 
   };
 
   const unUi = useLoungeUi.subscribe((s, prev) => {
-    if (
-      s.railLayout !== prev.railLayout ||
-      s.collapsedCategories !== prev.collapsedCategories ||
-      s.lastChannelByGuild !== prev.lastChannelByGuild ||
-      s.rightPanelWidth !== prev.rightPanelWidth
-    )
-      schedule();
+    if (applying) return;
+    const changed: string[] = [];
+    if (s.railLayout !== prev.railLayout) changed.push('guild_positions', 'guild_folders');
+    if (s.collapsedCategories !== prev.collapsedCategories) changed.push('collapsed_categories');
+    if (s.lastChannelByGuild !== prev.lastChannelByGuild) changed.push('last_channel_by_guild');
+    if (s.rightPanelWidth !== prev.rightPanelWidth) changed.push('right_panel_width');
+    if (!changed.length) return;
+    mark(changed);
+    schedule();
   });
   let lastSeen = useStore.getState().userSettings;
   const unStore = useStore.subscribe((s) => {
@@ -274,22 +369,15 @@ export function startUserSettingsSync(debounceMs = SETTINGS_DEBOUNCE_MS): () => 
     lastSeen = s.userSettings;
     if (!ownWrite) adopt(s.userSettings);
   });
-  const onOnline = () => schedule();
+  const onOnline = () => {
+    if (loaded) schedule();
+    else fetchFirst();
+  };
   window.addEventListener('online', onOnline);
 
   // Initial load; a blob already present (a gateway push before the fetch finished) is adopted first.
   adopt(lastSeen);
-  rest
-    .fetchUserSettings()
-    .then((blob) => {
-      if (stopped) return;
-      useStore.getState().applyDispatch('SR_USER_SETTINGS_UPDATE', blob);
-      // An equal-version blob leaves the slice alone but still unlocks writing.
-      if (!loaded) adopt(useStore.getState().userSettings);
-    })
-    .catch(() => {
-      /* offline: the localStorage copy keeps working; writing starts once a load succeeds */
-    });
+  fetchFirst();
 
   return () => {
     stopped = true;
