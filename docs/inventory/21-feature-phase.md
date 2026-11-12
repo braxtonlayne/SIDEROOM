@@ -590,3 +590,11 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-151** [DOC] The other presigned-GET routes are listed with who calls them and how the web uses the URL, in order for the next wave. Handoff `fix-p62-cdn.md`.
 - [x] **SEC-AUD-152** [BE] The voice server counts frames dropped by its ingress caps (`sr_voice_ingress_dropped_frames_total{kind}`), documented in the operations guide (D-639). Handoff `fix-p62-voice.md`.
 - [x] **SEC-AUD-153** [BE] A test shows a screen share over its cap is dropped and resumes with a keyframe, without touching another member's camera. Handoff `fix-p62-voice.md`.
+- [x] **SEC-AUD-154** [FE] The Friends page fits a 375px phone: the header wraps, rows truncate, and a friend's menu opens on screen. Handoff `fix-p63-phone.md`.
+- [x] **SEC-AUD-155** [FE] The Block dialog also says that a blocked person's messages in shared servers and group DMs are collapsed for you (D-640). Handoff `fix-p63-phone.md`.
+- [x] **SEC-AUD-156** [FE] Message Request rows and the inbox "For You" popover fit at 375px. Handoff `fix-p63-phone.md`.
+- [x] **SEC-AUD-157** [BE] The response-type table lives in `cdn/content.rs` (adds `.m4b`, D-642), and shelf object URLs force the response type (D-641). Handoff `fix-p63-cdn.md`.
+- [x] **SEC-AUD-158** [BE] The storage presign GET forces the response type, covering tracks, jukebox and scrapbook (D-641). Handoff `fix-p63-cdn.md`.
+- [x] **SEC-AUD-159** [BE] Shelf artwork links force the response type; no client-facing plain presigned GET remains in sr-api (D-641). Handoff `fix-p63-cdn.md`.
+- [x] **SEC-AUD-160** [BE] The mount connection test has a seventh row, `response_type`, and a provider that ignores response overrides fails it (D-643). Handoff `fix-p63-cdn.md`.
+- [x] **SEC-AUD-161** [DOC] Design for recovering from lost gateway dispatches after event-bus lag (resync in place), with storm control and named tests, for a later wave. Handoff `fix-p63-resync.md`.
