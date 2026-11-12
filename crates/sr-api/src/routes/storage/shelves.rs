@@ -35,7 +35,7 @@ use sr_storage::index::{IndexControl, RunStatus};
 use sr_storage::mounts::{INSTANCE_MOUNT_ID, Mount, MountOwner};
 use sr_storage::path::safe_key;
 use sr_storage::scopes::{Scope, ScopeFacts, Viewer};
-use sr_storage::{ObjectStorage, PresignMethod};
+use sr_storage::{ObjectStorage, ResponseAs};
 use std::collections::{BTreeMap, HashMap};
 use std::time::Duration;
 use utoipa::ToSchema;
@@ -500,8 +500,17 @@ impl<'a> Signer<'a> {
         }
         let mount = reach.iter().find(|r| r.mount.id == mount_id)?;
         let client = self.clients.get(&mount_id)?.as_ref()?;
+        // D-641: artwork is signed with the app's type table too (an image keeps its type, the rest downloads).
+        let (content_type, disposition) = crate::routes::cdn::content::response_for(key);
         client
-            .presign(PresignMethod::Get, &mount.mount.bucket_key(key), ART_TTL)
+            .presign_get_as(
+                &mount.mount.bucket_key(key),
+                ART_TTL,
+                &ResponseAs {
+                    content_type,
+                    disposition: &disposition,
+                },
+            )
             .await
             .ok()
     }

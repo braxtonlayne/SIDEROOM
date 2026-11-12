@@ -69,7 +69,7 @@ pub fn from_extension(filename: &str) -> Option<Presentation> {
         "ogg" | "oga" | "opus" => "audio/ogg",
         "flac" => "audio/flac",
         "wav" => "audio/wav",
-        "m4a" => "audio/mp4",
+        "m4a" | "m4b" => "audio/mp4",
         "aac" => "audio/aac",
         _ => return None,
     };
@@ -97,6 +97,15 @@ pub fn from_hls_extension(filename: &str) -> Option<Presentation> {
         content_type,
         inline: true,
     })
+}
+
+/// What the bucket must answer a link to `key` with (D-637, D-641): an extension on the app's inline media list
+/// keeps its own type and `inline`; everything else (HTML, SVG, XML, scripts, unknown or no extension) is a
+/// download as `application/octet-stream`, whatever the object's stored type says.
+pub(crate) fn response_for(key: &str) -> (&'static str, String) {
+    let name = key.rsplit('/').next().unwrap_or(key);
+    let p = from_hls_extension(name).unwrap_or(DOWNLOAD);
+    (p.content_type, disposition(p, name))
 }
 
 /// Presentation for sniffed leading bytes (fallback for unknown extensions).
@@ -144,6 +153,24 @@ mod tests {
         assert_eq!(from_extension("X.PNG").unwrap().content_type, "image/png");
         assert!(from_extension("a.mp4").unwrap().inline);
         assert!(from_sniffed(b"\x89PNG\r\n\x1a\nxxxx").inline);
+        assert_eq!(
+            from_extension("book.m4b").unwrap().content_type,
+            "audio/mp4"
+        );
+        // D-642: these stay off the list on purpose; read the decision before adding one.
+        for off in ["mkv", "avi", "ts", "wma", "heic", "bmp", "ico", "srt"] {
+            assert!(from_extension(&format!("x.{off}")).is_none(), "{off}");
+        }
+    }
+
+    #[test]
+    fn response_for_follows_the_table() {
+        let (t, d) = response_for("a/b/page.html");
+        assert_eq!(t, "application/octet-stream");
+        assert!(d.starts_with("attachment"));
+        let (t, d) = response_for("a/song.mp3");
+        assert_eq!(t, "audio/mpeg");
+        assert!(d.starts_with("inline"));
     }
 
     #[test]

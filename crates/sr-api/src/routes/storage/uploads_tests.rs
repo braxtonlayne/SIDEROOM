@@ -131,6 +131,83 @@ impl ScopeStore for Store {
     }
 }
 
+/// A shelf catalog with a fixed list of `(shelf, path)` rows; only the one-object read is real.
+struct StubShelves(Vec<(i64, &'static str)>);
+
+#[async_trait]
+impl sr_storage::shelf::ShelfAccessStore for StubShelves {
+    async fn candidate_shelves(&self, _: i64) -> Result<Vec<i64>, FactsError> {
+        Ok(vec![])
+    }
+    async fn labels(&self, _: &[i64]) -> Result<Vec<sr_storage::shelf::ShelfLabel>, FactsError> {
+        Ok(vec![])
+    }
+    async fn guild_names(&self, _: &[i64]) -> Result<Vec<(i64, String)>, FactsError> {
+        Ok(vec![])
+    }
+    async fn catalog_page(
+        &self,
+        _: i64,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: i64,
+    ) -> Result<Vec<sr_storage::shelf::CatalogEntry>, FactsError> {
+        Ok(vec![])
+    }
+    async fn catalog_object(
+        &self,
+        shelf_id: i64,
+        object_hash: &str,
+    ) -> Result<Option<sr_storage::shelf::CatalogEntry>, FactsError> {
+        Ok(self
+            .0
+            .iter()
+            .find(|(s, p)| *s == shelf_id && sr_storage::shelf::path_hash(p) == object_hash)
+            .map(|(s, p)| sr_storage::shelf::CatalogEntry {
+                shelf_id: *s,
+                object_hash: object_hash.to_owned(),
+                path: (*p).to_owned(),
+                size: 1,
+                kind: None,
+                class: String::new(),
+                owner_title: String::new(),
+                owner_cover: String::new(),
+                owner_note: String::new(),
+                listed: true,
+                delisted: false,
+                updated_ms: 0,
+            }))
+    }
+    async fn register_delisted(&self, _: i64, _: &str) -> Result<bool, FactsError> {
+        Ok(false)
+    }
+    async fn set_owner_meta(
+        &self,
+        _: i64,
+        _: &str,
+        _: Option<&str>,
+        _: Option<&str>,
+        _: Option<&str>,
+    ) -> Result<bool, FactsError> {
+        Ok(false)
+    }
+    async fn grants_of(&self, _: i64) -> Result<Vec<sr_storage::shelf::GrantRow>, FactsError> {
+        Ok(vec![])
+    }
+    async fn create_grant(
+        &self,
+        g: &sr_storage::shelf::GrantRow,
+    ) -> Result<sr_storage::shelf::GrantRow, sr_storage::shelf::GrantError> {
+        Ok(g.clone())
+    }
+    async fn revoke_grant(&self, _: i64, _: i64, _: i64) -> Result<bool, FactsError> {
+        Ok(false)
+    }
+    async fn account_active(&self, _: i64) -> Result<bool, FactsError> {
+        Ok(true)
+    }
+}
+
 struct Env {
     app: Router,
     tokens: Vec<(i64, String)>,
@@ -274,6 +351,12 @@ async fn env_with(guard: Option<Arc<dyn sr_storage::guard::EndpointGuard>>) -> E
         .sessions(sessions)
         .extension(Arc::new(scope))
         .extension(Arc::new(uploads))
+        .extension(Arc::new(super::ShelfAccessDeps {
+            store: Arc::new(StubShelves(vec![
+                (900, "Docs/page.html"),
+                (900, "Films/film.mp4"),
+            ])),
+        }))
         .build();
     Env {
         app: build_router(state, router()),
@@ -1113,4 +1196,169 @@ async fn begin_answers_with_the_coerced_content_type() {
         .await;
     assert_eq!(st, StatusCode::CREATED, "{up}");
     assert_eq!(up["content_type"], "application/octet-stream");
+}
+
+/// The query parameters of a presigned URL as pairs (decoded), so a test never matches on an encoding.
+fn query_of(url: &str) -> Vec<(String, String)> {
+    url::Url::parse(url)
+        .unwrap()
+        .query_pairs()
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect()
+}
+
+fn param<'a>(q: &'a [(String, String)], name: &str) -> Option<&'a str> {
+    q.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
+}
+
+/// D-641: a presigned GET asks the bucket to answer with the app's type table, so a document opened through
+/// the storage route can never be served as a page.
+#[tokio::test]
+async fn a_presigned_get_for_a_document_is_a_download() {
+    let e = env().await;
+    let endpoint = listing_s3(&["lib/Taxes/2024.xlsx", "lib/site/index.html"]).await;
+    let m = mk_mount_at(
+        &e.repo,
+        910,
+        MountOwner::User(OWNER),
+        "lib",
+        true,
+        &endpoint,
+    )
+    .await
+    .id;
+    for key in ["Taxes/2024.xlsx", "site/index.html"] {
+        let (st, v) = e
+            .post(
+                OWNER,
+                &format!("/storage/mounts/{m}/presign"),
+                json!({ "method": "GET", "key": key }),
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{v}");
+        let q = query_of(v["url"].as_str().unwrap());
+        assert_eq!(
+            param(&q, "response-content-type"),
+            Some("application/octet-stream"),
+            "{key}"
+        );
+        assert!(
+            param(&q, "response-content-disposition")
+                .unwrap()
+                .starts_with("attachment"),
+            "{key}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_presigned_get_for_audio_keeps_its_type() {
+    let e = env().await;
+    let endpoint = listing_s3(&["lib/song.mp3"]).await;
+    let m = mk_mount_at(
+        &e.repo,
+        911,
+        MountOwner::User(OWNER),
+        "lib",
+        true,
+        &endpoint,
+    )
+    .await
+    .id;
+    let (st, v) = e
+        .post(
+            OWNER,
+            &format!("/storage/mounts/{m}/presign"),
+            json!({ "method": "GET", "key": "song.mp3" }),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let q = query_of(v["url"].as_str().unwrap());
+    assert_eq!(param(&q, "response-content-type"), Some("audio/mpeg"));
+    assert!(
+        param(&q, "response-content-disposition")
+            .unwrap()
+            .starts_with("inline")
+    );
+}
+
+async fn shelf_url(e: &Env, path: &str) -> Vec<(String, String)> {
+    let hash = sr_storage::shelf::path_hash(path);
+    let (st, v) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/shelves/{}/objects/{hash}/url", e.user_mount),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    query_of(v["url"].as_str().unwrap())
+}
+
+#[tokio::test]
+async fn a_shelf_object_url_for_an_html_file_is_signed_as_a_download() {
+    let e = env().await;
+    let q = shelf_url(&e, "Docs/page.html").await;
+    assert_eq!(
+        param(&q, "response-content-type"),
+        Some("application/octet-stream")
+    );
+    assert!(
+        param(&q, "response-content-disposition")
+            .unwrap()
+            .starts_with("attachment")
+    );
+}
+
+#[tokio::test]
+async fn a_shelf_object_url_for_a_video_keeps_its_media_type() {
+    let e = env().await;
+    let q = shelf_url(&e, "Films/film.mp4").await;
+    assert_eq!(param(&q, "response-content-type"), Some("video/mp4"));
+    assert!(
+        param(&q, "response-content-disposition")
+            .unwrap()
+            .starts_with("inline")
+    );
+}
+
+/// D-641: shelf artwork is signed with the type table: a poster keeps its image type, anything else downloads.
+#[tokio::test]
+async fn shelf_artwork_urls_carry_the_response_type() {
+    let e = env().await;
+    let m = e.repo.by_id(e.user_mount).await.unwrap().unwrap();
+    let d = ScopeDeps {
+        mounts: e.repo.clone(),
+        store: Arc::new(Store(e.facts.clone())),
+        sealer: Arc::new(XorSealer),
+        guard: None,
+    };
+    let reach = vec![super::objects::Reach {
+        access: sr_storage::scopes::Access {
+            scope: sr_storage::scopes::Scope::Own,
+            kinds: Share::default(),
+            games: false,
+            unrestricted: true,
+            others: false,
+            mount_id: m.id,
+        },
+        mount: m.clone(),
+        staff: None,
+    }];
+    let mut signer = super::shelves::Signer::new(&d, &reach);
+    let poster = signer.url(m.id, "Films/poster.png").await.unwrap();
+    let q = query_of(&poster);
+    assert_eq!(param(&q, "response-content-type"), Some("image/png"));
+    assert!(
+        param(&q, "response-content-disposition")
+            .unwrap()
+            .starts_with("inline")
+    );
+    let odd = signer.url(m.id, "Films/cover.html").await.unwrap();
+    let q = query_of(&odd);
+    assert_eq!(
+        param(&q, "response-content-type"),
+        Some("application/octet-stream")
+    );
 }

@@ -44,16 +44,7 @@ pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs
     presigned_redirect(storage.as_ref(), mount_id, key, ttl).await
 }
 
-/// What the bucket must answer a link to `key` with (D-637): an extension on the app's inline media list keeps
-/// its own type and `inline`; everything else (HTML, SVG, XML, scripts, unknown or no extension) is a download
-/// as `application/octet-stream`, whatever the object's stored type says.
-fn response_for(key: &str) -> (&'static str, String) {
-    let name = key.rsplit('/').next().unwrap_or(key);
-    let p = content::from_hls_extension(name).unwrap_or(content::DOWNLOAD);
-    (p.content_type, content::disposition(p, name))
-}
-
-/// The redirect to a presigned URL that carries [`response_for`]. Without the overrides there is no redirect:
+/// The redirect to a presigned URL that carries [`content::response_for`]. Without the overrides there is no redirect:
 /// a storage that cannot sign them answers 502 like any other storage error. The URL is never logged.
 pub(super) async fn presigned_redirect(
     storage: &dyn ObjectStorage,
@@ -61,7 +52,7 @@ pub(super) async fn presigned_redirect(
     key: &str,
     ttl: Duration,
 ) -> Response {
-    let (content_type, disposition) = response_for(key);
+    let (content_type, disposition) = content::response_for(key);
     let response = ResponseAs {
         content_type,
         disposition: &disposition,
