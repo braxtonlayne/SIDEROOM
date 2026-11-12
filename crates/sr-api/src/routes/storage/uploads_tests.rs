@@ -1334,7 +1334,7 @@ async fn shelf_artwork_urls_carry_the_response_type() {
         sealer: Arc::new(XorSealer),
         guard: None,
     };
-    let reach = vec![super::objects::Reach {
+    let reach = vec![sr_storage::index::shelf::Reach {
         access: sr_storage::scopes::Access {
             scope: sr_storage::scopes::Scope::Own,
             kinds: Share::default(),
@@ -1344,7 +1344,6 @@ async fn shelf_artwork_urls_carry_the_response_type() {
             mount_id: m.id,
         },
         mount: m.clone(),
-        staff: None,
     }];
     let mut signer = super::shelves::Signer::new(&d, &reach);
     let poster = signer.url(m.id, "Films/poster.png").await.unwrap();
