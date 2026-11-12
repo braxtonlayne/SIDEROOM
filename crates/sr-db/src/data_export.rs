@@ -210,6 +210,7 @@ pub async fn finish(
     key: &str,
     size: i64,
 ) -> DbResult<Option<RestrictionEnded>> {
+    let mut tx = pool.begin().await?;
     sqlx::query(
         "UPDATE data_exports SET state = 'ready', storage_key = $2, size_bytes = $3, \
          ready_at = now(), expires_at = now() + make_interval(days => $4), error = NULL \
@@ -219,7 +220,7 @@ pub async fn finish(
     .bind(key)
     .bind(size)
     .bind(i32::try_from(KEEP_DAYS).unwrap_or(7))
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
     // A staff data-request export (M-25 step c) completes with its package.
     let ended: Option<(i64, i64, Option<i64>)> = sqlx::query_as(
@@ -227,8 +228,9 @@ pub async fn finish(
     )
     .bind(id)
     .bind(sr_admin::data_requests::EXPORT_DONE)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(ended.and_then(|(request_id, account_id, by)| {
         by.map(|hidden_by| RestrictionEnded {
             request_id,
@@ -262,18 +264,20 @@ pub async fn record_restriction_notice(
 
 /// The build gave up.
 pub async fn fail(pool: &PgPool, id: i64, error: &str) -> DbResult<()> {
+    let mut tx = pool.begin().await?;
     sqlx::query("UPDATE data_exports SET state = 'failed', error = $2 WHERE id = $1")
         .bind(id)
         .bind(error.chars().take(500).collect::<String>())
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
     // The queue entry goes back to verified so staff can run the export again.
     sqlx::query(
         "UPDATE data_requests SET state = 'verified', export_id = NULL WHERE export_id = $1 AND state = 'running'",
     )
     .bind(id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }
 

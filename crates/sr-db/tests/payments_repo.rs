@@ -739,3 +739,76 @@ async fn contributor_boards_count_live_credits_by_kind_and_honour_opt_outs() {
             .is_empty()
     );
 }
+
+/// SEC-AUD-120: the notice transitions are one transaction; a failed upsert advances no notice.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_failed_notice_upsert_advances_no_notice() {
+    let r = rig(20).await;
+    let (a, b, staff) = (
+        account(&r.pool).await,
+        account(&r.pool).await,
+        account(&r.pool).await,
+    );
+    for user in [a, b] {
+        let spec = sr_payments::repo::GrantSpec {
+            kind: GrantKind::Patron,
+            user_id: Some(user),
+            guild_id: None,
+            days: Some(10),
+            usd_cents: None,
+        };
+        r.svc
+            .admin_grant(spec, false, staff, "contest")
+            .await
+            .unwrap();
+    }
+    // Nine days in, both are inside the three-day reminder window.
+    let later = r.clock.load(Ordering::SeqCst) + 9 * DAY;
+    // The second notice row written (whichever user comes second) fails.
+    sqlx::query(
+        "CREATE FUNCTION p60_second_notice() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN IF (SELECT count(*) FROM user_patron_notices) >= 1 THEN \
+            RAISE EXCEPTION 'second notice refused'; END IF; RETURN NEW; END $$",
+    )
+    .execute(&r.pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p60_second BEFORE INSERT ON user_patron_notices FOR EACH ROW \
+         EXECUTE FUNCTION p60_second_notice()",
+    )
+    .execute(&r.pool)
+    .await
+    .unwrap();
+    assert!(r.repo.patron_transitions(later, 7).await.is_err());
+    let rows: i64 = sqlx::query_scalar("SELECT count(*) FROM user_patron_notices")
+        .fetch_one(&r.pool)
+        .await
+        .unwrap();
+    assert_eq!(rows, 0, "no notice advanced");
+
+    sqlx::query("DROP TRIGGER p60_second ON user_patron_notices")
+        .execute(&r.pool)
+        .await
+        .unwrap();
+    let mut users: Vec<i64> = r
+        .repo
+        .patron_transitions(later, 7)
+        .await
+        .unwrap()
+        .iter()
+        .map(|t| t.user_id)
+        .collect();
+    users.sort_unstable();
+    let mut want = vec![a, b];
+    want.sort_unstable();
+    assert_eq!(users, want, "the next call returns both transitions");
+    assert!(
+        r.repo
+            .patron_transitions(later, 7)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

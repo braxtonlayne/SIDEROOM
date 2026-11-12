@@ -380,3 +380,59 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     let conns: serde_json::Value = serde_json::from_str(&read("connections.json")).unwrap();
     assert_eq!(conns[0]["name"], "octo");
 }
+
+/// SEC-AUD-119: finish and fail are one transaction each, with the request they hand back or complete.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_failed_export_hands_the_request_back_atomically() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "asker").await;
+    account(pool, 2, "staffer").await;
+    data_export::request(pool, 100, 101, 1)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(data_export::begin(pool, 100).await.unwrap(), Some(1));
+    sqlx::query(
+        "INSERT INTO data_requests (id, kind, person_id, account_id, state, received_at, due_at, created_by, export_id) \
+         VALUES (500, 'export', 1, 1, 'running', now(), now() + interval '30 days', 2, 100)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    // Any write to the request fails.
+    sqlx::query(
+        "CREATE FUNCTION p60_refuse_request() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN RAISE EXCEPTION 'request update refused'; END $$",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p60_refuse BEFORE UPDATE ON data_requests FOR EACH ROW \
+         EXECUTE FUNCTION p60_refuse_request()",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    assert!(data_export::fail(pool, 100, "boom").await.is_err());
+    let state: String = sqlx::query_scalar("SELECT state FROM data_exports WHERE id = 100")
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(state, "building", "the export row did not change");
+
+    assert!(
+        data_export::finish(pool, 100, "exports/1/100.zip", 10)
+            .await
+            .is_err()
+    );
+    let (state, key): (String, Option<String>) =
+        sqlx::query_as("SELECT state, storage_key FROM data_exports WHERE id = 100")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!((state.as_str(), key), ("building", None));
+}
