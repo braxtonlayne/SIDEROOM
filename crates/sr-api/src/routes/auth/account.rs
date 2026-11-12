@@ -143,6 +143,13 @@ pub async fn reset(
         .email_token_consume(EmailTokenPurpose::ResetPassword, &token.hash(), now)
         .await?
         .ok_or_else(invalid_link)?;
+    // A link minted before a suspension or ban must not change anything: only
+    // an active account takes a reset (same answer as an expired link).
+    svc.store
+        .find_by_id(user_id)
+        .await?
+        .filter(|a| a.state == AccountState::Active)
+        .ok_or_else(invalid_link)?;
     let hash = svc.hash_password(&body.password).await?;
     svc.store.set_password_hash(user_id, &hash).await?;
     svc.store.revoke_sessions_except(user_id, None).await?;

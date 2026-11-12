@@ -3253,3 +3253,125 @@ async fn the_credit_seed_setting_wins_over_the_configured_one() {
     let id: i64 = r.body["id"].as_str().unwrap().parse().unwrap();
     assert_eq!(h.store.ledger_for(id), vec![(8, "initial_grant")]);
 }
+
+// ---- SEC-AUD-109 / 110 ------------------------------------------------------
+
+/// A password login from `ip` that answers `mfa_required`; returns the pending cookie.
+async fn pending_login_from(h: &H, ip: &str) -> String {
+    let r = h
+        .post(
+            "/api/v1/sr/auth/login",
+            json!({"login": "alice", "password": PW}),
+        )
+        .ip(ip)
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    r.cookie("sr_mfa").expect("pending cookie")
+}
+
+#[tokio::test]
+async fn second_factor_guesses_are_limited_per_account_across_addresses() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+
+    // One wrong guess per fresh password login, each from a new address: no single
+    // pending login or address spends its budget, but the account's does.
+    let mut last = None;
+    for i in 0..12 {
+        let ip = format!("203.0.113.{}", 10 + i);
+        let mfa = pending_login_from(&h, &ip).await;
+        let r = h
+            .post("/api/v1/sr/auth/2fa", totp_body("000000"))
+            .cookie("sr_mfa", &mfa)
+            .ip(&ip)
+            .send()
+            .await;
+        if r.status == StatusCode::TOO_MANY_REQUESTS {
+            last = Some(r);
+            break;
+        }
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+    }
+    let locked = last.expect("the account budget runs out");
+    assert!(locked.body["retry_after"].as_i64().unwrap() > 0);
+
+    // Even the right code is refused while the account is backed off.
+    let mfa = pending_login_from(&h, "203.0.113.99").await;
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let r = h
+        .post("/api/v1/sr/auth/2fa", totp_body(&code))
+        .cookie("sr_mfa", &mfa)
+        .ip("203.0.113.99")
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[tokio::test]
+async fn a_correct_second_factor_clears_the_account_budget() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    let s = h.login("alice").await;
+    let (secret, _) = enrol_totp(&h, &s).await;
+
+    // Four wrong guesses from four addresses: still inside the free budget.
+    for i in 0..4 {
+        let ip = format!("203.0.113.{}", 20 + i);
+        let mfa = pending_login_from(&h, &ip).await;
+        let r = h
+            .post("/api/v1/sr/auth/2fa", totp_body("000000"))
+            .cookie("sr_mfa", &mfa)
+            .ip(&ip)
+            .send()
+            .await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+    }
+    h.clock.advance_ms(60_000);
+    let mfa = pending_login_from(&h, "203.0.113.30").await;
+    let code = totp::current_code(&secret, "SIDE ROOM", "alice", h.now()).unwrap();
+    let ok = h
+        .post("/api/v1/sr/auth/2fa", totp_body(&code))
+        .cookie("sr_mfa", &mfa)
+        .ip("203.0.113.30")
+        .send()
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+
+    // The slate is clean: four more wrong guesses do not reach the lock.
+    for i in 0..4 {
+        let ip = format!("203.0.113.{}", 40 + i);
+        let mfa = pending_login_from(&h, &ip).await;
+        let r = h
+            .post("/api/v1/sr/auth/2fa", totp_body("000000"))
+            .cookie("sr_mfa", &mfa)
+            .ip(&ip)
+            .send()
+            .await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED);
+    }
+}
+
+#[tokio::test]
+async fn a_reset_link_minted_before_a_suspension_does_not_change_the_password() {
+    let h = harness();
+    h.add_account(1, "alice", "alice@x.test", AccountState::Active);
+    h.post("/api/v1/sr/auth/forgot", json!({"email": "alice@x.test"}))
+        .send()
+        .await;
+    let token = link_token(&h.wait_mail(1).await[0], "/reset/");
+    h.store.set_state(1, AccountState::Deactivated);
+    let before = h.account(1).password_hash;
+    let r = h
+        .post(
+            "/api/v1/sr/auth/reset",
+            json!({"token": token, "password": NEW_PW}),
+        )
+        .send()
+        .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST, "{:?}", r.body);
+    assert!(r.body["errors"]["token"].is_object());
+    assert_eq!(h.account(1).password_hash, before, "nothing changed");
+}
