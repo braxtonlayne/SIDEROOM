@@ -8,6 +8,14 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 62 - 2026-11-12
+
+- **Faster first load.** Help, the Library browser and the shelf pages now load when you open them, so the app's first load is about 16% smaller.
+- **Fewer accidents.** Blocking someone, removing a friend, ending a poll and ending a stage ask you to confirm first.
+- **Discord bridge on phones.** Each mirrored channel is shown as its own block, so Remove and any warning are always in view.
+- **Safer storage links.** A link to a file in a connected storage bucket plays media in the browser and downloads everything else, so a file can never open as a web page.
+- **For operators.** The voice server reports how much it drops from members who send more than the limits.
+
 ## Phase 61 - 2026-11-12
 
 - **Discord bridge.** If another server on this instance also bridges one of your Discord channels, the bridge screen says so on that channel. Messages a deleted account left on Discord are retried every day, and any that still can't be removed are listed so you can delete them by hand. A hiccup no longer leaves a message posted twice.

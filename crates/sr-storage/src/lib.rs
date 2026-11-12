@@ -34,4 +34,5 @@ pub mod uploads;
 pub use error::{Result, StorageError};
 pub use storage::{
     MultipartSession, ObjectInfo, ObjectStorage, ObjectStoreStorage, ObjectStream, PresignMethod,
+    ResponseAs,
 };

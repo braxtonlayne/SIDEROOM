@@ -225,7 +225,20 @@ describe('stage view (VOX-STG-002)', () => {
     expect(calls.at(-1)!.url).toBe('/api/v1/guilds/1001/voice-states/5');
     expect(calls.at(-1)!.body).toEqual({ suppress: false });
 
+    // SEC-AUD-147: End Stage asks first; Cancel calls nothing.
+    const before = calls.length;
     await user.click(screen.getByRole('button', { name: 'End Stage' }));
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'End the stage for everyone?' })).getByRole(
+        'button',
+        { name: 'Cancel' },
+      ),
+    );
+    expect(calls).toHaveLength(before);
+    await user.click(screen.getByRole('button', { name: 'End Stage' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'End Stage' }),
+    );
     await waitFor(() =>
       expect(calls.at(-1)).toMatchObject({ method: 'DELETE', url: '/api/v1/stage-instances/9001' }),
     );
@@ -245,6 +258,9 @@ describe('stage view (VOX-STG-002)', () => {
     live();
     const user = show();
     await user.click(await screen.findByRole('button', { name: 'End Stage' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'End Stage' }),
+    );
     expect(await screen.findByRole('alert')).toHaveTextContent('permission');
   });
 

@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import {
@@ -13,6 +13,45 @@ import { activityHostProxy } from './vite/activityHosts';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
 import { appContractPlugin } from './vite/appContract';
 import { publicDev } from './vite/publicDev';
+
+/**
+ * SEC-AUD-145: with SR_BUNDLE_REPORT=1 the build writes apps/web/bundle-report.json: every module of the entry chunk
+ * (the one app.html loads) with its rendered size, largest first. Not part of any normal build; the file is untracked.
+ */
+function bundleReport() {
+  return {
+    name: 'sr-bundle-report',
+    generateBundle(
+      _o: unknown,
+      bundle: Record<
+        string,
+        {
+          type: string;
+          isEntry?: boolean;
+          fileName: string;
+          modules?: Record<string, { renderedLength: number }>;
+        }
+      >,
+    ) {
+      if (process.env.SR_BUNDLE_REPORT !== '1') return;
+      const root = fileURLToPath(new URL('../..', import.meta.url)).replaceAll('\\', '/');
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== 'chunk' || !chunk.isEntry || !chunk.modules) continue;
+        const modules = Object.entries(chunk.modules)
+          .map(([id, m]) => ({
+            id: id.replaceAll('\\', '/').replace(root, ''),
+            renderedLength: m.renderedLength,
+          }))
+          .sort((a, b) => b.renderedLength - a.renderedLength);
+        const total = modules.reduce((n, m) => n + m.renderedLength, 0);
+        writeFileSync(
+          fileURLToPath(new URL('./bundle-report.json', import.meta.url)),
+          JSON.stringify({ chunk: chunk.fileName, total, modules }, null, 1),
+        );
+      }
+    },
+  };
+}
 
 /** Optional comma-separated extra CSP origins for self-hosters (a separate voice host, activities). */
 const list = (v: string | undefined) =>
@@ -113,6 +152,7 @@ export default defineConfig(({ command }) => ({
     // SEC-ENT-004: the dev counterpart of sr-server's gate (shells by path, 302 to /login without a session).
     publicDev({ api: process.env.SR_DEV_API ?? `http://127.0.0.1:${apiPort}` }),
     pseudoLocalePlugin(),
+    bundleReport(),
     ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy(api)] : []),
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.

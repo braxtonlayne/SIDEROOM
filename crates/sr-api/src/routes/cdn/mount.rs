@@ -6,12 +6,12 @@
 //! left of the signed link, at most 15 minutes, and is never logged. A disabled or unknown mount is a 404; a
 //! takedown that blocked `mount/<id>/<key>` is a 451.
 
-use super::{CdnDeps, serve::plain};
+use super::{CdnDeps, content, serve::plain};
 use axum::{
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use sr_storage::{PresignMethod, StorageError};
+use sr_storage::{ObjectStorage, ResponseAs, StorageError};
 use std::time::Duration;
 
 /// Longest a redirect target stays valid.
@@ -41,7 +41,32 @@ pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs
         }
     };
     let ttl = Duration::from_secs(left_secs.clamp(MIN_REDIRECT_TTL, MAX_REDIRECT_TTL));
-    let url = match storage.presign(PresignMethod::Get, key, ttl).await {
+    presigned_redirect(storage.as_ref(), mount_id, key, ttl).await
+}
+
+/// What the bucket must answer a link to `key` with (D-637): an extension on the app's inline media list keeps
+/// its own type and `inline`; everything else (HTML, SVG, XML, scripts, unknown or no extension) is a download
+/// as `application/octet-stream`, whatever the object's stored type says.
+fn response_for(key: &str) -> (&'static str, String) {
+    let name = key.rsplit('/').next().unwrap_or(key);
+    let p = content::from_hls_extension(name).unwrap_or(content::DOWNLOAD);
+    (p.content_type, content::disposition(p, name))
+}
+
+/// The redirect to a presigned URL that carries [`response_for`]. Without the overrides there is no redirect:
+/// a storage that cannot sign them answers 502 like any other storage error. The URL is never logged.
+pub(super) async fn presigned_redirect(
+    storage: &dyn ObjectStorage,
+    mount_id: i64,
+    key: &str,
+    ttl: Duration,
+) -> Response {
+    let (content_type, disposition) = response_for(key);
+    let response = ResponseAs {
+        content_type,
+        disposition: &disposition,
+    };
+    let url = match storage.presign_get_as(key, ttl, &response).await {
         Ok(u) => u,
         Err(e) => {
             tracing::warn!(mount = mount_id, error = %e, "cdn mount presign failed");

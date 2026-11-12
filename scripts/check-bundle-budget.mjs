@@ -103,6 +103,62 @@ for (const f of readdirSync(join(dist, 'app')).filter((x) => x.endsWith('.js')))
   }
 }
 
+// SEC-AUD-145 (D-636): the first-paint chunk is the largest file app.html loads. Print its size and the room left to
+// the single-chunk limit on every run, and fail when the room is under firstPaintMinRoomKB, so the next wave is told
+// before the limit, not at it. (The chunk holds the names of every lazy chunk and the commit id, so its size moves by
+// a few bytes per commit: never run it at the limit.)
+{
+  const sizes = [...entrance]
+    .filter((f) => f.endsWith('.js'))
+    .map((f) => [f, gzipSize(f)])
+    .sort((a, b) => b[1] - a[1]);
+  if (sizes.length) {
+    const [file, size] = sizes[0];
+    const limit = config.singleChunkMaxGzipKB * 1024;
+    const room = limit - size;
+    const min = (config.firstPaintMinRoomKB ?? 0) * 1024;
+    const ok = room >= min;
+    if (!ok) failed = true;
+    rows.push(
+      `${ok ? 'ok  ' : 'FAIL'} first-paint ${file}: ${size} bytes gzip, room ${room} bytes to the ${config.singleChunkMaxGzipKB} KB limit (needs at least ${config.firstPaintMinRoomKB ?? 0} KB)`,
+    );
+  }
+}
+
+// SEC-AUD-145 (D-636): page code that the first paint does not need stays out of the first-paint files. One string
+// literal per moved area that survives minification and appears only in that area's chunks; a static import of the page
+// brings the literal back into the entrance. (The catalog chunk en.rest holds help.handbook keys but is not an
+// entrance file.)
+{
+  const AREAS = {
+    handbook: 'help.handbook.lounge.intro',
+    browse: 'lib-filters',
+    shelves: 'shv-page',
+    epub: 'sr.library.epub.v1',
+  };
+  for (const [area, marker] of Object.entries(AREAS)) {
+    const hits = [...entrance].filter(
+      (f) => f.endsWith('.js') && readFileSync(join(dist, f), 'utf8').includes(marker),
+    );
+    const inDist = readdirSync(join(dist, 'app')).some(
+      (f) => f.endsWith('.js') && readFileSync(join(dist, 'app', f), 'utf8').includes(marker),
+    );
+    if (hits.length) {
+      rows.push(
+        `FAIL ${area.padEnd(10)} page code ("${marker}") loads on first paint: ${hits.join(', ')}`,
+      );
+      failed = true;
+    } else if (!inDist) {
+      rows.push(
+        `FAIL ${area.padEnd(10)} marker "${marker}" is in no chunk: the marker is stale, update AREAS`,
+      );
+      failed = true;
+    } else {
+      rows.push(`ok   ${area.padEnd(10)} lazy: no ${area} page code in the entrance`);
+    }
+  }
+}
+
 // BYOS-CNV-001 (D-297, D-309): the ffmpeg.wasm core is GPL and must stay its own lazily fetched files
 // (`assets/ffmpeg-core-*.js` and `.wasm`), never part of first paint: no entrance file may be the core or name it
 // (a chunk that names it is the converter, which loads only when someone converts).

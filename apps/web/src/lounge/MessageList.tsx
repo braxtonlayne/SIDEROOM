@@ -25,6 +25,7 @@ import {
 import { announce } from '../a11y/announcer';
 import { useT } from '../i18n';
 import { MessageItem, type NameDecor, type ReplyState } from './MessageItem';
+import { ConfirmAction } from './shell/ConfirmAction';
 import { DeleteMessageDialog, ForwardDialog, PinMessageDialog } from './msg/MessageDialogs';
 import { ReactorsModal } from './msg/Reactors';
 import { cmpId } from '../store/reducer';
@@ -475,7 +476,9 @@ export function MessageList({
       actions.votePoll?.(m.channelId, m.id, answerId, add),
     [actions],
   );
-  const onEndPoll = useCallback((m: Message) => actions.endPoll?.(m.channelId, m.id), [actions]);
+  // SEC-AUD-147 (D-638): End Poll asks first.
+  const [endingPoll, setEndingPoll] = useState<Message | null>(null);
+  const onEndPoll = useCallback((m: Message) => setEndingPoll(m), []);
   const onRetry = useCallback((m: Message) => actions.retryMessage?.(m.channelId, m.id), [actions]);
   const onDiscard = useCallback(
     (m: Message) => actions.discardMessage?.(m.channelId, m.id),
@@ -763,6 +766,14 @@ export function MessageList({
           if (deleting) actions.deleteMessage?.(deleting.channelId, deleting.id);
           if (deleting?.id === editingId) onCancelEdit?.();
           setDeleting(null);
+        }}
+      />
+      <ConfirmAction
+        kind={endingPoll ? 'endPoll' : null}
+        onCancel={() => setEndingPoll(null)}
+        onConfirm={() => {
+          if (endingPoll) actions.endPoll?.(endingPoll.channelId, endingPoll.id);
+          setEndingPoll(null);
         }}
       />
       <PinMessageDialog

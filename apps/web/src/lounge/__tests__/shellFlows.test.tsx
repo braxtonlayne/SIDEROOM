@@ -1074,6 +1074,10 @@ describe('person menu entries', () => {
     await rightClickBob();
     expect(await screen.findByRole('menuitem', { name: 'Remove Friend' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block' }));
+    expect(calls).not.toContain('block');
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }),
+    );
     await waitFor(() => expect(calls).toContain('block'));
   });
 });

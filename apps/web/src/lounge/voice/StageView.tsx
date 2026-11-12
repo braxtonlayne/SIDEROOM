@@ -21,6 +21,7 @@ import { CHANNEL_ICON } from '../ChannelSidebar';
 import { useJoinVoice } from './actions';
 import { useVoicePerms } from './perms';
 import { ParticipantTile } from './Tiles';
+import { ConfirmAction } from '../shell/ConfirmAction';
 import { VoiceStatusBar } from './VoiceStatusBar';
 import './voice-p10.css';
 import './voice-p13.css';
@@ -136,6 +137,8 @@ export function StageView({
   const instance = useStage((s) => s.instances[channel.id]);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState<'start' | 'edit' | null>(null);
+  // SEC-AUD-147 (D-638): End Stage asks first.
+  const [ending, setEnding] = useState(false);
   const run = useAction(setError);
   const here =
     session.channelId === channel.id && session.status !== 'idle' && session.status !== 'error';
@@ -187,11 +190,7 @@ export function StageView({
                       <Button size="sm" variant="secondary" onClick={() => setDialog('edit')}>
                         {t('lounge.stage.editTopic')}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => run(() => endStage(channel.id))}
-                      >
+                      <Button size="sm" variant="danger" onClick={() => setEnding(true)}>
                         {t('lounge.stage.end')}
                       </Button>
                     </>
@@ -375,6 +374,14 @@ export function StageView({
           )}
         </div>
       </div>
+      <ConfirmAction
+        kind={ending ? 'endStage' : null}
+        onCancel={() => setEnding(false)}
+        onConfirm={() => {
+          setEnding(false);
+          run(() => endStage(channel.id));
+        }}
+      />
       <TopicDialog
         open={dialog !== null}
         initial={dialog === 'edit' ? (instance?.topic ?? '') : ''}

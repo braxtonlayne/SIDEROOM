@@ -4,6 +4,7 @@ import { useT } from '../../i18n';
 import { useDms, useGuilds, useUsers } from '../data';
 import { useProfile } from '../profile/useProfile';
 import { blockUser, removeRelationship } from './api';
+import { ConfirmAction, type ConfirmKind } from './ConfirmAction';
 import { friendsOf, useSocial } from './social';
 
 /**
@@ -19,6 +20,8 @@ export function DmWelcome({ channelId, title }: { channelId: string; title: stri
   const user = dm && dm.recipientIds.length === 1 ? users[dm.recipientIds[0]!] : undefined;
   const state = useProfile(user?.id ?? '');
   const [error, setError] = useState(false);
+  // SEC-AUD-147 (D-638): Remove Friend and Block ask first.
+  const [ask, setAsk] = useState<ConfirmKind | null>(null);
   if (!user)
     return (
       <div className="lng-welcome">
@@ -51,16 +54,26 @@ export function DmWelcome({ channelId, title }: { channelId: string; title: stri
       )}
       <div className="lng-welcome-actions">
         {isFriend && (
-          <Button size="sm" variant="secondary" onClick={() => run(removeRelationship(user.id))}>
+          <Button size="sm" variant="secondary" onClick={() => setAsk('removeFriend')}>
             {t('lounge.dmWelcome.removeFriend')}
           </Button>
         )}
         {!blocked && (
-          <Button size="sm" variant="danger" onClick={() => run(blockUser(user.id))}>
+          <Button size="sm" variant="danger" onClick={() => setAsk('block')}>
             {t('lounge.dmWelcome.block')}
           </Button>
         )}
       </div>
+      <ConfirmAction
+        kind={ask}
+        name={user.displayName}
+        onCancel={() => setAsk(null)}
+        onConfirm={() => {
+          const kind = ask;
+          setAsk(null);
+          run(kind === 'block' ? blockUser(user.id) : removeRelationship(user.id));
+        }}
+      />
       {error && (
         <p role="alert" className="lng-failed">
           {t('lounge.dmWelcome.error')}

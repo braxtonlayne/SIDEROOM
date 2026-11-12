@@ -13,18 +13,44 @@ const EMPTY: string[] = [];
 export const fetchNotificationKeywords = () =>
   apiFetch<{ keywords: string[] }>('/users/@me/notification-keywords', { retries: 0 });
 
+let inflight: Promise<void> | null = null;
+/** When the last load failed; a retry waits a few seconds so a broken network is not hammered (SEC-AUD-148). */
+let failedAt = 0;
+const RETRY_AFTER_MS = 3000;
+
+/** Test hook: forget a failed load and any load in flight. */
+export function resetKeywordLoad(): void {
+  inflight = null;
+  failedAt = 0;
+}
+
+/**
+ * Loads the list unless it is loaded, in flight or failed less than 3 s ago. A failure is not remembered: the
+ * next use asks again. No toast: it is a background load.
+ */
+function loadKeywords(): void {
+  if (useStore.getState().notificationKeywords !== null) return;
+  if (inflight || (failedAt && Date.now() - failedAt < RETRY_AFTER_MS)) return;
+  inflight = fetchNotificationKeywords()
+    .then((r) => {
+      failedAt = 0;
+      useStore
+        .getState()
+        .applyDispatch('SR_NOTIFICATION_KEYWORDS_UPDATE', { keywords: r.keywords });
+    })
+    .catch(() => {
+      failedAt = Date.now();
+    })
+    .finally(() => {
+      inflight = null;
+    });
+}
+
 /** The viewer's keywords; loads them on first use. */
 export function useNotificationKeywords(): string[] {
   const list = useStore((s) => s.notificationKeywords);
   useEffect(() => {
-    if (useStore.getState().notificationKeywords !== null) return;
-    fetchNotificationKeywords()
-      .then((r) =>
-        useStore
-          .getState()
-          .applyDispatch('SR_NOTIFICATION_KEYWORDS_UPDATE', { keywords: r.keywords }),
-      )
-      .catch(() => undefined);
+    loadKeywords();
   }, []);
   return list ?? EMPTY;
 }

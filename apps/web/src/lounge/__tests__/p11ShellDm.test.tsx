@@ -195,11 +195,27 @@ describe('DM header, welcome and panel', () => {
       ),
     ).toBeInTheDocument();
     expect(await within(log).findByText(/1 mutual server: Store Guild/)).toBeInTheDocument();
+    // SEC-AUD-147: the click only asks; Cancel (and Escape) call nothing.
     await userEvent.click(await within(log).findByRole('button', { name: 'Remove Friend' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
+    );
+    await userEvent.click(within(log).getByRole('button', { name: 'Block' }));
+    await screen.findByRole('dialog', { name: 'Block Bob?' });
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(calls.filter((c) => c.key.includes('relationships'))).toHaveLength(0);
+    await userEvent.click(within(log).getByRole('button', { name: 'Remove Friend' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove Friend' }),
+    );
     await waitFor(() =>
       expect(calls.some((c) => c.key === 'DELETE /users/@me/relationships/2')).toBe(true),
     );
     await userEvent.click(within(log).getByRole('button', { name: 'Block' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Block' }),
+    );
     await waitFor(() =>
       expect(calls.find((c) => c.key === 'PUT /users/@me/relationships/2')?.body).toEqual({
         type: 2,
