@@ -484,3 +484,73 @@ async fn editing_a_message_re_screens_its_server_flags() {
         .unwrap();
     assert_eq!(p.flags & LIKELY_SPAM, 0);
 }
+
+/// SEC-AUD-126: a role mention reads the role's holders, not every member. With 3 000 members and 2 holders the
+/// fan-out reads one page (an `@everyone` read of the same guild takes four).
+#[tokio::test]
+async fn a_role_mention_reads_only_the_roles_members() {
+    let mut f = fixture().await;
+    let rec = Arc::new(Recorder(Default::default()));
+    f.svc = f.svc.with_hooks(rec.clone());
+    let role = f
+        .svc
+        .create_role(
+            OWNER,
+            f.guild,
+            NewRole {
+                name: Some("crew".into()),
+                mentionable: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let holders = [UserId::new(2_000), UserId::new(2_500)];
+    {
+        let mut s = f.svc.repo_for_tests().store.lock().unwrap();
+        for n in 0..3_000u64 {
+            let user = UserId::new(1_000 + n);
+            let mut m = member(f.guild, user);
+            if holders.contains(&user) {
+                m.role_ids = vec![role.id];
+            }
+            s.members.push(m);
+        }
+        s.member_page_reads = 0;
+    }
+    let content = format!("<@&{}> assemble", role.id.get());
+    f.svc
+        .send_message(BOB, f.general, say(&content))
+        .await
+        .unwrap();
+    let mut got = rec.0.lock().unwrap()[0].clone();
+    got.sort();
+    assert_eq!(got, holders.to_vec());
+    let reads = f
+        .svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .member_page_reads;
+    assert_eq!(reads, 1, "a role mention read {reads} member pages");
+
+    f.svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .member_page_reads = 0;
+    f.svc
+        .send_message(OWNER, f.general, say("@everyone hi"))
+        .await
+        .unwrap();
+    let reads = f
+        .svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .member_page_reads;
+    assert!(reads >= 3, "@everyone still pages every member ({reads})");
+}

@@ -311,6 +311,18 @@ impl<R: ChatRepository> ChatService<R> {
         channel: &Channel,
         pick: impl Fn(&Member) -> bool,
     ) -> ChatResult<Vec<UserId>> {
+        self.viewers_where_roles(guild, channel, None, pick).await
+    }
+
+    /// [`Self::viewers_where`] reading only the holders of `only_roles` when given (a role mention, SEC-AUD-126);
+    /// `pick` still decides who counts.
+    async fn viewers_where_roles(
+        &self,
+        guild: &Guild,
+        channel: &Channel,
+        only_roles: Option<&[RoleId]>,
+        pick: impl Fn(&Member) -> bool,
+    ) -> ChatResult<Vec<UserId>> {
         const PAGE: usize = 1000;
         const MAX_PAGES: usize = 100;
         let roles = self.repo.list_roles(guild.id).await?;
@@ -341,7 +353,14 @@ impl<R: ChatRepository> ChatService<R> {
         let mut out = Vec::new();
         let mut after = None;
         for _ in 0..MAX_PAGES {
-            let page = self.repo.page_members(guild.id, after, PAGE).await?;
+            let page = match only_roles {
+                Some(roles) => {
+                    self.repo
+                        .page_members_with_roles(guild.id, roles, after, PAGE)
+                        .await?
+                }
+                None => self.repo.page_members(guild.id, after, PAGE).await?,
+            };
             for m in &page {
                 let perms = channel_permissions(guild, m, &roles, &overwrites, now);
                 let gate = private_members.as_ref().is_none_or(|ms| {
@@ -390,7 +409,9 @@ impl<R: ChatRepository> ChatService<R> {
         if !mentions.everyone && mentions.roles.is_empty() {
             return Ok(Vec::new());
         }
-        self.viewers_where(guild, channel, |m| {
+        // `@everyone`/`@here` needs every member; a role mention reads only the roles' holders (SEC-AUD-126).
+        let only_roles = (!mentions.everyone).then_some(mentions.roles.as_slice());
+        self.viewers_where_roles(guild, channel, only_roles, |m| {
             mentions.everyone || m.role_ids.iter().any(|r| mentions.roles.contains(r))
         })
         .await

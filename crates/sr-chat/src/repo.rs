@@ -41,6 +41,36 @@ pub trait GuildRepository: Send + Sync {
         after: Option<UserId>,
         limit: usize,
     ) -> RepoResult<Vec<Member>>;
+    /// Like [`Self::page_members`], but only members holding at least one of `roles` (a role-mention fan-out reads
+    /// the role's holders instead of every member, SEC-AUD-126). Same order and cursor; the page is full unless
+    /// the holders ran out. The default filters `page_members`; stores should override it with a query.
+    async fn page_members_with_roles(
+        &self,
+        guild: GuildId,
+        roles: &[RoleId],
+        after: Option<UserId>,
+        limit: usize,
+    ) -> RepoResult<Vec<Member>> {
+        let mut out = Vec::new();
+        let mut cursor = after;
+        while out.len() < limit {
+            let page = self.page_members(guild, cursor, 1000).await?;
+            let Some(last) = page.last().map(|m| m.user_id) else {
+                break;
+            };
+            let full = page.len() == 1000;
+            out.extend(
+                page.into_iter()
+                    .filter(|m| m.role_ids.iter().any(|r| roles.contains(r))),
+            );
+            if !full {
+                break;
+            }
+            cursor = Some(last);
+        }
+        out.truncate(limit);
+        Ok(out)
+    }
     /// Ids of the guilds `user` belongs to (used to fan out member-object refreshes, K-08).
     /// Stores that cannot list them answer none.
     async fn user_guild_ids(&self, _user: UserId) -> RepoResult<Vec<GuildId>> {
