@@ -396,6 +396,8 @@ async fn a_bundle_goes_draft_pending_approved_and_only_the_approved_one_is_serve
 
     // The collector deletes the objects of superseded bundles only: the first (superseded by the second
     // upload) and the second (withdrawn); the third was rejected and is still the latest, so it stays.
+    // They have to be older than the grace period first (SEC-AUD-139).
+    age_superseded(&r, 2).await;
     let removed = r.svc.gc().await.unwrap();
     assert!(removed > 0);
     let left = r.storage.list("activities/").await.unwrap();
@@ -1647,4 +1649,187 @@ async fn the_current_host_revokes_guest_links_after_a_handoff() {
         .revoke_guest_link(third, id, &b.lobby_token)
         .await
         .unwrap();
+}
+
+/// Move every superseded bundle's `superseded_at` back by `days` days.
+async fn age_superseded(r: &Rig, days: i32) {
+    sqlx::query(
+        "UPDATE application_activity_bundles SET superseded_at = now() - make_interval(days => $1) \
+         WHERE state = 'superseded'",
+    )
+    .bind(days)
+    .execute(r.db.pool())
+    .await
+    .unwrap();
+}
+
+/// An application with a first bundle that a second upload has superseded; returns (first sha, second sha).
+async fn superseded_pair(r: &Rig) -> (i64, String, String) {
+    let owner = account(r.db.pool()).await;
+    let app = application(r.db.pool(), owner, "Gc").await;
+    r.svc.save_config(app, input(None)).await.unwrap();
+    let one = r.svc.upload_bundle(app, owner, site("one")).await.unwrap();
+    let two = r.svc.upload_bundle(app, owner, site("two")).await.unwrap();
+    (app, one.bundle.sha256, two.bundle.sha256)
+}
+
+async fn has_objects(r: &Rig, sha: &str) -> bool {
+    r.storage
+        .list("activities/")
+        .await
+        .unwrap()
+        .iter()
+        .any(|o| o.key.contains(sha))
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn superseding_a_bundle_stamps_the_time() {
+    let r = rig().await;
+    let (app, one, two) = superseded_pair(&r).await;
+    let stamp = |sha: String| {
+        let pool = r.db.pool().clone();
+        async move {
+            sqlx::query_scalar::<_, Option<f64>>(
+                "SELECT EXTRACT(EPOCH FROM now() - superseded_at)::float8 FROM application_activity_bundles \
+                 WHERE application_id = $1 AND sha256 = $2",
+            )
+            .bind(app)
+            .bind(sha)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let t = stamp(one).await.expect("the superseded bundle is stamped");
+    assert!((0.0..60.0).contains(&t));
+    assert!(stamp(two).await.is_none(), "a live bundle has no stamp");
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn gc_keeps_a_bundle_superseded_within_the_grace_period() {
+    let r = rig().await;
+    let (_, one, two) = superseded_pair(&r).await;
+    assert_eq!(r.svc.gc().await.unwrap(), 0);
+    assert!(has_objects(&r, &one).await && has_objects(&r, &two).await);
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn gc_removes_a_bundle_superseded_long_ago() {
+    let r = rig().await;
+    let (app, one, two) = superseded_pair(&r).await;
+    age_superseded(&r, 2).await;
+    assert!(r.svc.gc().await.unwrap() > 0);
+    assert!(!has_objects(&r, &one).await);
+    assert!(has_objects(&r, &two).await);
+
+    // A row superseded before the column existed (NULL) counts as long ago.
+    let owner = account(r.db.pool()).await;
+    let three = r
+        .svc
+        .upload_bundle(app, owner, site("three"))
+        .await
+        .unwrap();
+    assert!(has_objects(&r, &two).await && has_objects(&r, &three.bundle.sha256).await);
+    sqlx::query(
+        "UPDATE application_activity_bundles SET superseded_at = NULL WHERE state = 'superseded'",
+    )
+    .execute(r.db.pool())
+    .await
+    .unwrap();
+    assert!(r.svc.gc().await.unwrap() > 0);
+    assert!(!has_objects(&r, &two).await);
+    assert!(has_objects(&r, &three.bundle.sha256).await);
+    r.db.cleanup().await.unwrap();
+}
+
+/// Storage whose `list` runs a hook before reading the bucket, to model an upload that lands during the cleanup.
+struct HookedList {
+    inner: Arc<dyn ObjectStorage>,
+    hook: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    resume: Mutex<Option<tokio::sync::oneshot::Receiver<()>>>,
+}
+
+#[async_trait]
+impl ObjectStorage for HookedList {
+    async fn put(&self, k: &str, d: bytes::Bytes) -> sr_storage::Result<()> {
+        self.inner.put(k, d).await
+    }
+    async fn get(&self, k: &str) -> sr_storage::Result<bytes::Bytes> {
+        self.inner.get(k).await
+    }
+    async fn get_range(&self, k: &str, s: u64, e: u64) -> sr_storage::Result<bytes::Bytes> {
+        self.inner.get_range(k, s, e).await
+    }
+    async fn head(&self, k: &str) -> sr_storage::Result<sr_storage::ObjectInfo> {
+        self.inner.head(k).await
+    }
+    async fn delete(&self, k: &str) -> sr_storage::Result<()> {
+        self.inner.delete(k).await
+    }
+    async fn list(&self, p: &str) -> sr_storage::Result<Vec<sr_storage::ObjectInfo>> {
+        let tx = self.hook.lock().unwrap().take();
+        let rx = self.resume.lock().unwrap().take();
+        if let (Some(tx), Some(rx)) = (tx, rx) {
+            let _ = tx.send(());
+            let _ = rx.await;
+        }
+        self.inner.list(p).await
+    }
+    async fn presign(
+        &self,
+        m: sr_storage::PresignMethod,
+        k: &str,
+        t: std::time::Duration,
+    ) -> sr_storage::Result<String> {
+        self.inner.presign(m, k, t).await
+    }
+    async fn multipart_create(
+        &self,
+        k: &str,
+    ) -> sr_storage::Result<Box<dyn sr_storage::MultipartSession>> {
+        self.inner.multipart_create(k).await
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn gc_keeps_a_bundle_uploaded_while_it_runs() {
+    let db = TestDb::new().await.unwrap();
+    let inner: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let (hit_tx, hit_rx) = tokio::sync::oneshot::channel();
+    let (go_tx, go_rx) = tokio::sync::oneshot::channel();
+    let storage = Arc::new(HookedList {
+        inner: inner.clone(),
+        hook: Mutex::new(Some(hit_tx)),
+        resume: Mutex::new(Some(go_rx)),
+    });
+    let svc = Arc::new(
+        ActivityService::new(db.pool().clone(), Arc::new(uid))
+            .with_storage(storage)
+            .with_channels(Arc::new(FakeChannels::new()))
+            .with_events(Arc::new(Recorder::default())),
+    );
+    let owner = account(db.pool()).await;
+    let app = application(db.pool(), owner, "Race").await;
+    svc.save_config(app, input(None)).await.unwrap();
+
+    // The cleanup pauses on entering its listing, an upload lands, and the listing then sees the fresh objects.
+    let gc = tokio::spawn({
+        let svc = svc.clone();
+        async move { svc.gc().await.unwrap() }
+    });
+    hit_rx.await.unwrap();
+    let up = svc.upload_bundle(app, owner, site("fresh")).await.unwrap();
+    go_tx.send(()).unwrap();
+    gc.await.unwrap();
+    let left = inner.list("activities/").await.unwrap();
+    assert!(left.iter().any(|o| o.key.contains(&up.bundle.sha256)));
+    // And one that was listed before its row existed is not deleted either way round.
+    assert_eq!(svc.gc().await.unwrap(), 0);
+    db.cleanup().await.unwrap();
 }
