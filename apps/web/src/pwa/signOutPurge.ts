@@ -5,11 +5,14 @@
  *
  * - the signed-in app files and shell the service worker keeps (`sr-app-*`, SEC-ENT-002);
  * - files shared into SIDE ROOM from another app and not yet attached (IndexedDB `sr-share`);
- * - the Library's offline chapters (Cache Storage `sr-library-offline-v1` and its registry, LIB-RDR-015).
+ * - the Library's offline chapters (Cache Storage `sr-library-offline-v1` and its registry, LIB-RDR-015);
+ * - the Notes key this browser holds for the account (IndexedDB `sr-tools-notes`, SEC-AUD-136), and an open Notes
+ *   store is locked. `Clear-Site-Data` removes it too, but some browsers ignore that header.
  *
  * Never rejects: a part that cannot be removed (storage blocked) does not stop the others or the sign-out.
  */
 import { clearOfflineCache } from '../library/reader/offlineCache';
+import { purgeNotesKeys } from './notesKeys';
 import { purgeAppCaches } from './purge';
 import { clearSharedFiles } from './shareFiles';
 
@@ -19,8 +22,13 @@ import { clearSharedFiles } from './shareFiles';
  */
 const clearLibraryOffline = () => clearOfflineCache();
 
-export async function purgeOnSignOut(): Promise<void> {
+/**
+ * `userId`: the account that signs out; its Notes key is the one removed. Left out when the account is not known
+ * (the session ended elsewhere): every Notes key in this browser goes then.
+ */
+export async function purgeOnSignOut(userId?: string | null): Promise<void> {
   await Promise.all([
+    purgeNotesKeys(userId).catch(() => undefined),
     purgeAppCaches(),
     clearSharedFiles(),
     clearLibraryOffline().catch(() => undefined),
