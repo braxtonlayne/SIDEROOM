@@ -147,12 +147,42 @@ fn ledger_failed(e: sr_storage::uploads::LedgerError) -> MsgError {
     ErrorCode::SrInternal.into()
 }
 
-fn clean_content_type(raw: Option<&str>) -> MsgResult<String> {
+/// Whether a browser would run or render this type on the bucket's own origin (SEC-AUD-138): HTML, XHTML, SVG,
+/// anything XML or script, and any `text/*` other than plain text, captions and CSV. Such objects are still
+/// stored, but as `application/octet-stream`, so the bucket never serves them as a page.
+fn is_active_content(declared: &str) -> bool {
+    let essence = declared
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    if matches!(
+        essence.as_str(),
+        "text/html" | "application/xhtml+xml" | "image/svg+xml"
+    ) {
+        return true;
+    }
+    if ["html", "xml", "javascript", "ecmascript"]
+        .iter()
+        .any(|w| essence.contains(w))
+    {
+        return true;
+    }
+    essence.starts_with("text/")
+        && !matches!(essence.as_str(), "text/plain" | "text/vtt" | "text/csv")
+}
+
+pub(super) fn clean_content_type(raw: Option<&str>) -> MsgResult<String> {
     let t = raw.map(str::trim).filter(|t| !t.is_empty());
     match t {
         None => Ok("application/octet-stream".to_owned()),
         Some(t) if t.len() <= 255 && t.chars().all(|c| c.is_ascii_graphic() || c == ' ') => {
-            Ok(t.to_owned())
+            Ok(if is_active_content(t) {
+                "application/octet-stream".to_owned()
+            } else {
+                t.to_owned()
+            })
         }
         Some(_) => Err(invalid(
             "content_type",
