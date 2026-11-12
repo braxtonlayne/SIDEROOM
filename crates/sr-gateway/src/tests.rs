@@ -40,6 +40,8 @@ struct FakeDir {
     safety: Mutex<HashMap<UserId, (sr_chat::social::safety::SensitiveMedia, HashSet<UserId>)>>,
     /// Audience sizes of the `dispatch_audience` calls, in order.
     audience_calls: Mutex<Vec<usize>>,
+    /// Test hook: `staff_users` signals `entered` and then waits for `gate` (blocks the platform pump on demand).
+    staff_gate: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
 }
 
 #[async_trait]
@@ -85,6 +87,11 @@ impl GuildDirectory for FakeDir {
         self.sync.lock().unwrap().get(&(user, g)).cloned()
     }
     async fn staff_users(&self) -> Vec<UserId> {
+        let hook = self.staff_gate.lock().unwrap().clone();
+        if let Some((entered, gate)) = hook {
+            entered.notify_one();
+            gate.notified().await;
+        }
         self.staff.lock().unwrap().clone()
     }
     async fn friends_of(&self, user: UserId) -> Vec<UserId> {
@@ -2761,4 +2768,122 @@ async fn tool_room_update_reaches_only_members_who_can_view_the_channel() {
     assert_eq!(d["d"]["set"]["item.a"]["tier"], "");
     b.silent().await;
     no_intent.silent().await;
+}
+
+/// A gateway on a platform topic that holds only a few events, with the pump blocked on demand.
+struct Lagging {
+    e: Env,
+    entered: Arc<tokio::sync::Notify>,
+    gate: Arc<tokio::sync::Notify>,
+}
+
+impl Lagging {
+    fn new() -> Self {
+        let bus = Arc::new(InProcessBus::with_capacity(4));
+        let dir = Arc::new(FakeDir::default());
+        dir.guilds.lock().unwrap().insert(u(1), vec![G1]);
+        dir.guilds.lock().unwrap().insert(u(5), vec![]);
+        let gw = Gateway::new(
+            GatewayConfig::default(),
+            Arc::new(FakeAuth),
+            dir.clone(),
+            bus.clone(),
+        );
+        gw.start();
+        let (entered, gate) = (
+            Arc::new(tokio::sync::Notify::new()),
+            Arc::new(tokio::sync::Notify::new()),
+        );
+        *dir.staff_gate.lock().unwrap() = Some((entered.clone(), gate.clone()));
+        Self {
+            e: Env { gw, bus, dir },
+            entered,
+            gate,
+        }
+    }
+
+    /// Block the pump inside a directory call, overflow the platform topic, release the pump.
+    async fn overflow_platform_topic(&self) {
+        emit(
+            &self.e.bus,
+            DomainEvent::StaffAlert {
+                kind: sr_events::StaffAlertKind::StaffRevoked,
+                detail: "hold the pump".into(),
+            },
+        )
+        .await;
+        self.entered.notified().await;
+        for n in 0..12 {
+            emit(
+                &self.e.bus,
+                DomainEvent::GuildCreated {
+                    guild: GuildId::new(900 + n),
+                    owner: u(99),
+                },
+            )
+            .await;
+        }
+        self.gate.notify_one();
+    }
+}
+
+/// SEC-AUD-124 (D-620): a MemberLeft the platform pump missed (its queue overflowed) is made good by the
+/// reconcile that follows the lag.
+#[tokio::test]
+async fn a_missed_member_left_is_reconciled_after_lag() {
+    let l = Lagging::new();
+    let mut c = connect(&l.e);
+    c.identify("user:1", GUILDS_MSGS, 1).await;
+    settle().await;
+    c.drain().await;
+    l.e.dir.guilds.lock().unwrap().insert(u(1), vec![]);
+    l.overflow_platform_topic().await;
+    let v = c.expect_event("GUILD_DELETE").await;
+    assert_eq!(v["d"]["id"], "1");
+    settle().await;
+    emit(&l.e.bus, msg(G1, OPEN, 1)).await;
+    c.silent().await;
+}
+
+/// SEC-AUD-124 (D-620): a MemberJoined the pump missed is reconciled too.
+#[tokio::test]
+async fn a_missed_member_joined_is_reconciled_after_lag() {
+    let l = Lagging::new();
+    let mut c = connect(&l.e);
+    c.identify("user:5", GUILDS_MSGS, 0).await;
+    settle().await;
+    c.drain().await;
+    l.e.dir.guilds.lock().unwrap().insert(u(5), vec![G1]);
+    l.overflow_platform_topic().await;
+    let v = c.expect_event("GUILD_CREATE").await;
+    assert_eq!(v["d"]["id"], "1");
+    settle().await;
+    emit(&l.e.bus, msg(G1, OPEN, 2)).await;
+    assert_eq!(c.expect_event("MESSAGE_CREATE").await["d"]["id"], "2");
+}
+
+/// SEC-AUD-125 (D-621): an event-interest dispatch carries the event's channel, so it follows the
+/// channel's visibility like the other scheduled-event dispatches.
+#[tokio::test]
+async fn scheduled_event_user_add_in_a_hidden_channel_is_not_dispatched_to_non_viewers() {
+    use sr_events::ScheduledEventKind;
+    let e = env();
+    let all = intents::GUILDS | intents::GUILD_SCHEDULED_EVENTS;
+    let mut viewer = connect(&e);
+    viewer.identify("bot:1", all, 1).await;
+    let mut blind = connect(&e);
+    blind.identify("bot:2", all, 1).await;
+    settle().await;
+    let interest = |channel: Value| DomainEvent::ScheduledEvent {
+        guild: G1,
+        kind: ScheduledEventKind::UserAdd,
+        payload: json!({ "guild_scheduled_event_id": "50", "user_id": "7", "guild_id": "1",
+                         "channel_id": channel }),
+    };
+    emit(&e.bus, interest(json!("11"))).await;
+    viewer.expect_event("GUILD_SCHEDULED_EVENT_USER_ADD").await;
+    blind.silent().await;
+    emit(&e.bus, interest(Value::Null)).await;
+    viewer.expect_event("GUILD_SCHEDULED_EVENT_USER_ADD").await;
+    blind.expect_event("GUILD_SCHEDULED_EVENT_USER_ADD").await;
 }

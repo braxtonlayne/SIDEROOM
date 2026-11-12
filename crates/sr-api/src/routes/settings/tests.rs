@@ -4155,3 +4155,67 @@ async fn previews_of_an_age_restricted_announcement_channel_do_not_reach_followe
 }
 
 mod packages_pg;
+
+/// D-621 (SEC-AUD-125): the interest dispatch carries the event's channel (null for an external event), so the
+/// gateway can gate it on the channel's visibility.
+#[tokio::test]
+async fn an_rsvp_dispatch_carries_the_events_channel() {
+    let e = env().await;
+    let path = e.g("/scheduled-events");
+    let at = |h: i64| crate::routes::guilds::dto::iso8601(T0 + h * 3_600_000);
+    let (s, voice_ev) = e
+        .post(
+            &path,
+            "owner",
+            json!({"name": "Movie night", "entity_type": 2, "channel_id": e.voice.to_string(),
+                   "scheduled_start_time": at(1)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{voice_ev}");
+    let (s, ext_ev) = e
+        .post(
+            &path,
+            "owner",
+            json!({"name": "Park", "entity_type": 3, "entity_metadata": {"location": "the park"},
+                   "scheduled_start_time": at(2), "scheduled_end_time": at(3)}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{ext_ev}");
+    let last_interest = |name: &str| {
+        let events = e.events.0.lock().unwrap();
+        let found = events.iter().rev().find_map(|ev| match ev {
+            super::events::SettingsEvent::ScheduledEvent { payload, .. } if ev.name() == name => {
+                Some(payload.clone())
+            }
+            _ => None,
+        });
+        found.unwrap_or_else(|| panic!("no {name} published"))
+    };
+    let vid = voice_ev["id"].as_str().unwrap();
+    let xid = ext_ev["id"].as_str().unwrap();
+    assert_eq!(
+        e.put(&format!("{path}/{vid}/users/@me"), "bob", json!({}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let add = last_interest("GUILD_SCHEDULED_EVENT_USER_ADD");
+    assert_eq!(add["channel_id"], e.voice.to_string(), "{add}");
+    assert_eq!(add["guild_scheduled_event_id"], vid);
+    assert_eq!(
+        e.delete(&format!("{path}/{vid}/users/@me"), "bob").await.0,
+        StatusCode::NO_CONTENT
+    );
+    let gone = last_interest("GUILD_SCHEDULED_EVENT_USER_REMOVE");
+    assert_eq!(gone["channel_id"], e.voice.to_string(), "{gone}");
+    // An external event has no channel.
+    assert_eq!(
+        e.put(&format!("{path}/{xid}/users/@me"), "bob", json!({}))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let ext = last_interest("GUILD_SCHEDULED_EVENT_USER_ADD");
+    assert_eq!(ext["guild_scheduled_event_id"], xid);
+    assert!(ext["channel_id"].is_null(), "{ext}");
+}

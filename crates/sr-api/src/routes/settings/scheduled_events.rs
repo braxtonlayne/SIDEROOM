@@ -7,7 +7,8 @@
 //!   your own interest (RSVP)
 //!
 //! Gateway: `GUILD_SCHEDULED_EVENT_CREATE/UPDATE/DELETE` (the event object) and
-//! `GUILD_SCHEDULED_EVENT_USER_ADD/REMOVE` (`{guild_scheduled_event_id, user_id, guild_id}`).
+//! `GUILD_SCHEDULED_EVENT_USER_ADD/REMOVE` (`{guild_scheduled_event_id, user_id, guild_id, channel_id}`; `channel_id` is
+//! the event's channel or null, an addition to Discord's payload so the dispatch follows the channel's visibility).
 //! Status moves with `PATCH {status}`: 2 starts a scheduled event, 3 ends a running one, 4
 //! cancels a scheduled one. The server also starts and ends events by itself when their time
 //! comes (see `sr-server`'s `events_jobs`).
@@ -511,7 +512,7 @@ pub async fn create_event(
     // an event created by a bot marks nobody.
     if !matches!(p.kind, crate::AuthKind::Bot { .. }) {
         match deps.service.set_interested(gid, ev.id, user, true).await {
-            Ok((_, true)) => announce_interest(&deps, gid, ev.id, user, true).await,
+            Ok((_, true)) => announce_interest(&deps, gid, &ev, user, true).await,
             Ok(_) => {}
             Err(e) => {
                 tracing::warn!(error = ?e, event = ev.id, "could not mark the creator interested")
@@ -523,7 +524,13 @@ pub async fn create_event(
 }
 
 /// Dispatch `GUILD_SCHEDULED_EVENT_USER_ADD` / `_REMOVE` for `user`.
-async fn announce_interest(deps: &SettingsDeps, gid: GuildId, eid: u64, user: UserId, added: bool) {
+async fn announce_interest(
+    deps: &SettingsDeps,
+    gid: GuildId,
+    ev: &ScheduledEvent,
+    user: UserId,
+    added: bool,
+) {
     deps.publish(SettingsEvent::ScheduledEvent {
         guild: gid,
         kind: if added {
@@ -532,9 +539,12 @@ async fn announce_interest(deps: &SettingsDeps, gid: GuildId, eid: u64, user: Us
             ScheduledEventDispatch::UserRemove
         },
         payload: json!({
-            "guild_scheduled_event_id": eid.to_string(),
+            "guild_scheduled_event_id": ev.id.to_string(),
             "user_id": user.to_string(),
             "guild_id": gid.to_string(),
+            // The event's channel (null for an external event): the gateway gates the dispatch on it like every
+            // other GUILD_SCHEDULED_EVENT_* (SEC-AUD-125, D-621).
+            "channel_id": ev.channel_id.map(|c| c.to_string()),
         }),
     })
     .await;
@@ -800,7 +810,7 @@ async fn rsvp(
         .await
         .map_err(se)?;
     if changed {
-        announce_interest(deps, gid, ev.id, user, interested).await;
+        announce_interest(deps, gid, &ev, user, interested).await;
     }
     Ok(StatusCode::NO_CONTENT)
 }
