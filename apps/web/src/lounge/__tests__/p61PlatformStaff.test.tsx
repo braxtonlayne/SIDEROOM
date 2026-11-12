@@ -1,10 +1,14 @@
 // SEC-AUD-137a (wave 61): a staff check that failed is not remembered as "not staff".
 import { renderHook, waitFor } from '@testing-library/react';
 import { http, HttpResponse, server } from '../../test/server';
-import { usePlatformStaff, useIsPlatformStaff } from '../shell/platformStaff';
+import {
+  resetPlatformStaffCheck,
+  usePlatformStaff,
+  useIsPlatformStaff,
+} from '../shell/platformStaff';
 
 beforeEach(() => {
-  usePlatformStaff.setState({ staff: false, loaded: false });
+  resetPlatformStaffCheck();
 });
 afterEach(() => vi.restoreAllMocks());
 

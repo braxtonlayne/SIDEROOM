@@ -45,6 +45,13 @@ export const usePlatformStaff = create<PlatformStaffState>()((set, get) => ({
   },
 }));
 
+/** Forget the check and its retry cooldown (sign-out, tests): the next use asks the server again. */
+export function resetPlatformStaffCheck(): void {
+  failedAt = 0;
+  inflight = null;
+  usePlatformStaff.setState({ staff: false, loaded: false });
+}
+
 /** True for platform staff; triggers the one-time check on first use. */
 export function useIsPlatformStaff(): boolean {
   const staff = usePlatformStaff((s) => s.staff);
