@@ -209,6 +209,8 @@ pub struct FakeDiscord {
     pub state: Mutex<State>,
     /// Set to hold the next webhook execution (see [`Gate`]).
     pub gate: Mutex<Option<Arc<Gate>>>,
+    /// Set to hold the next webhook creation (`POST /channels/{id}/webhooks`) the same way.
+    pub create_gate: Mutex<Option<Arc<Gate>>>,
 }
 
 pub const BASE: &str = "http://fake.discord/api/v10";
@@ -221,6 +223,7 @@ impl FakeDiscord {
                 ..State::default()
             }),
             gate: Mutex::new(None),
+            create_gate: Mutex::new(None),
         })
     }
 
@@ -323,6 +326,13 @@ impl HttpTransport for FakeDiscord {
             .map(|(_, v)| v.clone());
         if method == "POST" && path.starts_with("/webhooks/") {
             let gate = self.gate.lock().unwrap().take();
+            if let Some(g) = gate {
+                g.entered.notify_one();
+                g.release.notified().await;
+            }
+        }
+        if method == "POST" && path.starts_with("/channels/") && path.ends_with("/webhooks") {
+            let gate = self.create_gate.lock().unwrap().take();
             if let Some(g) = gate {
                 g.entered.notify_one();
                 g.release.notified().await;
@@ -518,6 +528,7 @@ pub async fn world() -> World {
         retry_base: Duration::from_millis(1),
         retry_cap: Duration::from_millis(5),
         batch: 50,
+        erasure_rearm: Duration::from_secs(3600),
     });
     World {
         db,

@@ -1085,6 +1085,15 @@ async fn structural_dispatches_reach_the_reconciler_and_the_bridges_own_echoes_d
     )
     .await;
     assert_eq!(*rec.who.lock().unwrap(), vec![(555, 31, 11)]);
+    // ...and a member who writes the bridge's reason is not the bridge: still attributed (SEC-AUD-132).
+    let o = send(
+        "GUILD_AUDIT_LOG_ENTRY_CREATE",
+        json!({"guild_id": dg, "target_id": "556", "user_id": "32", "action_type": 12,
+               "reason": "sr-bridge:123"}),
+    )
+    .await;
+    assert_ne!(o, Outcome::Ignored(Why::Echo));
+    assert_eq!(rec.who.lock().unwrap().last(), Some(&(556, 32, 12)));
     // Without a reconciler, structure is ignored (selective bridges of wave 35 are unchanged).
     let o = f
         .send(
@@ -1129,4 +1138,47 @@ async fn a_post_from_another_servers_bridge_webhook_is_not_imported() {
     assert_eq!(out, Outcome::Ignored(Why::OwnWebhook));
     assert!(a.sink.posts().is_empty(), "nothing is stored in server B");
     let _ = a.db.cleanup().await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_failed_inbound_mapping_removes_the_stored_message() {
+    // D-627: the message is stored, then its mapping cannot be written: the stored message goes again, so a
+    // replayed dispatch shows it once.
+    let f = fx().await;
+    sqlx::query(
+        "CREATE FUNCTION p61_refuse_map() RETURNS trigger LANGUAGE plpgsql AS \
+         $$ BEGIN RAISE EXCEPTION 'map insert refused'; END $$",
+    )
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    sqlx::query(
+        "CREATE TRIGGER p61_refuse_map BEFORE INSERT ON bridge_message_map \
+         FOR EACH ROW EXECUTE FUNCTION p61_refuse_map()",
+    )
+    .execute(f.db.pool())
+    .await
+    .unwrap();
+    let b = f.bridge().await;
+    let res = f
+        .inbound
+        .handle(
+            &b,
+            &Dispatch {
+                shard: 0,
+                name: "MESSAGE_CREATE".into(),
+                data: f.msg(2001, 77, "stored once"),
+            },
+        )
+        .await;
+    assert!(res.is_err(), "the failure is returned");
+    let posts = f.sink.posts();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(
+        f.sink.log.lock().unwrap().deletes,
+        vec![posts[0].0],
+        "the stored message is removed again"
+    );
+    let _ = f.db.cleanup().await;
 }

@@ -107,6 +107,8 @@ pub struct MapObject {
     pub queued: i64,
     /// Posts that failed for good.
     pub dead: i64,
+    /// Another server on this instance also bridges this Discord channel. Never says which.
+    pub shared_on_instance: bool,
     pub created_at: i64,
 }
 
@@ -116,6 +118,13 @@ pub struct LeftoverObject {
     /// The webhook's id: remove it from Discord's Integrations page by hand.
     pub webhook_id: String,
     pub discord_channel_id: String,
+}
+
+/// A Discord message the bridge owes a deletion to an account erasure for and could not delete.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErasureLeftoverObject {
+    pub discord_channel_id: String,
+    pub discord_message_id: String,
 }
 
 /// What the owner's screen shows.
@@ -135,6 +144,9 @@ pub struct BridgeStatusObject {
     /// Posts that failed for good (the dead-letter counter).
     pub dead_letters: i64,
     pub leftovers: Vec<LeftoverObject>,
+    /// Discord deletions owed to an account erasure that could not be done yet (retried daily): delete the copies on
+    /// Discord by hand. Where the copy is, never who wrote it.
+    pub erasure_leftovers: Vec<ErasureLeftoverObject>,
     /// The viewer is the server owner (may paste and revoke the token and switch the module off).
     pub is_owner: bool,
 }
@@ -259,6 +271,7 @@ fn map_object(m: &sr_bridge::MapView) -> MapObject {
         has_webhook: m.map.discord_webhook_id.is_some(),
         queued: m.queued,
         dead: m.dead,
+        shared_on_instance: m.shared_on_instance,
         created_at: m.map.created_at_ms,
     }
 }
@@ -500,6 +513,14 @@ pub async fn status(
         queued: r.queued,
         dead_letters: r.dead_letters,
         leftovers: leftover_objects(&r.leftovers),
+        erasure_leftovers: r
+            .erasure_leftovers
+            .iter()
+            .map(|x| ErasureLeftoverObject {
+                discord_channel_id: s(x.discord_channel_id),
+                discord_message_id: s(x.discord_message_id),
+            })
+            .collect(),
         is_owner: c.acc.guild.owner_id == UserId::new(u64::try_from(c.user).unwrap_or(0)),
     }))
 }
@@ -583,6 +604,8 @@ pub async fn create_map(
             map: m,
             queued: 0,
             dead: 0,
+            // D-609 refused the create when another server held the channel.
+            shared_on_instance: false,
         })),
     ))
 }
@@ -681,6 +704,7 @@ pub async fn test_map(
         BridgeObject,
         MapObject,
         LeftoverObject,
+        ErasureLeftoverObject,
         BridgeStatusObject,
         TokenBody,
         TeardownObject,

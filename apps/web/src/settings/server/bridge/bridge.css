@@ -65,3 +65,21 @@
 .ss-bridge-facts dd {
   margin-inline-start: 0;
 }
+/* D-623: the passive warning under a map shared with another server reads as part of that row. */
+.ss-table .ss-bridge-row-shared td {
+  border-block-end: 0;
+}
+.ss-table .ss-bridge-shared td {
+  border-top: 0;
+  padding-block-start: 0;
+}
+/* D-626: the Discord messages the owner deletes by hand. */
+.ss-bridge-erasure {
+  margin-block: 12px 0;
+  padding-inline-start: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}

@@ -2,7 +2,7 @@
 // pastes the bot token (sealed, never shown again) and switches the bridge off; the owner and MANAGE_GUILD map
 // channels and post a test.
 import { Button, Notice, TextInput } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { useChannels } from '../../../store';
 import { useResource } from '../hooks';
@@ -98,6 +98,7 @@ export function BridgeSection({ guildId, viewer }: SectionProps) {
                 reload={res.reload}
               />
             )}
+            <ErasureLeftovers status={status} />
             <SwitchOffCard guildId={guildId} isOwner={viewer.isOwner} />
           </div>
         )}
@@ -288,33 +289,42 @@ function MapCard({
           </thead>
           <tbody>
             {status.maps.map((m) => (
-              <tr key={m.id}>
-                <td>#{nameOf(m.channel_id)}</td>
-                <td>#{m.discord_channel_name ?? m.discord_channel_id}</td>
-                <td>{directionLabel(m.direction)}</td>
-                <td>
-                  <div className="ss-actions">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={act.busy}
-                      aria-label={t('settings.bridge.map.test', { name: nameOf(m.channel_id) })}
-                      onClick={() => test(m)}
-                    >
-                      {t('settings.bridge.map.testShort')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      disabled={act.busy}
-                      aria-label={t('settings.bridge.map.remove', { name: nameOf(m.channel_id) })}
-                      onClick={() => remove(m)}
-                    >
-                      {t('settings.bridge.map.removeShort')}
-                    </Button>
-                  </div>
-                </td>
-              </tr>
+              <Fragment key={m.id}>
+                <tr className={m.shared_on_instance ? 'ss-bridge-row-shared' : undefined}>
+                  <td>#{nameOf(m.channel_id)}</td>
+                  <td>#{m.discord_channel_name ?? m.discord_channel_id}</td>
+                  <td>{directionLabel(m.direction)}</td>
+                  <td>
+                    <div className="ss-actions">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={act.busy}
+                        aria-label={t('settings.bridge.map.test', { name: nameOf(m.channel_id) })}
+                        onClick={() => test(m)}
+                      >
+                        {t('settings.bridge.map.testShort')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={act.busy}
+                        aria-label={t('settings.bridge.map.remove', { name: nameOf(m.channel_id) })}
+                        onClick={() => remove(m)}
+                      >
+                        {t('settings.bridge.map.removeShort')}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+                {m.shared_on_instance && (
+                  <tr className="ss-bridge-shared">
+                    <td colSpan={4}>
+                      <Notice variant="warning">{t('settings.bridge.shared.warning')}</Notice>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -365,6 +375,32 @@ function MapCard({
         </div>
       </fieldset>
       <ActionStatus error={act.error} done={act.done} />
+    </section>
+  );
+}
+
+// ---- Discord messages of deleted accounts the bridge could not remove (D-626)
+
+function ErasureLeftovers({ status }: { status: api.BridgeStatus }) {
+  const t = useT();
+  const list = status.erasure_leftovers ?? [];
+  if (list.length === 0) return null;
+  const nameOf = (id: string) =>
+    status.maps.find((m) => m.discord_channel_id === id)?.discord_channel_name ?? id;
+  return (
+    <section className="ss-card" aria-labelledby="ss-bridge-erasure">
+      <h2 id="ss-bridge-erasure">{t('settings.bridge.erasure.title')}</h2>
+      <Notice variant="warning">{t('settings.bridge.erasure.notice')}</Notice>
+      <ul className="ss-bridge-erasure">
+        {list.map((e) => (
+          <li key={`${e.discord_channel_id}-${e.discord_message_id}`}>
+            {t('settings.bridge.erasure.entry', {
+              channel: nameOf(e.discord_channel_id),
+              id: e.discord_message_id,
+            })}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

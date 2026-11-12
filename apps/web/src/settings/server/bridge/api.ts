@@ -29,6 +29,13 @@ export interface BridgeMap {
   /** The channel's name as the bot sees it, for display. */
   discord_channel_name?: string | null;
   direction: BridgeDirection;
+  /** Another server on this instance also bridges this Discord channel (D-623). Never says which. */
+  shared_on_instance?: boolean;
+}
+
+export interface ErasureLeftover {
+  discord_channel_id: string;
+  discord_message_id: string;
 }
 
 export interface BridgeStatus {
@@ -47,6 +54,8 @@ export interface BridgeStatus {
   problem?: 'token_invalid' | 'disconnected' | null;
   /** Webhooks a past teardown could not delete on Discord (the owner removes them by hand). */
   leftovers?: { webhook_id: string; discord_channel_id: string }[];
+  /** Discord messages of deleted accounts the bridge could not remove (D-626): the owner deletes them by hand. */
+  erasure_leftovers?: ErasureLeftover[];
   maps: BridgeMap[];
 }
 
@@ -75,6 +84,7 @@ export interface WireMap {
   has_webhook: boolean;
   queued: number;
   dead: number;
+  shared_on_instance?: boolean;
   created_at: number;
 }
 
@@ -87,6 +97,7 @@ export interface WireStatus {
   queued: number;
   dead_letters: number;
   leftovers: { webhook_id: string; discord_channel_id: string }[];
+  erasure_leftovers?: ErasureLeftover[];
   is_owner: boolean;
 }
 
@@ -108,9 +119,18 @@ export function toStatus(w: WireStatus): BridgeStatus {
     discord_channel_id: m.discord_channel_id,
     discord_channel_name: m.discord_channel_name || null,
     direction: m.direction,
+    shared_on_instance: m.shared_on_instance === true,
   }));
+  const erasure_leftovers = w.erasure_leftovers ?? [];
   if (!b)
-    return { state: 'no_token', mode: 'selective', token_set: false, maps, leftovers: w.leftovers };
+    return {
+      state: 'no_token',
+      mode: 'selective',
+      token_set: false,
+      maps,
+      leftovers: w.leftovers,
+      erasure_leftovers,
+    };
   const state: BridgeState =
     b.status === 'connected' ? 'connected' : b.status === 'connecting' ? 'connecting' : 'error';
   return {
@@ -125,6 +145,7 @@ export function toStatus(w: WireStatus): BridgeStatus {
     invite_url: b.invite_url,
     problem: state === 'error' ? (b.status as 'token_invalid' | 'disconnected') : null,
     leftovers: w.leftovers,
+    erasure_leftovers,
     maps,
   };
 }
