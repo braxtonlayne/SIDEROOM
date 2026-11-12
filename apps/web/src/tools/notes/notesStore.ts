@@ -6,6 +6,7 @@
  * is the ciphertext and a revision. A save that finds the note changed elsewhere (409) never loses an edit: the
  * other browser's version is kept as the note and the local text becomes a "conflict copy".
  */
+import { NOTES_PURGE_EVENT } from '../../pwa/notesKeys';
 import { ApiError, apiFetch } from '../../api/client';
 import {
   type KeyStorage,
@@ -321,6 +322,12 @@ export function createNotesStore(deps: NotesDeps): NotesStore {
 }
 
 const shared = new Map<string, NotesStore>();
+
+// Sign-out (`pwa/signOutPurge`) asks every open store to forget its key; this module is loaded only once Notes is used.
+if (typeof window !== 'undefined')
+  window.addEventListener(NOTES_PURGE_EVENT, () => {
+    for (const s of shared.values()) void s.lock().catch(() => undefined);
+  });
 
 /** The page-wide store of an account (one per signed-in user id). */
 export function notesStoreFor(userId: string): NotesStore {

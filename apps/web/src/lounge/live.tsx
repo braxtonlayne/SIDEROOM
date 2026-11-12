@@ -26,7 +26,7 @@ import { usePermEngine, type PermEngine } from './permEngine';
 import { applyMutes } from './shell/applyMutes';
 import { findBridgedMember, useBridgedMembers } from './bridge/members';
 import { useNotifSettings } from './shell/notifSettings';
-import { failWith } from './actionError';
+import { failWith, reportActionError } from './actionError';
 import { markLoadFailed, useLoadFailed } from './loadFailures';
 import {
   basePermissions,
@@ -490,10 +490,16 @@ export const LIVE_ACTIONS: LoungeActions = {
     if (nonce) useStore.getState().discardMessage(channelId, nonce);
   },
   editMessage(channelId, messageId, content) {
-    useStore
+    return useStore
       .getState()
       .editMessage(channelId, messageId, content)
-      .catch(failWith('lounge.actionError.edit'));
+      .then(
+        () => true,
+        () => {
+          reportActionError('lounge.actionError.edit');
+          return false;
+        },
+      );
   },
   loadOlder(channelId) {
     void useStore.getState().loadOlderMessages(channelId);

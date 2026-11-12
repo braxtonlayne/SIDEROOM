@@ -154,6 +154,28 @@ describe('DM header, welcome and panel', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/channels/@me/grp2'));
   });
 
+  it('SEC-AUD-137d: when adding fails after the group was made, the group opens and says who was not added', async () => {
+    server.use(
+      http.put('*/api/v1/channels/dm1/recipients/3', () =>
+        HttpResponse.json({ id: 'grp2', type: 3, recipients: [bob, cat] }),
+      ),
+      http.put('*/api/v1/channels/grp2/recipients/4', () =>
+        HttpResponse.json({ message: 'boom' }, { status: 500 }),
+      ),
+    );
+    const { router } = at('/channels/@me/dm1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Friends to DM' }));
+    const dlg = await screen.findByRole('dialog', { name: 'Add Friends to DM' });
+    await userEvent.click(await within(dlg).findByRole('checkbox', { name: /cat/i }));
+    await userEvent.click(within(dlg).getByRole('checkbox', { name: /dan/i }));
+    await userEvent.click(within(dlg).getByRole('button', { name: 'Add to DM' }));
+    const partial = await screen.findByRole('dialog', { name: 'Some people were not added' });
+    expect(within(partial).getByRole('alert')).toHaveTextContent(
+      'The others were added, but dan could not be. Try adding them again.',
+    );
+    expect(router.state.location.pathname).toBe('/channels/@me/grp2');
+  });
+
   it('LNG-DM-005: the welcome header names the person, shared servers and relationship buttons', async () => {
     server.use(
       http.delete('*/api/v1/users/@me/relationships/2', async (ctx) => {

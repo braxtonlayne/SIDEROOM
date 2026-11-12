@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useT } from '../../i18n';
 import { MAX_MESSAGE_LENGTH } from '../composerText';
 import { currentMarkdownEngine } from '../markdown';
 
 /**
  * In-place editor for an own message (LNG-MSGUI-027): Enter saves, Esc cancels, an emptied message asks
- * to be deleted instead.
+ * to be deleted instead. While a save is out the editor is disabled; when it resolves false the editor stays
+ * open with the typed text and says so (SEC-AUD-135, Discord keeps the editor open on a failed edit).
  */
 export function InlineEdit({
   initial,
@@ -14,14 +15,25 @@ export function InlineEdit({
   onEmpty,
 }: {
   initial: string;
-  onSave: (content: string) => void;
+  /** Resolves true when saved (the caller then closes the editor), false when it failed. */
+  onSave: (content: string) => Promise<boolean> | void;
   onCancel: () => void;
   /** Saving an empty edit: the caller shows the delete prompt. */
   onEmpty: () => void;
 }) {
   const t = useT();
+  const errId = useId();
   const [text, setText] = useState(initial);
   const ref = useRef<HTMLTextAreaElement | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -38,11 +50,22 @@ export function InlineEdit({
   }, [text]);
 
   const save = () => {
+    if (saving) return;
     const content = text.trim();
     if (!content) return onEmpty();
     if (content.length > MAX_MESSAGE_LENGTH) return;
     if (content === initial.trim()) return onCancel();
-    onSave(currentMarkdownEngine()?.expandShortcodes(content) ?? content);
+    const result = onSave(currentMarkdownEngine()?.expandShortcodes(content) ?? content);
+    if (!result) return;
+    setSaving(true);
+    setFailed(false);
+    void result.then((ok) => {
+      if (!alive.current || ok) return;
+      setSaving(false);
+      setFailed(true);
+      // The disabled field lost focus: give it back so the member can fix the text and try again.
+      setTimeout(() => ref.current?.focus(), 0);
+    });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -65,9 +88,20 @@ export function InlineEdit({
         aria-label={t('lounge.inlineEdit.label')}
         rows={1}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        disabled={saving}
+        aria-busy={saving || undefined}
+        {...(failed ? { 'aria-describedby': errId } : {})}
+        onChange={(e) => {
+          setText(e.target.value);
+          setFailed(false);
+        }}
         onKeyDown={onKeyDown}
       />
+      {failed && (
+        <p role="alert" id={errId} className="lng-failed">
+          {t('lounge.inlineEdit.notSaved')}
+        </p>
+      )}
       {text.trim().length > MAX_MESSAGE_LENGTH && (
         <p role="alert" className="lng-failed">
           {t('lounge.composer.overLimit', { count: text.trim().length - MAX_MESSAGE_LENGTH })}
@@ -79,7 +113,7 @@ export function InlineEdit({
           {t('lounge.inlineEdit.cancel')}
         </button>{' '}
         {t('lounge.inlineEdit.enterTo')}{' '}
-        <button type="button" className="lng-link-btn" onClick={save}>
+        <button type="button" className="lng-link-btn" disabled={saving} onClick={save}>
           {t('lounge.inlineEdit.save')}
         </button>
       </p>

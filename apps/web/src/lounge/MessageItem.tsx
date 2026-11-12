@@ -82,7 +82,7 @@ export interface MessageItemProps {
   onPin?: (m: Message) => void;
   onForward?: (m: Message) => void;
   onViewReactions?: (m: Message, emoji?: string) => void;
-  onSaveEdit?: (m: Message, content: string) => void;
+  onSaveEdit?: (m: Message, content: string) => Promise<boolean>;
   onCancelEdit?: () => void;
   onVote?: (m: Message, answerId: number, add: boolean) => void;
   onEndPoll?: (m: Message) => void;
