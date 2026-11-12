@@ -30,6 +30,7 @@ pub async fn run_all<B: EventBus>(make: impl Fn() -> B) {
     late_subscriber_misses_earlier_events(&make()).await;
     dropped_subscriber_does_not_break_others(&make()).await;
     firehose_sees_every_topic(&make()).await;
+    subscribe_lagging_yields_ok_events(&make()).await;
 }
 
 pub async fn publish_without_subscribers_ok<B: EventBus>(bus: &B) {
@@ -44,6 +45,18 @@ pub async fn subscriber_receives_in_order<B: EventBus>(bus: &B) {
     for i in 0..5 {
         let got = timeout(WAIT, s.next()).await.expect("timed out");
         assert_eq!(got, Some(ev(i)));
+    }
+}
+
+/// `subscribe_lagging` delivers the same events as `subscribe`, wrapped in `Ok` (SEC-AUD-124).
+pub async fn subscribe_lagging_yields_ok_events<B: EventBus>(bus: &B) {
+    let mut s = bus.subscribe_lagging(Topic::Platform);
+    for i in 0..3 {
+        bus.publish(Topic::Platform, ev(i)).await.unwrap();
+    }
+    for i in 0..3 {
+        let got = timeout(WAIT, s.next()).await.expect("timed out");
+        assert_eq!(got, Some(Ok(ev(i))));
     }
 }
 

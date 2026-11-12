@@ -182,6 +182,7 @@ pub fn build(members: &[ListMember], presence: &dyn Fn(UserId) -> PresenceUpdate
 /// Drop the `presence` of every member in `blocked` from a `GUILD_MEMBER_LIST_UPDATE` body. The
 /// list is shared by everybody who views the channel, so this runs per session at send time
 /// (SEC-AUD-067, D-601).
+/// A blocked member keeps their row (only the presence goes): Discord parity, D-622.
 pub fn strip_blocked_presence(body: &mut Value, blocked: &[UserId]) {
     if blocked.is_empty() {
         return;
