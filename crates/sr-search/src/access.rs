@@ -100,6 +100,12 @@ impl ViewableChannelCache {
         self.inner.invalidate(&(user, guild));
     }
 
+    /// Drop every entry (SEC-AUD-140): events were lost, so no cached allow-list can be trusted. Bumping guild
+    /// generations is not enough because a guild with no generation entry would keep its entries.
+    pub fn invalidate_all(&self) {
+        self.inner.invalidate_all();
+    }
+
     /// `RoleUpdated` / `ChannelUpdated` / guild-wide overwrite changes.
     pub fn invalidate_guild(&self, guild: GuildId) {
         *self.generations().entry(guild).or_insert(0) += 1;
@@ -157,6 +163,18 @@ mod tests {
         // Recomputed under the new generation.
         let fresh: Result<_, ()> = cache.get_or_compute(u, GuildId::new(10), || Ok(vec![ch(3)]));
         assert_eq!(*fresh.unwrap(), vec![ch(3)]);
+    }
+
+    #[test]
+    fn invalidate_all_drops_every_entry() {
+        let cache = ViewableChannelCache::new();
+        let u = UserId::new(1);
+        let _: Result<_, ()> = cache.get_or_compute(u, GuildId::new(10), || Ok(vec![ch(1)]));
+        let v = UserId::new(2);
+        let _: Result<_, ()> = cache.get_or_compute(v, GuildId::new(11), || Ok(vec![ch(2)]));
+        cache.invalidate_all();
+        assert!(cache.get(u, GuildId::new(10)).is_none());
+        assert!(cache.get(v, GuildId::new(11)).is_none());
     }
 
     #[test]

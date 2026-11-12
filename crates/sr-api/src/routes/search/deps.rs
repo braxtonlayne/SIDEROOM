@@ -76,6 +76,13 @@ impl SearchDeps {
         self.age.age_confirmed(user).await
     }
 
+    /// Forget every cached allow-list and NSFW flag (SEC-AUD-140): called when events were lost, because the
+    /// dropped ones may have been the permission changes the caches wait for.
+    pub fn clear_access(&self) {
+        self.viewable.invalidate_all();
+        self.nsfw.invalidate_all();
+    }
+
     /// Drop cached allow-lists after a permission-relevant change (open question
     /// 131): roles, channels and overwrites invalidate the whole guild, a member
     /// change only that member.

@@ -394,12 +394,21 @@ impl FeatureService {
     /// event arrives (e.g. published by another node). Requires a bus and a tokio runtime.
     pub fn spawn_invalidation_listener(&self) -> Option<JoinHandle<()>> {
         let bus = self.inner.bus.clone()?;
-        let mut stream = bus.subscribe(sr_events::Topic::Platform);
+        // Lag-aware (SEC-AUD-140): a gap may have swallowed the very event that says a setting changed.
+        let mut stream = bus.subscribe_lagging(sr_events::Topic::Platform);
         let inner = self.inner.clone();
         Some(tokio::spawn(async move {
-            while let Some(ev) = stream.next().await {
-                if matches!(ev, DomainEvent::FeatureSettingsChanged { .. }) {
-                    inner.invalidate().await;
+            while let Some(item) = stream.next().await {
+                match item {
+                    Ok(DomainEvent::FeatureSettingsChanged { .. }) => inner.invalidate().await,
+                    Ok(_) => {}
+                    Err(missed) => {
+                        tracing::warn!(
+                            missed,
+                            "feature settings listener lagged; dropping the cache"
+                        );
+                        inner.invalidate().await;
+                    }
                 }
             }
         }))
@@ -696,6 +705,47 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
         panic!("cache was not invalidated by bus event");
+    }
+
+    #[tokio::test]
+    async fn a_lagged_listener_invalidates_the_cache() {
+        let store = Arc::new(InMemorySettingsStore::new());
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::with_capacity(2));
+        let s = service_with(store.clone(), Some(bus.clone()));
+        let _h = s.spawn_invalidation_listener().unwrap();
+        tokio::task::yield_now().await;
+
+        assert!(!s.is_enabled("demo.thing", &guild()).await.unwrap()); // cached false
+        store
+            .put(
+                "demo.thing",
+                &guild(),
+                SettingsRecord {
+                    enabled: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        assert!(!s.is_enabled("demo.thing", &guild()).await.unwrap()); // still stale
+        // Overflow the listener's buffer with events that do not name a setting: the one that did was lost.
+        for n in 1..=6 {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::GuildDeleted {
+                    guild: GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        for _ in 0..50 {
+            if s.is_enabled("demo.thing", &guild()).await.unwrap() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        panic!("a lagged listener did not drop the cache");
     }
 }
 

@@ -267,6 +267,9 @@ pub fn spawn_firehose_consumer(
                     match item {
                         Ok(ev) => consume_event(&next_id, &search, &mut dedup, &ev, &mut pending),
                         Err(BroadcastStreamRecvError::Lagged(missed)) => {
+                            // SEC-AUD-140: the lost events may have been permission changes, so the caches that wait for
+                            // them are dropped on every lag, before the rate-limited reindex decision (it is cheap).
+                            search.clear_access();
                             flush_jobs(&pool, &mut pending).await;
                             recover_from_lag(&pool, &next_id, &mut limiter, missed).await;
                         }
@@ -585,6 +588,38 @@ mod tests {
     use sr_chat::{Member, SendMessage};
     use sr_core::{Clock, GuildId, ManualClock, SnowflakeGenerator, UserId};
     use sr_search::{Access, IndexedMessage, SearchRequest};
+
+    /// SEC-AUD-140: lost events drop the access caches that depend on them.
+    #[tokio::test]
+    async fn a_lagged_firehose_clears_the_access_caches() {
+        let search = Arc::new(SearchDeps::new(Arc::new(MessageIndex::in_ram().unwrap())));
+        let (u, g) = (UserId::new(1), GuildId::new(10));
+        let _: Result<_, ()> = search
+            .viewable
+            .get_or_compute(u, g, || Ok(vec![ChannelId::new(5)]));
+        assert!(search.viewable.get(u, g).is_some());
+        // A pool that is never reachable: the consumer only logs the failed reindex enqueue.
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .acquire_timeout(Duration::from_millis(200))
+            .connect_lazy("postgres://nobody@127.0.0.1:1/none")
+            .unwrap();
+        let ids: JobIds = Arc::new(|| 1);
+        let lag: TapItem = Err(BroadcastStreamRecvError::Lagged(7));
+        let events = futures::stream::iter(vec![lag])
+            .chain(futures::stream::pending())
+            .boxed();
+        let task = spawn_firehose_consumer(events, pool, ids, search.clone());
+        let mut cleared = false;
+        for _ in 0..100 {
+            if search.viewable.get(u, g).is_none() {
+                cleared = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        task.abort();
+        assert!(cleared, "a lag must drop the cached allow-lists");
+    }
 
     fn ev_sent(channel: u64, id: u64) -> DomainEvent {
         DomainEvent::MessageSent {
