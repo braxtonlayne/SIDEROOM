@@ -240,8 +240,10 @@ test.describe('Voice E2EE (real browsers)', () => {
         await expect
           .poll(async () => (await inbound(p)).audioBytes, { timeout: 30_000 })
           .toBeGreaterThan(0);
-        const f = (await e2ee(p)).frames!;
-        expect(f.encrypted).toBeGreaterThan(50);
+        // The worker reports its counters in steps, so a single read can land exactly on a step: poll it too.
+        await expect
+          .poll(async () => (await e2ee(p)).frames?.encrypted ?? 0, { timeout: 30_000 })
+          .toBeGreaterThan(50);
       }
 
       // --- A third party without E2EE joins (it watches the frames, see the end); the pair stays secure.
