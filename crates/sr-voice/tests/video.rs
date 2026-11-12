@@ -77,6 +77,8 @@ struct World {
     frame: u32,
     /// Multiplies the size of every camera frame (1 = the usual 100/200/300 bytes per layer).
     cam_scale: usize,
+    /// Multiplies the size of every screen frame (1 = 150 bytes).
+    screen_scale: usize,
 }
 
 fn sfu_addr() -> SocketAddr {
@@ -104,6 +106,7 @@ impl World {
             clients: Vec::new(),
             frame: 0,
             cam_scale: 1,
+            screen_scale: 1,
         }
     }
 
@@ -342,6 +345,7 @@ impl World {
         let rtp = MediaTime::new(u64::from(self.frame) * 3_000, Frequency::NINETY_KHZ);
         let first = self.frame == 0;
         let cam_scale = self.cam_scale;
+        let screen_scale = self.screen_scale;
         self.frame += 1;
         for &(i, source) in senders {
             let pt = self.pt_vp8(i);
@@ -373,7 +377,7 @@ impl World {
                     c.rtc
                         .writer(mid)
                         .unwrap()
-                        .write(pt, now, rtp, vec![tag; 150])
+                        .write(pt, now, rtp, vec![tag; 150 * screen_scale])
                         .unwrap();
                 }
                 Source::ScreenAudio => {
@@ -1004,4 +1008,93 @@ fn simulcast_layers_share_one_cap() {
     w.cam_scale = 3;
     w.stream(Duration::from_secs(10), &[(p, Source::Camera)]);
     assert_eq!(w.core.snapshot().ingress_dropped_video, 0);
+}
+
+/// SEC-AUD-153 (D-631): the screen path through real clients. A screen source over its cap is
+/// dropped and counted, forwarding resumes under the cap with a keyframe request, and a camera in
+/// the same room under its own cap loses nothing.
+#[test]
+fn a_screen_share_over_its_cap_is_dropped_and_resumes() {
+    // Screen cap 400 kbit/s = 50 000 bytes/s; the camera's own cap is far above its 18 kB/s.
+    let core = SfuCore::new(100, 99).with_video_caps(400, 14_000, 1_000);
+    let mut w = World::with(core);
+    let screen_tracks = Tracks {
+        camera: false,
+        screen: true,
+        screen_audio: false,
+    };
+    let sharer = w.join(1, base_flags(), screen_tracks);
+    let cam = w.join(2, base_flags(), CAMERA_ONLY);
+    let viewer = w.join(3, base_flags(), Tracks::default());
+    w.connect_all();
+    w.publish(sharer, Source::Screen, true);
+    w.publish(cam, Source::Camera, true);
+    w.run(Duration::from_millis(800));
+    let ch = ChannelId::new(CHANNEL);
+    w.subscribe(
+        viewer,
+        vec![
+            SubscriptionHint {
+                user_id: UserId::new(1),
+                source: Source::Screen,
+                enabled: true,
+                layer: None,
+                viewport: None,
+            },
+            camera_hint(2, None, None),
+        ],
+    );
+    w.run(Duration::from_millis(600));
+    w.core
+        .set_stream_viewers(w.now, ch, UserId::new(1), vec![UserId::new(3)], true);
+    w.run(Duration::from_millis(800));
+    let both = [(sharer, Source::Screen), (cam, Source::Camera)];
+
+    // Under both caps (150 bytes a 30 ms frame is 5 kB/s): nothing is dropped.
+    w.stream(Duration::from_secs(3), &both);
+    assert_eq!(w.core.snapshot().ingress_dropped_video, 0, "under the cap");
+    let cam_per_3s = w.frames_by_layer(viewer, "2-camera")[0];
+    assert!(cam_per_3s > 40, "the camera flows: {cam_per_3s}");
+    w.clear_video(viewer);
+    let cam_requests = w.clients[cam].keyframe_requests.len();
+
+    // Twenty times the frame size (100 kB/s): twice the screen cap.
+    w.screen_scale = 20;
+    w.stream(Duration::from_secs(3), &both);
+    let dropped = w.core.snapshot().ingress_dropped_video;
+    assert!(dropped > 0, "screen frames over the cap are dropped");
+    let screen_got = w.clients[viewer]
+        .video
+        .iter()
+        .filter(|g| g.stream == "1-screen")
+        .count();
+    assert!(screen_got > 0, "the cap lets the allowed part through");
+    // The camera is untouched: every thumbnail frame still arrives, and it was not asked to restart.
+    let cam_got = w.frames_by_layer(viewer, "2-camera")[0];
+    assert!(
+        cam_got * 10 >= cam_per_3s * 9,
+        "the camera loses nothing: {cam_got} against {cam_per_3s}"
+    );
+    assert_eq!(w.clients[cam].keyframe_requests.len(), cam_requests);
+
+    // Stop on a dropped frame (a pass after a drop already asked for its keyframe during the flood).
+    for _ in 0..200 {
+        let before = w.core.snapshot().ingress_dropped_video;
+        w.video_frame(&both);
+        if w.core.snapshot().ingress_dropped_video > before {
+            break;
+        }
+    }
+
+    // Back under the cap, after the bucket refilled: forwarding resumes with a keyframe request.
+    w.screen_scale = 1;
+    w.run(Duration::from_secs(3));
+    let requests = w.clients[sharer].keyframe_requests.len();
+    let dropped_before = w.core.snapshot().ingress_dropped_video;
+    w.stream(Duration::from_secs(1), &both);
+    assert_eq!(w.core.snapshot().ingress_dropped_video, dropped_before);
+    assert!(
+        w.clients[sharer].keyframe_requests.len() > requests,
+        "forwarding resumed after a drop: the sharer was asked for a keyframe"
+    );
 }
