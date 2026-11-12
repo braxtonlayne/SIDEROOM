@@ -152,6 +152,11 @@ impl BridgeService {
             maps_removed: i64::try_from(maps.len()).unwrap_or(i64::MAX),
             ..TeardownReport::default()
         };
+        // The whole_guild options act on Discord while the maps and the snapshot still exist. First, so a failed read
+        // of our own tables stops the teardown before anything is deleted (SEC-AUD-105).
+        if opts.remove_created || opts.restore_permissions {
+            report.removal = self.teardown_discord_structure(guild, &opts).await?;
+        }
         for (map_id, _channel, discord_channel) in &maps {
             // A map whose token cannot be opened (a rotated key) is reported as a leftover by id, never skipped.
             let Some((webhook, token)) = self.webhook_of(*map_id).await.unwrap_or_else(|e| {
@@ -181,11 +186,6 @@ impl BridgeService {
                     });
                 }
             }
-        }
-
-        // The whole_guild options act on Discord while the maps and the snapshot still exist.
-        if opts.remove_created || opts.restore_permissions {
-            report.removal = self.teardown_discord_structure(guild, &opts).await;
         }
 
         let mut tx = self.pool.begin().await?;

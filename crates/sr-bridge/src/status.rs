@@ -226,7 +226,8 @@ impl BridgeService {
     }
 
     /// Erasure: delete the Discord copies the bridge posted for the member (best effort, each failure logged by
-    /// message id) and forget the map rows and the queue rows. Returns how many copies were removed.
+    /// message id) and forget the map rows of the copies that are gone, and the queue rows. A copy Discord refused to
+    /// delete keeps its map row. Returns how many copies were removed.
     pub async fn erase_for(&self, user: i64) -> BridgeResult<u64> {
         let rows: Vec<(i64, i64, i64)> = sqlx::query_as(
             "SELECT sr_message_id, discord_message_id, map_id FROM bridge_message_map \
@@ -237,22 +238,39 @@ impl BridgeService {
         .await?;
         let mut removed = 0;
         for (sr_message, discord_message, map_id) in rows {
-            if let Ok(Some((webhook, token))) = self.webhook_of(map_id).await {
-                match self
+            // The mapping is the only record of where the copy lives: it goes only once Discord confirmed the copy
+            // is gone (SEC-AUD-104). A refusal, or a map without a usable webhook, keeps it for another try.
+            let gone = match self.webhook_of(map_id).await {
+                Ok(Some((webhook, token))) => match self
                     .discord
                     .delete_webhook_message(webhook, &token, discord_message)
                     .await
                 {
-                    Ok(()) | Err(CallError::Gone(_)) => removed += 1,
-                    Err(e) => tracing::warn!(
+                    Ok(()) | Err(CallError::Gone(_)) => true,
+                    Err(e) => {
+                        tracing::warn!(
+                            sr_message,
+                            discord_message,
+                            webhook_id = webhook,
+                            error = %e,
+                            "could not delete a mirrored message on Discord during erasure"
+                        );
+                        false
+                    }
+                },
+                _ => {
+                    tracing::warn!(
                         sr_message,
                         discord_message,
-                        webhook_id = webhook,
-                        error = %e,
-                        "could not delete a mirrored message on Discord during erasure"
-                    ),
+                        "no webhook to delete a mirrored message with during erasure"
+                    );
+                    false
                 }
+            };
+            if !gone {
+                continue;
             }
+            removed += 1;
             sqlx::query("DELETE FROM bridge_message_map WHERE sr_message_id = $1")
                 .bind(sr_message)
                 .execute(&self.pool)

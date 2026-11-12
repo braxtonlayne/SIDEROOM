@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use sqlx::Row;
 
 use super::conflicts::{ConflictKind, NewConflict, ObjectKind as CObj};
-use super::engine::{AUDIT_SYNC_RUN, SyncEngine};
+use super::engine::{AUDIT_SYNC_RUN, SyncEngine, Unmapped};
 use super::holds;
 use super::patch::{ChannelPatch, RoleStructurePatch, SrStructuralPatch};
 use super::port::{BridgeOrigin, SrNewChannel, SrNewRole};
@@ -349,7 +349,7 @@ impl SyncEngine {
                 .await?;
             let mut synced = SyncedState::new();
             synced.record("name", json!(sr.name), json!(created.name));
-            store::insert_role_map(
+            let mapped = store::insert_role_map(
                 self.pool(),
                 &RoleMap {
                     id: self.svc.next_id(),
@@ -364,6 +364,17 @@ impl SyncEngine {
                 },
             )
             .await?;
+            if !mapped {
+                return Err(self
+                    .undo_unmapped(
+                        guild,
+                        &token,
+                        dg,
+                        &origin,
+                        Unmapped::DiscordRole(created.id),
+                    )
+                    .await);
+            }
             rep.created_on_discord += 1;
         }
         for dr in d
@@ -402,7 +413,7 @@ impl SyncEngine {
             }
             let mut synced = SyncedState::new();
             synced.record("name", json!(dr.name), json!(dr.name));
-            store::insert_role_map(
+            let mapped = store::insert_role_map(
                 self.pool(),
                 &RoleMap {
                     id: self.svc.next_id(),
@@ -417,6 +428,11 @@ impl SyncEngine {
                 },
             )
             .await?;
+            if !mapped {
+                return Err(self
+                    .undo_unmapped(guild, &token, dg, &origin, Unmapped::SrRole(sid))
+                    .await);
+            }
             rep.created_here += 1;
         }
 
@@ -615,7 +631,10 @@ impl SyncEngine {
             .collect();
         sr_new.sort_by_key(|c| (c.kind != 4, c.position, c.id));
         for c in sr_new {
-            let src = &sr_ch[&c.id];
+            let Some(src) = sr_ch.get(&c.id) else {
+                // Created after the first read of this pass: the next pass maps it.
+                continue;
+            };
             let parent_d = src.parent_id.and_then(|p| sr_to_d.get(&p).copied());
             let kind = i64::from(src.kind);
             let kind = if info.is_community() {
@@ -654,7 +673,7 @@ impl SyncEngine {
                     .map(|m| m.id),
                 None => None,
             };
-            store::insert_structure_map(
+            let mapped = store::insert_structure_map(
                 self.pool(),
                 &NewStructureMap {
                     id: self.svc.next_id(),
@@ -671,6 +690,17 @@ impl SyncEngine {
                 },
             )
             .await?;
+            if !mapped {
+                return Err(self
+                    .undo_unmapped(
+                        guild,
+                        &token,
+                        dg,
+                        &origin,
+                        Unmapped::DiscordChannel(created.id),
+                    )
+                    .await);
+            }
             self.overwrites
                 .push_channel(guild, c.id, created.id, &reason)
                 .await?;
@@ -716,7 +746,7 @@ impl SyncEngine {
                     .map(|m| m.id),
                 None => None,
             };
-            store::insert_structure_map(
+            let mapped = store::insert_structure_map(
                 self.pool(),
                 &NewStructureMap {
                     id: self.svc.next_id(),
@@ -733,6 +763,11 @@ impl SyncEngine {
                 },
             )
             .await?;
+            if !mapped {
+                return Err(self
+                    .undo_unmapped(guild, &token, dg, &origin, Unmapped::SrChannel(sid))
+                    .await);
+            }
             // Make Discord's overwrites equal ours (a private channel created on Discord is not private here).
             self.overwrites
                 .push_channel(guild, sid, dc.id, &reason)
