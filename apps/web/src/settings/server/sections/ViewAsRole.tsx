@@ -20,7 +20,7 @@ const ICON: Record<number, string> = {
 
 export function ViewAsRoleDialog({
   guildId,
-  roles,
+  roles: shownRoles,
   onClose,
 }: {
   guildId: string;
@@ -37,12 +37,23 @@ export function ViewAsRoleDialog({
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [attempt, setAttempt] = useState(0);
+  // Try again also reads the roles afresh: the list the settings page handed in may be the malformed one.
+  const [fresh, setFresh] = useState<readonly api.RoleObject[] | null>(null);
+  const roles = fresh ?? shownRoles;
 
   useEffect(() => {
     let live = true;
     loadPermEngine().catch(() => live && setLoadFailed(true));
-    api.listChannels(guildId).then(
-      (c) => live && setChannels(c),
+    // Both land together, so a retry never shows the old roles with the new channels.
+    Promise.all([
+      attempt > 0 ? api.listRoles(guildId).catch(() => null) : null,
+      api.listChannels(guildId),
+    ]).then(
+      ([r, c]) => {
+        if (!live) return;
+        if (r) setFresh(r);
+        setChannels(c);
+      },
       (e: unknown) => live && setError(api.errorText(e)),
     );
     return () => {
@@ -145,7 +156,7 @@ export function ViewAsRoleDialog({
           </Notice>
         )}
         {admin && <Notice variant="info">{t('settings.viewAs.administrator')}</Notice>}
-        <h3 className="ss-sub-title">{t('settings.viewAs.resultTitle')}</h3>
+        {!failed && <h3 className="ss-sub-title">{t('settings.viewAs.resultTitle')}</h3>}
         {!entries ? (
           failed ? null : (
             <p className="ss-na">{t('settings.viewAs.loading')}</p>
