@@ -672,3 +672,28 @@
     white-space: nowrap;
   }
 }
+
+/* SEC-AUD-156: the inbox popover (kit Popover: max 360px wide, 12px padding) is 420px inside, so on a desktop the
+   Decline button of a friend request in "For You" was cut off. The content is as wide as the panel's inner box. */
+.lng-root .lng-inbox {
+  inline-size: min(336px, calc(100vw / var(--ui-zoom, 1) - 40px));
+  max-inline-size: 100%;
+}
+
+/* SEC-AUD-156: a Message Request row has four buttons (Accept, Ignore, Spam, Block): on a phone they go on a
+   second line under the name instead of running over it. */
+@media (max-width: 720px) {
+  .lng-channel-view:not(.lng-friends) .lng-friend-row {
+    flex-wrap: wrap;
+    column-gap: 6px;
+  }
+  .lng-channel-view:not(.lng-friends) .lng-friend-row > .lng-friend-text {
+    flex: 1 1 calc(100% - 44px);
+  }
+  .lng-channel-view:not(.lng-friends) .lng-friend-row > .lng-friend-text + button {
+    margin-inline-start: 44px;
+  }
+  .lng-channel-view:not(.lng-friends) .lng-friend-name {
+    overflow-wrap: anywhere;
+  }
+}
