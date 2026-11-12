@@ -83,3 +83,15 @@
   font-size: 0.875rem;
   overflow-wrap: anywhere;
 }
+/* On a phone the table scrolls sideways; the warning stays as wide as what is visible and sticks to the start edge, so
+   it reads in full while the row's columns scroll. */
+@media (max-width: 720px) {
+  .ss-table:has(.ss-bridge-shared) {
+    container-type: inline-size;
+  }
+  .ss-bridge-shared-line {
+    position: sticky;
+    inset-inline-start: 0;
+    inline-size: calc(100cqw - 16px);
+  }
+}

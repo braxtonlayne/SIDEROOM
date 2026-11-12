@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import { apiPatch, apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
 
 /**
  * SEC-AUD-129 (D-623) and SEC-AUD-130 (D-626): Server Settings > Bridge with a connected bridge, two maps (one of
@@ -26,6 +26,7 @@ async function context(
   const c = await browser.newContext({
     baseURL: ORIGIN,
     viewport: size,
+    colorScheme: theme === 'lounge-dark' ? 'dark' : 'light',
     storageState: await base.storageState(),
   });
   await c.addInitScript(
@@ -140,6 +141,9 @@ test('the bridge screen says when a Discord channel is shared and lists the eras
   ];
 
   for (const theme of THEMES) {
+    await apiPatch(octx.request, '/users/@me/settings', {
+      settings: { user_prefs: { theme, zoom: 100 } },
+    });
     for (const [vp, size] of Object.entries(VIEWPORTS)) {
       const tag = `${vp}-${theme}`;
       const c = await context(browser, octx, size, theme);
@@ -186,4 +190,7 @@ test('the bridge screen says when a Discord channel is shared and lists the eras
       await c.close();
     }
   }
+  await apiPatch(octx.request, '/users/@me/settings', {
+    settings: { user_prefs: { theme: 'lounge-editorial', zoom: 100 } },
+  });
 });

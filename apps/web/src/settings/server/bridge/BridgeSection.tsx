@@ -320,7 +320,9 @@ function MapCard({
                 {m.shared_on_instance && (
                   <tr className="ss-bridge-shared">
                     <td colSpan={4}>
-                      <Notice variant="warning">{t('settings.bridge.shared.warning')}</Notice>
+                      <div className="ss-bridge-shared-line">
+                        <Notice variant="warning">{t('settings.bridge.shared.warning')}</Notice>
+                      </div>
                     </td>
                   </tr>
                 )}
