@@ -131,7 +131,7 @@ pub async fn run(cli: Cli) -> Result<()> {
             force,
             scale: false,
             ..
-        } => seed(&pool, &cfg, ids, &password, force).await?,
+        } => seed(&pool, &cfg, ids, password, force).await?,
         Command::Seed {
             password,
             force,
@@ -151,7 +151,7 @@ pub async fn run(cli: Cli) -> Result<()> {
                 chapters: scale_chapters.unwrap_or(full.chapters),
                 titles: scale_titles.unwrap_or(full.titles),
             };
-            seed_scale(&pool, &cfg, &password, force, &seed_name, profile).await?
+            seed_scale(&pool, &cfg, password, force, &seed_name, profile).await?
         }
         Command::Backup { dir } => {
             crate::ops::backup(&cfg, &pool, &dir, now_ms()).await?;
@@ -784,6 +784,22 @@ const SEED_USERS: &[(&str, &str)] = &[
     ("dave", "Dave"),
 ];
 
+/// The development password of a local seed.
+const DEV_SEED_PASSWORD: &str = "sideroom-dev-password";
+
+/// The password for a seed (D-614): a local instance may use the built-in development password; a forced seed of
+/// a non-local instance must bring its own (12+ characters, not the published one).
+fn seed_password(local: bool, force: bool, given: Option<String>) -> Result<String, String> {
+    if local {
+        return Ok(given.unwrap_or_else(|| DEV_SEED_PASSWORD.to_owned()));
+    }
+    let _ = force; // a non-local seed without --force is refused earlier
+    match given {
+        Some(p) if p.chars().count() >= 12 && p != DEV_SEED_PASSWORD => Ok(p),
+        _ => Err("a seed on a non-local instance needs --password: at least 12 characters, and not the built-in development password".to_owned()),
+    }
+}
+
 fn is_local(public_url: &str) -> bool {
     let rest = public_url.split_once("://").map_or(public_url, |(_, r)| r);
     let host = rest.split(['/', ':']).next().unwrap_or("");
@@ -794,7 +810,7 @@ fn is_local(public_url: &str) -> bool {
 async fn seed_scale(
     pool: &PgPool,
     cfg: &Config,
-    password: &str,
+    password: Option<String>,
     force: bool,
     name: &str,
     profile: crate::seed_scale::ScaleProfile,
@@ -805,8 +821,10 @@ async fn seed_scale(
             cfg.server.public_url
         );
     }
+    let password = seed_password(is_local(&cfg.server.public_url), force, password)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let hash = hasher()?
-        .hash(password)
+        .hash(&password)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let perms = i64::try_from(sr_chat::perms::default_everyone_permissions().bits()).unwrap_or(0);
     let started = std::time::Instant::now();
@@ -839,7 +857,7 @@ async fn seed(
     pool: &PgPool,
     cfg: &Config,
     ids: IdSource,
-    password: &str,
+    password: Option<String>,
     force: bool,
 ) -> Result<()> {
     if !force && !is_local(&cfg.server.public_url) {
@@ -848,8 +866,10 @@ async fn seed(
             cfg.server.public_url
         );
     }
+    let password = seed_password(is_local(&cfg.server.public_url), force, password)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let hash = hasher()?
-        .hash(password)
+        .hash(&password)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
     let mut created = 0;
     for (username, display) in SEED_USERS {
@@ -1283,6 +1303,30 @@ mod tests {
         assert!(is_local("http://app.localhost"));
         assert!(!is_local("https://sideroom.example"));
         assert!(!is_local("https://localhost.evil.example"));
+    }
+
+    #[test]
+    fn a_forced_remote_seed_without_a_password_is_refused() {
+        assert!(seed_password(false, true, None).is_err());
+        assert!(seed_password(false, true, Some("short".into())).is_err());
+        assert!(seed_password(false, true, Some("a-long-own-password".into())).is_ok());
+    }
+
+    #[test]
+    fn a_forced_remote_seed_with_the_dev_password_is_refused() {
+        assert!(seed_password(false, true, Some("sideroom-dev-password".into())).is_err());
+    }
+
+    #[test]
+    fn a_local_seed_keeps_the_dev_default() {
+        assert_eq!(
+            seed_password(true, false, None).unwrap(),
+            "sideroom-dev-password"
+        );
+        assert_eq!(
+            seed_password(true, true, Some("mine".into())).unwrap(),
+            "mine"
+        );
     }
 
     #[test]

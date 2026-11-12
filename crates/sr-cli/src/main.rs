@@ -124,9 +124,10 @@ pub enum Command {
     },
     /// Insert development data. Refuses non-local instances without --force.
     Seed {
-        /// Password for all seeded accounts.
-        #[arg(long, default_value = "sideroom-dev-password")]
-        password: String,
+        /// Password for all seeded accounts. A local instance defaults to the development password; a non-local
+        /// instance with --force needs one of its own (12+ characters, not the development password).
+        #[arg(long)]
+        password: Option<String>,
         #[arg(long)]
         force: bool,
         /// Load the sizing-claim dataset instead of the dev data (RDY-PERF-001): 20,000 accounts, 500 guilds,
