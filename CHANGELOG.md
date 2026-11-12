@@ -8,6 +8,15 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 60 - 2026-11-12
+
+- **Discord bridge.** Deleting or editing a message reaches Discord even if you do it while the message is still being sent, and a queued post is no longer lost on a hiccup. A Discord channel can be bridged into only one server, and replacing the bot token keeps the bridge on the same Discord server.
+- **Deleting your account.** Your personal data goes with it: watch and reading progress, bookmarks, notes, and saved or private lists. What you posted for others stays as "Deleted User", and any data export you asked for is withdrawn.
+- **Sign-in.** Wrong two-factor codes count against the account wherever they come from, and a password-reset link no longer works on a suspended or banned account.
+- **Servers.** A ban always wins over a join happening at the same moment. If the live connection falls behind, it re-checks which servers you belong to, so a missed kick still takes effect. A role mention only notifies that role's members, and event interest updates follow channel visibility.
+- **For operators.** Without email set up, the server never writes a message body to its log. Seeding demo accounts on a non-local server needs its own password.
+- **For staff.** Erasures, data exports and patron notices are all-or-nothing with their audit rows, feature and library changes are logged before they're made, and "Publish now" can't race a withdrawal.
+
 ## Phase 59 - 2026-11-11
 
 - **Privacy.** When you're invisible, nobody sees what you're playing. Someone you've blocked no longer sees your online status anywhere, including the member list.
