@@ -41,7 +41,7 @@ pub use service::{
     BridgeNotices, BridgeService, IdSource, MediaUrls, NoNotices, RelativeUrls, TeardownHook,
     TokenSealer, Tuning,
 };
-pub use status::{MapView, MemberExport, StatusReport, Totals};
+pub use status::{ErasureLeftover, MapView, MemberExport, StatusReport, Totals};
 pub use teardown::{
     FailedObject, Leftover, RemovalReport, TeardownOptions, TeardownReason, TeardownReport,
 };

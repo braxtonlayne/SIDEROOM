@@ -16,6 +16,8 @@
 //!   makes a repeated event harmless.
 //!
 
+use std::time::Duration;
+
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sqlx::Row;
@@ -59,6 +61,14 @@ struct QueueRow {
     sr_message_id: Option<i64>,
     payload: Value,
     attempts: i32,
+}
+
+impl QueueRow {
+    /// A Discord deletion owed to an account erasure (`sr-db` `bridge_dsr`): never given up silently (D-626).
+    fn is_erasure(&self) -> bool {
+        self.kind == "delete"
+            && self.payload.get("reason").and_then(Value::as_str) == Some("erasure")
+    }
 }
 
 fn parse_id(v: Option<&Value>) -> Option<i64> {
@@ -439,6 +449,17 @@ impl BridgeService {
     /// One pass over the queue: the oldest due row of each map is sent. Returns how many rows left the queue
     /// (sent, dropped or dead).
     pub async fn run_outbox_once(&self) -> BridgeResult<usize> {
+        // D-626: a Discord deletion owed to an erasure is never given up. Once the dead row has waited the re-arm
+        // interval it gets one more go; `kill_row` leaves `due_at` alone and the attempts are already at the limit,
+        // so a failure puts it straight back to `dead` for another interval.
+        sqlx::query(
+            "UPDATE bridge_outbox SET state = 'pending', due_at = now() \
+             WHERE state = 'dead' AND kind = 'delete' AND payload ->> 'reason' = 'erasure' \
+               AND due_at <= now() - make_interval(secs => $1)",
+        )
+        .bind(self.tuning.erasure_rearm.as_secs_f64())
+        .execute(&self.pool)
+        .await?;
         let rows = sqlx::query(
             "SELECT DISTINCT ON (map_id) id, map_id, guild_id, kind, sr_message_id, payload, attempts, \
                     (due_at <= now()) AS due \
@@ -486,8 +507,14 @@ impl BridgeService {
         let (webhook, token) = match self.webhook_of(row.map_id).await {
             Ok(Some(w)) => w,
             Ok(None) => {
-                // The map lost its webhook (direction changed, map removed): nothing can send this.
-                return self.drop_row(row.id).await.map(|()| true);
+                // The map lost its webhook (direction changed, map removed): nothing can send this. An erasure
+                // deletion is not given up silently (D-626): it is listed for the owner.
+                if row.is_erasure() {
+                    self.kill_row(row.id, "no webhook to delete with").await?;
+                } else {
+                    self.drop_row(row.id).await?;
+                }
+                return Ok(true);
             }
             // A lookup that failed (database or unseal error) says nothing about the map: keep the row, like any
             // other transient failure (SEC-AUD-100).
@@ -606,18 +633,51 @@ impl BridgeService {
                 let post = self.post_from(&p);
                 let discord_message = self.discord.execute_webhook(webhook, token, &post).await?;
                 if let Some(sr) = row.sr_message_id {
-                    sqlx::query(
-                        "INSERT INTO bridge_message_map (sr_message_id, discord_message_id, map_id, webhook_id, author_id, direction) \
-                         VALUES ($1, $2, $3, $4, $5, 'out') ON CONFLICT DO NOTHING",
-                    )
-                    .bind(sr)
-                    .bind(discord_message)
-                    .bind(row.map_id)
-                    .bind(webhook)
-                    .bind(p.author_id)
-                    .execute(&self.pool)
-                    .await
-                    .map_err(db)?;
+                    // The post landed: the mapping is the only record of where the copy lives. Try it three times
+                    // in all; when it still fails, remove the copy so the ordinary retry posts the message once
+                    // (D-627).
+                    let mut failed = None;
+                    for (n, pause) in [0u64, 100, 400].into_iter().enumerate() {
+                        if pause > 0 {
+                            tokio::time::sleep(Duration::from_millis(pause)).await;
+                        }
+                        let res = sqlx::query(
+                            "INSERT INTO bridge_message_map (sr_message_id, discord_message_id, map_id, webhook_id, author_id, direction) \
+                             VALUES ($1, $2, $3, $4, $5, 'out') ON CONFLICT DO NOTHING",
+                        )
+                        .bind(sr)
+                        .bind(discord_message)
+                        .bind(row.map_id)
+                        .bind(webhook)
+                        .bind(p.author_id)
+                        .execute(&self.pool)
+                        .await;
+                        match res {
+                            Ok(_) => {
+                                failed = None;
+                                break;
+                            }
+                            Err(e) => {
+                                tracing::debug!(attempt = n + 1, error = %e, "bridge map insert failed");
+                                failed = Some(e);
+                            }
+                        }
+                    }
+                    if let Some(e) = failed {
+                        if let Err(d) = self
+                            .discord
+                            .delete_webhook_message(webhook, token, discord_message)
+                            .await
+                        {
+                            tracing::warn!(
+                                sr_message = sr,
+                                discord_message,
+                                error = %d,
+                                "could not remove a posted copy after its mapping failed"
+                            );
+                        }
+                        return Err(db(e));
+                    }
                 }
                 Ok(())
             }

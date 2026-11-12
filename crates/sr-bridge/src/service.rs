@@ -85,6 +85,8 @@ pub struct Tuning {
     pub retry_cap: Duration,
     /// Rows the worker takes per pass.
     pub batch: usize,
+    /// How long a dead Discord deletion owed to an account erasure waits before the worker tries it again (D-626).
+    pub erasure_rearm: Duration,
 }
 
 impl Default for Tuning {
@@ -95,6 +97,7 @@ impl Default for Tuning {
             retry_base: Duration::from_secs(2),
             retry_cap: Duration::from_secs(300),
             batch: 50,
+            erasure_rearm: Duration::from_secs(24 * 60 * 60),
         }
     }
 }
