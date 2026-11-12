@@ -914,3 +914,89 @@ async fn approving_an_application_of_a_since_banned_user_adds_no_member() {
     assert_eq!(done.reviewed_by, Some(owner));
     assert!(!member_of(later_banned).await);
 }
+
+/// SEC-AUD-123 (D-619): a ban and an approval of the same user are serialized. The ban transaction is opened by
+/// hand (same lock key as `insert_ban`, member delete, ban row, not committed); the approval must wait for it, then
+/// see the ban and add no member.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_ban_racing_an_approval_never_leaves_a_banned_member() {
+    use sr_chat::settings::applications::{Answer, Application, ApplicationStatus};
+    use sr_chat::settings::repo::{APPLICANT_BANNED, ApplicationRepository};
+    use std::time::Duration;
+
+    let pool = pool().await;
+    let test_ids = ids(12);
+    let repo = PgSettingsRepo::new(pool.clone());
+    let (gid, _, owner) = guild(&pool, &test_ids).await;
+    let user = account(&pool, &test_ids).await;
+    let application = Application {
+        id: test_ids.generate().get(),
+        guild_id: gid,
+        user_id: user,
+        answers: vec![Answer {
+            question_id: 5,
+            value: "because".into(),
+        }],
+        status: ApplicationStatus::Pending,
+        created_at_ms: NOW,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    assert!(repo.insert_application(&application).await.unwrap());
+
+    // The ban transaction, by hand: lock first (the key `guild_admin_repo::lock_membership` uses), then the ban.
+    let (g, u) = (gid.get() as i64, user.get() as i64);
+    let mut ban = pool.begin().await.unwrap();
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('membership:' || $1::text || ':' || $2::text, 0))",
+    )
+    .bind(g)
+    .bind(u)
+    .execute(&mut *ban)
+    .await
+    .unwrap();
+    sqlx::query("DELETE FROM guild_members WHERE guild_id = $1 AND user_id = $2")
+        .bind(g)
+        .bind(u)
+        .execute(&mut *ban)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO guild_bans (guild_id, user_id, banned_by) VALUES ($1, $2, $3)")
+        .bind(g)
+        .bind(u)
+        .bind(owner.get() as i64)
+        .execute(&mut *ban)
+        .await
+        .unwrap();
+
+    let approval = {
+        let repo = PgSettingsRepo::new(pool.clone());
+        let id = application.id;
+        tokio::spawn(async move {
+            repo.decide_application(gid, id, true, owner, NOW + 1, None)
+                .await
+        })
+    };
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert!(
+        !approval.is_finished(),
+        "the approval must wait for the ban transaction"
+    );
+    ban.commit().await.unwrap();
+    let answer = tokio::time::timeout(Duration::from_secs(10), approval)
+        .await
+        .expect("the approval finishes after the ban commits")
+        .unwrap();
+    assert_eq!(answer.unwrap_err().0, APPLICANT_BANNED);
+    let member: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+    )
+    .bind(g)
+    .bind(u)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!member, "a banned user was added by the approval");
+}

@@ -1873,6 +1873,24 @@ impl ApplicationRepository for PgSettingsRepo {
         reason: Option<&str>,
     ) -> RepoResult<Option<Application>> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        if approve {
+            // Serialize with a concurrent ban (SEC-AUD-123, D-619) BEFORE the status update takes the application row:
+            // the ban transaction holds this lock and then rejects the same application row, so the other order
+            // would deadlock.
+            let applicant: Option<i64> = sqlx::query_scalar(
+                "SELECT user_id FROM guild_applications WHERE guild_id = $1 AND id = $2",
+            )
+            .bind(i(guild.get()))
+            .bind(i(id))
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db)?;
+            if let Some(applicant) = applicant {
+                crate::guild_admin_repo::lock_membership(&mut tx, i(guild.get()), applicant)
+                    .await
+                    .map_err(db)?;
+            }
+        }
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "UPDATE guild_applications SET status = $3, reviewed_by = $4, \
                reviewed_at = to_timestamp($5::double precision / 1000.0), rejection_reason = $6 \

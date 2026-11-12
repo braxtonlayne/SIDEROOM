@@ -14,6 +14,25 @@ use sr_core::{ChannelId, GuildId, RoleId, Snowflake, UserId};
 use crate::accounts::NOT_SYSTEM_MEMBER;
 use crate::chat_repo::{GUILD_COLS, PgChatRepo, db, guild_from, i, u};
 
+/// Serialize a ban and every join of one (guild, user) pair (SEC-AUD-123, D-619). Takes a transaction-scoped
+/// advisory lock keyed by `hashtextextended('membership:<guild>:<user>', 0)` (one 64-bit key; no int4 folding
+/// of 64-bit snowflakes). Take it FIRST in the ban transaction and in every join transaction, before the ban
+/// check: a join then either sees the committed ban, or commits before the ban's member delete runs.
+pub(crate) async fn lock_membership(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    guild: i64,
+    user: i64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('membership:' || $1::text || ':' || $2::text, 0))",
+    )
+    .bind(guild)
+    .bind(user)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 fn lim(limit: usize) -> i64 {
     i64::try_from(limit).unwrap_or(i64::MAX)
 }
@@ -489,6 +508,9 @@ impl GuildAdminRepository for PgChatRepo {
 
     async fn insert_ban(&self, ban: &Ban) -> RepoResult<()> {
         let mut tx = self.pool.begin().await.map_err(db)?;
+        lock_membership(&mut tx, i(ban.guild_id.get()), i(ban.user_id.get()))
+            .await
+            .map_err(db)?;
         sqlx::query(
             "INSERT INTO guild_bans (guild_id, user_id, reason, banned_by, created_at) \
              VALUES ($1, $2, $3, $4, to_timestamp($5::bigint::double precision / 1000.0)) \

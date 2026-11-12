@@ -447,3 +447,44 @@ async fn every_join_path_records_its_source() {
     assert!(joins.iter().find(|j| j.user_id == b).unwrap().rejoined);
     assert!(!joins.iter().find(|j| j.user_id == a).unwrap().rejoined);
 }
+
+/// SEC-AUD-123 (D-619): an invite join waits for a ban transaction of the same user and then sees the ban.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_ban_racing_an_invite_join_never_leaves_a_banned_member() {
+    use std::time::Duration;
+    let f = fx(23).await;
+    let user = account(&f.pool, &f.ids).await;
+    let code = f.invite(0, 5).await;
+    let (g, u) = (f.guild.get() as i64, user.get() as i64);
+    let mut ban = f.pool.begin().await.unwrap();
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('membership:' || $1::text || ':' || $2::text, 0))",
+    )
+    .bind(g)
+    .bind(u)
+    .execute(&mut *ban)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO guild_bans (guild_id, user_id, banned_by) VALUES ($1, $2, $3)")
+        .bind(g)
+        .bind(u)
+        .bind(f.owner.get() as i64)
+        .execute(&mut *ban)
+        .await
+        .unwrap();
+    let join = {
+        let repo = PgInviteJoinRepo::new(f.pool.clone());
+        let code = code.clone();
+        tokio::spawn(async move { repo.join_via_invite(&code, user, NOW + 5).await })
+    };
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    assert!(!join.is_finished(), "the join must wait for the ban");
+    ban.commit().await.unwrap();
+    let r = tokio::time::timeout(Duration::from_secs(10), join)
+        .await
+        .expect("the join finishes after the ban commits")
+        .unwrap();
+    assert_eq!(err(r), SettingsError::Banned.to_string());
+    assert!(!f.is_member(user).await);
+}
