@@ -15,7 +15,7 @@ pub struct Presentation {
     pub inline: bool,
 }
 
-const DOWNLOAD: Presentation = Presentation {
+pub(super) const DOWNLOAD: Presentation = Presentation {
     content_type: "application/octet-stream",
     inline: false,
 };

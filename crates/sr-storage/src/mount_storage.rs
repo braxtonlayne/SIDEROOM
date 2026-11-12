@@ -15,7 +15,9 @@ use bytes::Bytes;
 
 use crate::error::{Result, StorageError};
 use crate::mounts::{INSTANCE_MOUNT_ID, Mount, MountResolver, MountStatus, Sealer};
-use crate::storage::{MultipartSession, ObjectInfo, ObjectStorage, ObjectStream, PresignMethod};
+use crate::storage::{
+    MultipartSession, ObjectInfo, ObjectStorage, ObjectStream, PresignMethod, ResponseAs,
+};
 
 type Cache = Arc<Mutex<HashMap<i64, (i64, Arc<dyn ObjectStorage>)>>>;
 
@@ -207,6 +209,14 @@ impl ObjectStorage for PrefixedStorage {
     async fn presign(&self, method: PresignMethod, key: &str, ttl: Duration) -> Result<String> {
         self.inner.presign(method, &self.k(key), ttl).await
     }
+    async fn presign_get_as(
+        &self,
+        key: &str,
+        ttl: Duration,
+        response: &ResponseAs<'_>,
+    ) -> Result<String> {
+        self.inner.presign_get_as(&self.k(key), ttl, response).await
+    }
     async fn multipart_create(&self, key: &str) -> Result<Box<dyn MultipartSession>> {
         self.inner.multipart_create(&self.k(key)).await
     }
@@ -299,6 +309,74 @@ mod tests {
         assert!(matches!(
             m.for_mount(78).await,
             Err(StorageError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_mount_presigns_a_get_with_overrides_under_its_prefix() {
+        let mem = Arc::new(ObjectStoreStorage::in_memory());
+        let repo = MemoryMountRepo::new();
+        let mount = make(&repo, 5, MountOwner::Platform, "/lib/").await;
+        let p = PrefixedStorage::new(mem, &mount);
+        let r = ResponseAs {
+            content_type: "application/octet-stream",
+            disposition: "attachment; filename=\"b.html\"",
+        };
+        let url = p
+            .presign_get_as("a/b.html", Duration::from_secs(90), &r)
+            .await
+            .unwrap();
+        assert!(url.starts_with("memory://bucket/lib/a/b.html?"), "{url}");
+        assert!(url.contains("expires_in=90"), "{url}");
+        assert!(
+            url.contains("response-content-type=application%2Foctet-stream"),
+            "{url}"
+        );
+        assert!(
+            url.contains("response-content-disposition=attachment"),
+            "{url}"
+        );
+        // A storage with no signer for overrides refuses rather than signing a plain GET.
+        struct Plain;
+        #[async_trait]
+        impl ObjectStorage for Plain {
+            async fn put(&self, _: &str, _: Bytes) -> Result<()> {
+                Ok(())
+            }
+            async fn get(&self, _: &str) -> Result<Bytes> {
+                Ok(Bytes::new())
+            }
+            async fn get_range(&self, _: &str, _: u64, _: u64) -> Result<Bytes> {
+                Ok(Bytes::new())
+            }
+            async fn get_stream(
+                &self,
+                _: &str,
+                _: Option<std::ops::Range<u64>>,
+            ) -> Result<ObjectStream> {
+                Err(StorageError::PresignUnsupported)
+            }
+            async fn head(&self, _: &str) -> Result<ObjectInfo> {
+                Err(StorageError::PresignUnsupported)
+            }
+            async fn delete(&self, _: &str) -> Result<()> {
+                Ok(())
+            }
+            async fn list(&self, _: &str) -> Result<Vec<ObjectInfo>> {
+                Ok(vec![])
+            }
+            async fn presign(&self, _: PresignMethod, _: &str, _: Duration) -> Result<String> {
+                Ok("plain".into())
+            }
+            async fn multipart_create(&self, _: &str) -> Result<Box<dyn MultipartSession>> {
+                Err(StorageError::PresignUnsupported)
+            }
+        }
+        let q = PrefixedStorage::new(Arc::new(Plain), &mount);
+        assert!(matches!(
+            q.presign_get_as("a/b.html", Duration::from_secs(90), &r)
+                .await,
+            Err(StorageError::PresignUnsupported)
         ));
     }
 

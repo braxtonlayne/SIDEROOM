@@ -14,6 +14,7 @@ use object_store::{
 };
 
 use crate::error::{Result, StorageError};
+use crate::s3multipart::{S3Multipart, uri_encode};
 
 /// HTTP method a presigned URL is valid for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +23,16 @@ pub enum PresignMethod {
     Get,
     /// Upload.
     Put,
+}
+
+/// What a bucket must answer a presigned GET with, whatever the object itself says (S3's
+/// `response-content-type` and `response-content-disposition`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResponseAs<'a> {
+    /// `Content-Type` the bucket must send.
+    pub content_type: &'a str,
+    /// `Content-Disposition` the bucket must send.
+    pub disposition: &'a str,
 }
 
 /// Metadata about a stored object.
@@ -130,6 +141,17 @@ pub trait ObjectStorage: Send + Sync {
     }
     /// Produce a time-limited presigned URL.
     async fn presign(&self, method: PresignMethod, key: &str, ttl: Duration) -> Result<String>;
+    /// A presigned GET whose signed query makes the bucket answer with `response` instead of the object's own
+    /// type (D-637). A storage that cannot sign these overrides answers [`StorageError::PresignUnsupported`]:
+    /// callers must not fall back to a plain presigned GET.
+    async fn presign_get_as(
+        &self,
+        _key: &str,
+        _ttl: Duration,
+        _response: &ResponseAs<'_>,
+    ) -> Result<String> {
+        Err(StorageError::PresignUnsupported)
+    }
     /// Begin a multipart upload.
     async fn multipart_create(&self, key: &str) -> Result<Box<dyn MultipartSession>>;
 }
@@ -139,6 +161,10 @@ pub trait ObjectStorage: Send + Sync {
 pub struct ObjectStoreStorage {
     pub(crate) store: Arc<dyn ObjectStore>,
     signer: Option<Arc<dyn Signer>>,
+    /// Signs GETs with response overrides (S3 only; built once with the client).
+    overrides: Option<Arc<S3Multipart>>,
+    /// The in-memory backend's fake overrides (tests).
+    fake_overrides: bool,
 }
 
 impl std::fmt::Debug for ObjectStoreStorage {
@@ -153,7 +179,19 @@ impl std::fmt::Debug for ObjectStoreStorage {
 impl ObjectStoreStorage {
     /// Wrap an arbitrary store, optionally with a signer for presigned URLs.
     pub fn new(store: Arc<dyn ObjectStore>, signer: Option<Arc<dyn Signer>>) -> Self {
-        Self { store, signer }
+        Self {
+            store,
+            signer,
+            overrides: None,
+            fake_overrides: false,
+        }
+    }
+
+    /// Sign response overrides with `signer` (see [`ObjectStorage::presign_get_as`]).
+    #[must_use]
+    pub fn with_get_overrides(mut self, signer: S3Multipart) -> Self {
+        self.overrides = Some(Arc::new(signer));
+        self
     }
 
     /// Connect to an S3-compatible service (Garage, B2, R2, ...).
@@ -175,10 +213,22 @@ impl ObjectStoreStorage {
                 .with_allow_http(endpoint.starts_with("http://"))
                 .build()?,
         );
+        let overrides = S3Multipart::new(endpoint, bucket, region, access_key, secret_key)?;
         Ok(Self {
             store: s3.clone(),
             signer: Some(s3),
+            overrides: Some(Arc::new(overrides)),
+            fake_overrides: false,
         })
+    }
+
+    /// In-memory backend for tests that signs plain presigned URLs but cannot sign response overrides (like a
+    /// store with no S3 signer for them): [`ObjectStorage::presign_get_as`] answers `PresignUnsupported`.
+    pub fn in_memory_without_overrides() -> Self {
+        Self {
+            fake_overrides: false,
+            ..Self::in_memory()
+        }
     }
 
     /// In-memory backend for tests. Presigned URLs are fake `memory://` URLs.
@@ -186,6 +236,8 @@ impl ObjectStoreStorage {
         Self {
             store: Arc::new(object_store::memory::InMemory::new()),
             signer: Some(Arc::new(FakeSigner)),
+            overrides: None,
+            fake_overrides: true,
         }
     }
 }
@@ -381,6 +433,27 @@ impl ObjectStorage for ObjectStoreStorage {
             PresignMethod::Put => Method::PUT,
         };
         Ok(signer.signed_url(m, &path, ttl).await?.to_string())
+    }
+
+    async fn presign_get_as(
+        &self,
+        key: &str,
+        ttl: Duration,
+        response: &ResponseAs<'_>,
+    ) -> Result<String> {
+        if let Some(s3) = self.overrides.as_ref() {
+            return s3.presign_get_as(key, ttl, response.content_type, response.disposition);
+        }
+        if self.fake_overrides {
+            let path = Path::parse(key)?;
+            return Ok(format!(
+                "memory://bucket/{path}?method=GET&expires_in={}&response-content-type={}&response-content-disposition={}",
+                ttl.as_secs(),
+                uri_encode(response.content_type, false),
+                uri_encode(response.disposition, false)
+            ));
+        }
+        Err(StorageError::PresignUnsupported)
     }
 
     async fn multipart_create(&self, key: &str) -> Result<Box<dyn MultipartSession>> {

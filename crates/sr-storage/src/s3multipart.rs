@@ -292,6 +292,51 @@ impl S3Multipart {
         Ok(format!("{}{uri}?{query}", self.base()))
     }
 
+    /// A presigned `GET` URL that makes the bucket answer with `content_type` and `disposition`
+    /// (`response-content-type`, `response-content-disposition`, both part of the signature), whatever the
+    /// object itself says. `ttl` is clamped to what S3 accepts. The URL is a credential: never log it.
+    pub fn presign_get_as(
+        &self,
+        key: &str,
+        ttl: Duration,
+        content_type: &str,
+        disposition: &str,
+    ) -> Result<String> {
+        self.presign_get_as_at(key, ttl, content_type, disposition, now_secs())
+    }
+
+    /// [`Self::presign_get_as`] at an explicit time (tests).
+    pub fn presign_get_as_at(
+        &self,
+        key: &str,
+        ttl: Duration,
+        content_type: &str,
+        disposition: &str,
+        unix_secs: u64,
+    ) -> Result<String> {
+        check_key(key)?;
+        if content_type.chars().any(char::is_control) || disposition.chars().any(char::is_control) {
+            return Err(StorageError::Backend("invalid response override".into()));
+        }
+        let expires = ttl.as_secs().clamp(1, MAX_PRESIGN_SECS);
+        let uri = self.uri(key);
+        let query = presigned_query(
+            "GET",
+            &self.host()?,
+            &uri,
+            &[
+                ("response-content-disposition", disposition),
+                ("response-content-type", content_type),
+            ],
+            &self.access_key,
+            &self.secret_key,
+            &self.region,
+            &amz_date(unix_secs),
+            expires,
+        );
+        Ok(format!("{}{uri}?{query}", self.base()))
+    }
+
     /// Start a multipart upload and return its id.
     pub async fn create(&self, key: &str, content_type: &str) -> Result<String> {
         check_key(key)?;
@@ -791,6 +836,73 @@ mod tests {
              SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, \
              Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41"
         );
+    }
+
+    #[test]
+    fn a_presigned_get_carries_the_signed_response_overrides() {
+        let m = S3Multipart::new(
+            "http://127.0.0.1:3900/",
+            "sideroom",
+            "garage",
+            "AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        )
+        .unwrap();
+        let ttl = Duration::from_secs(600);
+        let url = |ct: &str, cd: &str| {
+            m.presign_get_as_at("x/page.html", ttl, ct, cd, 1_369_353_600)
+                .unwrap()
+        };
+        let cd = "attachment; filename=\"page.html\"";
+        let a = url("application/octet-stream", cd);
+        assert!(
+            a.starts_with("http://127.0.0.1:3900/sideroom/x/page.html?"),
+            "{a}"
+        );
+        assert!(
+            a.contains("response-content-type=application%2Foctet-stream"),
+            "{a}"
+        );
+        assert!(
+            a.contains("response-content-disposition=attachment%3B%20filename%3D%22page.html%22"),
+            "{a}"
+        );
+        assert!(a.contains("X-Amz-Expires=600"), "{a}");
+        let sig = |u: &str| u.rsplit("X-Amz-Signature=").next().unwrap().to_owned();
+        let b = url("text/html", cd);
+        let c = url("application/octet-stream", "inline");
+        assert_ne!(sig(&a), sig(&b));
+        assert_ne!(sig(&a), sig(&c));
+        assert_eq!(a, url("application/octet-stream", cd));
+        // A bad key never reaches a signature.
+        assert!(
+            m.presign_get_as_at("../x", ttl, "a/b", "inline", 0)
+                .is_err()
+        );
+    }
+
+    /// The AWS example with one response override: it is in the sorted, signed query, so the signature is not
+    /// the documentation's plain-GET one.
+    #[test]
+    fn an_override_is_in_the_sorted_signed_query() {
+        let q = presigned_query(
+            "GET",
+            "examplebucket.s3.amazonaws.com",
+            "/test.txt",
+            &[("response-content-type", "text/plain")],
+            "AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "us-east-1",
+            "20130524T000000Z",
+            86_400,
+        );
+        assert!(
+            q.contains(
+                "X-Amz-SignedHeaders=host&response-content-type=text%2Fplain&X-Amz-Signature="
+            ),
+            "{q}"
+        );
+        assert!(!q.ends_with("aeeed9bbccd4d02ee5c0109b86d86835f995330da4c265957d157751f604d404"));
     }
 
     #[test]

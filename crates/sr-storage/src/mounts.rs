@@ -390,7 +390,9 @@ impl Mount {
                 .build()
                 .map_err(|e| MountError::Invalid(e.to_string()))?,
         );
-        Ok(ObjectStoreStorage::new(s3.clone(), Some(s3)))
+        // Signed once with the client: `/cdn/mount` links force the response type through it (D-637).
+        let overrides = self.multipart(sealer, std::time::Duration::from_secs(8))?;
+        Ok(ObjectStoreStorage::new(s3.clone(), Some(s3)).with_get_overrides(overrides))
     }
 
     /// The signed multipart, copy, delete and raw-listing client of this mount (BYOS-BRW-001). Its calls take

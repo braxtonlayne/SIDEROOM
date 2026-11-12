@@ -12,6 +12,7 @@ use sr_storage::mounts::{
 };
 use sr_storage::{ObjectStorage, ObjectStoreStorage, cdn::mount_path};
 use std::sync::Arc;
+use std::time::Duration;
 use tower::ServiceExt;
 
 const SECRET: &[u8] = b"cdn-mount-secret";
@@ -232,4 +233,83 @@ async fn a_delisted_mount_stops_serving_links_minted_before_the_takedown() {
         .await
         .unwrap();
     assert_eq!(f.send("GET", &link).await.status(), StatusCode::NOT_FOUND);
+}
+
+fn query_param(loc: &str, name: &str) -> Option<String> {
+    let q = loc.split_once('?')?.1;
+    q.split('&')
+        .find_map(|p| p.strip_prefix(&format!("{name}=")))
+        .map(str::to_owned)
+}
+
+/// D-637: HTML or SVG in the bucket (stored before SEC-AUD-138, or put there by its owner) never opens as a page.
+#[tokio::test]
+async fn a_mount_link_to_an_html_object_redirects_as_a_download() {
+    let f = fx(true).await;
+    for key in ["x/page.html", "x/art.svg", "x/doc.xml", "x/run.js"] {
+        let r = f.send("GET", &f.signed(77, key, 3600)).await;
+        assert_eq!(r.status(), StatusCode::FOUND, "{key}");
+        let loc = location(&r);
+        assert_eq!(
+            query_param(&loc, "response-content-type").as_deref(),
+            Some("application%2Foctet-stream"),
+            "{loc}"
+        );
+        let cd = query_param(&loc, "response-content-disposition").unwrap();
+        assert!(cd.starts_with("attachment%3B"), "{loc}");
+    }
+}
+
+#[tokio::test]
+async fn a_mount_link_to_a_video_keeps_its_media_type() {
+    let f = fx(true).await;
+    for (key, ty) in [
+        ("x/film.mp4", "video%2Fmp4"),
+        ("x/pic.PNG", "image%2Fpng"),
+        ("x/song.flac", "audio%2Fflac"),
+        ("x/hls/index.m3u8", "application%2Fvnd.apple.mpegurl"),
+        ("x/hls/seg1.m4s", "video%2Fiso.segment"),
+        ("x/subs.vtt", "text%2Fvtt"),
+    ] {
+        let r = f.send("GET", &f.signed(77, key, 3600)).await;
+        assert_eq!(r.status(), StatusCode::FOUND, "{key}");
+        let loc = location(&r);
+        assert_eq!(
+            query_param(&loc, "response-content-type").as_deref(),
+            Some(ty),
+            "{loc}"
+        );
+        let cd = query_param(&loc, "response-content-disposition").unwrap();
+        assert!(cd.starts_with("inline%3B"), "{loc}");
+        assert!(!loc.contains("attachment"), "{loc}");
+    }
+}
+
+#[tokio::test]
+async fn a_mount_link_with_no_extension_is_a_download() {
+    let f = fx(true).await;
+    for key in ["x/README", "x/.hidden"] {
+        let r = f.send("GET", &f.signed(77, key, 3600)).await;
+        assert_eq!(r.status(), StatusCode::FOUND, "{key}");
+        let loc = location(&r);
+        assert_eq!(
+            query_param(&loc, "response-content-type").as_deref(),
+            Some("application%2Foctet-stream"),
+            "{loc}"
+        );
+        assert!(loc.contains("attachment%3B"), "{loc}");
+    }
+}
+
+#[tokio::test]
+async fn a_storage_that_cannot_sign_overrides_answers_no_redirect() {
+    let plain = ObjectStoreStorage::in_memory_without_overrides();
+    let r = mount::presigned_redirect(&plain, 77, "x/film.mp4", Duration::from_secs(60)).await;
+    assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+    assert!(r.headers().get(header::LOCATION).is_none());
+    // The same storage still signs overrides when it can: the redirect is only ever sent with them.
+    let fake = ObjectStoreStorage::in_memory();
+    let ok = mount::presigned_redirect(&fake, 77, "x/page.html", Duration::from_secs(60)).await;
+    assert_eq!(ok.status(), StatusCode::FOUND);
+    assert!(location(&ok).contains("response-content-type=application%2Foctet-stream"));
 }
