@@ -36,6 +36,7 @@ export function ViewAsRoleDialog({
   const [channels, setChannels] = useState<api.ChannelObject[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -47,7 +48,14 @@ export function ViewAsRoleDialog({
     return () => {
       live = false;
     };
-  }, [guildId]);
+  }, [guildId, attempt]);
+  // Try again: ask for the channels and load the engine afresh.
+  const retry = () => {
+    setError(null);
+    setLoadFailed(false);
+    setChannels(null);
+    setAttempt((n) => n + 1);
+  };
 
   const pickable = useMemo(
     () => roles.filter((r) => r.id !== guildId).sort((a, b) => b.position - a.position),
@@ -58,6 +66,10 @@ export function ViewAsRoleDialog({
       engine && channels ? viewServerAs(engine, { guildId, roles, picked, channels }) : undefined,
     [engine, channels, guildId, roles, picked],
   );
+  // The engine and the channels are here but the engine refused a role or overwrite (a malformed one): there is
+  // no list to show, and waiting would never produce one (SEC-AUD-137b).
+  const computeFailed = !!engine && !!channels && !entries;
+  const failed = !!error || loadFailed || computeFailed;
   const admin = hasAdministrator(roles, picked);
   const toggle = (id: string) =>
     setPicked((cur) => {
@@ -121,13 +133,23 @@ export function ViewAsRoleDialog({
             />
           ))}
         </fieldset>
-        {(error || loadFailed) && (
-          <Notice variant="danger">{error ?? t('settings.viewAs.engineFailed')}</Notice>
+        {failed && (
+          <Notice variant="danger">
+            {error ??
+              (loadFailed
+                ? t('settings.viewAs.engineFailed')
+                : t('settings.viewAs.computeFailed'))}{' '}
+            <Button size="sm" variant="secondary" onClick={retry}>
+              {t('settings.viewAs.tryAgain')}
+            </Button>
+          </Notice>
         )}
         {admin && <Notice variant="info">{t('settings.viewAs.administrator')}</Notice>}
         <h3 className="ss-sub-title">{t('settings.viewAs.resultTitle')}</h3>
         {!entries ? (
-          <p className="ss-na">{t('settings.viewAs.loading')}</p>
+          failed ? null : (
+            <p className="ss-na">{t('settings.viewAs.loading')}</p>
+          )
         ) : shown.length === 0 ? (
           <p className="ss-na">{t('settings.viewAs.none')}</p>
         ) : (

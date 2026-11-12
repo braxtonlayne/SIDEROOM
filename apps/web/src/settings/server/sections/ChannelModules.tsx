@@ -86,9 +86,12 @@ function ChannelModuleCard({
     setValues(next.settings);
     onChanged(next);
   };
+  // The switch saves at once and sends only itself. Values typed in the form but not saved yet stay as they are
+  // (the answer's settings are what the server holds, which the form already measures "unsaved" against;
+  // SEC-AUD-137c).
   const toggle = (enabled: boolean) =>
     void act.run(async () =>
-      apply(await api.patchChannelFeature(channelId, feature.id, { enabled })),
+      onChanged(await api.patchChannelFeature(channelId, feature.id, { enabled })),
     );
   const save = () =>
     void act.run(async () => {

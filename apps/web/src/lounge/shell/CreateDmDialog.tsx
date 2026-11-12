@@ -40,6 +40,8 @@ export function CreateDmDialog({
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Names of the people who were not added when the rest were (SEC-AUD-137d). */
+  const [notAdded, setNotAdded] = useState<string[] | null>(null);
 
   useEffect(() => {
     void load();
@@ -64,15 +66,34 @@ export function CreateDmDialog({
     try {
       if (addTo) {
         let target = addTo;
+        const failed: string[] = [];
+        let firstError: unknown;
         for (const id of picked) {
           // Adding to a 1:1 DM answers with the new group; later people join that group.
-          const made = await addRecipient(target, id);
-          if (made) {
-            rememberDm(made);
-            target = made.id;
+          try {
+            const made = await addRecipient(target, id);
+            if (made) {
+              rememberDm(made);
+              target = made.id;
+            }
+          } catch (err) {
+            failed.push(id);
+            firstError ??= err;
           }
         }
+        // The group exists once the first person was added to a 1:1 DM: open it even when others failed, so it
+        // is not left half-made and unseen.
         if (target !== addTo) goto(HOME, target);
+        if (failed.length) {
+          if (failed.length === picked.length) throw firstError;
+          const names = failed.map((id) => {
+            const row = rows.find((r) => r.id === id);
+            return row ? wireName(row.user) : id;
+          });
+          setNotAdded(names);
+          setBusy(false);
+          return;
+        }
       } else {
         const dm = await openDm(picked);
         if (dm.type === 3 || dm.recipients.length > 1) {
@@ -89,6 +110,24 @@ export function CreateDmDialog({
       setBusy(false);
     }
   };
+
+  if (notAdded)
+    return (
+      <Modal open onClose={onClose} size="sm" title={t('lounge.createDm.partialTitle')}>
+        <div className="lng-form">
+          <p role="alert" className="lng-form-error">
+            {t('lounge.createDm.partialBody', {
+              names: new Intl.ListFormat(undefined, { style: 'long', type: 'conjunction' }).format(
+                notAdded,
+              ),
+            })}
+          </p>
+          <div className="lng-form-actions">
+            <Button onClick={onClose}>{t('lounge.createDm.done')}</Button>
+          </div>
+        </div>
+      </Modal>
+    );
 
   if (created)
     return (
