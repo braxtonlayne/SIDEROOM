@@ -9,7 +9,7 @@ export type MountStatus = 'active' | 'failing' | 'disabled' | 'delisted';
 export type MountOwnerKind = 'user' | 'guild' | 'platform';
 
 export type ProbeStatus = 'pass' | 'warn' | 'fail';
-/** `id` is the probe: head_bucket, list, put, multipart, cors, list_buckets. */
+/** `id` is the probe: head_bucket, list, put, response_type, multipart, cors, list_buckets. */
 export interface ProbeRow {
   id: string;
   status: ProbeStatus;
