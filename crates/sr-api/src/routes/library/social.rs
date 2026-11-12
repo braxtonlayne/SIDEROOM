@@ -613,19 +613,23 @@ pub async fn feature_list(
 ) -> ApiResult<StatusCode> {
     ctx.actor().publish().map_err(library_err)?;
     let lid = id(&list_id, "list")?;
-    ctx.library
+    let social = ctx
+        .library
         .social
         .as_ref()
-        .ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?
-        .set_featured(lid, b.featured)
-        .await
-        .map_err(social_err)?;
-    ctx.audit(
+        .ok_or_else(|| HttpError::from(ErrorCode::SrInternal))?;
+    ctx.audited_with(
         "library.list.feature",
         ("list", lid),
         json!({ "featured": b.featured }),
+        async {
+            social
+                .set_featured(lid, b.featured)
+                .await
+                .map_err(social_err)
+        },
     )
-    .await;
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

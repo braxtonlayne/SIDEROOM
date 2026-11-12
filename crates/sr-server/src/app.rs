@@ -21,7 +21,7 @@ use sr_api::{
         self,
         auth::{
             AuthConfig, AuthService, DiscordSettings,
-            mail::{LogMailer, Mailer, SmtpMailer},
+            mail::{DisabledMailer, LogMailer, Mailer, SmtpMailer},
         },
         guilds::GuildApi,
         search::SearchDeps,
@@ -227,10 +227,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         trust_forwarded_for: cfg.server.trust_forwarded_for,
         ..AuthConfig::default()
     };
-    let mailer: Arc<dyn Mailer> = if cfg.smtp.host.is_empty() {
-        Arc::new(LogMailer)
-    } else {
-        Arc::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
+    let mailer: Arc<dyn Mailer> = match pick_mailer(cfg!(debug_assertions), &cfg.smtp.host) {
+        MailerKind::Smtp => {
+            Arc::new(SmtpMailer::from_config(&cfg.smtp).context("configuring [smtp]")?)
+        }
+        MailerKind::Log => Arc::new(LogMailer),
+        MailerKind::Disabled => {
+            tracing::warn!(
+                "mail is off: password reset and verification mails are not sent (set [smtp] host to turn it on)"
+            );
+            Arc::new(DisabledMailer)
+        }
     };
     let auth_service = AuthService::new(
         Arc::new(PgAuthStore::new(
@@ -2302,9 +2309,40 @@ fn gateway_ws_url(public_url: &str) -> String {
     format!("{ws}/gateway")
 }
 
+/// Which mailer the server uses (D-613).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MailerKind {
+    Smtp,
+    /// Development: the body goes to the log.
+    Log,
+    /// Release without SMTP: nothing is sent and no body is logged.
+    Disabled,
+}
+
+/// Pick the mailer: SMTP when a host is set; otherwise the log mailer in a
+/// debug build and the disabled mailer in a release build (mail bodies hold
+/// single-use links and must not reach a log).
+pub(crate) fn pick_mailer(debug: bool, smtp_host: &str) -> MailerKind {
+    if !smtp_host.is_empty() {
+        MailerKind::Smtp
+    } else if debug {
+        MailerKind::Log
+    } else {
+        MailerKind::Disabled
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn release_without_smtp_uses_the_disabled_mailer() {
+        assert_eq!(pick_mailer(false, ""), MailerKind::Disabled);
+        assert_eq!(pick_mailer(true, ""), MailerKind::Log);
+        assert_eq!(pick_mailer(false, "smtp.x.test"), MailerKind::Smtp);
+        assert_eq!(pick_mailer(true, "smtp.x.test"), MailerKind::Smtp);
+    }
 
     #[test]
     fn the_resume_url_is_the_gateway_of_the_public_origin() {

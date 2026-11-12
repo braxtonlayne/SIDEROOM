@@ -409,8 +409,13 @@ pub async fn second_factor(
     let hash = token.hash();
     let pending = svc.pending.get(&hash, now).ok_or_else(no_match)?;
     let lock_key = format!("mfa:{}\n{ip}", pending.user_id);
+    // Also an account-wide budget (no address): a fresh password login gives a
+    // fresh pending token and a new address a fresh per-address key, so
+    // neither alone caps the guesses (D-612).
+    let account_key = format!("mfa:{}", pending.user_id);
     svc.account_lock
         .check(&lock_key, now)
+        .and_then(|()| svc.account_lock.check(&account_key, now))
         .and_then(|()| svc.ip_lock.check(&ip, now))
         .map_err(|retry_after| AuthRouteError::Throttled { retry_after })?;
     let max_code = if body.method == "passkey" {
@@ -437,11 +442,13 @@ pub async fn second_factor(
     if !ok {
         svc.pending.fail(&hash, svc.cfg.mfa_max_attempts);
         svc.account_lock.fail(&lock_key, now);
+        svc.account_lock.fail(&account_key, now);
         svc.ip_lock.fail(&ip, now);
         return Err(no_match());
     }
     svc.pending.remove(&hash);
     svc.account_lock.clear(&lock_key);
+    svc.account_lock.clear(&account_key);
 
     let trust_cookie = if body.trust_device {
         let device = DeviceToken::generate()?;

@@ -23,7 +23,9 @@ pub(super) async fn current_account(svc: &AuthService, user_id: i64) -> R<Accoun
 }
 
 /// Re-check the caller's password before a sensitive change (doc 06 section 2:
-/// re-auth). Shares the failure lockout with login.
+/// re-auth). Uses its own per-account key (`reauth:<id>`, separate from the login
+/// and second-factor keys) with the same back-off policy, so wrong passwords here
+/// do not lock sign-in and the reverse.
 pub(super) async fn reauthenticate(
     svc: &AuthService,
     now: i64,

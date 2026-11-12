@@ -85,12 +85,12 @@ pub async fn create_series(
         .create_series(ctx.actor(), b)
         .await
         .map_err(map_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.series.create",
         ("series", s.id),
         json!({ "title": s.title }),
     )
-    .await;
+    .await?;
     Ok((StatusCode::CREATED, Json(s)))
 }
 
@@ -127,17 +127,15 @@ pub async fn update_series(
     Json(b): Json<SeriesInput>,
 ) -> ApiResult<Json<Series>> {
     let sid = id(&series_id, "series")?;
+    let title = b.title.clone();
     let s = ctx
-        .svc()
-        .update_series(ctx.actor(), sid, b)
-        .await
-        .map_err(map_err)?;
-    ctx.audit(
-        "library.series.update",
-        ("series", sid),
-        json!({ "title": s.title }),
-    )
-    .await;
+        .audited(
+            "library.series.update",
+            ("series", sid),
+            json!({ "title": title }),
+            ctx.svc().update_series(ctx.actor(), sid, b),
+        )
+        .await?;
     Ok(Json(s))
 }
 
@@ -154,12 +152,13 @@ pub async fn delete_series(
     Path(series_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let sid = id(&series_id, "series")?;
-    ctx.svc()
-        .delete_series(ctx.actor(), sid)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.series.delete", ("series", sid), json!({}))
-        .await;
+    ctx.audited(
+        "library.series.delete",
+        ("series", sid),
+        json!({}),
+        ctx.svc().delete_series(ctx.actor(), sid),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -199,17 +198,19 @@ async fn set_series_published(
     published: bool,
 ) -> ApiResult<Json<Series>> {
     let sid = id(&series_id, "series")?;
-    let s = ctx
-        .svc()
-        .set_series_published(ctx.actor(), sid, published)
-        .await
-        .map_err(map_err)?;
     let action = if published {
         "library.series.publish"
     } else {
         "library.series.unpublish"
     };
-    ctx.audit(action, ("series", sid), json!({})).await;
+    let s = ctx
+        .audited(
+            action,
+            ("series", sid),
+            json!({}),
+            ctx.svc().set_series_published(ctx.actor(), sid, published),
+        )
+        .await?;
     Ok(Json(s))
 }
 
@@ -236,16 +237,13 @@ pub async fn merge_series(
     let source = id(&series_id, "series")?;
     let target = id(&b.target_id, "series")?;
     let s = ctx
-        .svc()
-        .merge_series(ctx.actor(), source, target)
-        .await
-        .map_err(map_err)?;
-    ctx.audit(
-        "library.series.merge",
-        ("series", source),
-        json!({ "target": target.to_string() }),
-    )
-    .await;
+        .audited(
+            "library.series.merge",
+            ("series", source),
+            json!({ "target": target.to_string() }),
+            ctx.svc().merge_series(ctx.actor(), source, target),
+        )
+        .await?;
     Ok(Json(s))
 }
 
@@ -287,12 +285,12 @@ pub async fn create_edition(
         .create_edition(ctx.actor(), id(&series_id, "series")?, b)
         .await
         .map_err(map_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.edition.create",
         ("edition", e.id),
         json!({ "series": e.series_id.to_string() }),
     )
-    .await;
+    .await?;
     Ok((StatusCode::CREATED, Json(e)))
 }
 
@@ -311,12 +309,13 @@ pub async fn update_edition(
 ) -> ApiResult<Json<Edition>> {
     let eid = id(&edition_id, "edition")?;
     let e = ctx
-        .svc()
-        .update_edition(ctx.actor(), eid, b)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.edition.update", ("edition", eid), json!({}))
-        .await;
+        .audited(
+            "library.edition.update",
+            ("edition", eid),
+            json!({}),
+            ctx.svc().update_edition(ctx.actor(), eid, b),
+        )
+        .await?;
     Ok(Json(e))
 }
 
@@ -333,12 +332,13 @@ pub async fn delete_edition(
     Path(edition_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let eid = id(&edition_id, "edition")?;
-    ctx.svc()
-        .delete_edition(ctx.actor(), eid)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.edition.delete", ("edition", eid), json!({}))
-        .await;
+    ctx.audited(
+        "library.edition.delete",
+        ("edition", eid),
+        json!({}),
+        ctx.svc().delete_edition(ctx.actor(), eid),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -360,8 +360,8 @@ pub async fn create_volume(
         .create_volume(ctx.actor(), id(&edition_id, "edition")?, b)
         .await
         .map_err(map_err)?;
-    ctx.audit("library.volume.create", ("volume", v.id), json!({}))
-        .await;
+    ctx.audit_created("library.volume.create", ("volume", v.id), json!({}))
+        .await?;
     Ok((StatusCode::CREATED, Json(v)))
 }
 
@@ -378,12 +378,13 @@ pub async fn delete_volume(
     Path(volume_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let vid = id(&volume_id, "volume")?;
-    ctx.svc()
-        .delete_volume(ctx.actor(), vid)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.volume.delete", ("volume", vid), json!({}))
-        .await;
+    ctx.audited(
+        "library.volume.delete",
+        ("volume", vid),
+        json!({}),
+        ctx.svc().delete_volume(ctx.actor(), vid),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -405,12 +406,12 @@ pub async fn create_chapter(
         .create_chapter(ctx.actor(), id(&edition_id, "edition")?, b)
         .await
         .map_err(map_err)?;
-    ctx.audit(
+    ctx.audit_created(
         "library.chapter.create",
         ("chapter", c.id),
         json!({ "series": c.series_id.to_string() }),
     )
-    .await;
+    .await?;
     Ok((StatusCode::CREATED, Json(c)))
 }
 
@@ -429,12 +430,13 @@ pub async fn update_chapter(
 ) -> ApiResult<Json<Chapter>> {
     let cid = id(&chapter_id, "chapter")?;
     let c = ctx
-        .svc()
-        .update_chapter(ctx.actor(), cid, b)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.chapter.update", ("chapter", cid), json!({}))
-        .await;
+        .audited(
+            "library.chapter.update",
+            ("chapter", cid),
+            json!({}),
+            ctx.svc().update_chapter(ctx.actor(), cid, b),
+        )
+        .await?;
     Ok(Json(c))
 }
 
@@ -451,12 +453,13 @@ pub async fn delete_chapter(
     Path(chapter_id): Path<String>,
 ) -> ApiResult<StatusCode> {
     let cid = id(&chapter_id, "chapter")?;
-    ctx.svc()
-        .delete_chapter(ctx.actor(), cid)
-        .await
-        .map_err(map_err)?;
-    ctx.audit("library.chapter.delete", ("chapter", cid), json!({}))
-        .await;
+    ctx.audited(
+        "library.chapter.delete",
+        ("chapter", cid),
+        json!({}),
+        ctx.svc().delete_chapter(ctx.actor(), cid),
+    )
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -496,17 +499,19 @@ async fn set_chapter_published(
     published: bool,
 ) -> ApiResult<Json<Chapter>> {
     let cid = id(&chapter_id, "chapter")?;
-    let c = ctx
-        .svc()
-        .set_chapter_published(ctx.actor(), cid, published)
-        .await
-        .map_err(map_err)?;
     let action = if published {
         "library.chapter.publish"
     } else {
         "library.chapter.unpublish"
     };
-    ctx.audit(action, ("chapter", cid), json!({})).await;
+    let c = ctx
+        .audited(
+            action,
+            ("chapter", cid),
+            json!({}),
+            ctx.svc().set_chapter_published(ctx.actor(), cid, published),
+        )
+        .await?;
     Ok(Json(c))
 }
 
@@ -559,16 +564,14 @@ pub async fn replace_page(
     let bytes = crate::routes::settings::expressions::decode_data_uri("image", &b.image)?;
     let size = bytes.len();
     let c = ctx
-        .svc()
-        .replace_page(ctx.actor(), cid, index, bytes.to_vec())
-        .await
-        .map_err(map_err)?;
-    ctx.audit(
-        "library.page.replace",
-        ("chapter", cid),
-        json!({ "index": index, "bytes": size }),
-    )
-    .await;
+        .audited(
+            "library.page.replace",
+            ("chapter", cid),
+            json!({ "index": index, "bytes": size }),
+            ctx.svc()
+                .replace_page(ctx.actor(), cid, index, bytes.to_vec()),
+        )
+        .await?;
     Ok(Json(c))
 }
 
@@ -590,15 +593,12 @@ pub async fn replace_pages(
     let cid = id(&chapter_id, "chapter")?;
     let n = b.len();
     let c = ctx
-        .svc()
-        .replace_pages(ctx.actor(), cid, b)
-        .await
-        .map_err(map_err)?;
-    ctx.audit(
-        "library.chapter.pages",
-        ("chapter", cid),
-        json!({ "pages": n }),
-    )
-    .await;
+        .audited(
+            "library.chapter.pages",
+            ("chapter", cid),
+            json!({ "pages": n }),
+            ctx.svc().replace_pages(ctx.actor(), cid, b),
+        )
+        .await?;
     Ok(Json(c))
 }
