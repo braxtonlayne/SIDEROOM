@@ -171,17 +171,95 @@ impl PublisherCtx {
         }
     }
 
-    /// Record a successful change in the staff access log. The change has already
-    /// happened, so a logging failure is reported but does not fail the request.
-    pub async fn audit(&self, action: &str, target: (&str, i64), detail: serde_json::Value) {
+    /// Write the access-log row BEFORE a staff change (D-615): if the row cannot be written the request fails
+    /// and the change is not made.
+    pub async fn audit_first(
+        &self,
+        action: &str,
+        target: (&str, i64),
+        detail: serde_json::Value,
+    ) -> Result<(), HttpError> {
+        let admin: &AdminDeps = &self.staff.deps;
+        admin
+            .service
+            .record_action(&self.staff.caller, action, Some(target), detail)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, action, "library change refused: access log row not written");
+                crate::routes::admin::map_err(e)
+            })
+    }
+
+    /// Best effort: say that a change whose row was written first did not happen.
+    pub async fn audit_failed(&self, action: &str, target: (&str, i64)) {
+        let admin: &AdminDeps = &self.staff.deps;
+        if let Err(e) = admin
+            .service
+            .record_action(
+                &self.staff.caller,
+                &format!("{action}.failed"),
+                Some(target),
+                serde_json::json!({}),
+            )
+            .await
+        {
+            tracing::warn!(error = %e, action, "failure row not written to the access log");
+        }
+    }
+
+    /// A staff change audited first: the row, then `change`; a failed change adds `<action>.failed`.
+    pub async fn audited<T>(
+        &self,
+        action: &str,
+        target: (&str, i64),
+        detail: serde_json::Value,
+        change: impl std::future::Future<Output = Result<T, LibraryError>>,
+    ) -> Result<T, HttpError> {
+        self.audited_with(action, target, detail, async {
+            change.await.map_err(map_err)
+        })
+        .await
+    }
+
+    /// [`Self::audited`] for a change that already answers an `HttpError`.
+    pub async fn audited_with<T>(
+        &self,
+        action: &str,
+        target: (&str, i64),
+        detail: serde_json::Value,
+        change: impl std::future::Future<Output = Result<T, HttpError>>,
+    ) -> Result<T, HttpError> {
+        self.audit_first(action, target, detail).await?;
+        match change.await {
+            Ok(v) => Ok(v),
+            Err(e) => {
+                self.audit_failed(action, target).await;
+                Err(e)
+            }
+        }
+    }
+
+    /// A best-effort extra row after a change whose first row was already written (the result figures of a scan).
+    pub async fn audit_note(&self, action: &str, target: (&str, i64), detail: serde_json::Value) {
         let admin: &AdminDeps = &self.staff.deps;
         if let Err(e) = admin
             .service
             .record_action(&self.staff.caller, action, Some(target), detail)
             .await
         {
-            tracing::error!(error = %e, action, "library change was not written to the access log");
+            tracing::warn!(error = %e, action, "extra access log row not written");
         }
+    }
+
+    /// For a create, whose target id exists only after the change: the row is written right after it, and a row
+    /// that cannot be written answers 500 (no silent success).
+    pub async fn audit_created(
+        &self,
+        action: &str,
+        target: (&str, i64),
+        detail: serde_json::Value,
+    ) -> Result<(), HttpError> {
+        self.audit_first(action, target, detail).await
     }
 }
 
