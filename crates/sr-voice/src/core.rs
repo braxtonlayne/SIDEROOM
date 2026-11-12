@@ -80,6 +80,7 @@ fn cap_of(severity: u8, flags: &Flags) -> Layer {
         cap_for(severity, Tier(flags.tier))
     }
 }
+use crate::ingress::{self, Ingress, Verdict};
 use crate::keyframe::{self, KeyframeCoalescer};
 use crate::layers::{Available, Frame, LayerSelector, SelectorConfig, layer_for_viewport};
 use crate::loss::LossBudget;
@@ -223,6 +224,10 @@ pub struct Snapshot {
     pub keyframe_requests: u64,
     /// Frames dropped because their sender had not completed the E2EE handshake (OPS-IMM-001).
     pub unkeyed_frames: u64,
+    /// Audio frames dropped because their track was over its ingress cap (SEC-AUD-142).
+    pub ingress_dropped_audio: u64,
+    /// Video frames dropped because their source was over its ingress cap (SEC-AUD-143).
+    pub ingress_dropped_video: u64,
     /// Music packets forwarded to subscribers (MUS-JB-001).
     pub music_packets: u64,
     /// The part of `egress_bps` that is music (a one-second window; it is already inside
@@ -454,6 +459,9 @@ struct Participant {
     rates: Rates,
     /// The activity data channel (ACT-CH-001).
     dc: crate::datachannel::Member,
+    /// What this participant may send per source (SEC-AUD-142/143): one bucket per source, over all of
+    /// its simulcast layers.
+    ingress: HashMap<TrackSource, Ingress>,
 }
 
 impl Participant {
@@ -543,6 +551,8 @@ pub struct SfuCore {
     forwarded_frames: u64,
     keyframe_requests: u64,
     unkeyed_frames: u64,
+    ingress_dropped_audio: u64,
+    ingress_dropped_video: u64,
     /// Per-channel music settings that differ from the defaults (allowed, 256 kbps).
     music_rooms: HashMap<ChannelId, MusicRoom>,
     /// Bytes of music written to subscribers, for [`Snapshot::music_egress_bps`].
@@ -556,6 +566,8 @@ pub struct SfuCore {
     /// str0m's TWCC estimator on every connection (see [`SfuCore::with_bwe`]).
     bwe: bool,
     keyframes: KeyframeCoalescer<(ParticipantId, TrackSource, Layer)>,
+    /// The video ingress caps `(screen kbit/s, camera kbit/s, burst floor in bytes)` (SEC-AUD-143).
+    video_caps: (u32, u32, usize),
     governor: EgressGovernor,
     last_maintain: Option<Instant>,
     last_governor: Option<Instant>,
@@ -584,6 +596,8 @@ impl SfuCore {
             forwarded_frames: 0,
             keyframe_requests: 0,
             unkeyed_frames: 0,
+            ingress_dropped_audio: 0,
+            ingress_dropped_video: 0,
             music_rooms: HashMap::new(),
             music_tx: LayerStat::default(),
             music_packets: 0,
@@ -592,6 +606,11 @@ impl SfuCore {
             selector_cfg: SelectorConfig::default(),
             bwe: false,
             keyframes: KeyframeCoalescer::new(keyframe::Config::default()),
+            video_caps: (
+                ingress::SCREEN_CAP_KBPS,
+                ingress::CAMERA_CAP_KBPS,
+                ingress::VIDEO_BURST_FLOOR,
+            ),
             governor: EgressGovernor::new(GovernorConfig::default()),
             last_maintain: None,
             last_governor: None,
@@ -642,6 +661,18 @@ impl SfuCore {
     /// default; the loss-based fallback ([`crate::loss`]) is used instead.
     pub fn with_bwe(mut self, on: bool) -> Self {
         self.bwe = on;
+        self
+    }
+
+    /// Override the video ingress caps, for tests that cannot push 14 Mbit/s through a loopback
+    /// (SEC-AUD-143): the screen and the camera cap in kbit/s and the bucket's burst floor in bytes.
+    pub fn with_video_caps(
+        mut self,
+        screen_kbps: u32,
+        camera_kbps: u32,
+        burst_floor: usize,
+    ) -> Self {
+        self.video_caps = (screen_kbps, camera_kbps, burst_floor);
         self
     }
 
@@ -748,6 +779,8 @@ impl SfuCore {
             governor_severity: self.governor.severity(),
             keyframe_requests: self.keyframe_requests,
             unkeyed_frames: self.unkeyed_frames,
+            ingress_dropped_audio: self.ingress_dropped_audio,
+            ingress_dropped_video: self.ingress_dropped_video,
             music_packets: self.music_packets,
             music_egress_bps: self
                 .last_maintain
@@ -867,6 +900,7 @@ impl SfuCore {
                 stereo_mids: HashSet::new(),
                 music_allowed: self.music_rooms.get(&p.channel).is_none_or(|m| m.allowed),
                 rtc,
+                ingress: HashMap::new(),
                 tracks: HashMap::new(),
                 declared: HashMap::new(),
                 announced: HashSet::new(),
@@ -2134,6 +2168,9 @@ impl SfuCore {
         d: MediaData,
         now: Instant,
     ) {
+        let music_kbps = self.parts.get(&src).map_or(MUSIC_DEFAULT_KBPS, |p| {
+            self.music_of(p.channel).bitrate_kbps
+        });
         let Some(p) = self.parts.get_mut(&src) else {
             return;
         };
@@ -2149,6 +2186,32 @@ impl SfuCore {
             _ => track.declared_active && track.receiving && p.allowed(source),
         };
         if !allowed {
+            return;
+        }
+        // The ingress cap (SEC-AUD-142): the sender loses its own excess, nobody else notices. The
+        // music cap follows the room's bitrate when `set_music` changes it.
+        let cap = if source == TrackSource::Music {
+            ingress::music_cap_kbps(music_kbps)
+        } else {
+            ingress::AUDIO_CAP_KBPS
+        };
+        let bucket = p
+            .ingress
+            .entry(source)
+            .or_insert_with(|| Ingress::audio(cap));
+        if bucket.rate_kbps() != cap {
+            bucket.set_kbps(cap);
+        }
+        if let Verdict::Drop { warn } = bucket.take(now, 0, d.data.len()) {
+            self.ingress_dropped_audio += 1;
+            if warn {
+                tracing::warn!(
+                    pid = src.0,
+                    source = ?source,
+                    cap_kbps = cap,
+                    "audio track over its ingress cap: dropping the excess"
+                );
+            }
             return;
         }
         let channel = p.channel;
@@ -2218,6 +2281,7 @@ impl SfuCore {
             // A line without simulcast is one full-size layer.
             .unwrap_or(Layer::High);
         let keyframe = d.is_keyframe();
+        let (screen_kbps, camera_kbps, burst_floor) = self.video_caps;
         let Some(p) = self.parts.get_mut(&src) else {
             return;
         };
@@ -2234,6 +2298,32 @@ impl SfuCore {
         if !live || !track.declared_active || !track.receiving {
             return;
         }
+        // The ingress cap (SEC-AUD-143), one bucket over all of the source's layers.
+        let cap = if source == TrackSource::Screen {
+            screen_kbps
+        } else {
+            camera_kbps
+        };
+        let bucket = p
+            .ingress
+            .entry(source)
+            .or_insert_with(|| Ingress::new(cap, burst_floor));
+        let resumed = match bucket.take(now, layer.index(), d.data.len()) {
+            Verdict::Drop { warn } => {
+                self.ingress_dropped_video += 1;
+                if warn {
+                    tracing::warn!(
+                        pid = src.0,
+                        source = ?source,
+                        cap_kbps = cap,
+                        "video source over its ingress cap: dropping frames"
+                    );
+                }
+                return;
+            }
+            Verdict::Resumed => true,
+            Verdict::Pass => false,
+        };
         track.stats[layer.index()].note(now, d.data.len());
         if keyframe {
             self.keyframes.keyframe_seen((src, source, layer));
@@ -2279,6 +2369,11 @@ impl SfuCore {
             if w.write(pt, d.network_time, d.time, d.data.clone()).is_ok() {
                 self.forwarded_frames += 1;
             }
+        }
+        // The subscribers' decoders lost the frames dropped over the cap: ask for a fresh keyframe
+        // (the coalescer applies its own rate limit).
+        if resumed && !keyframe {
+            self.request_keyframe(now, src, source, layer, keyframe::Kind::Pli);
         }
         for (o, l) in switched {
             if let Some(proto) = source.proto() {
