@@ -77,6 +77,9 @@ struct World {
     now: Instant,
     clients: Vec<Client>,
     frame: u32,
+    /// Payload bytes of one 20 ms microphone and music frame (defaults: a quiet mic, 320 kbit/s music).
+    mic_len: usize,
+    music_len: usize,
 }
 
 fn sfu_addr() -> SocketAddr {
@@ -108,6 +111,8 @@ impl World {
             now: Instant::now(),
             clients: Vec::new(),
             frame: 0,
+            mic_len: 60,
+            music_len: MUSIC_FRAME,
         }
     }
 
@@ -294,8 +299,8 @@ impl World {
             let now = self.now;
             let c = &mut self.clients[i];
             let lines = [
-                (c.mic, 0x11u8, 60usize, mic, false),
-                (c.music, 0x22, MUSIC_FRAME, music, true),
+                (c.mic, 0x11u8, self.mic_len, mic, false),
+                (c.music, 0x22, self.music_len, music, true),
             ];
             for (mid, tag, len, on, stereo) in lines {
                 if !on {
@@ -570,4 +575,58 @@ fn music_bytes_are_counted_for_the_governor() {
         s.music_egress_bps
     );
     assert!(s.music_packets > 300, "{}", s.music_packets);
+}
+
+/// SEC-AUD-142 (D-631): a modified client cannot push music above the room's bitrate (x 1.5 + 64
+/// kbit/s). Real str0m clients; the sender writes 320 kbit/s into a room set to 64 kbit/s (5x).
+#[test]
+fn music_over_the_rooms_bitrate_is_dropped_at_the_sfu() {
+    let mut w = room();
+    let channel = ChannelId::new(CHANNEL);
+    w.core.set_music(w.now, channel, true, 64);
+    w.run(Duration::from_millis(600));
+    let music = w.music_stream(0);
+    let (start, frame0) = (w.now, w.frame);
+    w.stream_audio(Duration::from_secs(6), &[0], false, true);
+    let secs = (w.now - start).as_secs_f64();
+    let sent = w.frame - frame0;
+    // The cap is 64 x 1.5 + 64 = 160 kbit/s = 20 000 bytes/s, plus one second of burst.
+    let allowed = ((20_000.0 * secs + 20_000.0) / MUSIC_FRAME as f64).ceil() as usize + 2;
+    let got = w.received(1, &music, 0x22);
+    assert!(got > 0, "the music within the cap still arrives");
+    assert!(
+        got <= allowed,
+        "listener got {got} frames of {sent}; at most {allowed} fit the cap"
+    );
+    assert!(got < sent as usize * 3 / 4, "most of the excess is gone");
+    assert_eq!(w.received(2, &music, 0x22), got, "every listener alike");
+    assert!(w.core.snapshot().ingress_dropped_audio > 0);
+}
+
+/// The highest channel bitrate (384 kbit/s) on the microphone, and the room's top music setting on
+/// the music line, are never touched by the caps.
+#[test]
+fn a_microphone_at_the_highest_channel_bitrate_is_untouched() {
+    let mut w = room();
+    w.core.set_music(w.now, ChannelId::new(CHANNEL), true, 320);
+    w.run(Duration::from_millis(600));
+    // 384 kbit/s of Opus is 960 bytes per 20 ms frame.
+    w.mic_len = 960;
+    let frame0 = w.frame;
+    w.stream_audio(Duration::from_secs(10), &[0], true, true);
+    let sent = (w.frame - frame0) as usize;
+    let (mic, music) = (w.user_stream(0), w.music_stream(0));
+    for l in [1, 2] {
+        assert!(
+            w.received(l, &mic, 0x11) * 100 >= sent * 97,
+            "mic {} of {sent}",
+            w.received(l, &mic, 0x11)
+        );
+        assert!(
+            w.received(l, &music, 0x22) * 100 >= sent * 97,
+            "music {} of {sent}",
+            w.received(l, &music, 0x22)
+        );
+    }
+    assert_eq!(w.core.snapshot().ingress_dropped_audio, 0);
 }
