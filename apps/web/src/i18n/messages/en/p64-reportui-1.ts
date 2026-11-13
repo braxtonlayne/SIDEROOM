@@ -62,7 +62,6 @@ export default {
   'help.handbook.bugreport.kept':
     'The staff of this SIDE ROOM can read a report. The screenshot is deleted when the report is closed or after 30 days, and the report after 90 days. You can send at most 5 reports an hour.',
   'help.handbook.bugreport.link': 'Keybinds',
-  'help.operators.betaTitle': 'The beta bug reporter',
   'help.operators.betaBody':
     'Off by default. Turn it on in Admin > Features for the beta (under 100 members) so members can send a bug report with a screenshot and debug information to the staff; turn it off when the beta ends. Admin > Bug reports lists the reports, and every opened report and every shown screenshot is written to the audit log.',
   'admin.adminApp.section.bugReports': 'Bug reports',
