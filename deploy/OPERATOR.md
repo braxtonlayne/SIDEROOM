@@ -78,6 +78,19 @@ The values for the lawyer-dependent ones are open questions: [lawyer brief](../d
 | `invites.suspicion_freeze_threshold`, `invites.suspicion_escalate_threshold` | When a banned invitee freezes the inviter's invites and when a case opens. |
 | `moderation.hold_review_days` | A hold older than this is flagged on the holds list (default 90). |
 
+**Activity packages (Admin > Limits & settings, group activities; D-654 to D-657)**
+
+The zip of an Activity no longer has a fixed 32 MiB limit. The limit is the largest of the tiers an application qualifies for, and applies to the zip and to the unpacked total.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `activities.package.max_mb` | 512 (32 to 1 048 576) | Largest package any developer may upload, in MiB. Raising it to the top gives everyone the big limit. |
+| `activities.package.reviewed_max_mb` | 4096 (same range) | Largest package for an application that has a staff-approved bundle. |
+| `activities.package.platform_max_mb` | 32768 (same range) | Largest package for an application owned by the Owner or by staff who hold `REVIEW_APPS`. |
+| `activities.package.max_files` | 20000 (2000 to 200000) | Most files and folders in one package. |
+
+The zip goes from the browser to the platform's bucket in parts (a resumable upload), and the job `activities.package_ingest` checks it from the bucket, reading the zip index by range before any file is inflated; nothing is held in memory. A zip of at most 32 MiB may still be sent in one request. The unpacked total may be at most 100 times the zip (a code constant). A guild cartridge has no size limit; only its index and `sideroom.json` are read. Activity files are served with range support (`Accept-Ranges`, `206`, `416`).
+
 **Invites (Admin > Invites; the quotas are edited in Admin > Limits & settings, group invites)**
 
 | Key | Default | Meaning |
@@ -97,7 +110,7 @@ The job `invites.prune` runs every six hours: it revokes the old unused codes ab
 
 **Module switches (Admin > Features)**
 
-Every module of the feature phase has a platform switch (and, where it makes sense, a per-server one under Server Settings > Modules): `lounge.jukebox`, `lounge.listening_rooms`, `platform.tools` (and one `platform.tools.<tool>` per drawer tool), `platform.activities_datachannel`, `platform.emulator`, `platform.watch_together_embeds`, `platform.byos`, `platform.bridge`, `lounge.scrapbook`, `lounge.rings`, `platform.public_profiles` and `platform.game_servers` (which only shows or hides the "Coming soon" page). Wave 41 (the Study, D-400, D-404) added six platform switches, all **off by default**: `platform.external_metadata` (nothing on the server calls TMDB, AniList, MangaDex, MangaUpdates or ComicVine until it is on), `platform.storefront_categories` (the Cinema's Movies, Series and Anime browse pages), `platform.global_trending` (trending rails and rankings), `platform.requests_board` (the global requests board), `platform.ingest_queues` (the staff review queues and the member upload and submission pages that feed them; their routes answer 404 while it is off) and `platform.showroom` (wave 45, D-435: a "Preview populated state" button that fills the client with invented sample servers, shelves and games, for beta and test deployments; nothing in it is saved or sent). A switched-off module's routes answer 403 `SR_FEATURE_DISABLED`. No switch can turn off call encryption, authorization or the audit and access logs.
+Every module of the feature phase has a platform switch (and, where it makes sense, a per-server one under Server Settings > Modules): `lounge.jukebox`, `lounge.listening_rooms`, `platform.tools` (and one `platform.tools.<tool>` per drawer tool), `platform.activities_datachannel`, `platform.emulator`, `platform.watch_together_embeds`, `platform.byos`, `platform.bridge`, `lounge.scrapbook`, `lounge.rings`, `platform.public_profiles` and `platform.game_servers` (which only shows or hides the "Coming soon" page). Wave 41 (the Study, D-400, D-404) added six platform switches, all **off by default**: `platform.external_metadata` (nothing on the server calls TMDB, AniList, MangaDex, MangaUpdates or ComicVine until it is on), `platform.storefront_categories` (the Cinema's Movies, Series and Anime browse pages), `platform.global_trending` (trending rails and rankings), `platform.requests_board` (the global requests board), `platform.ingest_queues` (the staff review queues and the member upload and submission pages that feed them; their routes answer 404 while it is off) and `platform.showroom` (wave 45, D-435: a "Preview populated state" button that fills the client with invented sample servers, shelves and games, for beta and test deployments; nothing in it is saved or sent). Wave 64 added `platform.beta_reports` (D-647), **off by default**: the beta bug reporter, see "The beta bug reporter" below. A switched-off module's routes answer 403 `SR_FEATURE_DISABLED` (the bug reporter and a few other modules answer 404 as a missing page, as `platform.requests_board` does). No switch can turn off call encryption, authorization or the audit and access logs.
 
 **Alerts and what the System page watches**
 
@@ -120,6 +133,8 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 | `gateway.max_connections` (`SR_GATEWAY__MAX_CONNECTIONS`) | 10000 | Gateway sockets at once, identified or not; further upgrades get 503. |
 | `gateway.max_unidentified_per_ip` (`SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP`) | 32 | Sockets one client address may hold before they sign in (IDENTIFY, within 30 s); further upgrades get 429 (D-556). Raise it when many members reach the server from one address: a shared NAT, or a proxy whose forwarded address the server does not trust. |
 
+When a gateway pump misses events (the event bus lagged) it rebuilds its state and then re-sends state to the affected sessions on the same socket (a fresh READY and GUILD_CREATEs, or an `SR_RESYNC` marker); sessions keep their id, so voice and calls continue (D-646). There is no setting.
+
 **Environment you will meet:** `SR_BACKUP_DIR`, `SR_BACKUP_KEEP` (default 14,8,12), `SR_DRILL_MAX_AGE_HOURS`, `SR_BASEBACKUP_KEEP`; secrets are `server.secret_key` (rotation: [BACKUP.md](BACKUP.md)), database and storage credentials. Secrets go in the environment or a mode-0600 file, never on a command line.
 
 ### The feature phase: settings, switches and jobs (waves 27 to 40)
@@ -139,6 +154,14 @@ Everything below is also a switch in Admin > Features (see "Module switches" abo
 | `byos.require_client_remux`, `byos.client_convert_max_mib`, `byos.worker_for_members` | off, 2048, off | The browser converter: ask for a remux before upload, the largest file it accepts, and whether the operator's transcoder workers convert members' videos inside their own buckets. |
 
 The operator's own bucket is mount 1 (seeded from `storage.*` at first start); attach it to a server or detach it with `POST /admin/storage/mounts/1/attach` and `/detach` (the OPERATOR permission, audited). The daily job `storage.cors_recheck` (id 134) re-checks every mount's CORS rule; `storage.index` (id 1450) refreshes the per-mount indexes. A mount whose CORS check has not passed serves nothing. The runbook for a member whose bucket fails is the connect screen's test table; the operator never holds a member's bucket keys in the clear (they are sealed under `server.secret_key`, and `sr-cli rotate-secret-key` re-seals them).
+
+**Response types of bucket links (D-629, D-637, D-641 to D-645; no setting)**
+
+A link SIDE ROOM signs to an object in a member's or a server's bucket never opens as a page. A file whose extension is on the app's inline media list is answered with that media type; every other file is answered as `application/octet-stream` with `Content-Disposition: attachment`. This holds for `/cdn/mount`, the shelf object URL, the profile showcase, the storage presign route and the routes that use it (music tracks, jukebox, scrapbook) and shelf artwork. A browser-direct upload to a mount stores HTML, XHTML, SVG, XML, script types and every `text/*` type other than plain text, WebVTT and CSV as `application/octet-stream`. A mount's connection test checks that the provider honours the response overrides (row `response_type`); a provider that ignores them, or a check that cannot be completed, fails the test and the mount is `failing`, and a mount whose stored test has a failed `response_type` row hands out no presigned GET. The daily `storage.cors_recheck` also runs this check on every live mount that has no such row or a failed one. Objects put into a bucket outside the app stay as their owner stored them.
+
+**The beta bug reporter (`platform.beta_reports`; D-647 to D-650)**
+
+Off by default. While it is on, a signed-in member can open "Report a bug" (default key Alt+Shift+B, in the "?" help menu and on the "You" tab of a phone); the report goes to the platform staff. Turn it on for a small beta (the switch description says under 100 members) and off when the beta ends. While it is off, `POST /bug-reports` answers 404 and the Admin page "Bug reports" (group Overview) is hidden; the staff routes `/admin/bug-reports*` stay open, so staff can read and close reports after the beta. The member sees the exact picture and debug information before sending. At most 5 reports per account per hour and 100 per day for the platform, 3 MiB per request, 2 MiB per picture. Any appointed staff member can list, open and close reports; opening a report, opening its picture and closing it each write a platform audit entry. The picture is deleted when the report is closed or after 30 days, the report after 90 days (the daily job `bugs.retention`, id 2550). Erasing an account deletes its reports, and the data export includes them.
 
 **Music, the jukebox and the drawer (`platform.byos` for the shelves; `lounge.jukebox`, `lounge.listening_rooms`, `platform.tools`)**
 
@@ -191,9 +214,9 @@ Nothing to configure. A crash in a signed-in browser becomes one card in the sta
 
 **Search engines and the front door**
 
-Only the landing page is indexable (D-384); there is no setting that changes it, and `apps/web/public/robots.txt` and the `X-Robots-Tag` headers come with the build and the Caddyfile. The signed-out pages are a separate build and the server serves the web app itself (`SR_WEB__ROOT`; D-385, [UPGRADE.md](UPGRADE.md)). `sr-cli preflight` shows the `web` row.
+Only the landing page is indexable (D-384); there is no setting that changes it, and `apps/web/public/robots.txt` and the `X-Robots-Tag` headers come with the build and the Caddyfile. The signed-out pages are a separate build and the server serves the web app itself (`SR_WEB__ROOT`; D-385, [UPGRADE.md](UPGRADE.md)). `sr-cli preflight` shows the `web` row. App code for platform staff (the Admin app and everything only it loads) is built into `/app/staff/` and `sr-server` serves it only to a session with an active staff appointment, read from the database on every request: any other session gets 404, a request without a session the 401 of any app file, and the files are `Cache-Control: private, no-store` (D-651, D-652). There is no setting. The first-paint limit (250 KB gzip, with at least 8 KB of room) measures only what `app.html` loads for a member and is not raised (D-636, D-653). The labels of the Admin sections still travel in the message catalog every member loads (D-658).
 
-**Jobs added by the feature phase** (Admin > System > Jobs lists them; a singleton that did not run shows red)
+**Jobs added by the feature phase** (Admin > Jobs lists them; a singleton that did not run shows red)
 
 | Job (id) | Runs | Does |
 |---|---|---|
@@ -206,6 +229,8 @@ Only the landing page is indexable (D-384); there is no setting that changes it,
 | `scrapbook.requests` (1690), `scrapbook.removals` (1691) | 30 s and 5 min | Archives requested messages; retries bucket removals. |
 | `rings.expire` (1710) | every 10 min | Deletes expired rings and their files. |
 | `invites.prune` (1890) | every 6 h | Revokes old unused codes and marks inactive branches (never touches the invite graph). |
+| `activities.package_sweep` (966), `activities.package_ingest` | daily; on demand | Expires Activity package uploads nobody finished (24 hours) and deletes session rows after seven days; checks one uploaded zip (D-654). |
+| `bugs.retention` (2550) | daily, 03:40 UTC | Deletes bug report pictures after 30 days or on close, and reports after 90 days (D-650). |
 
 The security gate of the phase is `security-nightly.yml` (the whole authorization matrix with modules killed); an operator running a fork reads its result in Actions. The wave-by-wave record is [docs/13](../docs/13-roadmap-and-phases.md).
 
