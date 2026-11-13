@@ -106,6 +106,10 @@ pub fn bot_denied(method: &Method, pattern: &str) -> bool {
     if p.starts_with("/arcade") || (p.starts_with("/guilds/") && p.contains("/arcade/")) {
         return true;
     }
+    // A bug report comes from a member's browser session (SEC-AUD-166, D-647): a bot has no screen to report.
+    if p == "/bug-reports" {
+        return true;
+    }
     // A crash report comes from a member's browser session (OPS-CRASH-001, T45): a bot has no page to crash.
     if p == "/crash-reports" {
         return true;

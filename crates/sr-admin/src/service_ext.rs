@@ -1425,6 +1425,44 @@ impl AdminService {
         Ok(())
     }
 
+    /// SEC-AUD-167 (wave 64, D-650): may this staff member list the beta bug reports? Any appointed staff member may
+    /// (`STAFF_BASIC`, as for crash reports). The list carries no description and no picture, so it leaves no entry; a
+    /// refusal leaves the usual `denied` row.
+    pub async fn authorize_bug_list(&self, c: &Caller) -> AdminResult<()> {
+        self.require(c, P::STAFF_BASIC, "bug.list").await
+    }
+
+    /// Opening a bug report (its description and debug bundle) leaves the platform audit entry `bug.report.read`.
+    pub async fn authorize_bug_read(&self, c: &Caller, report: i64) -> AdminResult<()> {
+        self.bug_entry(c, "bug.report.read", report).await
+    }
+
+    /// Opening a bug report's picture leaves the platform audit entry `bug.screenshot.read`.
+    pub async fn authorize_bug_screenshot(&self, c: &Caller, report: i64) -> AdminResult<()> {
+        self.bug_entry(c, "bug.screenshot.read", report).await
+    }
+
+    /// Closing a bug report (which deletes its picture) leaves the platform audit entry `bug.report.close`.
+    pub async fn authorize_bug_close(&self, c: &Caller, report: i64) -> AdminResult<()> {
+        self.bug_entry(c, "bug.report.close", report).await
+    }
+
+    /// `STAFF_BASIC`, then the entry, BEFORE the caller reads or changes anything. A failure to write the entry is the
+    /// request's failure: no data is returned that was not logged. No setting turns these entries off.
+    async fn bug_entry(&self, c: &Caller, action: &str, report: i64) -> AdminResult<()> {
+        self.require(c, P::STAFF_BASIC, action).await?;
+        let e = self.entry(
+            c,
+            AccessKind::AdminAction,
+            action,
+            Some(("bug_report", report)),
+            "",
+            json!({}),
+        );
+        self.repo().append_log(&e).await?;
+        Ok(())
+    }
+
     /// A button on a staff card (`sr:<action>:<id>`). The caller needs the permission of
     /// the underlying action; the card itself grants nothing.
     pub async fn card_action(&self, c: &Caller, custom_id: &str) -> AdminResult<CardActionResult> {

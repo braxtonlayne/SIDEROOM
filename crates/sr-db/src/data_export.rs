@@ -344,6 +344,7 @@ This archive holds the data tied to your account, as JSON files.\n\
                       your recovery file opens them), your own loot tables and the invite card seats you claimed\n\
   scrapbook.json      scrapbook entries made from your messages, and ones you sent (text, tags, file names and sizes; never keys or links)\n\
   bridge.json         your messages the Discord bridge mirrored (ids only)
+\n  bug_reports.json    the bug reports you sent (time, status, route, your text and the debug details; whether a picture is still kept, not the picture)
 \n  rings.json          your status rings that are still live (their audience and who opened them) and the rings you opened\n\
   messages/          the messages you wrote that you have not deleted, one file per channel\n\
                       (a message sent through a webhook you made has \"webhook\": its id and name)\n\
@@ -515,6 +516,14 @@ pub async fn build_package<W: Write + Seek>(
             "loot_tables": rows(pool, "SELECT id::text AS id, name, rows, created_at, updated_at FROM loot_tables WHERE owner_user_id = $1 ORDER BY id", user).await?,
             "invite_card_seats": rows(pool, "SELECT c.id::text AS card_id, c.channel_id::text AS channel_id, c.kind, c.title, c.starts_at, c.canceled_at, cl.remind, cl.claimed_at FROM invite_card_claims cl JOIN invite_cards c ON c.id = cl.card_id WHERE cl.user_id = $1 ORDER BY cl.claimed_at, c.id", user).await?,
         }),
+    )?;
+
+    // SEC-AUD-167 (D-650, Art. 15): the bug reports the member sent: text and debug information, and whether a picture is
+    // still kept (the picture itself is not part of the package).
+    put(
+        &mut zip,
+        "bug_reports.json",
+        &rows(pool, "SELECT id::text AS id, created_at, status, route, commit_sha AS commit, description, bundle, (screenshot IS NOT NULL) AS has_screenshot FROM bug_reports WHERE reporter_id = $1 ORDER BY created_at, id", user).await?,
     )?;
 
     // PRF-RNG-001 (Art. 15): active status rings, their audience and viewer list.

@@ -527,14 +527,16 @@ async fn account_deletion_removes_personal_state_and_keeps_contributions() {
             "INSERT INTO invite_card_claims (card_id, user_id) VALUES (8010, $1), (8011, $1)",
             "INSERT INTO cinema_reviews (id, user_id, title_id, body) VALUES (8020, $1, 7, 'great')",
             "INSERT INTO cinema_ratings (user_id, title_id, score) VALUES ($1, 7, 9)",
+            // SEC-AUD-167: a bug report, with its picture, is the reporter's own and goes with them.
+            "INSERT INTO bug_reports (reporter_id, commit_sha, route, description, bundle, screenshot) \n             VALUES ($1, 'abcdef1', 'lounge', 'it broke', '{}', decode('ffd8ffd9', 'hex'))",
         ],
         me,
     )
     .await;
 
     let report = delete_account(pool, me, 9001).await.unwrap().unwrap();
-    // 1 + 1 + 1 + 1 + 1 + (saved, private, friends) + 1 upcoming claim.
-    assert_eq!(report.personal_rows_deleted, 9);
+    // 1 + 1 + 1 + 1 + 1 + 1 bug report + (saved, private, friends) + 1 upcoming claim.
+    assert_eq!(report.personal_rows_deleted, 10);
 
     for (table, col) in [
         ("cinema_progress", "user_id"),
@@ -542,6 +544,7 @@ async fn account_deletion_removes_personal_state_and_keeps_contributions() {
         ("reading_bookmarks", "user_id"),
         ("scratch_notes", "user_id"),
         ("loot_tables", "owner_user_id"),
+        ("bug_reports", "reporter_id"),
     ] {
         assert_eq!(
             count(

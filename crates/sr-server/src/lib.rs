@@ -12,6 +12,8 @@ pub mod backends;
 pub mod bridge_inbound;
 pub mod bridge_sync_wiring;
 pub mod bridge_wiring;
+pub mod bug_report_jobs;
+pub mod bug_wiring;
 pub mod cards_jobs;
 pub mod catch_panic;
 pub mod cinema_catalog;

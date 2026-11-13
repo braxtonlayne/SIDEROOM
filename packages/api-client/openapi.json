@@ -3588,6 +3588,273 @@
         ]
       }
     },
+    "/admin/bug-reports": {
+      "get": {
+        "tags": [
+          "bugs"
+        ],
+        "summary": "The reports, newest first (any appointed staff member). No audit entry: the list holds no description or picture.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "open or closed; omit for both",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1 to 200, default 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BugList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/bug-reports/{bug_id}": {
+      "get": {
+        "tags": [
+          "bugs"
+        ],
+        "summary": "One report with its description and bundle (any appointed staff member). Leaves a platform audit entry\n(`bug.report.read`) before the data is returned.",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "bug_id",
+            "in": "path",
+            "description": "Bug report id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BugDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/bug-reports/{bug_id}/close": {
+      "post": {
+        "tags": [
+          "bugs"
+        ],
+        "summary": "Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry\n(`bug.report.close`) before anything changes.",
+        "operationId": "close",
+        "parameters": [
+          {
+            "name": "bug_id",
+            "in": "path",
+            "description": "Bug report id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Closed"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/bug-reports/{bug_id}/screenshot": {
+      "get": {
+        "tags": [
+          "bugs"
+        ],
+        "summary": "The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)\nbefore the bytes are returned. 404 when the report has no picture (never sent, closed, or older than 30 days).",
+        "operationId": "screenshot",
+        "parameters": [
+          {
+            "name": "bug_id",
+            "in": "path",
+            "description": "Bug report id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The JPEG bytes",
+            "content": {
+              "image/jpeg": {}
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/card-actions": {
       "post": {
         "tags": [
@@ -26444,6 +26711,92 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/bug-reports": {
+      "post": {
+        "tags": [
+          "bugs"
+        ],
+        "summary": "Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per\nday for the platform; the server rebuilds the stored report from the allow-list. 400 for a missing or too long\ndescription or a picture that is not a JPEG, 404 while `platform.beta_reports` is off, 413 for a picture over 2 MiB,\n429 past the limits.",
+        "operationId": "submit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BugReportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BugCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
             "description": "",
             "content": {
               "application/json": {
@@ -87428,6 +87781,403 @@
               "null"
             ],
             "description": "The member's top role on Discord."
+          }
+        }
+      },
+      "BugBundleBody": {
+        "type": "object",
+        "description": "The debug bundle. Every field is optional: the server keeps only what its allow-list names and whose shape checks.",
+        "properties": {
+          "at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Client time, Unix ms."
+          },
+          "caps": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Capability flags (the crash allow-list's booleans) and `engine`."
+          },
+          "commit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The build's commit, 7 to 40 lowercase hex characters."
+          },
+          "crashes": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Crash fingerprints (64 lowercase hex characters) this page load already reported; at most 5 are kept."
+          },
+          "failed_requests": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BugFailedRequestBody"
+            },
+            "description": "At most 20 are kept."
+          },
+          "gateway": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BugGatewayBody"
+              }
+            ]
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "online": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "route": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The route NAME (for example `lounge.:guildId.:channelId`), never a URL."
+          },
+          "sw": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`none`, `installing`, `waiting` or `active`."
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`editorial`, `lounge-light`, `lounge-dark` or `other`."
+          },
+          "viewport": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BugViewportBody"
+              }
+            ]
+          },
+          "voice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BugVoiceBody"
+              }
+            ]
+          }
+        }
+      },
+      "BugCreated": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "BugDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/BugSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "description",
+              "bundle"
+            ],
+            "properties": {
+              "bundle": {
+                "type": "object",
+                "description": "The allow-listed bundle exactly as stored."
+              },
+              "closed_by": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BugPersonView"
+                  }
+                ]
+              },
+              "closed_ms": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "BugFailedRequestBody": {
+        "type": "object",
+        "required": [
+          "method",
+          "path",
+          "status"
+        ],
+        "properties": {
+          "ago_s": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "method": {
+            "type": "string",
+            "description": "`GET`, `POST`, `PUT`, `PATCH`, `DELETE` or `?` (the browser's resource timing does not tell the method)."
+          },
+          "ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string",
+            "description": "A path template matching `^/[a-z0-9_@:./-]{1,120}$` with ids replaced by `:id`: no query, no run of 6 digits."
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "BugGatewayBody": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "heartbeat_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "reconnects": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "description": "`connected`, `connecting`, `reconnecting` or `closed`."
+          }
+        }
+      },
+      "BugList": {
+        "type": "object",
+        "required": [
+          "reports",
+          "open_count"
+        ],
+        "properties": {
+          "open_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open reports in all, for the badge (not only those in `reports`)."
+          },
+          "reports": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BugSummary"
+            }
+          }
+        }
+      },
+      "BugPersonView": {
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "BugReportBody": {
+        "type": "object",
+        "description": "What a browser may send. This type only documents the wire contract for the generated client: the handler reads a\nplain JSON value and takes nothing from it that [`allow_list::sanitize`] does not name, so an extra field is\nignored, not rejected.",
+        "required": [
+          "description"
+        ],
+        "properties": {
+          "bundle": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BugBundleBody"
+              }
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "The member's own words, 1 to 2000 characters after trimming."
+          },
+          "screenshot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BugScreenshotBody",
+                "description": "Optional: a JPEG the member previewed (and could black out)."
+              }
+            ]
+          }
+        }
+      },
+      "BugScreenshotBody": {
+        "type": "object",
+        "required": [
+          "type",
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "string",
+            "description": "The JPEG, base64, at most 2 MiB decoded."
+          },
+          "masked": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "How many regions the member blacked out (0 to 64).",
+            "minimum": 0
+          },
+          "type": {
+            "type": "string",
+            "description": "Must be `image/jpeg`."
+          }
+        }
+      },
+      "BugSummary": {
+        "type": "object",
+        "description": "A report as the list shows it: no description, no bundle, no picture.",
+        "required": [
+          "id",
+          "created_ms",
+          "status",
+          "route",
+          "commit",
+          "reporter",
+          "has_screenshot"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "created_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "has_screenshot": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "reporter": {
+            "$ref": "#/components/schemas/BugPersonView"
+          },
+          "route": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`open` or `closed`."
+          }
+        }
+      },
+      "BugViewportBody": {
+        "type": "object",
+        "required": [
+          "w",
+          "h",
+          "dpr"
+        ],
+        "properties": {
+          "dpr": {
+            "type": "number",
+            "format": "double"
+          },
+          "h": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "w": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "BugVoiceBody": {
+        "type": "object",
+        "required": [
+          "connected"
+        ],
+        "properties": {
+          "connected": {
+            "type": "boolean"
           }
         }
       },

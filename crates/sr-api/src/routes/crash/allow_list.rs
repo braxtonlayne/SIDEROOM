@@ -219,7 +219,7 @@ pub fn sanitize(raw: &Value, now_ms: i64) -> Result<Sanitized, Reject> {
     })
 }
 
-fn is_commit(c: &str) -> bool {
+pub(crate) fn is_commit(c: &str) -> bool {
     (7..=40).contains(&c.len()) && c.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
@@ -248,7 +248,7 @@ pub fn fingerprint(commit: &str, kind: &str, route: &str, frames: &[Frame]) -> S
 
 // ---- strings ------------------------------------------------------------------------------------------------------
 
-fn clean_route(r: &str) -> Option<String> {
+pub(crate) fn clean_route(r: &str) -> Option<String> {
     let ok = !r.is_empty()
         && r.len() <= 64
         && r.bytes()
@@ -453,7 +453,7 @@ fn has_ipv4(s: &str) -> bool {
 
 // ---- caps and ticks -----------------------------------------------------------------------------------------------
 
-fn clean_caps(v: Option<&Value>) -> (BTreeMap<&'static str, bool>, &'static str) {
+pub(crate) fn clean_caps(v: Option<&Value>) -> (BTreeMap<&'static str, bool>, &'static str) {
     let mut caps = BTreeMap::new();
     let mut engine = "other";
     if let Some(o) = v.and_then(Value::as_object) {

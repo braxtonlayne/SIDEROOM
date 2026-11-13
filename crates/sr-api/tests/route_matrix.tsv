@@ -178,6 +178,9 @@ GET	/admin/alerts	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
 GET	/admin/arcade/candidates	authenticated	staff	deny	-	OPERATOR
 GET	/admin/bans	authenticated	staff	deny	-	PLATFORM_BAN
+GET	/admin/bug-reports	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/bug-reports/{bug_id}	authenticated	staff	deny	-	STAFF_BASIC
+GET	/admin/bug-reports/{bug_id}/screenshot	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
 GET	/admin/cinema/collections	authenticated	staff	deny	-	MANAGE_COLLECTIONS
@@ -744,6 +747,7 @@ POST	/admin/alerts/{alert_id}/ack	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/announcements	authenticated	staff	deny	-	MANAGE_FEATURES
 POST	/admin/arcade/coming-soon	authenticated	staff	deny	-	OPERATOR
 POST	/admin/arcade/coming-soon/{entry_id}/release	authenticated	staff	deny	-	OPERATOR
+POST	/admin/bug-reports/{bug_id}/close	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/card-actions	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -863,6 +867,7 @@ POST	/applications/{application_id}/reset-secret	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/testers	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/versions	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/versions/{version_id}/withdraw	authenticated	owner	deny	-	-
+POST	/bug-reports	authenticated	self	deny	-	-
 POST	/channels/{channel_id}/activity	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/attachments	authenticated	membership	allow	-	-
 POST	/channels/{channel_id}/attachments/{upload_id}/complete	authenticated	membership	allow	-	-

@@ -526,6 +526,21 @@
   },
   {
     "client_visible": true,
+    "default_enabled": false,
+    "description": "Lets signed-in members send staff a bug report with a description, technical details of their app and, if they choose, a screenshot they have checked. Staff can read the reports in Admin. For a small beta (under 100 members); turn it off when the beta ends. Off by default.",
+    "gated_by": null,
+    "id": "platform.beta_reports",
+    "name": "Beta bug reporter",
+    "operator_gated": false,
+    "owner_only": false,
+    "phase": 64,
+    "scopes": [
+      "platform"
+    ],
+    "section": "Study"
+  },
+  {
+    "client_visible": true,
     "default_enabled": true,
     "description": "The operator's switch for the Discord bridge. Turning it off hides the module in every server, refuses every bridge route and removes every server's bridge from Discord (the webhooks it created) and from here; a server must switch it on again, paste its token and map its channels afresh.",
     "gated_by": null,
