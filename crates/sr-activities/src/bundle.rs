@@ -900,7 +900,7 @@ mod tests {
         // Honest sizes pass.
         unpack(&lying_zip(&vec![b'a'; 4096], 4096)).unwrap();
         // An entry that yields less than it says is refused too.
-        let e = unpack(&lying_zip(&vec![b'a'; 10], 4096)).unwrap_err();
+        let e = unpack(&lying_zip(&[b'a'; 10], 4096)).unwrap_err();
         assert_eq!(e.entry.as_deref(), Some("index.html"), "{e:?}");
     }
 

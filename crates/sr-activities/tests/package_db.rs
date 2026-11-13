@@ -689,7 +689,7 @@ async fn the_check_reads_the_zip_in_bounded_pieces() {
     assert!(staged.len() >= 2, "{staged:?}");
     assert!(staged.iter().all(|n| *n <= CHECK_BLOCK), "{staged:?}");
     assert!(
-        !r.spy.gets.lock().unwrap().iter().any(|k| *k == key),
+        !r.spy.gets.lock().unwrap().contains(&key),
         "the staged zip was fetched whole"
     );
     assert!(

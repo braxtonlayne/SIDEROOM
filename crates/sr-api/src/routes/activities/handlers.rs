@@ -16,7 +16,7 @@ use axum::{
     body::Bytes,
     extract::Path,
     http::{HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use sr_activities::guest::{GuestJoined, GuestLinkCreated};
