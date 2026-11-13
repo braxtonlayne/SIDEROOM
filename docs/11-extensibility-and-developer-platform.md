@@ -24,12 +24,14 @@ pub trait Feature: Send + Sync + 'static {
     fn meta(&self) -> FeatureMeta;                // name, description, section, phase, default_enabled
     fn settings_schema(&self) -> SettingsSchema;  // typed fields → auto-rendered UI
     fn scopes(&self) -> &[Scope];                 // Platform | Guild | Channel | User
-    fn routes(&self) -> Option<axum::Router<AppState>> { None }
+    fn routes(&self) -> Option<axum::Router> { None }   // under /api/v1/sr/features/{id}/, no AppState
     fn on_event(&self, _ev: &DomainEvent, _ctx: &FeatureCtx) -> BoxFuture<'_, Result<()>> { ... }
-    fn migrations(&self) -> &'static [Migration] { &[] }
+    fn on_tick(&self, _ctx: &FeatureCtx) -> BoxFuture<'_, Result<()>> { ... }  // every 30 s
+    // optional, default off: client_visible(), operator_gated(), owner_only(), gated_by()
 }
 ```
 
+- Feature tables live in the one forward-only migration series of `crates/sr-db/migrations` (module rows in `feature_state`, migration 0680); there is no per-feature migration hook. `docs/dev/writing-a-feature.md` walks through adding a module (`just new-feature <section>.<name>`).
 - `SettingsSchema` is a typed, serializable description (bool, int range, enum, string, duration, role picker, channel picker, emoji picker, color, list-of, nested group) with labels, help text, and per-scope defaults.
 - The web app renders **any** schema automatically in the right settings menu: Platform → Admin → Features. Guild → Server Settings → *Features* (new section). Channel → Edit Channel → *Modules*. User → User Settings → *Modules* (built in P18; the Edit Channel *Features* tab keeps the thread defaults).
 - **Adding a small feature** means writing one Rust module that implements `Feature`, plus (optionally) a React component registered under the same id for custom UI. Settings UI, persistence, enable/disable, permissions gating (`MANAGE_GUILD` for guild scope by default), and audit logging come for free.
@@ -51,11 +53,12 @@ Slowmode presets, auto-thread for channels, "starboard," welcome DMs, birthday r
 4. **Release:** the developer submits a version (manifest: name, description, scopes, requested intents, command list, interaction endpoint, privacy policy URL) for review. Approved → `released`, installable anywhere. New versions that change scopes or intents need re-review. The Activity is reviewed separately, per Activity submission: any change to it withdraws its approval, and it is served only once the application has been released at least once and while it is not suspended (D-246, D-252, section 3). Command or description changes need re-review only if flagged by the diff. Staff suspend and unsuspend an application from the Applications tab of the Admin Review area (D-587): the list searches by name, application id or owner and filters by release state, shows the reason, who and when for a suspended row, and the owner gets a system message on each.
 
 ### 2.2 Developer portal (`/developers/applications`)
-Discord parity: General Information, Installation (install link generator, default scopes/permissions), OAuth2 (redirects, URL generator), Bot (token reset, privileged intents toggles requiring review, public bot toggle), Emojis (app emoji), Webhooks, Rich Presence assets, App Testers (up to 25 testers, invitations included, D-220), Activities (bundle upload and review history, URL mappings, development URL), and **Review** (submission status, reviewer messages).
+The portal has nine tabs on an application (`apps/web/src/developers/search.ts`): General (information, and the HTTP interactions endpoint with its health), OAuth2 (redirects, URL generator), Bot (token reset, privileged intents toggles requiring review, public bot toggle), Installation (install link generator, default scopes and permissions, and App Testers: up to 25 testers, invitations included, D-220), Commands, Emojis (app emoji), Rich Presence (assets), Activities (bundle upload through the resumable upload with its package limit shown, review history, URL mappings, development URL) and **Review** (submission status, reviewer messages). Webhooks are not a portal tab: they are managed in Server Settings. Beside the application pages the portal has a Packages page (`/developers/packages`) and the documentation hub (`/developers/docs`).
 
 ### 2.3 SDKs
-- `sr-sdk` (Rust): ergonomics similar to `serenity`/`twilight`.
-- `@sideroom/bot` (TS): discord.js-like (Phase 6).
+- `sr-sdk` (Rust): ergonomics similar to `serenity`/`twilight`; REST, shards with resume, a cache, a command framework, and bots in voice (end-to-end encrypted, with an Opus encoder behind the `voice-opus` feature).
+- `@sideroom/bot` (TS, in `packages/bot`, not published to a registry): discord.js-like; voice from `@sideroom/bot/voice`.
+- First-party SDK checks and the weekly discord.js and serenity compatibility run: `docs/dev/sdk-compat.md`.
 - The porting guide in doc 05 §7 covers existing Discord libraries.
 
 ## 3. Activities (layer 3)
@@ -75,9 +78,9 @@ Discord parity: General Information, Installation (install link generator, defau
 
 | Kind | Payload | Validator |
 |---|---|---|
-| `theme` | tokens.json + assets (+ optional restricted CSS) | `sr-theme` |
-| `profile_layout` | block grid template + style tokens | `sr-theme` |
-| `emoji_pack`, `sticker_pack`, `sound_pack` | media files + names | size/format checks, `symphonia` for audio |
+| `theme` | theme.json + tokens.json + assets and fonts (no free CSS: the token model has none) | `sr-theme` (through `sr-packages`) |
+| `profile_layout` | block grid template + style tokens | `sr-packages` (`profile_doc`) |
+| `emoji_pack`, `sticker_pack`, `sound_pack` | media files + names | size, pixel and format checks (sounds are Ogg or MP3 by their first bytes; no audio decoder) |
 | `recipe` | A JSON preset for one or more **feature modules**' settings, e.g. "Anime club starter: auto-threads + starboard + watch-party channel" | Schema validation against the features' settings schemas |
 | `server_template` | Discord-compatible template JSON | Structure validation |
 
@@ -85,7 +88,7 @@ Discord parity: General Information, Installation (install link generator, defau
 
 Server owners browse approved packages in **Server Settings → Extensions & Themes**. Users browse them in **User Settings → Appearance → Theme Store** and **Profile → Layouts**. Approved packages enable with one click (D-064).
 
-**Built (p15).** Crate `sr-packages`, migration 0970, `docs/specs/developer-platform.md` sections 3.11 and 3.12. A package is one zip with one manifest file (`theme.json`, `layout.json`, `pack.json`, `recipe.json`, `template.json`); every kind goes through one validator, themes through `sr-theme`. Review is a state on `package_versions` handled in Review Queues > Packages (`REVIEW_PACKAGES`), not a `sr-review` submission kind. A recipe may not name channels or roles, and the applier re-validates it against the live feature registry. Profile layouts hold only placed blocks; a person's own page is `accounts.profile_doc`, validated by the same code. Adding the files of a pack to a server and a server-wide theme are not built yet.
+**Built (p15).** Crate `sr-packages`, migration 0970, `docs/specs/developer-platform.md` sections 3.11 and 3.12. A package is one zip with one manifest file (`theme.json`, `layout.json`, `pack.json`, `recipe.json`, `template.json`); every kind goes through one validator, themes through `sr-theme`. Review is a state on `package_versions` handled in Review Queues > Packages (`REVIEW_PACKAGES`), not a `sr-review` submission kind. A recipe may not name channels or roles, and the applier re-validates it against the live feature registry. Profile layouts hold only placed blocks; a person's own page is `accounts.profile_doc`, validated by the same code. Adding the files of a pack to a server (`POST /guilds/{id}/packages/{package}/import`, D-282) and a server-wide theme (`GET|PATCH /guilds/{id}/appearance`, D-281) are built (doc `specs/developer-platform.md` section 3.11).
 
 ## 5. Review pipeline
 
