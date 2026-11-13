@@ -27,6 +27,8 @@ The same round answered the handoff questions that were waiting on the owner: LN
 
 Earlier confirmations (age gate, font, door image, token calibration) are recorded in [open-question-answers.md](open-question-answers.md).
 
+After that round the owner's delegation to a Fable agent stayed in force. Every question that the feature phase and the audit and fix waves raised (waves 27 to 65, D-309 to D-658) was answered by that agent and is recorded as a row in the decisions log (the rows from D-309 to about D-500 say "owner-delegated" in their status column); the handoffs' "Owner questions" sections are pointers to those rows. Nothing from those waves waits here. The items of [dev/owner-checklist.md](dev/owner-checklist.md) section 4b and 4c that are still unticked are confirmations of a default that stands, or actions that need an account, a download or a run; none blocks launch.
+
 ## Owner and integrator actions, human actions and legal questions
 
 These are not decisions, so they no longer live in this file:

@@ -4,7 +4,7 @@ The steps from an empty server to the first invites, in order. Each step names t
 
 After go-live, the operator handbook is [OPERATOR.md](OPERATOR.md): the map of every deploy page and the daily, weekly and monthly checks.
 
-Status: the shipped files have not yet booted on a real host (see the README "Status"). The first run of this list is the proof; write down what breaks.
+Status: the shipped files boot on a CI runner (`prod-smoke.yml`, RDY-OPS-001), but have not yet booted on a real host (see the README "Status"). The first run of this list on a real host is the proof; write down what breaks.
 
 `dc` below stands for `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod`, and `sr-cli` for `dc run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server` (the server image carries `sr-cli`; this is how `install.sh` calls it). For the plain-binary route, `sr-cli` is the binary itself.
 
@@ -24,17 +24,17 @@ Point the public hostname (and the TURN hostname, if separate) at the host.
 
 ## 3. Install
 
-Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run the installer. It asks for the domain, the mail server, the ingest folder and the Owner account, and generates every secret.
+Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run the installer. It asks for the domain, the mail server, the ingest folder and the Owner account, and generates every secret. It also takes `SR_INSTALL_EMU_CORES=yes` (fetch the emulator cores by pinned URL and SHA-256, [EMULATOR.md](EMULATOR.md); the default is no, and the Games page needs them) and `SR_PAYMENTS_ELECTRS=yes` (the self-hosted `electrs` profile; owner checklist section 2).
 
 - **Command.** `deploy/install.sh` (or `deploy/install.sh --yes` with the answers in the environment; see the script header).
 - **Done when.** The script ends without an error, `dc ps` shows every service running, and `curl -fsS https://chat.example.org/healthz` answers. Back up `deploy/compose/.env.prod` now: `SR_SECRET_KEY` decrypts every stored TOTP secret and seals the Web Push key.
 
 ## 4. Preflight is green
 
-`sr-cli preflight` (item RDY-OPS-004) checks the database and migrations, storage, SMTP, the public URL and its headers, TURN, disk space, clock skew, secret-file modes and, when they are on, payments and the voice node. `install.sh` runs it as its last step once it lands in the integration branch.
+`sr-cli preflight` (item RDY-OPS-004) checks the database and migrations, storage, SMTP, the public URL and its headers, TURN, disk space, clock skew, secret-file modes and, when they are on, payments and the voice node. `install.sh` runs it as its last step (`SR_INSTALL_PREFLIGHT=warn` prints the table and reports a FAIL row without failing the install; `strict` exits 3 on one; `skip` leaves it out).
 
 - **Command.** `sr-cli preflight`
-- **Done when.** The table has no row marked fail and the exit code is 0. Read every warn: each one says in a sentence what to do. The same table is on Admin > System > Preflight once RDY-OPS-005 lands. Until the command exists, the manual equivalent is `curl -fsS https://<host>/readyz` plus the "Integrations" tiles on Admin > System.
+- **Done when.** The table has no row marked fail and the exit code is 0. Read every warn: each one says in a sentence what to do. The same table is on Admin > System (the Preflight card, `POST /admin/system/preflight`, RDY-OPS-005). A quick manual check is `curl -fsS https://<host>/readyz` plus the "Integrations" tiles on Admin > System.
 
 ## 5. Backups verified by a restore
 
@@ -51,7 +51,7 @@ A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)).
 ## 6. Monitoring and the alert test
 
 - **Commands.** `dc --profile monitoring up -d`; then `sr-cli preflight --alert-test` (item RDY-OPS-006).
-- **Done when.** Prometheus and Grafana are up (the dashboards in `deploy/monitoring/grafana` load, no panel says "no data" for a metric the server exports), and a test card naming the host and the time appears in the Staff Server `#alerts` channel (and the mail arrives, if `alerts.email_to_owner` is on). If the command does not exist yet, use the Admin > System "Send a test email" button and confirm that the health job's alert settings (`alerts.*`, [RUNBOOK.md](RUNBOOK.md)) are set, then repeat this step with the command when it lands.
+- **Done when.** Prometheus and Grafana are up (the dashboards in `deploy/monitoring/grafana` load, no panel says "no data" for a metric the server exports), and a test card naming the host and the time appears in the Staff Server `#alerts` channel (and the mail arrives, if `alerts.email_to_owner` is on). The Admin > System "Send a test email to me" button checks mail alone; the health job's alert settings are `alerts.*` ([RUNBOOK.md](RUNBOOK.md)).
 
 ## 7. The Setup Wizard
 
@@ -63,7 +63,7 @@ Sign in as the Owner (the one-time link printed by `bootstrap` is single use and
 
 After the brief has been answered ([lawyer-brief.md](../docs/legal/lawyer-brief.md)); if it has not, leave the defaults and write down that you did.
 
-- **Where.** Admin > Features > Compliance (a reason is required): `accounts.minimum_age`, `compliance.operator_country`, `compliance.operator_contact`; the other compliance values keep their defaults unless the lawyer says otherwise.
+- **Where.** Admin > Features > Compliance (the reason field is optional, D-632): `accounts.minimum_age`, `compliance.operator_country`, `compliance.operator_contact`; the other compliance values keep their defaults unless the lawyer says otherwise.
 - **Done when.** Signed out, the house notes (`/house-notes`) and the help section of the sign-in page (`/login`) show the copyright notice address, the privacy page names the operator's country and contact, and the invite landing shows the minimum age. (`/help`, the handbook, is for signed-in members only and sends a visitor to the sign-in page, D-385.)
 
 ## 9. The first invites
