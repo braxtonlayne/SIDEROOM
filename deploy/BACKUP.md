@@ -62,7 +62,7 @@ With Docker Compose, run the same script from the host against the published or 
 
 ## From the command line
 
-`sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`. Like the script, it first removes a `*.dump.partial` older than one hour.
+`sr-cli backup [--dir ./backups]` writes the same file and manifest as `backup.sh` (`db/sideroom-<stamp>.dump` + `.dump.json`), using `pg_dump` from `PATH` and the database in `SR_DATABASE__URL`; the password is passed in the environment, never as an argument. `sr-cli restore <dump> [--force]` verifies the manifest, refuses a non-empty database unless `--force`, reads the dump's table of contents with `pg_restore --list` before it drops anything (a file `pg_restore` cannot read, or a dump of some other database, stops there with the schema untouched; SEC-AUD-028), and runs `pg_restore`. `sr-cli upgrade` takes this backup automatically before it migrates. Retention pruning stays with `backup.sh`. Like the script, it first removes a `*.dump.partial` older than one hour.
 
 ## On the Compose stack
 
@@ -97,7 +97,8 @@ Both write the same dump format and manifest, and both verify the checksum befor
 | Retention (14 daily, 8 weekly, 12 monthly) | yes | no |
 | Object snapshot (`rustic` / `restic`), `snapshot.ok` | yes | no |
 | Non-empty target | refused unless `SR_RESTORE_FORCE=1` | refused unless `--force` |
-| `--clean --if-exists` before restoring | with `SR_RESTORE_FORCE=1` | with `--force` |
+| Emptying the database before restoring | `pg_restore --clean --if-exists` with `SR_RESTORE_FORCE=1` | with `--force`: `DROP SCHEMA public CASCADE`, then a fresh `public` schema, in one transaction |
+| The dump is read before anything is dropped (SEC-AUD-028) | no | yes: `pg_restore --list` must read it and it must contain the `_sqlx_migrations` table and data, otherwise it stops with "nothing was changed" |
 | Tampered dump | refused (`checksum mismatch`) | refused |
 | After restoring | prints a reminder to run `sr-cli migrate` | prints the same reminder |
 | Also does | nothing else | `sr-cli upgrade` takes this backup before it migrates; `upgrade --dry-run` only lists the pending migrations |
