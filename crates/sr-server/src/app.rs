@@ -1478,6 +1478,10 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             voice.ensure_crash_channel().await;
         });
     }
+    // SEC-AUD-166 (wave 64): the beta bug reports: allow-listed, limited, read by staff with an audit entry.
+    let bug_deps = Arc::new(routes::bugs::BugDeps::new(Arc::new(
+        crate::bug_wiring::PgBugStore(sr_db::bug_reports::PgBugReports::new(pool.clone())),
+    )));
     let admin_service = sr_admin::AdminService::new(admin_repo.clone())
         .with_extras(admin_repo.clone())
         .with_data_requests(admin_repo)
@@ -1778,6 +1782,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .extension(packages_deps.clone())
         .extension(vouch_deps)
         .extension(crash_deps)
+        .extension(bug_deps)
         .extension(user_feature_deps)
         .extension(tool_room_deps)
         .extension(fx_deps)
@@ -1964,6 +1969,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
     let runner = crate::jukebox_jobs::register(runner, &pool, bus.clone());
+    let runner = crate::bug_report_jobs::register(runner, &pool);
     let runner = crate::rings_jobs::register(
         runner,
         &pool,
@@ -2035,6 +2041,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::cinema_jobs::schedule(&pool).await?;
     crate::jukebox_jobs::schedule(&pool).await?;
     crate::rings_jobs::schedule(&pool).await?;
+    crate::bug_report_jobs::schedule(&pool).await?;
     crate::scrapbook_jobs::schedule(&pool).await?;
     crate::review_jobs::schedule(&pool).await?;
     crate::takedown_jobs::schedule(&pool).await?;

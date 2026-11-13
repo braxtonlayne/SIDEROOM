@@ -66,6 +66,12 @@ pub const STUDY_SWITCH_IDS: [&str; 5] = [
 /// (servers rail, The Study, The Arcade) with no request to the server. It reaches nothing else.
 pub const SHOWROOM_ID: &str = "platform.showroom";
 
+/// SEC-AUD-166 (wave 64, D-647): the beta bug reporter. OFF by default. On, signed-in members can send staff a bug
+/// report (a description, an allow-listed debug bundle and, if they choose, a picture they checked). It gates only
+/// `POST /bug-reports`: staff can read and close reports after it is turned off. It reaches nothing the IMMUTABLE RULE
+/// protects.
+pub const BETA_REPORTS_ID: &str = "platform.beta_reports";
+
 const PLATFORM_GUILD: &[Scope] = &[Scope::Platform, Scope::Guild];
 const PLATFORM_ONLY: &[Scope] = &[Scope::Platform];
 
@@ -242,6 +248,16 @@ const SHOWROOM: Switch = Switch {
     gated_by: None,
     default_on: false,
 };
+const BETA_REPORTS: Switch = Switch {
+    id: BETA_REPORTS_ID,
+    name: "Beta bug reporter",
+    description: "Lets signed-in members send staff a bug report with a description, technical details of their app and, if they choose, a screenshot they have checked. Staff can read the reports in Admin. For a small beta (under 100 members); turn it off when the beta ends. Off by default.",
+    section: "Study",
+    phase: 64,
+    scopes: PLATFORM_ONLY,
+    gated_by: None,
+    default_on: false,
+};
 
 switch_feature!(ExternalMetadata, EXTERNAL_METADATA);
 switch_feature!(StorefrontCategories, STOREFRONT_CATEGORIES);
@@ -249,6 +265,7 @@ switch_feature!(GlobalTrending, GLOBAL_TRENDING);
 switch_feature!(RequestsBoard, REQUESTS_BOARD);
 switch_feature!(IngestQueues, INGEST_QUEUES);
 switch_feature!(Showroom, SHOWROOM);
+switch_feature!(BetaReports, BETA_REPORTS);
 switch_feature!(Jukebox, JUKEBOX);
 switch_feature!(ListeningRooms, LISTENING_ROOMS);
 switch_feature!(Tools, TOOLS);
@@ -369,6 +386,7 @@ pub fn register_all(registry: &mut FeatureRegistry) -> Result<(), FeatureError> 
         RequestsBoard,
         IngestQueues,
         Showroom,
+        BetaReports,
     )?;
     for flag in TOOL_FLAGS {
         registry.register(ToolSwitch(flag))?;

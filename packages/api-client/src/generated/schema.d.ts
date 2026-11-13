@@ -781,6 +781,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/bug-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reports, newest first (any appointed staff member). No audit entry: the list holds no description or picture. */
+        get: operations["list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bug-reports/{bug_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One report with its description and bundle (any appointed staff member). Leaves a platform audit entry
+         *     (`bug.report.read`) before the data is returned.
+         */
+        get: operations["detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bug-reports/{bug_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry
+         *     (`bug.report.close`) before anything changes.
+         */
+        post: operations["close"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/bug-reports/{bug_id}/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)
+         *     before the bytes are returned. 404 when the report has no picture (never sent, closed, or older than 30 days).
+         */
+        get: operations["screenshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/card-actions": {
         parameters: {
             query?: never;
@@ -5434,6 +5511,28 @@ export interface paths {
         /** Turn "Notify me" on or off for one Coming Soon entry. */
         put: operations["set_notify"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bug-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per
+         *     day for the platform; the server rebuilds the stored report from the allow-list. 400 for a missing or too long
+         *     description or a picture that is not a JPEG, 404 while `platform.beta_reports` is off, 413 for a picture over 2 MiB,
+         *     429 past the limits.
+         */
+        post: operations["submit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -18690,6 +18789,121 @@ export interface components {
             role_ids?: string[] | null;
             /** @description The member's top role on Discord. */
             role_name?: string | null;
+        };
+        /** @description The debug bundle. Every field is optional: the server keeps only what its allow-list names and whose shape checks. */
+        BugBundleBody: {
+            /**
+             * Format: int64
+             * @description Client time, Unix ms.
+             */
+            at?: number | null;
+            /** @description Capability flags (the crash allow-list's booleans) and `engine`. */
+            caps?: Record<string, never> | null;
+            /** @description The build's commit, 7 to 40 lowercase hex characters. */
+            commit?: string | null;
+            /** @description Crash fingerprints (64 lowercase hex characters) this page load already reported; at most 5 are kept. */
+            crashes?: string[] | null;
+            /** @description At most 20 are kept. */
+            failed_requests?: components["schemas"]["BugFailedRequestBody"][] | null;
+            gateway?: null | components["schemas"]["BugGatewayBody"];
+            locale?: string | null;
+            online?: boolean | null;
+            /** @description The route NAME (for example `lounge.:guildId.:channelId`), never a URL. */
+            route?: string | null;
+            /** @description `none`, `installing`, `waiting` or `active`. */
+            sw?: string | null;
+            /** @description `editorial`, `lounge-light`, `lounge-dark` or `other`. */
+            theme?: string | null;
+            viewport?: null | components["schemas"]["BugViewportBody"];
+            voice?: null | components["schemas"]["BugVoiceBody"];
+        };
+        BugCreated: {
+            id: string;
+        };
+        BugDetail: components["schemas"]["BugSummary"] & {
+            /** @description The allow-listed bundle exactly as stored. */
+            bundle: Record<string, never>;
+            closed_by?: null | components["schemas"]["BugPersonView"];
+            /** Format: int64 */
+            closed_ms?: number | null;
+            description: string;
+        };
+        BugFailedRequestBody: {
+            /** Format: int32 */
+            ago_s?: number | null;
+            /** @description `GET`, `POST`, `PUT`, `PATCH`, `DELETE` or `?` (the browser's resource timing does not tell the method). */
+            method: string;
+            /** Format: int32 */
+            ms?: number | null;
+            /** @description A path template matching `^/[a-z0-9_@:./-]{1,120}$` with ids replaced by `:id`: no query, no run of 6 digits. */
+            path: string;
+            /** Format: int32 */
+            status: number;
+        };
+        BugGatewayBody: {
+            /** Format: int32 */
+            heartbeat_ms?: number | null;
+            /** Format: int32 */
+            reconnects?: number | null;
+            /** @description `connected`, `connecting`, `reconnecting` or `closed`. */
+            status: string;
+        };
+        BugList: {
+            /**
+             * Format: int64
+             * @description Open reports in all, for the badge (not only those in `reports`).
+             */
+            open_count: number;
+            reports: components["schemas"]["BugSummary"][];
+        };
+        BugPersonView: {
+            id: string;
+            username: string;
+        };
+        /**
+         * @description What a browser may send. This type only documents the wire contract for the generated client: the handler reads a
+         *     plain JSON value and takes nothing from it that [`allow_list::sanitize`] does not name, so an extra field is
+         *     ignored, not rejected.
+         */
+        BugReportBody: {
+            bundle?: null | components["schemas"]["BugBundleBody"];
+            /** @description The member's own words, 1 to 2000 characters after trimming. */
+            description: string;
+            screenshot?: null | components["schemas"]["BugScreenshotBody"];
+        };
+        BugScreenshotBody: {
+            /** @description The JPEG, base64, at most 2 MiB decoded. */
+            data: string;
+            /**
+             * Format: int32
+             * @description How many regions the member blacked out (0 to 64).
+             */
+            masked?: number | null;
+            /** @description Must be `image/jpeg`. */
+            type: string;
+        };
+        /** @description A report as the list shows it: no description, no bundle, no picture. */
+        BugSummary: {
+            commit: string;
+            /** Format: int64 */
+            created_ms: number;
+            has_screenshot: boolean;
+            id: string;
+            reporter: components["schemas"]["BugPersonView"];
+            route: string;
+            /** @description `open` or `closed`. */
+            status: string;
+        };
+        BugViewportBody: {
+            /** Format: double */
+            dpr: number;
+            /** Format: int32 */
+            h: number;
+            /** Format: int32 */
+            w: number;
+        };
+        BugVoiceBody: {
+            connected: boolean;
         };
         /** @description A template shipped with the server. */
         BuiltinTemplateObject: {
@@ -33162,6 +33376,192 @@ export interface operations {
                 };
             };
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list: {
+        parameters: {
+            query?: {
+                /** @description open or closed; omit for both */
+                status?: string;
+                /** @description 1 to 200, default 50 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Bug report id */
+                bug_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugDetail"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    close: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Bug report id */
+                bug_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    screenshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Bug report id */
+                bug_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The JPEG bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": unknown;
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -48305,6 +48705,69 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BugReportBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BugCreated"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

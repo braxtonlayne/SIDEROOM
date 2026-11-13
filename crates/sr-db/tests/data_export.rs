@@ -267,6 +267,14 @@ async fn the_package_has_the_users_data_and_no_secrets() {
     .await
     .unwrap();
 
+    // SEC-AUD-167: a bug report of the member (with a picture) and one of someone else.
+    sqlx::query(
+        "INSERT INTO bug_reports (reporter_id, commit_sha, route, description, bundle, screenshot) VALUES \n         (1, 'abcdef1', 'lounge', 'my own words', '{\"viewport\":{\"w\":800}}', decode('ffd8ffd9', 'hex')), \n         (2, 'abcdef1', 'lounge', 'somebody else', '{}', NULL)",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
     let mut buf = Cursor::new(Vec::new());
     let n = data_export::build_package(pool, 1, &mut buf, 1_700_000_000_000, 10)
         .await
@@ -290,6 +298,7 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         "rings.json",
         "reactions.json",
         "poll_votes.json",
+        "bug_reports.json",
         "tools.json",
         "messages/20.json",
         "package.json",
@@ -331,9 +340,23 @@ async fn the_package_has_the_users_data_and_no_secrets() {
         !reactions.to_string().contains("not mine"),
         "no message text"
     );
+    let bugs: serde_json::Value = serde_json::from_str(&read("bug_reports.json")).unwrap();
+    assert_eq!(
+        bugs.as_array().unwrap().len(),
+        1,
+        "only the member's own report"
+    );
+    assert_eq!(bugs[0]["description"], "my own words");
+    assert_eq!(bugs[0]["bundle"]["viewport"]["w"], 800);
+    assert_eq!(bugs[0]["has_screenshot"], true);
+    assert!(
+        !bugs.to_string().contains("somebody else") && !bugs.to_string().contains("screenshot\":["),
+        "no one else's report and no picture bytes"
+    );
     let readme = read("README.txt");
     assert!(readme.contains("reactions.json") && readme.contains("poll_votes.json"));
     assert!(readme.contains("tools.json"));
+    assert!(readme.contains("bug_reports.json"));
     let tools: serde_json::Value = serde_json::from_str(&read("tools.json")).unwrap();
     for key in ["scratch_notes", "loot_tables", "invite_card_seats"] {
         assert!(tools[key].is_array(), "tools.json {key}: {tools}");

@@ -67,6 +67,8 @@ fn every_feature_of_waves_27_to_39_is_registered_with_its_scopes_and_default() {
         ("platform.ingest_queues", P, false, true),
         // UX-SHOW-001: the populated preview for beta and test deployments; OFF by default.
         ("platform.showroom", P, false, true),
+        // SEC-AUD-166 (D-647): the beta bug reporter; OFF by default, platform scope only.
+        ("platform.beta_reports", P, false, true),
     ];
     for (id, scopes, default_on, client) in expected {
         let f = reg

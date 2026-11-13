@@ -1229,3 +1229,112 @@ async fn person_graph_actions_honour_the_staff_guard() {
         .await
         .unwrap();
 }
+
+// ---- SEC-AUD-167 (D-650): the beta bug reports' staff routes ---------------------------------------------------------
+
+#[allow(clippy::type_complexity)]
+fn bug_entries(e: &Env) -> Vec<(String, i64, Option<String>, Option<i64>, AccessKind)> {
+    e.repo
+        .log_rows()
+        .into_iter()
+        .filter(|r| r.action.starts_with("bug."))
+        .map(|r| (r.action, r.actor_id, r.target_kind, r.target_id, r.kind))
+        .collect()
+}
+
+#[tokio::test]
+async fn staff_without_an_appointment_cannot_list_bug_reports() {
+    let e = env();
+    // Somebody who was never appointed does not even resolve as staff (the routes answer 403 `SrStaffOnly`).
+    assert_eq!(
+        e.svc.resolve(NEWBIE, None).await.unwrap_err(),
+        AdminError::NotStaff
+    );
+    // A caller without the basic staff bit is refused by each of the four, and each refusal leaves a `denied` row.
+    let nobody = Caller {
+        user_id: NEWBIE,
+        permissions: P::empty(),
+        is_owner: false,
+        ip: None,
+    };
+    assert!(matches!(
+        e.svc.authorize_bug_list(&nobody).await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        e.svc.authorize_bug_read(&nobody, 7).await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        e.svc.authorize_bug_screenshot(&nobody, 7).await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    assert!(matches!(
+        e.svc.authorize_bug_close(&nobody, 7).await,
+        Err(AdminError::MissingPermission(_))
+    ));
+    let rows = bug_entries(&e);
+    assert_eq!(rows.len(), 4, "{rows:?}");
+    assert!(rows.iter().all(|r| r.4 == AccessKind::Denied));
+    // Any appointed staff member (the Reader has the basic bit and nothing else) may.
+    let reader = appointed(&e, NEWBIE, R_READER).await;
+    e.svc.authorize_bug_list(&reader).await.unwrap();
+}
+
+#[tokio::test]
+async fn opening_a_bug_report_writes_an_audit_entry() {
+    let e = env();
+    let reader = appointed(&e, NEWBIE, R_READER).await;
+    // The list is not an access to anyone's words or screen: no entry.
+    e.svc.authorize_bug_list(&reader).await.unwrap();
+    assert!(bug_entries(&e).is_empty());
+    e.svc.authorize_bug_read(&reader, 42).await.unwrap();
+    assert_eq!(
+        bug_entries(&e),
+        [(
+            "bug.report.read".to_owned(),
+            NEWBIE,
+            Some("bug_report".to_owned()),
+            Some(42),
+            AccessKind::AdminAction
+        )]
+    );
+    // Every open is its own entry, and the chain still verifies.
+    e.svc.authorize_bug_read(&reader, 42).await.unwrap();
+    assert_eq!(bug_entries(&e).len(), 2);
+    assert!(e.repo.verify_log().await.unwrap().ok);
+}
+
+#[tokio::test]
+async fn opening_a_screenshot_writes_an_audit_entry() {
+    let e = env();
+    let reader = appointed(&e, NEWBIE, R_READER).await;
+    e.svc.authorize_bug_screenshot(&reader, 43).await.unwrap();
+    assert_eq!(
+        bug_entries(&e),
+        [(
+            "bug.screenshot.read".to_owned(),
+            NEWBIE,
+            Some("bug_report".to_owned()),
+            Some(43),
+            AccessKind::AdminAction
+        )]
+    );
+}
+
+#[tokio::test]
+async fn closing_a_report_writes_an_audit_entry() {
+    let e = env();
+    let reader = appointed(&e, NEWBIE, R_READER).await;
+    e.svc.authorize_bug_close(&reader, 44).await.unwrap();
+    assert_eq!(
+        bug_entries(&e),
+        [(
+            "bug.report.close".to_owned(),
+            NEWBIE,
+            Some("bug_report".to_owned()),
+            Some(44),
+            AccessKind::AdminAction
+        )]
+    );
+}

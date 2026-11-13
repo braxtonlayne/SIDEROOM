@@ -370,6 +370,8 @@ pub async fn delete_account_in(
         "DELETE FROM reading_progress WHERE user_id = $1",
         "DELETE FROM reading_bookmarks WHERE user_id = $1",
         "DELETE FROM scratch_notes WHERE user_id = $1",
+        // SEC-AUD-167 (D-650): a bug report is the reporter's own words and, perhaps, their screen: it goes with them.
+        "DELETE FROM bug_reports WHERE reporter_id = $1",
         "DELETE FROM loot_tables WHERE owner_user_id = $1",
         // Items cascade.
         "DELETE FROM cinema_lists WHERE owner_id = $1 AND (kind = 'saved' OR visibility IN ('private', 'friends'))",
