@@ -256,6 +256,7 @@ fn dev_mark(spec: &ServeSpec, resp: &mut Response) {
 
 /// Serve one `GET` path of an Activity: a path under a URL mapping comes from the mapping's target, anything
 /// else from the reviewed bundle (or, in development, the live development URL).
+#[cfg(test)]
 pub(crate) async fn serve(
     d: &ActivitiesDeps,
     app: i64,
@@ -299,7 +300,9 @@ pub(crate) async fn serve_with(
                 "This activity is not available.",
             ),
         },
-        (None, Serving::Bundle { sha256 }) => from_bundle(d, app, sha256, path_and_query).await,
+        (None, Serving::Bundle { sha256 }) => {
+            from_bundle(d, app, sha256, path_and_query, range, head).await
+        }
     };
     dev_mark(spec, &mut resp);
     apply_csp(d, app, spec, &mut resp);
