@@ -598,3 +598,7 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-159** [BE] Shelf artwork links force the response type; no client-facing plain presigned GET remains in sr-api (D-641). Handoff `fix-p63-cdn.md`.
 - [x] **SEC-AUD-160** [BE] The mount connection test has a seventh row, `response_type`, and a provider that ignores response overrides fails it (D-643). Handoff `fix-p63-cdn.md`.
 - [x] **SEC-AUD-161** [DOC] Design for recovering from lost gateway dispatches after event-bus lag (resync in place), with storm control and named tests, for a later wave. Handoff `fix-p63-resync.md`.
+- [x] **SEC-AUD-162** [FE] On a phone, picking Friends or Message Requests in the Home sidebar shows the page, with a back control. Handoff `fix-p64-phone.md`.
+- [x] **SEC-AUD-163** [FE] The storage connection test's seventh row (`response_type`) is known to the web. Handoff `fix-p64-phone.md`.
+- [x] **SEC-AUD-164** [FE] On a phone the DM header keeps back, avatar and name, call and video, and moves the other controls under "More actions". Handoff `fix-p64-phone.md`.
+- [ ] **SEC-AUD-165** [FE] Beta bug reporter, client kit (contract types, debug bundle, path templates, cover geometry, capture, JPEG encoding, API calls), not wired to any screen yet; the dialog, keys, entries, Admin page and the server follow (D-647..D-650). Handoff `fix-p64-reportui.md`.

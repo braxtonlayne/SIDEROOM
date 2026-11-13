@@ -2096,3 +2096,45 @@
 .lng-dm-empty .lng-link-btn {
   text-align: start;
 }
+
+/* SEC-AUD-164: the direct-message header on a phone. Back, the name (with real width) and the two call buttons stay in
+   the row; every other control moves into a strip under the header that the "More" button opens. Scoped to the DM
+   header; the shared header rules above are untouched. */
+.lng-dm-extra {
+  display: contents;
+}
+.lng-header[data-dm] .lng-dm-more {
+  display: none;
+}
+@media (max-width: 720px) {
+  .lng-header[data-dm] {
+    position: relative;
+  }
+  .lng-header[data-dm] .lng-dm-identity {
+    flex: 1 1 0;
+    min-inline-size: 96px;
+  }
+  .lng-header[data-dm] .lng-header-tools {
+    margin-inline-start: 0;
+    gap: 0;
+  }
+  .lng-header[data-dm] .lng-dm-more {
+    display: inline-flex;
+  }
+  .lng-header[data-dm] .lng-dm-extra {
+    display: none;
+  }
+  .lng-header[data-dm] .lng-dm-extra[data-open] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 100%;
+    z-index: 5;
+    padding: 6px 12px;
+    background: var(--bg-base-low);
+    border-block-end: 1px solid var(--ui-border);
+  }
+}

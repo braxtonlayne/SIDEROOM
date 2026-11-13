@@ -182,7 +182,14 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
   );
 }
 
-export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) {
+export function HomeSidebar({
+  onOpenSwitcher,
+  onOpenPage,
+}: {
+  onOpenSwitcher: () => void;
+  /** The member picked Friends or Message Requests: on a phone the shell shows the page (SEC-AUD-162). */
+  onOpenPage?: () => void;
+}) {
   const t = useT();
   const dms = useDms();
   const counts = useRequestCounts();
@@ -198,6 +205,7 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
   const onRequests = isHome && !channelId && homeView === 'requests';
   const goHome = (view: 'friends' | 'requests') => {
     setHomeView(view);
+    onOpenPage?.();
     void navigate({ to: '/channels/$guildId', params: { guildId: HOME } });
   };
   return (
@@ -219,7 +227,10 @@ export function HomeSidebar({ onOpenSwitcher }: { onOpenSwitcher: () => void }) 
           className="lng-nav-item"
           data-selected={onFriends || undefined}
           aria-current={onFriends ? 'page' : undefined}
-          onClick={() => setHomeView('friends')}
+          onClick={() => {
+            setHomeView('friends');
+            onOpenPage?.();
+          }}
         >
           <Icon name="users" size={20} />
           <span>{t('lounge.homeSidebar.friends')}</span>

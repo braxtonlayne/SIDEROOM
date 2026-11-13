@@ -12,9 +12,13 @@ import { useLoungeUi } from './store';
 export const DmProfilePanel = DmSidePanel;
 
 /** Home with no conversation selected: the Friends page, or Message Requests when chosen in the sidebar. */
-export function HomeFriends() {
+export function HomeFriends({ onBack }: { onBack?: (() => void) | undefined }) {
   const view = useLoungeUi((s) => s.homeView);
-  return view === 'requests' ? <MessageRequestsPage /> : <FriendsPage />;
+  return view === 'requests' ? (
+    <MessageRequestsPage onBack={onBack} />
+  ) : (
+    <FriendsPage onBack={onBack} />
+  );
 }
 
 export function PickChannel({ guildId }: { guildId?: string }) {

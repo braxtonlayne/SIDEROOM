@@ -40,6 +40,11 @@ export const PASSING_PROBES: ProbeRow[] = [
   { id: 'head_bucket', status: 'pass', message: 'The bucket exists and the key can reach it.' },
   { id: 'list', status: 'pass', message: 'Listing the prefix works.' },
   { id: 'put', status: 'pass', message: 'Write, read and delete of a probe object work.' },
+  {
+    id: 'response_type',
+    status: 'pass',
+    message: 'The service answers with the response type SIDE ROOM asks for.',
+  },
   { id: 'multipart', status: 'pass', message: 'Multipart uploads can start and abort.' },
   { id: 'cors', status: 'pass', message: 'Bucket rules can be read.' },
   { id: 'list_buckets', status: 'pass', message: 'The key cannot see other buckets.' },
