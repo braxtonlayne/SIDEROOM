@@ -40,3 +40,45 @@ Beta bug reporter client kit: wire-contract types, path templating, allow-listed
 
 ## Owner questions
 None new.
+
+---
+
+# Part 2 (SEC-AUD-168): the gate, the dialog, the key, the entries, the Admin page
+
+Branch `fix/p64-reportui2` (worktree `p64-reportui2`, based on `integration/phase64`). Commits: `SEC-AUD-168: the bug reporter's gate, dialog, ...` and `SEC-AUD-168: data-sr-private on DM lists, ...`, plus the spec/handoff commit.
+
+## Done
+- **Gate** `bugreport/BugReportGate.tsx` (own chunk; `router.tsx`: one `lazy()` line and one element beside `DrawerGate`, app routes only). Flag off: renders nothing, no listener. Flag on: `keydown` through `matchCustomShortcut` (new shortcut id `bugReport`, default Alt+Shift+B, Navigation group, rebindable; shown in the sheet and Keybinds only while the flag is on). Key: `collectPrivateRects`, then `captureTab` in the same handler turn (no await before `getDisplayMedia`), then opens the dialog. Request store `bugreport/openState.ts`; frame grabber `bugreport/grab.ts` (detached `<video>`, one frame to a canvas, 4 s timeout). The gate also closes the dialog if the switch turns off.
+- **Entries**: "Report a bug" in `lounge/header/HelpButton.tsx`; a row under the user panel in the phone "You" tab (`LoungeShell.tsx`; the You tab has no page of its own, it shows the list pane, so the row sits under `UserPanel` while `tab === 'you'`). Both only while the flag is on; both open the dialog without a picture.
+- **Dialog** `bugreport/BugReportDialog.tsx` + `PictureEditor.tsx` + `bugreport.css`: required description with counter; picture editor (pointer drag adds a black box, each box has a keyboard-reachable remove button, automatic boxes are removable); Remove screenshot; "Capture this tab" (where `canCapture`; hides the dialog while the frame is taken so it is not in its own picture) and "Attach a screenshot" (`<input type=file accept=image/*>`); warning line when there are no automatic covers; "What is sent" (`<details>` with the exact bundle JSON, built once when the dialog opens, and that same object is what is sent); the retention line; errors in words (429, 413, picture too large, offline, switched off, bad file, generic); success "Thank you. Report #N was sent."; Modal gives the focus trap and focus return. The picture is re-encoded with `renderJpeg` (covers painted after scaling) and sent as base64.
+- `bugreport/sources.ts`: `liveSources(router, sw)` wires `buildBundle` to the real readers. `crash/report.ts`: `deliveredFingerprints()` (one exported line).
+- **`data-sr-private`** (attribute only): `MessageList` wrapper when `isDm`; `Composer` wrapper when `guildId === undefined` (DM/group DM); the DM call's tile grid (`voice/DmCallStage.tsx`). Server channels carry nothing.
+- **Admin** `admin/bugs/BugReportsSection.tsx` (own chunk, `bugs.css`), section `bug-reports` in `AdminApp.tsx` beside Crash reports: list with status filter, open-count in the nav label ("Bug reports (3)"), detail with the description and debug information as readable lists and a failed-requests table, "Show screenshot" (fetched on the click, shown from a blob URL revoked on Hide/unmount), "Close report" with a confirm that says the picture is deleted. The section is hidden while the switch is off (`useClientFlag`), like ingest sources.
+- Handbook section `bugreport` (limits as in the plan) and a paragraph on `/help/operators` (`#beta-reports`). Fragment `i18n/messages/en/p64-reportui-1.ts`.
+- Tests (all pass singly): `bugreport/__tests__/gate.test.tsx` (4), `dialog.test.tsx` (5), `admin/__tests__/bugReports.test.tsx` (3), `lounge/__tests__/helpButton.test.tsx` (+2), `help/handbook.test.tsx` (section list updated); `router.test.tsx`, `logic.test.ts`, `prefsLogic.test.ts`, `format.test.tsx` still pass. tsc, eslint, prettier clean.
+- Bundle: `pnpm --filter @sideroom/web build`, `check-bundle-budget.mjs`, `check-entrance-isolation.mjs` all pass. First-paint room: about 41.7 KB before (brief) -> **41,599 bytes after** (about 100 bytes: one lazy line and one element).
+
+## Interpretations and things for the commander / report builder
+- **Staff list shape** stays `{ reports: [...], open_count }` (`BugReportList`), as part 1 said. If the server answers otherwise, change `bugreport/contract.ts` and `api.ts`.
+- **The operator-page line is NOT in `OPERATOR_SWITCHES`**: `help/handbook.test.tsx` requires every id there to exist in `admin/features/__fixtures__/registry.json`, which the report builder's `feature_registry` test regenerates. Once that fixture has `platform.beta_reports`, the id can move into `OPERATOR_SWITCHES` (and out of the separate paragraph). I did not hand-edit the fixture.
+- The admin screenshot fetch and list calls are plain `apiFetch`/`fetch` without `withReauth` (the contract names no re-auth). Report id is shown as is when numeric, else its first 8 hex characters.
+- "100 or more accounts" notice (tail): not done; the Admin shell has no account count (only the Dashboard fetches it).
+- Hand-written request types were not swapped for the generated client (report's branch not merged here).
+- The gate chunk is requested on every app route even with the switch off (as DrawerGate); it is small. `getDisplayMedia` cannot be driven by a test; the visual spec replaces it by a canvas stream so the key path is the real one. Real capture was not tried by hand (the Browser pane cannot accept a capture prompt for me).
+- Visual check used the wave-58 `sr-server` copy (no cold build; the reporter's routes are faked with `page.route`).
+
+## Visual check (done)
+Spec `e2e/tests/p64-reportui-shots.spec.ts` (local, `SR_P64_REPORTUI=1`; passes in chromium). Shots: `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p64-reportui/` (desktop 1280x800 and phone 375x812 x Editorial, Lounge Light, Lounge Dark): help menu / You tab entry, dialog empty, attached picture with a drawn box, "What is sent" panel, refused-with-429 error, sent state, the key in a DM (automatic covers; one removed), Admin list, detail, detail with picture, close confirm. I looked at them. Found and fixed: the warning Notice was `role=alert` (now `note`), and the Admin list's route wrapped letter by letter on a phone (now scrolls inside the table wrapper). The key path ran for real with `getDisplayMedia` replaced by a canvas stream; the real browser prompt was not exercised.
+
+## Proposed inventory row (SEC-AUD-168)
+Beta bug reporter UI: `BugReportGate` (own chunk, one lazy line in `router.tsx`), shortcut `bugReport` (Alt+Shift+B), Help menu and phone You-tab entries, dialog with black-out editor, `data-sr-private` on DM list/composer/call tiles, Admin > Bug reports (own chunk, badge, audited picture fetch on click, close with confirm), handbook and operator text. Tests: `bugreport/__tests__/{gate,dialog}.test.tsx`, `admin/__tests__/bugReports.test.tsx`, `lounge/__tests__/helpButton.test.tsx`; visual spec `e2e/tests/p64-reportui-shots.spec.ts`.
+
+## Proposed threat-model row (the screenshot)
+Asset: a picture of a member's screen. The browser asks the member for every capture; the member sees the exact picture and JSON before Send; covers are painted into the pixels before re-encode (JPEG, 1600 px, metadata gone) and only the re-encoded bytes leave the browser. Automatic covers (`data-sr-private`: DM list, DM message box, call tiles) apply only when the frame has the viewport's proportions, so a shared window/screen or an attached file gets none and the dialog says to check it. NOT guaranteed: another window or screen the member chooses to share, a region the member uncovers, or private content outside the marked elements (server channels are not covered by default): what the member chooses to send is read by staff (audited read; picture deleted on close or after 30 days, report after 90).
+
+## Owner questions
+- Should the Admin "Bug reports" entry stay visible after the switch is turned off (so old reports can be read until the 90 days pass)? Now it is hidden with the switch (the server answers as a switched-off module anyway).
+- Gateway `reconnects` and `heartbeat_ms` are still not sent (nothing readable holds them).
+
+## Cleanup
+Scratch database `sr_p64_reportui_ui` dropped; the copied server/cli binaries and run folder deleted; no cargo target was ever created; stack stopped by port owner PID; heavy lock released.

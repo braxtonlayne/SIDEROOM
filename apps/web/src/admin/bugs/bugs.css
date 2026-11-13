@@ -23,3 +23,9 @@
   padding: 0;
   list-style: none;
 }
+/* A long route scrolls inside the table's wrapper instead of breaking letter by letter. */
+.adm-bug-table .adm-mono {
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}

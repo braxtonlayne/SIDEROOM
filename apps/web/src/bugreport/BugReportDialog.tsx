@@ -267,7 +267,7 @@ function BugReportForm({ start, onClose }: { start: BugReportStart | null; onClo
                   {t('bugreport.autoCovered')}
                 </p>
               ) : (
-                <Notice variant="warning" className="br-warn">
+                <Notice variant="warning" role="note" className="br-warn">
                   {t('bugreport.checkPicture')}
                 </Notice>
               )}
