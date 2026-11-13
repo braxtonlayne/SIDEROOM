@@ -44,6 +44,10 @@ jobs:
       # plain-HTML pages carry no script. The output lists every surface with "ok".
       - name: Entrance isolation
         run: node scripts/check-entrance-isolation.mjs
+      # SEC-AUD-170 (D-651): staff-only chunks sit under dist/app/staff/, app.html and member chunks never load them,
+      # and no staff entry marker is outside that directory.
+      - name: Staff delivery
+        run: node scripts/check-staff-delivery.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist
