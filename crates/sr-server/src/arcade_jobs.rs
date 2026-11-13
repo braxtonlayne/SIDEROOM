@@ -842,6 +842,13 @@ mod tests {
             .unwrap();
         z.write_all(br#"{"tier":"TIER_1_ORIGINAL"}"#).unwrap();
         let bytes = z.finish().unwrap().into_inner();
+        // The re-check range-reads the zip index from the catalogued size (D-656), so the row must hold the
+        // real length of the file the shelf answers with.
+        sqlx::query("UPDATE shelf_objects SET size = $1 WHERE path = 'games/back.zip'")
+            .bind(i64::try_from(bytes.len()).unwrap())
+            .execute(pool)
+            .await
+            .unwrap();
         let out = run(&w.arcade, &Shelves(Ok(bytes)), &bus, Some(&dm), 2)
             .await
             .unwrap();
