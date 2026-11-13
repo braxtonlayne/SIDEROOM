@@ -606,6 +606,7 @@ impl Gateway {
         channels: &[ChannelId],
         always: &[UserId],
     ) {
+        self.bump_snapshot_epoch(guild);
         let targets: Vec<Arc<Session>> = self
             .guild_sessions(guild)
             .into_iter()

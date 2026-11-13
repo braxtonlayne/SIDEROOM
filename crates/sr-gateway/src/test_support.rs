@@ -161,7 +161,11 @@ pub struct TestWorld {
 impl TestWorld {
     /// Must be called inside a Tokio runtime (it starts the gateway's event pump).
     pub fn new(cfg: GatewayConfig) -> Self {
-        let bus = Arc::new(InProcessBus::new());
+        Self::with_bus(cfg, Arc::new(InProcessBus::new()))
+    }
+
+    /// [`Self::new`] on a bus of your choice (a small one makes a pump lag on demand).
+    pub fn with_bus(cfg: GatewayConfig, bus: Arc<InProcessBus>) -> Self {
         let dir = Arc::new(TestDirectory::default());
         let auth = Arc::new(TestAuth::default());
         let gw = Gateway::new(cfg, auth.clone(), dir.clone(), bus.clone());

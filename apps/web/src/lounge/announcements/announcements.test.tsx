@@ -71,6 +71,29 @@ describe('useActiveAnnouncements', () => {
     view.unmount();
   });
 
+  it('re-reads the list after a platform resync, not after a server one (D-646)', async () => {
+    let title = 'Maintenance tonight';
+    let reads = 0;
+    server.use(
+      http.get('*/api/v1/announcements/active', () => {
+        reads += 1;
+        return HttpResponse.json([note({ title })]);
+      }),
+    );
+    const view = renderHook(() => useActiveAnnouncements());
+    await waitFor(() => expect(view.result.current.announcements[0]?.title).toBe(title));
+    const first = reads;
+    act(() => emitDispatch('SR_RESYNC', { scope: 'guild', guild_id: 'g1' }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(reads).toBe(first);
+    title = 'Maintenance moved to Friday';
+    act(() => emitDispatch('SR_RESYNC', { scope: 'platform' }));
+    await waitFor(() =>
+      expect(view.result.current.announcements[0]?.title).toBe('Maintenance moved to Friday'),
+    );
+    view.unmount();
+  });
+
   it('keeps quiet when the request fails', async () => {
     server.use(
       http.get('*/api/v1/announcements/active', () => new HttpResponse(null, { status: 500 })),

@@ -95,6 +95,30 @@ describe('GatewayClient', () => {
     expect(ws.sent.at(-1)).toEqual({ op: Op.HEARTBEAT, d: 5 });
   });
 
+  it('a second READY with the same session id keeps the sequence counter (D-646 resync)', async () => {
+    const { client, events } = setup();
+    client.connect();
+    const ws = await handshake();
+    ws.recv({ op: 0, t: 'READY', s: 1, d: { session_id: 'abc', resume_gateway_url: 'ws://r/g' } });
+    ws.recv({ op: 0, t: 'GUILD_CREATE', s: 2, d: { id: 'g1' } });
+    // The server lagged and re-sends the state in place: same session, the next sequence numbers.
+    ws.recv({ op: 0, t: 'READY', s: 3, d: { session_id: 'abc', resume_gateway_url: 'ws://r/g' } });
+    ws.recv({ op: 0, t: 'GUILD_CREATE', s: 4, d: { id: 'g1' } });
+    ws.recv({ op: 0, t: 'SR_RESYNC', s: 5, d: { scope: 'guild', guild_id: 'g1' } });
+    expect(client.session).toBe('abc');
+    expect(client.lastSequence).toBe(5);
+    expect(events.map((e) => e[0])).toEqual([
+      'READY',
+      'GUILD_CREATE',
+      'READY',
+      'GUILD_CREATE',
+      'SR_RESYNC',
+    ]);
+    // A drop after it resumes from 5, not from the first READY.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(ws.sent.at(-1)).toEqual({ op: Op.HEARTBEAT, d: 5 });
+  });
+
   it('reconnects and resumes when a heartbeat is not acked', async () => {
     const { client } = setup();
     client.connect();

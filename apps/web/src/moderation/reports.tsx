@@ -74,6 +74,11 @@ export async function loadClientFlags(): Promise<void> {
   }
 }
 
+/** `SR_RESYNC {"scope":"platform"}`: the server says platform broadcasts (flags, announcements) may have been lost. */
+export function isPlatformResync(event: string, data: unknown): boolean {
+  return event === 'SR_RESYNC' && (data as { scope?: unknown } | null)?.scope === 'platform';
+}
+
 /** The map inside a gateway `SR_FEATURE_UPDATE` (`{scope: "platform", flags}`), or null for anything else. */
 export function flagsOfUpdate(event: string, data: unknown): Record<string, boolean> | null {
   if (event !== 'SR_FEATURE_UPDATE') return null;
@@ -94,6 +99,8 @@ export function ReportsFlagSync() {
     return onDispatch((event, data) => {
       const flags = flagsOfUpdate(event, data);
       if (flags) setClientFlags(flags);
+      // The gateway lost some platform broadcasts (event-bus lag, D-646): read the flags again.
+      else if (isPlatformResync(event, data)) void loadClientFlags();
     });
   }, []);
   return null;

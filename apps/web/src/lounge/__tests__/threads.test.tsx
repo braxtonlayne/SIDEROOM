@@ -51,6 +51,37 @@ describe('thread store', () => {
     expect(useThreads.getState().byId['10']).toBeUndefined();
   });
 
+  it('prunes the active threads a resync did not name (D-646)', () => {
+    const archived = { thread_metadata: { archived: true, locked: false, archive_timestamp: 'x' } };
+    useThreads
+      .getState()
+      .upsert([
+        wireThread('10'),
+        wireThread('11'),
+        wireThread('12', archived),
+        wireThread('20', { guild_id: 'g2' }),
+      ]);
+    // The resync of g1: the new GUILD_CREATE names thread 10, THREAD_LIST_SYNC names 13; then the marker.
+    applyThreadDispatch('GUILD_CREATE', { id: 'g1', threads: [wireThread('10')] });
+    applyThreadDispatch('THREAD_LIST_SYNC', { guild_id: 'g1', threads: [wireThread('13')] });
+    applyThreadDispatch('SR_RESYNC', { scope: 'guild', guild_id: 'g1' });
+    const ids = Object.keys(useThreads.getState().byId).sort();
+    // 11 is gone; the archived 12 (never part of a sync) and the other server's 20 stay.
+    expect(ids).toEqual(['10', '12', '13', '20']);
+    // The marker alone does nothing: a second one finds nothing named.
+    applyThreadDispatch('SR_RESYNC', { scope: 'guild', guild_id: 'g1' });
+    expect(Object.keys(useThreads.getState().byId).sort()).toEqual(['10', '12', '13', '20']);
+    applyThreadDispatch('SR_RESYNC', { scope: 'platform' });
+    expect(Object.keys(useThreads.getState().byId)).toHaveLength(4);
+  });
+
+  it('prunes every active thread when the resync names none', () => {
+    useThreads.getState().upsert([wireThread('10'), wireThread('11')]);
+    applyThreadDispatch('GUILD_CREATE', { id: 'g1' });
+    applyThreadDispatch('SR_RESYNC', { scope: 'guild', guild_id: 'g1' });
+    expect(useThreads.getState().byId).toEqual({});
+  });
+
   it('lists active and archived threads of one channel, newest activity first', () => {
     useThreads.getState().upsert([
       wireThread('10'),

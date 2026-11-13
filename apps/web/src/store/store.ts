@@ -19,6 +19,9 @@ import type { Channel, ConnectionStatus, Message, MessageReaction, MessageWindow
 
 type Obj = Record<string, unknown>;
 
+/** Members asked for in one REST page (`GET /guilds/{id}/members`). */
+const MEMBER_PAGE = 1000;
+
 /** Servers whose members and presences are indexed per timer tick after a big READY (K-22). */
 export const PEOPLE_CHUNK = 6;
 
@@ -135,7 +138,11 @@ export interface StoreActions {
   loadGuilds: () => Promise<void>;
   /** Fetch guild, channels and roles over REST (for guilds not yet hydrated by GUILD_CREATE). */
   loadGuild: (guildId: string) => Promise<void>;
-  loadMembers: (guildId: string) => Promise<void>;
+  /**
+   * Fetch the member list over REST. `replace`: the answer is the whole roster, so members who are not in it
+   * any more are dropped (a resync, D-646); the default merges.
+   */
+  loadMembers: (guildId: string, opts?: { replace?: boolean }) => Promise<void>;
   loadInitialMessages: (channelId: string) => Promise<void>;
   loadOlderMessages: (channelId: string) => Promise<void>;
   /** In a jumped-to window: fetch the page after the newest loaded message (LNG-MSGUI-001). */
@@ -307,6 +314,16 @@ export const useStore = create<StoreState>()((set, get) => {
       emitDispatch(event, data);
       // D-238: the upload limit is REST-only, so a changed entitlement is fetched again.
       if (event === 'SR_ENTITLEMENT_UPDATE') void refreshUploadLimits(data);
+      // D-646: after a resync the member list of a server that had one loaded is read again, as a replacement.
+      if (event === 'SR_RESYNC') {
+        const d = (data ?? {}) as Obj;
+        const guildId = typeof d.guild_id === 'string' ? d.guild_id : '';
+        if (d.scope === 'guild' && guildId && get().memberIdsByGuild[guildId]) {
+          get()
+            .loadMembers(guildId, { replace: true })
+            .catch(() => undefined);
+        }
+      }
     },
     applyDispatches: (batch, opts) => {
       const people: { guild: string; members?: Obj[]; presences?: Obj[] }[] = [];
@@ -374,10 +391,16 @@ export const useStore = create<StoreState>()((set, get) => {
         get().applyDispatch('GUILD_CREATE', { ...guild, channels, roles });
       }),
 
-    loadMembers: (guildId) =>
-      once(`members:${guildId}`, async () => {
-        const members = await rest.fetchMembers(guildId);
-        get().applyDispatch('GUILD_MEMBERS_CHUNK', { guild_id: guildId, members });
+    loadMembers: (guildId, opts) =>
+      once(`members:${guildId}${opts?.replace ? ':replace' : ''}`, async () => {
+        const members = await rest.fetchMembers(guildId, MEMBER_PAGE);
+        // A full page may be only the start of a big server: never replace with part of a roster.
+        const replace = opts?.replace === true && members.length < MEMBER_PAGE;
+        get().applyDispatch('GUILD_MEMBERS_CHUNK', {
+          guild_id: guildId,
+          members,
+          ...(replace ? { sr_replace: true } : {}),
+        });
       }),
 
     loadInitialMessages: async (channelId) => {

@@ -65,6 +65,29 @@ pub(crate) fn changes_members(ev: &DomainEvent) -> bool {
     )
 }
 
+/// Events after which a GUILD_CREATE built earlier is stale: everything but the message family, reactions,
+/// pins, poll votes and typing (D-646, the snapshot race). Messages need no counter: the clients refetch their open
+/// windows over REST after a resync.
+pub(crate) fn changes_snapshot(ev: &DomainEvent) -> bool {
+    !matches!(
+        ev,
+        DomainEvent::MessageSent { .. }
+            | DomainEvent::MessageEdited { .. }
+            | DomainEvent::MessageRestored { .. }
+            | DomainEvent::MessageDeleted { .. }
+            | DomainEvent::MessagesBulkDeleted { .. }
+            | DomainEvent::ReactionAdded { .. }
+            | DomainEvent::ReactionRemoved { .. }
+            | DomainEvent::ReactionsCleared { .. }
+            | DomainEvent::ReactionEmojiCleared { .. }
+            | DomainEvent::ChannelPinsUpdated { .. }
+            | DomainEvent::PollVoteAdded { .. }
+            | DomainEvent::PollVoteRemoved { .. }
+            | DomainEvent::TypingStarted { .. }
+            | DomainEvent::PresenceChanged { .. }
+    )
+}
+
 impl Gateway {
     /// Presence as other users see it, for every user with a session.
     fn live_presence(&self) -> HashMap<UserId, PresenceUpdate> {
