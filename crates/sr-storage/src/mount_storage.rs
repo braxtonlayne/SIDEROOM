@@ -83,6 +83,24 @@ impl MountStorages {
         self.resolve(mount_id, true).await
     }
 
+    /// D-644: the mount's stored connection test has a failed `response_type` row, so no presigned link to
+    /// it may be handed to a client. The instance bucket and an unknown mount are `false` (an unknown mount is
+    /// refused by [`Self::for_serving`] as before).
+    pub async fn response_type_failed(&self, mount_id: i64) -> Result<bool> {
+        if mount_id == INSTANCE_MOUNT_ID {
+            return Ok(false);
+        }
+        let Some(others) = self.others.as_ref() else {
+            return Ok(false);
+        };
+        Ok(others
+            .resolver
+            .by_id(mount_id)
+            .await
+            .map_err(|e| StorageError::Backend(e.to_string()))?
+            .is_some_and(|m| m.response_type_failed()))
+    }
+
     async fn resolve(&self, mount_id: i64, serving: bool) -> Result<Arc<dyn ObjectStorage>> {
         if mount_id == INSTANCE_MOUNT_ID {
             return Ok(self.instance.clone());

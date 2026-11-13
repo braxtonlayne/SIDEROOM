@@ -488,13 +488,17 @@ impl<'a> Signer<'a> {
         }
     }
     /// A URL for `key` on `mount_id`, or `None` when the mount has not passed its CORS check yet (the same rule as
-    /// the presign route) or cannot sign.
+    /// the presign route), when its connection test says it ignores the response type (D-644), or it cannot sign.
     pub(crate) async fn url(&mut self, mount_id: i64, key: &str) -> Option<String> {
         let reach = self.reach;
         if !self.clients.contains_key(&mount_id) {
             let client = reach
                 .iter()
-                .find(|r| r.mount.id == mount_id && r.mount.cors_ok_at.is_some())
+                .find(|r| {
+                    r.mount.id == mount_id
+                        && r.mount.cors_ok_at.is_some()
+                        && !r.mount.response_type_failed()
+                })
                 .and_then(|r| r.mount.storage(&*self.d.sealer).ok());
             self.clients.insert(mount_id, client);
         }
