@@ -53,7 +53,7 @@ A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)).
 - **Commands.** `dc --profile monitoring up -d`; then `sr-cli preflight --alert-test` (item RDY-OPS-006).
 - **Done when.** Prometheus and Grafana are up (the dashboards in `deploy/monitoring/grafana` load, no panel says "no data" for a metric the server exports), and a test card naming the host and the time appears in the Staff Server `#alerts` channel (and the mail arrives, if `alerts.email_to_owner` is on). The Admin > System "Send a test email to me" button checks mail alone; the health job's alert settings are `alerts.*` ([RUNBOOK.md](RUNBOOK.md)).
 
-## 7. The Setup Wizard
+## 7. The Setup checklist
 
 Sign in as the Owner (the one-time link printed by `bootstrap` is single use and valid for one hour, so open it right away) and open the setup checklist on the Admin dashboard.
 

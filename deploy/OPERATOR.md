@@ -74,7 +74,7 @@ The values for the lawyer-dependent ones are open questions: [lawyer brief](../d
 | `accounts.cap` | The most active accounts the instance accepts. |
 | `limits.rate.ip`, `limits.rate.session`, `limits.rate.bot`, `limits.rate.messages`, `limits.rate.uploads` | Live HTTP rate limits per minute; a change applies on the next request. Sudden 429s are the limiter, not an outage. |
 | `abuse.*` (for example `abuse.friend_requests_per_hour`, `abuse.dm_opens_per_hour`, `abuse.data_export_cooldown_hours`) | Limits on member-writable surfaces, group `abuse`, listed in doc 05 "Abuse limits". |
-| `retention.deleted_message_days`, `retention.large_file_days` | How long deleted messages and large files stay before the purge. Lower them only on purpose. |
+| `retention.deleted_message_days`, `retention.large_file_days` | `retention.deleted_message_days` (default 30) is how long staff can read a deleted private message and when a released hold is purged. `retention.large_file_days` (default 7) is listed but nothing reads it today: large attachments expire after a fixed 7 days (`SizePolicy::large_ttl`, docs/09). Lower the first only on purpose. |
 | `invites.suspicion_freeze_threshold`, `invites.suspicion_escalate_threshold` | When a banned invitee freezes the inviter's invites and when a case opens. |
 | `moderation.hold_review_days` | A hold older than this is flagged on the holds list (default 90). |
 

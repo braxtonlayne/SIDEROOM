@@ -7,7 +7,7 @@ Every default below is the project's own, taken "by default (owner-delegated)" u
 ## About the instance (the preamble to hand over)
 
 - **What it is.** A private, invitation-only platform for a group of friends and a few related communities ([doc 00](../00-vision-and-scope.md)). Registration needs a platform invite. It is built for up to 20,000 accounts; real use is expected under about 100. It is not offered to the public and has no public sign-up page.
-- **Who runs it.** One operator, who is also the owner. The operator's country is a platform setting (`compliance.operator_country`, unset until the owner sets it, asked in the Setup Wizard) and is shown on the privacy page with the operator contact (`compliance.operator_contact`).
+- **Who runs it.** One operator, who is also the owner. The operator's country is a platform setting (`compliance.operator_country`, unset until the owner sets it, set in Admin > Features > Compliance) and is shown on the privacy page with the operator contact (`compliance.operator_contact`).
 - **What is stored, and for how long.** The full table is [doc 09 section 1](../09-retention-and-privacy.md); the points a lawyer usually asks about are:
 
 | Data | Kept |
