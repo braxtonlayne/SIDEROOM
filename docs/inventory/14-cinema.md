@@ -3,7 +3,7 @@
 Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discover.jpg`, `cinema-movies.jpg`.
 
 ## CIN-DATA — Catalog backend
-- [x] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, watch_progress, transcode_jobs, collections (catalog side done in migration 0370: titles, seasons, episodes, variants, trailers, markers, collections, collection items; the asset/rendition/track/job tables belong to CIN-ING and `watch_progress` to CIN-PLY-007, they reference `asset_id` / `title_id` / `episode_id` without foreign keys)
+- [x] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, cinema_progress, transcode_jobs, collections (catalog side done in migration 0370: titles, seasons, episodes, variants, trailers, markers, collections, collection items; the asset/rendition/track/job tables belong to CIN-ING and `cinema_progress` to CIN-PLY-007, they reference `asset_id` / `title_id` / `episode_id` without foreign keys)
 - [x] **CIN-DATA-002** [BE] Title/season/episode CRUD (publishers), publish/unpublish, merge duplicates, variants (`/admin/cinema/*`, merge duplicates, variants, markers, trailers, artwork upload reservation, access log)
 - [x] **CIN-DATA-003** [BE] Catalog API (discover rows, browse by kind with filters/sort, title detail, episodes, search) (`/cinema/*`: discover, rows, browse with keyset paging, facets, title detail, episodes, play target, search; spec section 8)
 - [x] **CIN-DATA-004** [BE] Tantivy index for titles (title, original title, cast/crew text, tags) (tantivy `TitleIndex`, rebuilt from Postgres at boot, `/cinema/search`)
@@ -77,7 +77,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)* _(p15 rest-a: credits were already granted by `cinema.title`/`cinema.episodes` (`credit_refs`); new `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page)_
 
 ## CIN-DL — Patron downloads
-- [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from `cinema_download_grants`; the perk source (donations) does not exist yet*
+- [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from the Patron entitlement (sr-payments; the legacy `cinema_download_grants` table was dropped by migration 0871)*
 - [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`, now mounted by the title page header for films and per episode; the download routes it calls are not in the backend yet, so it shows the error copy)
 
 ## CIN-ADM — Admin
