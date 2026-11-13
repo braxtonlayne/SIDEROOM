@@ -13,7 +13,7 @@ metrics listener. Wiring lives in `crates/sr-server/src/app.rs`.
 | `just serve` | `cargo run -p sr-server` against the dev stack (`DATABASE_URL` is passed as `SR_DATABASE__URL`). |
 | `just gen-api` | Regenerate `packages/api-client/openapi.json` and the TypeScript types. |
 
-Run `just migrate` first; the server does not migrate on boot.
+Run `just migrate` first; the server does not migrate on boot unless `database.auto_migrate` is on (default off; for single-node installs, multi-node deployments run `sr-cli migrate`).
 
 ## Configuration
 
@@ -22,16 +22,22 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | Key | Default | Notes |
 |---|---|---|
 | `server.bind` | `127.0.0.1:8080` | Public listener: REST at `/api/v1`, gateway at `/gateway`. |
+| `server.public_url` | `http://localhost:8080` | Public base URL used in links and cookies; the activity origins derive their host from it. |
+| `server.worker_id`, `server.process_id` | `0`, `0` | Snowflake ids (0 to 31 each); unique per node. |
+| `server.trust_forwarded_for` | `false` | Take the client IP from the last `X-Forwarded-For` entry. Only behind a proxy that appends to the header (Caddy). |
 | `server.metrics_bind` | `127.0.0.1:9100` | `/internal/metrics`. Keep it loopback. A release build refuses a non-loopback bind unless `server.metrics_token` is set (SEC-AUD-028). |
 | `server.metrics_token` | empty | When set, `/internal/metrics` answers only `Authorization: Bearer <token>` (401 otherwise). Also `SR_SERVER__METRICS_TOKEN_FILE`. |
 | `server.secret_key` | empty | 64 hex chars; encrypts TOTP secrets. Empty = random per boot: a debug build only warns; a release build refuses to start (SEC-AUD-028). |
 | `server.shutdown_grace_secs` | `25` | Drain budget for HTTP, then again for jobs. |
-| `database.url`, `database.max_connections` | see `sr-core` | |
+| `database.url`, `database.max_connections` | see `sr-core` (`max_connections` 20) | |
+| `database.auto_migrate` | `false` | Run migrations before the listener binds. |
 | `gateway.max_connections` | `10000` | Gateway sockets accepted at once (identified or not); further upgrades get 503. |
 | `gateway.max_unidentified_per_ip` | `32` | Gateway sockets one client address may hold before they IDENTIFY (they must within 30 s); further upgrades get 429 (D-556). Raise it when many members share one address: a NAT, or a proxy whose `X-Forwarded-For` is not trusted (`server.trust_forwarded_for`). |
 | `storage.*` | see `sr-core` | S3-compatible (Garage in dev). |
 | `web.root` | unset | The built `apps/web/dist` (D-385, SEC-ENT-003). Unset: no documents are served (API only). Set: the server serves the app only to a request with a valid session and refuses to start when `<root>/app/csp.txt` is missing. |
 | `web.serve_public` | `false` | Also serve the public surfaces, the legal page and the error pages (single-binary installs without a proxy, CI). Off in production, where Caddy serves them. |
+| `activities.enabled` | `false` | Serves Activities on `https://<application-id>.activities.<host>` (the wildcard host of `deploy/compose/caddy/activities.snippet`, host taken from `server.public_url`). |
+| `activities.origin_mode` | `subdomain` | `same_host_sandboxed` serves bundles from `/_activity/<application-id>/` on the main host: test deployments only (D-450), config and environment only; a release build refuses it. |
 | `voice.enabled` | `false` | Starts the embedded SFU (WebSocket at `/voice/ws` on the public listener, media on UDP). Everything below applies only when on. |
 | `voice.udp_port_min`, `voice.udp_port_max` | `50000`, `50099` | Media UDP range (at most 256 sockets bound). Open it in the firewall. |
 | `voice.egress_budget_mbps` | `0` | Egress budget of the SFU node for the egress governor. Above it, simulcast layers are capped (server level 0 first, Patrons last) and clients get a "Reduced quality: the room is busy" notice. `0` is off. Use about 70 % of the measured uplink. |
@@ -47,6 +53,8 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 | `voice.max_participants`, `voice.max_room_size` | `2000`, `99` | SFU capacity limits. |
 | `voice.session_grace_secs` | `20` | How long someone stays in a voice channel after their gateway socket drops. |
 | `voice.turn.urls`, `voice.turn.secret`, `voice.turn.ttl_secs` | empty, empty, `3600` | `stun:`/`turn:` URLs and the coturn `static-auth-secret` (dev stack: `dev-turn-shared-secret`). |
+
+A release build (`cargo build --release`, the release binaries and the server image) refuses to start, with a message naming each key, when any of these is set (`crates/sr-server/src/release_guard.rs`, SEC-AUD-028): an empty `server.secret_key`, `unfurl.allow_private_for_tests`, `storage.endpoint = "memory:"`, `activities.origin_mode = "same_host_sandboxed"`, `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS` with an Esplora endpoint that is not a private service name or address, and a non-loopback `server.metrics_bind` without `server.metrics_token`. A debug build only warns.
 
 Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_music_egress_bits_per_second` (the music tracks' share of the egress, MUS-JB-001), `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
 
