@@ -11,7 +11,7 @@ no inbound ports, no VPN and no database access.
 > should be followed by `docker run --rm --gpus all <image> --check` (GPU) or `docker run --rm <image> --check`
 > (CPU). The worker binary itself, on the CPU path, is exercised end to end against a real ffmpeg by
 > `.github/workflows/media.yml` ([docs/dev/media-pipeline-test.md](../docs/dev/media-pipeline-test.md)); that
-> workflow is written but **has not run yet**, so treat everything below as unproven until its first green run.
+> workflow ran green on PR #48 (2026-10-24; RDY-MED-003 to 005 in `docs/inventory/20-launch-readiness.md`).
 > The NVENC path has never run on a GPU. See "Verify the machine" below.
 
 ## Images
