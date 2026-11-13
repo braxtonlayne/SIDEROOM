@@ -6,6 +6,9 @@ import { APP_VERSION } from '../../lib/whatsNew';
 import { http, HttpResponse, server } from '../../test/server';
 import { HelpButton } from '../header/HelpButton';
 import { useFirstRunUi } from '../shell/firstRun';
+import { BETA_REPORTS_FLAG } from '../../bugreport/flag';
+import { bugReportRequest, closeBugReport } from '../../bugreport/openState';
+import { setClientFlags } from '../../moderation/reports';
 
 const navigate = vi.fn();
 vi.mock('@tanstack/react-router', async (orig) => ({
@@ -24,6 +27,29 @@ beforeEach(() => {
   navigate.mockClear();
   localStorage.clear();
   useFirstRunUi.getState().hide();
+});
+
+describe('help menu: Report a bug (SEC-AUD-168)', () => {
+  afterEach(() => {
+    setClientFlags({});
+    closeBugReport();
+  });
+  it('has no entry while the beta switch is off', async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+    await screen.findByRole('menuitem', { name: 'Keyboard shortcuts' });
+    expect(screen.queryByRole('menuitem', { name: 'Report a bug' })).toBeNull();
+  });
+  it('has one while it is on, and it opens the dialog without a picture', async () => {
+    setClientFlags({ [BETA_REPORTS_FLAG]: true });
+    const user = userEvent.setup();
+    mount();
+    await user.click(screen.getByRole('button', { name: 'Help' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Report a bug' }));
+    expect(bugReportRequest().open).toBe(true);
+    expect(bugReportRequest().start).toBeNull();
+  });
 });
 
 describe('help menu', () => {

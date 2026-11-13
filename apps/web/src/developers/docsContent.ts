@@ -150,6 +150,10 @@ export const DOC_PAGES: DocPage[] = [
         t: 'p',
         text: 'Sharding works as on Discord: send shard: [id, count] in IDENTIFY (leave it out for a single shard; an id at or above the count closes with 4010). GET /gateway/bot reports one shard per 1000 servers the application is installed in. If the connection drops, send RESUME with your session id and the last sequence number you saw; the server replays what you missed and answers RESUMED, or INVALID_SESSION when it cannot (identify again). SIDE ROOM adds events prefixed SR_ (for example SR_LIBRARY_UPDATE); ignore events you do not know.',
       },
+      {
+        t: 'p',
+        text: 'Under heavy load the server can lose events before they reach a bot: a gateway queue that overflows drops its oldest events, and a RESUME cannot bring them back because they were never numbered. Bot sessions are not sent a repair (people\u2019s clients are). REST is the source of truth: a bot that needs certainty re-reads what it depends on (a server\u2019s channels, members, a channel\u2019s recent messages) after an outage or on a schedule, and does not treat the event stream as complete.',
+      },
     ],
   },
   {

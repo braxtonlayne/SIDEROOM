@@ -18,6 +18,7 @@
 //! | `/channels/{id}/cards*` | `platform.tools.invite` |
 //! | `PUT /channels/{id}/voice-timer` | any of `platform.tools.pomodoro`, `.stopwatch`, `.countdown` |
 //! | `GET /users/@me/games/roms` | `platform.emulator` |
+//! | `POST /bug-reports` | `platform.beta_reports` (off by default, answers 404 like the Requests board; the staff routes `/admin/bug-reports*` are not gated) |
 //! | `/requests*`, `/cinema/trending`, `/library/rankings`, `/cinema/discover`, `/cinema/rows/{key}`, `/admin/review/queue`, `/admin/ingest-sources*` | the Study switches (STU-NAV-001); off by default, answer 404 |
 //!
 //! `platform.tools` is the parent of every `platform.tools.<tool>` (`Feature::gated_by`), so switching it off
@@ -32,7 +33,7 @@ use axum::{
 };
 use sr_core::ErrorCode;
 use sr_features::{
-    EMULATOR_ID, FeatureService, GLOBAL_TRENDING_ID, INGEST_QUEUES_ID, JUKEBOX_ID,
+    BETA_REPORTS_ID, EMULATOR_ID, FeatureService, GLOBAL_TRENDING_ID, INGEST_QUEUES_ID, JUKEBOX_ID,
     LISTENING_ROOMS_ID, REQUESTS_BOARD_ID, STOREFRONT_CATEGORIES_ID, ScopeRef, tool_flag_id,
 };
 
@@ -133,6 +134,11 @@ pub fn rule_for(template: &str) -> Option<Rule> {
     // The Study reframe (STU-NAV-001): storefront surfaces are off by default and answer 404 while off.
     if t == "/requests" || t.starts_with("/requests/") {
         return Some(Rule::all(&[REQUESTS_BOARD_ID]).hidden());
+    }
+    // SEC-AUD-166 (D-647): the beta bug reporter. Only the member submission is gated; the staff routes stay open so the
+    // reports can still be read and closed after the beta ends.
+    if t == "/bug-reports" {
+        return Some(Rule::all(&[BETA_REPORTS_ID]).hidden());
     }
     if t == "/cinema/trending" || t == "/library/rankings" {
         return Some(Rule::all(&[GLOBAL_TRENDING_ID]).hidden());

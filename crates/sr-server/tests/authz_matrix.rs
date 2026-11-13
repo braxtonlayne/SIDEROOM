@@ -2296,6 +2296,14 @@ async fn seed(
         Some(&json!({"enabled": true})),
     )
     .await;
+    // SEC-AUD-166 (D-647): the beta bug reporter starts off at platform scope; turn it on so `POST /bug-reports` passes the gate.
+    srv.call_reason(
+        &staff,
+        "PATCH",
+        "/admin/features/platform.beta_reports",
+        Some(&json!({"enabled": true})),
+    )
+    .await;
     // Every optional module on, in both servers, so that their routes are reached past the feature gate.
     for (who, g) in [(&oa, ga), (&ob, gb)] {
         let list = srv
@@ -3620,6 +3628,17 @@ async fn seed(
         .await
         .unwrap();
         a.insert("report_id", crash.to_string());
+        // SEC-AUD-167: one stored bug report (of the victim, with a picture) for the staff read routes.
+        let bug: i64 = sqlx::query_scalar(
+            "INSERT INTO bug_reports (reporter_id, commit_sha, route, description, bundle, screenshot) \
+             VALUES ($1, 'abcdef1', 'authz', 'authz matrix', '{\"commit\":\"abcdef1\"}', \
+                     decode('ffd8ffd9', 'hex')) RETURNING id",
+        )
+        .bind(u("victim"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        a.insert("bug_id", bug.to_string());
         // A data request about the victim.
         if let Some(id) = mk(
             &srv,
@@ -4994,6 +5013,10 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("PUT", "/activities/{application_id}/vouch") => r#"{"code_sha256":"{code_sha256}"}"#,
         // OPS-CRASH-001: a valid, allow-listed report; the plain member sends it.
         ("POST", "/crash-reports") => r#"{"commit":"abcdef1","kind":"error","route":"authz"}"#,
+        // SEC-AUD-166: a valid, allow-listed bug report without a picture; the plain member sends it.
+        ("POST", "/bug-reports") => {
+            r#"{"description":"authz matrix","bundle":{"commit":"abcdef1","route":"authz"}}"#
+        }
         ("POST", "/applications/{application_id}/activity/submit") => {
             r#"{"bundle_id":"{bundle_id}"}"#
         }
@@ -9174,6 +9197,8 @@ async fn module_kill_switches_stop_their_routes() {
             "GET",
             "/admin/review/queue".to_owned(),
         ),
+        // SEC-AUD-166: the beta bug reporter answers 404 while off (the staff routes stay open).
+        ("platform.beta_reports", "POST", "/bug-reports".to_owned()),
     ] {
         harness::patch_past_429(
             srv,

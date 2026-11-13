@@ -11,6 +11,7 @@ export type ShortcutId =
   | 'nextUnread'
   | 'prevGuild'
   | 'nextGuild'
+  | 'bugReport'
   | 'markRead'
   | 'focusComposer'
   | 'playerToggle'
@@ -98,6 +99,15 @@ export const SHORTCUTS: readonly ShortcutDef[] = [
       return t('lounge.shortcuts.nextGuild');
     },
     keys: ['Mod', 'Alt', '↓'],
+  },
+  {
+    // SEC-AUD-168 (D-647): shown and handled only while the operator's beta reporter switch is on.
+    id: 'bugReport',
+    group: 'Navigation',
+    get description() {
+      return t('bugreport.shortcut');
+    },
+    keys: ['Alt', 'Shift', 'B'],
   },
   {
     id: 'markRead',

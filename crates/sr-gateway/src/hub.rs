@@ -28,7 +28,7 @@ pub const LARGE_THRESHOLD_DEFAULT: u64 = 50;
 pub const LARGE_THRESHOLD_MAX: u64 = 250;
 
 /// GUILD_CREATE bodies built at once while a session identifies (each is a dozen or more directory reads).
-const GUILD_CREATE_CONCURRENCY: usize = 4;
+pub(crate) const GUILD_CREATE_CONCURRENCY: usize = 4;
 
 #[derive(Clone)]
 pub struct GatewayConfig {
@@ -67,6 +67,16 @@ pub struct GatewayConfig {
     /// 32. Further upgrades from that address get 429. The address comes from the embedder
     /// ([`crate::PeerIp`]); without one there is no per-address cap.
     pub max_unidentified_per_ip: usize,
+    /// Least time between two resync rounds for one server or one user after event-bus lag (D-646): 30 s. A lag
+    /// inside the floor sets a flag and yields exactly one more round when the floor ends. A code constant, never
+    /// an operator setting.
+    pub resync_floor: Duration,
+    /// The same floor for the platform marker: 60 s.
+    pub resync_platform_floor: Duration,
+    /// Sessions the whole node tells per second during resyncs (burst: the same number): 40.
+    pub resync_sessions_per_second: u32,
+    /// Most keys waiting for a resync round; past it the oldest is dropped with a warning: 256.
+    pub resync_queue_max: usize,
 }
 
 impl fmt::Debug for GatewayConfig {
@@ -86,6 +96,13 @@ impl fmt::Debug for GatewayConfig {
             .field("session_recheck", &self.session_recheck)
             .field("identify_timeout", &self.identify_timeout)
             .field("max_unidentified_per_ip", &self.max_unidentified_per_ip)
+            .field("resync_floor", &self.resync_floor)
+            .field("resync_platform_floor", &self.resync_platform_floor)
+            .field(
+                "resync_sessions_per_second",
+                &self.resync_sessions_per_second,
+            )
+            .field("resync_queue_max", &self.resync_queue_max)
             .finish()
     }
 }
@@ -107,6 +124,10 @@ impl Default for GatewayConfig {
             session_recheck: Duration::from_secs(60),
             identify_timeout: Duration::from_secs(30),
             max_unidentified_per_ip: 32,
+            resync_floor: Duration::from_secs(30),
+            resync_platform_floor: Duration::from_secs(60),
+            resync_sessions_per_second: 40,
+            resync_queue_max: 256,
         }
     }
 }
@@ -114,7 +135,7 @@ impl Default for GatewayConfig {
 #[derive(Default)]
 pub(crate) struct State {
     pub(crate) sessions: HashMap<String, Arc<Session>>,
-    by_guild: HashMap<GuildId, HashSet<String>>,
+    pub(crate) by_guild: HashMap<GuildId, HashSet<String>>,
     guild_tasks: HashMap<GuildId, JoinHandle<()>>,
     /// One `Topic::User` subscription per connected user (DM and self events).
     user_tasks: HashMap<UserId, JoinHandle<()>>,
@@ -136,6 +157,8 @@ pub(crate) struct State {
     pub(crate) lists: HashMap<(GuildId, ChannelId), crate::lists::ListState>,
     /// Guilds whose lists wait for a debounced refresh; the flag asks for a member refetch.
     pub(crate) list_dirty: HashMap<GuildId, bool>,
+    /// Per guild: bumped for every event that changes what a GUILD_CREATE carries (D-646, the snapshot race).
+    pub(crate) snapshot_epoch: HashMap<GuildId, u64>,
     pub(crate) vx: crate::voice::VoiceExtra,
     background: Vec<JoinHandle<()>>,
 }
@@ -158,6 +181,8 @@ pub(crate) struct Inner {
     seen: Mutex<HashSet<UserId>>,
     /// Sockets that have not identified yet (SEC-AUD-010).
     unidentified: Mutex<Unidentified>,
+    /// Resync rounds after bus lag (D-646).
+    pub(crate) resync: Arc<crate::resync::ResyncQueue>,
 }
 
 /// Open sockets without a session yet: in total and per client address.
@@ -640,6 +665,7 @@ impl Gateway {
         dir: Arc<dyn GuildDirectory>,
         bus: Arc<dyn EventBus>,
     ) -> Self {
+        let resync = Arc::new(crate::resync::ResyncQueue::new(&cfg));
         Self {
             inner: Arc::new(Inner {
                 cfg,
@@ -650,6 +676,7 @@ impl Gateway {
                 next_conn: AtomicU64::new(1),
                 seen: Mutex::new(HashSet::new()),
                 unidentified: Mutex::new(Unidentified::default()),
+                resync,
             }),
         }
     }
@@ -691,6 +718,8 @@ impl Gateway {
                             }
                         }
                         gw.reconcile_memberships().await;
+                        // Lost broadcasts (feature flags, announcements) are refetched by the clients (D-646).
+                        gw.inner.resync.request(crate::resync::Key::Platform);
                         if let Some(ev) = pending {
                             gw.handle_platform(ev).await;
                         }
@@ -707,7 +736,11 @@ impl Gateway {
                 Gateway { inner }.sweep().await;
             }
         });
-        self.st().background.extend([pump, sweeper]);
+        let resync = tokio::spawn(crate::resync::run(
+            self.inner.resync.clone(),
+            Arc::downgrade(&self.inner),
+        ));
+        self.st().background.extend([pump, sweeper, resync]);
     }
 
     /// Abort every background task.
@@ -835,6 +868,7 @@ impl Gateway {
         );
         fresh.shard = shard;
         fresh.bot = user.bot;
+        fresh.set_user_json(user.user.clone());
         let session = Arc::new(fresh);
         let mut sessions: Vec<Value> = self
             .user_sessions(user.user_id)
@@ -842,20 +876,7 @@ impl Gateway {
             .map(|s| session_entry(s))
             .collect();
         sessions.push(session_entry(&session));
-        let mut ready = json!({
-            "v": 1,
-            "user": user.user,
-            "guilds": guilds.iter().map(|g| json!({"id": g, "unavailable": true})).collect::<Vec<_>>(),
-            "session_id": session.id,
-            "shard": shard.map(|(i, n)| json!([i, n])),
-            "sessions": sessions,
-            "resume_gateway_url": cfg.resume_gateway_url,
-        });
-        if let (Some(r), Some(e)) = (ready.as_object_mut(), extras.as_object()) {
-            for (k, v) in e {
-                r.entry(k.clone()).or_insert_with(|| v.clone());
-            }
-        }
+        let ready = self.ready_body(&user.user, &guilds, &session, sessions, &extras);
         session.deliver("READY", ready);
         for (p, sync) in payloads.into_iter().zip(syncs) {
             session.deliver("GUILD_CREATE", p);
@@ -884,9 +905,36 @@ impl Gateway {
         session
     }
 
+    /// The READY payload: the user, one unavailable stub per guild, the session id and the other sessions of the
+    /// user, plus the directory's extras (`create_session` and a resync build it the same way).
+    pub(crate) fn ready_body(
+        &self,
+        user: &Value,
+        guilds: &[GuildId],
+        session: &Session,
+        sessions: Vec<Value>,
+        extras: &Value,
+    ) -> Value {
+        let mut ready = json!({
+            "v": 1,
+            "user": user,
+            "guilds": guilds.iter().map(|g| json!({"id": g, "unavailable": true})).collect::<Vec<_>>(),
+            "session_id": session.id,
+            "shard": session.shard.map(|(i, n)| json!([i, n])),
+            "sessions": sessions,
+            "resume_gateway_url": self.inner.cfg.resume_gateway_url,
+        });
+        if let (Some(r), Some(e)) = (ready.as_object_mut(), extras.as_object()) {
+            for (k, v) in e {
+                r.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+        }
+        ready
+    }
+
     /// GUILD_CREATE body: the directory's payload plus initial `presences` when the
     /// guild is below `large_threshold` (Q53).
-    async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
+    pub(crate) async fn guild_create_body(&self, user: UserId, guild: GuildId) -> Value {
         let mut body = self.inner.dir.guild_payload(user, guild).await;
         let voice_states = self.voice_states_for(user, guild).await;
         let stages: Vec<Value> = self
@@ -998,15 +1046,18 @@ impl Gateway {
     }
 
     /// The guild pump fell behind (SEC-AUD-141, D-628): a membership change may be among the lost events, so the
-    /// member list is rebuilt. Lost dispatches are not replayed; clients resync on their next reconnect.
+    /// member list is rebuilt. Then (D-646) the sessions of the guild are sent a fresh GUILD_CREATE and an `SR_RESYNC`
+    /// marker by the resync worker.
     fn on_guild_lag(&self, guild: GuildId, missed: u64) {
         tracing::warn!(%guild, missed, "guild pump lagged; refreshing the member list");
         self.schedule_list_refresh(guild, true);
+        // Then repair what the lost events carried (D-646): a fresh GUILD_CREATE per member, queued and rate capped.
+        self.inner.resync.request(crate::resync::Key::Guild(guild));
     }
 
     /// The user pump fell behind (SEC-AUD-141, D-628): a `SessionsRevoked` or a safety change may be among the
     /// lost events, so every session of the user re-checks its credential and drops its cached age and safety
-    /// state. Lost dispatches are not replayed.
+    /// state. Then (D-646) the resync worker sends each session a fresh READY and its guilds.
     fn on_user_lag(&self, user: UserId, missed: u64) {
         tracing::warn!(%user, missed, "user pump lagged; re-checking the user's sessions");
         for s in self.user_sessions(user) {
@@ -1014,9 +1065,15 @@ impl Gateway {
             s.clear_age_cache();
             s.clear_safety_cache();
         }
+        // The credential re-check above is queued on each socket first, so a revoked session closes before it is
+        // sent anything (D-646).
+        self.inner.resync.request(crate::resync::Key::User(user));
     }
 
     async fn on_guild_event(&self, guild: GuildId, ev: DomainEvent) {
+        if crate::lists::changes_snapshot(&ev) {
+            self.bump_snapshot_epoch(guild);
+        }
         self.note_typing(&ev);
         if crate::lists::changes_members(&ev) {
             self.schedule_list_refresh(guild, true);
@@ -1051,6 +1108,11 @@ impl Gateway {
             )
             .await;
         }
+    }
+
+    /// Note that something a GUILD_CREATE carries changed: a resync snapshot built before this is stale (D-646).
+    pub(crate) fn bump_snapshot_epoch(&self, guild: GuildId) {
+        *self.st().snapshot_epoch.entry(guild).or_default() += 1;
     }
 
     /// Every session subscribed to `guild`.
@@ -1142,13 +1204,14 @@ impl Gateway {
     fn drop_guild_if_empty(st: &mut State, g: GuildId) {
         if st.by_guild.get(&g).is_some_and(HashSet::is_empty) {
             st.by_guild.remove(&g);
+            st.snapshot_epoch.remove(&g);
             if let Some(h) = st.guild_tasks.remove(&g) {
                 h.abort();
             }
         }
     }
 
-    fn user_sessions(&self, user: UserId) -> Vec<Arc<Session>> {
+    pub(crate) fn user_sessions(&self, user: UserId) -> Vec<Arc<Session>> {
         self.st()
             .sessions
             .values()
@@ -1221,6 +1284,8 @@ impl Gateway {
         channel: Option<ChannelId>,
         audience: Option<&HashSet<UserId>>,
     ) {
+        // The voice, stage and sound dispatches change what a GUILD_CREATE carries too (D-646).
+        self.bump_snapshot_epoch(guild);
         self.dispatch_guild_gated(guild, name, data, channel, audience, None)
             .await;
     }
@@ -1468,6 +1533,7 @@ impl Gateway {
     fn drop_guild(&self, guild: GuildId) {
         let mut st = self.st();
         let ids = st.by_guild.remove(&guild).unwrap_or_default();
+        st.snapshot_epoch.remove(&guild);
         st.lists.retain(|k, _| k.0 != guild);
         for id in ids {
             if let Some(s) = st.sessions.get(&id) {
@@ -1721,7 +1787,7 @@ impl Gateway {
 }
 
 /// One entry of READY's `sessions` array.
-fn session_entry(s: &Session) -> Value {
+pub(crate) fn session_entry(s: &Session) -> Value {
     let active = s.is_attached();
     json!({
         "session_id": s.id,

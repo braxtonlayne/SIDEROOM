@@ -16,6 +16,7 @@ pub mod member_list;
 mod members_request;
 pub mod presence;
 pub mod protocol;
+mod resync;
 mod session;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
@@ -58,6 +59,8 @@ mod limits_tests;
 mod members_request_tests;
 #[cfg(test)]
 mod memory_budget_tests;
+#[cfg(test)]
+mod resync_tests;
 #[cfg(test)]
 mod session_revoke_tests;
 #[cfg(test)]

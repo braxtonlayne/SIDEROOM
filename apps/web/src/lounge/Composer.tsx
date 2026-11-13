@@ -883,7 +883,11 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   }
 
   return (
-    <div className="lng-composer-wrap" data-drop-target>
+    <div
+      className="lng-composer-wrap"
+      data-drop-target
+      data-sr-private={guildId === undefined ? '' : undefined}
+    >
       {replyTo && (
         <div className="lng-bar" role="status">
           <span>

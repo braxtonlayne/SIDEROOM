@@ -261,7 +261,10 @@ impl Conn {
             return Ok(());
         };
         match self.authenticate(token).await {
-            Ok(u) if u.user_id == s.user => Ok(()),
+            Ok(u) if u.user_id == s.user => {
+                s.set_user_json(u.user);
+                Ok(())
+            }
             Ok(_) | Err(AuthError::Invalid) => {
                 Err(Stop::Close(close::AUTHENTICATION_FAILED, "session revoked"))
             }
@@ -475,6 +478,7 @@ impl Conn {
         let (tx, rx) = mpsc::channel::<Out>(self.cap);
         match found {
             Some(s) if s.resume(self.id, tx.clone(), r.seq) => {
+                s.set_user_json(user.user.clone());
                 *session_rx = rx;
                 self.session_tx = None;
                 s.deliver_marker("RESUMED");

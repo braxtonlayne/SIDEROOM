@@ -12,6 +12,8 @@ what the operator now has to know. Keep each wave to a handful of lines.
 
 - **Phones.** Tapping Friends or Message Requests opens the page, with a back button. In a DM, the header keeps the name, call and video in view and puts the rest under "More".
 - **For operators.** The storage settings screen knows the connection test's new download-type check.
+- **Beta bug reports.** When the operator turns on beta reports, press Alt+Shift+B (or use the help menu, or the You tab on a phone) to send a bug report with a screenshot you can black out and the exact debug details shown before sending. Staff read them in Admin.
+- **Steadier connection.** If the server falls behind on updates, it quietly sends you a fresh copy of what you can see, without dropping your voice call.
 
 ## Phase 63 - 2026-11-12
 

@@ -142,6 +142,20 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     links: [{ href: '/channels', label: 'help.handbook.games.link' }],
   },
   {
+    // SEC-AUD-168 (D-647..D-650): shown for every member; the entry itself appears only while the operator's switch is on.
+    id: 'bugreport',
+    title: 'help.handbook.bugreport.title',
+    body: ['help.handbook.bugreport.what', 'help.handbook.bugreport.picture'],
+    list: [
+      'help.handbook.bugreport.limit1',
+      'help.handbook.bugreport.limit2',
+      'help.handbook.bugreport.limit3',
+      'help.handbook.bugreport.limit4',
+    ],
+    after: ['help.handbook.bugreport.kept'],
+    links: [{ href: '/settings/user/keybinds', label: 'help.handbook.bugreport.link' }],
+  },
+  {
     id: 'privacy',
     title: 'help.handbook.privacy.title',
     body: [

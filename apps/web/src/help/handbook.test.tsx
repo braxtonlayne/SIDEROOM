@@ -47,6 +47,7 @@ describe('the handbook', () => {
       'activities',
       'emulator',
       'games',
+      'bugreport',
       'privacy',
       'operators',
       'house',

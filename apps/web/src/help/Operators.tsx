@@ -16,6 +16,7 @@ export const OPERATOR_SWITCHES: readonly { id: string; text: MessageKey }[] = [
   { id: 'lounge.rings', text: 'help.operators.rings' },
   { id: 'platform.public_profiles', text: 'help.operators.profiles' },
   { id: 'platform.game_servers', text: 'help.operators.gameServers' },
+  { id: 'platform.beta_reports', text: 'help.operators.betaBody' },
 ];
 
 /** `/help/operators` (OPS-DOC-001): what each module switch does, for the people who run the instance. */
