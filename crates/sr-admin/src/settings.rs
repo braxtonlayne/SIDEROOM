@@ -722,6 +722,40 @@ pub const CATALOG: &[SettingDef] = &[
         512,
         "Largest Library chapter upload (archive, EPUB or PDF) in MiB.",
     ),
+    // D-655 (SEC-AUD-173): Activity package limits, by how much trust the application has earned. An application
+    // gets the largest of the tiers it qualifies for. Group `activities` appears on Admin > Settings as "Activities".
+    int(
+        "activities.package.max_mb",
+        "activities",
+        32,
+        1_048_576,
+        512,
+        "Largest Activity package any developer may upload, in MiB (the zip and its unpacked files).",
+    ),
+    int(
+        "activities.package.reviewed_max_mb",
+        "activities",
+        32,
+        1_048_576,
+        4_096,
+        "Largest Activity package for an application that has a staff-approved bundle, in MiB (the zip and its unpacked files).",
+    ),
+    int(
+        "activities.package.platform_max_mb",
+        "activities",
+        32,
+        1_048_576,
+        32_768,
+        "Largest Activity package for an application owned by the Owner or by staff who review applications, in MiB (the zip and its unpacked files).",
+    ),
+    int(
+        "activities.package.max_files",
+        "activities",
+        2_000,
+        200_000,
+        20_000,
+        "Most files and folders in one Activity package.",
+    ),
     SettingDef {
         key: "review.lookup.enabled",
         group: "library",
@@ -875,6 +909,24 @@ mod tests {
             assert!(d.min >= 1.0 && d.max > d.min, "{}", d.key);
             assert!(d.validate(&json!(0)).is_err(), "{}", d.key);
             assert!(d.validate(&d.default_value()).is_ok(), "{}", d.key);
+        }
+    }
+
+    #[test]
+    fn the_activity_package_settings_have_their_ranges_and_defaults() {
+        for (key, floor, ceiling, default) in [
+            ("activities.package.max_mb", 32, 1_048_576, 512),
+            ("activities.package.reviewed_max_mb", 32, 1_048_576, 4_096),
+            ("activities.package.platform_max_mb", 32, 1_048_576, 32_768),
+            ("activities.package.max_files", 2_000, 200_000, 20_000),
+        ] {
+            let d = find(key).unwrap();
+            assert_eq!(d.group, "activities", "{key}");
+            assert_eq!(d.default_value(), json!(default), "{key}");
+            assert!(d.validate(&json!(floor)).is_ok(), "{key}");
+            assert!(d.validate(&json!(ceiling)).is_ok(), "{key}");
+            assert!(d.validate(&json!(floor - 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(ceiling + 1)).is_err(), "{key}");
         }
     }
 

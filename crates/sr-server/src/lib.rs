@@ -45,6 +45,7 @@ pub mod moderation_actions;
 pub mod moderation_age;
 pub mod moderation_audit;
 pub mod moderation_index;
+pub mod package_wiring;
 pub mod party_cards;
 pub mod party_rooms;
 pub mod payments_jobs;

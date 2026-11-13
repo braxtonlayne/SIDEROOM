@@ -1,29 +1,38 @@
-//! Activity bundles (J-12, D-247): validation and unpacking of the zip an owner uploads. This is a security
-//! boundary: whatever passes here is served from the Activity's own origin after review, so every name,
+//! Activity bundles (J-12, D-247, D-654, D-655): validation and unpacking of the zip an owner uploads. This is a
+//! security boundary: whatever passes here is served from the Activity's own origin after review, so every name,
 //! type and size is checked before a byte is stored, and the same path rules guard the proxy's lookups.
 //!
-//! A bundle is a zip of static files:
+//! A bundle is a zip of static files, checked in two passes over any `Read + Seek` (a stored object through
+//! [`crate::zipstore::ZipStoreReader`], or bytes in memory):
 //!
-//! * at most [`MAX_ENTRIES`] entries and [`MAX_UNPACKED_BYTES`] unpacked (the sizes are counted as the data
-//!   is read, never trusted from the headers);
-//! * entry names use `/`, letters, digits and `. _ - ~ @ +` only, are relative, have no `.` or `..`
-//!   segment, no empty segment, no segment starting with `.`, and no percent-encoding or control characters;
-//! * regular files and directories only (symlinks, devices and encrypted entries are refused);
-//! * every file has an extension on the allow-list ([`content_type_for`]) and no two names differ only in case;
-//! * `index.html` sits at the root.
+//! 1. [`plan`], from the zip's index alone, before a byte is inflated: at most the application's
+//!    [`PackageLimits::max_files`] entries (Zip64 allowed); entry names use `/`, letters, digits and `. _ - ~ @ +`
+//!    only, are relative, have no `.` or `..` segment, no empty segment, no segment starting with `.`, and no
+//!    percent-encoding or control characters; regular files and directories only (symlinks, devices and encrypted
+//!    entries are refused); every file has an extension on the allow-list ([`content_type_for`]) and no two names
+//!    differ only in case; `index.html` sits at the root; the declared sizes add up to at most
+//!    [`PackageLimits::max_bytes`] and to at most [`crate::package::MAX_RATIO`] times the zip's own length (the
+//!    zip-bomb rule).
+//! 2. [`inflate`], one file at a time into an [`EntrySink`], counting the real bytes (the headers are never trusted):
+//!    a file that yields more than its declared size, or a total over the limit, is refused at once.
 //!
-//! Every refusal names the offending entry.
+//! Every refusal names the offending entry. The size and count limits are not constants: they come from the
+//! application's tier ([`crate::package`]). [`SINGLE_REQUEST_MAX_BYTES`] is only the body of the single-request
+//! upload route.
 
 use std::collections::HashSet;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Seek};
 
 use sha2::{Digest, Sha256};
 use zip::read::{ArchiveOffset, Config as ZipConfig};
 
-/// Most entries (files and directories) in a bundle.
-pub const MAX_ENTRIES: usize = 2_000;
-/// Most bytes after unpacking, and the largest accepted upload.
-pub const MAX_UNPACKED_BYTES: u64 = 32 * 1024 * 1024;
+use crate::package::PackageLimits;
+
+/// Entries (files and directories) in a bundle at the default `activities.package.max_files`.
+pub const DEFAULT_MAX_FILES: usize = crate::package::DEFAULT_MAX_FILES;
+/// The body of the single-request upload route (`POST .../activity/bundles`), and the limit of the in-memory
+/// [`unpack`]. Not a package limit: a larger package goes through the resumable upload.
+pub const SINGLE_REQUEST_MAX_BYTES: u64 = 32 * 1024 * 1024;
 /// Longest entry path.
 pub const MAX_PATH_LEN: usize = 256;
 /// Longest path segment.
@@ -209,33 +218,161 @@ pub fn request_to_path(request_path: &str) -> Option<String> {
     path_problem(&rel).is_none().then_some(rel)
 }
 
-/// Validate and unpack a zip. CPU-bound: call from a blocking thread.
-pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
-    if zip_bytes.is_empty() {
+/// The refusal text for a limit: what was exceeded, then who can change it.
+fn limit_text(what: &str, limits: &PackageLimits) -> String {
+    format!(
+        "{what} {} MiB. The operator of this server can raise the limit.",
+        limits.max_mib()
+    )
+}
+
+/// One file the first pass accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanFile {
+    /// Position in the zip's index.
+    pub index: usize,
+    /// The path inside the bundle.
+    pub path: String,
+    pub content_type: &'static str,
+    /// The size the zip says the file has; the second pass makes it exact.
+    pub size: u64,
+}
+
+/// What the first pass (the zip's index, no data) accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Plan {
+    /// The files, in the order of the zip.
+    pub files: Vec<PlanFile>,
+    /// Entries in the zip, files and directories.
+    pub entries: usize,
+    /// The sizes the zip declares, added up.
+    pub declared_total: u64,
+    /// The length of the zip itself.
+    pub zip_len: u64,
+}
+
+impl Plan {
+    /// The order the second pass inflates in: `sideroom.json` first (a bad manifest refuses the package before a
+    /// file is stored), then every file by path (the order of the code hash, [`crate::sandbox::CodeHasher`]).
+    pub fn inflate_order(&self) -> Vec<&PlanFile> {
+        let mut v: Vec<&PlanFile> = self.files.iter().collect();
+        v.sort_by(|a, b| {
+            (a.path != MANIFEST)
+                .cmp(&(b.path != MANIFEST))
+                .then_with(|| a.path.cmp(&b.path))
+        });
+        v
+    }
+}
+
+/// Why the second pass stopped: the package is refused, or something outside the package failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckError {
+    /// The package breaks a rule; the error names the entry.
+    Refused(BundleError),
+    /// The store (or anything else that is not the package's fault) failed.
+    Failed(String),
+}
+
+impl From<BundleError> for CheckError {
+    fn from(e: BundleError) -> Self {
+        Self::Refused(e)
+    }
+}
+
+/// Where the second pass puts what it inflates.
+pub trait EntrySink {
+    /// A file starts.
+    fn begin(&mut self, file: &PlanFile) -> Result<(), CheckError>;
+    /// The next bytes of the file that started.
+    fn write(&mut self, file: &PlanFile, data: &[u8]) -> Result<(), CheckError>;
+    /// The file is complete, and its real size equals the declared one.
+    fn finish(&mut self, file: &PlanFile) -> Result<(), CheckError>;
+}
+
+/// The length checks that need no read: an empty zip, and one longer than the application's limit.
+pub fn check_zip_len(zip_len: u64, limits: &PackageLimits) -> Result<(), BundleError> {
+    if zip_len == 0 {
         return Err(BundleError::general("The upload is empty."));
     }
-    if zip_bytes.len() as u64 > MAX_UNPACKED_BYTES {
-        return Err(BundleError::general(
-            "The zip is larger than 32 MiB.".to_owned(),
-        ));
+    if zip_len > limits.max_bytes {
+        return Err(BundleError::general(limit_text(
+            "The zip is larger than",
+            limits,
+        )));
     }
-    let sha256 = data_encoding::HEXLOWER.encode(Sha256::digest(zip_bytes).as_slice());
-    // The archive must start at byte 0: no prefixed (self-extracting) archives.
+    Ok(())
+}
+
+/// Open a zip for checking: refuse an empty or over-long zip and one whose index is larger than `limits` allow
+/// before the index is read, then read it (the archive must start at byte 0: no prefixed archives) and run the
+/// first pass ([`plan`]). `reader` is the whole zip, `zip_len` its length.
+pub fn open_and_plan<R: Read + Seek>(
+    mut reader: R,
+    zip_len: u64,
+    limits: &PackageLimits,
+) -> Result<(zip::ZipArchive<R>, Plan), CheckError> {
+    check_zip_len(zip_len, limits)?;
+    match crate::zipstore::peek_end_record(&mut reader, zip_len) {
+        Ok(Some(e)) => {
+            if e.entries > limits.max_files as u64 {
+                return Err(too_many(limits).into());
+            }
+            // An entry's name and fields are short; an index much larger than that is hostile.
+            if e.index_bytes > (limits.max_files as u64).saturating_mul(1024) + 1024 * 1024 {
+                return Err(BundleError::general("The zip index is damaged.").into());
+            }
+        }
+        Ok(None) => {}
+        Err(e) => return Err(read_failure(&e)),
+    }
     let cfg = ZipConfig {
         archive_offset: ArchiveOffset::Known(0),
     };
-    let mut zip = zip::ZipArchive::with_config(cfg, Cursor::new(zip_bytes))
-        .map_err(|_| BundleError::general("That is not a zip file."))?;
-    if zip.len() > MAX_ENTRIES {
-        return Err(BundleError::general(format!(
-            "The zip has more than {MAX_ENTRIES} entries."
-        )));
+    let mut zip = zip::ZipArchive::with_config(cfg, reader).map_err(|e| match &e {
+        zip::result::ZipError::Io(io) => read_failure(io),
+        _ => CheckError::Refused(BundleError::general("That is not a zip file.")),
+    })?;
+    if zip.len() > limits.max_files {
+        return Err(too_many(limits).into());
     }
+    let plan = plan(&mut zip, zip_len, limits)?;
+    Ok((zip, plan))
+}
 
-    // First pass over the metadata: names, types and the declared sizes, before any data is inflated.
-    let mut plan: Vec<(usize, String, &'static str)> = Vec::new();
+fn too_many(limits: &PackageLimits) -> BundleError {
+    BundleError::general(format!(
+        "The zip has more than {} entries. The operator of this server can raise the limit.",
+        limits.max_files
+    ))
+}
+
+/// A read of the zip failed. A store that failed is not the package's fault ([`CheckError::Failed`]); a spent read
+/// budget is refused with advice; anything else is a zip that cannot be read.
+fn read_failure(e: &std::io::Error) -> CheckError {
+    match crate::zipstore::store_failure(e) {
+        Some(crate::zipstore::StoreFailure::Store(m)) => CheckError::Failed(m.clone()),
+        Some(crate::zipstore::StoreFailure::Budget) => CheckError::Refused(BundleError::general(
+            "The files of this zip are stored in an order that makes it too slow to check. \
+             Pack the zip again with the files in path order.",
+        )),
+        None => CheckError::Refused(BundleError::general("The zip could not be read.")),
+    }
+}
+
+/// The first pass: names, types and the declared sizes, from the zip's index only, before any data is inflated.
+/// Refuses what [`path_problem`], the extension allow-list, encryption, link entries, case-insensitive duplicates, a
+/// file below a file, a missing `index.html` and the limits of `limits` forbid, and a package whose declared total is
+/// more than [`crate::package::MAX_RATIO`] times the zip. Zip64 is accepted. Every refusal names the entry.
+pub fn plan<R: Read + Seek>(
+    zip: &mut zip::ZipArchive<R>,
+    zip_len: u64,
+    limits: &PackageLimits,
+) -> Result<Plan, BundleError> {
+    let mut files: Vec<PlanFile> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut declared: u64 = 0;
+    let ratio_cap = zip_len.saturating_mul(crate::package::MAX_RATIO);
     for i in 0..zip.len() {
         let f = zip
             .by_index_raw(i)
@@ -274,65 +411,184 @@ pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
             return Err(BundleError::at(&raw, "has a file type that is not allowed"));
         };
         declared = declared.saturating_add(f.size());
-        if declared > MAX_UNPACKED_BYTES {
-            return Err(BundleError::at(&raw, "makes the bundle larger than 32 MiB"));
+        if declared > limits.max_bytes {
+            return Err(BundleError::at(
+                &raw,
+                limit_text("makes the bundle larger than", limits),
+            ));
         }
-        plan.push((i, name, ct));
+        if declared > ratio_cap {
+            return Err(BundleError::at(
+                &raw,
+                format!(
+                    "makes the bundle unpack to more than {} times the size of the zip, which is not an honest zip",
+                    crate::package::MAX_RATIO
+                ),
+            ));
+        }
+        files.push(PlanFile {
+            index: i,
+            path: name,
+            content_type: ct,
+            size: f.size(),
+        });
     }
     // A file may not also be a directory (`a` and `a/b.js`).
-    for (_, name, _) in &plan {
-        let mut cut = name.as_str();
+    let paths: HashSet<&str> = files.iter().map(|f| f.path.as_str()).collect();
+    for f in &files {
+        let mut cut = f.path.as_str();
         while let Some((parent, _)) = cut.rsplit_once('/') {
-            if plan.iter().any(|(_, n, _)| n == parent) {
+            if paths.contains(parent) {
                 return Err(BundleError::at(
-                    name,
+                    &f.path,
                     "sits below a path that is also a file",
                 ));
             }
             cut = parent;
         }
     }
-    if !plan.iter().any(|(_, n, _)| n == "index.html") {
+    if !paths.contains("index.html") {
         return Err(BundleError::general(
             "index.html is missing at the root of the bundle.",
         ));
     }
+    Ok(Plan {
+        files,
+        entries: seen.len(),
+        declared_total: declared,
+        zip_len,
+    })
+}
 
-    // Second pass: inflate, counting the real bytes.
-    let mut files = Vec::with_capacity(plan.len());
-    let mut total: u64 = 0;
-    for (i, name, ct) in plan {
-        let mut f = zip
-            .by_index(i)
-            .map_err(|_| BundleError::at(&name, "could not be read"))?;
-        let room = MAX_UNPACKED_BYTES - total;
-        let mut data = Vec::new();
-        let n = f
-            .by_ref()
-            .take(room + 1)
-            .read_to_end(&mut data)
-            .map_err(|_| BundleError::at(&name, "could not be read"))?;
-        if n as u64 > room {
-            return Err(BundleError::at(
-                &name,
-                "makes the bundle larger than 32 MiB",
-            ));
-        }
-        total += n as u64;
-        files.push(BundleFile {
-            path: name,
-            content_type: ct,
-            data,
-        });
+/// The check's error as the bundle error the in-memory forms return.
+pub fn into_bundle_error(e: CheckError) -> BundleError {
+    match e {
+        CheckError::Refused(e) => e,
+        CheckError::Failed(m) => BundleError::general(m),
     }
-    let manifest = match files.iter().find(|f| f.path == MANIFEST) {
+}
+
+/// Size of the copy buffer of the second pass.
+const COPY_BUF: usize = 64 * 1024;
+
+fn classify(name: &str, e: &std::io::Error) -> CheckError {
+    match crate::zipstore::store_failure(e) {
+        Some(crate::zipstore::StoreFailure::Store(m)) => CheckError::Failed(m.clone()),
+        Some(crate::zipstore::StoreFailure::Budget) => read_failure(e),
+        None => CheckError::Refused(BundleError::at(name, "could not be read")),
+    }
+}
+
+/// The second pass: inflate the planned files one at a time, in [`Plan::inflate_order`], into `sink`, counting the
+/// real bytes. A file that yields more than its declared size, or a total over the limit, is refused at once (the
+/// zip's own numbers are never trusted); one that yields less is refused too. `progress` is told the bytes done
+/// after every chunk. Returns the total bytes. CPU-bound and, over a store, blocking: call from a blocking thread.
+pub fn inflate<R: Read + Seek>(
+    zip: &mut zip::ZipArchive<R>,
+    plan: &Plan,
+    limits: &PackageLimits,
+    sink: &mut dyn EntrySink,
+    progress: &mut dyn FnMut(u64),
+) -> Result<u64, CheckError> {
+    let mut total: u64 = 0;
+    let mut buf = vec![0u8; COPY_BUF];
+    for file in plan.inflate_order() {
+        let mut entry = zip.by_index(file.index).map_err(|e| match &e {
+            zip::result::ZipError::Io(io) => classify(&file.path, io),
+            _ => CheckError::Refused(BundleError::at(&file.path, "could not be read")),
+        })?;
+        sink.begin(file)?;
+        let mut count: u64 = 0;
+        loop {
+            let n = entry.read(&mut buf).map_err(|e| classify(&file.path, &e))?;
+            if n == 0 {
+                break;
+            }
+            count += n as u64;
+            if count > file.size {
+                return Err(
+                    BundleError::at(&file.path, "has more data than the zip says it has").into(),
+                );
+            }
+            total += n as u64;
+            if total > limits.max_bytes {
+                return Err(BundleError::at(
+                    &file.path,
+                    limit_text("makes the bundle larger than", limits),
+                )
+                .into());
+            }
+            sink.write(file, &buf[..n])?;
+            progress(total);
+        }
+        if count != file.size {
+            return Err(
+                BundleError::at(&file.path, "has less data than the zip says it has").into(),
+            );
+        }
+        sink.finish(file)?;
+    }
+    Ok(total)
+}
+
+/// Collects the files in memory ([`unpack`]).
+struct MemSink {
+    files: Vec<BundleFile>,
+}
+
+impl EntrySink for MemSink {
+    fn begin(&mut self, f: &PlanFile) -> Result<(), CheckError> {
+        self.files.push(BundleFile {
+            path: f.path.clone(),
+            content_type: f.content_type,
+            data: Vec::with_capacity(usize::try_from(f.size).unwrap_or(0).min(1 << 20)),
+        });
+        Ok(())
+    }
+    fn write(&mut self, _f: &PlanFile, data: &[u8]) -> Result<(), CheckError> {
+        if let Some(last) = self.files.last_mut() {
+            last.data.extend_from_slice(data);
+        }
+        Ok(())
+    }
+    fn finish(&mut self, _f: &PlanFile) -> Result<(), CheckError> {
+        Ok(())
+    }
+}
+
+/// Validate and unpack a zip held in memory, at the limits of a single-request upload
+/// ([`SINGLE_REQUEST_MAX_BYTES`]). CPU-bound: call from a blocking thread. A thin wrapper over [`unpack_with`].
+pub fn unpack(zip_bytes: &[u8]) -> Result<Unpacked, BundleError> {
+    unpack_with(
+        zip_bytes,
+        &PackageLimits {
+            max_bytes: SINGLE_REQUEST_MAX_BYTES,
+            max_files: DEFAULT_MAX_FILES,
+            tier: crate::package::PackageTier::Standard,
+        },
+    )
+}
+
+/// [`unpack`] at the given limits: the same two passes the stored-package check runs ([`open_and_plan`] and
+/// [`inflate`]), into memory.
+pub fn unpack_with(zip_bytes: &[u8], limits: &PackageLimits) -> Result<Unpacked, BundleError> {
+    let zip_len = zip_bytes.len() as u64;
+    let sha256 = data_encoding::HEXLOWER.encode(Sha256::digest(zip_bytes).as_slice());
+    let (mut zip, plan) =
+        open_and_plan(Cursor::new(zip_bytes), zip_len, limits).map_err(into_bundle_error)?;
+    let mut sink = MemSink { files: Vec::new() };
+    let total = match inflate(&mut zip, &plan, limits, &mut sink, &mut |_| {}) {
+        Ok(t) => t,
+        Err(e) => return Err(into_bundle_error(e)),
+    };
+    let manifest = match sink.files.iter().find(|f| f.path == MANIFEST) {
         Some(f) => crate::arcade::parse_manifest(&f.data)?,
         None => crate::arcade::Manifest::default(),
     };
     Ok(Unpacked {
         sha256,
-        entries: seen.len(),
-        files,
+        entries: plan.entries,
+        files: sink.files,
         total,
         capabilities: manifest.capabilities,
         tier: manifest.tier,
@@ -348,28 +604,28 @@ pub fn parse_manifest(data: &[u8]) -> Result<Vec<String>, BundleError> {
     crate::arcade::parse_manifest(data).map(|m| m.capabilities)
 }
 
-/// The `sideroom.json` at the root of a zip, read with the same archive rules as [`unpack`] (archive at byte 0,
-/// at most [`MAX_ENTRIES`] entries, no encrypted manifest, the manifest's real size counted against
-/// [`MAX_MANIFEST_BYTES`]) and validated by [`crate::arcade::parse_manifest`]. Only the manifest is inflated: a
-/// guild cartridge (D-568) is a game or a mod, whose other files need not be a browser bundle. A zip without a
-/// manifest gives the empty [`crate::arcade::Manifest`] (no tier). CPU-bound: call from a blocking thread.
+/// The `sideroom.json` at the root of a zip held in memory ([`read_manifest_from`] over a cursor).
 pub fn read_manifest(zip_bytes: &[u8]) -> Result<crate::arcade::Manifest, BundleError> {
     if zip_bytes.is_empty() {
         return Err(BundleError::general("The file is empty."));
     }
-    if zip_bytes.len() as u64 > MAX_UNPACKED_BYTES {
-        return Err(BundleError::general("The zip is larger than 32 MiB."));
-    }
+    read_manifest_from(Cursor::new(zip_bytes))
+}
+
+/// The `sideroom.json` at the root of a zip, read with the archive rules of [`unpack`] (archive at byte 0, no
+/// encrypted manifest, the manifest's real size counted against [`MAX_MANIFEST_BYTES`]) and validated by
+/// [`crate::arcade::parse_manifest`]. Only the manifest is inflated, and there is no limit on the zip's length or
+/// entry count: a guild cartridge (D-568, D-656) is a game or a mod, whose other files need not be a browser bundle,
+/// and it lives on the server's own shelf. The caller bounds what the reader may fetch. A zip without a manifest gives
+/// the empty [`crate::arcade::Manifest`] (no tier). CPU-bound: call from a blocking thread.
+pub fn read_manifest_from<R: Read + Seek>(r: R) -> Result<crate::arcade::Manifest, BundleError> {
     let cfg = ZipConfig {
         archive_offset: ArchiveOffset::Known(0),
     };
-    let mut zip = zip::ZipArchive::with_config(cfg, Cursor::new(zip_bytes))
-        .map_err(|_| BundleError::general("That is not a zip file."))?;
-    if zip.len() > MAX_ENTRIES {
-        return Err(BundleError::general(format!(
-            "The zip has more than {MAX_ENTRIES} entries."
-        )));
-    }
+    let mut zip = zip::ZipArchive::with_config(cfg, r).map_err(|e| match &e {
+        zip::result::ZipError::Io(io) => into_bundle_error(read_failure(io)),
+        _ => BundleError::general("That is not a zip file."),
+    })?;
     let Some(i) = zip.index_for_name(MANIFEST) else {
         return Ok(crate::arcade::Manifest::default());
     };
@@ -550,26 +806,121 @@ mod tests {
         assert!(e.message.contains("symbolic link"));
     }
 
+    /// `n` bytes that compress about two to one (a 16-letter alphabet), so a few MiB of them are a few MiB of zip.
+    fn noisy(n: usize, seed: u64) -> Vec<u8> {
+        let mut x = seed | 1;
+        (0..n)
+            .map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                (x & 0x0f) as u8 + b'a'
+            })
+            .collect()
+    }
+
+    fn limits(max_mib: u64, max_files: usize) -> PackageLimits {
+        PackageLimits {
+            max_bytes: max_mib * 1024 * 1024,
+            max_files,
+            tier: crate::package::PackageTier::Standard,
+        }
+    }
+
     #[test]
     fn size_and_entry_limits_hold() {
-        // 33 files of 1 MiB is more than 32 MiB, however well the zip compresses.
-        let big = vec![0u8; 1024 * 1024];
+        // Nine files of 1 MiB are more than 8 MiB, however the zip is packed; the refusal names the entry and the
+        // limit, and says who can raise it.
+        let parts: Vec<Vec<u8>> = (0..9).map(|i| noisy(1024 * 1024, i + 1)).collect();
         let mut entries: Vec<(String, &[u8])> = vec![("index.html".into(), b"x")];
-        for i in 0..33 {
-            entries.push((format!("f{i}.txt"), &big));
+        for (i, p) in parts.iter().enumerate() {
+            entries.push((format!("f{i}.txt"), p));
         }
         let refs: Vec<(&str, &[u8])> = entries.iter().map(|(n, d)| (n.as_str(), *d)).collect();
-        let e = unpack(&build(&refs)).unwrap_err();
-        assert!(e.message.contains("32 MiB"), "{e:?}");
+        let e = unpack_with(&build(&refs), &limits(8, 100)).unwrap_err();
+        assert!(e.entry.is_some(), "{e:?}");
+        assert!(
+            e.message.contains("8 MiB")
+                && e.message
+                    .ends_with("The operator of this server can raise the limit."),
+            "{e:?}"
+        );
 
-        // 2,001 tiny entries.
-        let names: Vec<String> = (0..2_000).map(|i| format!("f{i}.txt")).collect();
+        // 51 tiny entries against a limit of 50.
+        let names: Vec<String> = (0..50).map(|i| format!("f{i}.txt")).collect();
         let mut v: Vec<(&str, &[u8])> = vec![("index.html", b"x")];
         v.extend(names.iter().map(|n| (n.as_str(), &b"x"[..])));
-        assert!(unpack(&build(&v)).unwrap_err().message.contains("2000"));
-        // Exactly 2,000 is fine.
+        let e = unpack_with(&build(&v), &limits(8, 50)).unwrap_err();
+        assert!(
+            e.message.contains("50") && e.message.contains("raise"),
+            "{e:?}"
+        );
+        // Exactly 50 is fine.
         v.pop();
-        unpack(&build(&v)).unwrap();
+        unpack_with(&build(&v), &limits(8, 50)).unwrap();
+    }
+
+    #[test]
+    fn a_zip_that_unpacks_to_more_than_100_times_its_size_is_refused_by_name() {
+        // 5 MiB of zeros packs to a few KiB: far more than 100 times.
+        let zeros = vec![0u8; 5 * 1024 * 1024];
+        let z = build(&[("index.html", b"x"), ("bomb.txt", &zeros)]);
+        assert!(z.len() < 50 * 1024, "{}", z.len());
+        let e = unpack_with(&z, &limits(64, 100)).unwrap_err();
+        assert_eq!(e.entry.as_deref(), Some("bomb.txt"), "{e:?}");
+        assert!(e.message.contains("100 times"), "{e:?}");
+        // Plenty of room under the limit does not matter: the ratio rule is independent of the size cap.
+        assert!(unpack_with(&z, &limits(1_000_000, 100)).is_err());
+    }
+
+    /// A one-file stored zip whose index claims `claimed` bytes while the data has more.
+    fn lying_zip(data: &[u8], claimed: u32) -> Vec<u8> {
+        let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        z.start_file(
+            "index.html",
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored),
+        )
+        .unwrap();
+        z.write_all(data).unwrap();
+        let mut b = z.finish().unwrap().into_inner();
+        // Patch the uncompressed size in the index (central directory header: signature, then 20 bytes to the size).
+        let at = b
+            .windows(4)
+            .rposition(|w| w == [0x50, 0x4b, 0x01, 0x02])
+            .unwrap();
+        b[at + 24..at + 28].copy_from_slice(&claimed.to_le_bytes());
+        b
+    }
+
+    #[test]
+    fn an_entry_that_inflates_past_its_declared_size_is_refused() {
+        let z = lying_zip(&vec![b'a'; 4096], 10);
+        let e = unpack(&z).unwrap_err();
+        assert_eq!(e.entry.as_deref(), Some("index.html"), "{e:?}");
+        // Honest sizes pass.
+        unpack(&lying_zip(&vec![b'a'; 4096], 4096)).unwrap();
+        // An entry that yields less than it says is refused too.
+        let e = unpack(&lying_zip(&vec![b'a'; 10], 4096)).unwrap_err();
+        assert_eq!(e.entry.as_deref(), Some("index.html"), "{e:?}");
+    }
+
+    #[test]
+    fn the_second_pass_inflates_the_manifest_first_and_the_rest_by_path() {
+        let z = build(&[
+            ("index.html", b"x"),
+            ("z.js", b"1"),
+            ("sideroom.json", b"{}"),
+            ("a/b.js", b"2"),
+        ]);
+        let (_, plan) =
+            open_and_plan(Cursor::new(&z[..]), z.len() as u64, &limits(8, 100)).unwrap();
+        let order: Vec<&str> = plan
+            .inflate_order()
+            .iter()
+            .map(|f| f.path.as_str())
+            .collect();
+        assert_eq!(order, ["sideroom.json", "a/b.js", "index.html", "z.js"]);
+        assert_eq!(plan.declared_total, 5);
     }
 
     #[test]
@@ -580,10 +931,13 @@ mod tests {
         let mut p = vec![0x4d; 40];
         p.extend(build(&[("index.html", b"x")]));
         assert!(unpack(&p).is_err());
-        let huge = vec![0u8; (MAX_UNPACKED_BYTES + 1) as usize];
-        assert!(unpack(&huge).unwrap_err().message.contains("32 MiB"));
+        let huge = vec![0u8; (SINGLE_REQUEST_MAX_BYTES + 1) as usize];
+        let e = unpack(&huge).unwrap_err();
+        assert!(
+            e.message.contains("32 MiB") && e.message.contains("raise"),
+            "{e:?}"
+        );
     }
-
     #[test]
     fn request_paths_map_inside_the_bundle_only() {
         assert_eq!(request_to_path("/").as_deref(), Some("index.html"));

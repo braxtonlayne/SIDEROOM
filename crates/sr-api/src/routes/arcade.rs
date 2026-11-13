@@ -206,7 +206,7 @@ pub async fn add_cartridge(
 }
 
 /// Reads a cartridge's file from its shelf (D-568): the mount's sealed credentials, the endpoint re-checked
-/// right before the bucket is called (as for every member mount read), one ranged `GET` of the catalog size.
+/// right before the bucket is called (as for every member mount read), one ranged `GET` per read (D-656: the end of the file, the index, the manifest; never the whole file).
 struct ShelfFiles<'a>(&'a ScopeDeps);
 
 /// [`ShelfFiles`] for a background job: the one-off manifest re-check of cartridges listed before D-568
@@ -215,8 +215,16 @@ pub struct ShelfCartridgeFiles(pub std::sync::Arc<ScopeDeps>);
 
 #[async_trait::async_trait]
 impl CartridgeObjects for ShelfCartridgeFiles {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
-        ShelfFiles(&self.0).read(shelf, path, len).await
+    async fn read_range(
+        &self,
+        shelf: i64,
+        path: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError> {
+        ShelfFiles(&self.0)
+            .read_range(shelf, path, start, end)
+            .await
     }
 }
 
@@ -224,7 +232,13 @@ impl CartridgeObjects for ShelfCartridgeFiles {
 /// stops us asking (the mount lookup failing, the endpoint check, the client, a backend error) may pass.
 #[async_trait::async_trait]
 impl CartridgeObjects for ShelfFiles<'_> {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
+    async fn read_range(
+        &self,
+        shelf: i64,
+        path: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError> {
         use sr_storage::{ObjectStorage as _, StorageError};
         let unreadable = || {
             CartridgeReadError::Transient(
@@ -253,7 +267,7 @@ impl CartridgeObjects for ShelfFiles<'_> {
             unreadable()
         })?;
         let bytes = storage
-            .get_range(&mount.bucket_key(path), 0, len)
+            .get_range(&mount.bucket_key(path), start, end)
             .await
             .map_err(|e| {
                 tracing::warn!(error = %e, shelf, "cartridge file read failed");

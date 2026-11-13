@@ -301,9 +301,14 @@ async fn a_bundle_goes_draft_pending_approved_and_only_the_approved_one_is_serve
     assert_eq!(q[0].owner_id, owner.to_string());
     assert_eq!(q[0].bundle.bundle.sha256, up.bundle.sha256);
     assert_eq!(q[0].bundle.entries.len(), 3);
-    let (sha, zip) = r.svc.bundle_zip(app, b1).await.unwrap();
+    let (sha, mut zip) = r.svc.bundle_zip(app, b1).await.unwrap();
     assert_eq!(sha, up.bundle.sha256);
-    assert_eq!(zip.as_ref(), site("one").as_slice());
+    let mut bytes = Vec::new();
+    while let Some(chunk) = futures::StreamExt::next(&mut zip.body).await {
+        bytes.extend_from_slice(&chunk.unwrap());
+    }
+    assert_eq!(zip.info.size as usize, bytes.len());
+    assert_eq!(bytes, site("one"));
 
     // Nobody reviews their own Activity.
     assert!(matches!(
