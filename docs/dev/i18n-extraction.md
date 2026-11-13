@@ -14,8 +14,10 @@ catalog is a set of fragment files merged automatically (`apps/web/src/i18n/mess
 
 `<area>.<component>.<thing>`
 
-- `area` is the top-level folder: `lounge`, `settings`, `library`, `cinema`, `admin`, `developers`,
-  `watchparty`, `support`, `components`, `lib`, `review`, `pwa`.
+- `area` is the first key segment, not a folder. Areas in use include: `admin`, `settings`, `lounge`, `cinema`,
+  `tools`, `library`, `developers`, `review`, `entrance`, `support`, `watchparty`, `player`, `arcade`, `profile`,
+  `help`, `studio`, `storage`, `music`, `moderation`, `a11y`, `pwa`, `lib`, `app`. Check `messages/en/*.ts` for the
+  full set before you add a new one.
 - `component` is the component or module name in camelCase (`messageComposer`); `thing` is camelCase
   (`sendButton`, `emptyState`). Add more segments only when needed (`...rules.title`).
 - One sentence per key. Do not split a sentence across keys or concatenate pieces; use ICU variables.

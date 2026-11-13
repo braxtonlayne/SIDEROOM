@@ -45,13 +45,13 @@ All three use moka `sync::Cache` with a 60 s `time_to_live`, the `ACCESS_TTL` fi
 
 **Invalidation.** All three layers are required.
 
-1. **Write-through.** A shared `Arc<GuildGenerations>` (`bump`, `current`) is handed to every sr-db repo. Every method that writes `guilds`, `roles` or `permission_overwrites` bumps before it returns. The writers found so far:
-   - `chat_repo.rs`: 450, 490, 506, 716, 724, 749, 772, 898
-   - `guild_admin_repo.rs`: 119, 134 (PATCH, including the owner), 174, 397, 414, 429, 453, 467, 474
-   - `apps_repo.rs`: 1467, 1903–1922, 2121
+1. **Write-through.** A shared `Arc<GuildGenerations>` (`bump`, `current`) is handed to every sr-db repo. Every method that writes `guilds`, `roles` or `permission_overwrites` bumps before it returns. The writers found so far (line numbers re-found by grep for `INSERT|UPDATE|DELETE` on `guilds`, `roles` or `permission_overwrites` on this refresh; the numbers of the 2026-10-25 design had drifted):
+   - `chat_repo.rs`: 489, 509, 549, 565, 747, 755, 780, 803, 929
+   - `guild_admin_repo.rs`: 138, 153, 193, 416, 448, 472, 486, 493
+   - `apps_repo.rs`: 1470, 1981, 1992, 2000, 2199
    - `payments_repo.rs`: 1157
-   - `settings_repo.rs`: 1242
-   - `invite_join.rs`: 199
+   - `settings_repo.rs`: 1274
+   - `invite_join.rs`: 202
    - `admin_repo.rs`: 682 (`transfer_owner`, which publishes no event)
 2. **Event hook.** `LagBus::publish` calls `generations.apply_event` before forwarding, for `GuildUpdated`, `GuildDeleted`, `Role*`, `Channel*` and `Thread*`. The same hook runs on a `Topic::Firehose` subscription, so events received from another node invalidate too.
 3. **TTL of 60 s.** This bounds only writes made outside the process: `sr-cli` guild bootstrap, `psql`, or a second node.
