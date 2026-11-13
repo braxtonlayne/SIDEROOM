@@ -74634,7 +74634,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description CORS_NOT_READY */
+            /** @description CORS_NOT_READY, or MOUNT_NOT_SAFE when the mount's connection test says it ignores the response type (D-644) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -76736,7 +76736,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description CORS_NOT_READY */
+            /** @description CORS_NOT_READY, or MOUNT_NOT_SAFE for a GET on a mount whose connection test says it ignores the response type (D-644) */
             409: {
                 headers: {
                     [name: string]: unknown;
