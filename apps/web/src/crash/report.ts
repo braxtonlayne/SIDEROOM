@@ -29,6 +29,8 @@ let sending = false;
 const seen = new Set<string>();
 /** Fingerprints this page load already delivered: a queued card for the same crash is dropped, never sent twice. */
 const delivered = new Set<string>();
+/** The fingerprints already delivered this page load (the bug reporter lists them in its debug information). */
+export const deliveredFingerprints = (): string[] => [...delivered];
 
 const GPU_ERRORS = /^(GPU\w*Error|GPUPipelineError|GPUDeviceLostInfo)$/;
 

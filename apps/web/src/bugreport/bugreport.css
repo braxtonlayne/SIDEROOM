@@ -1,0 +1,93 @@
+/* The beta bug reporter's dialog (SEC-AUD-168). Existing --ui-* tokens only; logical properties except where a picture's own pixels are meant. */
+.br-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+}
+.br-h {
+  margin: 0 0 6px;
+  font-size: 0.9375rem;
+}
+.br-picture {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.br-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.br-hint,
+.br-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ui-text-muted);
+}
+.br-note {
+  color: var(--ui-text);
+}
+.br-file {
+  display: none;
+}
+/* The picture's coordinates are not mirrored in a right-to-left layout. */
+.br-stage {
+  position: relative;
+  direction: ltr;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  overflow: hidden;
+  background: var(--ui-bg-raised);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.br-canvas {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  pointer-events: none;
+}
+.br-cover {
+  position: absolute;
+  background: #000;
+  outline: 1px solid var(--ui-accent);
+  cursor: default;
+}
+.br-cover-draft {
+  background: rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+.br-cover-x {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 2px;
+  min-inline-size: 28px;
+  min-block-size: 28px;
+  padding: 0 6px;
+}
+.br-sent summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.br-json {
+  margin: 8px 0 0;
+  max-block-size: 14rem;
+  overflow: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-raised);
+  font-family: var(--ui-font-mono, monospace);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.br-privacy {
+  color: var(--ui-text);
+}

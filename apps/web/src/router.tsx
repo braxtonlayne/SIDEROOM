@@ -79,6 +79,10 @@ const PlayerGate = lazy(() =>
 const DrawerGate = lazy(() =>
   import('./tools/drawer/DrawerGate').then((m) => ({ default: m.DrawerGate })),
 );
+// The beta bug reporter's gate (SEC-AUD-168, D-647): its own chunk, signed-in app routes only (D-385).
+const BugReportGate = lazy(() =>
+  import('./bugreport/BugReportGate').then((m) => ({ default: m.BugReportGate })),
+);
 // The handbook waits for the full catalog (it is not a first-paint path); it shows the entrance skeleton meanwhile.
 const isHelpPath = (p: string) => p === '/help' || p.startsWith('/help/');
 
@@ -112,6 +116,11 @@ function RootLayout() {
         {!isPublicPath(pathname) && (
           <Suspense fallback={null}>
             <DrawerGate />
+          </Suspense>
+        )}
+        {!isPublicPath(pathname) && (
+          <Suspense fallback={null}>
+            <BugReportGate />
           </Suspense>
         )}
       </CatalogGate>
