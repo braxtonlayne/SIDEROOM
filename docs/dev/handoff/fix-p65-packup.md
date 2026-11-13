@@ -24,7 +24,8 @@ The memory store (`SR_STORAGE__ENDPOINT=memory:`) cannot sign parts (as for the 
 uses the single request. The resumable states are shot with `page.route` fakes.
 
 ## Not done / notes
-(see the end of this file, filled in when the checks ran)
+- Rust is only partly verified:  passes with my code (fixes after the first check: dynamic SQL, a name clash).  and  do not compile on the merge with fix/p65-pack 82eefdd0 because of pack's  ( takes 6 arguments, called with 4 at line 302). Waiting for pack's follow-up; my sr-api and sr-server code (routes, tests, jobs, app.rs wiring) is therefore NOT compiled yet.
+- Not run: clippy, the Postgres tests in uploads_tests.rs (none watched fail or pass), the end-to-end test through the real  (to write once sr-api compiles), OpenAPI and generated-client regeneration, the Playwright shots and the visual check, the live click-through. The cargo target  still exists (delete at the end); scratch DBs not created yet.
 
 ## Owner questions
 - The limit line says "Reviewed applications can upload more." because the contract's limits answer carries only the application's own limit, not the
