@@ -23,9 +23,24 @@ uploaded."; 429 carries `Retry-After: 3600`; `size` is accepted as a string or a
 The memory store (`SR_STORAGE__ENDPOINT=memory:`) cannot sign parts (as for the Library), so `package-limits` answers `resumable: false` and the live page
 uses the single request. The resumable states are shot with `page.route` fakes.
 
-## Not done / notes
-- Rust is only partly verified: `cargo check -p sr-activities` passes with my code. `sr-api` and `sr-server` do not compile on the merge with fix/p65-pack 82eefdd0 because of pack's `proxy.rs` (`from_bundle` takes 6 arguments, called with 4 at line 302). Waiting for pack's follow-up; my sr-api and sr-server code (routes, tests, jobs, app.rs wiring) is therefore NOT compiled yet.
-- Not run: clippy, the Postgres tests in uploads_tests.rs (none watched fail or pass), the end-to-end test through the real `ingest_stored_zip` (to write once sr-api compiles), OpenAPI and generated-client regeneration, the Playwright shots and the visual check, the live click-through. The cargo target `p65-packup-target` still exists (delete at the end); scratch DBs not created yet.
+## Verification
+- Merged fix/p65-pack at 4b5538f0. clippy (-D warnings) clean on sr-activities, sr-api, sr-server (all targets).
+- Postgres tests, `routes::activities::uploads_tests` (12, --ignored): all pass. Watched fail on the first run: the three that went through
+  "ready" (the fake bundle id 4242 violated the `bundle_id` foreign key, so the rig now inserts that bundle) and the end-to-end test (its zip
+  compressed below the part size). The end-to-end test `a_zip_sent_in_three_parts_is_checked_by_the_real_checker_and_becomes_a_bundle` goes
+  through the real `ingest_stored_zip` with three 120 KiB parts and checks the staged zip is deleted.
+- OpenAPI and the generated client (schema, msw handlers) regenerated. Route matrix and authz matrix rows added; the matrix itself is left to CI.
+- Visual check: `visual-sweep-shots/p65-packup` (54 PNGs: limit line, limit line for a reviewed application, uploading, checking, uploaded small and
+  big, refused by the checker, refused over the limit, refused after the check; desktop 1280x800 and phone 375x812; Editorial, Lounge Light, Lounge Dark).
+  I looked at the uploading, checking, uploaded, over-limit and refusal shots in all three themes and both sizes (a sample of each state); the real
+  flow (limit line from the live server, a small zip through the single request, a zip with a .exe refused naming `levels/boss.exe`) ran against the stack.
+  The memory store cannot sign parts, so the resumable states are `page.route` fakes.
+- Web: vitest packageUpload (11) and activities (8), tsc, eslint, prettier, i18n audit clean.
+- Cleaned up: stack stopped, scratch DBs sr_p65_packup and sr_p65_packup_ui dropped, p65-packup-target and binary copies deleted.
+
+## Not done
+- The authz matrix and route matrix tests were not run locally (CI). The first-paint bundle check was not run: no first-paint file gained an import
+  (only `lib/uploadLedger.ts` grew by a few lines; it is already part of the sign-out path).
 
 ## Owner questions
 - The limit line says "Reviewed applications can upload more." because the contract's limits answer carries only the application's own limit, not the

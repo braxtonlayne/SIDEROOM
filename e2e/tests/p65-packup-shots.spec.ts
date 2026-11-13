@@ -190,7 +190,7 @@ test('the package upload: limit line, progress, checking, uploaded and the refus
 
       // 2. A zip the checker refuses: the entry is named.
       await picker().setInputFiles({ name: 'boss.zip', mimeType: 'application/zip', buffer: exe });
-      await expect(page.getByRole('alert')).toContainText('levels/boss.exe');
+      await expect(page.locator('p.dev-error')).toContainText('levels/boss.exe');
       await scroll();
       await shot('refused-checker');
 
@@ -205,7 +205,7 @@ test('the package upload: limit line, progress, checking, uploaded and the refus
         mimeType: 'application/zip',
         buffer: Buffer.alloc(10 * MIB, 1),
       });
-      await expect(page.getByRole('alert')).toContainText(
+      await expect(page.locator('p.dev-error')).toContainText(
         'The limit for this application is 8 MiB',
       );
       await scroll();
@@ -247,7 +247,7 @@ test('the package upload: limit line, progress, checking, uploaded and the refus
       await fakeUploads(page, big.length, { status: 'refused', release: release2 });
       await page.goto(tab);
       await picker().setInputFiles({ name: 'epic.zip', mimeType: 'application/zip', buffer: big });
-      await expect(page.getByRole('alert')).toContainText('levels/boss.exe: this file type', {
+      await expect(page.locator('p.dev-error')).toContainText('levels/boss.exe: this file type', {
         timeout: 20_000,
       });
       await scroll();
