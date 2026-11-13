@@ -1,16 +1,16 @@
 // Browser ledger for resumable uploads (D-271). One IndexedDB database, `sideroom-uploads`, with a store per
 // area: `uploads` for the Library upload manager (review/uploadManager.ts), `chat` for multipart chat
-// attachments (lounge/msg/upload.ts) and `mount` for uploads into a bucket mount (storage/browser/mountUploads.ts). A row keeps the File itself, so a reload continues without choosing it
+// attachments (lounge/msg/upload.ts) and `mount` for uploads into a bucket mount (storage/browser/mountUploads.ts) and `package` for Activity packages (developers/packageUpload.ts). A row keeps the File itself, so a reload continues without choosing it
 // again. Every call falls back quietly: a blocked or full database must never break an upload; `put` reports
 // whether the row was stored so the caller can use its fallback.
 
 import { apiFetch, getCsrf } from '../api/client';
 
 export const DB_NAME = 'sideroom-uploads';
-/** Version 2 added the `chat` store, version 3 the `mount` store; the rows of the older stores survive the upgrades. */
-export const DB_VERSION = 3;
-export type StoreName = 'uploads' | 'chat' | 'mount';
-const STORES: StoreName[] = ['uploads', 'chat', 'mount'];
+/** Version 2 added the `chat` store, version 3 the `mount` store, version 4 the `package` store; the rows of the older stores survive the upgrades. */
+export const DB_VERSION = 4;
+export type StoreName = 'uploads' | 'chat' | 'mount' | 'package';
+const STORES: StoreName[] = ['uploads', 'chat', 'mount', 'package'];
 
 export interface Ledger<T extends { id: string }> {
   /** Stores the row; false when it could not be stored (quota, blocked database, no IndexedDB). */
@@ -303,6 +303,21 @@ export async function clearUploadsOnSignOut(): Promise<void> {
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
     for (const r of await mounts.all()) await mounts.remove(r.id);
+    // Open Activity package uploads: the server aborts the parts (best effort), then the row goes.
+    const pkgs = defaultLedger<{ id: string; submissionId: string }>('package');
+    const pkgRows = await pkgs.all();
+    await Promise.race([
+      Promise.all(
+        pkgRows.map((r) =>
+          apiFetch(
+            `/applications/${encodeURIComponent(r.submissionId)}/activity/uploads/${encodeURIComponent(r.id)}`,
+            { method: 'DELETE', retries: 0 },
+          ).catch(() => undefined),
+        ),
+      ),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+    for (const r of pkgRows) await pkgs.remove(r.id);
   } catch {
     /* best effort */
   }
