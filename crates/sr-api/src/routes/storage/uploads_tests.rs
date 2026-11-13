@@ -1361,3 +1361,140 @@ async fn shelf_artwork_urls_carry_the_response_type() {
         Some("application/octet-stream")
     );
 }
+
+// ---- D-644: a mount whose stored test has a failed response_type row hands no presigned GET to a client
+
+const FAILED_RESPONSE_TYPE: &str = "{\"at\":\"t\",\"rows\":[{\"id\":\"head_bucket\",\"status\":\"pass\",\"message\":\"m\"},{\"id\":\"response_type\",\"status\":\"fail\",\"message\":\"This service ignores the response type SIDE ROOM asks for, so files from it could open as pages. It cannot be used.\"}]}";
+const FAILED_CORS_ONLY: &str = "{\"at\":\"t\",\"rows\":[{\"id\":\"cors\",\"status\":\"fail\",\"message\":\"m\"},{\"id\":\"response_type\",\"status\":\"pass\",\"message\":\"m\"}]}";
+
+/// Store a failed test on `id`; the mount turns `failing`, as after a real test.
+async fn store_test(e: &Env, id: i64, doc: &str) {
+    e.repo
+        .record_test(
+            id,
+            5,
+            doc.to_owned(),
+            Some(sr_storage::mounts::MountStatus::Failing),
+        )
+        .await
+        .unwrap();
+}
+
+async fn presign_get(e: &Env, mount: i64, key: &str) -> (StatusCode, Value) {
+    e.post(
+        OWNER,
+        &format!("/storage/mounts/{mount}/presign"),
+        json!({ "method": "GET", "key": key }),
+    )
+    .await
+}
+
+async fn shelf_url_call(e: &Env, path: &str) -> (StatusCode, Value) {
+    let hash = sr_storage::shelf::path_hash(path);
+    e.call(
+        Some(OWNER),
+        Method::GET,
+        &format!("/shelves/{}/objects/{hash}/url", e.user_mount),
+        None,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn the_storage_presign_get_is_refused_on_a_mount_with_a_failed_response_type_row() {
+    let e = env().await;
+    let endpoint = listing_s3(&["lib/song.mp3"]).await;
+    let m = mk_mount_at(
+        &e.repo,
+        912,
+        MountOwner::User(OWNER),
+        "lib",
+        true,
+        &endpoint,
+    )
+    .await
+    .id;
+    let (st, v) = presign_get(&e, m, "song.mp3").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    store_test(&e, m, FAILED_RESPONSE_TYPE).await;
+    let (st, v) = presign_get(&e, m, "song.mp3").await;
+    assert_eq!(st, StatusCode::CONFLICT, "{v}");
+    assert_eq!(code(&v), "MOUNT_NOT_SAFE");
+    assert!(v["url"].is_null());
+}
+
+#[tokio::test]
+async fn the_shelf_object_url_is_refused_on_a_mount_with_a_failed_response_type_row() {
+    let e = env().await;
+    let (st, v) = shelf_url_call(&e, "Docs/page.html").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    store_test(&e, e.user_mount, FAILED_RESPONSE_TYPE).await;
+    let (st, v) = shelf_url_call(&e, "Docs/page.html").await;
+    assert_eq!(st, StatusCode::CONFLICT, "{v}");
+    assert_eq!(code(&v), "MOUNT_NOT_SAFE");
+    assert!(v["url"].is_null());
+}
+
+#[tokio::test]
+async fn shelf_artwork_has_no_url_on_such_a_mount() {
+    let e = env().await;
+    store_test(&e, e.user_mount, FAILED_RESPONSE_TYPE).await;
+    let m = e.repo.by_id(e.user_mount).await.unwrap().unwrap();
+    let d = ScopeDeps {
+        mounts: e.repo.clone(),
+        store: Arc::new(Store(e.facts.clone())),
+        sealer: Arc::new(XorSealer),
+        guard: None,
+    };
+    let reach = vec![sr_storage::index::shelf::Reach {
+        access: sr_storage::scopes::Access {
+            scope: sr_storage::scopes::Scope::Own,
+            kinds: Share::default(),
+            games: false,
+            unrestricted: true,
+            others: false,
+            mount_id: m.id,
+        },
+        mount: m.clone(),
+    }];
+    let mut signer = super::shelves::Signer::new(&d, &reach);
+    assert_eq!(signer.url(m.id, "Films/poster.png").await, None);
+}
+
+#[tokio::test]
+async fn an_upload_still_starts_on_such_a_mount() {
+    let e = env().await;
+    store_test(&e, e.user_mount, FAILED_RESPONSE_TYPE).await;
+    let (st, v) = e
+        .post(
+            OWNER,
+            &format!("/storage/mounts/{}/uploads", e.user_mount),
+            begin_body("a.mp3", MIB),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{v}");
+}
+
+#[tokio::test]
+async fn a_mount_failing_for_another_reason_still_presigns() {
+    let e = env().await;
+    let endpoint = listing_s3(&["lib/song.mp3"]).await;
+    let m = mk_mount_at(
+        &e.repo,
+        913,
+        MountOwner::User(OWNER),
+        "lib",
+        true,
+        &endpoint,
+    )
+    .await
+    .id;
+    store_test(&e, m, FAILED_CORS_ONLY).await;
+    let stored = e.repo.by_id(m).await.unwrap().unwrap();
+    assert_eq!(stored.status, sr_storage::mounts::MountStatus::Failing);
+    let (st, v) = presign_get(&e, m, "song.mp3").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    store_test(&e, e.user_mount, FAILED_CORS_ONLY).await;
+    let (st, v) = shelf_url_call(&e, "Docs/page.html").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+}

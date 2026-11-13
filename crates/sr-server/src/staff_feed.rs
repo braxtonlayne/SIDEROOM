@@ -1503,15 +1503,104 @@ fn escape(s: &str) -> String {
 
 /// Start the consumer: every platform event that concerns staff becomes a card (and maybe an
 /// email). Returns the task handle; the task ends when the bus closes.
+///
+/// Lag-aware (SEC-AUD-180): when the bus drops events the feed says so once (see [`pump`]).
 pub fn spawn(feed: Arc<StaffFeed>) -> tokio::task::JoinHandle<()> {
-    let mut events = feed.bus.subscribe(Topic::Platform);
-    tokio::spawn(async move {
-        while let Some(ev) = events.next().await {
-            let feed = feed.clone();
-            // One task per event: posting and mailing must not hold up the next alert.
-            tokio::spawn(async move { feed.handle(ev).await });
+    let events = feed.bus.subscribe_lagging(Topic::Platform);
+    tokio::spawn(pump(events, feed))
+}
+
+/// At most one "alerts may have been missed" card per this window (SEC-AUD-180).
+const GAP_NOTICE_WINDOW: Duration = Duration::from_secs(10 * 60);
+
+/// The text of the card posted when the event queue overflowed and the feed cannot tell what was lost.
+pub const GAP_NOTICE_TEXT: &str =
+    "Some staff alerts may have been missed (the event queue was full). Check the queues in Admin.";
+
+/// The card that says the feed fell behind. Alerts and feed events are stored only when the consumer
+/// turns them into cards, so a lost event leaves no row to re-read: this notice is all the feed can do.
+pub fn gap_card(base_url: &str) -> Card {
+    Card {
+        content: String::new(),
+        embed: Some(Embed {
+            title: Some("Staff alerts may have been missed".into()),
+            kind: Some("rich".into()),
+            description: Some(GAP_NOTICE_TEXT.into()),
+            color: AMBER,
+            ..Embed::default()
+        }),
+        buttons: vec![link_button(
+            "Open in Admin",
+            format!("{base_url}/admin/system"),
+        )],
+    }
+}
+
+/// Lets the "may have been missed" card out at most once per [`GAP_NOTICE_WINDOW`].
+#[derive(Default)]
+pub struct GapThrottle(Mutex<Option<Instant>>);
+
+impl GapThrottle {
+    /// `true` (and records `now`) when a notice may be posted at `now`.
+    pub fn allow_at(&self, now: Instant) -> bool {
+        let mut last = self.0.lock().unwrap_or_else(|p| p.into_inner());
+        match *last {
+            Some(at) if now.saturating_duration_since(at) < GAP_NOTICE_WINDOW => false,
+            _ => {
+                *last = Some(now);
+                true
+            }
         }
-    })
+    }
+}
+
+/// What the consumer loop drives: one event, or the news that events were lost.
+#[async_trait]
+pub trait FeedSink: Send + Sync + 'static {
+    /// Turn one platform event into its card.
+    async fn event(&self, ev: DomainEvent);
+    /// The queue overflowed and `missed` events are gone; say so in the staff channel.
+    async fn gap(&self, missed: u64);
+}
+
+#[async_trait]
+impl FeedSink for StaffFeed {
+    async fn event(&self, ev: DomainEvent) {
+        self.handle(ev).await;
+    }
+
+    async fn gap(&self, _missed: u64) {
+        self.voice
+            .post("alerts", gap_card(self.voice.base_url()))
+            .await;
+    }
+}
+
+/// Drive `sink` from a lag-aware platform stream. A gap is logged with its count every time and
+/// posted as one card at most once per [`GAP_NOTICE_WINDOW`].
+pub async fn pump<S: FeedSink>(
+    mut events: futures::stream::BoxStream<'static, Result<DomainEvent, u64>>,
+    sink: Arc<S>,
+) {
+    let throttle = GapThrottle::default();
+    while let Some(item) = events.next().await {
+        let sink = sink.clone();
+        match item {
+            // One task per event: posting and mailing must not hold up the next alert.
+            Ok(ev) => {
+                tokio::spawn(async move { sink.event(ev).await });
+            }
+            Err(missed) => {
+                tracing::warn!(
+                    missed,
+                    "staff feed lagged: platform events were lost and cannot be re-read"
+                );
+                if throttle.allow_at(Instant::now()) {
+                    tokio::spawn(async move { sink.gap(missed).await });
+                }
+            }
+        }
+    }
 }
 
 /// Warnings and notices from a moderation case reach the person as a system DM (MOD-CASE-010).
@@ -1545,6 +1634,73 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    /// Records what the loop hands it.
+    #[derive(Default)]
+    struct Recorder {
+        events: Mutex<Vec<DomainEvent>>,
+        gaps: Mutex<Vec<u64>>,
+    }
+
+    #[async_trait]
+    impl FeedSink for Recorder {
+        async fn event(&self, ev: DomainEvent) {
+            self.events.lock().unwrap().push(ev);
+        }
+        async fn gap(&self, missed: u64) {
+            self.gaps.lock().unwrap().push(missed);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_lagged_staff_feed_recovers_or_says_so() {
+        use sr_events::InProcessBus;
+        let bus = InProcessBus::with_capacity(2);
+        let events = bus.subscribe_lagging(Topic::Platform);
+        for n in 1..=5 {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::GuildDeleted {
+                    guild: sr_core::GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        let sink = Arc::new(Recorder::default());
+        let task = tokio::spawn(pump(events, sink.clone()));
+        for _ in 0..100 {
+            if !sink.gaps.lock().unwrap().is_empty() && sink.events.lock().unwrap().len() == 2 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        task.abort();
+        // The feed was told how many were lost (it cannot re-read them: nothing is stored before the
+        // consumer turns an event into a card), and it still handled the events that survived.
+        assert_eq!(*sink.gaps.lock().unwrap(), vec![3]);
+        assert_eq!(sink.events.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn the_missed_alerts_card_is_posted_at_most_once_per_ten_minutes() {
+        let t = GapThrottle::default();
+        let start = Instant::now();
+        assert!(t.allow_at(start));
+        assert!(!t.allow_at(start + Duration::from_secs(1)));
+        assert!(!t.allow_at(start + Duration::from_secs(9 * 60 + 59)));
+        assert!(t.allow_at(start + Duration::from_secs(10 * 60)));
+        assert!(!t.allow_at(start + Duration::from_secs(11 * 60)));
+        let c = gap_card("https://sr.test");
+        assert_eq!(
+            c.embed.unwrap().description.as_deref(),
+            Some(GAP_NOTICE_TEXT)
+        );
+        assert_eq!(
+            c.buttons[0].url.as_deref(),
+            Some("https://sr.test/admin/system")
+        );
     }
 
     #[test]

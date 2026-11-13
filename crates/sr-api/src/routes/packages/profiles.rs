@@ -282,6 +282,8 @@ pub async fn showcase_url(
     if mount.owner != sr_storage::mounts::MountOwner::User(obj.owner_id)
         || mount.status != sr_storage::mounts::MountStatus::Active
         || mount.cors_ok_at.is_none()
+        // D-644: a mount that cannot keep a link from opening as a page shows no showcase file.
+        || mount.response_type_failed()
     {
         return Err(nf());
     }

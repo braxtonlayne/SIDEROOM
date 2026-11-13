@@ -32,6 +32,20 @@ pub(super) async fn redirect(deps: &CdnDeps, mount_id: i64, key: &str, left_secs
     let Some(mounts) = deps.mounts.as_ref() else {
         return plain(StatusCode::NOT_FOUND, "not found");
     };
+    // D-644: a mount whose provider ignores the response overrides hands out no link.
+    match mounts.response_type_failed(mount_id).await {
+        Ok(false) => {}
+        Ok(true) => {
+            return plain(
+                StatusCode::CONFLICT,
+                "this storage cannot keep a link from opening as a page",
+            );
+        }
+        Err(e) => {
+            tracing::warn!(mount = mount_id, error = %e, "cdn mount lookup failed");
+            return plain(StatusCode::BAD_GATEWAY, "storage unavailable");
+        }
+    }
     let storage = match mounts.for_serving(mount_id).await {
         Ok(s) => s,
         Err(StorageError::NotFound(_)) => return plain(StatusCode::NOT_FOUND, "not found"),

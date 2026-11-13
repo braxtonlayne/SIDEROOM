@@ -133,11 +133,25 @@ pub fn spawn_subscriber(
     features: FeatureService,
     bus: Arc<dyn EventBus>,
 ) -> tokio::task::JoinHandle<()> {
-    let mut stream = bus.subscribe(Topic::Platform);
+    // Lag-aware (SEC-AUD-180): a gap on the bus may have swallowed the very `FeatureSettingsChanged` that
+    // says the policy changed, so a gap re-reads the policy once, exactly as a matching event does.
+    let mut stream = bus.subscribe_lagging(Topic::Platform);
     tokio::spawn(async move {
-        while let Some(ev) = stream.next().await {
-            if matches!(&ev, DomainEvent::FeatureSettingsChanged { feature_id, .. } if feature_id == INTEGRATIONS_ID)
-            {
+        while let Some(item) = stream.next().await {
+            let reread = match &item {
+                Ok(DomainEvent::FeatureSettingsChanged { feature_id, .. }) => {
+                    feature_id == INTEGRATIONS_ID
+                }
+                Ok(_) => false,
+                Err(missed) => {
+                    tracing::warn!(
+                        missed,
+                        "integration policy listener lagged; re-reading the policy"
+                    );
+                    true
+                }
+            };
+            if reread {
                 crate::catch_panic::step("integration policy", refresh(&live, &base, &features))
                     .await;
             }
@@ -234,6 +248,60 @@ mod tests {
         }
         assert_eq!(live.hosts.load().deny_hosts, ["evil.example"]);
         assert_eq!(live.gif.load().country, "FR");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_lagged_policy_subscriber_rereads_the_policy() {
+        use serde_json::json;
+        use sr_events::InProcessBus;
+        use sr_features::{FeatureRegistry, InMemorySettingsStore};
+        let mut registry = FeatureRegistry::new();
+        registry
+            .register(sr_features::IntegrationsPolicyFeature)
+            .unwrap();
+        // The service has no bus: saving publishes nothing, so the only way the live policy can learn of
+        // the change is the gap the subscriber sees on a bus that overflowed.
+        let features = FeatureService::new(
+            Arc::new(registry),
+            Arc::new(InMemorySettingsStore::new()),
+            None,
+        );
+        let bus: Arc<dyn EventBus> = Arc::new(InProcessBus::with_capacity(2));
+        let base = Config::default();
+        let live = LivePolicy::new(IntegrationPolicy::resolve(
+            &base,
+            &IntegrationsPolicy::default(),
+        ));
+        let task = spawn_subscriber(live.clone(), base, features.clone(), bus.clone());
+        let saved = json!({"unfurl": {"deny_hosts": ["evil.example"]}});
+        features
+            .set_settings(
+                INTEGRATIONS_ID,
+                &ScopeRef::Platform,
+                saved.as_object().unwrap().clone(),
+            )
+            .await
+            .unwrap();
+        // Five events into a buffer of two before the subscriber task has run: it sees a gap, and the
+        // events it can still read are not the settings event.
+        for n in 1..=5 {
+            bus.publish(
+                Topic::Platform,
+                DomainEvent::GuildDeleted {
+                    guild: sr_events::GuildId::new(n),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        for _ in 0..100 {
+            if live.hosts.load().deny_hosts == ["evil.example"] {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        assert_eq!(live.hosts.load().deny_hosts, ["evil.example"]);
         task.abort();
     }
 

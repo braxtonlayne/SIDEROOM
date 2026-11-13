@@ -128,6 +128,16 @@ pub(crate) fn cors_not_ready() -> MsgError {
     )
 }
 
+/// 409 `MOUNT_NOT_SAFE` (D-644): the mount's connection test says its provider ignores the response type SIDE ROOM
+/// asks for, so a link to a file in it could open as a page. It hands out no link to a client; the owner sees why in
+/// Settings, and a passing test (or the daily recheck) lifts it.
+pub(crate) fn mount_not_safe() -> MsgError {
+    mounts::conflict(
+        "MOUNT_NOT_SAFE",
+        "This storage cannot keep a link from opening as a page, so it hands out no links. Its owner can see why in Settings.",
+    )
+}
+
 /// All storage read routes (relative to the API version prefix).
 pub fn router() -> Router<AppState> {
     Router::new()

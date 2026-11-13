@@ -439,7 +439,7 @@ pub async fn shelf_catalog(
         (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
-        (status = 409, body = ErrorBody, description = "CORS_NOT_READY"),
+        (status = 409, body = ErrorBody, description = "CORS_NOT_READY, or MOUNT_NOT_SAFE when the mount's connection test says it ignores the response type (D-644)"),
     ),
     security(("session" = []))
 )]
@@ -484,6 +484,10 @@ pub(crate) async fn presign_object_url(
     mount: &sr_storage::mounts::Mount,
     path: &str,
 ) -> MsgResult<ObjectUrl> {
+    // D-644: every per-object link (the shelf URL and the profile showcase) is refused here.
+    if mount.response_type_failed() {
+        return Err(super::mount_not_safe());
+    }
     let left = session_left(state, headers).await;
     let Some(secs) = presign_ttl_secs(URL_TTL_SECS, URL_TTL_SECS, left) else {
         return Err(ErrorCode::Unauthorized.into());
