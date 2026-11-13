@@ -356,6 +356,37 @@ async fn put_row(
     }
 }
 
+/// The sentence of a `response_type` row whose service answered but ignored the overrides.
+const RESPONSE_IGNORED: &str = "This service ignores the response type SIDE ROOM asks for, so files from it could open as pages. It cannot be used.";
+
+/// What [`check_response_type`] found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResponseCheck {
+    /// The service answered with the type and disposition that were asked for.
+    Honoured(ProbeRow),
+    /// The service answered and ignored them (a failed row).
+    Ignored(ProbeRow),
+    /// The check could not be completed (network, permissions, no time): learn nothing.
+    Unfinished,
+}
+
+/// Only the `response_type` row of the test (D-645): write the probe object, read it back, ask for the
+/// overrides and delete it, as [`run`] does, with its own `budget`. A write that is refused, a read that fails,
+/// a timeout or a refused or unanswered override request is `Unfinished`, not a verdict.
+pub async fn check_response_type(admin: &S3Admin, prefix: &str, budget: Duration) -> ResponseCheck {
+    let clock = Clock {
+        deadline: Instant::now() + budget,
+    };
+    let key = probe_key(prefix);
+    let mut response = None;
+    let _ = put_row(admin, &clock, &key, &mut response).await;
+    match response {
+        Some(r) if r.status == ProbeStatus::Pass => ResponseCheck::Honoured(r),
+        Some(r) if r.message == RESPONSE_IGNORED => ResponseCheck::Ignored(r),
+        _ => ResponseCheck::Unfinished,
+    }
+}
+
 /// The asked-for response type and disposition of the `response_type` row.
 const ASK_TYPE: &str = "image/png";
 const ASK_DISPOSITION: &str = "attachment; filename=\"probe\"";
@@ -390,11 +421,7 @@ async fn response_row(admin: &S3Admin, clock: &Clock, key: &str) -> ProbeRow {
                     "The service answers with the response type SIDE ROOM asks for.",
                 )
             } else {
-                row(
-                    "response_type",
-                    Fail,
-                    "This service ignores the response type SIDE ROOM asks for, so files from it could open as pages. It cannot be used.",
-                )
+                row("response_type", Fail, RESPONSE_IGNORED)
             }
         }
         Ok(r) => row(
