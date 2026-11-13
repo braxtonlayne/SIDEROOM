@@ -4,6 +4,8 @@ Phases 4–6 · Crate `sr-review` · Decisions: D-081–D-083, D-062–D-064, D-
 
 `sr-review` carries Cinema and Library content; application versions, Activity bundles and package versions keep their review state on the versioned object (D-258) and share the Review Queues page, the staff access log and the review conduct (no self-review, a note on rejection, a logged decider, a `#review-queue` card). This spec defines the shared mechanics. Section specs define the per-kind metadata.
 
+**Switches (The Study reframe, D-400, D-404).** The member submission API (`/submissions`, `/submissions/*`, `/library/submissions/*`), the staff queue `/admin/review/queue` and `/admin/ingest-sources*` answer 404 while the platform switch `platform.ingest_queues` is off, and the requests board (`/requests*`) while `platform.requests_board` is off; both are off by default (`crates/sr-api/src/module_gate.rs:134-158`, `crates/sr-server/tests/feature_registry.rs:66`). Metadata lookup also needs `platform.external_metadata` (`crates/sr-server/src/lookup_wiring.rs:76`). The per-submission reviewer routes under `/admin/review/submissions/{id}` are not in that gate (only the queue list is).
+
 ## 1. Roles
 | Actor | Can |
 |---|---|
@@ -29,7 +31,7 @@ withdrawn ◄── submitter (any time before approved)                 └─r
 - **Batch:** drop a whole season or series folder. The naming convention parser (see ingest-naming-conventions) proposes structure, which the user reviews in a tree editor before submitting.
 - **Watched folders (staff):** `sr-server` polls configured paths (on the server or a mounted Storage Box). New files create draft submissions owned by a configured staff account.
 - **Storage import (staff):** point at an S3 bucket/prefix or local path, preview the detected structure, then import.
-- Rate limits for regular members (configurable): e.g. 50 GB/day and 5 open submissions. Staff are unlimited (D-082).
+- Rate limits for regular members (configurable, platform settings `submissions.daily_upload_bytes` and `submissions.max_open_per_member`, `crates/sr-server/src/review_jobs.rs`): 50 GB/day and 5 open submissions by default. Staff are unlimited (D-082).
 
 ## 4. Metadata editor (submitter and reviewer)
 Two-pane layout: file tree (left) and form (right). Kind-specific fields (see the cinema and library specs). Common features:
@@ -50,19 +52,19 @@ Two-pane layout: file tree (left) and form (right). Kind-specific fields (see th
 On publish, `contribution_credits` rows are inserted per **new** movie / episode / chapter, credited to the submitter. Replacements (same item id) and items merged as duplicates insert nothing. Unpublishing for cause revokes the credit.
 
 ## 7. Requests (non-bounty)
-"Request a title" (Cinema) and "Request a series" (Library): title, year/author, link, note, and upvotes from other members. Requests appear in a public Requests board inside each section. Fulfilling a request through a submission links them and notifies requesters. (Bounties are future-only, see future-bounties.)
+"Request a title" (Cinema) and "Request a series" (Library): title, year/author, link, note, and upvotes from other members. Requests appear in a public Requests board inside each section. Fulfilling a request through a submission links them and notifies requesters. A member can also claim an open request ("I'll upload this", `PUT|DELETE /requests/{id}/claim`, one claimant at a time). The one board is the Library's at `/library/requests` (`apps/web/src/library/routes.tsx:123`); the Cinema's Requests menu entry opens it, because the Cinema has no board of its own (`apps/web/src/cinema/Shell.tsx:122`). It is shown only while `platform.requests_board` is on. (Bounties are future-only, see future-bounties.)
 
 ## 8. Acceptance criteria
-- [ ] A 40 GB season upload survives a browser refresh and resumes.
-- [ ] Reviewers can approve a subset of items and the rest return to the submitter with notes.
-- [ ] A direct publisher's upload is published without entering the queue, and appears in the audit log.
-- [ ] Re-uploading an existing episode as a replacement grants no contribution credit.
-- [ ] A rejected submission's files are purged from storage after 14 days (job test).
+- [ ] A 40 GB season upload survives a browser refresh and resumes. _(built: multipart sessions `crates/sr-library/src/multipart.rs`, the IndexedDB ledger `apps/web/src/review/uploadManager.ts`, tested in `apps/web/src/review/__tests__/uploadManager.test.ts`; left: no recorded run of a 40 GB upload against a real bucket)_
+- [ ] Reviewers can approve a subset of items and the rest return to the submitter with notes. _(built: per-item decisions, the approved items publish and a rejected item keeps the reviewer's note, `crates/sr-review/src/tests.rs:753`; left: a rejected item is not reopened for the submitter, it stays rejected on a published submission, unlike the "changes_requested" branch drawn in section 2)_
+- [x] A direct publisher's upload is published without entering the queue, and appears in the audit log. _(`ReviewService::publish_now`, `crates/sr-review/src/service.rs:494`; audited as `review.publish_now`, `crates/sr-api/src/routes/review/reviewer.rs:323`; test `crates/sr-review/src/tests.rs:1308`)_
+- [x] Re-uploading an existing episode as a replacement grants no contribution credit. _(`crates/sr-review/src/tests.rs:1285`; credits table `crates/sr-db/migrations/0700_review_credits_quota.sql`)_
+- [x] A rejected submission's files are purged from storage after 14 days (job test). _(`PURGE_DAYS = 14`, `crates/sr-review/src/service.rs:49`; job `review.housekeeping` registered at `crates/sr-server/src/app.rs:2017`; tests `crates/sr-review/src/tests.rs:1489` and `crates/sr-db/tests/cinema_submissions.rs:462`)_
 
 ## 9. Implementation notes (phase 5 foundation)
 What `sr-review` ships today, so the other kinds can plug in. Status per inventory item is in `docs/inventory/12-review.md`.
 
-**Tables (migration 0290).** `submissions` (kind, submitter, state, title, summary, `ref_id`, payload, reviewer lease, decision), `submission_items` (per chapter/episode state: `pending`, `approved`, `rejected`, `published`), `submission_events` (timeline: state changes, public and internal notes, with the reason of each decision), `content_requests` and `content_request_votes`. `contribution_credits` is not created yet.
+**Tables (migration 0290).** `submissions` (kind, submitter, state, title, summary, `ref_id`, payload, reviewer lease, decision), `submission_items` (per chapter/episode state: `pending`, `approved`, `rejected`, `published`), `submission_events` (timeline: state changes, public and internal notes, with the reason of each decision), `content_requests` and `content_request_votes`. `contribution_credits` came with migration 0700 (`0700_review_credits_quota.sql`).
 
 **States.** `draft`, `submitted`, `in_review`, `changes_requested`, `approved`, `rejected`, `published`, `withdrawn`. (`processing` is not a state: Library file conversion runs in the existing `library.ingest` job while the submission is still a draft, and a submission cannot be submitted until its chapters have pages.) The transition table is `sr_review::machine`; every change goes through it and through a guarded `UPDATE` (state set and lease in the `WHERE`).
 
@@ -70,7 +72,7 @@ What `sr-review` ships today, so the other kinds can plug in. Status per invento
 |---|---|---|---|
 | submit | draft | submitted | submitter (kind checks must pass) |
 | resubmit | changes_requested | submitted | submitter |
-| publish now | draft, changes_requested | published | submitter holding the kind's publish permission |
+| publish now | draft, changes_requested (approved: a retry) | approved, then published | submitter holding the kind's publish permission. The submission is claimed first (D-618, SEC-AUD-121), so a racing withdraw wins completely or gets a Conflict; a failed publish leaves it approved and the submitter retries. A retry of a submission a reviewer approved publishes only what the reviewer approved (D-624) |
 | withdraw | draft, submitted, in_review, changes_requested | withdrawn | submitter |
 | claim | submitted, in_review (free or expired lease) | in_review | reviewer of the kind, never the submitter |
 | release | in_review | submitted | the claim holder |
@@ -82,11 +84,11 @@ What `sr-review` ships today, so the other kinds can plug in. Status per invento
 
 **Kinds.** `sr_review::SubmissionKind`: `create` (validate the payload, create the draft content), `items`, `validate` (problems block submitting), `preview` (what reviewers see; also stored with every submit so a resubmit can be diffed), `publish` (idempotent). Library kinds live in `sr-library::submissions`: `library.series` (a new series: payload is the series fields plus optional `language`, `edition_label`) and `library.items` (new chapters for a published series: payload `{ series_id, edition_id? }`). Members build the draft with `LibraryDraftOps`: the same catalog writes and the same presigned-PUT upload and `library.ingest` job as publishers, scoped to the submission's own series and only while it is a draft or has changes requested. A member cannot set a cover or a storage key; a reviewer or publisher sets the cover afterwards. Approving publishes the series (new series) and every approved chapter through the Library service; if that fails the submission stays `approved`, a reviewer-only `publish_failed` note is added and `publish` retries.
 
-**REST.** Member: `GET|POST /submissions`, `GET|PATCH /submissions/{id}`, `/preview`, `/submit`, `/withdraw`, `/comments`, `GET /submissions/kinds`; Library drafts under `/submissions/{id}/library/*` (series, chapters, pages, uploads). Reviewer (staff session): `GET /admin/review/queue`, `GET /admin/review/submissions/{id}` (with internal notes), `/preview`, `/claim`, `/release`, `/comments`, `PUT .../items/{item}`, `/request-changes`, `/reject`, `/approve`, `/publish`, `/publish-now`. Queue filters: `kind`, `state`, `claimed=mine|unclaimed`, `submitter`, `q`, `min_age_hours`, `sort=submitted|updated|title`, `order`, `limit`, `offset`. Requests: `GET|POST /requests`, `PUT|DELETE /requests/{id}/vote`, `POST /requests/{id}/fulfil`, `POST /admin/review/requests/{id}/decline`.
+**REST.** Member: `GET|POST /submissions`, `GET|PATCH /submissions/{id}`, `/preview`, `/submit`, `/withdraw`, `/comments`, `GET /submissions/kinds`, `GET /submissions/quota`, `POST /submissions/naming/parse` (the naming tester), `GET /submissions/{id}/credits`; Cinema drafts under `/submissions/{id}/cinema/*` (draft, title, episodes, files, uploads); Library drafts under `/submissions/{id}/library/*` (series, chapters, pages, uploads). Reviewer (staff session): `GET /admin/review/queue`, `GET /admin/review/submissions/{id}` (with internal notes), `/preview`, `/claim`, `/release`, `/comments`, `PUT .../items/{item}`, `/request-changes`, `/reject`, `/approve`, `/publish`, `/publish-now`, `/credits`, `/revoke-credits`, `/duplicates`, `/media`. Queue filters: `kind`, `state`, `claimed=mine|unclaimed`, `submitter`, `q`, `min_age_hours`, `sort=submitted|updated|title`, `order`, `limit`, `offset`. Requests: `GET|POST /requests`, `PUT|DELETE /requests/{id}/vote`, `PUT|DELETE /requests/{id}/claim`, `POST /requests/{id}/fulfil`, `POST /admin/review/requests/{id}/decline`.
 
-**Audit.** Every reviewer action (`review.claim`, `review.release`, `review.item`, `review.request_changes`, `review.reject`, `review.approve`, `review.publish`, `review.publish_now`, `review.request.decline`) is appended to the staff access log with the submission as target and the kind and reason as detail. The timeline (`submission_events`) carries the same decisions for the submitter.
+**Audit.** Every reviewer action (`review.claim`, `review.release`, `review.item`, `review.request_changes`, `review.reject`, `review.approve`, `review.publish`, `review.publish_now`, `review.request.decline`, and the credit and duplicate actions) is appended to the staff access log with the submission as target and the kind and reason as detail. The timeline (`submission_events`) carries the same decisions for the submitter.
 
-**Limits.** A member may have 5 open submissions (staff are exempt) and 10 open requests. Bytes per day (REV-CORE-008) is enforced since phase 11 (50 GB per UTC day, `GET /submissions/quota`, staff exempt); each upload is also bounded by `library.ingest.max_upload_mb`.
+**Limits.** A member may have 5 open submissions (staff are exempt; the platform setting `submissions.max_open_per_member`) and 10 open requests (`MAX_OPEN_REQUESTS`, `crates/sr-review/src/service.rs:26`). Bytes per day (REV-CORE-008) is enforced since phase 11 (50 GB per UTC day by default, the setting `submissions.daily_upload_bytes`, `GET /submissions/quota`, staff exempt); each upload is also bounded by `library.ingest.max_upload_mb`.
 
 **Not built at phase 5, built since** (see section 10 and the 12-review inventory): the Cinema kind (`sr-cinema` `CinemaKind`) and package approval from the `#review-queue` card; contribution credits (section 6, CIN-SOC-003); the system-user DM on decisions and the Staff Server `#review-queue` card (REV-CORE-007); the purge and stale-draft jobs (`review.housekeeping`, REV-CORE-009); resumable multipart uploads, duplicate detection and metadata lookup (phase 13); the requests board UI (`/library/requests`, REV-REQ-002).
 
