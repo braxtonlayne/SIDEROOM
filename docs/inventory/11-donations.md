@@ -3,7 +3,7 @@
 Phase 3. Spec: doc 08, ADR-0006.
 
 ## DON-PAY — Payments engine
-- [x] **DON-PAY-001** [DB] wallets, invoices, entitlements, server_donation_pool, donor_preferences
+- [x] **DON-PAY-001** [DB] payment_wallets, payment_invoices, entitlement_grants (the server pool is its `server_pool` kind), donor_preferences
 - [x] **DON-PAY-002** [BE] `PaymentProvider` trait (create invoice, poll/subscribe status) for BTC now, Lightning/Monero later
 - [x] **DON-PAY-003** [BE] Descriptor/xpub validation + watch-only BDK wallet (persisted derivation index, gap limit handling) *(phase 8: own BIP-32/84 derivation on secp256k1, no BDK, see the spec)*
 - [x] **DON-PAY-004** [BE] Address-per-invoice derivation, BIP21 URI builder
