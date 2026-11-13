@@ -234,22 +234,56 @@ export function threadsOf(
 
 type Obj = Record<string, unknown>;
 
+/**
+ * The thread ids the newest GUILD_CREATE / THREAD_LIST_SYNC of each guild named. A resync (D-646) ends with the
+ * marker `SR_RESYNC`; the active threads of that guild that those two did not name are gone (deleted, or no longer
+ * visible), and upserting alone would keep them.
+ */
+const named = new Map<string, Set<string>>();
+
 /** Applies one gateway dispatch to the thread store. */
 export function applyThreadDispatch(event: string, data: unknown): void {
   const d = (data ?? {}) as Obj;
   const st = useThreads.getState();
   switch (event) {
     case 'GUILD_CREATE':
+      named.set(
+        String(d.id),
+        new Set(Array.isArray(d.threads) ? (d.threads as WireThread[]).map((t) => t.id) : []),
+      );
       if (Array.isArray(d.threads)) st.upsert(d.threads as WireThread[]);
       return;
     case 'THREAD_LIST_SYNC':
       if (Array.isArray(d.threads)) {
+        const gid = String(d.guild_id);
+        const seen = named.get(gid) ?? new Set<string>();
+        for (const t of d.threads as WireThread[]) seen.add(t.id);
+        named.set(gid, seen);
         const joined = new Set(
           Array.isArray(d.members) ? (d.members as { id: string }[]).map((m) => m.id) : [],
         );
         st.upsert(d.threads as WireThread[], { joinedIds: joined });
       }
       return;
+    case 'SR_RESYNC': {
+      if (d.scope !== 'guild') return;
+      const gid = String(d.guild_id);
+      const keep = named.get(gid);
+      named.delete(gid);
+      if (!keep) return;
+      useThreads.setState((s) => {
+        const byId = { ...s.byId };
+        let changed = false;
+        for (const t of Object.values(s.byId)) {
+          if (t.guildId === gid && !t.archived && !keep.has(t.id)) {
+            delete byId[t.id];
+            changed = true;
+          }
+        }
+        return changed ? { byId } : s;
+      });
+      return;
+    }
     case 'THREAD_CREATE':
     case 'THREAD_UPDATE':
       if (typeof d.id === 'string') st.upsert([d as unknown as WireThread]);

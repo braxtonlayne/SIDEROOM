@@ -57,8 +57,11 @@ export function useActiveAnnouncements(pollMs: number = ANNOUNCEMENT_POLL_MS, en
         .catch(() => undefined);
     void load();
     const timer = setInterval(() => void load(), pollMs);
-    const off = onDispatch((event) => {
+    const off = onDispatch((event, data) => {
       if (event === 'SR_ANNOUNCEMENT_UPDATE') void load();
+      // The gateway lost some platform broadcasts (event-bus lag, D-646): read the notices again.
+      else if (event === 'SR_RESYNC' && (data as { scope?: unknown } | null)?.scope === 'platform')
+        void load();
     });
     return () => {
       live = false;

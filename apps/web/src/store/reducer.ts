@@ -154,17 +154,31 @@ function putChannel(s: StoreData, c: Channel): Partial<StoreData> {
   };
 }
 
-function putMembers(s: StoreData, guildId: string, list: Obj[]): Partial<StoreData> {
+/**
+ * Merge `list` into the guild's members. With `replace` the list is the whole roster (a resync refetched it):
+ * members who are not in it any more are dropped, the others are merged as usual.
+ */
+function putMembers(
+  s: StoreData,
+  guildId: string,
+  list: Obj[],
+  replace = false,
+): Partial<StoreData> {
   const users = addUsers(
     s.users,
     list.map((raw) => raw.user),
   );
   const members = { ...s.members };
   const ids = new Set(s.memberIdsByGuild[guildId] ?? []);
+  if (replace) {
+    for (const uid of ids) delete members[memberKey(guildId, uid)];
+    ids.clear();
+  }
   for (const raw of list) {
     const m = toMember(guildId, raw);
     if (!m) continue;
-    members[memberKey(guildId, m.user_id)] = { ...members[memberKey(guildId, m.user_id)], ...m };
+    const key = memberKey(guildId, m.user_id);
+    members[key] = { ...(replace ? s.members[key] : members[key]), ...m };
     ids.add(m.user_id);
   }
   return { users, members, memberIdsByGuild: { ...s.memberIdsByGuild, [guildId]: [...ids] } };
@@ -347,6 +361,66 @@ export function reduceGuildPeople(
   return out;
 }
 
+/**
+ * The cached history stays on screen (an empty channel until the next fetch is worse) but is marked stale, so the
+ * newest page is fetched again and replaces it (K-22). Optimistic sends are kept as they are. READY does it for
+ * every window; a resync (D-646) for the windows of `only`, leaving the others and the message cache alone.
+ */
+function staleWindows(
+  s: StoreData,
+  only?: ReadonlySet<string>,
+): { windows: Record<string, MessageWindow>; messages: Record<string, Message> } {
+  const windows: Record<string, MessageWindow> = only ? { ...s.windows } : {};
+  const messages: Record<string, Message> = only ? s.messages : {};
+  for (const [cid, w] of Object.entries(s.windows)) {
+    if (only && !only.has(cid)) continue;
+    if (!w.ids.length && !w.pending.length) continue;
+    windows[cid] = w.ids.length
+      ? { ...w, loading: false, error: null, stale: true }
+      : { ...emptyWindow(), pending: w.pending };
+    if (!only) {
+      for (const id of [...w.ids, ...w.pending]) {
+        const m = s.messages[id];
+        if (m) messages[id] = m;
+      }
+    }
+  }
+  return { windows, messages };
+}
+
+/** Everything of a guild leaves the store (GUILD_DELETE, and a READY that no longer lists it). */
+function dropGuild(s: StoreData, id: string): Partial<StoreData> {
+  const guilds = { ...s.guilds };
+  delete guilds[id];
+  const channels = { ...s.channels };
+  const windows = { ...s.windows };
+  for (const cid of s.channelIdsByGuild[id] ?? []) {
+    delete channels[cid];
+    delete windows[cid];
+  }
+  const roles = { ...s.roles };
+  for (const rid of s.roleIdsByGuild[id] ?? []) delete roles[rid];
+  const members = { ...s.members };
+  for (const uid of s.memberIdsByGuild[id] ?? []) delete members[memberKey(id, uid)];
+  const without = <T>(r: Record<string, T>) => {
+    const o = { ...r };
+    delete o[id];
+    return o;
+  };
+  return {
+    guilds,
+    guildOrder: s.guildOrder.filter((g) => g !== id),
+    channels,
+    windows,
+    roles,
+    members,
+    channelIdsByGuild: without(s.channelIdsByGuild),
+    roleIdsByGuild: without(s.roleIdsByGuild),
+    memberIdsByGuild: without(s.memberIdsByGuild),
+    voiceStates: without(s.voiceStates),
+  };
+}
+
 /** Apply one gateway dispatch; returns the changed slices (empty object = ignored). */
 export function reduceDispatch(
   s: StoreData,
@@ -393,22 +467,9 @@ export function reduceDispatch(
           mention_count: Number(e.mention_count ?? 0),
         };
       }
-      // A fresh session may have missed events. The cached history stays on screen (an empty channel until
-      // the next fetch is worse) but is marked stale, so the newest page is fetched again and replaces it
-      // (K-22). Optimistic sends are kept as they are.
-      const windows: Record<string, MessageWindow> = {};
-      const messages: Record<string, Message> = {};
-      for (const [cid, w] of Object.entries(s.windows)) {
-        if (!w.ids.length && !w.pending.length) continue;
-        windows[cid] = w.ids.length
-          ? { ...w, loading: false, error: null, stale: true }
-          : { ...emptyWindow(), pending: w.pending };
-        for (const id of [...w.ids, ...w.pending]) {
-          const m = s.messages[id];
-          if (m) messages[id] = m;
-        }
-      }
-      return {
+      // A fresh session may have missed events: the cached history is marked stale (K-22).
+      const { windows, messages } = staleWindows(s);
+      let out: Partial<StoreData> = {
         currentUserId: next.currentUserId,
         users: next.users,
         guilds: next.guilds,
@@ -423,12 +484,34 @@ export function reduceDispatch(
         windows,
         messages,
       };
+      // A server that is not in READY any more (left or removed while this client was away) leaves the store
+      // with everything it held, not only the rail (D-646).
+      const listed = new Set(stubs.map((g) => str(g.id)));
+      for (const gone of Object.keys(s.guilds)) {
+        if (listed.has(gone)) continue;
+        out = { ...out, ...dropGuild({ ...s, ...out } as StoreData, gone) };
+      }
+      return out;
     }
     case 'GUILD_CREATE': {
       const core = reduceGuildCreate(s, d);
       const { members, presences } = d as { members?: Obj[]; presences?: Obj[] };
       if (!members && !presences) return core;
       return { ...core, ...reduceGuildPeople({ ...s, ...core }, str(d.id), members, presences) };
+    }
+    case 'SR_RESYNC': {
+      // D-646: the server re-sent state after it lost events. Its GUILD_CREATE has just replaced the guild's
+      // channels, roles and voice states; what that cannot carry is repaired here. Nothing is shown.
+      if (d.scope !== 'guild') return {};
+      const guildId = str(d.guild_id);
+      if (!guildId) return {};
+      const channelIds = new Set(s.channelIdsByGuild[guildId] ?? []);
+      const { windows } = staleWindows(s, channelIds);
+      const typing: StoreData['typing'] = {};
+      for (const [cid, list] of Object.entries(s.typing)) {
+        if (!channelIds.has(cid)) typing[cid] = list;
+      }
+      return { windows, typing };
     }
     case 'GUILD_UPDATE': {
       const id = str(d.id);
@@ -440,35 +523,7 @@ export function reduceDispatch(
         const g = s.guilds[id];
         return g ? { guilds: { ...s.guilds, [id]: { ...g, unavailable: true } } } : {};
       }
-      const guilds = { ...s.guilds };
-      delete guilds[id];
-      const channels = { ...s.channels };
-      const windows = { ...s.windows };
-      for (const cid of s.channelIdsByGuild[id] ?? []) {
-        delete channels[cid];
-        delete windows[cid];
-      }
-      const roles = { ...s.roles };
-      for (const rid of s.roleIdsByGuild[id] ?? []) delete roles[rid];
-      const members = { ...s.members };
-      for (const uid of s.memberIdsByGuild[id] ?? []) delete members[memberKey(id, uid)];
-      const without = <T>(r: Record<string, T>) => {
-        const o = { ...r };
-        delete o[id];
-        return o;
-      };
-      return {
-        guilds,
-        guildOrder: s.guildOrder.filter((g) => g !== id),
-        channels,
-        windows,
-        roles,
-        members,
-        channelIdsByGuild: without(s.channelIdsByGuild),
-        roleIdsByGuild: without(s.roleIdsByGuild),
-        memberIdsByGuild: without(s.memberIdsByGuild),
-        voiceStates: without(s.voiceStates),
-      };
+      return dropGuild(s, id);
     }
     case 'VOICE_STATE_UPDATE': {
       const userId = str(d.user_id);
@@ -577,7 +632,13 @@ export function reduceDispatch(
       return putMembers(s, str(d.guild_id), [d]);
     case 'GUILD_MEMBERS_CHUNK': {
       const guildId = str(d.guild_id);
-      const out = putMembers(s, guildId, (d.members as Obj[] | undefined) ?? []);
+      // `sr_replace`: set by the web's own refetch after a resync (a whole roster, not a page).
+      const out = putMembers(
+        s,
+        guildId,
+        (d.members as Obj[] | undefined) ?? [],
+        d.sr_replace === true,
+      );
       return d.presences
         ? { ...out, presences: putPresences({ ...s, ...out }, d.presences as Obj[]) }
         : out;
