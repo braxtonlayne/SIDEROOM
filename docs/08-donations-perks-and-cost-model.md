@@ -9,8 +9,8 @@ All prices are **operator-configurable** (Admin → Donations). The numbers belo
 ## 1. Payment rails (D-071)
 
 - **Bitcoin on-chain** (required, Phase 3; as built: [docs/specs/donations.md](specs/donations.md)). The derivation is implemented on `secp256k1`/`bitcoin_hashes`/`bech32` instead of `bdk_wallet`, see the spec. This is a self-custodial, watch-only setup: the operator pastes an **xpub/output descriptor** in Admin → Donations → Wallet. `sr-payments` (Rust) derives a fresh address per invoice and watches for payment through a configurable Esplora endpoint (self-hosted `electrs`/mempool, or mempool.space). The server **never holds private keys**.
-- **Lightning** (optional, later): LDK node, or an operator-supplied LND/CLN connection. Recommended for $5 payments.
-- **Monero** (optional, later): `monero-wallet-rpc` in view-only mode.
+- **Lightning** (optional, later): LDK node, or an operator-supplied LND/CLN connection. Recommended for $5 payments. Not built; `sr-payments` has a rail trait and Bitcoin on-chain is its only implementation.
+- **Monero** (optional, later): `monero-wallet-rpc` in view-only mode. Not built.
 - No card or PayPal processors.
 
 ### Invoice lifecycle
@@ -59,7 +59,7 @@ Beyond the 5 lifetime credits: **$20 per credit** (D-025), paid in BTC. An entit
 
 ## 3. Safety valve: global egress governor
 
-Perks are "up to" limits. `sr-voice` tracks total egress. When it exceeds `voice.egress_budget_mbps` (default 70% of the measured uplink), the SFU caps simulcast layers for new subscribers (Level 0 first, Patrons last) and shows a "Reduced quality: the room is busy" notice. One heavy server therefore can't saturate the box for everyone else.
+Perks are "up to" limits. `sr-voice` tracks total egress. When it exceeds `voice.egress_budget_mbps` (default `0`, which turns the governor off; the operator sets about 70% of the measured uplink, `crates/sr-core/src/config.rs:201`), the SFU caps simulcast layers for new subscribers (Level 0 first, Patrons last) and shows a "Reduced quality: the room is busy" notice. One heavy server therefore can't saturate the box for everyone else.
 
 ## 4. Leaderboards (D-074)
 
@@ -76,7 +76,7 @@ Contribution credit is granted once per unique item (`contribution_credits` uniq
 
 ## 5. Entitlement engine
 
-`sr-payments::entitlements` exposes `effective_limits(user, context) -> Limits`, where context is a guild/channel/DM. Limits = max(Free defaults, the guild's level limits if in a guild, Patron overrides if the user is a Patron). Every limit check (upload slot, voice join, stream start, download URL) goes through this one function. Limits are cached in moka and invalidated on `SR_ENTITLEMENT_UPDATE`.
+`sr-payments::entitlements` exposes `effective_limits(user, context) -> Limits`, where context is a guild/channel/DM. Limits = max(Free defaults, the guild's level limits if in a guild, Patron overrides if the user is a Patron). Every limit check (upload slot, voice join, stream start, download URL) goes through this one function. Limits are cached in moka (60 s) and dropped when the process emits `SR_ENTITLEMENT_UPDATE`.
 
 ## 6. Cost model (how the defaults were chosen)
 

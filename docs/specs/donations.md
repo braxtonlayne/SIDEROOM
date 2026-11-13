@@ -16,11 +16,11 @@ This file describes what the code does.
 | Descriptor parsing, BIP-32 public derivation, bech32 addresses, BIP-21 | `crates/sr-payments/src/descriptor.rs` |
 | `ChainSource` (esplora-like), in-memory `FakeChain`, `EsploraChain` over an `HttpGet` | `sr-payments/src/chain.rs` |
 | `RateSource`, `RateService` (median, cache, stale-rate safety), `HttpJsonRate` | `sr-payments/src/rates.rs` |
-| `DonationConfig` (prices, thresholds, perks, depths), `Limits`, `effective_limits` | `sr-payments/src/config.rs`, `limits.rs` |
+| `DonationConfig` (prices, thresholds, perks, depths), `Limits`, `effective_limits` | `sr-payments/src/config.rs` |
 | Invoice states and the pure evaluator | `sr-payments/src/invoice.rs` |
 | Patron stacking, server pool and level, `Entitlements` trait and cache | `sr-payments/src/entitlements.rs` |
 | `PaymentService` (create, poll, credit, resolve, grants), `PaymentRepo` port, memory repo | `sr-payments/src/service.rs`, `repo.rs`, `memory.rs` |
-| Postgres repository | `sr-db/src/payments_repo.rs`, migrations `0540`..`0543` |
+| Postgres repository | `sr-db/src/payments_repo.rs`, migrations `0540`..`0542` (the contributor boards add `0781`) |
 | HTTP | `sr-api/src/routes/donations/` (member) and `.../donations/admin.rs` |
 | Watcher job, wiring, Download perk cutover | `sr-server/src/payments_jobs.rs`, `app.rs` |
 
@@ -51,7 +51,7 @@ Migrations `0540`..`0542` (times in the payment tables are Unix milliseconds):
   `ends_ms` or `permanent`, or `usd_cents`, `starts_ms`, `revoked_ms`, reason).
 * `guild_support_levels` (level, `below_since_ms`, owner and staff hiding), `user_patron_notices`, `donor_preferences`
   (hide name/amount/badge, staff hiding), `payment_config` (one JSON row), `payment_watcher` (health of the job),
-  `payment_audit` (every state change, append-only).
+  `payment_audit` (every state change, append-only). `user_patron_notices` holds the last Patron notice level sent per member.
 
 ## 3. Invoice lifecycle
 
@@ -170,19 +170,23 @@ creation answers 403 `SR_FEATURE_DISABLED`). Misconfiguration is logged, never f
 Jobs (`sr-server/src/payments_jobs.rs`): `payments.watch` every 15 s (polls invoices whose `next_check_ms` passed: 30 s
 for open and confirming invoices, 5 min for freshly expired ones, hourly for old ones; stops at `finality_confirmations`
 or after `late_watch_days`) and `payments.housekeeping` every 5 min (server level refresh with grace, Patron
-reminder/grace/lapse events). Everything else in the table above that an operator tunes (prices, thresholds, perks,
+reminder/grace/lapse events). A Patron notice has levels 1 (the entitlement ends within 3 days), 2 (in grace) and 3 (lapsed);
+when a member's level rises the job sends them one `SR_ENTITLEMENT_UPDATE` whose `reason` is `expiring`, `grace` or `lapsed`
+(`sr-payments/src/service.rs:618`). The reads and every notice upsert of one run are a single transaction, so a failed
+write advances no notice and the next run returns the transitions again (SEC-AUD-120, `sr-db/src/payments_repo.rs:1185`). Everything else in the table above that an operator tunes (prices, thresholds, perks,
 depths, expiry) is `DonationConfig`, edited in Admin > Donations > Pricing and perks without a restart.
 
 ## 8. Web
 
-* Settings > **Support / Patron** (`apps/web/src/support/`): hosting bar, Patron months, donations, invite credits,
+* User Settings > **Support** (`SupportSection` in `apps/web/src/support/SupportPanel.tsx`): hosting bar, Patron months, donations, invite credits,
   supporting a server, privacy switches, history and receipts. The **invoice dialog** shows sats, BTC and USD, the
   address with a copy button, a BIP-21 QR drawn by `@sideroom/ui`'s `QRCode`, a countdown, progress steps and an
   explorer link. It follows `SR_PAYMENT_UPDATE` and polls every 15 s as the fallback; "I've paid" checks now.
 * Server Settings > **Server Support** (owners and `MANAGE_GUILD`): level, pool and progress, perks, top contributors,
   contribute flow, owner-only leaderboard switch.
-* `/support/leaderboards`: donors and servers, 30 days or lifetime.
-* Admin > **Donations**, **Invoices**, **Entitlements**, **Pricing and perks** (group MONEY, `MANAGE_DONATIONS`).
+* `/support` (`apps/web/src/support/SupportPage.tsx`, D-270): the public donation page (why donate, hosting bar, Patron card, Server Levels, invite credits, a link to the leaderboards, one "Need help?" link); the public help answers are at `/help`.
+* `/support/leaderboards`: donors and servers, 30 days or lifetime; the Cinema and Library footers link to the contributor tabs (`?tab=movies`, `?tab=chapters`).
+* Admin > **Donations** (wallet and health), **Invoices**, **Entitlements**, **Pricing and perks** (group MONEY, `MANAGE_DONATIONS`; `apps/web/src/admin/AdminApp.tsx:272`). Pricing and perks also holds the cost calculator of doc 08 section 6.4.
 
 ## 9. Cutover of the Cinema download perk
 
