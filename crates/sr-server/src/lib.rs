@@ -4,7 +4,6 @@
 
 pub mod activities;
 pub mod activities_jobs;
-pub mod package_jobs;
 pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;
@@ -46,6 +45,7 @@ pub mod moderation_actions;
 pub mod moderation_age;
 pub mod moderation_audit;
 pub mod moderation_index;
+pub mod package_jobs;
 pub mod package_wiring;
 pub mod party_cards;
 pub mod party_rooms;

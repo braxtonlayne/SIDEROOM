@@ -20,6 +20,7 @@ use utoipa::ToSchema;
 
 use crate::error::{ActivityError, ActivityResult};
 use crate::model::BundleDetail;
+use crate::service::ActivityService;
 use crate::service::IdSource;
 
 /// Size of a part (the last one may be smaller). Raised only to keep the part count at most [`MAX_PARTS`].
@@ -39,32 +40,9 @@ pub const CODE_NO_PARTS: &str = "PACKAGE_PARTS_UNAVAILABLE";
 /// Stable code of the field error that lists the parts `complete` is missing.
 pub const CODE_PARTS_MISSING: &str = "PACKAGE_PARTS_MISSING";
 
-// ---- the checker port (replaced by package.rs at the merge) -----------------------------------------------------
+// ---- the checker port --------------------------------------------------------------------------------------------
 
-/// Who an application is, for its package limit (D-655).
-// replaced by package.rs at the merge
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PackageTier {
-    Standard,
-    Reviewed,
-    Platform,
-}
-
-/// The limits of one application now.
-// replaced by package.rs at the merge
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PackageLimits {
-    pub max_bytes: u64,
-    pub max_files: usize,
-    pub tier: PackageTier,
-}
-
-/// Progress of a check, called at most once per second.
-// replaced by package.rs at the merge
-pub trait IngestProgress: Send + Sync {
-    fn bytes(&self, done: u64, total: u64);
-}
+pub use crate::package::{IngestProgress, PackageLimits, PackageTier};
 
 /// What the session needs from the package checker. `ActivityService` implements it (the adapter over
 /// `package_limits` and `ingest_stored_zip`); tests use a fake.
@@ -80,6 +58,25 @@ pub trait PackageIngest: Send + Sync {
         staged_key: &str,
         progress: Option<&dyn IngestProgress>,
     ) -> ActivityResult<BundleDetail>;
+}
+
+/// The adapter: the checker of `package.rs` behind the session's port.
+#[async_trait]
+impl PackageIngest for ActivityService {
+    async fn limits(&self, app: i64) -> ActivityResult<PackageLimits> {
+        self.package_limits(app).await
+    }
+
+    async fn ingest(
+        &self,
+        app: i64,
+        user: i64,
+        staged_key: &str,
+        progress: Option<&dyn IngestProgress>,
+    ) -> ActivityResult<BundleDetail> {
+        self.ingest_stored_zip(app, user, staged_key, progress)
+            .await
+    }
 }
 
 /// Queues the check job for an upload (the job system lives in `sr-server`).
@@ -274,7 +271,7 @@ pub struct PackageUploads {
 }
 
 /// One row of `activity_package_uploads`.
-struct Row {
+struct UploadRow {
     id: i64,
     application_id: i64,
     created_by: i64,
@@ -290,11 +287,15 @@ struct Row {
     error: Option<String>,
 }
 
-const COLS: &str = "id, application_id, created_by, (expires_at <= now()) AS lapsed, size, part_size, part_count, \
-                    object_key, multipart_id, state, checked_bytes, bundle_id, error";
+macro_rules! cols {
+    () => {
+        "id, application_id, created_by, (expires_at <= now()) AS lapsed, size, part_size, part_count, \
+                    object_key, multipart_id, state, checked_bytes, bundle_id, error"
+    };
+}
 
-fn row_of(r: &sqlx::postgres::PgRow) -> Result<Row, sqlx::Error> {
-    Ok(Row {
+fn row_of(r: &sqlx::postgres::PgRow) -> Result<UploadRow, sqlx::Error> {
+    Ok(UploadRow {
         id: r.try_get("id")?,
         application_id: r.try_get("application_id")?,
         created_by: r.try_get("created_by")?,
@@ -391,15 +392,16 @@ impl PackageUploads {
             .collect()
     }
 
-    async fn load(&self, app: i64, id: i64) -> ActivityResult<Row> {
-        let sql = format!(
-            "SELECT {COLS} FROM activity_package_uploads WHERE id = $1 AND application_id = $2"
-        );
-        let r = sqlx::query(&sql)
-            .bind(id)
-            .bind(app)
-            .fetch_optional(&self.inner.pool)
-            .await?;
+    async fn load(&self, app: i64, id: i64) -> ActivityResult<UploadRow> {
+        let r = sqlx::query(concat!(
+            "SELECT ",
+            cols!(),
+            " FROM activity_package_uploads WHERE id = $1 AND application_id = $2"
+        ))
+        .bind(id)
+        .bind(app)
+        .fetch_optional(&self.inner.pool)
+        .await?;
         match r {
             Some(r) => Ok(row_of(&r)?),
             None => Err(ActivityError::NotFound("upload")),
@@ -414,11 +416,7 @@ impl PackageUploads {
             max_files: l.max_files as u64,
             tier: l.tier.into(),
             resumable: self.inner.parts.is_some(),
-            part_size: self
-                .inner
-                .parts
-                .as_ref()
-                .map_or(PART_SIZE, |p| p.part_size),
+            part_size: self.inner.parts.as_ref().map_or(PART_SIZE, |p| p.part_size),
         })
     }
 
@@ -437,7 +435,9 @@ impl PackageUploads {
             return Err(ActivityError::Invalid("size", "The package is empty.".into()).into());
         }
         if filename.chars().count() > 255 {
-            return Err(ActivityError::Invalid("filename", "The file name is too long.".into()).into());
+            return Err(
+                ActivityError::Invalid("filename", "The file name is too long.".into()).into(),
+            );
         }
         let limits = self.inner.ingest.limits(app).await?;
         if size > limits.max_bytes {
@@ -512,7 +512,11 @@ impl PackageUploads {
         })
     }
 
-    fn view(r: &Row, received: Vec<u32>, parts: Option<Vec<PackagePartUrl>>) -> PackageUploadStatus {
+    fn view(
+        r: &UploadRow,
+        received: Vec<u32>,
+        parts: Option<Vec<PackagePartUrl>>,
+    ) -> PackageUploadStatus {
         let state = match r.state.as_str() {
             "uploading" if r.lapsed => PackageUploadState::Expired,
             "uploading" => PackageUploadState::Uploading,
@@ -598,7 +602,11 @@ impl PackageUploads {
         }
         let parts = check_parts(&stored, size, part_size, count)
             .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
-        if let Err(e) = w.store.complete(&r.object_key, &r.multipart_id, &parts).await {
+        if let Err(e) = w
+            .store
+            .complete(&r.object_key, &r.multipart_id, &parts)
+            .await
+        {
             tracing::warn!(upload = id, error = %e, "completing a package upload failed");
             return Err(ActivityError::Conflict(
                 "The storage did not accept the uploaded parts. Start a new upload.".into(),
@@ -642,7 +650,7 @@ impl PackageUploads {
     }
 
     /// Free what an unfinished upload holds: its open parts, or the staged object.
-    async fn discard(&self, r: &Row) {
+    async fn discard(&self, r: &UploadRow) {
         if r.state == "uploading" {
             if let Some(w) = &self.inner.parts
                 && let Err(e) = w.store.abort(&r.object_key, &r.multipart_id).await
@@ -670,12 +678,15 @@ impl PackageUploads {
     /// checker's text. Any other failure is returned (the job system retries it) until `final_attempt`, when the
     /// session ends `refused` with [`CHECK_FAILED`].
     pub async fn run_ingest(&self, id: i64, final_attempt: bool) -> Result<(), String> {
-        let sql = format!("SELECT {COLS} FROM activity_package_uploads WHERE id = $1");
-        let row = sqlx::query(&sql)
-            .bind(id)
-            .fetch_optional(&self.inner.pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        let row = sqlx::query(concat!(
+            "SELECT ",
+            cols!(),
+            " FROM activity_package_uploads WHERE id = $1"
+        ))
+        .bind(id)
+        .fetch_optional(&self.inner.pool)
+        .await
+        .map_err(|e| e.to_string())?;
         let Some(row) = row else { return Ok(()) };
         let r = row_of(&row).map_err(|e| e.to_string())?;
         if r.state != "checking" {
@@ -686,7 +697,12 @@ impl PackageUploads {
         match self
             .inner
             .ingest
-            .ingest(r.application_id, r.created_by, &r.object_key, Some(&progress))
+            .ingest(
+                r.application_id,
+                r.created_by,
+                &r.object_key,
+                Some(&progress),
+            )
             .await
         {
             Ok(detail) => {
@@ -721,11 +737,14 @@ impl PackageUploads {
     /// object deleted) and set `expired`; rows older than [`KEEP_DAYS`] days are deleted. Returns
     /// `(expired, deleted)`.
     pub async fn sweep(&self) -> ActivityResult<(u64, u64)> {
-        let sql = format!(
-            "SELECT {COLS} FROM activity_package_uploads \
-             WHERE state IN ('uploading', 'checking') AND expires_at <= now() ORDER BY id LIMIT 500"
-        );
-        let rows = sqlx::query(&sql).fetch_all(&self.inner.pool).await?;
+        let rows = sqlx::query(concat!(
+            "SELECT ",
+            cols!(),
+            " FROM activity_package_uploads WHERE state IN ('uploading', 'checking') \
+             AND expires_at <= now() ORDER BY id LIMIT 500"
+        ))
+        .fetch_all(&self.inner.pool)
+        .await?;
         let mut expired = 0;
         for row in rows {
             let r = row_of(&row)?;
@@ -755,7 +774,7 @@ impl PackageUploads {
 
 const NO_PARTS_TEXT: &str = "Resumable uploads are not available on this server.";
 
-fn dims(r: &Row) -> (u64, u64, u32) {
+fn dims(r: &UploadRow) -> (u64, u64, u32) {
     (
         u64::try_from(r.size).unwrap_or(0),
         u64::try_from(r.part_size).unwrap_or(1),
@@ -813,10 +832,14 @@ mod tests {
 
     #[test]
     fn the_size_is_read_from_a_string_or_a_number() {
-        let a: PackageUploadBody = serde_json::from_str(r#"{"size":"123","filename":"a.zip"}"#).unwrap();
-        let b: PackageUploadBody = serde_json::from_str(r#"{"size":123,"filename":"a.zip"}"#).unwrap();
+        let a: PackageUploadBody =
+            serde_json::from_str(r#"{"size":"123","filename":"a.zip"}"#).unwrap();
+        let b: PackageUploadBody =
+            serde_json::from_str(r#"{"size":123,"filename":"a.zip"}"#).unwrap();
         assert_eq!((a.size, b.size), (123, 123));
-        assert!(serde_json::from_str::<PackageUploadBody>(r#"{"size":"x","filename":"a"}"#).is_err());
+        assert!(
+            serde_json::from_str::<PackageUploadBody>(r#"{"size":"x","filename":"a"}"#).is_err()
+        );
     }
 
     #[test]
@@ -837,7 +860,13 @@ mod tests {
             etag: String::new(),
         };
         // 10 bytes in parts of 4: 4 + 4 + 2.
-        assert_eq!(missing_parts(&[held(1, 4), held(2, 4), held(3, 2)], 10, 4, 3), Vec::<u32>::new());
-        assert_eq!(missing_parts(&[held(1, 4), held(3, 1)], 10, 4, 3), vec![2, 3]);
+        assert_eq!(
+            missing_parts(&[held(1, 4), held(2, 4), held(3, 2)], 10, 4, 3),
+            Vec::<u32>::new()
+        );
+        assert_eq!(
+            missing_parts(&[held(1, 4), held(3, 1)], 10, 4, 3),
+            vec![2, 3]
+        );
     }
 }

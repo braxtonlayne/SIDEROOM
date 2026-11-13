@@ -67,7 +67,10 @@ pub fn register(runner: JobRunner, pool: &PgPool, uploads: PackageUploads) -> Jo
         .register(INGEST_KIND, 1, move |job: Job| {
             let uploads = uploads.clone();
             Box::pin(async move {
-                let Some(id) = job.payload.get("upload_id").and_then(serde_json::Value::as_i64)
+                let Some(id) = job
+                    .payload
+                    .get("upload_id")
+                    .and_then(serde_json::Value::as_i64)
                 else {
                     // Nothing to check; do not retry a job that can never work.
                     tracing::error!(job = job.id, "a package check job has no upload id");

@@ -6,6 +6,7 @@ use super::uploads::up_err;
 use crate::routes::messages::error::MsgError;
 use async_trait::async_trait;
 use bytes::Bytes;
+use sqlx::PgPool;
 use sr_activities::package_upload::{
     CHECK_FAILED, CODE_NO_PARTS, CODE_PARTS_MISSING, IngestProgress, PackageIngest, PackageLimits,
     PackageQueue, PackageTier, PackageUploadError, PackageUploadState, PackageUploads, PartsWiring,
@@ -13,7 +14,6 @@ use sr_activities::package_upload::{
 use sr_activities::{ActivityError, ActivityResult, model::BundleDetail};
 use sr_library::MemoryPartStore;
 use sr_storage::{ObjectStorage, ObjectStoreStorage};
-use sqlx::PgPool;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicI64, Ordering},
@@ -207,11 +207,13 @@ async fn rig(tier: PackageTier, max_bytes: u64, signing: bool) -> Rig {
 impl Rig {
     /// The store's id of the open multipart upload of `upload`.
     async fn multipart_id(&self, upload: &str) -> String {
-        sqlx::query_scalar("SELECT multipart_id FROM activity_package_uploads WHERE id = $1::text::bigint")
-            .bind(upload)
-            .fetch_one(&self.pool)
-            .await
-            .unwrap()
+        sqlx::query_scalar(
+            "SELECT multipart_id FROM activity_package_uploads WHERE id = $1::text::bigint",
+        )
+        .bind(upload)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
     }
 
     async fn put_parts(&self, upload: &str, numbers: &[u32]) {
@@ -239,7 +241,10 @@ impl Rig {
         let id = self.id(upload).await;
         for _ in 0..100 {
             let s = self.uploads.status(self.app, id).await.unwrap();
-            if !matches!(s.state, PackageUploadState::Checking | PackageUploadState::Uploading) {
+            if !matches!(
+                s.state,
+                PackageUploadState::Checking | PackageUploadState::Uploading
+            ) {
                 return s;
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -269,12 +274,18 @@ async fn an_upload_over_the_application_limit_is_refused_with_413_and_names_the_
     assert!(api.message.contains("512 MiB"), "{}", api.message);
     assert!(api.message.contains("standard limit"), "{}", api.message);
     assert!(
-        api.message.ends_with("The operator of this server can raise the limit."),
+        api.message
+            .ends_with("The operator of this server can raise the limit."),
         "{}",
         api.message
     );
     // At the limit is fine.
-    assert!(r.uploads.begin(r.app, r.owner, 512 * MIB, "ok.zip").await.is_ok());
+    assert!(
+        r.uploads
+            .begin(r.app, r.owner, 512 * MIB, "ok.zip")
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -307,8 +318,14 @@ async fn complete_with_a_missing_part_is_409_and_lists_it() {
     let r = rig(PackageTier::Standard, 512 * MIB, true).await;
     let upload = r.begin().await;
     r.put_parts(&upload, &[1, 3]).await;
-    let e = r.uploads.complete(r.app, r.id(&upload).await).await.unwrap_err();
-    assert!(matches!(&e, PackageUploadError::PartsMissing(m) if m.contains('2') && !m.contains("1,")));
+    let e = r
+        .uploads
+        .complete(r.app, r.id(&upload).await)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&e, PackageUploadError::PartsMissing(m) if m.contains('2') && !m.contains("1,"))
+    );
     let api = api_of(e);
     assert_eq!(api.status(), 409);
     assert_eq!(api.fields[0].1.code, CODE_PARTS_MISSING);
@@ -317,7 +334,14 @@ async fn complete_with_a_missing_part_is_409_and_lists_it() {
     let s = r.uploads.status(r.app, r.id(&upload).await).await.unwrap();
     assert_eq!(s.state, PackageUploadState::Uploading);
     assert_eq!(s.received, vec![1, 3]);
-    assert_eq!(s.parts.unwrap().iter().map(|p| p.part_number).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(
+        s.parts
+            .unwrap()
+            .iter()
+            .map(|p| p.part_number)
+            .collect::<Vec<_>>(),
+        vec![2]
+    );
     assert!(r.queue.queued.lock().unwrap().is_empty());
 }
 
@@ -349,13 +373,21 @@ async fn complete_queues_the_check_and_the_status_ends_ready_with_the_bundle() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_refused_package_shows_its_reason_in_the_status() {
     let r = rig(PackageTier::Standard, 512 * MIB, true).await;
-    r.ingest.set(Outcome::Refuse("levels/a.exe: this file type is not allowed"));
+    r.ingest.set(Outcome::Refuse(
+        "levels/a.exe: this file type is not allowed",
+    ));
     let upload = r.begin().await;
     r.put_parts(&upload, &[1, 2, 3]).await;
-    r.uploads.complete(r.app, r.id(&upload).await).await.unwrap();
+    r.uploads
+        .complete(r.app, r.id(&upload).await)
+        .await
+        .unwrap();
     let s = r.settle(&upload).await;
     assert_eq!(s.state, PackageUploadState::Refused);
-    assert_eq!(s.error.as_deref(), Some("levels/a.exe: this file type is not allowed"));
+    assert_eq!(
+        s.error.as_deref(),
+        Some("levels/a.exe: this file type is not allowed")
+    );
     assert!(s.bundle_id.is_none());
 }
 
@@ -388,11 +420,20 @@ async fn the_seventh_upload_in_an_hour_is_429() {
     for _ in 0..6 {
         r.uploads.begin(r.app, r.owner, 10, "g.zip").await.unwrap();
     }
-    let e = r.uploads.begin(r.app, r.owner, 10, "g.zip").await.unwrap_err();
+    let e = r
+        .uploads
+        .begin(r.app, r.owner, 10, "g.zip")
+        .await
+        .unwrap_err();
     assert_eq!(e, PackageUploadError::RateLimited);
     assert_eq!(api_of(e).status(), 429);
     // Another application has its own allowance.
-    assert!(r.uploads.begin(r.other_app, r.owner, 10, "g.zip").await.is_ok());
+    assert!(
+        r.uploads
+            .begin(r.other_app, r.owner, 10, "g.zip")
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -425,7 +466,11 @@ async fn a_third_open_upload_aborts_the_oldest() {
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn a_store_without_part_signing_answers_409() {
     let r = rig(PackageTier::Standard, 512 * MIB, false).await;
-    let e = r.uploads.begin(r.app, r.owner, 10, "g.zip").await.unwrap_err();
+    let e = r
+        .uploads
+        .begin(r.app, r.owner, 10, "g.zip")
+        .await
+        .unwrap_err();
     assert_eq!(e, PackageUploadError::NoParts);
     let api = api_of(e);
     assert_eq!(api.status(), 409);
@@ -441,19 +486,30 @@ async fn an_abandoned_upload_expires_and_its_parts_are_aborted() {
     let mp = r.multipart_id(&upload).await;
     let finished = r.begin().await;
     r.put_parts(&finished, &[1, 2, 3]).await;
-    r.uploads.complete(r.app, r.id(&finished).await).await.unwrap();
+    r.uploads
+        .complete(r.app, r.id(&finished).await)
+        .await
+        .unwrap();
     r.settle(&finished).await;
     sqlx::query("UPDATE activity_package_uploads SET expires_at = now() - interval '1 minute'")
         .execute(&r.pool)
         .await
         .unwrap();
     let (expired, deleted) = r.uploads.sweep().await.unwrap();
-    assert_eq!((expired, deleted), (1, 0), "the finished upload is left alone");
+    assert_eq!(
+        (expired, deleted),
+        (1, 0),
+        "the finished upload is left alone"
+    );
     assert!(r.parts.aborted().contains(&mp));
     let s = r.uploads.status(r.app, r.id(&upload).await).await.unwrap();
     assert_eq!(s.state, PackageUploadState::Expired);
     assert_eq!(
-        r.uploads.status(r.app, r.id(&finished).await).await.unwrap().state,
+        r.uploads
+            .status(r.app, r.id(&finished).await)
+            .await
+            .unwrap()
+            .state,
         PackageUploadState::Ready
     );
     // Rows past seven days go.
