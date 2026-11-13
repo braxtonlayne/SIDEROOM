@@ -5919,6 +5919,7 @@ dependencies = [
  "sr-core",
  "sr-db",
  "sr-events",
+ "sr-library",
  "sr-storage",
  "thiserror 2.0.21",
  "tokio",
