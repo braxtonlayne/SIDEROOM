@@ -8,6 +8,9 @@ mod handlers;
 pub mod proxy;
 #[cfg(test)]
 mod tests;
+mod uploads;
+#[cfg(test)]
+mod uploads_tests;
 
 use crate::{routes::messages::error::MsgError, state::AppState};
 use async_trait::async_trait;
@@ -74,6 +77,8 @@ pub struct ActivitiesDeps {
     /// are served from `/_activity/<id>/` on the main host instead of their own origin. Set from config only.
     pub same_host: bool,
     pub fetcher: Option<Arc<dyn ActivityFetcher>>,
+    /// Package upload sessions (SEC-AUD-176); `None` on a server that cannot run them.
+    pub uploads: Option<sr_activities::package_upload::PackageUploads>,
     /// Guest joins per address (ARC-GST-001): the route is open to anybody, so it is rate limited by address.
     pub(crate) guest_join_limit: GuestJoinLimit,
 }
@@ -117,8 +122,19 @@ impl ActivitiesDeps {
             scheme,
             same_host: false,
             fetcher,
+            uploads: None,
             guest_join_limit: guest_join_limiter(),
         }
+    }
+
+    /// Wire the package upload sessions (resumable uploads of big packages).
+    #[must_use]
+    pub fn with_package_uploads(
+        mut self,
+        uploads: sr_activities::package_upload::PackageUploads,
+    ) -> Self {
+        self.uploads = Some(uploads);
+        self
     }
 
     /// Switch to the test-only `same_host_sandboxed` origin mode (from `[activities] origin_mode`).
@@ -199,6 +215,22 @@ pub fn router() -> Router<AppState> {
             post(h::upload_bundle).layer(axum::extract::DefaultBodyLimit::max(h::MAX_UPLOAD)),
         )
         .route(
+            "/applications/{application_id}/activity/package-limits",
+            get(uploads::get_limits),
+        )
+        .route(
+            "/applications/{application_id}/activity/uploads",
+            post(uploads::begin_upload),
+        )
+        .route(
+            "/applications/{application_id}/activity/uploads/{upload_id}",
+            get(uploads::get_upload).delete(uploads::abort_upload),
+        )
+        .route(
+            "/applications/{application_id}/activity/uploads/{upload_id}/complete",
+            post(uploads::complete_upload),
+        )
+        .route(
             "/applications/{application_id}/activity/bundles/{bundle_id}",
             get(h::get_bundle),
         )
@@ -260,6 +292,11 @@ pub fn router() -> Router<AppState> {
         handlers::submit,
         handlers::upload_bundle,
         handlers::get_bundle,
+        uploads::get_limits,
+        uploads::begin_upload,
+        uploads::get_upload,
+        uploads::complete_upload,
+        uploads::abort_upload,
         handlers::admin_download,
         handlers::admin_pending,
         handlers::admin_decide,
@@ -308,6 +345,13 @@ pub fn router() -> Router<AppState> {
         sr_activities::trust::PreviousBuild,
         sr_activities::trust::SignatureView,
         handlers::ChannelActivity,
+        sr_activities::package_upload::PackageLimitsView,
+        sr_activities::package_upload::PackageTierView,
+        sr_activities::package_upload::PackagePartUrl,
+        sr_activities::package_upload::PackageUploadSlot,
+        sr_activities::package_upload::PackageUploadState,
+        sr_activities::package_upload::PackageUploadStatus,
+        sr_activities::package_upload::PackageUploadBody,
     ))
 )]
 pub struct ActivitiesApiDoc;

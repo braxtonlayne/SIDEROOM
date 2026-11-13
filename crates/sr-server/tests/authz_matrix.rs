@@ -4997,6 +4997,11 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/applications/{application_id}/activity/submit") => {
             r#"{"bundle_id":"{bundle_id}"}"#
         }
+        // SEC-AUD-176: a well-formed package upload; the owner reaches the handler (a store that cannot sign
+        // parts answers the stable 409), everybody else is refused.
+        ("POST", "/applications/{application_id}/activity/uploads") => {
+            r#"{"size":"1024","filename":"game.zip"}"#
+        }
         ("POST", "/moderation/evasion-signals/{signal_id}/link-case") => {
             r#"{"case_id":"{case_id}"}"#
         }

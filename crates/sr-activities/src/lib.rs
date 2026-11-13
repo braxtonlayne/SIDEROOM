@@ -15,6 +15,7 @@ pub mod bundle;
 pub mod error;
 pub mod guest;
 pub mod model;
+pub mod package_upload;
 pub mod ports;
 pub mod rules;
 pub mod sandbox;

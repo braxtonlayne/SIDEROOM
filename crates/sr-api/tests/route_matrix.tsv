@@ -31,6 +31,7 @@ DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-	MANAGE_TRAN
 DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-	MANAGE_TV
 DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
 DELETE	/applications/{application_id}	authenticated	owner	deny	-	-
+DELETE	/applications/{application_id}/activity/uploads/{upload_id}	authenticated	owner	deny	-	-
 DELETE	/applications/{application_id}/assets/{asset_id}	authenticated	owner	deny	-	-
 DELETE	/applications/{application_id}/commands/{command_id}	authenticated	owner	allow	-	-
 DELETE	/applications/{application_id}/emojis/{emoji_id}	authenticated	owner	allow	-	-
@@ -279,6 +280,8 @@ GET	/applications/@me	authenticated	owner	allow	-	-
 GET	/applications/{application_id}	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/activity	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/activity/bundles/{bundle_id}	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/activity/package-limits	authenticated	owner	deny	-	-
+GET	/applications/{application_id}/activity/uploads/{upload_id}	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/assets	authenticated	user	deny	-	-
 GET	/applications/{application_id}/audit-log	authenticated	owner	deny	-	-
 GET	/applications/{application_id}/commands	authenticated	owner	allow	-	-
@@ -852,6 +855,8 @@ POST	/admin/tv/channels/{channel_id}/publish	authenticated	staff	deny	-	MANAGE_T
 POST	/applications	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/activity/bundles	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/activity/submit	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/activity/uploads	authenticated	owner	deny	-	-
+POST	/applications/{application_id}/activity/uploads/{upload_id}/complete	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/assets	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/bot/reset-token	authenticated	owner	deny	-	-
 POST	/applications/{application_id}/commands	authenticated	owner	allow	-	-

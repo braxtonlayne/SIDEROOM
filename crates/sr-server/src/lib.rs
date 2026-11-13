@@ -4,6 +4,7 @@
 
 pub mod activities;
 pub mod activities_jobs;
+pub mod package_jobs;
 pub mod admin_jobs;
 pub mod app;
 pub mod apps_jobs;
