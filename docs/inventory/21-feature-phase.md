@@ -1,6 +1,6 @@
 # 21 — Feature phase (`BYOS`, and the later prefixes of roadmap-p27)
 
-Waves 27 to 65. Waves 27 to 49 are the feature rows below (the audit rows start at "Wave 53" and carry the `SEC-AUD` findings of waves 53 to 65, the last being SEC-AUD-180). Plan, acceptance criteria, agent split and owner needs: [dev/roadmap-p27.md](../dev/roadmap-p27.md) (D-380) for waves 27 to 40, and [dev/roadmap-p28.md](../dev/roadmap-p28.md) for waves 41 to 49. Prefixes are those of roadmap-p27 section 4; each wave's integrator adds its items here.
+Waves 27 to 65. Waves 27 to 49 are the feature rows below (the audit rows start at "Wave 53" and carry the `SEC-AUD` findings of waves 53 to 65, the last being SEC-AUD-182). Plan, acceptance criteria, agent split and owner needs: [dev/roadmap-p27.md](../dev/roadmap-p27.md) (D-380) for waves 27 to 40, and [dev/roadmap-p28.md](../dev/roadmap-p28.md) for waves 41 to 49. Prefixes are those of roadmap-p27 section 4; each wave's integrator adds its items here.
 
 Same conventions as [20-launch-readiness.md](20-launch-readiness.md): an item ticks only when its proof runs (a CI job, a Postgres or browser test, or a recorded run in the integration handoff), never when it is only written. The live Garage cases of `storage.yml` run only on CI; an item ticked on its mock and Postgres proofs says so, and its CI run is linked once the owner pushes.
 
@@ -456,9 +456,9 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-017** [BE/FE] `GET /sr/auth/2fa/methods` reads the pending cookie; second-factor methods never ride in a URL (D-557). Handoff `fix-p54-auth.md`.
 - [x] **SEC-AUD-018** [BE] Removing a rung group-DM member sends `CALL_UPDATE`; a Person ban, self-deletion and an erasure run publish `SessionsRevoked` (D-558). Handoff `fix-p54-auth.md`.
 - [x] **SEC-AUD-019** [BE] A staff email change sends the old address the "This wasn't me" notice (D-561). Handoff `fix-p54-auth.md`.
-- [x] **SEC-AUD-020** [BE] The staff member who verified an erasure cannot run it (D-562). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-020** [BE] The staff member who verified an erasure does not run it, unless that person is the Owner and no other staff member holds the takedown bit (D-562, `crates/sr-admin/src/data_requests.rs:873`). Handoff `fix-p54-auth.md`.
 - [x] **SEC-AUD-021** [BE] Retention and lock settings need a reason; each audit purge writes a platform-audit row (D-563). Handoff `fix-p54-auth.md`.
-- [x] **SEC-AUD-022** [BE/FE] Step-up on account rename and badges, mount and shelf delist/relist, perk grants, graduated bans, lowering a server's 2FA level, and TOTP enrolment (password). Handoff `fix-p54-auth.md`.
+- [x] **SEC-AUD-022** [BE/FE] Step-up on account rename and badges, mount and shelf delist/relist, perk grants, graduated bans, lowering a server's 2FA level (needs the second-factor proof, `MFA_REQUIRED`), and TOTP enrolment (password). Handoff `fix-p54-auth.md`.
 - [x] **SEC-AUD-023** [BE] A hold release deletes an empty group DM in the same transaction (D-559). Handoff `fix-p54-chat.md`.
 - [x] **SEC-AUD-024** [BE] The posting gate covers edits with new content, crosspost and poll votes (D-566). Handoff `fix-p54-chat.md`.
 - [x] **SEC-AUD-025** [BE] Bridge edits and reactions pass the per-bridge limiter; the bridge seed imports only owner-confirmed permission bits (D-567). Handoff `fix-p54-chat.md`.
@@ -489,7 +489,7 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-050** [BE/FE] Recovery-code regeneration takes the password, the D-573 proof and a second factor, a confirmed TOTP or a passkey; "Regenerate recovery codes" also sits in the passkeys card while TOTP is off (D-580). Handoff `fix-p56-auth.md`.
 - [x] **SEC-AUD-051** [BE] The case warning, the data-request restriction and an application's suspend and unsuspend are `SENSITIVE_ACTIONS` rows; a server-pool grant to a guild the caller owns is 403 `50001` for everyone, logged `denied` (D-581). Handoff `fix-p56-auth.md`.
 - [x] **SEC-AUD-052** [BE] The cartridge manifest re-check tells a definite answer (delist) from a transient one (defer, hourly retry, one staff alert per shelf after 24 hours); a delisted cartridge DMs its lister and writes a server audit entry (D-582). Handoff `fix-p56-media.md`.
-- [x] **SEC-AUD-053** [BE] Byte takedowns match on the bytes when the entity tag cannot: the uphold reads the object once and records its sha256; the indexer reads only size candidates once, stores the sha256 and delists a match (D-583). Handoff `fix-p56-store.md`.
+- [x] **SEC-AUD-053** [BE] Byte takedowns match on the bytes when the entity tag cannot: the uphold records the tag and size and the `storage.takedown_digest` job records the sha256 (D-583, D-588); the indexer reads only size candidates once, stores the sha256 and delists a match. Handoff `fix-p56-store.md`.
 - [x] **SEC-AUD-054** [BE] A byte-matched takedown item tells its owner (the uploader on a server bucket) with the removal and restore DMs; no strike; counter-notice as for any item (D-584). Handoff `fix-p56-store.md`.
 - [x] **SEC-AUD-055** [FE] The Cinema comments view has an inline Reply form like the Library's: one level, spoiler tag, `parent_id` (D-585). Handoff `fix-p56-web.md`.
 - [x] **SEC-AUD-056** [FE] The channel settings "Sync with category" switch (and the permissions tab) is gated by the member's channel-level Manage Roles, overwrites applied (D-586). Handoff `fix-p56-web.md`.
@@ -521,7 +521,7 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-082** [BE] D-605: a staff account in a banned subtree goes to `review`, never the automatic freeze; the branch freeze and ban skip staff unless the caller is the Owner; the 30-day sweep never removes staff.
 - [x] **SEC-AUD-083** [BE] `mark_hold_reviewed` runs in one transaction with a `hold_reviewed` case event and a `moderation.hold.reviewed` access-log row.
 - [x] **SEC-AUD-084** [BE] `get_notice` writes a `moderation.takedown.read` Read row.
-- [x] **SEC-AUD-085** [BE] An overturned appeal and its unban are one decision: `decide_appeal_with` locks the open appeal, lifts the ban through an `AppealUnbanner` (a Person no longer banned is a no-op), then records; an error leaves the ban in place.
+- [x] **SEC-AUD-085** [BE] An overturned appeal and its unban are ordered, not one database transaction: `decide_appeal_with` locks the open appeal, lifts the ban through an `AppealUnbanner` (a Person no longer banned is a no-op), then records the decision; an error leaves the ban in place.
 - [x] **SEC-AUD-086** [BE] Every staff account search writes an `accounts.search` Read row with its terms.
 - [x] **SEC-AUD-087** [BE] D-605: `link_account`, `move_identity` and `unlink_account` call `guard_account` on every account they touch.
 - [x] **SEC-AUD-088** [BE] D-606: migration 2590 adds TRUNCATE guards on every append-only audit table and DELETE guards on `application_audit` and `payment_audit`; `audit_log_entries` keeps its D-563 purge path.
@@ -597,7 +597,7 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-158** [BE] The storage presign GET forces the response type, covering tracks, jukebox and scrapbook (D-641). Handoff `fix-p63-cdn.md`.
 - [x] **SEC-AUD-159** [BE] Shelf artwork links force the response type; no client-facing plain presigned GET remains in sr-api (D-641). Handoff `fix-p63-cdn.md`.
 - [x] **SEC-AUD-160** [BE] The mount connection test has a seventh row, `response_type`, and a provider that ignores response overrides fails it (D-643). Handoff `fix-p63-cdn.md`.
-- [x] **SEC-AUD-161** [DOC] Design for recovering from lost gateway dispatches after event-bus lag (resync in place), with storm control and named tests, for a later wave. Handoff `fix-p63-resync.md`.
+- [x] **SEC-AUD-161** [DOC] Design for recovering from lost gateway dispatches after event-bus lag (resync in place), with storm control and named tests, for a later wave (built as SEC-AUD-169). Handoff `fix-p63-resync.md`.
 - [x] **SEC-AUD-162** [FE] On a phone, picking Friends or Message Requests in the Home sidebar shows the page, with a back control. Handoff `fix-p64-phone.md`.
 - [x] **SEC-AUD-163** [FE] The storage connection test's seventh row (`response_type`) is known to the web. Handoff `fix-p64-phone.md`.
 - [x] **SEC-AUD-164** [FE] On a phone the DM header keeps back, avatar and name, call and video, and moves the other controls under "More actions". Handoff `fix-p64-phone.md`.
@@ -607,13 +607,20 @@ Branches: `feat/p44-mod-tools` (MOD-GRD-001, threat-model row T43; decisions D-4
 - [x] **SEC-AUD-168** [FE] The bug reporter: Alt+Shift+B, the help menu and the phone You tab while the switch is on; a dialog with screenshot, black-out boxes and the exact data shown; Admin "Bug reports" (D-647..D-650). Handoff `fix-p64-reportui.md`.
 - [x] **SEC-AUD-169** [BE/FE] After event-bus lag the gateway resyncs sessions in place (fresh READY or GUILD_CREATE plus `SR_RESYNC`), with storm control; the web prunes servers and threads it no longer has (D-646). Handoff `fix-p64-resync.md`.
 - [x] **SEC-AUD-170** [BE/FE] the app build sorts staff-only chunks (graph-based, from the staff entries) into `dist/app/staff/<hash>` and writes `staff-chunks.json`; `check-staff-delivery.mjs` (CI after the bundle check) fails on an empty staff directory, a preload or static import of a staff file, a staff marker outside it or a named staff file; the first-paint closure may hold no staff file. Handoff `fix-p65-gate.md`.
-- [x] **SEC-AUD-171** [BE/FE] `sr-server` serves `/app/staff/*` only to a session with an active staff appointment (`AdminService::resolve` on every request), the plain `404` otherwise (absent and present look the same), `private, no-store`; case, dot and 8.3 variants of the directory are refused. Handoff `fix-p65-gate.md`.
+- [x] **SEC-AUD-171** [BE/FE] `sr-server` serves `/app/staff/*` only to a session with an active staff appointment (`AdminService::resolve` on every request), the plain `404` for a signed-in member without one (absent and present look the same; a request with no session gets the `401` of any `/app/` file, D-652), `private, no-store`; case, dot and 8.3 variants of the directory are refused. Handoff `fix-p65-gate.md`.
 - [x] **SEC-AUD-172** [BE/FE] the worker never stores a `no-store` response; `/admin` enters through a staff door that asks `/admin/me` before importing Admin and shows the not-found page otherwise. Handoff `fix-p65-gate.md`.
 - [x] **SEC-AUD-173** [BE] Activity packages are checked as a stream (zip index by range, each file inflated in turn), never held in memory; package limits are operator settings by tier: 512 MiB, 4 GiB for reviewed applications, 32 GiB for platform-owned ones, 20,000 files (D-654, D-655). Handoff `fix-p65-pack.md`.
 - [x] **SEC-AUD-174** [BE] Guild cartridges have no size limit; the re-check range-reads only the zip index and manifest (at most 16 MiB) (D-656). Handoff `fix-p65-pack.md`.
 - [x] **SEC-AUD-175** [BE] Activity files are served as streams with range support (206/416/HEAD), and the code hash and review download stream; multipart storage uploads no longer hold every part in memory (D-657). Handoff `fix-p65-pack.md`.
 - [x] **SEC-AUD-176** [BE] Resumable package uploads: upload sessions, five routes, the ingest job and a daily sweep; migration 2830 (D-654). Handoff `fix-p65-packup.md`.
 - [x] **SEC-AUD-177** [FE] The developer page uploads big packages in resumable parts with progress, a check-progress bar, Cancel and resume after a refresh, and shows the application's limit (D-654, D-655). Handoff `fix-p65-packup.md`.
-- [x] **SEC-AUD-178** [BE] A mount whose provider ignores response overrides hands out no client download links (409 `MOUNT_NOT_SAFE`) (D-644). Handoff `fix-p65-mount.md`.
+- [x] **SEC-AUD-178** [BE] A mount whose provider ignores response overrides hands out no client download links (409 `MOUNT_NOT_SAFE` on the presign routes, a plain-text 409 on `/cdn/mount`, no URL for shelf artwork) (D-644). Handoff `fix-p65-mount.md`.
 - [x] **SEC-AUD-179** [BE] The daily mount re-check runs the response-type check on mounts without it or that failed it, and keeps the row when it rewrites its own (D-645). Handoff `fix-p65-mount.md`.
 - [x] **SEC-AUD-180** [BE] The integration-policy listener re-reads the policy after event-bus lag, and the staff alert feed posts one "alerts may have been missed" card. Handoff `fix-p65-mount.md`.
+
+## Wave 64 and 65 — Rows added by the 2026-11-13 documentation check
+
+Built features of waves 64 and 65 that no row named; each was checked in code on `integration/phase65`.
+
+- [x] **SEC-AUD-181** [BE][FE] Admin > Settings has an "Activities" group with the package limits and their ranges: `activities.package.max_mb` (512 MiB), `reviewed_max_mb` (4,096), `platform_max_mb` (32,768), each 32 to 1,048,576 MiB, and `activities.package.max_files` (20,000, 2,000 to 200,000); `GET /applications/{application_id}/activity/package-limits` gives the application's limit to the developer page (D-655). `crates/sr-admin/src/settings.rs:728-752`, `crates/sr-api/src/routes/activities/uploads.rs:78`, `apps/web/src/developers/tabs/Activities.tsx:92`.
+- [x] **SEC-AUD-182** [FE] The bug-report key (Alt+Shift+B) can be rebound in Settings > Keybinds, and the entry is listed only while `platform.beta_reports` is on (D-647). `apps/web/src/settings/user/sections/Keybinds.tsx:146-147`, `apps/web/src/lounge/shortcuts.ts:105`.

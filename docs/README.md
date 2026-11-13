@@ -42,7 +42,7 @@
 [docs/adr/](adr/), the architecture decision records.
 
 ## Component inventory
-[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list and file 21 the feature-phase list: waves 27 to 49, then the audit and hardening waves 53 to 65 as `SEC-AUD-*` rows).
+[docs/inventory/](inventory/README.md), the exhaustive atomic build list (files 01 to 19 are ticked bar 32 rows, each with a built and left note, 2 of them closed or waiting on a run; 1,402 of the 1,442 rows in all 21 files are ticked on 2026-11-13; file 20 is the launch-readiness list and file 21 the feature-phase list: waves 27 to 49, then the audit and hardening waves 53 to 65 as `SEC-AUD-*` rows).
 
 ## Roadmap after the inventory
 [dev/roadmap-p20.md](dev/roadmap-p20.md): waves 20 to 24 (launch readiness, D-352), with their work items in [inventory/20-launch-readiness.md](inventory/20-launch-readiness.md).
