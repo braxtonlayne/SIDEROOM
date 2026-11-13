@@ -46,6 +46,25 @@ export default {
   'bugreport.errorFile': 'That file could not be used. Attach an image, 30 MB at most.',
   'bugreport.errorGeneric': 'The report could not be sent. Please try again.',
 
+  'help.handbook.bugreport.title': 'Reporting a bug (beta)',
+  'help.handbook.bugreport.what':
+    'While the beta is on, the operator can switch on a bug reporter. Press Alt+Shift+B (you can change the key in Keybinds), or choose Report a bug in the ? menu, or in the You tab on a phone. You describe what went wrong, see the exact picture and information that will be sent, and press Send.',
+  'help.handbook.bugreport.picture':
+    'The picture is taken by your browser, which asks you every time. On a direct message, a group message or in a call the messages, the message box and the video start blacked out; you can drag on the picture to black out more, remove a box, or remove the picture. Nothing is sent until you press Send.',
+  'help.handbook.bugreport.limit1':
+    'Your browser asks to share the tab each time you take a picture.',
+  'help.handbook.bugreport.limit2':
+    'Firefox and Safari show their own picker, and you can pick another window; the preview shows what was picked, so check it.',
+  'help.handbook.bugreport.limit3':
+    'Phones cannot capture the tab: attach a screenshot taken with the phone instead, or send the report without one.',
+  'help.handbook.bugreport.limit4':
+    'The picture shows what is visible, not the whole scrolled page.',
+  'help.handbook.bugreport.kept':
+    'The staff of this SIDE ROOM can read a report. The screenshot is deleted when the report is closed or after 30 days, and the report after 90 days. You can send at most 5 reports an hour.',
+  'help.handbook.bugreport.link': 'Keybinds',
+  'help.operators.betaTitle': 'The beta bug reporter',
+  'help.operators.betaBody':
+    'Off by default. Turn it on in Admin > Features for the beta (under 100 members) so members can send a bug report with a screenshot and debug information to the staff; turn it off when the beta ends. Admin > Bug reports lists the reports, and every opened report and every shown screenshot is written to the audit log.',
   'admin.adminApp.section.bugReports': 'Bug reports',
   'admin.bugs.title': 'Bug reports',
   'admin.bugs.description':

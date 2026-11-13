@@ -115,7 +115,12 @@ export function DmCallStage({ channelId }: { channelId: string }) {
             {error}
           </p>
         )}
-        <ul className="vc-grid vc-dmcall-grid" aria-label={t('lounge.dmCall.people')}>
+        <ul
+          className="vc-grid vc-dmcall-grid"
+          aria-label={t('lounge.dmCall.people')}
+          // SEC-AUD-168 (D-648): a call's video tiles start blacked out in a bug report's screenshot.
+          data-sr-private=""
+        >
           {members.map((p) => (
             <ParticipantTile
               key={p.userId}

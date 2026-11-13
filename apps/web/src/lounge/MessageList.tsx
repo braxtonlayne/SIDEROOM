@@ -556,7 +556,8 @@ export function MessageList({
       !!m.mentionRoleIds?.some((r) => myRoleIds.includes(r)));
 
   return (
-    <div className="lng-messages-wrap">
+    // SEC-AUD-168 (D-648): a direct message's list starts blacked out in a bug report's screenshot.
+    <div className="lng-messages-wrap" data-sr-private={isDm ? '' : undefined}>
       {unreadCount > 0 && !bannerDismissed && !atBottom && (
         <div className="lng-unread-banner" role="status">
           <button

@@ -34,6 +34,10 @@ export function HelpOperators() {
             </li>
           ))}
         </ul>
+        <h2 id="beta-reports">{t('help.operators.betaTitle')}</h2>
+        <p>
+          <code>platform.beta_reports</code>: {t('help.operators.betaBody')}
+        </p>
         <h2 id="more">{t('help.operators.moreTitle')}</h2>
         <p>{t('help.operators.more')}</p>
         <p>
