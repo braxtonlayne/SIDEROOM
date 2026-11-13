@@ -6,7 +6,7 @@ Running the instance after the install (daily checks, settings, Admin > System, 
 
 ## Quick install (Docker Compose, one host)
 
-`deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner and brings the whole stack up. The server image carries `sr-cli`, so no host binary is needed.
+`deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner, installs the starter packs that ship with the release (`packages/starter-packs`), brings the whole stack up and ends with `sr-cli preflight`, whose table says whether the box is ready for the first invite (`SR_INSTALL_PREFLIGHT=warn|strict|skip`; a FAIL row is reported, and with `strict` makes the script exit 3). It also asks whether to fetch the emulator cores (`SR_INSTALL_EMU_CORES`, [EMULATOR.md](EMULATOR.md)) and whether to run the optional `electrs` container for donations (`SR_PAYMENTS_ELECTRS`, doc 12). The server image carries `sr-cli`, so no host binary is needed.
 
 ```
 deploy/install.sh              # interactive
@@ -79,6 +79,8 @@ from = "SIDE ROOM <no-reply@example.org>"
 
 Put `database.url`, `server.secret_key`, `storage.access_key`, `storage.secret_key`, `smtp.password` and `discord.client_secret` in the environment, not in this file.
 
+A release build of `sr-server` (the image and the release binaries) refuses to start, naming the key, when it finds a setting meant for tests: an empty `server.secret_key`, `unfurl.allow_private_for_tests`, `storage.endpoint = "memory:"`, `activities.origin_mode = "same_host_sandboxed"`, or a `server.metrics_bind` that is not loopback while `server.metrics_token` is empty (UPGRADE.md, wave 54). `gateway.max_unidentified_per_ip` (default 32) limits the sockets one client address may hold before they sign in; raise it when many members share one address.
+
 Limits that are product settings (upload size, invite caps) are stored in the database and set from the admin pages, not here. (doc 12 §3)
 
 **Voice, Activities and PeerTube on the Compose route.** All three are off by default and switched on from `.env.prod`; `prod.yml` passes them to `sr-server`.
@@ -111,8 +113,6 @@ Limits that are product settings (upload size, invite caps) are stored in the da
    sr-cli bootstrap --owner-username <name> --owner-email <email>
    ```
 
-   Known gap: bootstrap creates the Staff Server but not its default roles yet (see the open questions).
-
    Then give the bucket its CORS rule. Chat uploads are presigned `PUT`s from the browser straight to the bucket (D-175), so without the rule the browser blocks them. The command reads the `[storage]` settings and does not need the database. It is safe to run again, because the rule is replaced, not appended:
 
    ```
@@ -127,7 +127,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 7. **Set the stop timeout.** The server drains for `shutdown_grace_secs` after SIGTERM, then for jobs again. Set the container or service stop timeout above `2 * shutdown_grace_secs` (50 s by default, so use 60 s). Docker's default of 10 s cuts the drain short.
 
-Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check.
+Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check (and then needs `--password`: at least 12 characters, not the built-in development password).
 
 Backups: `sr-cli backup` takes a one-off dump with a checksum manifest and `sr-cli restore` loads one back (both need the PostgreSQL client tools); the scripts in `deploy/scripts` add the schedule, retention, object snapshots, WAL archiving and the restore drill. See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
 
