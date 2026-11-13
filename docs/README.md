@@ -18,6 +18,7 @@
 | 12 | [Deployment & operations](12-deployment-and-operations.md) | Install, backups, transcode workers, monitoring |
 | 13 | [Roadmap & phases](13-roadmap-and-phases.md) | Phases and exit gates |
 | 14 | [Glossary](14-glossary.md) | Terms |
+| 15 | [Threat model](15-threat-model.md) | Assets, actors, trust boundaries, one row per threat with its control and the test that proves it |
 
 ## Section specs
 | Spec | Phase |
@@ -41,13 +42,13 @@
 [docs/adr/](adr/), the architecture decision records.
 
 ## Component inventory
-[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list and file 21 the feature-phase list, waves 27 to 47).
+[docs/inventory/](inventory/README.md), the exhaustive atomic build list (delivered: files 01 to 19 are ticked bar three items; file 20 is the launch-readiness list and file 21 the feature-phase list: waves 27 to 49, then the audit and hardening waves 53 to 65 as `SEC-AUD-*` rows).
 
 ## Roadmap after the inventory
 [dev/roadmap-p20.md](dev/roadmap-p20.md): waves 20 to 24 (launch readiness, D-352), with their work items in [inventory/20-launch-readiness.md](inventory/20-launch-readiness.md).
 
 ## Roadmaps since
-[dev/roadmap-p25.md](dev/roadmap-p25.md) (waves 25 and 26, D-374), [dev/roadmap-p27.md](dev/roadmap-p27.md) (the feature phase, waves 27 to 40, D-380) and [dev/roadmap-p28.md](dev/roadmap-p28.md) (the Study reframe, the Arcade and web-of-trust hardening, waves 41 to 48). What each wave shipped is in [the changelog](../CHANGELOG.md) and its handoff in [dev/handoff/](dev/handoff/).
+[dev/roadmap-p25.md](dev/roadmap-p25.md) (waves 25 and 26, D-374), [dev/roadmap-p27.md](dev/roadmap-p27.md) (the feature phase, waves 27 to 40, D-380) and [dev/roadmap-p28.md](dev/roadmap-p28.md) (the Study reframe, the Arcade and web-of-trust hardening, waves 41 to 48). Waves 49 to 65 have no roadmap file: they are follow-ups and the audit and hardening waves (53 to 65), recorded as decisions in the decisions log and as `SEC-AUD-*` rows in inventory file 21. Wave 48 (the Tauri desktop shell) is planned in roadmap-p28 and not started. What each wave shipped is in [the changelog](../CHANGELOG.md) and its handoff in [dev/handoff/](dev/handoff/).
 
 ## For developers
 [Getting started](dev/getting-started.md), [writing a feature module](dev/writing-a-feature.md), [running sr-server](dev/server.md), [entrance isolation](dev/entrance-isolation.md), [i18n](dev/i18n.md) and the [accessibility checklist](dev/a11y-checklist.md).
