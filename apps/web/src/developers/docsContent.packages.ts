@@ -11,7 +11,7 @@ export const PACKAGE_PAGES: DocPage[] = [
     blocks: [
       {
         t: 'p',
-        text: 'This list is read from {origin}/api/v1/openapi.json when you open the page, so it always matches the server you are on. Search by path or description, filter by area, and open an endpoint for its parameters and responses. The interactive reference with a request console is at /developers/docs/api.',
+        text: 'This list is read from {origin}/api/v1/openapi.json when you open the page, so it always matches the server you are on. Search by path or description, filter by area, and open an endpoint for its parameters and responses. The list needs a signed-in session, because the document is only served to signed-in accounts.',
       },
       { t: 'ref', what: 'openapi' },
     ],
@@ -44,7 +44,7 @@ export const PACKAGE_PAGES: DocPage[] = [
         items: [
           'Theme: theme.json, tokens.json, optional assets/ (PNG, WebP, AVIF) and fonts/ (WOFF2 with a licence file). Tokens are --ui-* design tokens; colours are checked for contrast.',
           'Profile layout: layout.json with a "doc" holding blocks on the 12 column grid and a style. Blocks carry no content, only a place and a size.',
-          'Emoji, sticker and sound packs: pack.json with a kind and a list of items, and the files under emoji/, stickers/ or sounds/. Emoji up to 256 KiB and 512 px, stickers up to 512 KiB and 1024 px, sounds up to 512 KiB as Ogg or MP3.',
+          'Emoji, sticker and sound packs: pack.json with a kind and a list of items, and the files under emoji/, stickers/ or sounds/. Emoji up to 256 KiB and 512 px (up to 100 items), stickers up to 512 KiB and 1024 px as PNG, APNG or GIF (up to 40 items), sounds up to 512 KiB as Ogg or MP3 (up to 40 items).',
           'Recipe: recipe.json with the feature modules to switch on or off and their settings. A recipe is shared between servers, so it cannot name channels or roles.',
           'Server template: template.json with a serialized_source_guild, the same shape as a server template.',
         ],

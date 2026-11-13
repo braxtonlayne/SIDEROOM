@@ -122,6 +122,7 @@ export const DOC_PAGES: DocPage[] = [
           'guilds: the servers the person is in',
           'bot: add your bot to a server (shows the permissions you ask for)',
           'applications.commands: install your slash commands in a server',
+          'applications.commands.permissions.update: change who may use your commands',
         ],
       },
     ],
@@ -195,11 +196,11 @@ export const DOC_PAGES: DocPage[] = [
       {
         t: 'ul',
         items: [
-          'Each bot token gets 50 requests per second across all routes; a global 429 carries X-RateLimit-Global: true.',
+          'Each bot token gets 50 requests per second across all routes by default; a global 429 carries X-RateLimit-Global: true.',
           'Other limits are per route bucket. Routes in the same bucket share the same budget.',
-          'Some routes are stricter: token exchange 30 a minute, authorize 20 a minute, creating applications 5 an hour, secret and token resets 5 an hour per application.',
+          'Some routes are stricter: token exchange 30 a minute, authorize 20 a minute (an operator can change that), creating applications 5 an hour, secret and token resets 5 an hour per application.',
           'Wait for retry_after, then retry once. Do not hammer the route.',
-          'Repeated 429s on authentication routes grow the wait (30 seconds up to 15 minutes).',
+          'Repeated failed sign-ins on the login route grow the wait (30 seconds, doubling up to 15 minutes).',
           'Sharded bots should spread REST calls instead of bursting after a reconnect.',
         ],
       },
