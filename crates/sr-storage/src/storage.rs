@@ -269,27 +269,23 @@ impl Signer for FakeSigner {
 
 struct Session {
     upload: Box<dyn MultipartUpload>,
-    pending: Vec<object_store::UploadPart>,
 }
 
 #[async_trait]
 impl MultipartSession for Session {
     async fn put_part(&mut self, data: Bytes) -> Result<()> {
-        self.pending
-            .push(self.upload.put_part(PutPayload::from(data)));
+        // Awaited at once: the future of a part owns its data and does nothing until polled, so parts left to
+        // `complete` would keep the whole object in memory (SEC-AUD-173: a package check relies on this bound).
+        self.upload.put_part(PutPayload::from(data)).await?;
         Ok(())
     }
 
     async fn complete(&mut self) -> Result<()> {
-        for part in std::mem::take(&mut self.pending) {
-            part.await?;
-        }
         self.upload.complete().await?;
         Ok(())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.pending.clear();
         self.upload.abort().await?;
         Ok(())
     }
@@ -459,10 +455,7 @@ impl ObjectStorage for ObjectStoreStorage {
     async fn multipart_create(&self, key: &str) -> Result<Box<dyn MultipartSession>> {
         let path = Path::parse(key)?;
         let upload = self.store.put_multipart(&path).await?;
-        Ok(Box::new(Session {
-            upload,
-            pending: Vec::new(),
-        }))
+        Ok(Box::new(Session { upload }))
     }
 }
 

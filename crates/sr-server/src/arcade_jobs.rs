@@ -246,13 +246,18 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CartridgeObjects for Shelves {
-        async fn read(
+        async fn read_range(
             &self,
             _shelf: i64,
             _path: &str,
-            _len: u64,
+            start: u64,
+            end: u64,
         ) -> Result<Vec<u8>, CartridgeReadError> {
-            self.0.clone()
+            self.0.clone().map(|v| {
+                let a = usize::try_from(start).unwrap_or(usize::MAX).min(v.len());
+                let b = usize::try_from(end).unwrap_or(usize::MAX).min(v.len());
+                v[a..b].to_vec()
+            })
         }
     }
 

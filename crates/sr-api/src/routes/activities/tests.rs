@@ -1243,3 +1243,244 @@ async fn the_same_host_path_serves_a_released_game_with_the_sandbox_policy_and_n
     .await;
     assert_eq!(r.status(), StatusCode::FORBIDDEN);
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// SEC-AUD-175 (D-657): ranges and streams.
+
+/// A bundle store that notes every whole-object `get` of a file over 1 MiB.
+struct NoWholeGets {
+    inner: ObjectStoreStorage,
+    big_gets: Mutex<Vec<String>>,
+}
+
+#[async_trait]
+impl ObjectStorage for NoWholeGets {
+    async fn put(&self, k: &str, d: Bytes) -> sr_storage::Result<()> {
+        self.inner.put(k, d).await
+    }
+    async fn get(&self, k: &str) -> sr_storage::Result<Bytes> {
+        if self.inner.head(k).await?.size > 1024 * 1024 {
+            self.big_gets.lock().unwrap().push(k.to_owned());
+        }
+        self.inner.get(k).await
+    }
+    async fn get_range(&self, k: &str, s: u64, e: u64) -> sr_storage::Result<Bytes> {
+        self.inner.get_range(k, s, e).await
+    }
+    async fn get_stream(
+        &self,
+        k: &str,
+        r: Option<std::ops::Range<u64>>,
+    ) -> sr_storage::Result<sr_storage::ObjectStream> {
+        self.inner.get_stream(k, r).await
+    }
+    async fn head(&self, k: &str) -> sr_storage::Result<sr_storage::ObjectInfo> {
+        self.inner.head(k).await
+    }
+    async fn delete(&self, k: &str) -> sr_storage::Result<()> {
+        self.inner.delete(k).await
+    }
+    async fn list(&self, p: &str) -> sr_storage::Result<Vec<sr_storage::ObjectInfo>> {
+        self.inner.list(p).await
+    }
+    async fn presign(
+        &self,
+        m: sr_storage::PresignMethod,
+        k: &str,
+        t: std::time::Duration,
+    ) -> sr_storage::Result<String> {
+        self.inner.presign(m, k, t).await
+    }
+    async fn multipart_create(
+        &self,
+        k: &str,
+    ) -> sr_storage::Result<Box<dyn sr_storage::MultipartSession>> {
+        self.inner.multipart_create(k).await
+    }
+}
+
+const BIG: usize = 2 * 1024 * 1024;
+
+fn big_bytes() -> Vec<u8> {
+    (0..BIG).map(|i| (i % 251) as u8).collect()
+}
+
+async fn range_rig() -> (Arc<ActivitiesDeps>, Arc<NoWholeGets>) {
+    let storage = Arc::new(NoWholeGets {
+        inner: ObjectStoreStorage::in_memory(),
+        big_gets: Mutex::new(Vec::new()),
+    });
+    for (path, data) in [
+        ("index.html", b"<p>hi</p>".to_vec()),
+        ("app.js", b"console.log('bundle')".to_vec()),
+        ("media/clip.webm", big_bytes()),
+    ] {
+        storage
+            .put(&object_key(APP, SHA, path), Bytes::from(data))
+            .await
+            .unwrap();
+    }
+    let d = Arc::new(ActivitiesDeps::new(
+        lazy_service(storage.clone()),
+        true,
+        "https://chat.example.org",
+        Some(Arc::new(FakeFetcher::default())),
+    ));
+    (d, storage)
+}
+
+async fn ranged(
+    d: &ActivitiesDeps,
+    path: &str,
+    range: Option<&str>,
+    head: bool,
+) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let v = range.map(|r| HeaderValue::from_str(r).unwrap());
+    let r = proxy::serve_with(d, APP, &bundle_spec(), path, v.as_ref(), head).await;
+    let (p, b) = r.into_parts();
+    (
+        p.status,
+        p.headers,
+        b.collect().await.unwrap().to_bytes().to_vec(),
+    )
+}
+
+#[tokio::test]
+async fn a_range_request_answers_206_with_the_slice() {
+    let (d, _) = range_rig().await;
+    let (s, h, body) = ranged(&d, "/media/clip.webm", Some("bytes=1000-1999"), false).await;
+    assert_eq!(s, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(body, big_bytes()[1000..2000]);
+    assert_eq!(h[header::CONTENT_RANGE], format!("bytes 1000-1999/{BIG}"));
+    assert_eq!(h[header::CONTENT_LENGTH], "1000");
+    assert_eq!(h[header::ACCEPT_RANGES], "bytes");
+    // An end past the file is cut to it.
+    let (s, h, body) = ranged(&d, "/media/clip.webm", Some("bytes=2097100-9999999"), false).await;
+    assert_eq!(s, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(body.len(), BIG - 2097100);
+    assert_eq!(
+        h[header::CONTENT_RANGE],
+        format!("bytes 2097100-{}/{BIG}", BIG - 1)
+    );
+    // A whole answer says it takes ranges, and gives its length.
+    let (s, h, body) = ranged(&d, "/media/clip.webm", None, false).await;
+    assert_eq!((s, body.len()), (StatusCode::OK, BIG));
+    assert_eq!(h[header::ACCEPT_RANGES], "bytes");
+    assert_eq!(h[header::CONTENT_LENGTH], BIG.to_string());
+    // Several ranges: the whole file.
+    let (s, _, body) = ranged(&d, "/media/clip.webm", Some("bytes=0-1,5-9"), false).await;
+    assert_eq!((s, body.len()), (StatusCode::OK, BIG));
+    // A unit that is not bytes, or garbage: the whole file as well.
+    for odd in ["items=0-1", "bytes=abc", "bytes=9-3", "bytes="] {
+        let (s, _, body) = ranged(&d, "/app.js", Some(odd), false).await;
+        assert_eq!((s, body.len()), (StatusCode::OK, 21), "{odd}");
+    }
+}
+
+#[tokio::test]
+async fn a_suffix_range_and_an_open_range_work() {
+    let (d, _) = range_rig().await;
+    let all = big_bytes();
+    let (s, h, body) = ranged(&d, "/media/clip.webm", Some("bytes=-10"), false).await;
+    assert_eq!(s, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(body, all[BIG - 10..]);
+    assert_eq!(
+        h[header::CONTENT_RANGE],
+        format!("bytes {}-{}/{BIG}", BIG - 10, BIG - 1)
+    );
+    let (s, h, body) = ranged(&d, "/media/clip.webm", Some("bytes=2097100-"), false).await;
+    assert_eq!(s, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(body, all[2097100..]);
+    assert_eq!(h[header::CONTENT_LENGTH], (BIG - 2097100).to_string());
+    // A suffix longer than the file is the whole file as a partial answer.
+    let (s, _, body) = ranged(&d, "/app.js", Some("bytes=-1000"), false).await;
+    assert_eq!((s, body.len()), (StatusCode::PARTIAL_CONTENT, 21));
+}
+
+#[tokio::test]
+async fn an_unsatisfiable_range_answers_416() {
+    let (d, _) = range_rig().await;
+    for r in ["bytes=5000000-", "bytes=2097152-2097200", "bytes=-0"] {
+        let (s, h, _) = ranged(&d, "/media/clip.webm", Some(r), false).await;
+        assert_eq!(s, StatusCode::RANGE_NOT_SATISFIABLE, "{r}");
+        assert_eq!(h[header::CONTENT_RANGE], format!("bytes */{BIG}"), "{r}");
+    }
+}
+
+#[tokio::test]
+async fn the_security_headers_are_on_a_partial_response() {
+    let (d, _) = range_rig().await;
+    let whole = ranged(&d, "/media/clip.webm", None, false).await.1;
+    for (range, head) in [
+        (Some("bytes=0-99"), false),
+        (Some("bytes=-5"), true),
+        (None, true),
+    ] {
+        let (_, h, body) = ranged(&d, "/media/clip.webm", range, head).await;
+        assert!(!head || body.is_empty());
+        assert_hardened(&h);
+        assert_eq!(h[header::CONTENT_TYPE], "video/webm");
+        assert_eq!(h[header::CACHE_CONTROL], "public, max-age=3600");
+        assert_eq!(h[header::ACCESS_CONTROL_ALLOW_ORIGIN], "*");
+        // The reviewed policy of the application, as on a whole answer.
+        assert_eq!(csp_of(&h), csp_of(&whole));
+        assert!(csp_of(&h).contains("connect-src 'self';"), "{}", csp_of(&h));
+    }
+    // The entry document keeps its revalidation rule on a partial answer too.
+    let (s, h, _) = ranged(&d, "/", Some("bytes=0-3"), false).await;
+    assert_eq!(s, StatusCode::PARTIAL_CONTENT);
+    assert_eq!(h[header::CACHE_CONTROL], "no-cache");
+    assert_hardened(&h);
+}
+
+#[tokio::test]
+async fn a_large_file_is_not_read_whole() {
+    let (d, storage) = range_rig().await;
+    let _ = ranged(&d, "/media/clip.webm", None, false).await;
+    let _ = ranged(&d, "/media/clip.webm", Some("bytes=10-20"), false).await;
+    let _ = ranged(&d, "/media/clip.webm", None, true).await;
+    assert!(
+        storage.big_gets.lock().unwrap().is_empty(),
+        "whole reads of a large file: {:?}",
+        storage.big_gets.lock().unwrap()
+    );
+    // The service refuses to hand back a large file whole, too.
+    let e = d.service.bundle_file(APP, SHA, "media/clip.webm").await;
+    assert!(e.is_err());
+    assert!(
+        d.service
+            .bundle_file(APP, SHA, "app.js")
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn range_headers_are_read_as_the_rfc_says() {
+    use proxy::{RangeAsk, range_ask};
+    let h = |s: &'static str| Some(HeaderValue::from_static(s));
+    assert_eq!(range_ask(None, 10), RangeAsk::Whole);
+    assert_eq!(
+        range_ask(h("bytes=2-4").as_ref(), 10),
+        RangeAsk::Partial { start: 2, end: 4 }
+    );
+    assert_eq!(
+        range_ask(h("bytes=-3").as_ref(), 10),
+        RangeAsk::Partial { start: 7, end: 9 }
+    );
+    assert_eq!(
+        range_ask(h("bytes=8-").as_ref(), 10),
+        RangeAsk::Partial { start: 8, end: 9 }
+    );
+    assert_eq!(
+        range_ask(h("bytes=10-").as_ref(), 10),
+        RangeAsk::Unsatisfiable
+    );
+    assert_eq!(
+        range_ask(h("bytes=-5").as_ref(), 0),
+        RangeAsk::Unsatisfiable
+    );
+    assert_eq!(range_ask(h("bytes=0-1, 3-4").as_ref(), 10), RangeAsk::Whole);
+    assert_eq!(range_ask(h("bytes=5-2").as_ref(), 10), RangeAsk::Whole);
+}

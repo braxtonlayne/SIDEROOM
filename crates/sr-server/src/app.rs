@@ -976,7 +976,14 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
                     clock.clone(),
                 )))
                 .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
-                .with_storage(storage.clone()),
+                .with_storage(storage.clone())
+                .with_package_settings(Arc::new(crate::package_wiring::PgPackageSettings::new(
+                    pool.clone(),
+                )))
+                .with_package_trust(Arc::new(crate::package_wiring::PgPackageTrust::new(
+                    pool.clone(),
+                    id_src.clone(),
+                ))),
             cfg.activities.enabled,
             &cfg.server.public_url,
             Some(Arc::new(

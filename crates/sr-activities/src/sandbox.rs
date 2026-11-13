@@ -58,6 +58,63 @@ pub fn code_sha256<'a>(files: impl IntoIterator<Item = (&'a str, &'a [u8])>) -> 
     Some(data_encoding::HEXLOWER.encode(&h.finalize()))
 }
 
+/// [`code_sha256`] as a stream (D-657): the code files are fed one at a time, **in path order**, so no file is
+/// ever held whole. The bytes hashed are exactly those of [`code_sha256`]: the domain prefix, then for each code
+/// file `u32be len(path) || path || u64be len(data) || data`; the length written before the data is the declared
+/// size, so the caller makes sure the data it then feeds has exactly that length (the second pass of the package
+/// check refuses a file whose real size differs). Non-code files are ignored.
+pub struct CodeHasher {
+    h: Sha256,
+    any: bool,
+    open: Option<u64>,
+}
+
+impl Default for CodeHasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CodeHasher {
+    pub fn new() -> Self {
+        let mut h = Sha256::new();
+        h.update(HASH_DOMAIN);
+        Self {
+            h,
+            any: false,
+            open: None,
+        }
+    }
+
+    /// A file starts. Returns whether it is code (and so its data is to be fed to [`CodeHasher::update`]).
+    pub fn begin_file(&mut self, path: &str, declared: u64) -> bool {
+        if !is_code_path(path) {
+            self.open = None;
+            return false;
+        }
+        self.any = true;
+        self.h
+            .update(u32::try_from(path.len()).unwrap_or(u32::MAX).to_be_bytes());
+        self.h.update(path.as_bytes());
+        self.h.update(declared.to_be_bytes());
+        self.open = Some(declared);
+        true
+    }
+
+    /// The next bytes of the code file that began.
+    pub fn update(&mut self, data: &[u8]) {
+        if self.open.is_some() {
+            self.h.update(data);
+        }
+    }
+
+    /// The hash, or `None` when no code file was fed.
+    pub fn finish(self) -> Option<String> {
+        self.any
+            .then(|| data_encoding::HEXLOWER.encode(&self.h.finalize()))
+    }
+}
+
 /// How bad an audit finding is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
@@ -297,6 +354,23 @@ pub fn wasm_import_modules(data: &[u8]) -> Option<Vec<String>> {
     Some(mods.into_iter().collect())
 }
 
+/// The `Warn` findings for code files the audit did not load because they are over the scan limit
+/// ([`crate::service::SCAN_FILE_MAX`], D-657). Add them to the report of [`audit`] so a reviewer sees what was not
+/// scanned; they never block a signature (the operator signs the hash, having seen the warning).
+pub fn skipped_findings(skipped: &[(String, u64)]) -> Vec<Finding> {
+    skipped
+        .iter()
+        .map(|(path, size)| Finding {
+            path: path.clone(),
+            rule: "not-scanned".to_owned(),
+            severity: Severity::Warn,
+            detail: format!(
+                "{size} bytes, too large to scan here; read it before signing if you have not"
+            ),
+        })
+        .collect()
+}
+
 /// Audit the code files of a bundle. `files` are `(path, bytes)` of any files; only code is read. `connect` is
 /// the manifest's `connect` list (see [`parse_connect`]); a URL under one of those hosts is not a finding.
 pub fn audit(files: &[(&str, &[u8])], connect: &[String]) -> AuditReport {
@@ -513,6 +587,36 @@ mod tests {
         assert_ne!(a, c, "different code, different hash");
         assert_eq!(a.as_deref().map(str::len), Some(64));
         assert_eq!(code_sha256(files(&[("index.html", b"<p>")])), None);
+    }
+
+    #[test]
+    fn the_streaming_code_hash_equals_the_in_memory_one() {
+        let set: &[(&str, &[u8])] = &[
+            ("main.js", b"console.log(1)"),
+            ("index.html", b"<p>"),
+            ("a/lib.mjs", b"export const a = 1"),
+            ("g.wasm", b"\0asm\x01\0\0\0"),
+            ("img/x.png", b"png"),
+            ("empty.js", b""),
+        ];
+        let whole = code_sha256(files(set)).unwrap();
+        // Fed in path order, each file in pieces of three bytes.
+        let mut sorted = set.to_vec();
+        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        let mut h = CodeHasher::new();
+        for (p, d) in &sorted {
+            if h.begin_file(p, d.len() as u64) {
+                for piece in d.chunks(3) {
+                    h.update(piece);
+                }
+            }
+        }
+        assert_eq!(h.finish().as_deref(), Some(whole.as_str()));
+        // No code, no hash.
+        let mut h = CodeHasher::new();
+        assert!(!h.begin_file("index.html", 3));
+        h.update(b"<p>");
+        assert_eq!(h.finish(), None);
     }
 
     #[test]
