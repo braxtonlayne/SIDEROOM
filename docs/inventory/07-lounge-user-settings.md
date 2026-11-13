@@ -50,7 +50,7 @@ Phase 1 (SIDE ROOM sections fill in as their phases land). Spec: [lounge-chat](.
 - [x] **LNG-USET-023** [FE] Add connection buttons (providers grid), connected cards (display on profile toggle, show stats toggle, remove) *Built: sections/Connections.tsx over /users/@me/connections (providers grid with OAuth start and link-only forms, return notice for `?connected=`/`?error=`, show on profile, show stats, refresh, remove); tests p13connections.test.tsx.*
    - Page built with the Discord status and a read-only list; add/remove/refresh needs LNG-USET-024.
 - [x] **LNG-USET-024** [BE] Connection OAuth flows per provider (Discord, GitHub, Spotify, Steam (OpenID), Twitch, YouTube, Reddit, Xbox/TikTok/Roblox where available) + unverified link connections + periodic stats refresh *(sr-api routes/userset connections.rs and providers.rs: GitHub, Discord, Spotify, Twitch, YouTube, Reddit, Steam behind [connections]; other providers link-only; GitHub/Reddit stats refresh job; tests userset/tests.rs)*
-   - Discord is login/register only; `intent=link`, an unlink route and the other providers do not exist.
+   - Discord is login/register only (`intent=link` does not exist); unlink is `DELETE /users/@me/connections/{provider}/{id}` and refresh is `POST /users/@me/connections/{provider}/{id}/refresh` (`crates/sr-api/src/routes/userset/connections.rs`); the other providers are link-only (`PUT /users/@me/connections/link`).
 
 ## SIDE ROOM: Invites
 - [x] **LNG-USET-025** [FE] Credits balance card ("You can bring N more people"), eligibility explanations _(Settings > Invites: credits card from `GET /sr/invites`, with the reason a code cannot be made (`sections/Invites.tsx`, p12-admin-mod-be))_
