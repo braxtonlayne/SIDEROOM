@@ -2879,6 +2879,8 @@ async fn a_missed_member_left_is_reconciled_after_lag() {
     l.overflow_platform_topic().await;
     let v = c.expect_event("GUILD_DELETE").await;
     assert_eq!(v["d"]["id"], "1");
+    // D-646: the platform resync marker follows the reconcile; wait for it so it is not taken for the message.
+    assert_eq!(c.next_event("SR_RESYNC").await["d"]["scope"], "platform");
     settle().await;
     emit(&l.e.bus, msg(G1, OPEN, 1)).await;
     c.silent().await;
@@ -2896,6 +2898,8 @@ async fn a_missed_member_joined_is_reconciled_after_lag() {
     l.overflow_platform_topic().await;
     let v = c.expect_event("GUILD_CREATE").await;
     assert_eq!(v["d"]["id"], "1");
+    // D-646: the platform resync marker follows the reconcile; wait for it so it is not taken for the message.
+    assert_eq!(c.next_event("SR_RESYNC").await["d"]["scope"], "platform");
     settle().await;
     emit(&l.e.bus, msg(G1, OPEN, 2)).await;
     assert_eq!(c.expect_event("MESSAGE_CREATE").await["d"]["id"], "2");
