@@ -42,7 +42,7 @@ A global top bar (`SIDE ROOM / The lounge · The cinema · The library`) links t
 - Native desktop/mobile apps. These come later. Until then the product is the browser plus an installable PWA.
 - Public sign-up, SEO, or growth features.
 - Card or PayPal payments. Donations are **crypto only**.
-- Moderation and compliance tooling beyond basic hooks. This is a later phase (see roadmap). Data structures reserve space for it now.
+- Moderation and compliance tooling beyond what phase 7 and wave 44 built: reports, cases, holds, appeals, the takedown register and graduated restrictions (`sr-moderation`).
 - Arbitrary user code or custom CSS. Customization is declarative and reviewed.
 - Content above 1080p (no 4K/HDR).
 - **The Board.**
@@ -62,4 +62,4 @@ See [13-roadmap-and-phases.md](13-roadmap-and-phases.md).
 7. Moderation and compliance
 8. Native clients (out of scope for this spec set)
 
-Phases 0 to 7 are built. They were followed by launch readiness (waves 20 to 24), the feature phase (waves 27 to 40) and the Study, Arcade and web-of-trust waves (41 to 47; wave 48, the desktop shell, is next). Phase 8 is still out of scope. The roadmap has the current state of each.
+Phases 0 to 7 are built. They were followed by launch readiness (waves 20 to 24), the feature phase (waves 27 to 40) the Study, Arcade and web-of-trust waves (41 to 47), and the feature and hardening waves 49 to 65 (audit fixes, the Discord bridge, storage links, the beta bug reporter, staff-only app code and large Activity packages). Wave 48, the desktop shell, has not started. Phase 8 is still out of scope. The roadmap has the current state of each.
