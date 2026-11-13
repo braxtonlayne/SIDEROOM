@@ -41,28 +41,95 @@ pub struct SigningKeyRow {
     pub seed_sealed: Vec<u8>,
 }
 
+/// The largest code file the audit loads to scan (D-657); a larger one is reported as a warning, not scanned.
+pub const SCAN_FILE_MAX: u64 = 8 * 1024 * 1024;
+
+/// The code files of a bundle as the audit sees them.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CodeScan {
+    /// `(path, data)` of every code file of at most [`SCAN_FILE_MAX`] bytes.
+    pub files: Vec<(String, Vec<u8>)>,
+    /// `(path, size)` of every code file over it, not loaded.
+    pub skipped: Vec<(String, u64)>,
+}
+
 impl ActivityService {
     // ------------------------------------------------------------------ code hashes
 
-    /// The code files of a stored bundle, read from object storage. Only code is read: assets the bundle
-    /// carries are never fetched, and nothing outside the bundle's own prefix is.
-    pub async fn code_files(
+    /// The code hash of a stored bundle ([`sandbox::code_sha256`]), computed from the stored objects as streams in
+    /// path order: no code file is ever held whole (D-657). Only code is read; assets are never fetched.
+    pub async fn code_hash(
         &self,
         app: i64,
         bundle_sha256: &str,
         manifest: &[BundleEntry],
-    ) -> ActivityResult<Vec<(String, Vec<u8>)>> {
-        let mut out = Vec::new();
-        for e in manifest.iter().filter(|e| sandbox::is_code_path(&e.path)) {
-            let Some(data) = self.bundle_file(app, bundle_sha256, &e.path).await? else {
+    ) -> ActivityResult<Option<String>> {
+        use futures::StreamExt;
+        let mut code: Vec<&BundleEntry> = manifest
+            .iter()
+            .filter(|e| sandbox::is_code_path(&e.path))
+            .collect();
+        code.sort_by(|a, b| a.path.cmp(&b.path));
+        let mut hasher = sandbox::CodeHasher::new();
+        for e in code {
+            let Some(mut s) = self
+                .bundle_file_stream(app, bundle_sha256, &e.path, None)
+                .await?
+            else {
                 return Err(ActivityError::Storage(format!(
                     "the stored bundle lacks {}",
                     e.path
                 )));
             };
-            out.push((e.path.clone(), data.to_vec()));
+            hasher.begin_file(&e.path, s.info.size);
+            let mut fed: u64 = 0;
+            while let Some(chunk) = s.body.next().await {
+                let chunk = chunk.map_err(|e| ActivityError::Storage(e.to_string()))?;
+                fed += chunk.len() as u64;
+                hasher.update(&chunk);
+            }
+            if fed != s.info.size {
+                return Err(ActivityError::Storage(format!(
+                    "{} ended after {fed} of {} bytes",
+                    e.path, s.info.size
+                )));
+            }
         }
-        Ok(out)
+        Ok(hasher.finish())
+    }
+
+    /// The code files of a stored bundle for the audit: each read whole up to [`SCAN_FILE_MAX`] bytes; a larger one
+    /// is not loaded, only named in [`CodeScan::skipped`] (the audit reports it as a warning). Only code is read, and
+    /// nothing outside the bundle's own prefix.
+    pub async fn code_files(
+        &self,
+        app: i64,
+        bundle_sha256: &str,
+        manifest: &[BundleEntry],
+    ) -> ActivityResult<CodeScan> {
+        use futures::StreamExt;
+        let mut scan = CodeScan::default();
+        for e in manifest.iter().filter(|e| sandbox::is_code_path(&e.path)) {
+            let Some(mut s) = self
+                .bundle_file_stream(app, bundle_sha256, &e.path, None)
+                .await?
+            else {
+                return Err(ActivityError::Storage(format!(
+                    "the stored bundle lacks {}",
+                    e.path
+                )));
+            };
+            if s.info.size > SCAN_FILE_MAX {
+                scan.skipped.push((e.path.clone(), s.info.size));
+                continue;
+            }
+            let mut data = Vec::with_capacity(usize::try_from(s.info.size).unwrap_or(0));
+            while let Some(chunk) = s.body.next().await {
+                data.extend_from_slice(&chunk.map_err(|e| ActivityError::Storage(e.to_string()))?);
+            }
+            scan.files.push((e.path.clone(), data));
+        }
+        Ok(scan)
     }
 
     /// Compute (when missing) and store the code hash of a bundle that was uploaded before hashes existed.
@@ -84,8 +151,7 @@ impl ActivityService {
         let sha: String = r.try_get("sha256")?;
         let manifest: Value = r.try_get("manifest")?;
         let manifest: Vec<BundleEntry> = serde_json::from_value(manifest).unwrap_or_default();
-        let files = self.code_files(app, &sha, &manifest).await?;
-        let hash = sandbox::code_sha256(files.iter().map(|(p, d)| (p.as_str(), d.as_slice())));
+        let hash = self.code_hash(app, &sha, &manifest).await?;
         if let Some(h) = &hash {
             sqlx::query(
                 "UPDATE application_activity_bundles SET code_sha256 = $2 \

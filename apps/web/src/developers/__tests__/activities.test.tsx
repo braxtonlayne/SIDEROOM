@@ -103,6 +103,15 @@ describe('application: activities tab (DEV-PORT-003, J-12)', () => {
     let uploads = 0;
     server.use(
       http.get('*/api/v1/applications/500/activity', () => HttpResponse.json(base())),
+      http.get('*/api/v1/applications/500/activity/package-limits', () =>
+        HttpResponse.json({
+          max_bytes: String(512 * 1024 * 1024),
+          max_files: 20000,
+          tier: 'standard',
+          resumable: true,
+          part_size: 16 * 1024 * 1024,
+        }),
+      ),
       http.post('*/api/v1/applications/500/activity/bundles', () => {
         uploads += 1;
         return HttpResponse.json(
@@ -126,11 +135,14 @@ describe('application: activities tab (DEV-PORT-003, J-12)', () => {
     await user.upload(input, zip('bad.zip'));
     expect(await screen.findByRole('alert')).toHaveTextContent('../evil.js: leaves the bundle');
 
-    // Over 32 MiB is refused without sending anything.
+    expect(await screen.findByTestId('package-limit')).toHaveTextContent('Packages up to 512 MiB.');
+    // Over the application's limit is refused without sending anything.
     const big = new File([new Uint8Array(8)], 'big.zip', { type: 'application/zip' });
-    Object.defineProperty(big, 'size', { value: 33 * 1024 * 1024 });
+    Object.defineProperty(big, 'size', { value: 600 * 1024 * 1024 });
     await user.upload(input, big);
-    expect(await screen.findByRole('alert')).toHaveTextContent('larger than 32 MiB');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The limit for this application is 512 MiB (standard limit)',
+    );
     expect(uploads).toBe(1);
   });
 

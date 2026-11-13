@@ -968,22 +968,58 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     // `<app-id>.activities.<host>`. Everything but the owner's settings is off unless `[activities] enabled`.
     // OPS-TDEP-001: a test deployment serves them from `/_activity/<id>/` instead, and says so loudly.
     crate::test_deploy::log_startup_warnings(&cfg);
+    let activity_service = sr_activities::ActivityService::new(pool.clone(), id_src.clone())
+        .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
+            PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
+            clock.clone(),
+        )))
+        .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
+        .with_storage(storage.clone())
+        .with_package_settings(Arc::new(crate::package_wiring::PgPackageSettings::new(
+            pool.clone(),
+        )))
+        .with_package_trust(Arc::new(crate::package_wiring::PgPackageTrust::new(
+            pool.clone(),
+            id_src.clone(),
+        )));
+    // SEC-AUD-176 (D-654): resumable uploads of big packages. Part signing needs the S3 API, so a memory store
+    // (and `SR_MEDIA_SINGLE_PUT=1`) has none and the page falls back to the single request.
+    let package_parts = if s.endpoint == "memory:"
+        || std::env::var("SR_MEDIA_SINGLE_PUT").is_ok_and(|v| v == "1")
+    {
+        None
+    } else {
+        let s3 = sr_storage::s3multipart::S3Multipart::new(
+            &s.endpoint,
+            &s.bucket,
+            &s.region,
+            s.access_key.expose(),
+            s.secret_key.expose(),
+        )
+        .context("configuring package multipart uploads")?;
+        Some(sr_activities::package_upload::PartsWiring::new(Arc::new(
+            s3,
+        )))
+    };
+    let package_uploads = sr_activities::package_upload::PackageUploads::new(
+        pool.clone(),
+        id_src.clone(),
+        Arc::new(activity_service.clone()),
+        storage.clone(),
+        package_parts,
+        crate::package_jobs::queue(pool.clone(), id_src.clone()),
+    );
     let activities_deps = Arc::new(
         routes::activities::ActivitiesDeps::new(
-            sr_activities::ActivityService::new(pool.clone(), id_src.clone())
-                .with_channels(Arc::new(crate::activities::ChatActivityChannels::new(
-                    PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
-                    clock.clone(),
-                )))
-                .with_events(Arc::new(sr_activities::BusEvents::new(bus.clone())))
-                .with_storage(storage.clone()),
+            activity_service,
             cfg.activities.enabled,
             &cfg.server.public_url,
             Some(Arc::new(
                 crate::activities::SafeActivityFetcher::production(),
             )),
         )
-        .with_same_host(cfg.activities.same_host()),
+        .with_same_host(cfg.activities.same_host())
+        .with_package_uploads(package_uploads.clone()),
     );
     // The Arcade room (ARC-ROOM-001): Featured, Coming Soon and a server's cartridges.
     let arcade_dm = routes::review::DmSlot::default();
@@ -1965,6 +2001,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let runner = crate::cards_jobs::register(runner, &pool, card_jobs);
     let runner = crate::external_jobs::register(runner, &pool, storage.clone());
     let runner = crate::activities_jobs::register(runner, &pool, activities_deps.service.clone());
+    let runner = crate::package_jobs::register(runner, &pool, package_uploads.clone());
     let runner = crate::library_jobs::register(runner, &pool, library_service.clone());
     let runner = crate::library_jobs::register_sources(runner, &pool, source_scanner.clone());
     let runner = crate::cinema_jobs::register(runner, &pool, cinema_social_service.clone());
@@ -2036,6 +2073,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     crate::external_jobs::schedule(&pool).await?;
     crate::upload_jobs::schedule(&pool).await?;
     crate::activities_jobs::schedule(&pool).await?;
+    crate::package_jobs::schedule(&pool).await?;
     crate::library_jobs::schedule_gc(&pool).await?;
     crate::library_jobs::schedule_sources(&pool).await?;
     crate::cinema_jobs::schedule(&pool).await?;

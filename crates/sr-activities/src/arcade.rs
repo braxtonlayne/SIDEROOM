@@ -43,6 +43,12 @@ pub const MAX_FEATURED: i64 = 24;
 pub const MAX_COMING_SOON: i64 = 40;
 /// Most cartridges one server lists.
 pub const MAX_CARTRIDGES: i64 = 50;
+/// D-656: the most a cartridge check fetches from its shelf in all (the end record, the zip's index, the manifest
+/// entry). A cartridge whose index is larger is "not a readable game file". The size of the cartridge is not limited.
+pub const CARTRIDGE_FETCH_BUDGET: u64 = 16 * 1024 * 1024;
+/// One aligned fetch of a cartridge check.
+const CARTRIDGE_BLOCK: u64 = 1024 * 1024;
+const TOO_LARGE_INDEX: &str = "is not a readable game file (its index is too large).";
 
 /// The two content tiers of a game manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
@@ -471,13 +477,20 @@ pub struct CartridgeInput {
     pub tip_links: Vec<TipInput>,
 }
 
-/// Reads a cartridge's file from its shelf for [`ArcadeService::add_cartridge`] (D-568). The HTTP layer
-/// implements it with the shelf's sealed credentials and the endpoint guard; the service never holds a bucket.
+/// Reads a cartridge's file from its shelf for [`ArcadeService::add_cartridge`] (D-568, D-656). The HTTP layer
+/// implements it with the shelf's sealed credentials and the endpoint guard; the service never holds a bucket, and
+/// never asks for more than the bytes it needs (the end of the file, the zip's index and the manifest entry).
 #[async_trait::async_trait]
 pub trait CartridgeObjects: Send + Sync {
-    /// The first `len` bytes of the object at `path` on shelf (mount) `shelf`. `Err` is the reason for the lister,
-    /// and says whether the answer is final or the shelf may answer differently later (D-582).
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError>;
+    /// The bytes `[start, end)` of the object at `path` on shelf (mount) `shelf`. `Err` is the reason for the
+    /// lister, and says whether the answer is final or the shelf may answer differently later (D-582).
+    async fn read_range(
+        &self,
+        shelf: i64,
+        path: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError>;
 }
 
 /// Why a cartridge's file could not be read (D-582). The manifest re-check delists on a definite answer and
@@ -1071,6 +1084,11 @@ impl ArcadeService {
     }
 
     /// [`Self::cartridge_manifest`] that keeps a final answer apart from a shelf that could not be asked (D-582).
+    ///
+    /// D-656: a cartridge has no size limit. The file is never fetched: the zip is read through ranged reads of the
+    /// shelf (the end record, the index, the manifest entry), at most [`CARTRIDGE_FETCH_BUDGET`] in all; a cartridge
+    /// whose index does not fit is "not a readable game file". The zip reader runs on a blocking thread and asks this
+    /// task for each range over a channel, so the shelf (only borrowed here) is read where it can be.
     async fn read_cartridge_manifest(
         &self,
         objects: &dyn CartridgeObjects,
@@ -1078,25 +1096,70 @@ impl ArcadeService {
         path: &str,
         size: i64,
     ) -> Result<Manifest, ManifestFail> {
+        use crate::zipstore::{ChannelSource, RangeRequest, ZipStoreReader, peek_end_record};
+        use futures::future::{Either, select};
         let len = u64::try_from(size).unwrap_or(0);
         if len == 0 {
             return Err(ManifestFail::Definite(
                 "is an empty file, not a game.".to_owned(),
             ));
         }
-        if len > bundle::MAX_UNPACKED_BYTES {
-            return Err(ManifestFail::Definite(
-                "is larger than 32 MiB, too large for a cartridge.".to_owned(),
-            ));
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<RangeRequest>();
+        let reader = ZipStoreReader::new(
+            std::sync::Arc::new(ChannelSource { tx }),
+            len,
+            tokio::runtime::Handle::current(),
+            CARTRIDGE_BLOCK,
+            Some(CARTRIDGE_FETCH_BUDGET),
+        );
+        let stats = reader.stats();
+        let mut task = tokio::task::spawn_blocking(move || {
+            let mut reader = reader;
+            if let Ok(Some(end)) = peek_end_record(&mut reader, len)
+                && end.index_bytes > CARTRIDGE_FETCH_BUDGET
+            {
+                return Err(None);
+            }
+            bundle::read_manifest_from(reader).map_err(Some)
+        });
+        let mut shelf_error: Option<CartridgeReadError> = None;
+        let joined = loop {
+            match select(Box::pin(rx.recv()), &mut task).await {
+                Either::Left((Some(req), _)) => {
+                    let answer = match objects.read_range(shelf, path, req.start, req.end).await {
+                        Ok(v) => Ok(bytes::Bytes::from(v)),
+                        Err(e) => {
+                            let why = match &e {
+                                CartridgeReadError::Definite(m)
+                                | CartridgeReadError::Transient(m) => m.clone(),
+                            };
+                            shelf_error.get_or_insert(e);
+                            Err(why)
+                        }
+                    };
+                    let _ = req.reply.send(answer);
+                }
+                // Every sender is gone: the reader has finished.
+                Either::Left((None, _)) => break task.await,
+                Either::Right((r, _)) => break r,
+            }
+        };
+        let result =
+            joined.map_err(|e| ManifestFail::Other(ActivityError::Storage(e.to_string())))?;
+        match (result, shelf_error) {
+            (Ok(m), _) => Ok(m),
+            // The shelf did not answer: its verdict, final or not, is the answer.
+            (Err(_), Some(CartridgeReadError::Definite(m))) => Err(ManifestFail::Definite(m)),
+            (Err(_), Some(CartridgeReadError::Transient(m))) => Err(ManifestFail::Transient(m)),
+            (Err(None), None) => Err(ManifestFail::Definite(TOO_LARGE_INDEX.to_owned())),
+            (Err(Some(_)), None) if stats.over_budget() => {
+                Err(ManifestFail::Definite(TOO_LARGE_INDEX.to_owned()))
+            }
+            (Err(Some(e)), None) => Err(ManifestFail::Definite(format!(
+                "could not be read: {}",
+                e.text()
+            ))),
         }
-        let bytes = objects.read(shelf, path, len).await.map_err(|e| match e {
-            CartridgeReadError::Definite(m) => ManifestFail::Definite(m),
-            CartridgeReadError::Transient(m) => ManifestFail::Transient(m),
-        })?;
-        tokio::task::spawn_blocking(move || bundle::read_manifest(&bytes))
-            .await
-            .map_err(|e| ManifestFail::Other(ActivityError::Storage(e.to_string())))?
-            .map_err(|e| ManifestFail::Definite(format!("could not be read: {}", e.text())))
     }
 
     /// List a cartridge on a server. The cartridge names a file: a catalog object (`shelf_id` and `object_hash`)

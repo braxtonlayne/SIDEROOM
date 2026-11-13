@@ -24296,7 +24296,7 @@
         "tags": [
           "activities"
         ],
-        "summary": "Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,\n`index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal\nnames the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are\nsuperseded. Uploading the same zip again returns the same bundle.",
+        "summary": "Upload a bundle: the request body is a zip of static files (at most 32 MiB; what it may unpack to and how many\nentries it may hold is the application's package limit, which the operator sets and a refusal names;\n`index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal\nnames the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are\nsuperseded. Uploading the same zip again returns the same bundle.",
         "operationId": "upload_bundle",
         "parameters": [
           {
@@ -24429,6 +24429,53 @@
         ]
       }
     },
+    "/applications/{application_id}/activity/package-limits": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "The package limits of my application: the size limit with its tier, and whether uploads can be resumed.",
+        "operationId": "get_limits",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageLimitsView"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/applications/{application_id}/activity/submit": {
       "post": {
         "tags": [
@@ -24464,6 +24511,262 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/uploads": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Start an upload of a package in parts. The answer holds the presigned part URLs; send each part with a `PUT`,\nthen call `complete`. `413` over the application's limit, `429` after six uploads in an hour, `409`\n(`PACKAGE_PARTS_UNAVAILABLE`) when this server's storage cannot take parts.",
+        "operationId": "begin_upload",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityPackageUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadSlot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/uploads/{upload_id}": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Where an upload stands: the parts the store holds and fresh URLs for the rest while uploading, the checked\nshare while checking, then the bundle or the reason it was refused.",
+        "operationId": "get_upload",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Give an upload up: its parts are aborted at the store and a check in progress is cancelled.",
+        "operationId": "abort_upload",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/applications/{application_id}/activity/uploads/{upload_id}/complete": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "All parts are sent: the server completes the object from the parts the store holds and queues the check.\n`409` (`PACKAGE_PARTS_MISSING`) names the parts that are missing.",
+        "operationId": "complete_upload",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "description": "Application snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "upload_id",
+            "in": "path",
+            "description": "Upload snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadStatus"
                 }
               }
             }
@@ -83654,6 +83957,22 @@
           }
         }
       },
+      "ActivityPackageUploadBody": {
+        "type": "object",
+        "description": "`POST .../uploads` body. The size is a decimal string (a number is accepted too).",
+        "required": [
+          "size",
+          "filename"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          }
+        }
+      },
       "ActivitySubmitBody": {
         "type": "object",
         "required": [
@@ -107103,6 +107422,161 @@
           "recipe",
           "server_template"
         ]
+      },
+      "PackageLimitsView": {
+        "type": "object",
+        "description": "`GET /applications/{id}/activity/package-limits`.",
+        "required": [
+          "max_bytes",
+          "max_files",
+          "tier",
+          "resumable",
+          "part_size"
+        ],
+        "properties": {
+          "max_bytes": {
+            "type": "string",
+            "description": "Largest package for this application, in bytes (a decimal string)."
+          },
+          "max_files": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "resumable": {
+            "type": "boolean",
+            "description": "False when the store cannot sign part URLs: only the single-request upload (32 MiB) works."
+          },
+          "tier": {
+            "$ref": "#/components/schemas/PackageTierView"
+          }
+        }
+      },
+      "PackagePartUrl": {
+        "type": "object",
+        "description": "One presigned part URL.",
+        "required": [
+          "part_number",
+          "url"
+        ],
+        "properties": {
+          "part_number": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "PackageTierView": {
+        "type": "string",
+        "description": "Tier of an application as shown to the developer.",
+        "enum": [
+          "standard",
+          "reviewed",
+          "platform"
+        ]
+      },
+      "PackageUploadSlot": {
+        "type": "object",
+        "description": "`POST /applications/{id}/activity/uploads`: the new session.",
+        "required": [
+          "upload_id",
+          "part_size",
+          "part_count",
+          "parts"
+        ],
+        "properties": {
+          "part_count": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "part_size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackagePartUrl"
+            }
+          },
+          "upload_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PackageUploadState": {
+        "type": "string",
+        "description": "Where an upload stands.",
+        "enum": [
+          "uploading",
+          "checking",
+          "ready",
+          "refused",
+          "expired"
+        ]
+      },
+      "PackageUploadStatus": {
+        "type": "object",
+        "description": "`GET .../uploads/{id}` and the answer of `complete`.",
+        "required": [
+          "state",
+          "received",
+          "checked_bytes",
+          "total_bytes"
+        ],
+        "properties": {
+          "bundle_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checked_bytes": {
+            "type": "string"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PackagePartUrl"
+            },
+            "description": "Fresh URLs for the missing parts, only while uploading."
+          },
+          "received": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Part numbers the store holds (right size), while uploading."
+          },
+          "state": {
+            "$ref": "#/components/schemas/PackageUploadState"
+          },
+          "total_bytes": {
+            "type": "string"
+          }
+        }
       },
       "PackageView": {
         "type": "object",

@@ -15,12 +15,15 @@ pub mod bundle;
 pub mod error;
 pub mod guest;
 pub mod model;
+pub mod package;
+pub mod package_upload;
 pub mod ports;
 pub mod rules;
 pub mod sandbox;
 pub mod service;
 pub mod trust;
 pub mod voice;
+pub mod zipstore;
 
 pub use error::{ActivityError, ActivityResult};
 pub use ports::{ActivityEvents, BusEvents, ChannelAccess, ChannelPerms, NoChannels, NoEvents};

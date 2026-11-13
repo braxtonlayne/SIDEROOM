@@ -198,7 +198,15 @@ async fn answer(d: &ActivitiesDeps, app: i64, req: Request, path_and_query: Stri
     }
     if read_method(req.method()) {
         let head = req.method() == Method::HEAD;
-        let mut resp = serve(d, app, &spec, &path_and_query).await;
+        let mut resp = serve_with(
+            d,
+            app,
+            &spec,
+            &path_and_query,
+            req.headers().get(header::RANGE),
+            head,
+        )
+        .await;
         if head {
             *resp.body_mut() = Body::empty();
         }
@@ -248,11 +256,25 @@ fn dev_mark(spec: &ServeSpec, resp: &mut Response) {
 
 /// Serve one `GET` path of an Activity: a path under a URL mapping comes from the mapping's target, anything
 /// else from the reviewed bundle (or, in development, the live development URL).
+#[cfg(test)]
 pub(crate) async fn serve(
     d: &ActivitiesDeps,
     app: i64,
     spec: &ServeSpec,
     path_and_query: &str,
+) -> Response {
+    serve_with(d, app, spec, path_and_query, None, false).await
+}
+
+/// [`serve`] with the request's `Range` header (a single range of a bundle file is answered `206`, D-657) and
+/// whether the request is a `HEAD` (the body is never fetched).
+pub(crate) async fn serve_with(
+    d: &ActivitiesDeps,
+    app: i64,
+    spec: &ServeSpec,
+    path_and_query: &str,
+    range: Option<&HeaderValue>,
+    head: bool,
 ) -> Response {
     let Ok(mapped) = rules::mapping_target(&spec.url_mappings, path_and_query) else {
         return page(d, StatusCode::BAD_REQUEST, "That path is not allowed.");
@@ -278,15 +300,89 @@ pub(crate) async fn serve(
                 "This activity is not available.",
             ),
         },
-        (None, Serving::Bundle { sha256 }) => from_bundle(d, app, sha256, path_and_query).await,
+        (None, Serving::Bundle { sha256 }) => {
+            from_bundle(d, app, sha256, path_and_query, range, head).await
+        }
     };
     dev_mark(spec, &mut resp);
     apply_csp(d, app, spec, &mut resp);
     resp
 }
 
-/// One file of the reviewed bundle.
-async fn from_bundle(d: &ActivitiesDeps, app: i64, sha256: &str, path_and_query: &str) -> Response {
+/// What a `Range` header asks of a file of `len` bytes (RFC 9110 section 14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RangeAsk {
+    /// No usable single range (absent, several ranges, an unknown unit, a malformed value): the whole file, `200`.
+    Whole,
+    /// One range that can be met: bytes `start..=end`, `206`.
+    Partial { start: u64, end: u64 },
+    /// One range that cannot be met: `416`.
+    Unsatisfiable,
+}
+
+/// Parse a `Range` header against the file's length. Only `bytes=a-b`, `a-` and `-n` in a single range are honoured;
+/// several ranges are answered with the whole file (allowed by the RFC, and it spares the server multipart bodies).
+pub(crate) fn range_ask(header: Option<&HeaderValue>, len: u64) -> RangeAsk {
+    let Some(v) = header.and_then(|h| h.to_str().ok()) else {
+        return RangeAsk::Whole;
+    };
+    let Some(spec) = v.trim().strip_prefix("bytes=") else {
+        return RangeAsk::Whole;
+    };
+    if spec.contains(',') {
+        return RangeAsk::Whole;
+    }
+    let Some((a, b)) = spec.trim().split_once('-') else {
+        return RangeAsk::Whole;
+    };
+    let (a, b) = (a.trim(), b.trim());
+    let num = |s: &str| s.parse::<u64>().ok();
+    match (a.is_empty(), b.is_empty()) {
+        // `-n`: the last n bytes.
+        (true, false) => match num(b) {
+            Some(0) => RangeAsk::Unsatisfiable,
+            Some(_) if len == 0 => RangeAsk::Unsatisfiable,
+            Some(n) => RangeAsk::Partial {
+                start: len.saturating_sub(n),
+                end: len - 1,
+            },
+            None => RangeAsk::Whole,
+        },
+        // `a-`: from a to the end.
+        (false, true) => match num(a) {
+            Some(s) if s < len => RangeAsk::Partial {
+                start: s,
+                end: len - 1,
+            },
+            Some(_) => RangeAsk::Unsatisfiable,
+            None => RangeAsk::Whole,
+        },
+        // `a-b`.
+        (false, false) => match (num(a), num(b)) {
+            (Some(s), Some(e)) if s > e => RangeAsk::Whole,
+            (Some(s), Some(e)) if s < len => RangeAsk::Partial {
+                start: s,
+                end: e.min(len - 1),
+            },
+            (Some(_), Some(_)) => RangeAsk::Unsatisfiable,
+            _ => RangeAsk::Whole,
+        },
+        (true, true) => RangeAsk::Whole,
+    }
+}
+
+/// One file of the reviewed bundle, streamed from the store (D-657): `Accept-Ranges: bytes`, a single range answered
+/// `206` with `Content-Range`, one that cannot be met `416` with `Content-Range: bytes */len`. The file is never held
+/// whole. Every header a whole answer carries (the sandbox policy, the content type, `nosniff`, the cache rule) is on
+/// the `206` too; `HEAD` fetches nothing.
+async fn from_bundle(
+    d: &ActivitiesDeps,
+    app: i64,
+    sha256: &str,
+    path_and_query: &str,
+    range: Option<&HeaderValue>,
+    head: bool,
+) -> Response {
     let path = path_and_query.split('?').next().unwrap_or("/");
     let Some(rel) = bundle::request_to_path(path) else {
         return page(d, StatusCode::BAD_REQUEST, "That path is not allowed.");
@@ -294,22 +390,95 @@ async fn from_bundle(d: &ActivitiesDeps, app: i64, sha256: &str, path_and_query:
     let Some(ct) = bundle::content_type_for(&rel) else {
         return page(d, StatusCode::NOT_FOUND, "There is nothing here.");
     };
-    let data = match d.service.bundle_file(app, sha256, &rel).await {
-        Ok(Some(data)) => data,
-        Ok(None) => return page(d, StatusCode::NOT_FOUND, "There is nothing here."),
-        Err(e) => {
-            tracing::error!(error = %e, "reading an activity bundle failed");
-            return page(
-                d,
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Something went wrong.",
-            );
+    let oops = |e: &dyn std::fmt::Display| {
+        tracing::error!(error = %e, "reading an activity bundle failed");
+        page(
+            d,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Something went wrong.",
+        )
+    };
+    let nothing = || page(d, StatusCode::NOT_FOUND, "There is nothing here.");
+    // A range needs the length first (a suffix or an open range is relative to it); so does `HEAD`.
+    let mut r = if range.is_some() || head {
+        let len = match d.service.bundle_file_len(app, sha256, &rel).await {
+            Ok(Some(n)) => n,
+            Ok(None) => return nothing(),
+            Err(e) => return oops(&e),
+        };
+        match range_ask(range, len) {
+            RangeAsk::Unsatisfiable => {
+                let mut r = page(
+                    d,
+                    StatusCode::RANGE_NOT_SATISFIABLE,
+                    "That part of the file does not exist.",
+                );
+                if let Ok(v) = HeaderValue::from_str(&format!("bytes */{len}")) {
+                    r.headers_mut().insert(header::CONTENT_RANGE, v);
+                }
+                r.headers_mut()
+                    .insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
+                return r;
+            }
+            RangeAsk::Partial { start, end } => {
+                let body = if head {
+                    Body::empty()
+                } else {
+                    match d
+                        .service
+                        .bundle_file_stream(app, sha256, &rel, Some((start, end + 1)))
+                        .await
+                    {
+                        Ok(Some(s)) => Body::from_stream(s.body),
+                        Ok(None) => return nothing(),
+                        Err(e) => return oops(&e),
+                    }
+                };
+                let mut r = Response::new(body);
+                *r.status_mut() = StatusCode::PARTIAL_CONTENT;
+                if let Ok(v) = HeaderValue::from_str(&format!("bytes {start}-{end}/{len}")) {
+                    r.headers_mut().insert(header::CONTENT_RANGE, v);
+                }
+                r.headers_mut()
+                    .insert(header::CONTENT_LENGTH, HeaderValue::from(end - start + 1));
+                r
+            }
+            RangeAsk::Whole => {
+                let body = if head {
+                    Body::empty()
+                } else {
+                    match d.service.bundle_file_stream(app, sha256, &rel, None).await {
+                        Ok(Some(s)) => Body::from_stream(s.body),
+                        Ok(None) => return nothing(),
+                        Err(e) => return oops(&e),
+                    }
+                };
+                let mut r = Response::new(body);
+                r.headers_mut()
+                    .insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+                r
+            }
+        }
+    } else {
+        match d.service.bundle_file_stream(app, sha256, &rel, None).await {
+            Ok(Some(s)) => {
+                let len = s.info.size;
+                let mut r = Response::new(Body::from_stream(s.body));
+                r.headers_mut()
+                    .insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+                r
+            }
+            Ok(None) => return nothing(),
+            Err(e) => return oops(&e),
         }
     };
-    let mut r = Response::new(Body::from(data));
     r.headers_mut()
         .insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
+    // `harden` sets a default `Cache-Control` and the strictest policy; the cache rule and `apply_csp` below
+    // replace them. It does not touch the length or range headers set above.
     harden(d, r.headers_mut());
+    r.headers_mut()
+        .insert(header::ACCEPT_RANGES, HeaderValue::from_static("bytes"));
     // The entry document must be revalidated so a new review shows at once; other paths have no hash in
     // their name, so a short lifetime keeps a replaced bundle from lingering.
     let cache = if rel == "index.html" || rel.ends_with("/index.html") {
@@ -325,6 +494,11 @@ async fn from_bundle(d: &ActivitiesDeps, app: i64, sha256: &str, path_and_query:
     r.headers_mut().insert(
         header::ACCESS_CONTROL_ALLOW_ORIGIN,
         HeaderValue::from_static("*"),
+    );
+    // A cross-origin reader of ranges (a video element, a fetch) may see what it needs.
+    r.headers_mut().insert(
+        header::ACCESS_CONTROL_EXPOSE_HEADERS,
+        HeaderValue::from_static("content-range, accept-ranges, content-length"),
     );
     r
 }
