@@ -318,7 +318,7 @@ pub fn staged_key(app: i64, upload: i64) -> String {
 }
 
 fn mib(bytes: u64) -> String {
-    if bytes % (1024 * 1024) == 0 {
+    if bytes.is_multiple_of(1024 * 1024) {
         format!("{} MiB", bytes / (1024 * 1024))
     } else {
         format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0))

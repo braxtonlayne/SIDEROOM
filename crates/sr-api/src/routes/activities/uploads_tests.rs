@@ -178,6 +178,15 @@ async fn rig(tier: PackageTier, max_bytes: u64, signing: bool) -> Rig {
         application(&pool, owner).await,
         application(&pool, owner).await,
     );
+    // The bundle the fake checker "makes" (a finished session references it).
+    sqlx::query(
+        "INSERT INTO application_activity_bundles (id, application_id, sha256, byte_size, entry_count) \
+         VALUES (4242, $1, repeat('a', 64), 10, 1)",
+    )
+    .bind(app)
+    .execute(&pool)
+    .await
+    .unwrap();
     let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
     let parts = Arc::new(MemoryPartStore::new(storage.clone()));
     let ingest = FakeIngest::new(tier, max_bytes);
@@ -536,4 +545,92 @@ async fn the_limits_route_reports_the_tier() {
         assert_eq!(v["resumable"], true);
         assert_eq!(v["part_size"], 4);
     }
+}
+
+/// The whole path with the real checker: a zip of a few hundred KiB goes in three parts of a small injected size,
+/// is completed from the parts the store holds, checked by `ingest_stored_zip` and ends `ready` with a draft bundle
+/// that lists its files.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_zip_sent_in_three_parts_is_checked_by_the_real_checker_and_becomes_a_bundle() {
+    use std::io::Write;
+    let db = sr_db::testing::TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let owner = account(&pool, "owner").await;
+    let app = application(&pool, owner).await;
+    let storage: Arc<dyn ObjectStorage> = Arc::new(ObjectStoreStorage::in_memory());
+    let parts = Arc::new(MemoryPartStore::new(storage.clone()));
+    let service = sr_activities::ActivityService::new(pool.clone(), Arc::new(next))
+        .with_storage(storage.clone());
+    let queue = Arc::new(InlineQueue::default());
+    let uploads = PackageUploads::new(
+        pool.clone(),
+        Arc::new(next),
+        Arc::new(service.clone()),
+        storage.clone(),
+        Some(PartsWiring::new(parts.clone()).with_part_size(120 * 1024)),
+        queue.clone(),
+    );
+    *queue.uploads.lock().unwrap() = Some(uploads.clone());
+
+    // About 300 KiB that does not compress away.
+    let mut noise = Vec::new();
+    let mut x: u32 = 12345;
+    for _ in 0..(300 * 1024) {
+        x = x.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+        noise.push((x >> 16) as u8);
+    }
+    let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let opts = zip::write::SimpleFileOptions::default();
+    z.start_file("index.html", opts).unwrap();
+    z.write_all(b"<!doctype html><script src=\"app.js\"></script>")
+        .unwrap();
+    z.start_file("app.js", opts).unwrap();
+    z.write_all(&noise).unwrap();
+    let zipped = z.finish().unwrap().into_inner();
+    assert!(zipped.len() > 240 * 1024, "{}", zipped.len());
+
+    let slot = uploads
+        .begin(app, owner, zipped.len() as u64, "game.zip")
+        .await
+        .unwrap();
+    assert_eq!(slot.part_size, 120 * 1024);
+    assert_eq!(slot.part_count, 3);
+    let id: i64 = slot.upload_id.parse().unwrap();
+    let mp: String =
+        sqlx::query_scalar("SELECT multipart_id FROM activity_package_uploads WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    for (i, chunk) in zipped.chunks(120 * 1024).enumerate() {
+        parts.put_part(&mp, i as u32 + 1, Bytes::copy_from_slice(chunk));
+    }
+    uploads.complete(app, id).await.unwrap();
+    let mut status = uploads.status(app, id).await.unwrap();
+    for _ in 0..200 {
+        if !matches!(status.state, PackageUploadState::Checking) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        status = uploads.status(app, id).await.unwrap();
+    }
+    assert_eq!(
+        status.state,
+        PackageUploadState::Ready,
+        "{:?}",
+        status.error
+    );
+    let bundle: i64 = status.bundle_id.unwrap().parse().unwrap();
+    let detail = service.bundle_detail(app, bundle).await.unwrap();
+    let mut names: Vec<_> = detail.entries.iter().map(|e| e.path.clone()).collect();
+    names.sort();
+    assert_eq!(names, ["app.js", "index.html"]);
+    // The staged zip is gone.
+    assert!(
+        storage
+            .head(&format!("activities/{app}/uploads/{id}.zip"))
+            .await
+            .is_err()
+    );
 }
