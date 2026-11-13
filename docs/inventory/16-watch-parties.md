@@ -3,7 +3,7 @@
 Phase 5. Spec: [watch-parties](../specs/watch-parties.md).
 
 ## WP-BE — Backend
-- [x] **WP-BE-001** [DB] parties, party_members, party_queue (migration 0480)
+- [x] **WP-BE-001** [DB] watch_parties, watch_party_members, watch_party_queue (migration 0480)
 - [x] **WP-BE-002** [BE] Create party (bound to channel / DM / private link), join, leave, end, transfer host, settings (shared control, queue permissions, auto-pause on buffering) (crates/sr-watchparty and the /watch-parties routes)
 - [x] **WP-BE-003** [BE] Server-authoritative playback state + control op validation (host / CONTROL_WATCH_PARTY)
 - [x] **WP-BE-004** [GW] Op 100 WATCH_PARTY_SYNC (clock ping/pong, state, control requests), `SR_PARTY_STATE` dispatch (built as HTTP clock and heartbeat endpoints plus WATCH_PARTY_UPDATE and WATCH_PARTY_PLAYBACK dispatches; gateway op 100 stays reserved, see the spec section 7)
