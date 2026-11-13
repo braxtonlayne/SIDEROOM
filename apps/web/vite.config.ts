@@ -13,6 +13,7 @@ import { activityHostProxy } from './vite/activityHosts';
 import { pseudoLocalePlugin } from './vite/pseudoLocale';
 import { appContractPlugin } from './vite/appContract';
 import { publicDev } from './vite/publicDev';
+import { staffChunks } from './vite/staffChunks';
 
 /**
  * SEC-AUD-145: with SR_BUNDLE_REPORT=1 the build writes apps/web/bundle-report.json: every module of the entry chunk
@@ -124,6 +125,9 @@ const apiPort = process.env.SR_DEV_API_PORT ?? '8080';
 const api = `http://localhost:${apiPort}`;
 const apiWs = `ws://localhost:${apiPort}`;
 
+// SEC-AUD-170 (D-651): one instance per config evaluation; it sorts the build's staff-only chunks into /app/staff/.
+const staff = staffChunks();
+
 export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/app/' : '/',
   // The public files (fonts, icons, the service worker) belong to the public build; the app only links them.
@@ -132,7 +136,14 @@ export default defineConfig(({ command }) => ({
     outDir: 'dist/app',
     emptyOutDir: true,
     assetsDir: '',
-    rollupOptions: { input: { app: fileURLToPath(new URL('./app.html', import.meta.url)) } },
+    rollupOptions: {
+      input: { app: fileURLToPath(new URL('./app.html', import.meta.url)) },
+      output: {
+        // Vite's own patterns, except that a staff-only chunk (or its CSS) is `staff/<hash>` and nothing else.
+        chunkFileNames: staff.chunkFileNames,
+        assetFileNames: staff.assetFileNames,
+      },
+    },
   },
   define: {
     __SR_VERSION__: JSON.stringify(changelogVersion()),
@@ -153,6 +164,7 @@ export default defineConfig(({ command }) => ({
     publicDev({ api: process.env.SR_DEV_API ?? `http://127.0.0.1:${apiPort}` }),
     pseudoLocalePlugin(),
     bundleReport(),
+    staff.plugin,
     ...(process.env.VITE_ACTIVITIES_ENABLED === 'true' ? [activityHostProxy(api)] : []),
   ],
   // VOX-E2E-003: the E2EE media worker is a module worker that lazy-loads its WASM.
