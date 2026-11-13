@@ -1,8 +1,10 @@
-//! The connection test of a storage mount (BYOS-MNT-002): six rows, each pass, warn or fail with one English
+//! The connection test of a storage mount (BYOS-MNT-002): seven rows, each pass, warn or fail with one English
 //! sentence the UI shows verbatim. It runs against any S3-compatible service through [`S3Admin`], inside one
 //! overall time budget (20 s for the route).
 //!
-//! Rows, in order: `head_bucket`, `list`, `put` (write, read back and delete `.sideroom-probe`), `multipart`
+//! Rows, in order: `head_bucket`, `list`, `put` (write, read back and delete `.sideroom-probe`), `response_type`
+//! (while the probe exists: a signed GET that asks for `image/png` and an attachment must be answered with them,
+//! D-643), `multipart`
 //! (create and abort), `cors` (read the bucket's rules), `list_buckets` (expected to be refused: a key that can
 //! list other buckets earns a warning).
 //!
@@ -43,7 +45,7 @@ impl ProbeStatus {
 /// One row of the table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProbeRow {
-    /// `head_bucket`, `list`, `put`, `multipart`, `cors` or `list_buckets`.
+    /// `head_bucket`, `list`, `put`, `response_type`, `multipart`, `cors` or `list_buckets`.
     pub id: &'static str,
     /// Outcome.
     pub status: ProbeStatus,
@@ -103,7 +105,7 @@ fn timed_out(id: &'static str) -> ProbeRow {
     )
 }
 
-/// Run the six probes. `prefix` is the mount's key prefix. Transport errors on the first call end the run:
+/// Run the seven probes. `prefix` is the mount's key prefix. Transport errors on the first call end the run:
 /// the other rows say they were skipped.
 pub async fn run(admin: &S3Admin, prefix: &str, budget: Duration) -> ConnectionTest {
     use ProbeStatus::{Fail, Pass, Warn};
@@ -111,7 +113,7 @@ pub async fn run(admin: &S3Admin, prefix: &str, budget: Duration) -> ConnectionT
         deadline: Instant::now() + budget,
     };
     let key = probe_key(prefix);
-    let mut rows = Vec::with_capacity(6);
+    let mut rows = Vec::with_capacity(7);
 
     // head_bucket
     let Some(t) = clock.left() else {
@@ -124,7 +126,14 @@ pub async fn run(admin: &S3Admin, prefix: &str, budget: Duration) -> ConnectionT
                 Fail,
                 "Could not connect to the endpoint. Check the address, the port and that the service is running.",
             ));
-            for id in ["list", "put", "multipart", "cors", "list_buckets"] {
+            for id in [
+                "list",
+                "put",
+                "response_type",
+                "multipart",
+                "cors",
+                "list_buckets",
+            ] {
                 rows.push(row(id, Fail, "Skipped: the endpoint could not be reached."));
             }
             return ConnectionTest { rows };
@@ -148,7 +157,19 @@ pub async fn run(admin: &S3Admin, prefix: &str, budget: Duration) -> ConnectionT
     });
 
     // put: write, read back, delete
-    rows.push(put_row(admin, &clock, &key).await);
+    let mut response = None;
+    rows.push(put_row(admin, &clock, &key, &mut response).await);
+    rows.push(response.unwrap_or_else(|| {
+        if clock.left().is_none() {
+            timed_out("response_type")
+        } else {
+            row(
+                "response_type",
+                Fail,
+                "Skipped: the test file could not be written, so there is nothing to read.",
+            )
+        }
+    }));
 
     // multipart
     rows.push(match clock.left() {
@@ -248,6 +269,7 @@ fn all_timed_out() -> ConnectionTest {
             "head_bucket",
             "list",
             "put",
+            "response_type",
             "multipart",
             "cors",
             "list_buckets",
@@ -269,7 +291,12 @@ fn head_failure(r: &S3Reply) -> String {
     }
 }
 
-async fn put_row(admin: &S3Admin, clock: &Clock, key: &str) -> ProbeRow {
+async fn put_row(
+    admin: &S3Admin,
+    clock: &Clock,
+    key: &str,
+    response: &mut Option<ProbeRow>,
+) -> ProbeRow {
     use ProbeStatus::{Fail, Pass};
     let Some(t) = clock.left() else {
         return timed_out("put");
@@ -306,6 +333,8 @@ async fn put_row(admin: &S3Admin, clock: &Clock, key: &str) -> ProbeRow {
         }
         Err(_) => return row("put", Fail, "Reading the test file back failed: no answer."),
     }
+    // The probe object exists now: ask for the overrides while it does (D-643).
+    *response = Some(response_row(admin, clock, key).await);
     let Some(t) = clock.left() else {
         return timed_out("put");
     };
@@ -324,6 +353,60 @@ async fn put_row(admin: &S3Admin, clock: &Clock, key: &str) -> ProbeRow {
             ),
         ),
         Err(_) => row("put", Fail, "Deleting the test file failed: no answer."),
+    }
+}
+
+/// The asked-for response type and disposition of the `response_type` row.
+const ASK_TYPE: &str = "image/png";
+const ASK_DISPOSITION: &str = "attachment; filename=\"probe\"";
+
+/// D-643: a signed GET with `response-content-type` and `response-content-disposition` must come back with
+/// them. A service that ignores the overrides would serve a member's HTML as a page from the bucket, so it
+/// cannot be used. Messages carry no URL, secret or body.
+async fn response_row(admin: &S3Admin, clock: &Clock, key: &str) -> ProbeRow {
+    use ProbeStatus::{Fail, Pass};
+    let Some(t) = clock.left() else {
+        return timed_out("response_type");
+    };
+    match admin.get_object_as(key, ASK_TYPE, ASK_DISPOSITION, t).await {
+        Ok(r) if r.ok() => {
+            let header = |name: &str| {
+                r.headers
+                    .iter()
+                    .find(|(k, _)| k == name)
+                    .map(|(_, v)| v.trim())
+            };
+            let type_ok = header("content-type").is_some_and(|v| {
+                v.split(';')
+                    .next()
+                    .is_some_and(|m| m.trim().eq_ignore_ascii_case(ASK_TYPE))
+            });
+            let disposition_ok = header("content-disposition")
+                .is_some_and(|v| v.to_ascii_lowercase().starts_with("attachment"));
+            if type_ok && disposition_ok {
+                row(
+                    "response_type",
+                    Pass,
+                    "The service answers with the response type SIDE ROOM asks for.",
+                )
+            } else {
+                row(
+                    "response_type",
+                    Fail,
+                    "This service ignores the response type SIDE ROOM asks for, so files from it could open as pages. It cannot be used.",
+                )
+            }
+        }
+        Ok(r) => row(
+            "response_type",
+            Fail,
+            format!("Asking for a response type failed: {}.", r.reason()),
+        ),
+        Err(_) => row(
+            "response_type",
+            Fail,
+            "Asking for a response type failed: no answer.",
+        ),
     }
 }
 

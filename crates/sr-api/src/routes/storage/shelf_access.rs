@@ -29,7 +29,7 @@ use sr_storage::scopes::{Refused, Scope, ScopeFacts, Viewer, presign_ttl_secs};
 use sr_storage::shelf::{
     CatalogEntry, GrantError, GrantRow, ShelfAccessStore, URL_TTL_SECS, is_object_hash,
 };
-use sr_storage::{ObjectStorage, PresignMethod};
+use sr_storage::{ObjectStorage, ResponseAs};
 use std::sync::Arc;
 use std::time::Duration;
 use utoipa::ToSchema;
@@ -489,11 +489,16 @@ pub(crate) async fn presign_object_url(
         return Err(ErrorCode::Unauthorized.into());
     };
     let storage = storage_for(d, mount)?;
+    // D-641: the bucket answers this link with the app's type table, never the object's stored type.
+    let (content_type, disposition) = crate::routes::cdn::content::response_for(path);
     let url = storage
-        .presign(
-            PresignMethod::Get,
+        .presign_get_as(
             &mount.bucket_key(path),
             Duration::from_secs(secs),
+            &ResponseAs {
+                content_type,
+                disposition: &disposition,
+            },
         )
         .await
         .map_err(|e| bucket_error(&e))?;

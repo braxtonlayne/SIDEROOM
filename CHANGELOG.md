@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 63 - 2026-11-12
+
+- **Friends on phones.** The Friends page, message requests and the inbox fit a phone screen, and a friend's menu opens where you can tap it.
+- **Blocking, explained.** The Block dialog now also says that a blocked person's messages in servers and group DMs you share are collapsed for you.
+- **Safer storage links everywhere.** Every link to a file in a connected bucket (shelves, showcases, music, the jukebox, the scrapbook, artwork) plays media in the browser and downloads everything else. "Open file" on a document now downloads it instead of opening a tab. Audiobooks (.m4b) play.
+- **For operators.** The storage connection test checks that the provider honours the download type, and fails one that does not.
+
 ## Phase 62 - 2026-11-12
 
 - **Faster first load.** Help, the Library browser and the shelf pages now load when you open them, so the app's first load is about 16% smaller.

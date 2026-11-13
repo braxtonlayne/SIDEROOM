@@ -15,6 +15,12 @@ type Handler = dyn Fn(&str, &str, &str) -> (u16, String) + Send + Sync;
 
 /// Serve until the test ends; every request is `(method, target, body)` -> `(status, body)`.
 async fn fake_s3(handler: Arc<Handler>) -> (String, Arc<Mutex<Vec<String>>>) {
+    fake_s3_with(handler, true).await
+}
+
+/// [`fake_s3`] where `honour` says whether a GET that carries `response-content-type` and
+/// `response-content-disposition` is answered with those headers (a real S3 does; some emulators do not).
+async fn fake_s3_with(handler: Arc<Handler>, honour: bool) -> (String, Arc<Mutex<Vec<String>>>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -51,13 +57,24 @@ async fn fake_s3(handler: Arc<Handler>) -> (String, Arc<Mutex<Vec<String>>>) {
                             let target = first.next().unwrap_or("").to_owned();
                             log.lock().unwrap().push(format!("{method} {target}"));
                             let (status, reply) = handler(&method, &target, body);
+                            let mut extra = String::new();
+                            if method == "GET" && status == 200 && honour {
+                                for (q, h) in [
+                                    ("response-content-type", "content-type"),
+                                    ("response-content-disposition", "content-disposition"),
+                                ] {
+                                    if let Some(v) = query_value(&target, q) {
+                                        extra.push_str(&format!("{h}: {v}\r\n"));
+                                    }
+                                }
+                            }
                             let reply = if method == "HEAD" {
                                 String::new()
                             } else {
                                 reply
                             };
                             let resp = format!(
-                                "HTTP/1.1 {status} X\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                                "HTTP/1.1 {status} X\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{reply}",
                                 reply.len()
                             );
                             let _ = sock.write_all(resp.as_bytes()).await;
@@ -70,6 +87,28 @@ async fn fake_s3(handler: Arc<Handler>) -> (String, Arc<Mutex<Vec<String>>>) {
         }
     });
     (format!("http://127.0.0.1:{port}"), seen)
+}
+
+/// The value of query parameter `name` of a request target, percent-decoded.
+fn query_value(target: &str, name: &str) -> Option<String> {
+    let q = target.split_once('?')?.1;
+    let raw = q
+        .split('&')
+        .find_map(|p| p.strip_prefix(&format!("{name}=")))?;
+    let bytes = raw.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).ok()
 }
 
 fn admin(endpoint: &str) -> S3Admin {
@@ -91,6 +130,9 @@ fn healthy(m: &str, t: &str, body: &str) -> (u16, String) {
         }
         ("PUT", "/shelf/media/.sideroom-probe") => (200, String::new()),
         ("GET", "/shelf/media/.sideroom-probe") => (200, "sideroom probe".into()),
+        ("GET", t) if t.starts_with("/shelf/media/.sideroom-probe?response-content") => {
+            (200, "sideroom probe".into())
+        }
         ("DELETE", "/shelf/media/.sideroom-probe") => (204, String::new()),
         ("POST", "/shelf/media/.sideroom-probe?uploads") => (200, UPLOAD.into()),
         ("DELETE", t) if t.starts_with("/shelf/media/.sideroom-probe?uploadId=abc123") => {
@@ -117,6 +159,7 @@ async fn a_healthy_bucket_passes_every_row_but_cors_warns() {
             ("head_bucket", Pass),
             ("list", Pass),
             ("put", Pass),
+            ("response_type", Pass),
             ("multipart", Pass),
             ("cors", Warn),
             ("list_buckets", Pass)
@@ -129,6 +172,80 @@ async fn a_healthy_bucket_passes_every_row_but_cors_warns() {
         assert!(!r.message.contains("secretexample") && !r.message.contains("127.0.0.1"));
         assert!(r.message.ends_with('.'), "{}", r.message);
     }
+}
+
+#[tokio::test]
+async fn a_service_that_honours_the_overrides_passes_response_type() {
+    let (ep, seen) = fake_s3(Arc::new(healthy)).await;
+    let t = probe::run(&admin(&ep), "media/", BUDGET).await;
+    let row = t.rows.iter().find(|r| r.id == "response_type").unwrap();
+    assert_eq!(row.status, ProbeStatus::Pass, "{}", row.message);
+    assert_eq!(
+        row.message,
+        "The service answers with the response type SIDE ROOM asks for."
+    );
+    // It sits right after `put`, and the GET happened before the probe object was deleted.
+    let ids: Vec<_> = t.rows.iter().map(|r| r.id).collect();
+    assert_eq!(&ids[2..4], ["put", "response_type"]);
+    let log = seen.lock().unwrap();
+    let get = log
+        .iter()
+        .position(|l| l.starts_with("GET /shelf/media/.sideroom-probe?response-content"))
+        .expect("the override GET");
+    let delete = log
+        .iter()
+        .position(|l| l == "DELETE /shelf/media/.sideroom-probe")
+        .expect("the delete");
+    assert!(get < delete);
+}
+
+#[tokio::test]
+async fn a_service_that_ignores_the_overrides_fails_the_test() {
+    let (ep, _) = fake_s3_with(Arc::new(healthy), false).await;
+    let t = probe::run(&admin(&ep), "media/", BUDGET).await;
+    assert!(t.failed());
+    let failing: Vec<_> = t
+        .rows
+        .iter()
+        .filter(|r| r.status == ProbeStatus::Fail)
+        .map(|r| r.id)
+        .collect();
+    assert_eq!(failing, ["response_type"]);
+    let row = t.rows.iter().find(|r| r.id == "response_type").unwrap();
+    assert!(
+        row.message
+            .starts_with("This service ignores the response type")
+    );
+    assert!(!row.message.contains("127.0.0.1"));
+}
+
+#[tokio::test]
+async fn a_refused_response_type_read_and_a_failed_write_say_why() {
+    let (ep, _) = fake_s3(Arc::new(|m, t, b| {
+        if m == "GET" && t.contains("response-content-type") {
+            (403, "<Error><Code>AccessDenied</Code></Error>".into())
+        } else {
+            healthy(m, t, b)
+        }
+    }))
+    .await;
+    let t = probe::run(&admin(&ep), "media/", BUDGET).await;
+    let row = t.rows.iter().find(|r| r.id == "response_type").unwrap();
+    assert_eq!(row.status, ProbeStatus::Fail);
+    assert!(row.message.contains("AccessDenied"), "{}", row.message);
+
+    let (ep, _) = fake_s3(Arc::new(|m, t, b| {
+        if m == "PUT" && t.ends_with(".sideroom-probe") {
+            (403, "<Error><Code>AccessDenied</Code></Error>".into())
+        } else {
+            healthy(m, t, b)
+        }
+    }))
+    .await;
+    let t = probe::run(&admin(&ep), "media/", BUDGET).await;
+    let row = t.rows.iter().find(|r| r.id == "response_type").unwrap();
+    assert_eq!(row.status, ProbeStatus::Fail);
+    assert!(row.message.starts_with("Skipped"), "{}", row.message);
 }
 
 #[tokio::test]
@@ -163,7 +280,7 @@ async fn existing_cors_rules_pass_and_a_missing_api_warns() {
     }))
     .await;
     let t = probe::run(&admin(&ep), "media/", BUDGET).await;
-    assert_eq!(t.rows[4].status, ProbeStatus::Pass);
+    assert_eq!(t.rows[5].status, ProbeStatus::Pass);
 
     let (ep, _) = fake_s3(Arc::new(|m, t, b| {
         if (m, t) == ("GET", "/shelf?cors") {
@@ -174,8 +291,8 @@ async fn existing_cors_rules_pass_and_a_missing_api_warns() {
     }))
     .await;
     let t = probe::run(&admin(&ep), "media/", BUDGET).await;
-    assert_eq!(t.rows[4].status, ProbeStatus::Warn);
-    assert!(t.rows[4].message.contains("does not offer the CORS API"));
+    assert_eq!(t.rows[5].status, ProbeStatus::Warn);
+    assert!(t.rows[5].message.contains("does not offer the CORS API"));
 }
 
 #[tokio::test]
@@ -237,6 +354,7 @@ async fn each_failure_is_a_fail_row_with_a_sentence() {
             ("head_bucket", Pass),
             ("list", Fail),
             ("put", Fail),
+            ("response_type", Fail),
             ("multipart", Fail),
             ("cors", Warn),
             ("list_buckets", Pass)
@@ -257,7 +375,7 @@ async fn an_unreachable_endpoint_fails_the_first_row_and_skips_the_rest() {
         }
     });
     let t = probe::run(&admin(&format!("http://127.0.0.1:{port}")), "", BUDGET).await;
-    assert_eq!(t.rows.len(), 6);
+    assert_eq!(t.rows.len(), 7);
     assert!(t.rows.iter().all(|r| r.status == ProbeStatus::Fail));
     assert!(t.rows[1].message.starts_with("Skipped"));
     assert!(!t.rows[0].message.contains("127.0.0.1"));
@@ -283,7 +401,7 @@ async fn the_budget_is_enforced() {
     .await;
     assert!(started.elapsed() < Duration::from_secs(5));
     assert!(t.failed());
-    assert_eq!(t.rows.len(), 6);
+    assert_eq!(t.rows.len(), 7);
 }
 
 /// A bucket whose CORS document is whatever was last PUT.
