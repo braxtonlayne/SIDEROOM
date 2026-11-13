@@ -3,11 +3,13 @@
 Phase 5 · Theme `sideroom` · Mockups `cinema-discover.jpg`, `cinema-movies.jpg` · Decisions: D-075, D-080–D-086, D-089, D-120.
 
 ## 1. Navigation
-Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list** · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge; "My uploads" and "Upload" go to `/cinema/submit`, Upload with the new-submission form open, and "Requests" goes to the Library board for now, D-367). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
+Top bar: `SIDE ROOM / The lounge · **The cinema** · The library`. Cinema header: door mark + `SIDE ROOM` / `C I N E M A` · **Discover · Movies · Series · Anime ✦ · Live TV • · My list · Shelves · My uploads** (the Movies, Series, Anime and Discover surfaces show only while `platform.storefront_categories` is on, and My uploads while `platform.ingest_queues` is on; both are off by default, D-400, so the Cinema opens on Shelves, `apps/web/src/cinema/Shell.tsx:63-78`, `routes.tsx:43`) · search · avatar (menu: Profile, My uploads, Upload, Requests, Settings, Back to Lounge; "My uploads" and "Upload" go to `/cinema/submit`, Upload with the new-submission form open, and "Requests" goes to the Library board for now, D-367). Footer: "Side Room *Cinema*" · "A little further from the ordinary." · About this library.
 
 ## 2. Pages
 
 ### 2.1 Discover (`/cinema`)
+With `platform.storefront_categories` off (the default) `/cinema` redirects to `/cinema/shelves`, `GET /cinema/discover` and `GET /cinema/rows/{key}` answer 404, and `GET /cinema/trending` answers 404 while `platform.global_trending` is off (`crates/sr-api/src/module_gate.rs:143-148`).
+
 | Block | Behavior |
 |---|---|
 | **Hero ("TONIGHT'S FEATURE")** | Full-bleed backdrop, title in display serif (italic second line), year · runtime · rating badge · genre, synopsis, `▷ Play` (or `Resume 42:10`), `ⓘ More info`, `Watch trailer` if one exists, carousel index "01 / THE EVENING SELECTION" with auto-advance (pauses on hover). Staff-curated (Collections & Spotlight), falling back to trending |
@@ -31,14 +33,14 @@ Backdrop + logo or title, metadata row (year, runtime or seasons count, content 
 Saved titles + Continue watching + Watch history (pause/clear) + custom lists (shareable, visibility private/friends/everyone).
 
 ### 2.5 Requests, Upload, My uploads
-See the submissions spec. Upload and My uploads: `/cinema/submit` (RDY-MED-002, D-367); Upload is `/cinema/submit?new=1`.
+See the submissions spec. Upload and My uploads: `/cinema/submit` (RDY-MED-002, D-367); Upload is `/cinema/submit?new=1`. Both, the member submission routes of section 8.7 and the Requests board answer 404 while `platform.ingest_queues` / `platform.requests_board` are off (the default, D-400, D-404).
 
 ### 2.6 Live TV
 See the cinema-live-tv spec.
 
 ## 3. Player
 - hls.js (MSE) or native HLS (Safari/iOS). Adaptive 1080p/720p/480p ladder, manual quality override, data saver (cap 480p).
-- Controls: play/pause, ±10s skip, scrubber with thumbnail sprites (generated during transcode: one frame every 10s, as a WebVTT sprite map), volume, playback speed 0.5–2×, audio track picker, subtitles (WebVTT + ASS via JASSUB, size/color/background styling), full screen, Picture-in-Picture, AirPlay/Remote Playback API, cast (Chromecast via the Web Sender SDK, optional), keyboard shortcuts (space, ←/→, ↑/↓, F, M, C, <, >).
+- Controls: play/pause, ±10s skip, scrubber with thumbnail sprites (generated during transcode: one frame every 10s, as a WebVTT sprite map), volume, playback speed 0.5–2×, audio track picker, subtitles (WebVTT + ASS via JASSUB, size/color/background styling), full screen, Picture-in-Picture, AirPlay/Remote Playback API, remote playback (the browser's Remote Playback API, or the AirPlay picker in Safari; the Chromecast Web Sender SDK is not used, `apps/web/src/cinema/player/Player.tsx:107`), keyboard shortcuts (space, ←/→, ↑/↓, F, M, C, <, >).
 - **Skip intro / skip credits** buttons from `chapters/markers` (set by reviewers or auto-detected later).
 - **Next episode** card at credits with a 10s countdown. Autoplay toggle.
 - Resume from `watch_progress` (saved every 10s and on pause/unload). Marked watched at ≥ 90%.
@@ -160,9 +162,9 @@ CREATE TABLE transcode_uploads(job_id bigint NOT NULL REFERENCES transcode_jobs(
 
 `sr-media::playlist` renders the master playlist (audio group `aud`, subtitle group `subs`, variants ascending by bandwidth so playback starts on the smallest rung), the fMP4 media playlists, the one-segment subtitle playlists and the sprite VTT. Every URL in a rendering is signed with the same expiry, `now + 6 h` (`UrlSigner`, implemented by `CdnSigner`). `grant()` returns `{ master_url, expires_at, refresh_at }` (refresh 10 minutes early); the playback endpoint calls it after the permission check and the refresh endpoint calls it again with the same check. Nothing is stored per viewer.
 
-### 4.7 Not exercised with real ffmpeg
+### 4.7 Not exercised with real ffmpeg (when written)
 
-No ffmpeg or ffprobe was available when this was written. The argument vectors, the filter graphs (including the zscale/tonemap and libplacebo chains, the `-dump_attachment` font extraction and the HLS muxer's init-segment placement), the NVENC options and the progress parser are checked against **canned output and fake runners only**. First run on a machine with FFmpeg 6 or newer should be a `sr-transcoder --check` and one proxy plus one ladder job on a short sample, comparing the produced tree with section 4.3.
+Since then `.github/workflows/media.yml` runs the whole path with a real ffmpeg on a GitHub runner (weekly, on dispatch and on pull requests that touch the pipeline): upload, probe, proxy, ladder with a real `sr-transcoder` worker, playback of every segment, re-transcode, Patron download and the slate (`deploy/scripts/media-smoke.mjs`, `docs/dev/media-pipeline-test.md`; the source there is a 20 s 720p clip, so 4K, HDR, NVENC and Dolby Vision paths are still unexercised). The rest of this paragraph is what was true when it was written. No ffmpeg or ffprobe was available then. The argument vectors, the filter graphs (including the zscale/tonemap and libplacebo chains, the `-dump_attachment` font extraction and the HLS muxer's init-segment placement), the NVENC options and the progress parser are checked against **canned output and fake runners only**. First run on a machine with FFmpeg 6 or newer should be a `sr-transcoder --check` and one proxy plus one ladder job on a short sample, comparing the produced tree with section 4.3.
 
 ## 5. Downloads (Patron, D-075)
 Download = progressive MP4 remux of the chosen rendition (generated on demand by a job, cached for 7 days) or the original if staff enable "original downloads" per title. Links are signed and single-user, with a rate limit (e.g. 20 downloads/day).
@@ -171,12 +173,12 @@ Download = progressive MP4 remux of the chosen rendition (generated on demand by
 Ratings (1–10), reviews (spoiler toggle), episode comments, lists, trending scopes (Friends / Known / Global, same algorithm as the Library), "Friends are watching" row, contributor credits per movie and episode (D-074).
 
 ## 7. Acceptance criteria
-- [ ] Discover and Movies match the mockups at desktop widths, with no "Board" link and no demo labels.
-- [ ] A 4K HDR source becomes a 1080p SDR ladder. No rendition exceeds 1080p.
-- [ ] Playback starts in < 2s on broadband, and switches quality without stalls on throttled networks (Playwright + network shaping).
-- [ ] Resume position syncs across devices within 10s.
-- [ ] Non-Patrons get 403 on download endpoints.
-- [ ] Safari iOS (PWA) plays HLS with subtitles and resumes correctly.
+- [ ] Discover and Movies match the mockups at desktop widths, with no "Board" link and no demo labels. _(a visual judgement; not re-checked here, and both pages are off by default, D-400)_
+- [ ] A 4K HDR source becomes a 1080p SDR ladder. No rendition exceeds 1080p. _(built: the planner caps at `max_height` 1080 and tone-maps HDR, `crates/sr-media/src/plan.rs`, section 4.2, unit-tested; left: the CI run uses a 720p SDR source, no real 4K HDR file has been transcoded)_
+- [ ] Playback starts in < 2s on broadband, and switches quality without stalls on throttled networks (Playwright + network shaping). _(not built: searched `e2e/` for network shaping and a playback-start timing; none)_
+- [ ] Resume position syncs across devices within 10s. _(built: 10 s heartbeat and `SR_CINEMA_UPDATE`, section 9.3; left: no test or run measures it)_
+- [x] Non-Patrons get 403 on download endpoints. _(`crates/sr-api/src/routes/cinema_media/tests.rs:668`; the CI stage `download` of `deploy/scripts/media-smoke.mjs` asserts 403 before the grant)_
+- [ ] Safari iOS (PWA) plays HLS with subtitles and resumes correctly. _(left: needs a real device run, none recorded)_
 
 ## 8. HTTP API as built (catalog)
 
@@ -391,7 +393,7 @@ description, kind: saved|custom, visibility, item_count, created_at_ms, updated_
 | `PUT /cinema/lists/{id}/order` | Body `{title_ids: []}`, the complete new order (must be the same set). |
 | `GET /cinema/users/{user_id}/lists` | The lists of someone else that the caller may see. |
 
-The Library has no lists yet (LIB-SOC-006), so there was nothing to generalise; the table shapes are generic enough to share later.
+The Library's reading lists (`/library/lists`, section 3.5 of its spec) have their own tables; the two were not merged.
 
 ### 9.6 Ratings, reviews, comments (CIN-SOC-001)
 
@@ -431,7 +433,7 @@ caller already started. People with `cinema.share_watching = off` are not counte
 ### 9.8 Gaps
 
 CIN-SOC-003 contribution credits are built (p15): `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page (credits are granted by `cinema.title` and `cinema.episodes`; D-074 counts approved movies and episodes).
-No featured lists. "Requests fulfilled" has no provider (the cinema requests pipeline does not exist). The presence sweep runs as the
+No featured lists (the Library has them). "Requests fulfilled" still has no row provider registered (`crates/sr-cinema-social/src/hooks.rs:376`), although the requests board accepts `section=cinema` (submissions spec section 7). The presence sweep runs as the
 job `cinema.presence_sweep` (every minute, singleton id 160).
 
 ### 9.9 `CatalogLookup` (implemented by `sr-cinema`)
@@ -573,7 +575,7 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   (ladder for an asset that waited for approval), `PUT .../link` (`{title_id?, episode_id?, set_playable?}`, links the
   catalog once the ladder is published), `PUT .../original-downloads`. Upload: `POST` returns presigned multipart
   URLs (`part_size` 128 MiB); `PUT` each part, keep the `ETag`, complete, poll the asset (`uploaded, probing,
-  transcoding, published | failed + error`). Limit `cinema.upload.max_gb` (default 60), containers mkv mp4 m4v mov avi
+  transcoding, published | failed + error`). Limit `cinema.upload.max_gb` (default 60, `crates/sr-admin/src/settings.rs:769`), containers mkv mp4 m4v mov avi
   webm ts m2ts mts wmv flv mpg mpeg ogv. Begin and complete are written to the staff access log
   (`cinema.asset.upload.begin|complete`).
 * Transcoding admin (`MANAGE_TRANSCODE`): tokens (`GET|POST /admin/transcode/tokens`, `DELETE .../{id}`; the secret
@@ -596,8 +598,7 @@ prefixes, expired download files.
 
 ### 11.6 Patron downloads (CIN-DL-001)
 
-Who may download: `DownloadEntitlements`. The donations work does not exist, so the Postgres implementation reads
-`cinema_download_grants (user_id, per_day, expires_at)`; that table is the only source of the perk until doc 08 is built.
+Who may download: `DownloadEntitlements`, implemented by `EntitlementDownloads` over the donations entitlements (`downloads_per_day` of the member's own Patron perks; server levels never unlock downloads, D-075; `crates/sr-db/src/media_repo/downloads.rs:337`). The placeholder table `cinema_download_grants` was copied into entitlements by migration 0542 and dropped by 0871.
 A request (`POST`) needs the grant, an open title (same age gate as playback), and fewer than `per_day` requests in the
 last 24 h (429). A rendition nobody prepared gets one `remux` job (stream copy of the HLS rung plus up to four audio
 tracks into `remux/video.mp4`, no re-encode, subtitles not included); the prepared file is shared between members for
@@ -614,3 +615,13 @@ item has a published ladder, and publish only the approved episodes (then the ti
 
 ### 6.1 Share dialog (D-226)
 "Share to Lounge" on a title opens a dialog with a channel picker (channels where the person holds `SEND_MESSAGES` and `USE_LIBRARY_EMBEDS`; DMs and groups included), an optional comment, and posts the `<cinema:id>` rich card as the person's own message. "Copy link" is the second item.
+
+## 12. Shelves, mounts and conversion (BYOS, waves 27 to 29, 41 and 63)
+
+The Cinema also plays video that lives in a bucket the member or a server owns (a **storage mount**, `storage_mounts`, migration 1400; mount 1 is the instance bucket). Nothing here changes the catalog above for instance media: `video_assets`, `video_titles` and `video_episodes` carry `mount_id` and `source` (`instance` or `mount`, migration 1420).
+
+- **Shelves.** The `storage.index` job reads a mount's folders and builds catalog rows with `source = 'mount'`, written unpublished so no instance query lists them; the shelf queries read them for the members who may reach the mount (own mount, a friend's shared shelf, `storage_mount_shares`; a server's shelf by role grant, `guild_storage_grants`, migration 1410; catalog `storage_objects`, migration 1450). Folder and name rules are in `ingest-naming-conventions.md` section 4. Web: `/cinema/shelves` (`apps/web/src/storage/shelves/`), shown in the Cinema's navigation as Shelves.
+- **Playing from a mount.** `ShelfPlayer` streams a web-native file straight from the bucket through a presigned URL with range requests; the URL is held in state only and renewed a minute before it expires (`apps/web/src/storage/shelves/ShelfPlayer.tsx`). Media of a mount is linked as `/cdn/mount/<id>/<key>` (signed), answered with a redirect to a presigned GET of that bucket (`crates/sr-api/src/routes/cdn/mod.rs:29`).
+- **Response-type rules (D-629, D-637, D-641 to D-645).** A browser-direct upload to a mount never keeps a content type a browser would run (HTML, SVG, XML, script and most `text/*` become `application/octet-stream`). Every presigned GET handed to a client carries response overrides from one table: a file whose extension is on the inline media list is served as that media type, anything else as `application/octet-stream` with `Content-Disposition: attachment`. `mkv`, `avi`, `ts`, `wma` and similar stay off the list (D-642). The connection test of a mount checks that the provider honours the overrides (row `response_type`); a mount that fails it hands out no presigned GET, and the daily recheck covers every live mount (D-643 to D-645).
+- **Making an unplayable file playable.** Files a browser cannot play (MKV, HEVC and the like) are converted in the member's browser before upload (`apps/web/src/convert/`: a decision table, `decide(info, caps)`, picks native, remux with ffmpeg.wasm, WebCodecs re-encode or an in-tab transcode; the Convert step is in the storage upload panel and in Cinema > Submit; BYOS-CNV-001/002). The optional `mount_transcode` job (BYOS-CNV-003, migration 1500) runs `sr-transcoder` on the member's own machine with a mount-scoped worker token (`worker_tokens.scope = 'mount:<id>'`): the server hands the worker a presigned GET of the source and presigned PUTs for each output under `transcoded/<key>/` in the same mount, and never carries the bytes (`crates/sr-media/src/mount_job.rs`). For a file already in a bucket the shelf page still shows a greyed "Convert to play" with the hint that conversion arrives in a later update (`ShelfItemPage.tsx`).
+- **Live TV over shelves** is in `cinema-live-tv.md` section 9.
