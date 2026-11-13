@@ -19,7 +19,7 @@ Phase 1 · Theme `lounge-*` · Decisions: D-040–D-046, D-010–D-012, D-021–
 └────┴───────────────┴──────────────────────────────────────┴───────────────┘
 ```
 
-- **Global section bar** (thin, above everything): `SIDE ROOM / The lounge · The cinema · The library`, plus a persistent "voice connected" mini-indicator when in a call (voice persists across sections, D-110). It can be collapsed in settings for a pure-Discord look.
+- **Global section bar** (thin, above everything): `SIDE ROOM / The Lounge · The Arcade · The Study` (the three rooms of D-400; the Cinema and the Library are the Study's second level, `apps/web/src/study/RoomsNav.tsx`), plus a persistent "voice connected" mini-indicator when in a call (voice persists across sections, D-110). It can be collapsed in settings for a pure-Discord look. On phones the bar drops the "SIDE ROOM /" brand and shows the three room links plus the voice icon and channel name (D-539).
 - Desktop window title area: back/forward, inbox, help, and the window title (e.g. "Direct Messages", "Doge's server").
 
 ### 1.1 Server rail (72px)
@@ -45,7 +45,7 @@ Header tabs: **Online · All · Pending · Add Friend** (blurple-filled button),
 
 ## 3. DM & group DM view
 
-Header: avatar + name, then call, video call, pinned, add-friends-to-DM (creates a group), user-profile toggle, and search (scoped). Right **profile panel** (toggleable): banner (accent color or image), avatar + status, display name, `username • pronouns`, badges, Add Friend / ⋯ (Copy Username, Invite to Server, Add Note, Ignore, Block, Report*), bio (markdown), "Member Since," mutual friends/servers summary, "View Full Profile." Group DMs add: member list, rename, icon, leave, invite link (owner).
+Header: avatar + name, then call, video call, pinned, add-friends-to-DM (creates a group), user-profile toggle, and search (scoped). Right **profile panel** (toggleable): banner (accent color or image), avatar + status, display name, `username • pronouns`, badges, Add Friend / ⋯ (Copy Username, Invite to Server, Add Note, Ignore, Block, Report), bio (markdown), "Member Since," mutual friends/servers summary, "View Full Profile." Group DMs add: member list, rename, icon, leave, invite link (owner).
 
 Message requests: DMs from non-friends land in Message Requests (per privacy settings) with Accept / Ignore / Block.
 
@@ -80,14 +80,14 @@ Text, Announcement (follow/publish), Forum (posts with tags, list/gallery layout
 - Content: markdown via `sr-markdown`: bold, italic, underline, strike, spoiler `||`, inline code, code blocks with syntax highlighting (highlight via a Rust `syntect`/`tree-sitter` → WASM, or Shiki), block quotes, headers `#`/`##`/`###`, subtext `-#`, lists, masked links `[text](url)`, timestamps `<t:unix:R>`, mentions (`@user`, `@role`, `#channel`, `@everyone`/`@here`), custom emoji `<:name:id>`, slash-command mentions `</cmd:id>`, guild navigation `<id:customize>`, and **SIDE ROOM mentions** `<cinema:title_id>` / `<library:series_id>`, which render as rich cards.
 - Attachments: image/video grid (1–10 media), mosaic layout, lightbox (zoom, download, open original), alt text, spoiler blur, generic file card (icon, name, size, download), audio player, **voice message** (waveform, speed), **expired large file** chip (D-043).
 - Large attachments (LNG-CMP-007, D-271): a file over 64 MB gets a multipart slot; the composer sends the parts three at a time, retries a part, and after a stall asks `GET /channels/{id}/attachments/{upload_id}/parts` which parts arrived and sends only the rest. For multipart slots (never single-PUT uploads) the browser keeps the file in its IndexedDB ledger (`sideroom-uploads`, store `chat`): after a reload the file reappears in that channel's composer tray and continues uploading; the message is still sent by the user. At most 5 rows per browser profile (the oldest is dropped and its slot aborted with `DELETE .../attachments/{upload_id}`); a row is removed on complete, on cancel, when the server answers 404 for the slot, and when it is older than 20 h (the server sweeps at 24 h); when IndexedDB cannot store the row (quota, blocked) the old localStorage record (name, size, lastModified) is the fallback and the user picks the file again; no `navigator.storage.persist()` prompt; sign-out aborts the open slots and clears both stores. "Support SIDE ROOM" in the header menu stays on `/support` (D-270).
-- Embeds: link unfurls (OpenGraph/oEmbed fetched server-side via a Rust fetcher with an SSRF-safe resolver), rich embeds from bots, **YouTube/Twitch/Spotify-style playable embeds** (privacy-enhanced iframes, click to load), and Cinema/Library cards ("Watch together" button).
+- Embeds: link unfurls (OpenGraph/oEmbed fetched server-side by `sr-unfurl` with an SSRF-safe resolver, run by the `messages.unfurl` job after the message is sent; the client loads only the proxied image URL, D-176), rich embeds from bots, **YouTube/Twitch/Spotify-style playable embeds** (privacy-enhanced iframes, click to load), and Cinema/Library cards ("Watch together" button).
 - Stickers, polls (question, up to 10 answers with emoji, duration, multi-select, live results, end early), components (buttons, select menus) from apps, reactions (emoji + count, super reactions as free burst reactions, tooltip of who reacted, add-reaction picker), reply preview line, forwarded message frame, thread starter ("N messages ›"), system messages (joins, boosts → "contributed to Server Support," pins, thread created, call started/ended, channel follows).
 
 ### 6.2 Message actions
-Hover toolbar: add reaction, quick reactions (frequently used), reply, forward, create thread, edit (own), ⋯. Context menu: Add Reaction ▸, Edit, Reply, Forward, Create Thread, Copy Text, Apps ▸, Mark Unread, Copy Message Link, Pin/Unpin, Speak Message, Remind Me (feature module), Bookmark (feature module), Delete (own, or with Manage Messages), Report* (disabled until Phase 7), Copy Message ID (Developer Mode). Shift-click shortcuts (delete without confirmation, etc.). Up-arrow edits the last message.
+Hover toolbar: add reaction, quick reactions (frequently used), reply, forward, create thread, edit (own), ⋯. Context menu: Add Reaction ▸, Edit, Reply, Forward, Create Thread, Copy Text, Apps ▸, Mark Unread, Copy Message Link, Pin/Unpin, Speak Message, Remind Me (feature module), Bookmark (feature module), Delete (own, or with Manage Messages), Report (opens the report dialog, `apps/web/src/moderation/reports`), Copy Message ID (Developer Mode). Shift-click shortcuts (delete without confirmation, etc.). Up-arrow edits the last message.
 
 ### 6.3 Deletion semantics (D-121/D-122)
-Delete → `visibility = user_deleted` → `MESSAGE_DELETE` dispatched (all clients remove it) → purge after 30 days. Bulk delete (moderators) behaves the same. No user-visible "deleted message" stubs (Discord parity).
+Delete → `visibility = user_deleted` → `MESSAGE_DELETE` dispatched (all clients remove it) → purge after 30 days (the hourly `messages.purge_deleted` job, `crates/sr-server/src/jobs.rs`; a message under a moderation hold is never purged). Bulk delete (moderators) behaves the same. No user-visible "deleted message" stubs (Discord parity). The posting gate (D-423) also covers edits with new content or attachments, crosspost and poll votes; a restricted member can still delete their own messages (D-566).
 
 ### 6.4 Composer
 Multi-line rich input (Slate- or Lexical-based) with inline emoji/mention rendering · `+` menu (Upload a File, Create Thread, Create Poll, Use Apps, Share a Cinema/Library title) · paste-to-upload · drag-and-drop overlay ("Upload to #channel") · upload queue with per-file edit (rename, spoiler, alt text, remove) · size check against `effective_limits` before upload, with a friendly "Max 30 MB. Patrons can send up to 500 MB" hint · gift slot **removed** · GIF picker (operator-configured provider: Tenor/Klipy/self-hosted, or disabled) · sticker picker · emoji picker (search, categories, server sections, skin tone, frequently used, favorites) · apps/slash-command button · voice message record button (mobile and desktop) · autocomplete popups for `@`, `#`, `:`, `/` · typing indicator ("X is typing…", "Several people are typing…") · slowmode countdown · reply bar · edit mode (Esc to cancel, Enter to save) · character counter near the limit · "You do not have permission to send messages in this channel" state · markdown preview of spoilers.
@@ -130,7 +130,7 @@ Server Settings uses Discord's full-screen settings layout with ESC close and a 
 | What's New / Log Out | |
 
 ## 13. Built-in "no-bot-needed" features (feature modules, doc 11 §1.2)
-Each is a separate feature module with a settings schema: Starboard · Reaction Roles · Welcome & Goodbye messages · Join-to-create voice channels · Sticky messages · Scheduled messages · Reminders ("Remind me") · Bookmarks · Auto-thread · Birthday announcements · Leveling (opt-in) · RSS/Atom poster · Library feed (new chapters/episodes posted to a channel) · Watch party announcer · Server-side polls templates · Auto-publish for announcement channels · Slowmode presets.
+Each is a separate feature module with a settings schema. Server-scope modules registered in `crates/sr-features/src/modules/mod.rs`: Starboard · Reaction Roles · Welcome & Goodbye messages · Sticky messages · Auto-thread · Slowmode+ (presets) · Temporary roles · Auto roles · Mod log · Stat channels · Message quotes · Join-to-create voice channels · Scrapbook · Discord bridge (off until the server owner switches it on, D-381). Modules built on the user-feature engine (`crates/sr-userfeat/src/features.rs`): Scheduled messages · Reminders ("Remind me") · Bookmarks · Server-side poll templates · Birthday announcements · Leveling (opt-in) · RSS/Atom poster · Library feed (new chapters/episodes posted to a channel) · Watch party announcer and watch party cards · Suggestions · Tickets · Rings (`lounge.rings`). Auto-publish for announcement channels is behaviour of the announcement-channel send and follow routes (`routes/messages/crosspost.rs`, `routes/settings/follow.rs`), not a module.
 
 ## 14. Limits (Discord parity defaults, operator-configurable)
 
@@ -139,24 +139,33 @@ Each is a separate feature module with a settings schema: Starboard · Reaction 
 | Message length | 2,000 (configurable up to 4,000) |
 | Attachments per message | 10 |
 | File size | 30 MB (Patron 500 MB; server levels per doc 08) |
-| Servers per user | 200 |
+| Servers per user | 200 (see note) |
 | Channels per server | 500 |
 | Roles per server | 250 |
 | Emoji per server | 250 static + 250 animated |
 | Stickers / soundboard sounds | 60 / 48 |
-| Members per server | 25,000 (above the account cap, effectively unlimited) |
+| Members per server | 25,000 (above the account cap, effectively unlimited; see note) |
 | Pins per channel | 250 |
 | Friends | 1,000 |
 | Group DM size | 10 |
 | Embeds per message | 10 |
 | Reactions distinct per message | 20 |
 
+The defaults live in `crates/sr-chat/src/limits.rs` (messages, attachments, channels, roles, pins, reactions, embeds), `social/mod.rs` (friends 1,000, group DM 10 members) and `settings/expressions.rs` (emoji, stickers, soundboard); the 4,000-character message ceiling is `EXTENDED_MAX_CHARS` in `sr-markdown`. The error code `MaxGuilds` exists, but as of Phase 65 no code raises it, and no member cap is enforced; the "Servers per user" and "Members per server" rows are targets, not checks.
+
 ## 15. Acceptance criteria (selected; full checklist in inventory)
-- [ ] A user who knows Discord can create a server, invite a friend, set roles with channel overwrites, and chat, without help.
-- [ ] Message list holds 60fps scrolling across 50k messages (virtualized), and loading history paginates 50 at a time.
-- [ ] Permission changes take effect for open clients within 1s (recomputed on `GUILD_ROLE_UPDATE` / `CHANNEL_UPDATE`).
-- [ ] Deleted messages disappear for everyone instantly, remain readable by high-level staff for 30 days (logged), and are purged afterwards (job test with a clock override).
-- [ ] Large attachments become "expired" after 7 days. Normal attachments never expire.
-- [ ] `sr-markdown` produces identical ASTs in the Rust tests and the WASM tests (shared fixture corpus ≥ 500 cases).
-- [ ] Nitro, Shop, Quests, gifting, and Billing do not appear anywhere.
-- [ ] Every built-in feature module can be enabled and configured from Server Settings → Features without code changes in the settings UI.
+- [ ] A user who knows Discord can create a server, invite a friend, set roles with channel overwrites, and chat, without help. _(a usability check; no record of one found)_
+- [ ] Message list holds 60fps scrolling across 50k messages (virtualized), and loading history paginates 50 at a time. _(built: the list is virtualized, `apps/web/src/lounge/MessageList.tsx:211`; left: no 50k-message or frame-rate measurement found)_
+- [ ] Permission changes take effect for open clients within 1s (recomputed on `GUILD_ROLE_UPDATE` / `CHANNEL_UPDATE`). _(built: the gateway sends `GUILD_ROLE_UPDATE`, `crates/sr-gateway/src/hub.rs:572`, and the client keeps a permission engine, `apps/web/src/lounge/permEngine.ts`; left: no timing proof for 1 s)_
+- [ ] Deleted messages disappear for everyone instantly, remain readable by high-level staff for 30 days (logged), and are purged afterwards (job test with a clock override). _(built: `messages.purge_deleted` is registered, `crates/sr-server/src/jobs.rs:385`, with a test that held messages are skipped, `jobs.rs:781`; left: the 30-day staff read with logging and the clock-override purge test were not confirmed)_
+- [x] Large attachments become "expired" after 7 days. Normal attachments never expire. _(`attachments.expire_large` job registered, `crates/sr-server/src/jobs.rs:392`; policy `crates/sr-storage/src/upload/policy.rs:74`)_
+- [x] `sr-markdown` produces identical ASTs in the Rust tests and the WASM tests (shared fixture corpus ≥ 500 cases). _(`crates/sr-markdown/tests/corpus.rs:101` asserts at least 500 cases; `packages/wasm/test/corpus.test.ts` runs the same corpus)_
+- [x] Nitro, Shop, Quests, gifting, and Billing do not appear anywhere. _(`apps/web/src/settings/user/__tests__/shell.test.tsx:186`)_
+- [x] Every built-in feature module can be enabled and configured from Server Settings → Features without code changes in the settings UI. _(`apps/web/src/settings/server/sections/Features.tsx:134` builds the form from the module's schema)_
+
+## 16. Added after Phase 1
+- **Channel permissions.** Editing and deleting a channel evaluate `MANAGE_CHANNELS` with the channel's overwrites (D-570); the client evaluates the same rules in `apps/web/src/lounge/permEngine.ts`.
+- **Listening rooms and the jukebox.** A voice channel's jukebox can publish a listening room (`apps/web/src/lounge/rooms/`); the `jukebox.rooms` job moves a room between `cursor` and `stream` mode (D-512). See [lounge-voice-video.md](lounge-voice-video.md).
+- **Discord bridge.** Off on every server; only the server owner switches it on (D-381). Two modes, "Only bridge these" and "Bridge the whole server", where SIDE ROOM is the master copy of permissions (D-386). Routes: `crates/sr-api/src/routes/guilds/bridge*.rs`; engine: `crates/sr-bridge`; client: `apps/web/src/lounge/bridge/`. One Discord channel maps into at most one SIDE ROOM server per instance (D-609).
+- **Gateway resync.** When a gateway pump misses events, the server rebuilds its state and re-sends it on the same socket: a fresh READY and GUILD_CREATEs for a user topic, a per-member GUILD_CREATE and an `SR_RESYNC` marker for a server topic, the marker alone for the platform topic. Sessions keep their id, so calls continue; nothing is shown to the member; bot sessions are not resynced (D-646). On `SR_RESYNC` for a server the client marks that server's message windows stale and clears typing indicators for its channels (`apps/web/src/store/reducer.ts:502`).
+- **Account restrictions.** The posting gate (D-423, D-566) answers `403 900124 SR_ACCOUNT_RESTRICTED` on posting routes while a restriction is on the account.
