@@ -42,6 +42,9 @@ struct FakeDir {
     audience_calls: Mutex<Vec<usize>>,
     /// Test hook: `staff_users` signals `entered` and then waits for `gate` (blocks the platform pump on demand).
     staff_gate: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
+    /// Test hook: the next `guild_payload` reads its payload, signals `entered`, waits for `gate` and then returns
+    /// what it read (a snapshot that goes stale while it is being built). Taken by the first call.
+    payload_gate: Mutex<Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>>,
 }
 
 #[async_trait]
@@ -67,13 +70,30 @@ impl GuildDirectory for FakeDir {
             .map(|(_, b)| *b)
             .collect()
     }
-    async fn guild_payload(&self, _user: UserId, guild: GuildId) -> Value {
-        self.payloads
+    async fn guild_payload(&self, user: UserId, guild: GuildId) -> Value {
+        let mut body = self
+            .payloads
             .lock()
             .unwrap()
             .get(&guild)
             .cloned()
-            .unwrap_or_else(|| json!({ "id": guild }))
+            .unwrap_or_else(|| json!({ "id": guild }));
+        // A member sees only the channels they can view.
+        if let Some(channels) = body.get_mut("channels").and_then(Value::as_array_mut) {
+            let hidden = self.hidden.lock().unwrap();
+            channels.retain(|c| {
+                c["id"]
+                    .as_str()
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .is_none_or(|id| !hidden.contains(&(user, ChannelId::new(id))))
+            });
+        }
+        let hook = self.payload_gate.lock().unwrap().take();
+        if let Some((entered, gate)) = hook {
+            entered.notify_one();
+            gate.notified().await;
+        }
+        body
     }
     async fn guilds_for_user(&self, user: UserId) -> Vec<GuildId> {
         self.guilds
@@ -285,6 +305,26 @@ impl Client {
         assert_eq!(v["op"], 0, "{v}");
         assert_eq!(v["t"], name, "{v}");
         v
+    }
+
+    /// The next dispatch named `name`, skipping other frames.
+    async fn next_event(&mut self, name: &str) -> Value {
+        loop {
+            let v = self.recv().await;
+            if v["op"] == 0 && v["t"] == name {
+                return v;
+            }
+        }
+    }
+
+    /// Names of the dispatches that arrive until the stream has been quiet for `quiet`.
+    async fn names_until_quiet(&mut self, quiet: Duration) -> Vec<String> {
+        let mut out = Vec::new();
+        while let Ok(Some(Frame::Text(t))) = tokio::time::timeout(quiet, self.rx.recv()).await {
+            let v: Value = serde_json::from_str(&t).unwrap();
+            out.push(v["t"].as_str().unwrap_or("").to_owned());
+        }
+        out
     }
 
     async fn silent(&mut self) {
@@ -2779,16 +2819,15 @@ struct Lagging {
 
 impl Lagging {
     fn new() -> Self {
+        Self::with_config(GatewayConfig::default())
+    }
+
+    fn with_config(cfg: GatewayConfig) -> Self {
         let bus = Arc::new(InProcessBus::with_capacity(4));
         let dir = Arc::new(FakeDir::default());
         dir.guilds.lock().unwrap().insert(u(1), vec![G1]);
         dir.guilds.lock().unwrap().insert(u(5), vec![]);
-        let gw = Gateway::new(
-            GatewayConfig::default(),
-            Arc::new(FakeAuth),
-            dir.clone(),
-            bus.clone(),
-        );
+        let gw = Gateway::new(cfg, Arc::new(FakeAuth), dir.clone(), bus.clone());
         gw.start();
         let (entered, gate) = (
             Arc::new(tokio::sync::Notify::new()),
@@ -2915,4 +2954,252 @@ async fn a_lagged_guild_topic_refreshes_the_member_list() {
         }
     };
     assert_eq!(upd["d"]["member_count"], 7, "{upd}");
+}
+
+// ---- D-646: resync after bus lag (SEC-AUD-169) ----
+
+/// Overflow the guild topic of G1 (capacity 4) before its pump runs: the pump sees `Lagged`.
+async fn flood_guild(e: &Env) {
+    for n in 0..12 {
+        emit(&e.bus, msg(G1, OPEN, 100 + n)).await;
+    }
+}
+
+fn channel_ids(guild_create: &Value) -> Vec<String> {
+    guild_create["d"]["channels"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|c| c["id"].as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn payload_with_channels(ids: &[&str]) -> Value {
+    json!({ "id": "1", "channels": ids.iter().map(|i| json!({ "id": i })).collect::<Vec<_>>() })
+}
+
+/// D-646: after a lag the session gets a fresh GUILD_CREATE (with what the lost events carried) and then the marker,
+/// back to back in its own sequence.
+#[tokio::test]
+async fn a_lagged_guild_topic_resends_the_guild_to_its_sessions() {
+    let l = Lagging::new();
+    l.e.dir
+        .payloads
+        .lock()
+        .unwrap()
+        .insert(G1, payload_with_channels(&["10"]));
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    // A channel is created while events are lost.
+    l.e.dir
+        .payloads
+        .lock()
+        .unwrap()
+        .insert(G1, payload_with_channels(&["10", "12"]));
+    flood_guild(&l.e).await;
+    let gc = a.next_event("GUILD_CREATE").await;
+    assert!(channel_ids(&gc).contains(&"12".to_owned()), "{gc}");
+    let marker = a.expect_event("SR_RESYNC").await;
+    assert_eq!(marker["d"], json!({ "scope": "guild", "guild_id": "1" }));
+    assert_eq!(marker["s"].as_u64(), gc["s"].as_u64().map(|s| s + 1));
+}
+
+/// D-646 (D-628 intent): the repair never shows a member more than a fresh connection would.
+#[tokio::test]
+async fn a_lagged_guild_topic_resend_is_filtered_per_member() {
+    let l = Lagging::new();
+    l.e.dir.guilds.lock().unwrap().insert(u(2), vec![G1]);
+    l.e.dir.hidden.lock().unwrap().insert((u(2), SECRET));
+    l.e.dir
+        .payloads
+        .lock()
+        .unwrap()
+        .insert(G1, payload_with_channels(&["10", "11"]));
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    let mut b = connect(&l.e);
+    b.identify("user:2", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    flood_guild(&l.e).await;
+    let for_a = a.next_event("GUILD_CREATE").await;
+    let for_b = b.next_event("GUILD_CREATE").await;
+    assert_eq!(channel_ids(&for_a), vec!["10", "11"]);
+    assert_eq!(channel_ids(&for_b), vec!["10"], "{for_b}");
+}
+
+/// D-646: a thread list rides after the GUILD_CREATE, before the marker.
+#[tokio::test]
+async fn a_resync_resends_the_thread_list_before_the_marker() {
+    let l = Lagging::new();
+    l.e.dir
+        .sync
+        .lock()
+        .unwrap()
+        .insert((u(1), G1), json!({ "guild_id": "1", "threads": [] }));
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    a.expect_event("THREAD_LIST_SYNC").await;
+    settle().await;
+    a.drain().await;
+    flood_guild(&l.e).await;
+    a.next_event("GUILD_CREATE").await;
+    a.expect_event("THREAD_LIST_SYNC").await;
+    a.expect_event("SR_RESYNC").await;
+}
+
+/// D-646: a MemberLeft handled while the snapshot is being built means the member gets no GUILD_CREATE, only the
+/// GUILD_DELETE that `leave_user` sent.
+#[tokio::test]
+async fn a_resync_is_not_sent_to_a_member_who_left_meanwhile() {
+    let l = Lagging::new();
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    let (entered, gate) = (
+        Arc::new(tokio::sync::Notify::new()),
+        Arc::new(tokio::sync::Notify::new()),
+    );
+    *l.e.dir.payload_gate.lock().unwrap() = Some((entered.clone(), gate.clone()));
+    flood_guild(&l.e).await;
+    // The worker is inside the build now. The member leaves.
+    entered.notified().await;
+    emit(
+        &l.e.bus,
+        DomainEvent::MemberLeft {
+            guild: G1,
+            user: u(1),
+        },
+    )
+    .await;
+    settle().await;
+    gate.notify_one();
+    let names = a.names_until_quiet(Duration::from_millis(400)).await;
+    assert!(names.contains(&"GUILD_DELETE".to_owned()), "{names:?}");
+    assert!(!names.contains(&"GUILD_CREATE".to_owned()), "{names:?}");
+    assert!(!names.contains(&"SR_RESYNC".to_owned()), "{names:?}");
+}
+
+/// D-646: lags inside the floor wait for the floor to end and then run once, not once per lag.
+#[tokio::test]
+async fn a_second_lag_inside_the_floor_waits_and_then_runs_once() {
+    let floor = Duration::from_millis(400);
+    let l = Lagging::with_config(GatewayConfig {
+        resync_floor: floor,
+        ..GatewayConfig::default()
+    });
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    flood_guild(&l.e).await;
+    a.next_event("SR_RESYNC").await;
+    let first = tokio::time::Instant::now();
+    // Two more lags inside the floor.
+    flood_guild(&l.e).await;
+    settle().await;
+    flood_guild(&l.e).await;
+    a.next_event("SR_RESYNC").await;
+    assert!(
+        first.elapsed() >= floor - Duration::from_millis(50),
+        "the second round waited for the floor: {:?}",
+        first.elapsed()
+    );
+    // Exactly one more round: nothing further follows.
+    let names = a.names_until_quiet(floor * 2).await;
+    assert!(!names.contains(&"SR_RESYNC".to_owned()), "{names:?}");
+    assert!(!names.contains(&"GUILD_CREATE".to_owned()), "{names:?}");
+}
+
+/// D-646, the snapshot race: a structural event handled between the build and the delivery makes the worker rebuild,
+/// so the delivered GUILD_CREATE does not overwrite the channel the live event added.
+#[tokio::test]
+async fn a_snapshot_overtaken_by_a_structural_event_is_rebuilt() {
+    let l = Lagging::new();
+    l.e.dir
+        .payloads
+        .lock()
+        .unwrap()
+        .insert(G1, payload_with_channels(&["10"]));
+    let mut a = connect(&l.e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    let (entered, gate) = (
+        Arc::new(tokio::sync::Notify::new()),
+        Arc::new(tokio::sync::Notify::new()),
+    );
+    *l.e.dir.payload_gate.lock().unwrap() = Some((entered.clone(), gate.clone()));
+    flood_guild(&l.e).await;
+    // The build has read the old payload and waits. A channel is created and its event is handled by the pump.
+    entered.notified().await;
+    l.e.dir
+        .payloads
+        .lock()
+        .unwrap()
+        .insert(G1, payload_with_channels(&["10", "12"]));
+    emit(
+        &l.e.bus,
+        DomainEvent::ChannelCreated {
+            guild: G1,
+            channel: ChannelId::new(12),
+            payload: json!({ "id": "12", "guild_id": "1" }),
+        },
+    )
+    .await;
+    settle().await;
+    gate.notify_one();
+    let gc = a.next_event("GUILD_CREATE").await;
+    assert!(
+        channel_ids(&gc).contains(&"12".to_owned()),
+        "the stale snapshot was delivered: {gc}"
+    );
+}
+
+/// D-646: bot sessions get today's behaviour and nothing more.
+#[tokio::test]
+async fn bot_sessions_are_not_resynced() {
+    let l = Lagging::new();
+    let mut bot = connect(&l.e);
+    bot.identify("bot:1", GUILDS_MSGS, 1).await;
+    settle().await;
+    bot.drain().await;
+    flood_guild(&l.e).await;
+    for n in 0..12 {
+        l.e.bus
+            .publish(
+                Topic::User(u(1)),
+                DomainEvent::GuildDeleted {
+                    guild: GuildId::new(500 + n),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    let names = bot.names_until_quiet(Duration::from_millis(500)).await;
+    for n in ["READY", "GUILD_CREATE", "SR_RESYNC"] {
+        assert!(
+            !names.contains(&n.to_owned()),
+            "{n} sent to a bot: {names:?}"
+        );
+    }
+}
+
+/// D-646: the platform marker follows the membership reconcile.
+#[tokio::test]
+async fn a_lagged_platform_topic_sends_the_platform_marker() {
+    let l = Lagging::new();
+    let mut c = connect(&l.e);
+    c.identify("user:1", GUILDS_MSGS, 1).await;
+    settle().await;
+    c.drain().await;
+    l.overflow_platform_topic().await;
+    let v = c.next_event("SR_RESYNC").await;
+    assert_eq!(v["d"], json!({ "scope": "platform" }));
 }

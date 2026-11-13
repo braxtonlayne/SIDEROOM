@@ -54,6 +54,8 @@ pub(crate) struct Session {
     age: AtomicU8,
     /// Cached sensitive-media settings and friends (D-230); `None` until looked up.
     safety: Mutex<Option<Arc<SafetyView>>>,
+    /// The user object READY carried, refreshed by every credential re-check; a resync's READY reuses it.
+    user_json: Mutex<Value>,
     inner: Mutex<Inner>,
 }
 
@@ -81,6 +83,7 @@ impl Session {
             capacity,
             age: AtomicU8::new(0),
             safety: Mutex::new(None),
+            user_json: Mutex::new(Value::Null),
             inner: Mutex::new(Inner {
                 seq: 0,
                 buf: VecDeque::new(),
@@ -89,6 +92,18 @@ impl Session {
                 guilds: HashSet::new(),
             }),
         }
+    }
+
+    /// The user object for READY (identify, or the last credential re-check).
+    pub fn user_json(&self) -> Value {
+        self.user_json
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    pub fn set_user_json(&self, user: Value) {
+        *self.user_json.lock().unwrap_or_else(|p| p.into_inner()) = user;
     }
 
     /// The cached age-gate answer, `None` until looked up.

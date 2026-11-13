@@ -1334,3 +1334,41 @@ async fn a_moderator_cannot_move_an_account_restricted_member() {
         .await
         .unwrap();
 }
+
+/// D-646: a resync keeps the session (same id, same socket), so the member stays in the call: the voice state is
+/// bound to that session id, and the sweep that removes states of vanished sessions does not touch it.
+#[tokio::test]
+async fn a_resync_keeps_the_voice_state_of_the_session() {
+    use sr_events::Topic;
+    let e = env();
+    let mut a = client(&e, MEMBER).await;
+    a.voice(1, Some(LOBBY.get()), false, false).await;
+    let joined = a.event("VOICE_STATE_UPDATE").await;
+    let sid = joined["session_id"].as_str().unwrap().to_owned();
+    a.drain().await;
+    // The user topic overflows before its pump runs.
+    for n in 1..=300 {
+        e.bus
+            .publish(
+                Topic::User(u(MEMBER)),
+                DomainEvent::GuildDeleted {
+                    guild: GuildId::new(1000 + n),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    let ready = a.event("READY").await;
+    assert_eq!(
+        ready["session_id"],
+        json!(sid),
+        "same session after the resync"
+    );
+    e.gw.sweep().await;
+    let held =
+        e.gw.st()
+            .voice
+            .get(&u(MEMBER))
+            .map(|v| v.session_id.clone());
+    assert_eq!(held, Some(sid), "the member is still in the call");
+}
