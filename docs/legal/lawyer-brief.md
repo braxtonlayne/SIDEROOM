@@ -18,6 +18,7 @@ Every default below is the project's own, taken "by default (owner-delegated)" u
 | Sign-in addresses (`login_events`) | 180 days, deleted by a daily job |
 | Invoices | `compliance.invoice_retention_years` (default 10) after the year of payment, then detached from the member |
 | Invite graph, staff access log | Forever |
+| Beta bug reports (only while `platform.beta_reports` is on; D-647 to D-650) | The screenshot until the report is closed or 30 days; the report 90 days; both deleted with the account |
 | Voice and video | Never recorded or stored; end-to-end encrypted |
 
 - **Where the notices live.** The copyright notice address is `compliance.operator_contact`, published on `/help`. Third-party licence texts are in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md), linked from `/help`.
