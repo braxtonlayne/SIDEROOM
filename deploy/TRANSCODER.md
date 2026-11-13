@@ -11,7 +11,7 @@ no inbound ports, no VPN and no database access.
 > should be followed by `docker run --rm --gpus all <image> --check` (GPU) or `docker run --rm <image> --check`
 > (CPU). The worker binary itself, on the CPU path, is exercised end to end against a real ffmpeg by
 > `.github/workflows/media.yml` ([docs/dev/media-pipeline-test.md](../docs/dev/media-pipeline-test.md)); that
-> workflow is written but **has not run yet**, so treat everything below as unproven until its first green run.
+> workflow ran green on PR #48 (2026-10-24; RDY-MED-003 to 005 in `docs/inventory/20-launch-readiness.md`).
 > The NVENC path has never run on a GPU. See "Verify the machine" below.
 
 ## Images
@@ -33,7 +33,7 @@ docker build -f deploy/docker/transcoder-cpu.Dockerfile -t sideroom-transcoder:c
 
 ## Run
 
-1. In **Admin, Transcoding**, create a worker token. It is shown once; the server stores only a
+1. In **Admin > Cinema transcoding**, create a worker token. It is shown once; the server stores only a
    hash. Put it in a file the worker can read (`chmod 600`).
 2. Start the worker:
 
@@ -108,10 +108,10 @@ $0.20 and an episode about $0.02 to $0.04.
 2. **Check the card.** Consumer GeForce cards allow only a few simultaneous NVENC sessions
    (typically 3 to 8 depending on driver); use `--concurrency 2` unless you know your limit.
    Datacenter cards have no such cap. More concurrency does not help once the encoder is busy.
-3. **Create the token** in Admin, Transcoding, and note the worker name you will use.
+3. **Create the token** in Admin > Cinema transcoding, and note the worker name you will use.
 4. **Start the container** with the commands above (or the compose file). The host needs only
    outgoing HTTPS to your server and to your storage endpoint (Garage or Storage Box front).
-5. **Check Admin, Transcoding**: the worker appears within a heartbeat (about 20 seconds) with
+5. **Check Admin > Cinema transcoding**: the worker appears within a heartbeat (about 20 seconds) with
    its capabilities (NVENC yes or no). Queue a small title first and watch it complete.
 6. **Let it drain, then destroy the instance.** Stop claiming new work by marking the worker
    "drain" in Admin (it finishes current jobs), wait for the queue to empty, then terminate the
@@ -156,7 +156,7 @@ or one MP4 (`proxy/proxy.mp4`); you pick the format and a preset (`low` up to 48
 
 Two ways to get a worker, both through `POST /storage/mounts/{mount_id}/transcode` with `{ "key", "format", "preset" }`:
 
-1. **The operator's worker.** If the operator turned on **Admin, Settings, Storage, "byos.worker_for_members"**, the instance's own
+1. **The operator's worker.** If the operator turned on **Admin > Limits & settings (group storage), `byos.worker_for_members`**, the instance's own
    workers (CPU or the rented GPU above) take your job. It is off by default; the operator decides whether their machine serves
    members. A server's bucket (a Guild Shelf) and the instance bucket are always the operator's to convert.
 2. **Your own worker (BYOC).** Run `sr-transcoder` on your own machine, with a token that works for one bucket only:
@@ -173,7 +173,7 @@ What the worker needs from your side: the bucket must allow the server to presig
 must reach the bucket endpoint, and `ffmpeg` and `ffprobe` must sit side by side (the worker finds `ffprobe` next to `--ffmpeg`).
 The worker probes the file after downloading it, because the server never reads your video to plan the job.
 
-Jobs show in **Admin, Transcoding** with a **Mount** column and in `GET /storage/mounts/{mount_id}/transcode`. `media.yml` runs the
+Jobs show in **Admin > Cinema transcoding** with a **Mount** column and in `GET /storage/mounts/{mount_id}/transcode`. `media.yml` runs the
 `mount` stage of `deploy/scripts/media-smoke.mjs`: the CPU worker converts an object of the Garage bucket (mount 1) through
 presigned links, once to an MP4 and once to an HLS ladder, and the stage reads the results back from the bucket and decodes them.
 The GPU path (NVENC, with libx264 as the fallback) is the same code and stays the owner's optional run.
