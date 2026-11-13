@@ -87,6 +87,16 @@ export default {
   'help.handbook.lounge.diff5':
     'Direct messages from people you do not know can wait in Message Requests until you accept them.',
   'help.handbook.lounge.link': 'Open the Lounge',
+  'help.handbook.rooms.title': 'Rooms: the Lounge, the Arcade and the Study',
+  'help.handbook.rooms.body':
+    'After the entrance there are three rooms, switched from the navigation: the Lounge (chat, calls and friends), the Arcade (games and Activities) and the Study (your shelves by source: My Files, Friends’ Shelves and Server Shelves). Media, which is the Cinema, and Reading, which is the Library, sit inside the Study.',
+  'help.handbook.rooms.link': 'Open the Study',
+  'help.handbook.vouches.title': 'Vouches',
+  'help.handbook.vouches.body':
+    'On a member’s profile page, Vouch says you trust them. The page shows how many members vouch for the person and a tier: Citizen, Pillar or Elder. A higher tier means more accountability: when a Pillar or an Elder breaks a rule, automatic timeouts, holds and strikes count for more. A vouch can be withdrawn at any time.',
+  'help.handbook.vouches.fallout':
+    'If a member you vouched for is banned for a serious reason, your vouch is removed and you get a private notice. Nothing happens to your account.',
+  'help.handbook.vouches.link': 'Open your profile settings',
   'help.handbook.submit.title': 'Submitting to the Library and the Cinema',
   'help.handbook.submit.body':
     'Anyone can propose a series for the Library or a film or show for the Cinema. Staff review it before it goes live. Files that do not match the naming guide still upload; you fill in the details by hand.',
@@ -113,7 +123,7 @@ export default {
   'help.handbook.privacy.export':
     'You can ask for a copy of your data in Settings, Privacy & Safety. It is built for you and offered as a download link for seven days. The same page can delete all of your messages and uploads, and Activity Privacy decides who sees what you watch and read.',
   'help.handbook.privacy.delete':
-    'Deleting your account is permanent, and you are told what stays before you confirm: the invite graph, invoices, staff-side moderation history, and any messages you did not delete, shown as Deleted User.',
+    'Deleting your account is permanent, and you are told what stays before you confirm: the invite graph, invoices, staff-side moderation history, and any messages you did not delete, shown as Deleted User. What only you used goes with the account: your Cinema and reading progress, bookmarks, private notes, and saved and private lists.',
   'help.handbook.privacy.report':
     'Where your operator has switched reporting on, use Report in the menu of a message, a person, a series or a title. A moderator reads it.',
   'help.handbook.privacy.exportLink': 'Open Privacy settings',
