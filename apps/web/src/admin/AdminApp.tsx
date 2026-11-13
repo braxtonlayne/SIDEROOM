@@ -16,6 +16,10 @@ import {
 import { Navigate, useNavigate, useParams } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { ApiError } from '../api/client';
+import { listBugReports } from '../bugreport/api';
+import { BETA_REPORTS_FLAG } from '../bugreport/flag';
+import { setBugOpenCount, useBugOpenCount } from '../bugreport/openState';
+import { useClientFlag } from '../moderation/reports';
 import { t as translate, useT } from '../i18n';
 import * as api from './api';
 import { hasAny, parsePerms } from './permissions';
@@ -82,6 +86,18 @@ function CrashReportsRoute() {
   );
 }
 
+// SEC-AUD-168: the bug reports page is its own chunk, loaded when a staff member opens it.
+const BugReportsLazy = lazy(() =>
+  import('./bugs/BugReportsSection').then((m) => ({ default: m.BugReportsSection })),
+);
+function BugReportsRoute() {
+  return (
+    <Suspense fallback={<Loading label={translate('admin.bugs.loading')} />}>
+      <BugReportsLazy />
+    </Suspense>
+  );
+}
+
 interface SectionDef {
   id: string;
   label: string;
@@ -105,6 +121,14 @@ export const ADMIN_SECTIONS: SectionDef[] = [
     group: 'admin.adminApp.group.overview',
     visible: (v) => v.can('STAFF_BASIC'),
     component: CrashReportsRoute,
+  },
+  {
+    // SEC-AUD-168 (D-650): any appointed staff member, exactly like GET /admin/bug-reports; shown while the switch is on.
+    id: 'bug-reports',
+    label: 'admin.adminApp.section.bugReports',
+    group: 'admin.adminApp.group.overview',
+    visible: (v) => v.can('STAFF_BASIC'),
+    component: BugReportsRoute,
   },
   {
     id: 'accounts',
@@ -389,20 +413,42 @@ export function AdminShell({ section }: { section: string | undefined }) {
   );
   // STU-NAV-001: the ingest sources section is a staff ingest queue; hidden while its Study switch is off.
   const ingestOn = useStudyFlag('ingestQueues');
+  // SEC-AUD-168: the bug reports page exists only while the operator's beta switch is on.
+  const bugsOn = useClientFlag(BETA_REPORTS_FLAG);
   const visible = useMemo(
     () =>
       viewer
-        ? ADMIN_SECTIONS.filter((s) => s.visible(viewer) && (ingestOn || s.id !== 'ingest-sources'))
+        ? ADMIN_SECTIONS.filter(
+            (s) =>
+              s.visible(viewer) &&
+              (ingestOn || s.id !== 'ingest-sources') &&
+              (bugsOn || s.id !== 'bug-reports'),
+          )
         : [],
-    [viewer, ingestOn],
+    [viewer, ingestOn, bugsOn],
   );
+  const bugCount = useBugOpenCount();
+  const showBugs = bugsOn && visible.some((s) => s.id === 'bug-reports');
+  useEffect(() => {
+    if (!showBugs) return;
+    let live = true;
+    listBugReports('open', 1)
+      .then((r) => live && setBugOpenCount(r.open_count))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [showBugs]);
   const close = () => void navigate({ to: '/channels/$guildId', params: { guildId: '@me' } });
   // A revoked appointment ends the visit at once (ADM-STF-005).
   useStaffRevoked(close);
 
   const navSections: SettingsSection[] = visible.map((s) => ({
     id: s.id,
-    label: t(s.label),
+    label:
+      s.id === 'bug-reports' && bugCount
+        ? `${t(s.label)} (${bugCount > 99 ? '99+' : bugCount})`
+        : t(s.label),
     group: t(s.group),
   }));
   const active = visible.find((s) => s.id === section);

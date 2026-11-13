@@ -1,0 +1,25 @@
+/* Admin > Bug reports (SEC-AUD-168). Existing --ui-* tokens only; logical properties only. */
+.adm-bug-table td:last-child {
+  text-align: end;
+  white-space: nowrap;
+}
+.adm-bug-shot {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+.adm-bug-desc {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.adm-bug-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -1,8 +1,11 @@
 import { DropdownMenu, Icon } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useState, type ComponentProps } from 'react';
+import { BETA_REPORTS_FLAG } from '../../bugreport/flag';
+import { openBugReport } from '../../bugreport/openState';
 import { useT } from '../../i18n';
 import { useNewsBadge } from '../../lib/whatsNew';
+import { useClientFlag } from '../../moderation/reports';
 import { ShortcutSheet } from '../ShortcutSheet';
 import { reopenFirstRun } from '../shell/firstRun';
 import { useSupportEnabled } from '../shell/useSupportEnabled';
@@ -17,6 +20,7 @@ export function HelpButton({ iconSize = 20 }: { iconSize?: ComponentProps<typeof
   const navigate = useNavigate();
   const supportOn = useSupportEnabled();
   const news = useNewsBadge();
+  const bugsOn = useClientFlag(BETA_REPORTS_FLAG);
   const [sheet, setSheet] = useState(false);
   return (
     <>
@@ -30,6 +34,8 @@ export function HelpButton({ iconSize = 20 }: { iconSize?: ComponentProps<typeof
             onSelect: () => void navigate({ to: '/help/whats-new' }),
           },
           { label: t('lounge.helpMenu.welcome'), onSelect: () => void reopenFirstRun() },
+          // SEC-AUD-168 (D-647): only while the operator's beta switch is on; opens the dialog without a picture.
+          ...(bugsOn ? [{ label: t('bugreport.menuEntry'), onSelect: () => openBugReport() }] : []),
           ...(supportOn
             ? [
                 {

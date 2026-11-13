@@ -9,7 +9,9 @@ import {
   SHORTCUTS,
   type ShortcutDef,
 } from '../../../lounge/shortcuts';
+import { BETA_REPORTS_FLAG } from '../../../bugreport/flag';
 import { t, useT } from '../../../i18n';
+import { useClientFlag } from '../../../moderation/reports';
 import { KEYBIND_ACTIONS, keybindConflict, useVoiceSettings } from '../../../voice/settings';
 import { KeybindRecorder } from '../KeybindRecorder';
 import { Card, SectionTitle } from '../parts';
@@ -141,7 +143,9 @@ function Row({ def, prefs, setPrefs }: PrefsFormProps & { def: ShortcutDef }) {
 
 export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
   const t = useT();
-  const groups = Array.from(new Set(SHORTCUTS.map((s) => s.group)));
+  const bugOn = useClientFlag(BETA_REPORTS_FLAG);
+  const shown = SHORTCUTS.filter((s) => s.id !== 'bugReport' || bugOn);
+  const groups = Array.from(new Set(shown.map((s) => s.group)));
   const customCount = Object.keys(prefs.keybinds).length;
   const voiceBinds = useVoiceSettings((s) => s.settings.keybinds);
   const setVoiceKeybind = useVoiceSettings((s) => s.setKeybind);
@@ -181,9 +185,11 @@ export function KeybindsSection({ prefs, setPrefs }: PrefsFormProps) {
       {groups.map((g) => (
         <Card key={g} id={`us-keys-${g.toLowerCase()}`} title={g}>
           <dl className="us-keys">
-            {SHORTCUTS.filter((s) => s.group === g).map((s) => (
-              <Row key={s.id} def={s} prefs={prefs} setPrefs={setPrefs} />
-            ))}
+            {shown
+              .filter((s) => s.group === g)
+              .map((s) => (
+                <Row key={s.id} def={s} prefs={prefs} setPrefs={setPrefs} />
+              ))}
           </dl>
         </Card>
       ))}

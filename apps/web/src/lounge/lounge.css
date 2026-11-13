@@ -1471,6 +1471,23 @@
   margin: 0;
 }
 
+/* SEC-AUD-168: "Report a bug" row under the user panel in the phone "You" tab. */
+.lng-you-report {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  margin: 0 8px 8px;
+  padding: 12px;
+  min-block-size: 44px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--bg-base-lowest);
+  color: var(--text-normal, var(--ui-text));
+  font: inherit;
+  text-align: start;
+}
+
 /* ---------- mobile: swipeable panes + bottom tab bar ---------- */
 .lng-tabbar {
   display: none;

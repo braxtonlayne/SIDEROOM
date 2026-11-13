@@ -3,7 +3,10 @@ import { SkipLink } from '../components/SkipLink';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TouchEvent } from 'react';
+import { BETA_REPORTS_FLAG } from '../bugreport/flag';
+import { openBugReport } from '../bugreport/openState';
 import { useT } from '../i18n';
+import { useClientFlag } from '../moderation/reports';
 import { useAppBadge } from '../pwa/useAppBadge';
 import { useDesktopNotify } from './shell/desktopNotify';
 import { DmToasts } from './shell/DmToasts';
@@ -81,7 +84,8 @@ function useLoungeShortcuts(h: { toggleSheet: () => void; openSettings: () => vo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
-      if (!id || isPlayerShortcut(id) || isDrawerShortcut(id)) return; // the player host and the drawer gate own their keys
+      // The player host, the drawer gate and the bug reporter gate own their keys.
+      if (!id || isPlayerShortcut(id) || isDrawerShortcut(id) || id === 'bugReport') return;
       const c = latest.current;
       if (id === 'markRead' || id === 'focusComposer') {
         // Esc and typing belong to open dialogs, menus and text fields first.
@@ -247,6 +251,7 @@ function Shell() {
   const [pane, setPane] = useState<Pane>(channelId || onScrapbook ? 'chat' : 'list');
   const [tab, setTab] = useState<'home' | 'notifications' | 'you'>('home');
   const [coming, setComing] = useState(false);
+  const bugsOn = useClientFlag(BETA_REPORTS_FLAG);
 
   useShellBoot();
   useAppBadge();
@@ -336,6 +341,13 @@ function Shell() {
                 <ChannelSidebar guildId={guildId!} />
               )}
               <UserPanel />
+              {/* SEC-AUD-168 (D-647): the beta bug reporter's entry on a phone, while the operator's switch is on. */}
+              {isMobile && tab === 'you' && bugsOn && (
+                <button type="button" className="lng-you-report" onClick={() => openBugReport()}>
+                  <Icon name="info" size={20} />
+                  {t('bugreport.menuEntry')}
+                </button>
+              )}
             </div>
           </div>
           <main
