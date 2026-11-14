@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 69 - 2026-11-14
+
+- **Members.** A notification no longer shows a spoiler's text and names the people it mentions instead of showing their ids, in the app and in the push to a closed app; the open app raises no notification or sound for someone you blocked or ignore; a reaction notification shows the message it is about; someone who is online only on a phone shows a smartphone, not a handset, and others see one presence update when you connect, not two; a thread started while you have the channel open shows its chip at once, a thread's message count follows live, and a thread of 50 or more reads "50+ messages".
+- **Staff.** Languages are stored in one form (`en`, not `eng`), so the catalog's language filters stop splitting one language in two; the title editor says that visible subtitle tracks add their language to the list.
+- **For operators.** One migration (language codes; nothing to do). The voice soak can play music (a `music` input of the workflow, off by default). Push notifications show plain text. Anyone who builds from a fork gets a new CI step that fails on a hard-coded string in the web app.
+
 ## Phase 68 - 2026-11-14
 
 - **Members.** Someone who is online only on a phone shows a phone in place of the green dot; you get a desktop notification when someone reacts to your message (the "Reaction notifications" switch now does what it says); a message request's preview disappears when its message is deleted; thread rows say "5m ago" and also show under "started a thread"; the email digest switch is gone until a digest exists.
