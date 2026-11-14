@@ -34,4 +34,13 @@ describe('templateOf', () => {
     expect(t(`${O}/api/v1/${'ab/'.repeat(50)}x`)).toBeNull();
     expect(t(`${O}/api/v1/x123456y`)).toBeNull();
   });
+
+  // SEC-AUD-268: the web sees a URL, not a route pattern, so it cannot tell a handle from a route word and keeps a
+  // lower case segment as typed. That is the confirmed gap on the web side. The server's allow-list (a list of the
+  // fixed words of the API's paths, `allow_list/path_words.rs`) turns every other segment into `{}` before anything is
+  // stored, and its tests prove it. This test pins the division of labour.
+  it('keeps a lower case name or code: the server decides which words are the API own', () => {
+    expect(t(`${O}/api/v1/profile-pages/alice`)).toBe('/api/v1/profile-pages/alice');
+    expect(t(`${O}/api/v1/invites/abcdefgh`)).toBe('/api/v1/invites/abcdefgh');
+  });
 });

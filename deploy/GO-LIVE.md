@@ -26,7 +26,7 @@ Point the public hostname (and the TURN hostname, if separate) at the host.
 
 Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run the installer. It asks for the domain, the mail server, the ingest folder and the Owner account, and generates every secret. It also takes `SR_INSTALL_EMU_CORES=yes` (fetch the emulator cores by pinned URL and SHA-256, [EMULATOR.md](EMULATOR.md); the default is no, and the Games page needs them) and `SR_PAYMENTS_ELECTRS=yes` (the self-hosted `electrs` profile; owner checklist section 2).
 
-- **Command.** `deploy/install.sh` (or `deploy/install.sh --yes` with the answers in the environment; see the script header).
+- **Command.** `deploy/install.sh` (or `deploy/install.sh --yes` with the answers in the environment; see the script header). If it stops part way, run it again: it resumes with the files it already wrote (INSTALL.md, "Running it again").
 - **Done when.** The script ends without an error, `dc ps` shows every service running, and `curl -fsS https://chat.example.org/healthz` answers. Back up `deploy/compose/.env.prod` now: `SR_SECRET_KEY` decrypts every stored TOTP secret and seals the Web Push key.
 
 ## 4. Preflight is green

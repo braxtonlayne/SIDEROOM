@@ -1261,18 +1261,12 @@ async fn staff_without_an_appointment_cannot_list_bug_reports() {
         e.svc.authorize_bug_list(&nobody).await,
         Err(AdminError::MissingPermission(_))
     ));
-    assert!(matches!(
-        e.svc.authorize_bug_read(&nobody, 7).await,
-        Err(AdminError::MissingPermission(_))
-    ));
-    assert!(matches!(
-        e.svc.authorize_bug_screenshot(&nobody, 7).await,
-        Err(AdminError::MissingPermission(_))
-    ));
-    assert!(matches!(
-        e.svc.authorize_bug_close(&nobody, 7).await,
-        Err(AdminError::MissingPermission(_))
-    ));
+    for action in ["bug.report.read", "bug.screenshot.read", "bug.report.close"] {
+        assert!(matches!(
+            e.svc.require_bug_access(&nobody, action).await,
+            Err(AdminError::MissingPermission(_))
+        ));
+    }
     let rows = bug_entries(&e);
     assert_eq!(rows.len(), 4, "{rows:?}");
     assert!(rows.iter().all(|r| r.4 == AccessKind::Denied));
@@ -1288,7 +1282,16 @@ async fn opening_a_bug_report_writes_an_audit_entry() {
     // The list is not an access to anyone's words or screen: no entry.
     e.svc.authorize_bug_list(&reader).await.unwrap();
     assert!(bug_entries(&e).is_empty());
-    e.svc.authorize_bug_read(&reader, 42).await.unwrap();
+    // SEC-AUD-269: the permission check alone writes nothing; the entry is the route's step once the report is found.
+    e.svc
+        .require_bug_access(&reader, "bug.report.read")
+        .await
+        .unwrap();
+    assert!(bug_entries(&e).is_empty());
+    e.svc
+        .record_bug_access(&reader, "bug.report.read", 42)
+        .await
+        .unwrap();
     assert_eq!(
         bug_entries(&e),
         [(
@@ -1300,7 +1303,10 @@ async fn opening_a_bug_report_writes_an_audit_entry() {
         )]
     );
     // Every open is its own entry, and the chain still verifies.
-    e.svc.authorize_bug_read(&reader, 42).await.unwrap();
+    e.svc
+        .record_bug_access(&reader, "bug.report.read", 42)
+        .await
+        .unwrap();
     assert_eq!(bug_entries(&e).len(), 2);
     assert!(e.repo.verify_log().await.unwrap().ok);
 }
@@ -1309,7 +1315,10 @@ async fn opening_a_bug_report_writes_an_audit_entry() {
 async fn opening_a_screenshot_writes_an_audit_entry() {
     let e = env();
     let reader = appointed(&e, NEWBIE, R_READER).await;
-    e.svc.authorize_bug_screenshot(&reader, 43).await.unwrap();
+    e.svc
+        .record_bug_access(&reader, "bug.screenshot.read", 43)
+        .await
+        .unwrap();
     assert_eq!(
         bug_entries(&e),
         [(
@@ -1326,7 +1335,10 @@ async fn opening_a_screenshot_writes_an_audit_entry() {
 async fn closing_a_report_writes_an_audit_entry() {
     let e = env();
     let reader = appointed(&e, NEWBIE, R_READER).await;
-    e.svc.authorize_bug_close(&reader, 44).await.unwrap();
+    e.svc
+        .record_bug_access(&reader, "bug.report.close", 44)
+        .await
+        .unwrap();
     assert_eq!(
         bug_entries(&e),
         [(

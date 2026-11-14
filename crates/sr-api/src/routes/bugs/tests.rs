@@ -104,13 +104,19 @@ impl BugStore for MemoryBugs {
         });
         Ok(id)
     }
-    async fn list(&self, status: Option<&str>, limit: i64) -> Result<(Vec<BugRow>, i64), String> {
+    async fn list(
+        &self,
+        status: Option<&str>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<(Vec<BugRow>, i64), String> {
         let rows = self.rows.lock().unwrap();
         let open = rows.iter().filter(|s| s.status == "open").count();
         let out = rows
             .iter()
             .rev()
             .filter(|s| status.is_none_or(|w| w == s.status))
+            .filter(|s| before.is_none_or(|b| s.id < b))
             .take(usize::try_from(limit).unwrap())
             .map(|s| Self::view(s, false))
             .collect();
@@ -894,4 +900,177 @@ async fn the_list_says_when_the_beta_is_on_with_100_accounts() {
         .await
         .unwrap();
     assert!(!beta_flag(&fx).await, "switch off: no notice");
+}
+
+// ---- SEC-AUD-266: a report with parts missing ---------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_report_with_only_a_description_is_stored_with_every_key() {
+    let f = fixture(true, BugLimits::default()).await;
+    let (s, v) = f.post(true, json!({ "description": "x" })).await;
+    assert_eq!(s, StatusCode::CREATED, "{v}");
+    let b = f.stored().remove(0).bundle;
+    for key in [
+        "viewport",
+        "gateway",
+        "voice",
+        "online",
+        "sw",
+        "caps",
+        "crashes",
+        "failed_requests",
+    ] {
+        assert!(b.get(key).is_some(), "the stored report has no {key}: {b}");
+    }
+    assert_eq!(b["viewport"]["w"], 0);
+    assert_eq!(b["gateway"]["status"], "unknown");
+    assert_eq!(b["voice"]["connected"], false);
+    // And staff read it back whole.
+    let (s, d) = f
+        .call(Some(STAFF), Method::GET, "/admin/bug-reports/101", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(d["bundle"]["viewport"]["h"], 0);
+}
+
+// ---- SEC-AUD-267: the list pages ----------------------------------------------------------------------------------
+
+#[tokio::test]
+async fn the_list_pages_with_before_and_says_when_more_exist() {
+    let f = fixture(
+        true,
+        BugLimits {
+            per_user: 100,
+            ..BugLimits::default()
+        },
+    )
+    .await;
+    for _ in 0..7 {
+        assert_eq!(f.post(true, report()).await.0, StatusCode::CREATED);
+    }
+    // 101..=107 exist. A page of 3, then the page after its last id, until the end.
+    let mut seen = Vec::new();
+    let mut before = String::new();
+    let mut pages = Vec::new();
+    loop {
+        let path = format!("/admin/bug-reports?limit=3{before}");
+        let (s, v) = f.call(Some(STAFF), Method::GET, &path, None).await;
+        assert_eq!(s, StatusCode::OK, "{v}");
+        let rows = v["reports"].as_array().unwrap();
+        assert!(rows.len() <= 3);
+        seen.extend(rows.iter().map(|r| r["id"].as_str().unwrap().to_owned()));
+        pages.push((rows.len(), v["has_more"].as_bool().unwrap()));
+        if !v["has_more"].as_bool().unwrap() {
+            break;
+        }
+        before = format!("&before={}", rows.last().unwrap()["id"].as_str().unwrap());
+    }
+    assert_eq!(seen, ["107", "106", "105", "104", "103", "102", "101"]);
+    assert_eq!(pages, [(3, true), (3, true), (1, false)]);
+    // A page that ends exactly at the oldest report does not claim more.
+    let (_, v) = f
+        .call(Some(STAFF), Method::GET, "/admin/bug-reports?limit=7", None)
+        .await;
+    assert_eq!(v["has_more"], false);
+    // The status filter and the cursor together; a cursor that is not an id is refused.
+    let (_, v) = f
+        .call(
+            Some(STAFF),
+            Method::GET,
+            "/admin/bug-reports?status=open&before=104&limit=50",
+            None,
+        )
+        .await;
+    assert_eq!(v["reports"].as_array().unwrap().len(), 3);
+    for bad in ["abc", "-4", "0"] {
+        let (s, _) = f
+            .call(
+                Some(STAFF),
+                Method::GET,
+                &format!("/admin/bug-reports?before={bad}"),
+                None,
+            )
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{bad}");
+    }
+}
+
+// ---- SEC-AUD-269: the limiter before the decode; the entry after the find -----------------------------------------
+
+#[tokio::test]
+async fn a_limited_account_is_refused_before_its_picture_is_decoded() {
+    let f = fixture(true, BugLimits::default()).await;
+    for _ in 0..5 {
+        assert_eq!(f.post(true, report()).await.0, StatusCode::CREATED);
+    }
+    // A picture that is not even base64: the allow-list would answer 400. The limiter answers first.
+    let mut r = report();
+    r["screenshot"] = json!({ "type": "image/jpeg", "data": "!!! not base64 !!!", "masked": 0 });
+    let (s, _) = f.post(true, r).await;
+    assert_eq!(s, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(f.stored().len(), 5);
+}
+
+#[tokio::test]
+async fn a_refused_picture_gives_its_slot_back_to_the_account_and_the_platform() {
+    let limits = BugLimits {
+        per_user: 5,
+        global: 5,
+        ..BugLimits::default()
+    };
+    let f = fixture(true, limits).await;
+    for _ in 0..20 {
+        let mut r = report();
+        r["screenshot"] = json!({ "type": "image/png", "data": "", "masked": 0 });
+        assert_eq!(f.post(true, r).await.0, StatusCode::BAD_REQUEST);
+    }
+    // Neither the account's five nor the platform's five were used up by twenty refusals.
+    for _ in 0..5 {
+        assert_eq!(f.post(true, report()).await.0, StatusCode::CREATED);
+    }
+    assert_eq!(
+        f.post(true, report()).await.0,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+}
+
+#[tokio::test]
+async fn reading_or_closing_a_report_that_is_not_there_leaves_no_audit_entry() {
+    let f = with_two_reports().await;
+    for path in [
+        "/admin/bug-reports/999",
+        "/admin/bug-reports/999/screenshot",
+    ] {
+        let (s, _) = f.call(Some(STAFF), Method::GET, path, None).await;
+        assert_eq!(s, StatusCode::NOT_FOUND, "{path}");
+    }
+    let (s, _) = f
+        .call(
+            Some(STAFF),
+            Method::POST,
+            "/admin/bug-reports/999/close",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // A report that has no picture is a 404 for the picture, and the picture was not read.
+    let (s, _) = f
+        .call(
+            Some(STAFF),
+            Method::GET,
+            "/admin/bug-reports/102/screenshot",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert!(f.audit().is_empty(), "{:?}", f.audit());
+    // A read that succeeds writes exactly one entry.
+    let (s, _) = f
+        .call(Some(STAFF), Method::GET, "/admin/bug-reports/101", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        f.audit(),
+        [("bug.report.read".to_owned(), STAFF, Some(101))]
+    );
 }

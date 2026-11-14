@@ -59,7 +59,7 @@ export const mockOperations: readonly MockOperation[] = [
   {"id":"feature","method":"put","path":"/admin/arcade/featured/:application_id","status":200,"body":{"application_id":"1","bundle_sha256":"string","capabilities":["string"],"description":"string","eligibility":{"browser_play":false,"desktop_only":false,"featured":false,"guest_links":false,"needs_base_game_hint":false},"featured_at_ms":0,"name":"string","position":0,"tier":"TIER_1_ORIGINAL","tip_links":[{}]}},
   {"id":"unfeature","method":"delete","path":"/admin/arcade/featured/:application_id","status":204,"body":null},
   {"id":"bans","method":"get","path":"/admin/bans","status":200,"body":{"items":[{}]}},
-  {"id":"list","method":"get","path":"/admin/bug-reports","status":200,"body":{"beta_over_100":false,"open_count":0,"reports":[{}]}},
+  {"id":"list","method":"get","path":"/admin/bug-reports","status":200,"body":{"beta_over_100":false,"has_more":false,"open_count":0,"reports":[{}]}},
   {"id":"detail","method":"get","path":"/admin/bug-reports/:bug_id","status":200,"body":{"commit":"string","created_ms":0,"has_screenshot":false,"id":"1","reporter":{},"route":"string","status":"string","bundle":{},"description":"string"}},
   {"id":"close","method":"post","path":"/admin/bug-reports/:bug_id/close","status":204,"body":null},
   {"id":"screenshot","method":"get","path":"/admin/bug-reports/:bug_id/screenshot","status":200,"body":null},

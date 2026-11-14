@@ -63,7 +63,7 @@ async fn a_report_round_trips_and_the_list_carries_no_description_and_no_picture
     let with = add(&store, 1, "the send button does nothing", true).await;
     let without = add(&store, 1, "no picture here", false).await;
 
-    let (rows, open) = store.list(None, 50).await.unwrap();
+    let (rows, open) = store.list(None, None, 50).await.unwrap();
     assert_eq!(open, 2);
     assert_eq!(
         rows.iter().map(|r| r.id).collect::<Vec<_>>(),
@@ -142,10 +142,13 @@ async fn closing_a_report_deletes_its_picture_and_is_idempotent() {
     assert_eq!(r.closed_ms, Some(first_at));
     assert!(!store.close(999, 2).await.unwrap(), "no such report");
     // The open count and the status filter follow.
-    let (open, n) = store.list(Some("open"), 50).await.unwrap();
+    let (open, n) = store.list(Some("open"), None, 50).await.unwrap();
     assert!(open.is_empty());
     assert_eq!(n, 0);
-    assert_eq!(store.list(Some("closed"), 50).await.unwrap().0.len(), 1);
+    assert_eq!(
+        store.list(Some("closed"), None, 50).await.unwrap().0.len(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -218,6 +221,72 @@ async fn erasing_an_account_deletes_its_bug_reports() {
         .unwrap();
     assert_eq!(left, [kept], "only the other account's report is left");
     // An erased reporter cannot appear in the staff list.
-    let (rows, _) = store.list(None, 50).await.unwrap();
+    let (rows, _) = store.list(None, None, 50).await.unwrap();
     assert!(rows.iter().all(|r| r.reporter.id == 2));
+}
+
+/// SEC-AUD-267: before this, the list had a limit and no cursor, so with 60 reports the oldest ten could not be reached
+/// at a page of 50 (and nothing past 200 at the largest limit). Walking with `before` reaches every report once.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_list_pages_with_before_and_reaches_every_report_once() {
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool();
+    account(pool, 1, "reporter").await;
+    account(pool, 2, "staff").await;
+    let store = PgBugReports::new(pool.clone());
+    let mut ids = Vec::new();
+    for i in 0..60 {
+        ids.push(add(&store, 1, &format!("report {i}"), i % 7 == 0).await);
+    }
+    // Close every third one so the status filter has two sets to walk.
+    for id in ids.iter().step_by(3) {
+        store.close(*id, 2).await.unwrap();
+    }
+    // A page of 50 stops short of the oldest ten...
+    let (first, _) = store.list(None, None, 50).await.unwrap();
+    assert_eq!(first.len(), 50);
+    assert_eq!(first.last().map(|r| r.id), Some(ids[10]));
+
+    async fn walk(store: &PgBugReports, status: Option<&str>, page: i64) -> Vec<i64> {
+        let mut seen = Vec::new();
+        let mut before = None;
+        for _ in 0..10 {
+            let (rows, _) = store.list(status, before, page).await.unwrap();
+            if rows.is_empty() {
+                break;
+            }
+            before = rows.last().map(|r| r.id);
+            seen.extend(rows.iter().map(|r| r.id));
+        }
+        seen
+    }
+    // ...and three pages of 25 (25, 25, 10) reach all 60, newest first, none twice.
+    let all = walk(&store, None, 25).await;
+    let mut expect: Vec<i64> = ids.clone();
+    expect.reverse();
+    assert_eq!(all, expect);
+    // With a status filter too.
+    let closed = walk(&store, Some("closed"), 7).await;
+    let open = walk(&store, Some("open"), 7).await;
+    let want_closed: Vec<i64> = expect
+        .iter()
+        .copied()
+        .filter(|id| (ids.iter().position(|x| x == id).unwrap()) % 3 == 0)
+        .collect();
+    assert_eq!(closed, want_closed);
+    assert_eq!(open.len() + closed.len(), 60);
+    assert!(open.iter().all(|id| !closed.contains(id)));
+    // The page after the oldest report is empty, and one more than shown can be asked for.
+    assert!(
+        store
+            .list(None, Some(ids[0]), 50)
+            .await
+            .unwrap()
+            .0
+            .is_empty()
+    );
+    assert_eq!(store.list(None, None, 201).await.unwrap().0.len(), 60);
+    assert!(store.exists(ids[0]).await.unwrap());
+    assert!(!store.exists(ids[59] + 1000).await.unwrap());
 }
