@@ -45,6 +45,8 @@ function walk(dir, base = '') {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MESSAGES = join(here, '..', 'apps', 'web', 'src', 'i18n', 'messages');
+const SRC = join(here, '..', 'apps', 'web', 'src');
+const CHANGELOG = join(here, '..', 'CHANGELOG.md');
 const MIN_TEXT = 12;
 
 /** The longest run of plain ASCII (no quote, backslash, newline, backtick) in a message: what a minifier leaves as is. */
@@ -55,19 +57,45 @@ function needleOf(text) {
   return best.length >= MIN_TEXT ? best : null;
 }
 
+/** Text a member can legitimately be sent: code outside src/admin/, and the changelog the What's new page shows. */
+function memberProse(srcRoot, changelog) {
+  const parts = [];
+  if (changelog && existsSync(changelog)) parts.push(readFileSync(changelog, 'utf8'));
+  const visit = (dir, rel) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (e.name === '__tests__' || e.name === 'node_modules') continue;
+        if (r === 'admin' || r === 'i18n/messages' || r === 'test') continue;
+        visit(join(dir, e.name), r);
+      } else if (/.(ts|tsx|md)$/.test(e.name) && !/.(test|spec)./.test(e.name))
+        parts.push(readFileSync(join(dir, e.name), 'utf8'));
+    }
+  };
+  if (existsSync(srcRoot)) visit(srcRoot, '');
+  return parts.join('\n');
+}
+
 /**
  * The staff catalog as the check needs it: `{ needles: [[key, needle]] }`, one needle per staff message of 12 characters
- * or more whose text no member fragment also holds (a text both catalogs share is not secret, and it is in member
- * chunks on purpose). `dir` is apps/web/src/i18n/messages.
+ * or more that nothing a member is sent could also hold: not a text a member fragment holds, and not a text that
+ * member code or the changelog (the What's new page, the developer docs) holds as prose. `dir` is
+ * apps/web/src/i18n/messages.
  */
-export function staffCatalogNeedles(dir = MESSAGES) {
+export function staffCatalogNeedles(
+  dir = MESSAGES,
+  prose = dir === MESSAGES ? { src: SRC, changelog: CHANGELOG } : null,
+) {
   const staff = readEnglishCatalog(join(dir, 'en-staff'), false);
   const member = readEnglishCatalog(join(dir, 'en'), false);
-  const memberBlob = Object.values(member).join('\n');
+  const blob = [
+    Object.values(member).join('\n'),
+    prose ? memberProse(prose.src, prose.changelog) : '',
+  ].join('\n');
   const needles = [];
   for (const [key, text] of Object.entries(staff)) {
     const needle = needleOf(text);
-    if (needle && !memberBlob.includes(needle)) needles.push([key, needle]);
+    if (needle && !blob.includes(needle)) needles.push([key, needle]);
   }
   return { needles };
 }

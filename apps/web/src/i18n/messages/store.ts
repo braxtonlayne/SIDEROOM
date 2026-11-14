@@ -41,14 +41,3 @@ export function onRestLoaded(listener: () => void): () => void {
   restListeners.add(listener);
   return () => restListeners.delete(listener);
 }
-
-/** True once the staff catalog (`./en.staff.ts`, SEC-AUD-187) is registered; only a staff session ever loads it. */
-let staffLoaded = false;
-export const isStaffLoaded = () => staffLoaded;
-
-/** Called by `./en.staff.ts` after it registers; wakes everything that rendered keys while it was loading. */
-export function markStaffLoaded(): void {
-  if (staffLoaded) return;
-  staffLoaded = true;
-  for (const l of [...restListeners]) l();
-}

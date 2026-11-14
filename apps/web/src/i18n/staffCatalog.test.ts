@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { en } from './messages/en';
-import { isStaffLoaded } from './messages/store';
+import { getVersion } from './runtime';
 import { resetStaffCatalogForTests, startStaffCatalog } from './staffCatalog';
 
 /**
  * SEC-AUD-187 (D-663): the staff catalog loads like the rest catalog (catalogRetry.test.ts): one failure keeps the
- * door waiting, the second settles it degraded (the Admin app shows keys), and the tries go on in the background.
+ * door waiting, the second settles it degraded (the Admin app shows keys), the tries go on in the background, and a
+ * late success re-renders what showed keys.
  */
 describe('startStaffCatalog', () => {
   afterEach(() => {
@@ -13,39 +14,20 @@ describe('startStaffCatalog', () => {
     resetStaffCatalogForTests();
   });
 
-  it('the test setup registered the staff catalog, so the door has nothing to wait for', async () => {
-    expect(isStaffLoaded()).toBe(true);
+  it('loads the real staff module (registered into the catalog) and settles', async () => {
+    await startStaffCatalog();
     expect(en['admin.adminApp.section.dashboard']).toBe('Dashboard');
-    await expect(startStaffCatalog(() => Promise.reject(new Error('never called')))).resolves.toBe(
-      undefined,
-    );
   });
-});
-
-describe('startStaffCatalog retries (the catalog not yet registered)', () => {
-  // The store is a module singleton that setup.ts has already filled: reload it fresh for these cases.
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.resetModules();
-  });
-
-  async function fresh() {
-    vi.resetModules();
-    return import('./staffCatalog');
-  }
 
   it('waits after one failure, settles after the second, and keeps trying in the background', async () => {
     vi.useFakeTimers();
-    const mod = await fresh();
     let calls = 0;
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let settled = false;
-    const done = mod
-      .startStaffCatalog(() => {
-        calls++;
-        return Promise.reject(new Error('chunk failed'));
-      })
-      .then(() => (settled = true));
+    const done = startStaffCatalog(() => {
+      calls++;
+      return Promise.reject(new Error('chunk failed'));
+    }).then(() => (settled = true));
     await vi.advanceTimersByTimeAsync(0);
     expect(calls).toBe(1);
     expect(settled).toBe(false);
@@ -59,18 +41,36 @@ describe('startStaffCatalog retries (the catalog not yet registered)', () => {
     errors.mockRestore();
   });
 
-  it('a first failure followed by a success settles without an error', async () => {
+  it('a first failure followed by a success settles without an error and without a re-render', async () => {
     vi.useFakeTimers();
-    const mod = await fresh();
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const before = getVersion();
     let calls = 0;
-    const done = mod.startStaffCatalog(() =>
+    const done = startStaffCatalog(() =>
       ++calls === 1 ? Promise.reject(new Error('dropped')) : Promise.resolve(),
     );
     await vi.advanceTimersByTimeAsync(600);
     await done;
     expect(calls).toBe(2);
     expect(errors).not.toHaveBeenCalled();
+    expect(getVersion()).toBe(before);
+    errors.mockRestore();
+  });
+
+  it('a late success (after the door opened degraded) re-renders the subscribers', async () => {
+    vi.useFakeTimers();
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let calls = 0;
+    const done = startStaffCatalog(() =>
+      ++calls <= 2 ? Promise.reject(new Error('offline')) : Promise.resolve(),
+    );
+    await vi.advanceTimersByTimeAsync(600);
+    await done;
+    const before = getVersion();
+    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toBe(3);
+    expect(getVersion()).toBeGreaterThan(before);
     errors.mockRestore();
   });
 });
