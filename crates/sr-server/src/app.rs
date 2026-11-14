@@ -1109,6 +1109,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_media(routes::review::ReviewMedia::new(
             media_repo.clone(),
             cdn_signer.clone(),
+        ))
+        .with_users(Arc::new(
+            PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         )),
     );
 

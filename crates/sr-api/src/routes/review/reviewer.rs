@@ -6,51 +6,126 @@ use axum::{
     Json,
     extract::{Path, Query},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sr_core::UserId;
 use sr_review::model::*;
 use utoipa::ToSchema;
 
 use super::member::PreviewBody;
+
+/// The small user object a reviewer sees for a submitter or a claimer (D-692): never an email or a flag.
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct ReviewUser {
+    pub id: String,
+    pub username: String,
+    /// The display name, when the account has one.
+    pub global_name: Option<String>,
+    /// Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set.
+    pub avatar: Option<String>,
+}
+
+/// The review queue page: the submissions and the people they name (D-692).
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct ReviewQueuePage {
+    #[serde(flatten)]
+    pub page: SubmissionPage,
+    /// Each submitter and claimer on the page and the account of the `submitter` filter, even when no row matches.
+    /// A deleted account is absent.
+    pub users: Vec<ReviewUser>,
+}
+
+/// A submission for review: the submission, its items and timeline, and the people it names (D-692).
+#[derive(Debug, Clone, PartialEq, Serialize, ToSchema)]
+pub struct ReviewSubmissionDetail {
+    #[serde(flatten)]
+    pub detail: SubmissionDetail,
+    /// The submitter and the claimer. A deleted account is absent.
+    pub users: Vec<ReviewUser>,
+}
+
+/// One lookup for all the ids; a failure leaves the names out (the id is the fallback) and is logged.
+async fn named(ctx: &ReviewerCtx, ids: impl IntoIterator<Item = i64>) -> Vec<ReviewUser> {
+    let Some(lookup) = ctx.review.users.as_ref() else {
+        return Vec::new();
+    };
+    let mut ids: Vec<UserId> = ids
+        .into_iter()
+        .filter(|i| *i > 0)
+        .map(|i| UserId::new(i as u64))
+        .collect();
+    ids.sort();
+    ids.dedup();
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    match lookup.users(&ids).await {
+        Ok(found) => found
+            .into_iter()
+            .map(|u| ReviewUser {
+                id: u.id.get().to_string(),
+                username: u.username,
+                global_name: u.display_name,
+                avatar: u.avatar_key,
+            })
+            .collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "the review queue could not look up its people");
+            Vec::new()
+        }
+    }
+}
 
 /// The review queue: submitted and in review by default, for the kinds the caller may review
 /// (`REVIEW_READING` for the Library kinds), never the caller's own submissions. Filters: kind,
 /// state, `claimed=mine|unclaimed`, submitter, `min_age_hours`, title; sort and pagination.
 #[utoipa::path(
     get, path = "/admin/review/queue", operation_id = "admin_review_queue", params(ListParams),
-    responses((status = 200, body = SubmissionPage), (status = 400, body = ErrorBody),
+    responses((status = 200, body = ReviewQueuePage), (status = 400, body = ErrorBody),
               (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn queue(
     ctx: ReviewerCtx,
     Query(p): Query<ListParams>,
-) -> ApiResult<Json<SubmissionPage>> {
+) -> ApiResult<Json<ReviewQueuePage>> {
     let q = p.into_query(ctx.caller().user_id, now_ms())?;
-    ctx.svc()
-        .queue(ctx.caller(), q)
-        .await
-        .map(Json)
-        .map_err(map_err)
+    let filter = q.submitter;
+    let page = ctx.svc().queue(ctx.caller(), q).await.map_err(map_err)?;
+    let ids: Vec<i64> = page
+        .items
+        .iter()
+        .flat_map(|s| [s.submitter_id, s.claimed_by])
+        .flatten()
+        .chain(filter)
+        .collect();
+    let users = named(&ctx, ids).await;
+    Ok(Json(ReviewQueuePage { page, users }))
 }
 
 /// A submission with items and the full timeline, internal notes included.
 #[utoipa::path(
     get, path = "/admin/review/submissions/{submission_id}", operation_id = "admin_review_get",
     params(("submission_id" = String, Path, description = "Submission snowflake")),
-    responses((status = 200, body = SubmissionDetail), (status = 401, body = ErrorBody),
+    responses((status = 200, body = ReviewSubmissionDetail), (status = 401, body = ErrorBody),
               (status = 403, body = ErrorBody), (status = 404, body = ErrorBody)),
     security(("session" = []))
 )]
 pub async fn get(
     ctx: ReviewerCtx,
     Path(submission_id): Path<String>,
-) -> ApiResult<Json<SubmissionDetail>> {
-    ctx.svc()
+) -> ApiResult<Json<ReviewSubmissionDetail>> {
+    let detail = ctx
+        .svc()
         .get_for_review(ctx.caller(), id(&submission_id, "submission")?)
         .await
-        .map(Json)
-        .map_err(map_err)
+        .map_err(map_err)?;
+    let ids: Vec<i64> = [detail.submission.submitter_id, detail.submission.claimed_by]
+        .into_iter()
+        .flatten()
+        .collect();
+    let users = named(&ctx, ids).await;
+    Ok(Json(ReviewSubmissionDetail { detail, users }))
 }
 
 /// The kind's preview (Library: series facts, editions and the chapters under review).
