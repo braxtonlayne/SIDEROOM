@@ -2458,6 +2458,28 @@ async fn a_pending_request_carries_the_latest_message_as_a_preview() {
     assert!(alice[0].get("sr_request_preview").is_none(), "{alice}");
 }
 
+/// D-728: a request whose latest message is a long spoiler shows none of the hidden words.
+#[tokio::test]
+async fn a_long_spoiler_never_reaches_the_request_preview() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    let content = format!("look ||{}||", "hidden".repeat(40));
+    seed_gist(&e, &id, 3 << 22, ALICE, &content, 0);
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let text = bob[0]["sr_request_preview"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        !text.contains("hidden"),
+        "the hidden words leaked: {text:?}"
+    );
+    assert_eq!(text, "look\u{2026}", "{bob}");
+}
+
 #[tokio::test]
 async fn the_preview_names_the_message_it_shows() {
     let e = env().await;

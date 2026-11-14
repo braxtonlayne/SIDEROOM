@@ -40,16 +40,14 @@ fn extends(c: char) -> bool {
         | 0xE0100..=0xE01EF)
 }
 
-/// The first `max` characters of `content` on one line: runs of white space (line breaks included)
-/// become one space, the text is trimmed, a cut falls on a character boundary and never between a
-/// character and the combining marks that follow it, and an ellipsis ends a cut text. `None` when
-/// nothing but white space is left.
-pub fn excerpt(content: &str, max: usize) -> Option<String> {
-    let mut flat = String::new();
-    let mut chars = 0usize;
-    let mut pending_space = false;
-    let mut cut = false;
+/// How many times the cut may move back looking for a place that splits no markup (D-728).
+const CUT_TRIES: usize = 16;
+
+/// The text of `content` on one line: runs of white space (line breaks included) become one space and
+/// the ends are trimmed.
+fn fold(content: &str) -> Vec<char> {
     let mut kept: Vec<char> = Vec::new();
+    let mut pending_space = false;
     for c in content.chars() {
         if c.is_whitespace() {
             pending_space = !kept.is_empty();
@@ -57,38 +55,81 @@ pub fn excerpt(content: &str, max: usize) -> Option<String> {
         }
         if pending_space {
             pending_space = false;
-            if chars == max {
-                cut = true;
-                break;
-            }
             kept.push(' ');
-            chars += 1;
-        }
-        if chars == max {
-            if extends(c) {
-                // The cut would split a cluster: take the character before it out too.
-                while kept.last().is_some_and(|k| extends(*k)) {
-                    kept.pop();
-                }
-                kept.pop();
-            }
-            cut = true;
-            break;
         }
         kept.push(c);
-        chars += 1;
     }
-    if kept.is_empty() {
+    kept
+}
+
+/// Whether a markup opener starts at `i` of `s`: `||`, `<`, a backtick, `[`, `*`, `_` or `~`.
+fn opener_at(s: &[char], i: usize) -> bool {
+    match s[i] {
+        '|' => s.get(i + 1) == Some(&'|'),
+        '<' | '`' | '[' | '*' | '_' | '~' => true,
+        _ => false,
+    }
+}
+
+fn plain_of(s: &[char]) -> String {
+    let text: String = s.iter().collect();
+    sr_markdown::to_plain_text(&sr_markdown::parse(&text))
+}
+
+/// The first `max` characters of `content` on one line: runs of white space (line breaks included)
+/// become one space, the text is trimmed, a cut falls on a character boundary and never between a
+/// character and the combining marks that follow it, and an ellipsis ends a cut text. The cut also
+/// never falls inside markup (D-728): the plain text of the cut text must be the start of the plain
+/// text of the whole message (so half a spoiler, a split mention or a split link never reaches a
+/// preview as words); when it is not, the cut moves back to before the last markup opener, then to
+/// the previous white space, alternately, at most 16 times. `None` when nothing but white space is
+/// left or no such cut is left.
+pub fn excerpt(content: &str, max: usize) -> Option<String> {
+    let folded = fold(content);
+    if folded.is_empty() {
         return None;
     }
-    while kept.last() == Some(&' ') {
-        kept.pop();
+    if folded.len() <= max {
+        return Some(folded.into_iter().collect());
     }
-    flat.extend(kept);
-    if cut {
-        flat.push('\u{2026}');
+    let mut cut = max;
+    if extends(folded[cut]) {
+        // The cut would split a cluster: take the character before it out too.
+        while cut > 0 && extends(folded[cut - 1]) {
+            cut -= 1;
+        }
+        cut = cut.saturating_sub(1);
     }
-    Some(flat)
+    let trim = |mut n: usize| {
+        while n > 0 && folded[n - 1] == ' ' {
+            n -= 1;
+        }
+        n
+    };
+    let mut cut = trim(cut);
+    let full = plain_of(&folded);
+    let mut by_opener = true;
+    for _ in 0..=CUT_TRIES {
+        if cut == 0 {
+            return None;
+        }
+        let part = plain_of(&folded[..cut]);
+        if full.starts_with(part.trim_end()) {
+            let mut s: String = folded[..cut].iter().collect();
+            s.push('\u{2026}');
+            return Some(s);
+        }
+        let head = &folded[..cut];
+        let next = if by_opener {
+            (0..cut).rev().find(|&i| opener_at(head, i))
+        } else {
+            head.iter().rposition(|c| *c == ' ')
+        };
+        by_opener = !by_opener;
+        // Nothing to move to: try the other kind of place next time.
+        cut = trim(next.unwrap_or(cut.saturating_sub(1)));
+    }
+    None
 }
 
 #[cfg(test)]
@@ -166,5 +207,122 @@ mod tests {
     fn markup_is_left_as_written() {
         let s = "<img src=x onerror=alert(1)> [a](http://x) **b** <@123>";
         assert_eq!(excerpt(s, 140).as_deref(), Some(s));
+    }
+}
+
+#[cfg(test)]
+mod safe_cut_tests {
+    use super::*;
+    use serde_json::Value;
+    use sr_markdown::{Node, parse, to_plain_text};
+
+    fn join(v: &Value) -> String {
+        v.as_array()
+            .expect("parts")
+            .iter()
+            .map(|p| match p {
+                Value::String(s) => s.clone(),
+                o => o["repeat"]
+                    .as_str()
+                    .expect("repeat")
+                    .repeat(o["times"].as_u64().expect("times") as usize),
+            })
+            .collect()
+    }
+
+    fn has_spoiler(nodes: &[Node]) -> bool {
+        nodes.iter().any(|n| matches!(n, Node::Spoiler { .. }))
+    }
+
+    /// The same list the web runs (`p70Plain.test.tsx`).
+    #[test]
+    fn shared_cut_cases() {
+        let v: Value = serde_json::from_str(include_str!("preview_cases.json")).unwrap();
+        for c in v["cases"].as_array().unwrap() {
+            let name = c["name"].as_str().unwrap();
+            let got = excerpt(&join(&c["input"]), EXCERPT_CHARS);
+            let want = if c["want"].is_null() {
+                None
+            } else {
+                Some(join(&c["want"]))
+            };
+            assert_eq!(got, want, "case {name}");
+        }
+    }
+
+    /// The confirm test (a): the fault the plan names. A raw 140-character cut of an open spoiler is what
+    /// reaches the parser as text, so the hidden letters would show; the cut never ends that way.
+    #[test]
+    fn a_cut_never_leaves_a_spoiler_open() {
+        let content = format!("a ||{}||", "x".repeat(200));
+        let raw: String = content.chars().take(140).collect();
+        // What the parser does with an unclosed `||`: no spoiler, the letters are text (the leak).
+        let nodes = parse(&raw);
+        assert!(!has_spoiler(&nodes), "unclosed spoiler parsed as a spoiler");
+        assert!(to_plain_text(&nodes).contains("xxxx"));
+        // The excerpt does not hand that text on.
+        let got = excerpt(&content, EXCERPT_CHARS).unwrap();
+        assert!(!got.contains('x'), "letters leaked: {got:?}");
+    }
+
+    /// The confirm test (c): a mention cut in the middle is not left as `<@12345`.
+    #[test]
+    fn a_cut_never_leaves_half_a_mention() {
+        let content = format!("{} <@123456789012345678> tail", "x".repeat(130));
+        let got = excerpt(&content, EXCERPT_CHARS).unwrap();
+        assert!(!got.contains('<'), "half a mention: {got:?}");
+    }
+
+    /// Property: over the markdown corpus, each input repeated until it is over 140 characters, the plain
+    /// text of every result (without its ellipsis) is the start of the whole's plain text.
+    #[test]
+    fn cut_text_reads_as_the_start_of_the_whole() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../sr-markdown/tests/corpus");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_none_or(|x| x != "json") {
+                continue;
+            }
+            let file: Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            for c in file["cases"].as_array().unwrap() {
+                let input = c["input"].as_str().unwrap();
+                if input.trim().is_empty() {
+                    continue;
+                }
+                let mut text = String::new();
+                while text.chars().count() <= 150 {
+                    text.push_str(input);
+                    text.push(' ');
+                }
+                let folded = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                let full = to_plain_text(&parse(&folded));
+                if let Some(e) = excerpt(&text, EXCERPT_CHARS) {
+                    let body = e.strip_suffix('\u{2026}').unwrap_or(&e);
+                    let part = to_plain_text(&parse(body));
+                    assert!(
+                        full.starts_with(part.trim_end()),
+                        "input {input:?}: {e:?} reads {part:?}, not the start of {full:?}"
+                    );
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 50, "only {checked} corpus inputs");
+    }
+
+    /// Worst case for time: 4,000 characters of nested markup, cut at 140.
+    #[test]
+    fn worst_case_time_is_small() {
+        let text = "**a _b ~c ||d `e` [f](http://x) <@1>|| ~_** ".repeat(100);
+        let start = std::time::Instant::now();
+        let _ = excerpt(&text, EXCERPT_CHARS);
+        eprintln!(
+            "worst case excerpt ({} chars): {:?}",
+            text.chars().count(),
+            start.elapsed()
+        );
     }
 }
