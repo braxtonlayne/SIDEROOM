@@ -122,4 +122,25 @@ mod tests {
         assert_eq!(last, 1801);
         assert_eq!(raise(&mut last, 2000), 2000);
     }
+
+    // SEC-AUD-235: the module's own parser on the real file. The wave 68 rule "no test depends on /proc" is for tests
+    // that run on every system; this one only exists on Linux.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn the_real_proc_stat_gives_a_value_that_does_not_go_back() {
+        let read = || {
+            let stat = std::fs::read_to_string("/proc/self/stat").expect("/proc/self/stat");
+            parse_cpu_ticks(&stat).expect("utime and stime in /proc/self/stat")
+        };
+        let first = read();
+        let start = std::time::Instant::now();
+        let mut x = 0u64;
+        while start.elapsed() < std::time::Duration::from_millis(50) {
+            x = std::hint::black_box(x.wrapping_add(1));
+        }
+        assert!(
+            read() >= first,
+            "CPU ticks went back after a busy loop ({x})"
+        );
+    }
 }

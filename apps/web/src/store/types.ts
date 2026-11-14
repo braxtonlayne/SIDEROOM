@@ -189,7 +189,10 @@ export interface Message {
   message_snapshots?: { message: Partial<Message> }[];
   /** Text-to-speech message (needs SEND_TTS_MESSAGES). */
   tts?: boolean;
-  /** The thread started from this message (its id is the message id). */
+  /**
+   * The thread started from this message (its id is the message id), or, on a type 18 row, the thread it names
+   * (its id is the row's `message_reference.message_id`).
+   */
   thread?: {
     id: string;
     name?: string | null;

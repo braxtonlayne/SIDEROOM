@@ -5,6 +5,7 @@ import { resetStore, useStore } from '../../store';
 import { DEFAULT_PREFS, usePrefsStore } from '../../settings/user/prefs';
 import { useDesktopNotify } from '../shell/desktopNotify';
 import { useNotifSettings } from '../shell/notifSettings';
+import { setMarkdownEngine, testFallbackEngine } from '../markdown';
 
 const navigate = vi.fn();
 vi.mock('@tanstack/react-router', async (orig) => ({
@@ -41,6 +42,8 @@ const reaction = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  // D-716: the body is plain text, which needs the parser.
+  setMarkdownEngine(testFallbackEngine);
   made.length = 0;
   navigate.mockClear();
   resetStore();

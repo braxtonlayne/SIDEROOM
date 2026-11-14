@@ -2315,6 +2315,209 @@ async fn a_finished_transcode_adds_the_embedded_languages() {
     );
 }
 
+const PROBE_FIN_GER: &str = r#"{"streams":[
+  {"index":0,"codec_name":"h264","codec_type":"video","width":1920,"height":1080,
+   "pix_fmt":"yuv420p","field_order":"progressive","r_frame_rate":"24000/1001",
+   "avg_frame_rate":"24000/1001","disposition":{"default":1}},
+  {"index":1,"codec_name":"ac3","codec_type":"audio","channels":6,"sample_rate":"48000",
+   "disposition":{"default":1},"tags":{"language":"fin"}},
+  {"index":2,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"fin"}},
+  {"index":3,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"ger"}},
+  {"index":4,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"fil"}}
+],"format":{"format_name":"matroska,webm","duration":"1200.0"}}"#;
+
+/// D-719 (SEC-AUD-225): an embedded track in a language outside the 18-name table is tagged in the short form,
+/// and so is the title; the probed code stays in `language`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_finished_transcode_adds_the_short_form() {
+    let p = staged(PROBE_FIN_GER).await;
+    let title = p.film(&[]).await;
+    finish_ladder(&p.worker, &p.secret, 1000).await;
+    assert_eq!(p.languages_of(title).await, ["de", "fi", "fil"]);
+    let tags: Vec<_> = p
+        .tracks()
+        .await
+        .into_iter()
+        .map(|t| t.track.language.unwrap())
+        .collect();
+    assert_eq!(tags, ["fi", "de", "fil"]);
+}
+
+/// The migration text, run again by hand on a database that already ran it.
+const MIGRATION_2970: &str = include_str!("../migrations/2970_language_codes_short_form.sql");
+
+/// The pairs of the migration's `VALUES` list, in file order.
+fn sql_pairs() -> Vec<(String, String)> {
+    let from = MIGRATION_2970.find("INSERT INTO sr_lang_pairs").unwrap();
+    let list = &MIGRATION_2970[from..];
+    let list = &list[..list.find(";\n").unwrap()];
+    let mut out = Vec::new();
+    let mut rest = list;
+    while let Some(open) = rest.find("('") {
+        let after = &rest[open + 2..];
+        let (long, after) = after.split_once("','").unwrap();
+        let (short, after) = after.split_once("')").unwrap();
+        out.push((long.to_owned(), short.to_owned()));
+        rest = after;
+    }
+    out
+}
+
+#[test]
+fn the_sql_pairs_and_the_rust_table_are_the_same_list() {
+    let sql = sql_pairs();
+    let rust: Vec<(String, String)> = sr_core::language::LANGUAGE_PAIRS
+        .iter()
+        .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
+        .collect();
+    assert!(rust.len() > 180, "{}", rust.len());
+    for p in &rust {
+        assert!(
+            sql.contains(p),
+            "{p:?} is in the Rust table, not in the migration"
+        );
+    }
+    for p in &sql {
+        assert!(
+            rust.contains(p),
+            "{p:?} is in the migration, not in the Rust table"
+        );
+    }
+    assert_eq!(sql.len(), rust.len(), "a duplicate pair in the migration");
+}
+
+type TitleState = (Vec<String>, Vec<String>, String, String);
+
+async fn title_state(pool: &PgPool, id: i64) -> TitleState {
+    sqlx::query_as(
+        "SELECT languages, subtitle_languages, xmin::text, updated_at::text FROM video_titles WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+async fn insert_title(pool: &PgPool, languages: &[&str], subs: &[&str]) -> i64 {
+    let id = next_id();
+    sqlx::query(
+        "INSERT INTO video_titles (id, kind, title, sort_title, languages, subtitle_languages, updated_at) \
+         VALUES ($1, 'movie', 'T', 't', $2, $3, '2020-01-01T00:00:00Z')",
+    )
+    .bind(id)
+    .bind(languages.iter().map(|l| (*l).to_owned()).collect::<Vec<_>>())
+    .bind(subs.iter().map(|l| (*l).to_owned()).collect::<Vec<_>>())
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+async fn track_tag(pool: &PgPool, audio: bool, asset: i64, ordinal: i32) -> Option<String> {
+    let sql = if audio {
+        "SELECT language_tag FROM video_audio_tracks WHERE asset_id = $1 AND ordinal = $2"
+    } else {
+        "SELECT language_tag FROM video_subtitle_tracks WHERE asset_id = $1 AND ordinal = $2"
+    };
+    sqlx::query_scalar(sql)
+        .bind(asset)
+        .bind(ordinal)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn migration_2970_rewrites_three_letter_codes_and_only_those_and_is_idempotent() {
+    let p = published(PROBE_TWO_SUBS).await;
+    let pool = &p.w.pool;
+    let long = insert_title(
+        pool,
+        &["eng", "en", "fin", "pt-BR", "por-BR", "fil"],
+        &["ger", "deu", "fr", "FRE"],
+    )
+    .await;
+    let short = insert_title(pool, &["en", "pt-BR", "fil"], &["fi"]).await;
+    let empty = insert_title(pool, &[], &[]).await;
+    for (sql, ordinal) in [
+        (
+            "UPDATE video_audio_tracks SET language_tag = 'ger' WHERE asset_id = $1 AND ordinal = $2",
+            0,
+        ),
+        (
+            "UPDATE video_subtitle_tracks SET language_tag = 'ger', language = 'ger' WHERE asset_id = $1 AND ordinal = $2",
+            0,
+        ),
+        (
+            "UPDATE video_subtitle_tracks SET language_tag = 'fil' WHERE asset_id = $1 AND ordinal = $2",
+            1,
+        ),
+    ] {
+        sqlx::query(sql)
+            .bind(p.asset)
+            .bind(ordinal)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+    let ids = [long, short, empty];
+    let mut before = Vec::new();
+    for id in ids {
+        before.push(title_state(pool, id).await);
+    }
+
+    sqlx::raw_sql(MIGRATION_2970).execute(pool).await.unwrap();
+    let mut after = Vec::new();
+    for id in ids {
+        after.push(title_state(pool, id).await);
+    }
+    assert_eq!(after[0].0, ["en", "fi", "pt-BR", "fil"]);
+    assert_eq!(after[0].1, ["de", "fr"]);
+    assert_eq!(
+        after[0].3, before[0].3,
+        "the rewrite is not an edit by staff"
+    );
+    // Rows without a three-letter code are not touched at all (the row version is the same).
+    assert_eq!(after[1], before[1]);
+    assert_eq!(after[2], before[2]);
+    assert_eq!(
+        track_tag(pool, true, p.asset, 0).await.as_deref(),
+        Some("de")
+    );
+    assert_eq!(
+        track_tag(pool, false, p.asset, 0).await.as_deref(),
+        Some("de")
+    );
+    assert_eq!(
+        track_tag(pool, false, p.asset, 1).await.as_deref(),
+        Some("fil")
+    );
+    let probed: Option<String> = sqlx::query_scalar(
+        "SELECT language FROM video_subtitle_tracks WHERE asset_id = $1 AND ordinal = 0",
+    )
+    .bind(p.asset)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        probed.as_deref(),
+        Some("ger"),
+        "the probed code is a record of the file"
+    );
+
+    // A second run changes nothing, not even a row version.
+    sqlx::raw_sql(MIGRATION_2970).execute(pool).await.unwrap();
+    for (i, id) in ids.iter().enumerate() {
+        assert_eq!(title_state(pool, *id).await, after[i]);
+    }
+    assert_eq!(
+        track_tag(pool, false, p.asset, 0).await.as_deref(),
+        Some("de")
+    );
+}
+
 #[tokio::test]
 #[ignore = "needs SR_TEST_DATABASE_URL"]
 async fn hiding_or_deleting_a_track_removes_nothing() {

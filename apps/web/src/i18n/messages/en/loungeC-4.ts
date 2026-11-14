@@ -31,7 +31,6 @@ export default {
   'lounge.threadsButton.loadError': 'Could not load threads.',
   'lounge.threadsButton.emptyActive': 'No active threads. Start one from a message.',
   'lounge.threadsButton.emptyArchived': 'No archived threads.',
-  'lounge.threadsButton.messageCount': '{count} {count, plural, one {message} other {messages}}',
   'lounge.threadsButton.followingSuffix': ' · Following',
   'lounge.threadsButton.loadMore': 'Load more',
 

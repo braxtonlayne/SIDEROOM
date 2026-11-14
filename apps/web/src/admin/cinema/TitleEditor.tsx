@@ -351,8 +351,13 @@ function DetailsForm({
       {...(extra.type ? { type: extra.type } : {})}
     />
   );
-  const list = (k: keyof Form, label: string) => (
-    <ListInput label={label} value={f[k] as string} onChange={(v) => set(k, v as never)} />
+  const list = (k: keyof Form, label: string, hint?: string) => (
+    <ListInput
+      label={label}
+      value={f[k] as string}
+      onChange={(v) => set(k, v as never)}
+      {...(hint ? { hint } : {})}
+    />
   );
   const valid = f.title.trim().length > 0;
   return (
@@ -364,7 +369,8 @@ function DetailsForm({
         if (!valid || busy || readOnly) return;
         void run(
           async () => {
-            await onSave(formToInput(f, title));
+            // The server stores a language in one form (D-719: `eng` comes back `en`): show what it saved.
+            setF(toForm(await onSave(formToInput(f, title))));
             return true;
           },
           title ? t('admin.titleEditor.details.saved') : t('admin.titleEditor.details.created'),
@@ -400,7 +406,11 @@ function DetailsForm({
         {list('genres', t('admin.titleEditor.details.genres'))}
         {list('tags', t('admin.titleEditor.details.tags'))}
         {list('languages', t('admin.titleEditor.details.languages'))}
-        {list('subtitle_languages', t('admin.titleEditor.details.subtitleLanguages'))}
+        {list(
+          'subtitle_languages',
+          t('admin.titleEditor.details.subtitleLanguages'),
+          t('admin.titleEditor.details.subtitleLanguagesHint'),
+        )}
         {list('cast', t('admin.titleEditor.details.cast'))}
         {list('directors', t('admin.titleEditor.details.directors'))}
         {list('writers', t('admin.titleEditor.details.writers'))}

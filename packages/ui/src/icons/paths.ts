@@ -74,6 +74,7 @@ export const ICON_PATHS = {
   minimize: "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5",
   message: "M4 5h16v11H9l-5 4z",
   phone: "M6 4l3 1 1 4-2 1.5a11 11 0 0 0 5.5 5.5L15 14l4 1 1 3-2 2C10 20 4 14 4 6z",
+  smartphone: "M8 2h8a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM10 18h4",
   "pop-out": "M14 4h6v6M20 4l-8 8M18 14v6H4V6h6",
   soundboard: "M5 20V10M9 20V5M13 20V8M17 20V13M21 20v-4",
 } as const;

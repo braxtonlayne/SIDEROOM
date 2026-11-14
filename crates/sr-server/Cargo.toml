@@ -44,6 +44,7 @@ sr-events = { path = "../sr-events" }
 sr-features = { path = "../sr-features" }
 sr-gateway = { path = "../sr-gateway" }
 sr-library = { path = "../sr-library" }
+sr-markdown = { path = "../sr-markdown" }
 sr-net = { path = "../sr-net" }
 sr-push = { path = "../sr-push" }
 sr-library-social = { path = "../sr-library-social" }

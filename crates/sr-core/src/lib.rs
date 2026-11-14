@@ -8,6 +8,7 @@ pub mod config;
 pub mod error;
 pub mod guild_caps;
 pub mod ids;
+pub mod language;
 pub mod member_flags;
 pub mod permissions;
 pub mod platform_permissions;

@@ -235,6 +235,48 @@ export function threadsOf(
 type Obj = Record<string, unknown>;
 
 /**
+ * The server stops counting here (`sr_chat::threads::MESSAGE_COUNT_CAP`, as in Discord): a thread of 400 messages
+ * reports 50. A count at or over this is shown "50+", never raised and never lowered by a delete, because the true
+ * number is not known until the next load.
+ */
+export const COUNT_CAP = 50;
+
+const snow = (a: string, b: string) =>
+  a.length !== b.length ? a.length - b.length : a < b ? -1 : a > b ? 1 : 0;
+
+/**
+ * A message created, or messages deleted, in a thread the store holds: the server's own rule, mirrored. Every
+ * message stored in a thread counts one (the `message_sent` hook of `ThreadsDeps`, whatever its kind), a delete
+ * of a visible message takes one off (never below 0). So no kind has to be told apart here.
+ */
+function countMessages(event: string, d: Obj): void {
+  const id = typeof d.channel_id === 'string' ? d.channel_id : '';
+  const t = id ? useThreads.getState().byId[id] : undefined;
+  if (!t) return;
+  let next = t.messageCount;
+  let last = t.lastMessageId;
+  if (event === 'MESSAGE_CREATE') {
+    const mid = typeof d.id === 'string' ? d.id : '';
+    // A message the thread already knows (a replay after a resync) is not counted twice.
+    if (!mid || (t.lastMessageId && snow(mid, t.lastMessageId) <= 0)) return;
+    last = mid;
+    if (next < COUNT_CAP) next += 1;
+  } else if (next < COUNT_CAP) {
+    const gone = event === 'MESSAGE_DELETE' ? 1 : Array.isArray(d.ids) ? d.ids.length : 0;
+    next = Math.max(0, next - gone);
+  }
+  if (next === t.messageCount && last === t.lastMessageId) return;
+  useThreads.setState((s) => ({
+    byId: { ...s.byId, [id]: { ...t, messageCount: next, lastMessageId: last } },
+  }));
+}
+
+/** The count of one thread, for a row to select (a number, so a change re-renders that thread's rows only). */
+export function useThreadCount(id: string | undefined, fallback: number): number {
+  return useThreads((s) => (id ? (s.byId[id]?.messageCount ?? fallback) : fallback));
+}
+
+/**
  * The thread ids the newest GUILD_CREATE / THREAD_LIST_SYNC of each guild named. A resync (D-646) ends with the
  * marker `SR_RESYNC`; the active threads of that guild that those two did not name are gone (deleted, or no longer
  * visible), and upserting alone would keep them.
@@ -290,6 +332,11 @@ export function applyThreadDispatch(event: string, data: unknown): void {
       return;
     case 'THREAD_DELETE':
       if (typeof d.id === 'string') st.remove(d.id);
+      return;
+    case 'MESSAGE_CREATE':
+    case 'MESSAGE_DELETE':
+    case 'MESSAGE_DELETE_BULK':
+      countMessages(event, d);
       return;
     case 'THREAD_MEMBER_UPDATE':
       if (typeof d.id === 'string') {

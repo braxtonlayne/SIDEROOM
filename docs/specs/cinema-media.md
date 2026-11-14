@@ -249,7 +249,7 @@ Title {
 
 #### 8.4 Browse parameters
 
-`GET /cinema/titles`: `kind`, `genres` (csv, every one), `exclude_genres` (csv), `tags` (csv), `year_from`, `year_to`, `rating` (csv of content ratings, any), `runtime_min`, `runtime_max` (minutes), `language` (audio, BCP 47), `subtitle_language`, `age` (`include|hide|only`), `collection` (collection id, "Room selection"), `sort` (`updated` default, `newest`, `title`, `year`, `runtime`, `curated` only with `collection`), `order` (`asc|desc`, default depends on the sort: title, runtime and curated ascending, the others descending), `limit` (1..100, default 24), `cursor` (the previous page's `next_cursor`). Keyset pagination: `next_cursor` is absent on the last page; a cursor made for another sort is 400. `total` is the count for the filters, independent of the cursor.
+`GET /cinema/titles`: `kind`, `genres` (csv, every one), `exclude_genres` (csv), `tags` (csv), `year_from`, `year_to`, `rating` (csv of content ratings, any), `runtime_min`, `runtime_max` (minutes), `language` (audio, BCP 47), `subtitle_language` (both read in the short form: `eng` is `en`, D-719), `age` (`include|hide|only`), `collection` (collection id, "Room selection"), `sort` (`updated` default, `newest`, `title`, `year`, `runtime`, `curated` only with `collection`), `order` (`asc|desc`, default depends on the sort: title, runtime and curated ascending, the others descending), `limit` (1..100, default 24), `cursor` (the previous page's `next_cursor`). Keyset pagination: `next_cursor` is absent on the last page; a cursor made for another sort is 400. `total` is the count for the filters, independent of the cursor.
 
 ### 8.5 Staff routes (`/admin/cinema/*`)
 
@@ -626,12 +626,24 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   master or subtitle playlist, nor served by `storage_key`.
 * **Removal.** Deleting a track deletes its row and objects. An asset that is removed or rejected takes no uploads, and the
   retention sweep that deletes its original also deletes the uploaded subtitle rows and objects.
+* **Language codes are stored in the short form (D-719, SEC-AUD-225).** A title's `languages` and `subtitle_languages`, an audio or subtitle
+  track's `language_tag` and a trailer's `language` hold the two-letter ISO 639-1 code when the language has one (`en`, `fi`, `de`), whatever
+  the file or the editor said: the title editor, a subtitle upload or edit and the catalog filters go through `sr_cinema::rules::language`, and
+  a track read from the file (`sr_media::plan`, `language_tag`) goes through the same table (`sr_core::language::short_language`, every ISO
+  639-2 code that has a 639-1 code, both the bibliographic and the terminologic form: `ger` and `deu` are `de`). The rest of a tag is kept
+  (`por-BR` becomes `pt-BR`); a language without a two-letter code stays (`fil`). The probed code stays in the track's `language` column and in
+  file names, storage keys and playlist paths (`a/00-eng-stereo/`, `subs/00-eng.m3u8`); only the tag a client sees is short. Migration 2970
+  rewrote the lists and tags that already existed (order kept, a duplicate the rewrite made removed, rows without a three-letter code
+  untouched, `updated_at` unchanged); the catalog's filters compare codes as stored, so they now find a title by `en` or `eng` alike.
 * **The title's `subtitle_languages` (D-694, SEC-AUD-214).** A track that members can pick adds its language to the list of the title the video
   plays for when it is missing: after a staff upload, after a hidden track is shown, after a track's language is edited, and when a
-  transcode finishes (every not-hidden track it wrote). A video that plays for an episode adds to its show; an asset linked to no title adds
-  nothing. The language is stored as the title editor accepts it (`pt-br` becomes `pt-BR`); `und`, an empty tag and a tag the editor would
-  refuse add nothing, and the list stops at its 40 entries. Nothing is ever removed: hiding or deleting a track leaves the list (staff edit it
-  in the title editor). A failure is logged and never fails the upload, the edit or the completion; the audit entry of an upload or an edit
+  transcode finishes (every not-hidden track it wrote). "The title" (D-710) is every title the video plays for or was uploaded for: the title's own asset, an episode's show, a cut
+  (`video_title_variants`), and the title or episode named when the video was uploaded; an asset linked to none adds nothing. The language is
+  stored as the title editor accepts it, in its short form (D-719: `eng` becomes `en`, `por-br` becomes `pt-BR`, `fil` stays; one table,
+  `sr_core::language`); `und`, an empty tag and a tag the editor would refuse add nothing, and the list stops at its 40 entries. A track never
+  removes a language: hiding or deleting a track leaves the list (staff edit it in the title editor), and a language staff took off the list by
+  hand comes back with the next change of a visible track that has it (D-709: the list answers "which subtitles can I pick here"). To keep a
+  language off the list, hide its track; a hidden track adds nothing. The title editor says so under the "Subtitle languages" field. A failure is logged and never fails the upload, the edit or the completion; the audit entry of an upload or an edit
   carries `language_added` (the language, or null). The list is what the catalog's "subtitles in" filter and facet read; the search index
   holds no languages, so the column is all there is to update. Titles that already have tracks are not backfilled: the next upload, edit or
   re-encode fills the list. The SQL lives in `sr-db` (`media_repo/languages.rs`) behind `MediaRepository::add_subtitle_language`, called by

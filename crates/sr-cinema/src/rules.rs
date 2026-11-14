@@ -130,7 +130,9 @@ fn opt_key(what: &str, k: &Option<String>) -> CinemaResult<Option<String>> {
     }
 }
 
-/// A BCP 47 shaped language tag, normalised (`pt-br` becomes `pt-BR`).
+/// A BCP 47 shaped language tag, normalised (`pt-br` becomes `pt-BR`). D-719: a three-letter primary subtag that
+/// has a two-letter code becomes it (`eng` becomes `en`, `POR-br` becomes `pt-BR`); one that has none stays
+/// (`fil`).
 pub fn language(raw: &str) -> CinemaResult<String> {
     let parts: Vec<&str> = raw.trim().split('-').collect();
     let ok = !parts.is_empty()
@@ -142,7 +144,8 @@ pub fn language(raw: &str) -> CinemaResult<String> {
     if !ok {
         return invalid("language must be a BCP 47 tag such as en or pt-BR");
     }
-    let mut out = parts[0].to_ascii_lowercase();
+    let lower = parts[0].to_ascii_lowercase();
+    let mut out = sr_core::language::short_language(&lower).to_owned();
     for p in &parts[1..] {
         out.push('-');
         if p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic()) {
@@ -542,6 +545,43 @@ mod tests {
 
     /// SEC-AUD-030: a huge member-supplied list is refused at the cap in linear time (it was a pairwise compare of
     /// every entry, so 200k entries took minutes), and duplicates still fold case-insensitively.
+    #[test]
+    fn a_three_letter_language_code_is_stored_in_the_short_form() {
+        // D-719 (SEC-AUD-225); before it, "eng" came back as "eng".
+        assert_eq!(language("eng").unwrap(), "en");
+        assert_eq!(language(" ENG ").unwrap(), "en");
+        assert_eq!(language("POR-br").unwrap(), "pt-BR");
+        assert_eq!(language("ger").unwrap(), "de");
+        assert_eq!(language("deu").unwrap(), "de");
+        assert_eq!(language("zh-hant").unwrap(), "zh-hant");
+        assert_eq!(language("chi-Hant").unwrap(), "zh-Hant");
+        // No two-letter code: stays.
+        assert_eq!(language("fil").unwrap(), "fil");
+        assert_eq!(language("yue").unwrap(), "yue");
+        // A two-letter code and the shape check are as before.
+        assert_eq!(language("pt-br").unwrap(), "pt-BR");
+        assert!(language("e").is_err());
+        assert!(language("engl").is_err());
+    }
+
+    #[test]
+    fn the_short_and_the_long_form_of_a_language_are_one_entry() {
+        let got = languages(
+            "l",
+            &[
+                "en".into(),
+                "eng".into(),
+                "fin".into(),
+                "FI".into(),
+                "fil".into(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(got, ["en", "fi", "fil"]);
+        let got = languages("l", &["eng".into(), "en".into()]).unwrap();
+        assert_eq!(got, ["en"]);
+    }
+
     #[test]
     fn a_huge_list_stops_at_the_cap_and_duplicates_still_fold() {
         let many: Vec<String> = (0..50_000).map(|i| format!("Name {i}")).collect();

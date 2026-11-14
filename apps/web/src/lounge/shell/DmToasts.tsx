@@ -8,6 +8,7 @@ import { onDispatch } from '../../store/events';
 import { HOME } from '../channels';
 import { useLoungeRoute } from '../nav';
 import { desktopDecision } from './desktopNotify';
+import { hiddenAuthorsNow } from './hiddenAuthors';
 import { useNotifSettings } from './notifSettings';
 
 /**
@@ -40,6 +41,7 @@ export function DmToasts(): null {
           status: st.presences[me]?.status,
           scope: useNotifSettings.getState().byGuild[HOME],
           now: Date.now(),
+          hidden: hiddenAuthorsNow(),
         });
         if (!kind) return;
         const who = msg.author.global_name ?? msg.author.username;

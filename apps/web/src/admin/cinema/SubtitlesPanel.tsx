@@ -46,14 +46,16 @@ export function SubtitlesPanel({ assetId, languages }: SubtitlesPanelProps) {
             : x,
       ),
     );
+  /** The track as the server saved it, or null when it refused. */
   const patch = async (track: api.SubtitleTrack, change: api.SubtitlePatch) => {
     setError(null);
     try {
-      replace(await api.patchSubtitle(assetId, track.id, change));
-      return true;
+      const saved = await api.patchSubtitle(assetId, track.id, change);
+      replace(saved);
+      return saved;
     } catch (e) {
       setError(errorText(e, t('admin.subtitles.saveFailed')));
-      return false;
+      return null;
     }
   };
 
@@ -134,7 +136,7 @@ function TrackRow({
   track: api.SubtitleTrack;
   n: number;
   listId: string;
-  onPatch: (change: api.SubtitlePatch) => Promise<boolean>;
+  onPatch: (change: api.SubtitlePatch) => Promise<api.SubtitleTrack | null>;
   onDelete: () => void;
 }) {
   const t = useT();
@@ -149,7 +151,9 @@ function TrackRow({
   const saveLanguage = async () => {
     const next = language.trim();
     if (!next || next === (track.language ?? '')) return setLanguage(track.language ?? '');
-    if (!(await onPatch({ language: next }))) setLanguage(track.language ?? '');
+    // The server stores a language in one form (D-719: `eng` comes back `en`): show what it saved.
+    const saved = await onPatch({ language: next });
+    setLanguage((saved ?? track).language ?? '');
   };
   const onEnter = (save: () => Promise<void>) => (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -172,7 +176,7 @@ function TrackRow({
         label={t('admin.subtitles.languageFor', { n })}
         list={listId}
         value={language}
-        placeholder="en, pt-BR"
+        placeholder={t('admin.subtitles.languagePlaceholder')}
         onChange={(e) => setLanguage(e.target.value)}
         onBlur={() => void saveLanguage()}
         onKeyDown={onEnter(saveLanguage)}
@@ -318,7 +322,7 @@ function AddForm({
         label={t('admin.subtitles.newLanguage')}
         list={listId}
         value={language}
-        placeholder="en, pt-BR"
+        placeholder={t('admin.subtitles.languagePlaceholder')}
         onChange={(e) => setLanguage(e.target.value)}
       />
       <TextInput

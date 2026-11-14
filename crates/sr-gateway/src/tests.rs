@@ -327,6 +327,20 @@ impl Client {
         out
     }
 
+    /// The `d` of every PRESENCE_UPDATE about `user` until the stream has been quiet for a moment.
+    async fn presence_updates_of(&mut self, user: &str) -> Vec<Value> {
+        let mut out = Vec::new();
+        while let Ok(Some(Frame::Text(t))) =
+            tokio::time::timeout(Duration::from_millis(300), self.rx.recv()).await
+        {
+            let v: Value = serde_json::from_str(&t).unwrap();
+            if v["t"] == "PRESENCE_UPDATE" && v["d"]["user"]["id"] == user {
+                out.push(v["d"].clone());
+            }
+        }
+        out
+    }
+
     async fn silent(&mut self) {
         let r = tokio::time::timeout(Duration::from_millis(150), self.rx.recv()).await;
         assert!(r.is_err(), "expected no frame, got {r:?}");
@@ -352,12 +366,26 @@ impl Client {
         guilds: usize,
         properties: Value,
     ) -> Value {
+        self.identify_full(token, intents, guilds, properties, None)
+            .await
+    }
+
+    /// Like `identify_with`, with an IDENTIFY `presence` when one is given.
+    async fn identify_full(
+        &mut self,
+        token: &str,
+        intents: u64,
+        guilds: usize,
+        properties: Value,
+        presence: Option<Value>,
+    ) -> Value {
         let hello = self.recv().await;
         assert_eq!(hello["op"], 10);
-        self.send(
-            json!({"op": 2, "d": {"token": token, "intents": intents, "properties": properties}}),
-        )
-        .await;
+        let mut d = json!({"token": token, "intents": intents, "properties": properties});
+        if let Some(p) = presence {
+            d["presence"] = p;
+        }
+        self.send(json!({"op": 2, "d": d})).await;
         let ready = self.expect_event("READY").await;
         for _ in 0..guilds {
             self.expect_event("GUILD_CREATE").await;
@@ -2658,6 +2686,82 @@ async fn a_phone_session_is_reported_as_mobile_to_others() {
         p["d"]["client_status"],
         json!({"web": "online", "mobile": "online"})
     );
+}
+
+/// SEC-AUD-231: a session is announced ONCE, with the platform it reported (it was announced as `web` and
+/// then again as `mobile`).
+#[tokio::test]
+async fn a_phone_connect_is_announced_once() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    settle().await;
+    watcher.drain().await;
+    let mut phone = connect(&e);
+    phone
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "android", "browser": "sideroom", "device": "sideroom"}),
+        )
+        .await;
+    let seen = watcher.presence_updates_of("1").await;
+    assert_eq!(seen.len(), 1, "{seen:?}");
+    assert_eq!(seen[0]["status"], "online");
+    assert_eq!(seen[0]["client_status"], json!({"mobile": "online"}));
+}
+
+#[tokio::test]
+async fn an_identify_with_a_presence_is_announced_once() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    settle().await;
+    watcher.drain().await;
+    let mut phone = connect(&e);
+    phone
+        .identify_full(
+            "user:1",
+            0,
+            1,
+            json!({"os": "ios", "browser": "sideroom", "device": "sideroom"}),
+            Some(json!({"status": "dnd", "activities": []})),
+        )
+        .await;
+    let seen = watcher.presence_updates_of("1").await;
+    assert_eq!(seen.len(), 1, "{seen:?}");
+    assert_eq!(seen[0]["status"], "dnd");
+    assert_eq!(seen[0]["client_status"], json!({"mobile": "dnd"}));
+}
+
+#[tokio::test]
+async fn a_second_session_that_changes_nothing_announces_nothing() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut first = connect(&e);
+    first
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "web", "browser": "sideroom", "device": "sideroom"}),
+        )
+        .await;
+    settle().await;
+    watcher.drain().await;
+    let mut second = connect(&e);
+    second
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "web", "browser": "sideroom", "device": "sideroom"}),
+        )
+        .await;
+    let seen = watcher.presence_updates_of("1").await;
+    assert!(seen.is_empty(), "{seen:?}");
 }
 
 #[tokio::test]

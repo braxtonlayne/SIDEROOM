@@ -2101,3 +2101,47 @@ async fn contributors_count_live_credits_for_the_title_and_its_episodes() {
     // Through the service an unknown title is not found.
     assert!(w.svc.title_contributors(1).await.is_err());
 }
+
+/// D-719 (SEC-AUD-225): the lists are stored in the short form and the catalog's filters, which compare codes as
+/// stored, find the title by either spelling of the code.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_catalog_filter_finds_the_title_by_the_short_code() {
+    let w = world().await;
+    let t = w
+        .film("Kalevala", |i| {
+            i.languages = vec!["fin".into(), "en".into()];
+            i.subtitle_languages = vec!["eng".into(), "FIN".into(), "por-br".into()];
+        })
+        .await;
+    assert_eq!(t.languages, ["fi", "en"]);
+    assert_eq!(t.subtitle_languages, ["en", "fi", "pt-BR"]);
+    w.film("Other", |i| i.languages = vec!["sv".into()]).await;
+    for (language, subtitle_language) in [
+        (Some("fi"), None),
+        (Some("fin"), None),
+        (None, Some("fi")),
+        (None, Some("FIN")),
+        (None, Some("por-BR")),
+    ] {
+        let page = w
+            .browse(BrowseQuery {
+                language: language.map(str::to_owned),
+                subtitle_language: subtitle_language.map(str::to_owned),
+                ..BrowseQuery::default()
+            })
+            .await;
+        assert_eq!(
+            titles(&page),
+            ["Kalevala"],
+            "{language:?} {subtitle_language:?}"
+        );
+    }
+    let f = w.svc.facets(w.member, None).await.unwrap();
+    assert!(f.subtitle_languages.iter().any(|c| c.name == "fi"));
+    assert!(
+        f.subtitle_languages
+            .iter()
+            .all(|c| c.name.len() == 2 || c.name.contains('-'))
+    );
+}

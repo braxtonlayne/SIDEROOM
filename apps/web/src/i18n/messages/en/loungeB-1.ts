@@ -36,5 +36,4 @@ export default {
   'lounge.messageItem.appBadge': 'APP',
   'lounge.messageItem.deliveryFailed': 'Your message could not be delivered.',
   'lounge.messageItem.retry': 'Retry',
-  'lounge.messageItem.threadMessageCount': '{n, plural, one {{n} message} other {{n} messages}}',
 } satisfies Record<string, string>;

@@ -1,10 +1,32 @@
 #!/usr/bin/env node
 // Counts probable un-extracted user-visible strings in non-test .tsx files.
-// Usage: node scripts/i18n-audit.mjs [apps/web/src] [--json out.json] [--ts]
+// Usage: node scripts/i18n-audit.mjs [apps/web/src] [--json out.json] [--ts] [--max <n>]
+// --max <n> (SEC-AUD-235): exit 1 when the total is over n (CI runs --max 0); without it the exit code is 0.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+const USAGE =
+  'usage: node scripts/i18n-audit.mjs [apps/web/src] [--json out.json] [--ts] [--max <n>]';
 const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(USAGE);
+  process.exit(0);
+}
+// --max and its value come out before the first free argument is taken as the root.
+const maxIdx = args.indexOf('--max');
+let maxTotal;
+if (maxIdx >= 0) {
+  const v = args[maxIdx + 1];
+  if (v === undefined || !/^\d+$/.test(v)) {
+    console.error(
+      `--max needs a non-negative integer, got ${v === undefined ? 'nothing' : `"${v}"`}`,
+    );
+    console.error(USAGE);
+    process.exit(2);
+  }
+  maxTotal = Number(v);
+  args.splice(maxIdx, 2);
+}
 const jsonIdx = args.indexOf('--json');
 const jsonOut = jsonIdx >= 0 ? args[jsonIdx + 1] : undefined;
 if (jsonIdx >= 0) args.splice(jsonIdx, 2);
@@ -106,3 +128,9 @@ const width = Math.max(4, ...rows.map((r) => r.file.length));
 for (const r of rows) console.log(`${String(r.count).padStart(5)}  ${r.file.padEnd(width)}`);
 console.log(`TOTAL ${total}`);
 if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ total, files: rows }, null, 2) + '\n');
+if (maxTotal !== undefined && total > maxTotal) {
+  console.error(
+    `${total} hard-coded strings, over the limit of ${maxTotal}: move the text to a message key: t('...') (the files are listed above).`,
+  );
+  process.exit(1);
+}

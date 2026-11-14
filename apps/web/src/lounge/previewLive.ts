@@ -14,10 +14,15 @@
  *   the server uses. The preview names its message (D-699): deleting that message (or a bulk delete naming it)
  *   removes the preview at once, and an edit of it rebuilds the text. A preview without an id (an older server's
  *   answer in a cached state) is left alone.
+ * - A "started a thread" row that arrives live (D-715): the gateway never carries the thread on a message, so the
+ *   web builds `thread: { id, name, message_count }` from the thread the thread store already holds (THREAD_CREATE
+ *   comes before the row; the other order works too). The one-chip rule (D-701) holds here as on the server: the
+ *   chip goes under the starter message when it is loaded, on the row only when it is not.
  */
 import { onDispatch } from '../store/events';
 import { useStore } from '../store';
 import type { Message, ThreadLastMessage } from '../store/types';
+import { useThreads, type ThreadInfo } from './threads/threadStore';
 import type { DmObject } from './shell/api';
 import { useSocial } from './shell/social';
 import { excerpt } from './msg/excerpt';
@@ -55,6 +60,90 @@ function lastOf(d: Obj): ThreadLastMessage | null {
     attachments: files,
     timestamp: typeof d.timestamp === 'string' ? d.timestamp : new Date().toISOString(),
   };
+}
+
+/** The type 18 rows of the page that name this thread. */
+function rowsOf(messages: Record<string, Message>, thread: string): string[] {
+  return Object.keys(messages).filter((k) => {
+    const m = messages[k]!;
+    return m.type === THREAD_CREATED && m.message_reference?.message_id === thread;
+  });
+}
+
+function dropThread(m: Message): Message {
+  const { thread: _drop, ...rest } = m;
+  void _drop;
+  return rest as Message;
+}
+
+/**
+ * Pure (D-715, D-701): the chip of a thread that started live. `threads` is the thread store's `byId`.
+ *
+ * - MESSAGE_CREATE of a type 18 row, and THREAD_CREATE (the row is already there): the thread's chip goes under
+ *   the starter message when the page holds it (a thread's id is its starter's id) and it has none, else on the
+ *   type 18 row that has none. Nothing for a private thread (the row is never written for one), for a thread the
+ *   store does not hold, or one that already has its chip.
+ * - MESSAGE_UPDATE that gives the starter its `thread`: a type 18 row that took the chip meanwhile gives it up.
+ * - THREAD_DELETE: the chips of that thread go, as a reload would show.
+ *
+ * Returns the same object when nothing changed.
+ */
+export function applyThreadCreatedRow(
+  messages: Record<string, Message>,
+  threads: Record<string, ThreadInfo>,
+  event: string,
+  data: unknown,
+): Record<string, Message> {
+  const d = (data ?? {}) as Obj;
+  const give = (id: string, name: string, count: number): Record<string, Message> => {
+    const starter = messages[id];
+    const open = (starter ? [id] : rowsOf(messages, id)).filter((k) => !messages[k]!.thread);
+    if (open.length === 0) return messages;
+    const out = { ...messages };
+    for (const k of open) out[k] = { ...messages[k]!, thread: { id, name, message_count: count } };
+    return out;
+  };
+  switch (event) {
+    case 'MESSAGE_CREATE': {
+      if (d.type !== THREAD_CREATED || typeof d.id !== 'string' || !messages[d.id]) return messages;
+      const ref = (d.message_reference as Obj | undefined)?.message_id;
+      const held = typeof ref === 'string' ? threads[ref] : undefined;
+      if (!held || held.isPrivate) return messages;
+      // `give` puts the chip under the starter when the page holds it (the row has none then), else on the row.
+      return give(held.id, held.name, held.messageCount);
+    }
+    case 'THREAD_CREATE': {
+      if (typeof d.id !== 'string' || d.type === 12) return messages;
+      const held = threads[d.id];
+      if (held?.isPrivate) return messages;
+      // The payload is the thread as the server built it; the store may not have applied it yet.
+      const name = held?.name ?? (typeof d.name === 'string' ? d.name : 'Thread');
+      const count =
+        held?.messageCount ?? (typeof d.message_count === 'number' ? d.message_count : 0);
+      return give(d.id, name, count);
+    }
+    case 'MESSAGE_UPDATE': {
+      const th = d.thread as Obj | null | undefined;
+      if (typeof d.id !== 'string' || !th || th.id !== d.id) return messages;
+      const keys = rowsOf(messages, d.id).filter((k) => messages[k]!.thread?.id === d.id);
+      if (keys.length === 0) return messages;
+      const out = { ...messages };
+      for (const k of keys) out[k] = dropThread(messages[k]!);
+      return out;
+    }
+    case 'THREAD_DELETE': {
+      if (typeof d.id !== 'string') return messages;
+      const keys = [...rowsOf(messages, d.id), ...(messages[d.id] ? [d.id] : [])].filter(
+        (k) => messages[k]!.thread?.id === d.id,
+      );
+      if (keys.length === 0) return messages;
+      const out = { ...messages };
+      for (const k of keys) out[k] = dropThread(messages[k]!);
+      return out;
+    }
+    default:
+      return messages;
+  }
 }
 
 /**
@@ -186,10 +275,14 @@ export function applyRequestPreview(
 /** Mounts the dispatch subscription (the shell calls this once). */
 export function startPreviewsLive(): () => void {
   return onDispatch((event, data) => {
-    if (!event.startsWith('MESSAGE_')) return;
+    if (!event.startsWith('MESSAGE_') && event !== 'THREAD_CREATE' && event !== 'THREAD_DELETE')
+      return;
+    // The reducer has stored the event's message before any listener runs (store.ts `applyDispatch`).
     const messages = useStore.getState().messages;
-    const next = applyThreadPreview(messages, event, data);
+    const row = applyThreadCreatedRow(messages, useThreads.getState().byId, event, data);
+    const next = event.startsWith('MESSAGE_') ? applyThreadPreview(row, event, data) : row;
     if (next !== messages) useStore.setState({ messages: next });
+    if (!event.startsWith('MESSAGE_')) return;
     const social = useSocial.getState();
     const requests = applyRequestPreview(
       social.messageRequests,
