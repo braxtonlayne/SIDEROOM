@@ -3,7 +3,18 @@ import { expect, test, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
 import { openTheDoor, tickConfirmations } from '../support/register';
-import { inboundAudioStreams, playTone } from '../support/voice';
+import {
+  failVoiceSockets,
+  iceUfrags,
+  inboundAudioStreams,
+  isMusicStream,
+  isStereoOpus,
+  peerConnectionCount,
+  playTone,
+  trackVoiceSockets,
+  voiceSocketCount,
+  type InboundAudioStream,
+} from '../support/voice';
 
 /**
  * Voice live test: two Chromium contexts join one server voice channel with Chromium's fake audio device and
@@ -110,6 +121,7 @@ test.describe('Voice live', () => {
     const ctxB = await browser.newContext({ permissions: ['microphone'] });
     const b = await ctxB.newPage();
     await trackPeerConnections(a);
+    await trackVoiceSockets(a);
     await trackPeerConnections(b);
     debugPage(a, 'A');
     debugPage(b, 'B');
@@ -191,7 +203,7 @@ test.describe('Voice live', () => {
     // asserts on Chromium (the only engine this spec runs on) and records the others.
     await test.step('member A plays a stereo tone as music and B receives a stereo Opus track', async () => {
       const before = (await inboundAudioStreams(b)).length;
-      await playTone(a);
+      await playTone(a, { through: 'controller' });
       // B gets one more audio stream (A's microphone was already there), carrying bytes, as stereo Opus.
       await expect
         .poll(
@@ -203,7 +215,79 @@ test.describe('Voice live', () => {
         )
         .toBe(true);
       const streams = await inboundAudioStreams(b);
-      expect(streams.some((s) => /opus/i.test(s.mimeType) && s.channels === 2)).toBe(true);
+      expect(streams.some(isMusicStream)).toBe(true);
+    });
+
+    // D-724 / SEC-AUD-250: the music keeps playing across an ICE restart and across a full rejoin of the player.
+    // The stereo stream is the Opus stream with two channels; after a rejoin it may carry a new stream id, so it is
+    // found by its channel count, never by the old id. Bytes are compared over a window, polled, never slept for long.
+    const region = (p: Page) => p.getByRole('region', { name: 'Voice connection' });
+    const bytesOf = (streams: InboundAudioStream[]) => new Map(streams.map((s) => [s.id, s.bytes]));
+    /** A stream matching `want` whose bytes grow over a 5 second window; returns the ones that grew. */
+    const growing = async (p: Page, want: (s: InboundAudioStream) => boolean) => {
+      await expect
+        .poll(async () => (await inboundAudioStreams(p)).some(want), { timeout: 30_000 })
+        .toBe(true);
+      const first = bytesOf(await inboundAudioStreams(p));
+      await p.waitForTimeout(5000);
+      return (await inboundAudioStreams(p)).filter(
+        (s) => want(s) && s.bytes > (first.get(s.id) ?? s.bytes),
+      );
+    };
+    const mic = (s: InboundAudioStream) => isStereoOpus(s) && !isMusicStream(s);
+
+    await test.step('an ICE restart on A: the music keeps arriving at B', async () => {
+      const ufragsBefore = await iceUfrags(a);
+      const pcsBefore = await peerConnectionCount(a);
+      expect(ufragsBefore.length).toBeGreaterThan(0);
+      // The engine restarts ICE when the browser comes back online (engine.ts, deps.onOnline).
+      await a.evaluate(() => window.dispatchEvent(new Event('online')));
+      await expect
+        .poll(() => iceUfrags(a), { message: 'a new offer with a new ICE ufrag', timeout: 15_000 })
+        .not.toEqual(ufragsBefore);
+      expect(await peerConnectionCount(a), 'a restart keeps the peer connection').toBe(pcsBefore);
+      await expect(region(a)).toContainText('Voice Connected', { timeout: 30_000 });
+      const grew = await growing(b, isMusicStream);
+      expect(
+        grew.length,
+        'B still receives growing stereo music after the ICE restart',
+      ).toBeGreaterThan(0);
+    });
+
+    await test.step('a full rejoin of A: the music comes back at B', async () => {
+      const pcsBefore = await peerConnectionCount(a);
+      const socketsBefore = await voiceSocketCount(a);
+      const sawReconnecting = a.waitForFunction(
+        () =>
+          document
+            .querySelector('[aria-label="Voice connection"]')
+            ?.textContent?.includes('Reconnecting') === true,
+        null,
+        { polling: 'raf', timeout: 30_000 },
+      );
+      // 4006 (session invalid) is one of the closes the engine does not resume from (REJOIN_VOICE_CLOSES): it
+      // gives up on the session and the controller rejoins through the gateway.
+      expect(await failVoiceSockets(a, 4006)).toBeGreaterThan(0);
+      await sawReconnecting;
+      await expect(region(a)).toContainText('Voice Connected', { timeout: 45_000 });
+      expect(await peerConnectionCount(a), 'a rejoin builds a new peer connection').toBeGreaterThan(
+        pcsBefore,
+      );
+      expect(await voiceSocketCount(a), 'a rejoin opens a new voice socket').toBeGreaterThan(
+        socketsBefore,
+      );
+      const heard = await growing(b, mic);
+      expect(heard.length, "B still hears A's microphone after the rejoin").toBeGreaterThan(0);
+      // Seen on 2026-11-14 (wave 70): B gets the microphone back but never a music stream (30 s). The controller
+      // publishes the music at controller.ts:952, before `engine.connect()`, whose `teardown()` clears the engine's
+      // outgoing map, and `republish()` does not send it again. The engine and the controller are not changed this
+      // wave; the first item of wave 71 is that fix, and this check is its proof (delete the next line with it).
+      test.fixme(
+        true,
+        'MUS-JB-001: the music is lost on a full rejoin (controller.ts:952 publishes it before engine.connect() clears it)',
+      );
+      const music = await growing(b, isMusicStream);
+      expect(music.length, 'B holds growing stereo Opus music after the rejoin').toBeGreaterThan(0);
     });
 
     // Disconnecting leaves the room.
