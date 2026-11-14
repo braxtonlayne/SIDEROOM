@@ -278,14 +278,7 @@ test.describe('Voice live', () => {
       );
       const heard = await growing(b, mic);
       expect(heard.length, "B still hears A's microphone after the rejoin").toBeGreaterThan(0);
-      // Seen on 2026-11-14 (wave 70): B gets the microphone back but never a music stream (30 s). The controller
-      // publishes the music at controller.ts:952, before `engine.connect()`, whose `teardown()` clears the engine's
-      // outgoing map, and `republish()` does not send it again. The engine and the controller are not changed this
-      // wave; the first item of wave 71 is that fix, and this check is its proof (delete the next line with it).
-      test.fixme(
-        true,
-        'MUS-JB-001: the music is lost on a full rejoin (controller.ts:952 publishes it before engine.connect() clears it)',
-      );
+      // Wave 70: the controller sends the music after connect(), whose teardown drops outgoing streams (MUS-JB-001).
       const music = await growing(b, isMusicStream);
       expect(music.length, 'B holds growing stereo Opus music after the rejoin').toBeGreaterThan(0);
     });
