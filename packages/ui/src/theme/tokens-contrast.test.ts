@@ -31,6 +31,9 @@ const has = (t: Tokens, name: string) => name in t && isHexColor(t[name]!);
 /** Foreground and background token names to check, per family. Names missing from a theme are skipped. */
 const SURFACES = ["--ui-bg", "--ui-bg-raised", "--ui-bg-overlay"];
 const TEXTS = ["--ui-text", "--ui-text-muted", "--ui-text-faint"];
+/** A hovered member row and a hovered DM row: both read `--ui-bg-hover` in every theme (D-769). */
+const HOVER_SURFACE = "--ui-bg-hover";
+const STATUS_ON_SURFACES = ["--ui-status-online", "--ui-status-idle", "--ui-status-dnd"];
 const LOUNGE_SURFACES = ["--bg-base-lowest", "--bg-base-lower", "--bg-base-low", "--bg-surface-overlay"];
 const LOUNGE_TEXTS = ["--text-normal", "--text-muted", "--interactive-normal"];
 const SR_SURFACES = ["--sr-bg-0", "--sr-bg-1", "--sr-bg-2"];
@@ -99,13 +102,31 @@ describe("token set: normal contrast", () => {
       if (has(t, name)) expect(contrastRatio(t[name]!, bg), name).toBeGreaterThanOrEqual(3);
   });
 
-  // The Editorial look (and its Cinema, Library and TV sibling); the Lounge themes keep their own values.
-  it.each(ids.filter((id) => id === "lounge-editorial" || id.startsWith("sideroom")))("%s: the status colours reach 3:1 on every surface a status sits on (D-741, D-756)", (id) => {
+  // Every theme (D-773; wave 72 ran it for the Editorial family only). The hovered row is a surface a status sits
+  // on (D-769): the member list and the DM list draw `--ui-bg-hover` under the dot when the pointer is on a row.
+  it.each(ids)("%s: the status colours reach 3:1 on every surface a status sits on, a hovered row included (D-741, D-756, D-769)", (id) => {
     const t = effective(id, false);
-    for (const name of ["--ui-status-online", "--ui-status-idle", "--ui-status-dnd"])
+    const failures: string[] = [];
+    for (const name of STATUS_ON_SURFACES)
       if (has(t, name))
-        for (const surface of [...SURFACES, ...LOUNGE_SURFACES])
-          if (has(t, surface)) expect(contrastRatio(t[name]!, t[surface]!), `${name} on ${surface} ${t[surface]}`).toBeGreaterThanOrEqual(3);
+        for (const surface of [...SURFACES, ...LOUNGE_SURFACES, HOVER_SURFACE])
+          if (has(t, surface)) {
+            const r = contrastRatio(t[name]!, t[surface]!);
+            if (r < 3) failures.push(`${name} ${t[name]} on ${surface} ${t[surface]} = ${r.toFixed(2)}`);
+          }
+    expect(failures).toEqual([]);
+  });
+
+  // D-768: idle is an amber (a yellow-orange hue, saturated enough to read as a colour at 13 px). A pale tan beside
+  // the grey offline dot is told apart by lightness only. Bands: hue 30..50 degrees, HSL saturation at least 0.5
+  // (the Lounge's `#f0b232` is hue 41 / 0.87; Lounge Light's `#b07800` is hue 41 / 1.0).
+  it.each(ids)("%s: the idle colour is an amber (D-768)", (id) => {
+    const t = effective(id, false);
+    if (!has(t, "--ui-status-idle")) return;
+    const { hue, saturation } = hsl(t["--ui-status-idle"]!);
+    expect(hue, "hue").toBeGreaterThanOrEqual(30);
+    expect(hue, "hue").toBeLessThanOrEqual(50);
+    expect(saturation, "saturation").toBeGreaterThanOrEqual(0.5);
   });
 
   // D-756: 3:1 was met by the olive and missed by eye. Online is a clear green: a green hue, and saturated enough
