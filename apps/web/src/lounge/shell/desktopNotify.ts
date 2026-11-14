@@ -14,7 +14,9 @@ import { useT } from '../../i18n';
 import { HOME } from '../channels';
 import { useLoungeRoute } from '../nav';
 import { isMuted, useNotifSettings, type GuildNotif } from './notifSettings';
-import { useSocial } from './social';
+import { hiddenAuthorsNow } from './hiddenAuthors';
+import { notificationText, reactionBody, storeResolvers } from './notifyText';
+import type { HiddenAuthors } from '../messageRows';
 
 export interface NotifyContext {
   me: string;
@@ -26,6 +28,8 @@ export interface NotifyContext {
   /** Settings of the message's guild (or `@me` scope for DMs), when loaded. */
   scope: GuildNotif | undefined;
   now: number;
+  /** Accounts the viewer blocked or ignores: nothing from them notifies or sounds (D-717). */
+  hidden: HiddenAuthors;
 }
 
 export type NotifyKind = 'mention' | 'message';
@@ -33,6 +37,7 @@ export type NotifyKind = 'mention' | 'message';
 /** Whether `msg` should raise a desktop notification, and which kind of sound it gets. */
 export function desktopDecision(msg: Message, c: NotifyContext): NotifyKind | null {
   if (msg.author.id === c.me) return null;
+  if (c.hidden.blocked.has(msg.author.id) || c.hidden.ignored.has(msg.author.id)) return null;
   // A restored message (D-338) is not new.
   if (msg.restored) return null;
   if ((msg.type ?? 0) !== 0 && msg.type !== 19) return null;
@@ -67,15 +72,14 @@ export interface ReactionContext extends NotifyContext {
   enabled: boolean;
   /** Streamer Mode silences notifications (LNG-USET-052). */
   silenced: boolean;
-  /** Accounts the viewer has blocked. */
-  blocked: ReadonlySet<string>;
 }
 
 /** D-703: whether a reaction on the viewer's own message raises a desktop notification (no sound, ever). */
 export function reactionDecision(ev: ReactionEvent, c: ReactionContext): boolean {
   if (!c.enabled || c.silenced) return false;
   if (!ev.message_author_id || ev.message_author_id !== c.me) return false;
-  if (ev.user_id === c.me || c.blocked.has(ev.user_id)) return false;
+  if (ev.user_id === c.me) return false;
+  if (c.hidden.blocked.has(ev.user_id) || c.hidden.ignored.has(ev.user_id)) return false;
   if (c.status === 'dnd') return false;
   if (c.windowFocused && c.activeChannelId === ev.channel_id) return false;
   const channel = c.scope?.channels[ev.channel_id];
@@ -136,12 +140,7 @@ export function useDesktopNotify(): void {
             now: Date.now(),
             enabled: prefs.reactionNotifications,
             silenced: streamerState(prefs).silence,
-            blocked: new Set(
-              useSocial
-                .getState()
-                .relationships.filter((r) => r.type === 2)
-                .map((r) => r.id),
-            ),
+            hidden: hiddenAuthorsNow(),
           });
           if (
             !raise ||
@@ -155,8 +154,15 @@ export function useDesktopNotify(): void {
             const who = u ? (u.global_name ?? u.username) : t('lounge.desktopNotify.someone');
             const e = ev.emoji;
             const emoji = e?.id ? `:${e.name ?? ''}:` : (e?.name ?? '');
+            // D-712: the text of the message, read once when it is not loaded (waits 2 seconds at most).
+            const body = await reactionBody(
+              ev.channel_id,
+              ev.message_id,
+              ev.guild_id,
+              t('lounge.preview.spoiler'),
+            );
             const n = new Notification(t('lounge.desktopNotify.reaction', { name: who, emoji }), {
-              body: (st.messages[ev.message_id]?.content ?? '').slice(0, 140),
+              body,
               tag: `react-${ev.message_id}`,
             });
             n.onclick = () => {
@@ -195,6 +201,7 @@ export function useDesktopNotify(): void {
           status: st.presences[me]?.status,
           scope: useNotifSettings.getState().byGuild[scopeKey],
           now: Date.now(),
+          hidden: hiddenAuthorsNow(),
         });
         if (!kind) return;
         if (kind === 'mention' ? prefs.soundMention : prefs.soundMessage) playBlip(kind);
@@ -208,7 +215,14 @@ export function useDesktopNotify(): void {
           const who = msg.author.global_name ?? msg.author.username;
           const n = new Notification(
             kind === 'mention' ? t('lounge.desktopNotify.mention', { name: who }) : who,
-            { body: msg.content.slice(0, 140), tag: `ch-${msg.channel_id}` },
+            {
+              body: notificationText(
+                msg.content,
+                storeResolvers(msg.guild_id),
+                t('lounge.preview.spoiler'),
+              ),
+              tag: `ch-${msg.channel_id}`,
+            },
           );
           n.onclick = () => {
             window.focus();

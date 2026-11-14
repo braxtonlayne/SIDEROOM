@@ -837,7 +837,10 @@ impl Gateway {
     }
 
     /// Create a session wired to `tx`, deliver READY and one GUILD_CREATE per
-    /// guild (in that order), then register for fan-out.
+    /// guild (in that order), then register for fan-out. The client's platform and the IDENTIFY presence
+    /// (if one came) are recorded before the session is announced, so others see ONE `PRESENCE_UPDATE`
+    /// with the final `client_status` (SEC-AUD-231).
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn create_session(
         &self,
         user: &AuthedUser,
@@ -845,6 +848,8 @@ impl Gateway {
         conn_id: u64,
         tx: mpsc::Sender<Out>,
         shard: Option<(u32, u32)>,
+        platform: &'static str,
+        presence: Option<PresenceUpdate>,
     ) -> Arc<Session> {
         let cfg = &self.inner.cfg;
         let mut guilds = self.inner.dir.guilds_for_user(user.user_id).await;
@@ -898,8 +903,10 @@ impl Gateway {
         for g in &guilds {
             session.add_guild(*g);
         }
+        let announce_forced = presence.is_some();
         {
             let mut st = self.st();
+            Self::record_session_presence(&mut st, &session, platform, presence);
             st.sessions.insert(session.id.clone(), session.clone());
             for g in &guilds {
                 st.by_guild
@@ -910,7 +917,8 @@ impl Gateway {
             }
             self.ensure_user_task(&mut st, user.user_id);
         }
-        self.refresh_presence(user.user_id, false).await;
+        // A presence sent at IDENTIFY is announced (as op 3 is); without one, only when it changes what others see.
+        self.refresh_presence(user.user_id, announce_forced).await;
         session
     }
 
@@ -1603,37 +1611,50 @@ impl Gateway {
 
     /// Op 3 / IDENTIFY: record what one session reports (status, `afk`, activities) and
     /// broadcast the presence merged over all of the user's sessions.
-    pub(crate) async fn set_session_presence(&self, session: &Session, mut update: PresenceUpdate) {
-        update.activities = sanitize_activities(&update.activities);
+    pub(crate) async fn set_session_presence(&self, session: &Session, update: PresenceUpdate) {
         {
             let mut st = self.st();
-            st.presence_seq += 1;
-            let order = st.presence_seq;
-            let entry = st
+            let platform = st
                 .session_presence
-                .entry(session.id.clone())
-                .or_insert(SessionPresence {
-                    platform: "web",
-                    update: None,
-                    order,
-                });
-            entry.update = Some(update);
-            entry.order = order;
+                .get(&session.id)
+                .map_or("web", |sp| sp.platform);
+            Self::record_session_presence(&mut st, session, platform, Some(update));
         }
         self.refresh_presence(session.user, true).await;
     }
 
-    /// Note the client platform of a new session (from IDENTIFY `properties`).
-    pub(crate) fn set_session_platform(&self, session: &Session, platform: &'static str) {
-        let mut st = self.st();
-        st.session_presence
+    /// Store what one session reports: its platform, and its presence when it has sent one.
+    fn record_session_presence(
+        st: &mut State,
+        session: &Session,
+        platform: &'static str,
+        update: Option<PresenceUpdate>,
+    ) {
+        let Some(mut update) = update else {
+            st.session_presence
+                .entry(session.id.clone())
+                .or_insert(SessionPresence {
+                    platform,
+                    update: None,
+                    order: 0,
+                })
+                .platform = platform;
+            return;
+        };
+        update.activities = sanitize_activities(&update.activities);
+        st.presence_seq += 1;
+        let order = st.presence_seq;
+        let entry = st
+            .session_presence
             .entry(session.id.clone())
             .or_insert(SessionPresence {
                 platform,
                 update: None,
-                order: 0,
-            })
-            .platform = platform;
+                order,
+            });
+        entry.platform = platform;
+        entry.update = Some(update);
+        entry.order = order;
     }
 
     pub(crate) fn effective(st: &State, user: UserId) -> Option<PresenceUpdate> {

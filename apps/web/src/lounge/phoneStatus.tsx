@@ -1,4 +1,4 @@
-// SEC-AUD-206 (D-702): somebody who is online on a phone and nowhere else shows a phone glyph in the status dot's place.
+// SEC-AUD-206 (D-702, D-711): somebody who is online on a phone and nowhere else shows a smartphone glyph in the status dot's place.
 import { Icon } from '@sideroom/ui';
 import { t } from '../i18n';
 import type { PresenceStatus } from '../store/types';
@@ -15,7 +15,7 @@ export function statusProps(
   if (!p?.phone || status !== 'online') return { status };
   return {
     status,
-    statusIcon: <Icon name="phone" size={16} />,
+    statusIcon: <Icon name="smartphone" size={16} />,
     statusLabel: t('lounge.presence.phone'),
   };
 }

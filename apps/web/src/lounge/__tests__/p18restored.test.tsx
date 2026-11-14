@@ -64,6 +64,7 @@ describe('restored messages (N-41, D-338)', () => {
       status: 'online',
       scope: undefined,
       now: 0,
+      hidden: { blocked: new Set<string>(), ignored: new Set<string>() },
     } as const;
     expect(desktopDecision(message() as unknown as Message, ctx)).toBe('mention');
     expect(desktopDecision(message({ restored: true }) as unknown as Message, ctx)).toBeNull();

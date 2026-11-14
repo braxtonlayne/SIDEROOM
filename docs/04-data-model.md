@@ -145,7 +145,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 `relationships` (user_id, target_id, type: friend / blocked / pending_incoming / pending_outgoing, nickname). Codes follow Discord (1 to 4). Nicknames exist only on `friend` rows, up to 32 characters (migration 0020).
 
-`user_ignores` (user_id, target_id, created_at; primary key on the pair). Ignore is its own table, not a relationship type, so ignoring a friend keeps the friendship. Ignoring hides messages, activity and DM notifications. Relationship type 6 ("ignored") is retired and its rows moved here (migration 0070).
+`user_ignores` (user_id, target_id, created_at; primary key on the pair). Ignore is its own table, not a relationship type, so ignoring a friend keeps the friendship. Ignoring hides messages, activity and notifications (the push the server sends, and the open app's desktop notifications and sounds for their messages and reactions, D-717). Relationship type 6 ("ignored") is retired and its rows moved here (migration 0070).
 
 `user_notes` (user_id, target_id, note up to 256 characters, created_at, updated_at; primary key on the pair). Private notes on any user (migration 0071).
 
