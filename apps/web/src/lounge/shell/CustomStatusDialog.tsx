@@ -1,7 +1,8 @@
-import { Button, Modal, TextInput } from '@sideroom/ui';
+import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
+import { EmojiPicker } from '../components/EmojiPicker';
 import { useSelfPresence } from './selfPresence';
 
 const CLEAR_AFTER: { value: string; labelKey: MessageKey; seconds: number | null }[] = [
@@ -23,25 +24,30 @@ export function secondsUntilMidnight(now = new Date()): number {
 export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const current = useSelfPresence((s) => s.customText);
+  const currentEmoji = useSelfPresence((s) => s.customEmoji);
   const update = useSelfPresence((s) => s.update);
   const [text, setText] = useState(current ?? '');
+  const [emoji, setEmoji] = useState(currentEmoji ?? '');
+  const [picking, setPicking] = useState(false);
   const [clearAfter, setClearAfter] = useState('never');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const save = async (next: string | null) => {
+  const save = async (next: string | null, nextEmoji: string | null) => {
     setBusy(true);
     setError(null);
     const opt = CLEAR_AFTER.find((o) => o.value === clearAfter);
     const secs = opt?.seconds === -1 ? secondsUntilMidnight() : (opt?.seconds ?? null);
     try {
       await update({
-        custom_status: next
-          ? {
-              text: next,
-              ...(secs ? { expires_at: new Date(Date.now() + secs * 1000).toISOString() } : {}),
-            }
-          : null,
+        custom_status:
+          next || nextEmoji
+            ? {
+                ...(next ? { text: next } : {}),
+                ...(nextEmoji ? { emoji_name: nextEmoji } : {}),
+                ...(secs ? { expires_at: new Date(Date.now() + secs * 1000).toISOString() } : {}),
+              }
+            : null,
       });
       onClose();
     } catch (e) {
@@ -52,20 +58,43 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    void save(text.trim() || null);
+    void save(text.trim() || null, emoji || null);
   };
 
   return (
     <Modal open onClose={onClose} size="sm" title={t('lounge.customStatus.title')}>
       <form className="lng-form" onSubmit={submit}>
-        <TextInput
-          label={t('lounge.customStatus.fieldLabel')}
-          value={text}
-          maxLength={128}
-          autoFocus
-          error={error}
-          onChange={(e) => setText(e.target.value)}
-        />
+        <div className="lng-status-emoji-row">
+          <Button
+            variant="ghost"
+            aria-label={t('lounge.customStatus.emojiButton')}
+            aria-expanded={picking}
+            onClick={() => setPicking((v) => !v)}
+          >
+            {emoji ? <span aria-hidden="true">{emoji}</span> : <Icon name="smile" size={20} />}
+          </Button>
+          <TextInput
+            label={t('lounge.customStatus.fieldLabel')}
+            value={text}
+            maxLength={128}
+            autoFocus
+            error={error}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </div>
+        {picking && (
+          <EmojiPicker
+            onPick={(e) => {
+              setEmoji(e);
+              setPicking(false);
+            }}
+          />
+        )}
+        {emoji && (
+          <Button variant="ghost" onClick={() => setEmoji('')}>
+            {t('lounge.customStatus.removeEmoji')}
+          </Button>
+        )}
         <label className="lng-field">
           <span className="lng-field-label">{t('lounge.customStatus.clearAfter')}</span>
           <select
@@ -81,8 +110,8 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
           </select>
         </label>
         <div className="lng-form-actions">
-          {current && (
-            <Button variant="ghost" onClick={() => void save(null)} disabled={busy}>
+          {(current || currentEmoji) && (
+            <Button variant="ghost" onClick={() => void save(null, null)} disabled={busy}>
               {t('lounge.customStatus.clearStatus')}
             </Button>
           )}

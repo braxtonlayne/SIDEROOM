@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
-import type { Activity } from '../data';
+import { customStatusLabel, type Activity } from '../data';
 import { acceptFriend } from '../shell/api';
 import { friendsOf, useSocial } from '../shell/social';
 import { useUserMenuEntries } from '../shell/userMenu';
@@ -262,7 +262,7 @@ const KIND_ICON = {
 /** The custom-status bubble (speech-bubble style) above the profile body. */
 export function StatusBubble({ activity }: { activity: Activity | undefined }) {
   if (!activity) return null;
-  return <p className="prf-bubble">{activity.text}</p>;
+  return <p className="prf-bubble">{customStatusLabel(activity)}</p>;
 }
 
 /** Activity cards of one person: game, watching, reading, listening. */
@@ -281,7 +281,7 @@ export function ActivityList({ activities }: { activities: Activity[] }) {
                   watching: t('lounge.friends.activityWatching', { text: a.text }),
                   reading: t('lounge.friends.activityReading', { text: a.text }),
                   listening: t('lounge.friends.activityListening', { text: a.text }),
-                  custom: a.text,
+                  custom: customStatusLabel(a),
                 }[a.kind]
               }
             </strong>

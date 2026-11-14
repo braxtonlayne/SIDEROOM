@@ -50,9 +50,15 @@ export interface LoungeUser {
   bridgeMember?: true;
 }
 
+/** A custom status as shown: its emoji, then its text. */
+export const customStatusLabel = (a: { text: string; emoji?: string | undefined }) =>
+  [a.emoji, a.text].filter(Boolean).join(' ');
+
 export interface Activity {
   kind: 'playing' | 'watching' | 'reading' | 'listening' | 'custom';
   text: string;
+  /** A custom status's emoji (a Unicode emoji; LNG-HOME-011). */
+  emoji?: string;
   /** Second line of a rich activity ("S1 E3 · Episode title", "Chapter 12"). */
   details?: string;
   /** Epoch ms the activity started, for "for 12 minutes". */

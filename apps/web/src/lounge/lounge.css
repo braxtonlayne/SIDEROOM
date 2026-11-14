@@ -2172,3 +2172,13 @@
     border-block-end: 1px solid var(--ui-border);
   }
 }
+
+/* LNG-HOME-011: the custom status dialog's emoji button sits left of the text field. */
+.lng-status-emoji-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.lng-status-emoji-row > :last-child {
+  flex: 1;
+}

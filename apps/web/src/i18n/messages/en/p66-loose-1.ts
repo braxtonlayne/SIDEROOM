@@ -9,4 +9,6 @@ export default {
   'lounge.channelSidebar.ageRestrictedSuffix': ', age-restricted',
   'lounge.addServerDialog.browseDirectory': 'Browse the Server Directory',
   'lounge.memberList.call': 'Call',
+  'lounge.customStatus.emojiButton': 'Choose an emoji',
+  'lounge.customStatus.removeEmoji': 'Remove the emoji',
 } as const;
