@@ -185,7 +185,7 @@ Waves 48 to 65 ([CHANGELOG](../../CHANGELOG.md) Phases 49 to 65, [doc 13](../13-
 - [ ] **Schedule wave 48, the Tauri desktop shell and engine launcher** ([roadmap-p28](roadmap-p28.md), doc 13 row 48: "Next; not started"). The downloads are approved (D-398, section 5). **Default:** it waits until you schedule it.
 - [ ] **Defaults taken in waves 64 and 65 that no decision row words.** Closing a beta bug report needs no second-factor step-up, as for crash reports (D-650 names the audit entry only; [fix-p64-report](handoff/fix-p64-report.md)). The staff alert feed's "gap" card is a notice with no recovery action ([fix-p65-mount](handoff/fix-p65-mount.md)). The upload limit line on the Activity package page says "Reviewed applications can upload more." without the number, because the limits answer carries only the application's own limit ([fix-p65-packup](handoff/fix-p65-packup.md)). **Default:** all stand.
 
-The staff wording of the message catalog still travels to every member until wave 66 moves it under `/app/staff/` (D-658); that is planned work, not a question.
+The staff wording of the message catalog is under `/app/staff/` since wave 66 (D-663), so a member no longer receives the Admin labels; the staff cards and message actions in the Lounge stay in member chunks (D-664, see the wave 66 catalog handoff for why).
 
 Dependencies:
 

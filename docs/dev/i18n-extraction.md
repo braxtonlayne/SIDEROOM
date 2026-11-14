@@ -7,6 +7,10 @@ catalog is a set of fragment files merged automatically (`apps/web/src/i18n/mess
 
 - Write ONLY your own fragment: `apps/web/src/i18n/messages/en/<fragment>.ts`.
 - Format: `export default { 'key': 'English text', ... } satisfies Record<string, string>;` (plain object, no logic).
+- Admin wording needs no special place: add it to your fragment as for any other string. Message keys that only
+  staff-only code (the Admin app and what only it loads) names are moved to `messages/en-staff/` by
+  `node scripts/staff-keys.mjs --write` (CI runs `--check`), so a member never receives them
+  (docs/dev/entrance-isolation.md section 11). Name a key as a literal, or through a literal prefix (`'admin.limits.' + id`).
 - Never edit `messages/en.ts`, `merge.ts` or another agent's fragment. A key defined in two fragments makes
   the merge throw (naming the key and both files), so keep your keys inside your own area/component.
 

@@ -25,7 +25,7 @@ import { readEnglishCatalog } from './pseudo-locale.mjs';
 
 /**
  * String literals that exist only in `src/admin/AdminApp.tsx` (its section ids). They survive minification and are
- * not catalog keys (the catalog is a member chunk until wave 66, D-658). If AdminApp renames them, update this list:
+ * not catalog keys (the staff catalog holds their texts, not these ids; D-663). If AdminApp renames them, update this list:
  * the check fails when none of the markers is found inside staff/.
  */
 export const STAFF_MARKERS = ['donation-entitlements', 'cinema-transcoding', 'invite-graph'];

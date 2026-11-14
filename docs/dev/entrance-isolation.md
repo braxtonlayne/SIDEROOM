@@ -207,7 +207,9 @@ D-385 draws the line at sign-in; this draws a second one at the staff appointmen
   `dist/app/staff-chunks.json` (the staff files and the shared `admin/` modules) for the check.
 - **The check.** `node scripts/check-staff-delivery.mjs` (after a build; CI runs it after the bundle check) fails when
   `staff/` is empty, `app.html` references it, a member chunk statically imports it, a member file holds a marker string
-  of the Admin app, or a staff file name is not a hash. It prints, as a report only, the staff-looking modules that still
+  of the Admin app, a staff file name is not a hash, a staff message's text (12 characters or more, not also a member
+  message) is in a file outside `staff/` or in `app.html` (it prints the key, never the text), or `staff/` holds no
+  catalog. It prints, as a report only, the staff-looking modules that still
   sit in member chunks. `check-bundle-budget.mjs` fails if the first-paint closure contains a staff file.
 - **The server.** `sr-server` answers `/app/staff/*` after the session check (`401` stays first): without an active
   appointment (`AdminService::resolve`, read on every request, no cache; no admin service or a lookup error also counts as
@@ -219,8 +221,25 @@ D-385 draws the line at sign-in; this draws a second one at the staff appointmen
 - **The door.** `/admin` enters through `admin/StaffDoor.tsx`, which asks `GET /admin/me` and only then imports
   `AdminApp`; anyone else, and a refused import (an appointment that ended), gets the not-found page. A member's network
   log holds no refused staff file.
-- **Adding a staff entry.** Add its path to `STAFF_ENTRIES` in `staffChunks.ts`, reach it only through a dynamic import in
+- **Wording (SEC-AUD-187, D-663).** The English catalog is two directories of fragments: `i18n/messages/en/` (member) and
+  `i18n/messages/en-staff/` (staff). A key is staff when it has at least one module that names it and every such module
+  is staff-only, by the same module-graph rule as the chunks (`scripts/lib/staff-graph.mjs`, shared by the plugin and the
+  audit). A module names a key as a literal (`'admin.limits.title'`, a `Record<string, MessageKey>` table) or through a
+  literal prefix (a template such as `admin.nav.${id}`, or `'admin.limits.' + id`); tests do not count; a key nobody names
+  is reported and not moved; a first-paint fragment is never touched. `en.staff.ts` registers `en-staff/*.ts` and is
+  itself a staff entry (`STAFF_ENTRIES`), so it is built into `/app/staff/<hash>.js`; the door (`StaffDoor.tsx`) imports
+  it dynamically through `i18n/staffCatalog.ts` after `/admin/me` answered and renders the Admin app only once it has
+  registered. If it cannot be loaded the Admin app opens with message keys and the load is retried in the background (the
+  rest catalog's rhythm).
+  **How to add an Admin string:** add it to any fragment of `messages/en/` as for any string and run
+  `node scripts/staff-keys.mjs --write`; it moves the key (a fragment whose keys are all staff moves whole with `git mv`,
+  a mixed one is split). CI runs `node scripts/staff-keys.mjs --check`, which fails when a staff key is still in `en/` or
+  when a member module names a key in `en-staff/` (`--write` moves it back). A key built from a variable with no literal
+  start cannot be seen: pin it in `scripts/staff-keys.pins.json` (`{ "member": ["key.or.prefix."] }`). The pseudo-locale
+  and `i18n-verify-diff` read both directories; tests register both (`test/setup.ts`).
+- **Adding a staff entry.** Add its path to `STAFF_ENTRIES` in `scripts/lib/staff-graph.mjs` (re-exported by `staffChunks.ts`), reach it only through a dynamic import in
   a small door like `StaffDoor`, add a marker to `check-staff-delivery.mjs` if it is a new area, build, run the check.
-- **Not covered yet.** The message catalog still carries the Admin labels to every member (D-658, wave 66), and staff-looking
-  code inside member chunks (the staff cards and message actions in the Lounge, `lounge/shell/platformStaff`) is only
-  listed by the check's report. `vite dev` serves modules unbundled and is not a delivery boundary.
+- **Not covered yet.** Staff-looking code inside member chunks (the staff cards and message actions in the Lounge,
+  `lounge/shell/platformStaff`) is only listed by the check's report: the client has no datum that says the account is
+  staff before it asks (D-664 stopped there; see the wave 66 catalog handoff). The pseudo-locale (`en-XA`) of a development
+  or `SR_PSEUDO_LOCALE=1` build holds the staff text too; a production build has none. `vite dev` serves modules unbundled and is not a delivery boundary.

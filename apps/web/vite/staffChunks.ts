@@ -117,6 +117,7 @@ export function staffChunks(entries: readonly string[] = STAFF_ENTRIES) {
                   p.startsWith('src/') &&
                   !p.startsWith('src/admin/') &&
                   !/.(test|spec)./.test(p) &&
+                  !p.startsWith('src/i18n/') &&
                   /staff|platformStaff/i.test(p),
               )
               .sort(),
