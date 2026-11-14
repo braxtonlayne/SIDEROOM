@@ -113782,6 +113782,7 @@
         "type": "object",
         "description": "What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and\nhow many files it carries. Nothing else of the message (no embeds, file names or links, no author).",
         "required": [
+          "message_id",
           "content",
           "attachments",
           "timestamp"
@@ -113796,6 +113797,10 @@
           "content": {
             "type": "string",
             "description": "Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files."
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The id of the message shown, so a client can drop the preview when that message is deleted (D-699)."
           },
           "timestamp": {
             "type": "string"

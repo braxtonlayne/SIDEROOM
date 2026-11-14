@@ -27344,6 +27344,8 @@ export interface components {
             attachments: number;
             /** @description Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files. */
             content: string;
+            /** @description The id of the message shown, so a client can drop the preview when that message is deleted (D-699). */
+            message_id: string;
             timestamp: string;
         };
         /** @enum {string} */
