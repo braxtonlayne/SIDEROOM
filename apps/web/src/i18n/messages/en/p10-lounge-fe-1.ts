@@ -16,7 +16,6 @@ export default {
   'lounge.forum.lastActive': 'active {when}',
   'lounge.forum.loadError': 'Could not load every post. Try again later.',
   'lounge.forum.loadMore': 'Load older posts',
-  'lounge.forum.messages': '{count} {count, plural, one {message} other {messages}}',
   'lounge.forum.newMedia': 'New Upload',
   'lounge.forum.newPost': 'New Post',
   'lounge.forum.posts': 'Posts',
