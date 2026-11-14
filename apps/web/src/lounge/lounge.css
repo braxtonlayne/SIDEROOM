@@ -377,6 +377,9 @@
   background: var(--ui-status-online);
   color: #fff;
 }
+.lng-new-badge::before {
+  content: attr(data-text);
+}
 .lng-new-badge {
   position: absolute;
   bottom: -6px;
@@ -384,7 +387,7 @@
   transform: translateX(-50%);
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--brand);
+  background: var(--danger);
   color: #fff;
   font-size: 9px;
   font-weight: 800;

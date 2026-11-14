@@ -216,7 +216,13 @@ function GuildIcon({
                 data-text={t('lounge.platformAdmin.badge')}
               />
             )}
-            {isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
+            {isNew && (
+              <span
+                className="lng-new-badge"
+                aria-hidden="true"
+                data-text={t('lounge.guildRail.newBadge')}
+              />
+            )}
           </GuildLink>
         </Tooltip>
         <CounterBadge

@@ -58,15 +58,15 @@ describe('rail badge', () => {
     at('/channels/g1/c1');
     const rail = await screen.findByRole('navigation', { name: 'Servers' });
     const fresh = await within(rail).findByRole('link', { name: /Fresh Guild/ });
-    expect(within(fresh).getByText('NEW')).toBeInTheDocument();
-    expect(within(rail).getByRole('link', { name: /Store Guild/ }).textContent).not.toContain(
-      'NEW',
-    );
+    expect(fresh.querySelector('.lng-new-badge')?.getAttribute('data-text')).toBe('NEW');
+    expect(
+      within(rail).getByRole('link', { name: /Store Guild/ }).querySelector('.lng-new-badge'),
+    ).toBeNull();
     await userEvent.click(fresh);
     await screen.findAllByText('lobby');
-    expect(within(rail).getByRole('link', { name: /Fresh Guild/ }).textContent).not.toContain(
-      'NEW',
-    );
+    expect(
+      within(rail).getByRole('link', { name: /Fresh Guild/ }).querySelector('.lng-new-badge'),
+    ).toBeNull();
     expect(localStorage.getItem('sr.lounge.openedServers')).toContain('g2');
   });
 });

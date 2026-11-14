@@ -200,7 +200,7 @@ test('wave 66 loose: the docs, the debug numbers, the server menu and the small 
       // 5. The rail's NEW badge (nothing opened yet in this browser), then the custom status with an emoji.
       await page.evaluate(() => localStorage.removeItem('sr.lounge.openedServers'));
       await page.goto('/channels/@me');
-      await expect(page.getByText('NEW').first()).toBeVisible();
+      await expect(page.locator('.lng-new-badge').first()).toBeVisible();
       await shot('rail-new-badge');
       await page
         .getByRole('button', { name: /Set status|status/i })

@@ -1162,10 +1162,14 @@ async fn release_review_flow() {
 /// `AppsError::GuildFull`; the Postgres test is `a_bot_install_into_a_full_server_is_30019`).
 #[test]
 fn a_full_server_refuses_a_bot_install_with_30019() {
-    let crate::routes::messages::error::MsgError::Api(a) = super::app_err(sr_apps::AppsError::GuildFull)
+    let crate::routes::messages::error::MsgError::Api(a) =
+        super::app_err(sr_apps::AppsError::GuildFull)
     else {
         panic!("expected an API error");
     };
     assert_eq!((a.status(), a.code.code()), (400, 30019));
-    assert_eq!(a.body()["message"], "Maximum number of server members reached");
+    assert_eq!(
+        a.body()["message"],
+        "Maximum number of server members reached"
+    );
 }
