@@ -4,7 +4,7 @@ export default {
   'admin.subtitles.title': 'Subtitles',
   'admin.subtitles.what': 'the subtitles',
   'admin.subtitles.loading': 'Loading the subtitles…',
-  'admin.subtitles.list': 'Subtitle tracks',
+  'admin.subtitles.list': 'Subtitle track list',
   'admin.subtitles.none': 'This video has no subtitles yet. Add a file below.',
   'admin.subtitles.showBlockFor': 'Show the subtitles of {label}',
   'admin.subtitles.hideBlockFor': 'Hide the subtitles of {label}',

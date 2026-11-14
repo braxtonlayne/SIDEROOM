@@ -76,7 +76,7 @@ function useSubs(initial: SubtitleTrack[] = TRACKS(), o: { patchStatus?: number 
 async function open(languages: string[] = ['en', 'es', 'de']) {
   asStaff({ perms: ['STAFF_BASIC', 'PUBLISH_MEDIA'] });
   const view = render(<SubtitlesPanel assetId="77" languages={languages} />);
-  await screen.findByRole('list', { name: 'Subtitle tracks' });
+  await screen.findByRole('list', { name: 'Subtitle track list' });
   return view;
 }
 
