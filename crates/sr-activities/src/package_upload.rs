@@ -8,6 +8,7 @@
 //!
 //! The checker lives in `package.rs` (the pack builder); this file sees it only through [`PackageIngest`].
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -36,6 +37,8 @@ pub const OPEN_UPLOADS: i64 = 2;
 /// Class of the two-key advisory lock a start takes per application (D-761). The only other two-key advisory locks
 /// of the platform are the music library's 1550 and 1551.
 const START_LOCK_CLASS: i32 = 1580;
+/// How long a start waits for another start of the same application before it answers `Busy`.
+const START_WAIT_MS: u64 = 20_000;
 /// The answer of every call on an upload that has ended.
 const ENDED_TEXT: &str = "This upload has ended. Start a new one.";
 /// SEC-AUD-254: when `complete` queues the check, the upload may live at least this many hours more, so the daily
@@ -210,6 +213,8 @@ pub enum PackageUploadError {
     TooLarge(String),
     /// 429: too many uploads this hour.
     RateLimited,
+    /// 429: another start of this application holds the turn.
+    Busy,
     /// 409: the store cannot sign parts.
     NoParts,
     /// 409: `complete` found parts missing (the text lists them).
@@ -275,6 +280,8 @@ struct Inner {
     storage: Arc<dyn ObjectStorage>,
     parts: Option<PartsWiring>,
     queue: Arc<dyn PackageQueue>,
+    /// Milliseconds a start waits for another start of the same application (tests shorten it).
+    start_wait_ms: AtomicU64,
 }
 
 /// The package upload sessions of the Activities backend. Cheap to clone.
@@ -381,8 +388,15 @@ impl PackageUploads {
                 storage,
                 parts,
                 queue,
+                start_wait_ms: AtomicU64::new(START_WAIT_MS),
             }),
         }
+    }
+
+    /// Only tests call this: how long a start waits for another start of the same application (default 20 s).
+    #[doc(hidden)]
+    pub fn set_start_wait_ms(&self, ms: u64) {
+        self.inner.start_wait_ms.store(ms, Ordering::Relaxed);
     }
 
     fn presign(
@@ -466,11 +480,14 @@ impl PackageUploads {
         // waits for another start of the same application; other applications are not touched), so two starts
         // cannot both count five and both go on. The lock lets go at the commit or when the transaction is dropped.
         let mut tx = self.inner.pool.begin().await?;
-        // A start that waits longer than this (the holder's store is hanging) is answered like a start over the
-        // limit, so a waiting start cannot hold a database connection for long.
-        sqlx::query("SET LOCAL lock_timeout = '20s'")
-            .execute(&mut *tx)
-            .await?;
+        // A start that waits longer than this (the holder's store is hanging) is answered `Busy` (429, "try again
+        // in a moment": the hourly limit was not reached), so a waiting start cannot hold a connection for long.
+        let wait = self.inner.start_wait_ms.load(Ordering::Relaxed);
+        sqlx::query(sqlx::AssertSqlSafe(format!(
+            "SET LOCAL lock_timeout = {wait}"
+        )))
+        .execute(&mut *tx)
+        .await?;
         if let Err(e) = sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2::text))")
             .bind(START_LOCK_CLASS)
             .bind(app.to_string())
@@ -480,7 +497,7 @@ impl PackageUploads {
             return Err(match &e {
                 // 55P03: lock_not_available.
                 sqlx::Error::Database(d) if d.code().as_deref() == Some("55P03") => {
-                    PackageUploadError::RateLimited
+                    PackageUploadError::Busy
                 }
                 _ => e.into(),
             });
