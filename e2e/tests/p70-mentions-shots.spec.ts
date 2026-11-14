@@ -54,9 +54,15 @@ for (const theme of THEMES) {
         '/guilds',
         { name: `Mentions ${tag}` },
       );
+      // `talk` sits in a category, so the category's mute can be tried (D-727).
+      const cat = await apiPost<{ id: string }>(o, `/guilds/${guild.id}/channels`, {
+        name: 'Rooms',
+        type: 4,
+      });
       const talk = await apiPost<{ id: string }>(o, `/guilds/${guild.id}/channels`, {
         name: 'talk',
         type: 0,
+        parent_id: cat.id,
       });
       const lobby = await apiPost<{ id: string }>(o, `/guilds/${guild.id}/channels`, {
         name: 'lobby',
@@ -72,6 +78,12 @@ for (const theme of THEMES) {
       const bob = await registerUser(bobCtx.request, `bob${vp.slice(0, 1)}${theme.slice(7, 9)}`);
       await loginApi(bobCtx.request, bob);
       await apiPost(bobCtx.request, `/invites/${invite.code}`, {});
+      const carolCtx = await browser.newContext({ baseURL: ORIGIN });
+      const carol = await registerUser(carolCtx.request, `cy${vp.slice(0, 1)}${theme.slice(7, 9)}`);
+      await loginApi(carolCtx.request, carol);
+      await apiPost(carolCtx.request, `/invites/${invite.code}`, {});
+      const carolSays = (content: string) =>
+        apiPost(carolCtx.request, `/channels/${talk.id}/messages`, { content });
       const say = (content: string, extra: Record<string, unknown> = {}) =>
         apiPost<{ id: string }>(bobCtx.request, `/channels/${talk.id}/messages`, {
           content,
@@ -119,8 +131,13 @@ for (const theme of THEMES) {
       const page = await c.newPage();
       page.setDefaultTimeout(20_000);
       const notes = () => page.evaluate(() => (window as unknown as { __notes: Note[] }).__notes);
-      const shot = async (name: string) => {
-        await page.waitForTimeout(500);
+      // `list`: on a phone the channel list is its own pane (the badges live there): go back to it first.
+      const shot = async (name: string, list = false) => {
+        if (list && vp === 'phone') {
+          const back = page.getByRole('button', { name: 'Back to channels' });
+          if (await back.isVisible().catch(() => false)) await back.dispatchEvent('click');
+        }
+        await page.waitForTimeout(600);
         await page.screenshot({ path: resolve(OUT, `${name}-${tag}.png`) });
       };
       // The channel list is the left pane; on a phone it is the first pane of a server.
@@ -141,13 +158,13 @@ for (const theme of THEMES) {
       await say(`hello <@${me.id}>`);
       await expect.poll(async () => countIn(await rowLabel(page))).toBe(1);
       expect(await readCount()).toBe(1);
-      await shot('a-direct-badge');
+      await shot('a-direct-badge', true);
 
       // 2. A role the Owner holds: the badge counts it live too (it did only after a reload before D-721).
       await say(`crew <@&${role.id}>`);
       await expect.poll(async () => countIn(await rowLabel(page))).toBe(2);
       expect(await readCount()).toBe(2);
-      await shot('b-role-badge');
+      await shot('b-role-badge', true);
       // D-727: one desktop notification per mention (the role one included, with the "mentioned you" title).
       const seen = await notes();
       console.log(`RECORDED notifications (${tag}):`, JSON.stringify(seen));
@@ -166,7 +183,7 @@ for (const theme of THEMES) {
       await page.waitForTimeout(1500);
       expect(countIn(await rowLabel(page))).toBe(3);
       expect(await readCount()).toBe(3);
-      await shot('c-reply-ping-off-no-new-badge');
+      await shot('c-reply-ping-off-no-new-badge', true);
 
       // 4. Open the channel: the pinging reply's row is highlighted, the quiet one is not.
       await page.goto(`/channels/${guild.id}/${talk.id}`);
@@ -193,7 +210,7 @@ for (const theme of THEMES) {
       expect(await readCount()).toBe(0);
       // The blocked account raised no notification and no sound either.
       expect(await notes()).toHaveLength(notesBefore);
-      await shot('e-blocked-no-badge-live');
+      await shot('e-blocked-no-badge-live', true);
       await page.reload();
       await expect(page.getByRole('main')).toBeVisible();
       await page.waitForTimeout(2500);
@@ -201,19 +218,17 @@ for (const theme of THEMES) {
       expect(reloadLabel).toMatch(/unread/);
       expect(countIn(reloadLabel)).toBe(countIn(liveLabel));
       expect(await readCount()).toBe(0);
-      await shot('f-blocked-after-reload');
+      await shot('f-blocked-after-reload', true);
 
-      // 6. D-727: unblock; a muted category silences the role notification (the page reloads to read the setting).
-      await o.delete(`/api/v1/users/@me/relationships/${bob.id}`).catch(() => undefined);
-      const cats = guild.channels.filter((ch) => ch.type === 4);
+      // 6. D-727: a third member (not blocked); a muted category silences the role notification (the page reloads to read the setting).
       const parent = (await (await o.get(`/api/v1/channels/${talk.id}`)).json()) as {
         parent_id?: string | null;
       };
-      const category = parent.parent_id ?? cats[0]?.id;
+      const category = parent.parent_id ?? cat.id;
       if (category) {
         await page.goto(`/channels/${guild.id}/${lobby.id}`);
         await page.waitForTimeout(1500);
-        await say(`one more for <@&${role.id}>`);
+        await carolSays(`one more for <@&${role.id}>`);
         await expect.poll(async () => (await notes()).length).toBe(1);
         await apiPatch(o, `/users/@me/guilds/${guild.id}/settings`, {
           channel_overrides: {
@@ -223,7 +238,7 @@ for (const theme of THEMES) {
         await page.reload();
         await expect(page.getByRole('main')).toBeVisible();
         await page.waitForTimeout(2500);
-        await say(`and another for <@&${role.id}>`);
+        await carolSays(`and another for <@&${role.id}>`);
         await page.waitForTimeout(2500);
         // Muted category: no notification at all (the page reloaded, so the record started empty).
         expect(await notes()).toHaveLength(0);
@@ -231,6 +246,7 @@ for (const theme of THEMES) {
       }
       await c.close();
       await bobCtx.close();
+      await carolCtx.close();
       await octx.close();
     });
   }

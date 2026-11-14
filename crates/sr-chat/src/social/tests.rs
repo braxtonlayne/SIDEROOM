@@ -2145,7 +2145,9 @@ mod suppress_badge {
     #[tokio::test]
     async fn no_scope_lookup_for_a_message_with_direct_mentions_only() {
         let f = fx();
-        f.svc.message_sent(&msg(false, &[2, 3], &[]), &[u(2), u(3)]).await;
+        f.svc
+            .message_sent(&msg(false, &[2, 3], &[]), &[u(2), u(3)])
+            .await;
         assert_eq!(f.svc.repo().suppress_lookups.load(Ordering::SeqCst), 0);
         assert_eq!(count(&f, 2).await, 1);
         // A message whose notify list is all direct mentions makes none either, even with `@everyone` set.
@@ -2235,7 +2237,11 @@ fn the_shared_notification_cases_hold() {
                         | NotifyReason::Role
                 )
             );
-        assert_eq!(d.notify, flag(&case["expect"]["notifies"]), "{name}: notifies");
+        assert_eq!(
+            d.notify,
+            flag(&case["expect"]["notifies"]),
+            "{name}: notifies"
+        );
         assert_eq!(mention, flag(&case["expect"]["mention"]), "{name}: mention");
     }
 }

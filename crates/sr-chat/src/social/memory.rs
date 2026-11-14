@@ -696,8 +696,11 @@ impl NotificationRepository for MemoryRepo {
             .iter()
             .filter_map(|u| {
                 let c = s.scopes.get(&(*u, Some(guild)))?;
-                (c.suppress_everyone || c.suppress_roles)
-                    .then_some((*u, c.suppress_everyone, c.suppress_roles))
+                (c.suppress_everyone || c.suppress_roles).then_some((
+                    *u,
+                    c.suppress_everyone,
+                    c.suppress_roles,
+                ))
             })
             .collect())
     }

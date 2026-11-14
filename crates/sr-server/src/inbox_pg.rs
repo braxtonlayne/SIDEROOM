@@ -220,7 +220,11 @@ mod tests {
             "INSERT INTO guilds (id, name, owner_id) VALUES (50, 'guild50', 1)",
         )
         .await;
-        exec(pool, "INSERT INTO channels (id, guild_id, type) VALUES (60, 50, 0)").await;
+        exec(
+            pool,
+            "INSERT INTO channels (id, guild_id, type) VALUES (60, 50, 0)",
+        )
+        .await;
         exec(
             pool,
             "INSERT INTO guild_members (guild_id, user_id) VALUES (50, 1), (50, 2), (50, 3), (50, 4), (50, 5), (50, 6)",
@@ -232,7 +236,11 @@ mod tests {
             "INSERT INTO relationships (user_id, target_id, type) VALUES (1, 2, 2), (3, 1, 2)",
         )
         .await;
-        exec(pool, "INSERT INTO user_ignores (user_id, target_id) VALUES (1, 4)").await;
+        exec(
+            pool,
+            "INSERT INTO user_ignores (user_id, target_id) VALUES (1, 4)",
+        )
+        .await;
         let _: String = sqlx::query_scalar(
             "SELECT sr_ensure_message_partition((now() - interval '1 day')::date)",
         )

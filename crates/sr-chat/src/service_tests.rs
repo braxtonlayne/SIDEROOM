@@ -570,7 +570,11 @@ async fn a_reply_without_allowed_mentions_pings_the_replied_to_author() {
     let mut f = fixture().await;
     let rec = Arc::new(Recorder(Default::default()));
     f.svc = f.svc.with_hooks(rec.clone());
-    let q = f.svc.send_message(OWNER, f.general, say("q")).await.unwrap();
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
     let a = f
         .svc
         .send_message(BOB, f.general, reply("a", q.id))
@@ -584,7 +588,11 @@ async fn a_reply_without_allowed_mentions_pings_the_replied_to_author() {
 #[tokio::test]
 async fn a_reply_with_the_ping_off_mentions_nobody_and_with_it_on_as_before() {
     let f = fixture().await;
-    let q = f.svc.send_message(OWNER, f.general, say("q")).await.unwrap();
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
     let off = SendMessage {
         allowed_mentions: Some(crate::message_rules::AllowedMentions {
             parse_users: true,
@@ -611,7 +619,11 @@ async fn a_reply_with_the_ping_off_mentions_nobody_and_with_it_on_as_before() {
 #[tokio::test]
 async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_adds_nobody() {
     let f = fixture().await;
-    let own = f.svc.send_message(BOB, f.general, say("mine")).await.unwrap();
+    let own = f
+        .svc
+        .send_message(BOB, f.general, say("mine"))
+        .await
+        .unwrap();
     let a = f
         .svc
         .send_message(BOB, f.general, reply("again", own.id))
@@ -619,7 +631,11 @@ async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_ad
         .unwrap();
     assert!(a.mention_user_ids.is_empty());
     // The replied-to author is already named in the text: once, not twice.
-    let q = f.svc.send_message(OWNER, f.general, say("q")).await.unwrap();
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
     let a = f
         .svc
         .send_message(BOB, f.general, reply("<@1> yes", q.id))
@@ -635,7 +651,11 @@ async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_ad
         .unwrap()
         .members
         .push(member(f.guild, carol));
-    let c = f.svc.send_message(carol, f.general, say("hi")).await.unwrap();
+    let c = f
+        .svc
+        .send_message(carol, f.general, say("hi"))
+        .await
+        .unwrap();
     f.svc
         .repo_for_tests()
         .store
@@ -654,7 +674,11 @@ async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_ad
 #[tokio::test]
 async fn a_forward_is_not_a_reply() {
     let f = fixture().await;
-    let q = f.svc.send_message(OWNER, f.general, say("q")).await.unwrap();
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
     // A forward cannot carry a reply (FORWARD_SHAPE), so it never reaches the reply rule: it mentions nobody.
     let fwd = SendMessage {
         forward: Some(crate::service::ForwardRequest {

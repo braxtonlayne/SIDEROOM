@@ -707,5 +707,9 @@ async fn suppress_switches_keep_the_badge_off() {
     // A direct mention counts for a suppressing member.
     svc.message_sent(&msg(true, &[a], &[]), &[a, b]).await;
     assert_eq!(count(a).await, 2);
-    assert_eq!(count(b).await, 2, "b suppresses roles, not @everyone, so this one counts for b");
+    assert_eq!(
+        count(b).await,
+        2,
+        "b suppresses roles, not @everyone, so this one counts for b"
+    );
 }
