@@ -64,6 +64,8 @@ test('wave 66 loose: the docs, the debug numbers, the server menu and the small 
   browser,
 }) => {
   mkdirSync(OUT, { recursive: true });
+  // The server's create-guild limit: earlier runs may still count.
+  await new Promise((r) => setTimeout(r, 35_000));
   const owner = bootstrapState().owner;
   const octx = await browser.newContext({ baseURL: ORIGIN });
   await loginApi(octx.request, owner);
@@ -82,8 +84,21 @@ test('wave 66 loose: the docs, the debug numbers, the server menu and the small 
     type: 0,
   });
   await apiPatch(o, `/channels/${spicy.id}`, { nsfw: true });
-  // A second, empty server: its welcome, and the NEW badge for a server not yet opened.
-  const fresh = await apiPost<{ id: string }>(o, '/guilds', { name: 'Fresh Corner' });
+
+  await new Promise((r) => setTimeout(r, 31_000));
+  // A server with no text channel shows the welcome cards.
+  const bare = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    o,
+    '/guilds',
+    {
+      name: 'Bare Hall',
+    },
+  );
+  const token = ((await (await o.get('/api/v1/sr/csrf')).json()) as { token: string }).token;
+  for (const ch of bare.channels.filter((c) => c.type === 0))
+    await o.delete(`/api/v1/channels/${ch.id}`, {
+      headers: { Origin: ORIGIN, 'X-SR-CSRF': token },
+    });
 
   // A friend who joins the first server, for the member menu.
   const rctx = await browser.newContext({ baseURL: ORIGIN });
@@ -163,8 +178,11 @@ test('wave 66 loose: the docs, the debug numbers, the server menu and the small 
       } else {
         await shot('phone-channel');
       }
-      await page.goto(`/channels/${fresh.id}`);
-      await expect(page.getByText(/Welcome to Fresh Corner/).first()).toBeVisible();
+      // The welcome keeps its three cards (D-670 adds none).
+      await page.goto(`/channels/${bare.id}`);
+      await expect(
+        page.getByRole('list', { name: 'Getting started' }).getByRole('listitem'),
+      ).toHaveCount(3);
       await shot('welcome');
 
       // 4. Member menu: Call (desktop, the list is open).
@@ -220,14 +238,16 @@ test('wave 66 loose: the docs, the debug numbers, the server menu and the small 
       await c.close();
     }
   }
+});
 
-  // 7. The sign-in page (unchanged), signed out; the old ?methods= parameter changes nothing.
+test('wave 66 loose: the sign-in page is unchanged and ignores ?methods=', async ({ browser }) => {
+  mkdirSync(OUT, { recursive: true });
   for (const theme of THEMES) {
     for (const [vp, size] of Object.entries(VIEWPORTS)) {
       const c = await context(browser, null, size, theme);
       const page = await c.newPage();
       await page.goto('/login?methods=passkey');
-      await expect(page.getByRole('button', { name: /sign in|log in/i }).first()).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Come on in.' })).toBeVisible();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `signin-${vp}-${theme}.png`) });
       await c.close();
