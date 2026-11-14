@@ -865,6 +865,16 @@ fn the_picture_is_an_inert_download_with_fixed_headers() {
     assert_eq!(h[header::CACHE_CONTROL], "no-store");
 }
 
+/// The `beta_over_100` of the staff list, read by a STAFF_BASIC member.
+async fn beta_flag(fx: &Fx) -> bool {
+    let (s, v) = fx
+        .call(Some(STAFF), Method::GET, "/admin/bug-reports", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(v.get("accounts").is_none() && v.get("account_count").is_none());
+    v["beta_over_100"].as_bool().unwrap()
+}
+
 /// SEC-AUD-195 (D-647, D-665): the list says, with one boolean and no number, when the beta reporter is on and the
 /// platform has 100 or more active accounts. STAFF_BASIC staff read it.
 #[tokio::test]
@@ -875,24 +885,13 @@ async fn the_list_says_when_the_beta_is_on_with_100_accounts() {
             .accounts
             .store(n, std::sync::atomic::Ordering::SeqCst)
     };
-    let flag = |fx: &Fx| {
-        let fx = fx;
-        async move {
-            let (s, v) = fx
-                .call(Some(STAFF), Method::GET, "/admin/bug-reports", None)
-                .await;
-            assert_eq!(s, StatusCode::OK);
-            assert!(v.get("accounts").is_none() && v.get("account_count").is_none());
-            v["beta_over_100"].as_bool().unwrap()
-        }
-    };
     set(99);
-    assert!(!flag(&fx).await, "99 accounts: no notice");
+    assert!(!beta_flag(&fx).await, "99 accounts: no notice");
     set(100);
-    assert!(flag(&fx).await, "100 accounts: the notice");
+    assert!(beta_flag(&fx).await, "100 accounts: the notice");
     fx.features
         .set_enabled(BETA_REPORTS_ID, &ScopeRef::Platform, Some(false))
         .await
         .unwrap();
-    assert!(!flag(&fx).await, "switch off: no notice");
+    assert!(!beta_flag(&fx).await, "switch off: no notice");
 }
