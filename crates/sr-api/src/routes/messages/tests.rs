@@ -109,7 +109,7 @@ async fn env_full(
     gate: Option<crate::routes::settings::AutoModGateHandle>,
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
 ) -> Env {
-    env_build(entitlements, gate, age, None).await
+    env_build(entitlements, gate, age, None, None).await
 }
 
 async fn env_build(
@@ -117,6 +117,7 @@ async fn env_build(
     gate: Option<crate::routes::settings::AutoModGateHandle>,
     age: Option<Arc<dyn crate::routes::search::AgeGate>>,
     safety: Option<Arc<dyn super::ViewerSafety>>,
+    size: Option<tokio::sync::watch::Receiver<sr_storage::upload::SizePolicy>>,
 ) -> Env {
     let clock = Arc::new(ManualClock::new(T0));
     let dyn_clock: Arc<dyn Clock> = clock.clone();
@@ -175,6 +176,10 @@ async fn env_build(
     ))
     .with_audit(audit.clone())
     .with_multipart(sr_library::MultipartWiring::new(parts.clone()).with_part_size(16 * MIB));
+    let deps = match size {
+        Some(rx) => deps.with_live_size_policy(rx),
+        None => deps,
+    };
     let deps = match age {
         Some(a) => deps.with_age_gate(a),
         None => deps,
@@ -1237,6 +1242,7 @@ async fn age_restricted_media_is_filtered_per_viewer_on_the_list() {
         None,
         Some(Arc::new(all)),
         Some(Arc::new(BlockServers)),
+        None,
     )
     .await;
     let png = png_with_secret();
@@ -2466,4 +2472,67 @@ async fn the_posting_gate_covers_edits_crossposts_and_votes_but_not_deletes() {
     assert_eq!(s, StatusCode::OK, "a flags-only edit: {b}");
     let (s, b) = call(Method::DELETE, format!("/messages/{gone}"), None).await;
     assert_eq!(s, StatusCode::NO_CONTENT, "deleting one's own message: {b}");
+}
+
+/// The stored expiry of the attachment behind an upload slot.
+async fn slot_expiry(e: &Env, slot: &Value) -> Option<i64> {
+    use sr_chat::repo::MessageStore;
+    let id: u64 = slot["upload_id"].as_str().unwrap().parse().unwrap();
+    let rows = e
+        .backend
+        .get_attachments(&[sr_core::AttachmentId::new(id)])
+        .await
+        .unwrap();
+    rows[0].expires_at_ms
+}
+
+/// D-662: the operator's `retention.large_file_days` is the lifetime of a large attachment, read when the upload is
+/// accepted; a file at or below the standard limit never expires.
+#[tokio::test]
+async fn a_large_attachment_expires_after_the_configured_days() {
+    use sr_storage::upload::SizePolicy;
+    let (_tx, rx) = tokio::sync::watch::channel(SizePolicy::from_settings(None, Some(3)));
+    let e = env_build(Arc::new(Perks(false)), None, None, None, Some(rx)).await;
+    let big = json!({"files": [{"filename": "movie.mkv", "file_size": 40 * MIB}]});
+    let (s, v) = e.post("/attachments", "owner", big).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let slot = &v["attachments"][0];
+    assert_eq!(slot["expires_after"], 3 * 24 * 3600);
+    assert_eq!(slot_expiry(&e, slot).await, Some(T0 + 3 * 24 * 3600 * 1000));
+    let small = json!({"files": [{"filename": "note.txt", "file_size": 5 * MIB}]});
+    let (_, v) = e.post("/attachments", "owner", small).await;
+    assert!(v["attachments"][0]["expires_after"].is_null(), "{v}");
+}
+
+/// D-662: a change of the days applies to the next upload; attachments already stored keep the expiry they were given.
+/// The standard limit follows the setting too: lowered to 10 MiB, a 20 MiB file is large from then on.
+#[tokio::test]
+async fn changing_the_days_leaves_stored_attachments_alone() {
+    use sr_storage::upload::SizePolicy;
+    let (tx, rx) = tokio::sync::watch::channel(SizePolicy::from_settings(None, Some(3)));
+    let e = env_build(Arc::new(Perks(false)), None, None, None, Some(rx)).await;
+    let big = json!({"files": [{"filename": "movie.mkv", "file_size": 40 * MIB}]});
+    let (_, v) = e.post("/attachments", "owner", big.clone()).await;
+    let first = v["attachments"][0].clone();
+    assert_eq!(first["expires_after"], 3 * 24 * 3600);
+
+    tx.send_replace(SizePolicy::from_settings(None, Some(10)));
+    let (_, v) = e.post("/attachments", "owner", big).await;
+    let second = &v["attachments"][0];
+    assert_eq!(second["expires_after"], 10 * 24 * 3600);
+    assert_eq!(
+        slot_expiry(&e, second).await,
+        Some(T0 + 10 * 24 * 3600 * 1000)
+    );
+    assert_eq!(
+        slot_expiry(&e, &first).await,
+        Some(T0 + 3 * 24 * 3600 * 1000),
+        "the stored attachment keeps its expiry"
+    );
+
+    tx.send_replace(SizePolicy::from_settings(Some(10 * 1024 * 1024), Some(10)));
+    let mid = json!({"files": [{"filename": "clip.mp4", "file_size": 20 * MIB}]});
+    let (s, v) = e.post("/attachments", "owner", mid).await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    assert_eq!(v["attachments"][0]["expires_after"], 10 * 24 * 3600);
 }
