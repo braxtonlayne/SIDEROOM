@@ -2713,11 +2713,39 @@ async fn a_long_spoiler_never_reaches_the_thread_row() {
     let text = row["thread"]["sr_last_message"]["content"]
         .as_str()
         .unwrap_or_default();
-    assert!(
-        !text.contains("hidden"),
-        "the hidden words leaked: {text:?}"
-    );
-    assert_eq!(text, "look\u{2026}", "{row}");
+    // D-735: the cut text closes the spoiler, so the words stay inside bars; read as plain text they are gone.
+    assert!(text.ends_with("||\u{2026}"), "{text:?}");
+    assert_eq!(plain_of_row(text), "look [spoiler]", "{row}");
+}
+
+/// The plain text a client draws for a preview's content (ellipsis taken off).
+fn plain_of_row(text: &str) -> String {
+    let body = text.strip_suffix('\u{2026}').unwrap_or(text);
+    sr_markdown::to_plain_text(&sr_markdown::parse(body))
+}
+
+/// SEC-AUD-260 (D-735): a thread whose latest message is one long bold sentence has a preview, not an empty row.
+#[tokio::test]
+async fn one_long_bold_sentence_has_a_thread_row_text() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    let content = format!("**{}end**", "word ".repeat(59));
+    seed_thread(&e, &sid, &[(OWNER, content.as_str(), false)]);
+    let (s, v) = e.get("/messages?limit=5", "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let row = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == sid.as_str())
+        .unwrap();
+    let text = row["thread"]["sr_last_message"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(text.starts_with("**word word"), "{row}");
+    assert!(text.ends_with("**\u{2026}"), "{text:?}");
+    assert!(plain_of_row(text).starts_with("word word"), "{row}");
 }
 
 #[tokio::test]

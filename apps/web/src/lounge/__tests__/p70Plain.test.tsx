@@ -104,7 +104,9 @@ describe('the preview cut never splits markup (D-728), the same cases as the ser
       '1',
     );
     const text = out[0]!.sr_request_preview!.content;
-    expect(text).toBe('look…');
+    // D-735: the cut text closes the spoiler; read as one line the words are gone.
+    expect(text.endsWith('||\u2026')).toBe(true);
+    expect(line(text.slice(0, -1))).toBe('look [spoiler]');
   });
 });
 

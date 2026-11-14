@@ -40,6 +40,9 @@ fn extends(c: char) -> bool {
         | 0xE0100..=0xE01EF)
 }
 
+/// The closing marks a cut text may be given, in the order they are tried (D-735).
+const CLOSERS: [&str; 7] = ["||", "**", "__", "~~", "*", "_", "`"];
+
 /// How many times the cut may move back looking for a place that splits no markup (D-728).
 const CUT_TRIES: usize = 16;
 
@@ -81,9 +84,11 @@ fn plain_of(s: &[char]) -> String {
 /// character and the combining marks that follow it, and an ellipsis ends a cut text. The cut also
 /// never falls inside markup (D-728): the plain text of the cut text must be the start of the plain
 /// text of the whole message (so half a spoiler, a split mention or a split link never reaches a
-/// preview as words); when it is not, the cut moves back to before the last markup opener, then to
-/// the previous white space, alternately, at most 16 times. `None` when nothing but white space is
-/// left or no such cut is left.
+/// preview as words); when it is not, the cut text first gets the closing mark of the run it opened
+/// (D-735: ||, **, __, ~~, *, _ or a backtick, in that order, the first whose plain text is the
+/// start of the whole's) and ends in that mark and the ellipsis; only if none does, the cut moves back to
+/// before the last markup opener, then to the previous white space, alternately, at most 16 times.
+/// `None` when nothing but white space is left or no such cut is left.
 pub fn excerpt(content: &str, max: usize) -> Option<String> {
     let folded = fold(content);
     if folded.is_empty() {
@@ -109,7 +114,7 @@ pub fn excerpt(content: &str, max: usize) -> Option<String> {
     let mut cut = trim(cut);
     let full = plain_of(&folded);
     let mut by_opener = true;
-    for _ in 0..=CUT_TRIES {
+    for round in 0..=CUT_TRIES {
         if cut == 0 {
             return None;
         }
@@ -118,6 +123,21 @@ pub fn excerpt(content: &str, max: usize) -> Option<String> {
             let mut s: String = folded[..cut].iter().collect();
             s.push('\u{2026}');
             return Some(s);
+        }
+        // The first cut only (D-735): close the run the cut opened, if one closing mark makes the text read as
+        // the start of the whole. At most seven more short parses.
+        if round == 0 {
+            for closer in CLOSERS {
+                let mut closed = folded[..cut].to_vec();
+                closed.extend(closer.chars());
+                let plain = plain_of(&closed);
+                let plain = plain.trim_end();
+                if !plain.is_empty() && full.starts_with(plain) {
+                    let mut s: String = closed.into_iter().collect();
+                    s.push('\u{2026}');
+                    return Some(s);
+                }
+            }
         }
         let head = &folded[..cut];
         let next = if by_opener {
@@ -262,7 +282,53 @@ mod safe_cut_tests {
         assert!(to_plain_text(&nodes).contains("xxxx"));
         // The excerpt does not hand that text on.
         let got = excerpt(&content, EXCERPT_CHARS).unwrap();
-        assert!(!got.contains('x'), "letters leaked: {got:?}");
+        // D-735: the cut text closes the spoiler, so the letters sit inside bars and are never plain text.
+        assert!(got.ends_with("||\u{2026}"), "{got:?}");
+        let plain = to_plain_text(&parse(got.strip_suffix('\u{2026}').unwrap()));
+        assert!(!plain.contains('x'), "letters leaked: {plain:?}");
+        assert_eq!(plain, "a [spoiler]");
+    }
+
+    /// SEC-AUD-260 confirm test (D-735): one long run of any kind of markup gave no text before (the cut fell
+    /// inside it and moved back to nothing); now it ends in the run's closing mark and reads as its first words.
+    #[test]
+    fn a_long_run_of_markup_is_closed_at_the_cut() {
+        let words = "word ".repeat(59);
+        let body = format!("{words}end");
+        for mark in ["**", "*", "__", "_", "~~", "||", "`"] {
+            let content = format!("{mark}{body}{mark}");
+            let got = excerpt(&content, EXCERPT_CHARS)
+                .unwrap_or_else(|| panic!("{mark}: no text for one long run"));
+            assert!(got.ends_with(&format!("{mark}\u{2026}")), "{mark}: {got:?}");
+            assert!(
+                !got.contains(&format!(" {mark}")),
+                "{mark}: space before the closer: {got:?}"
+            );
+            let plain = to_plain_text(&parse(got.strip_suffix('\u{2026}').unwrap()));
+            let full = to_plain_text(&parse(&content));
+            assert!(
+                !plain.is_empty() && full.starts_with(plain.trim_end()),
+                "{mark}: {plain:?}"
+            );
+            if mark == "||" {
+                assert_eq!(plain, "[spoiler]");
+            } else {
+                assert!(plain.starts_with("word word"), "{mark}: {plain:?}");
+            }
+        }
+    }
+
+    /// D-728 stays: a spoiler inside bold needs two closers, so one mark cannot close it and the cut moves back;
+    /// the hidden words are never plain text in any result.
+    #[test]
+    fn a_spoiler_inside_bold_never_leaks_through_a_closer() {
+        for lead in ["**a ||", "**a __b ||", "*a ~~b ||"] {
+            let content = format!("{lead}{}|| tail**", "secret ".repeat(40));
+            if let Some(got) = excerpt(&content, EXCERPT_CHARS) {
+                let plain = to_plain_text(&parse(got.strip_suffix('\u{2026}').unwrap_or(&got)));
+                assert!(!plain.contains("secret"), "{lead}: leaked {plain:?}");
+            }
+        }
     }
 
     /// The confirm test (c): a mention cut in the middle is not left as `<@12345`.
