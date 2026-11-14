@@ -2020,3 +2020,228 @@ async fn all_level_flags_a_friends_spam_and_non_friends_level_does_not() {
     let id2 = f.svc.open_dm(u(1), u(2)).await.unwrap().channel.id;
     assert!(!f.svc.friend_dm_spam_flag(id2, u(1), spam).await.unwrap());
 }
+
+// ---- the suppress switches keep the badge off (D-726) ----
+
+mod suppress_badge {
+    use super::*;
+    use crate::domain::{Message, MessageType, Visibility};
+    use crate::message_hooks::MessageHooks;
+    use sr_core::{GuildId, RoleId};
+    use std::sync::atomic::Ordering;
+
+    const GUILD: u64 = 500;
+    const CHAN: u64 = 501;
+
+    fn msg(everyone: bool, users: &[u64], roles: &[u64]) -> Message {
+        Message {
+            id: MessageId::new(9),
+            channel_id: ChannelId::new(CHAN),
+            guild_id: Some(GuildId::new(GUILD)),
+            author_id: u(1),
+            kind: MessageType::Default,
+            content: String::new(),
+            flags: 0,
+            edited_at_ms: None,
+            reference: None,
+            attachment_ids: Vec::new(),
+            embeds: Vec::new(),
+            components: Vec::new(),
+            sticker_ids: Vec::new(),
+            poll: None,
+            mention_everyone: everyone,
+            mention_user_ids: users.iter().map(|n| u(*n)).collect(),
+            mention_role_ids: roles.iter().map(|n| RoleId::new(*n)).collect(),
+            mention_channel_ids: Vec::new(),
+            pinned: false,
+            visibility: Visibility::Visible,
+            deleted_at_ms: None,
+            purge_after_ms: None,
+            hold_id: None,
+        }
+    }
+
+    async fn suppress(f: &Fx, user: u64, everyone: bool, roles: bool) {
+        f.svc
+            .update_scope(
+                u(user),
+                Some(GuildId::new(GUILD)),
+                &ScopeUpdate {
+                    suppress_everyone: Some(everyone),
+                    suppress_roles: Some(roles),
+                    ..ScopeUpdate::default()
+                },
+            )
+            .await
+            .unwrap();
+    }
+
+    async fn count(f: &Fx, user: u64) -> u32 {
+        f.svc
+            .read_states(u(user))
+            .await
+            .unwrap()
+            .iter()
+            .find(|s| s.channel == ChannelId::new(CHAN))
+            .map_or(0, |s| s.mention_count)
+    }
+
+    #[test]
+    fn one_switch_is_enough_only_for_the_kind_that_reached_the_person() {
+        use crate::social::notifications::badge_suppressed as s;
+        assert!(s(true, false, true, false));
+        assert!(!s(true, false, false, true));
+        assert!(s(false, true, false, true));
+        assert!(!s(false, true, true, false));
+        // Both kinds on the message: one switch leaves the other kind free to reach them.
+        assert!(!s(true, true, true, false));
+        assert!(!s(true, true, false, true));
+        assert!(s(true, true, true, true));
+        assert!(!s(false, false, true, true));
+    }
+
+    #[tokio::test]
+    async fn everyone_does_not_badge_a_member_who_suppresses_it() {
+        let f = fx();
+        suppress(&f, 2, true, false).await;
+        f.svc
+            .message_sent(&msg(true, &[], &[]), &[u(2), u(3)])
+            .await;
+        assert_eq!(count(&f, 2).await, 0);
+        assert_eq!(count(&f, 3).await, 1);
+    }
+
+    #[tokio::test]
+    async fn a_direct_mention_still_counts_for_a_suppressing_member() {
+        let f = fx();
+        suppress(&f, 2, true, true).await;
+        f.svc
+            .message_sent(&msg(true, &[2], &[]), &[u(2), u(3)])
+            .await;
+        assert_eq!(count(&f, 2).await, 1);
+    }
+
+    #[tokio::test]
+    async fn role_only_follows_suppress_roles_and_both_kinds_need_both_switches() {
+        let f = fx();
+        suppress(&f, 2, false, true).await;
+        suppress(&f, 3, true, false).await;
+        suppress(&f, 4, true, true).await;
+        f.svc
+            .message_sent(&msg(false, &[], &[7]), &[u(2), u(3), u(4)])
+            .await;
+        assert_eq!(count(&f, 2).await, 0);
+        assert_eq!(count(&f, 3).await, 1);
+        assert_eq!(count(&f, 4).await, 0);
+        // Both kinds on one message: one switch is not enough, both are.
+        f.svc
+            .message_sent(&msg(true, &[], &[7]), &[u(2), u(3), u(4)])
+            .await;
+        assert_eq!(count(&f, 2).await, 1);
+        assert_eq!(count(&f, 3).await, 2);
+        assert_eq!(count(&f, 4).await, 0);
+    }
+
+    #[tokio::test]
+    async fn no_scope_lookup_for_a_message_with_direct_mentions_only() {
+        let f = fx();
+        f.svc
+            .message_sent(&msg(false, &[2, 3], &[]), &[u(2), u(3)])
+            .await;
+        assert_eq!(f.svc.repo().suppress_lookups.load(Ordering::SeqCst), 0);
+        assert_eq!(count(&f, 2).await, 1);
+        // A message whose notify list is all direct mentions makes none either, even with `@everyone` set.
+        f.svc.message_sent(&msg(true, &[2], &[]), &[u(2)]).await;
+        assert_eq!(f.svc.repo().suppress_lookups.load(Ordering::SeqCst), 0);
+        f.svc.message_sent(&msg(true, &[], &[]), &[u(2)]).await;
+        assert_eq!(f.svc.repo().suppress_lookups.load(Ordering::SeqCst), 1);
+    }
+}
+
+// ---- the shared notification cases (D-727): the open app's `desktopDecision` reads the same file ----
+
+#[test]
+fn the_shared_notification_cases_hold() {
+    use super::notifications::{
+        ChannelOverride, Mute, NotificationLevel, NotifyInput, NotifyReason, decide,
+        effective_level_with_user_default, is_muted,
+    };
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("notify_cases.json")).expect("notify_cases.json");
+    let cases = cases.as_array().expect("a list of cases");
+    assert!(cases.len() >= 24, "at least 24 cases");
+    let level = |v: &serde_json::Value| {
+        v.as_i64()
+            .and_then(|c| NotificationLevel::from_code(i16::try_from(c).unwrap()))
+    };
+    let flag = |v: &serde_json::Value| v.as_bool().unwrap_or(false);
+    let over = |v: &serde_json::Value, id: u64| {
+        v.is_object().then(|| ChannelOverride {
+            user: u(1),
+            channel: ChannelId::new(id),
+            level: level(&v["level"]),
+            mute: Mute {
+                muted: flag(&v["muted"]),
+                end_ms: None,
+            },
+        })
+    };
+    for case in cases {
+        let name = case["name"].as_str().unwrap();
+        let is_dm = flag(&case["isDm"]);
+        let sc = &case["scope"];
+        let scope = ScopeSettings {
+            level: level(&sc["level"]),
+            suppress_everyone: flag(&sc["suppressEveryone"]),
+            suppress_roles: flag(&sc["suppressRoles"]),
+            mute: Mute {
+                muted: flag(&sc["muted"]),
+                end_ms: None,
+            },
+            ..ScopeSettings::new(u(1), None)
+        };
+        let category = over(&case["category"], 10);
+        let channel = over(&case["channel"], 11);
+        let lvl = effective_level_with_user_default(
+            level(&case["guildDefault"]).expect("guildDefault"),
+            level(&case["userDefault"]),
+            Some(&scope),
+            category.as_ref(),
+            channel.as_ref(),
+        );
+        let muted = is_muted(1_000, Some(&scope), category.as_ref(), channel.as_ref());
+        let k = &case["kind"];
+        let d = decide(
+            lvl,
+            muted,
+            Some(&scope),
+            NotifyInput {
+                kind: MentionKind {
+                    direct: flag(&k["direct"]),
+                    reply: flag(&k["reply"]),
+                    everyone: flag(&k["everyone"]),
+                    role: flag(&k["role"]),
+                },
+                is_dm,
+                followed_thread: false,
+                keyword_hit: false,
+            },
+        );
+        let mention = d.notify
+            && matches!(
+                d.reason,
+                Some(
+                    NotifyReason::Mention
+                        | NotifyReason::Reply
+                        | NotifyReason::Everyone
+                        | NotifyReason::Role
+                )
+            );
+        assert_eq!(
+            d.notify,
+            flag(&case["expect"]["notifies"]),
+            "{name}: notifies"
+        );
+        assert_eq!(mention, flag(&case["expect"]["mention"]), "{name}: mention");
+    }
+}

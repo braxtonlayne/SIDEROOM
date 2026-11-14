@@ -25,6 +25,7 @@ import type {
 import { usePermEngine, type PermEngine } from './permEngine';
 import { applyMutes } from './shell/applyMutes';
 import { findBridgedMember, useBridgedMembers } from './bridge/members';
+import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { useNotifSettings } from './shell/notifSettings';
 import { failWith, reportActionError } from './actionError';
 import { markLoadFailed, useLoadFailed } from './loadFailures';
@@ -389,6 +390,8 @@ export function useLiveTypingIds(channelId: string | undefined): Snowflake[] {
   const pruneTyping = useStore((s) => s.pruneTyping);
   // A Discord typer of a bridged server is not in `users`; the bridged members vouch for them.
   const bridged = useBridgedMembers((s) => s.byGuild);
+  // A blocked or ignored account is not named in the typing line (D-730); the store keeps its entry.
+  const hidden = useHiddenAuthors();
   useEffect(() => {
     if (!typing?.length) return;
     const next = Math.min(...typing.map((t) => t.expires_at));
@@ -398,10 +401,16 @@ export function useLiveTypingIds(channelId: string | undefined): Snowflake[] {
   return useMemo(() => {
     const now = Date.now();
     return (typing ?? [])
-      .filter((t) => t.expires_at > now && (users[t.user_id] || findBridgedMember(t.user_id)))
+      .filter(
+        (t) =>
+          t.expires_at > now &&
+          !hidden.blocked.has(t.user_id) &&
+          !hidden.ignored.has(t.user_id) &&
+          (users[t.user_id] || findBridgedMember(t.user_id)),
+      )
       .map((t) => t.user_id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typing, users, bridged]);
+  }, [typing, users, bridged, hidden]);
 }
 
 export function useLivePresence(userId: Snowflake): Presence {

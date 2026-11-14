@@ -949,7 +949,6 @@ export class VoiceController {
     for (const id of Object.keys(s.localMuted)) engine.setUserMuted(id, true);
     engine.setMusicVolume?.(s.musicVolume);
     if (s.musicMuted) engine.setMusicMuted?.(true);
-    if (this.music) engine.publishMusic?.(this.music, musicKbpsOf(t.channelId).musicKbps);
     this.vad.configure({ auto: s.autoSensitivity, thresholdDb: s.thresholdDb });
     this.recompute();
     void engine
@@ -968,6 +967,8 @@ export class VoiceController {
         if (this.engine !== engine) return;
         this.rejoins = 0;
         this.republish();
+        // connect() starts with a teardown that drops outgoing streams, so the music goes out after it (MUS-JB-001).
+        if (this.music) engine.publishMusic?.(this.music, musicKbpsOf(t.channelId).musicKbps);
         patchSession({ status: 'connected', error: null });
         this.cue('selfJoin');
         this.recompute();

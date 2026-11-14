@@ -603,6 +603,55 @@ async fn replies_reference_visible_messages_only() {
     assert!(v.get("message_reference").is_none());
 }
 
+/// D-725: a reply names the replied-to author in `mentions` unless the request turns the ping off.
+#[tokio::test]
+async fn a_reply_pings_the_replied_to_author_unless_turned_off() {
+    let e = env().await;
+    let q = e.say("owner", "question").await;
+    let fid = id_of(&q);
+    let reference = json!({"message_id": fid});
+    let (s, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "answer", "message_reference": reference}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["mentions"].as_array().unwrap().len(), 1, "{r}");
+    assert_eq!(r["mentions"][0]["id"], "1");
+    // The ping switched off in the composer: `replied_user: false`.
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "quiet", "message_reference": reference,
+                   "allowed_mentions": {"parse": ["users", "roles", "everyone"], "replied_user": false}}),
+        )
+        .await;
+    assert_eq!(r["mentions"], json!([]), "{r}");
+    // `replied_user: true` as before.
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "loud", "message_reference": reference,
+                   "allowed_mentions": {"replied_user": true}}),
+        )
+        .await;
+    assert_eq!(r["mentions"][0]["id"], "1", "{r}");
+    // A reply to one's own message mentions nobody.
+    let own = e.say("bob", "mine").await;
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "again", "message_reference": {"message_id": id_of(&own)}}),
+        )
+        .await;
+    assert_eq!(r["mentions"], json!([]), "{r}");
+}
+
 #[tokio::test]
 async fn mentions_are_permission_gated() {
     let e = env().await;
@@ -2641,6 +2690,34 @@ async fn a_message_with_a_thread_carries_the_threads_last_message() {
         one["thread"]["sr_last_message"]["content"],
         "the last words"
     );
+}
+
+/// D-728: a thread whose latest message is a long spoiler never carries the hidden words in its row, however
+/// the 140-character cut falls.
+#[tokio::test]
+async fn a_long_spoiler_never_reaches_the_thread_row() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    let secret = "hidden".repeat(40);
+    let content = format!("look ||{secret}||");
+    seed_thread(&e, &sid, &[(OWNER, content.as_str(), false)]);
+    let (s, v) = e.get("/messages?limit=5", "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let row = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == sid.as_str())
+        .unwrap();
+    let text = row["thread"]["sr_last_message"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        !text.contains("hidden"),
+        "the hidden words leaked: {text:?}"
+    );
+    assert_eq!(text, "look\u{2026}", "{row}");
 }
 
 #[tokio::test]

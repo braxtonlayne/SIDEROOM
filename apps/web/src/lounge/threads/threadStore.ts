@@ -257,9 +257,12 @@ function countMessages(event: string, d: Obj): void {
   let last = t.lastMessageId;
   if (event === 'MESSAGE_CREATE') {
     const mid = typeof d.id === 'string' ? d.id : '';
-    // A message the thread already knows (a replay after a resync) is not counted twice.
-    if (!mid || (t.lastMessageId && snow(mid, t.lastMessageId) <= 0)) return;
-    last = mid;
+    // A message the thread already knows (a replay after a resync) is not counted twice. A message a moderator
+    // restores (`restored: true`, D-723) is old by id and new to the thread: it counts, and the last message
+    // moves only when the restored one is the newest.
+    const newest = !t.lastMessageId || snow(mid, t.lastMessageId) > 0;
+    if (!mid || (!newest && d.restored !== true)) return;
+    if (newest) last = mid;
     if (next < COUNT_CAP) next += 1;
   } else if (next < COUNT_CAP) {
     const gone = event === 'MESSAGE_DELETE' ? 1 : Array.isArray(d.ids) ? d.ids.length : 0;

@@ -241,22 +241,24 @@ test('the smartphone glyph appears for a phone-only person and goes back to the 
   await octx.close();
 });
 
-/** On a phone the member list is the pane right of the chat: swipe left, as a finger does. */
+/**
+ * On a phone the member list is the pane right of the chat (LoungeShell's three panes). The header's Member List
+ * button turns the pane on (SEC-AUD-249: the synthetic TouchEvent of wave 68 never reached it), then a real finger
+ * swipe (touch events through the DevTools protocol) moves the screen to it.
+ */
 async function swipeToMembers(page: Page) {
-  await page.evaluate(() => {
-    const el = (document.querySelector('[data-pane="chat"]') ?? document.body) as HTMLElement;
-    const touch = (x: number) => new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
-    el.dispatchEvent(
-      new TouchEvent('touchstart', {
-        bubbles: true,
-        touches: [touch(320)],
-        changedTouches: [touch(320)],
-      }),
-    );
-    el.dispatchEvent(
-      new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(60)] }),
-    );
-  });
+  const button = page.getByRole('button', { name: 'Member List' });
+  if ((await button.getAttribute('aria-pressed')) !== 'true') await button.click();
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: type === 'touchEnd' ? [] : [{ x, y: 400 }],
+    });
+  await touch('touchStart', 330);
+  for (const x of [280, 220, 160, 100, 50]) await touch('touchMove', x);
+  await touch('touchEnd', 50);
+  await cdp.detach();
 }
 
 async function signInDesktop(
@@ -369,5 +371,74 @@ test('a notification is plain text, a blocked account raises none, a reaction sa
   expect(await notes()).toHaveLength(2);
   await c.close();
   await bob.ctx.close();
+  await octx.close();
+});
+
+test('the phone-width member list with the smartphone glyph, and close-ups at scale 2', async ({
+  browser,
+}) => {
+  mkdirSync(OUT, { recursive: true });
+  const owner = bootstrapState().owner;
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, owner);
+  const o = octx.request;
+  const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    o,
+    '/guilds',
+    { name: 'Glyph Phone List' },
+  );
+  const channel = guild.channels.find((c) => c.type === 0)!.id;
+  const invite = await apiPost<{ code: string }>(o, `/channels/${channel}/invites`, {});
+  const phoner = await member(browser, 'phonerx', invite.code);
+  const deskman = await member(browser, 'deskmanx', invite.code);
+  const onPhoneNow = await onPhone(browser, phoner);
+  const desk = await signInDesktop(browser, deskman);
+
+  for (const theme of THEMES) {
+    await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: { theme, zoom: 100 } } });
+    // Scale 1 for the whole list at phone width, scale 2 for the close-up of the row.
+    for (const scale of [1, 2] as const) {
+      const c = await browser.newContext({
+        baseURL: ORIGIN,
+        viewport: VIEWPORTS.phone,
+        deviceScaleFactor: scale,
+        storageState: await octx.storageState(),
+        userAgent: PHONE_UA,
+        isMobile: true,
+        hasTouch: true,
+      });
+      await c.addInitScript(
+        (p) => {
+          localStorage.setItem(
+            'sr.user.prefs',
+            JSON.stringify({ state: { prefs: p }, version: 2 }),
+          );
+        },
+        { theme, zoom: 100 },
+      );
+      const page = await c.newPage();
+      page.setDefaultTimeout(20_000);
+      await page.goto(`/channels/${guild.id}/${channel}`);
+      await expect(page.getByRole('main')).toBeVisible();
+      await swipeToMembers(page);
+      const row = page
+        .getByRole('list', { name: 'Members' })
+        .getByRole('button', { name: /phonerx/ });
+      await expect(row.locator('[role="img"][aria-label="Online on a phone"]')).toBeVisible();
+      await page.waitForTimeout(500);
+      if (scale === 1) {
+        await page.screenshot({ path: resolve(OUT, `glyph-phone-list-${theme}.png`) });
+      } else {
+        await row.screenshot({ path: resolve(OUT, `glyph-closeup2-${theme}.png`) });
+        const box = await row.locator('[role="img"][aria-label="Online on a phone"]').boundingBox();
+        console.log(`RECORDED glyph box ${theme}:`, JSON.stringify(box));
+      }
+      await c.close();
+    }
+  }
+  await desk.close();
+  await onPhoneNow.ctx.close();
+  await phoner.ctx.close();
+  await deskman.ctx.close();
   await octx.close();
 });

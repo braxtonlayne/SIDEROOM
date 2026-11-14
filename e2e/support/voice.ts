@@ -81,13 +81,21 @@ export interface InboundAudioStream {
   bytes: number;
   mimeType: string;
   channels: number;
+  /** The negotiated `a=fmtp` line of the codec (the music payload type says `stereo=1`, the microphone's does not). */
+  fmtp?: string;
 }
 
 /** The inbound audio streams of all of the page's peer connections: bytes, and the codec they negotiated. */
 export async function inboundAudioStreams(page: Page): Promise<InboundAudioStream[]> {
   return page.evaluate(async () => {
     const w = window as unknown as { __pcs?: RTCPeerConnection[] };
-    const out: { id: string; bytes: number; mimeType: string; channels: number }[] = [];
+    const out: {
+      id: string;
+      bytes: number;
+      mimeType: string;
+      channels: number;
+      fmtp: string;
+    }[] = [];
     for (const pc of w.__pcs ?? []) {
       const report = await pc.getStats();
       const codecs = new Map<string, Record<string, unknown>>();
@@ -102,6 +110,7 @@ export async function inboundAudioStreams(page: Page): Promise<InboundAudioStrea
           bytes: Number(s.bytesReceived ?? 0),
           mimeType: String(codec?.mimeType ?? ''),
           channels: Number(codec?.channels ?? 0),
+          fmtp: String(codec?.sdpFmtpLine ?? ''),
         });
       });
     }
@@ -113,9 +122,18 @@ export async function inboundAudioStreams(page: Page): Promise<InboundAudioStrea
  * MUS-JB-001: the page plays a generated stereo tone (440 Hz left, 660 Hz right) as its music track, a second
  * audio sender under the same frame encryptor as the microphone. Needs the web build with VITE_SR_E2E=1 (it
  * exposes the voice engine as `__srVoiceEngine`), a channel that allows music and SPEAK for the member.
+ *
+ * `through: 'engine'` (the default, what the soak does) hands the stream to the engine directly: enough while
+ * the connection lasts, but the controller never hears of it, so a rejoin (a new engine) loses it.
+ * `through: 'controller'` publishes it the way the jukebox does (`voiceController().publishMusic`), so the
+ * controller keeps it across a rejoin (D-724). The controller is reached with a dynamic import of its module
+ * from the Vite dev server (the one module instance the app uses): this needs the dev server, not a built bundle.
  */
-export async function playTone(page: Page): Promise<void> {
-  await page.evaluate(() => {
+export async function playTone(
+  page: Page,
+  opts: { through?: 'engine' | 'controller' } = {},
+): Promise<void> {
+  await page.evaluate(async (through) => {
     const engine = (
       globalThis as unknown as {
         __srVoiceEngine?: { publishMusic(stream: MediaStream, kbps?: number): void };
@@ -137,7 +155,119 @@ export async function playTone(page: Page): Promise<void> {
     left.start();
     right.start();
     void ctx.resume();
-    engine.publishMusic(dest.stream, 256);
+    if (through === 'controller') {
+      const url = '/src/voice/controller.ts';
+      const mod = (await import(/* @vite-ignore */ url)) as {
+        voiceController(): { publishMusic(stream: MediaStream): void; musicPublished: boolean };
+      };
+      const controller = mod.voiceController();
+      controller.publishMusic(dest.stream);
+      if (!controller.musicPublished) throw new Error('the controller did not take the music');
+    } else {
+      engine.publishMusic(dest.stream, 256);
+    }
+  }, opts.through ?? 'engine');
+}
+
+/**
+ * Whether an inbound stream is Opus with two channels. Chromium reports two channels for every Opus line (the
+ * rtpmap says `opus/48000/2`), the microphone's too: `isMusicStream` tells the music line from the microphone.
+ */
+export function isStereoOpus(s: InboundAudioStream): boolean {
+  return /opus/i.test(s.mimeType) && s.channels === 2;
+}
+
+/** The music line: Opus whose negotiated fmtp says `stereo=1` (the microphone's payload type does not). */
+export function isMusicStream(s: InboundAudioStream): boolean {
+  return isStereoOpus(s) && /(^|;)stereo=1(;|$)/.test(s.fmtp ?? '');
+}
+
+/**
+ * The music check of the soak and of the live spec (D-724), as a function: `null` when a stream that was not in
+ * `before` (the streams listed before the music started) is Opus with two channels and its bytes grew over the
+ * closing window (`tail`: the same streams' bytes at the start and at the end of it; a stream missing from `tail`
+ * counts from 0); otherwise one sentence that says what is missing.
+ */
+export function musicVerdict(
+  before: InboundAudioStream[],
+  after: InboundAudioStream[],
+  tail: { id: string; bytesBefore: number; bytesAfter: number }[],
+): string | null {
+  const known = new Set(before.map((s) => s.id));
+  const added = after.filter((s) => !known.has(s.id));
+  if (added.length === 0) return 'no new audio stream';
+  const opus = added.filter((s) => /opus/i.test(s.mimeType));
+  if (opus.length === 0) {
+    return `the new stream is not Opus (${added.map((s) => s.mimeType || 'unknown').join(', ')})`;
+  }
+  const stereo = opus.filter((s) => s.channels === 2);
+  if (stereo.length === 0) {
+    return opus.every((s) => s.channels === 1)
+      ? 'the new stream is mono'
+      : `the new stream has ${opus.map((s) => s.channels).join(', ')} channels, not 2`;
+  }
+  const grew = stereo.some((s) => {
+    const t = tail.find((x) => x.id === s.id);
+    return (t ? t.bytesAfter - t.bytesBefore : s.bytes) > 0;
+  });
+  return grew ? null : 'the stereo stream stopped: 0 bytes in the closing window';
+}
+
+/** Record every voice socket (`/voice/ws`) the page opens, so a test can close one (`closeVoiceSockets`). */
+export async function trackVoiceSockets(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __voiceSockets: WebSocket[] };
+    w.__voiceSockets = [];
+    const Native = window.WebSocket;
+    window.WebSocket = class extends Native {
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (/\/voice\/ws/.test(String(url))) w.__voiceSockets.push(this);
+      }
+    } as typeof WebSocket;
+  });
+}
+
+/** How many voice sockets the page has opened so far (needs `trackVoiceSockets`). */
+export async function voiceSocketCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () => (window as unknown as { __voiceSockets?: WebSocket[] }).__voiceSockets?.length ?? 0,
+  );
+}
+
+/**
+ * Make the engine see its open voice sockets close with `code`: a `close` event with that code is dispatched on
+ * each (needs `trackVoiceSockets`), so the engine's own handler runs. A real client-side `close(code)` cannot do
+ * this: the browser reports the code the server answers with, never the one sent, so the engine would only resume.
+ * Returns how many sockets were open; the engine closes them itself when it gives up on the session.
+ */
+export async function failVoiceSockets(page: Page, code: number): Promise<number> {
+  return page.evaluate((code) => {
+    const w = window as unknown as { __voiceSockets?: WebSocket[] };
+    let n = 0;
+    for (const s of w.__voiceSockets ?? [])
+      if (s.readyState === WebSocket.OPEN) {
+        s.dispatchEvent(new CloseEvent('close', { code, reason: 'e2e', wasClean: true }));
+        n++;
+      }
+    return n;
+  }, code);
+}
+
+/** How many RTCPeerConnections the page has created so far (needs `trackPeerConnections`). */
+export async function peerConnectionCount(page: Page): Promise<number> {
+  return page.evaluate(
+    () => (window as unknown as { __pcs?: RTCPeerConnection[] }).__pcs?.length ?? 0,
+  );
+}
+
+/** The ICE ufrags in the local description of the page's newest open peer connection (they change on an ICE restart). */
+export async function iceUfrags(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const pcs = (window as unknown as { __pcs?: RTCPeerConnection[] }).__pcs ?? [];
+    const pc = [...pcs].reverse().find((p) => p.connectionState !== 'closed');
+    const sdp = pc?.localDescription?.sdp ?? '';
+    return [...new Set([...sdp.matchAll(/^a=ice-ufrag:(\S+)/gm)].map((m) => m[1] as string))];
   });
 }
 

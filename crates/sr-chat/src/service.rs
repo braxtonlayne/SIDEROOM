@@ -517,7 +517,19 @@ impl<R: ChatRepository> ChatService<R> {
                 allowed,
                 reply_target.as_ref().map(|m| m.author_id),
             ),
-            None => v.mentions,
+            // D-725: a reply pings the replied-to author unless the sender turned the ping off
+            // (`allowed_mentions.replied_user: false`); a forward is not a reply.
+            None => {
+                let mut m = v.mentions;
+                if req.forward.is_none()
+                    && let Some(target) = reply_target.as_ref().map(|t| t.author_id)
+                    && target != author
+                    && !m.users.contains(&target)
+                {
+                    m.users.push(target);
+                }
+                m
+            }
         };
         let guild = match (acc.channel.guild_id, resolved.guild) {
             (Some(_), Some(g)) => Some(g),

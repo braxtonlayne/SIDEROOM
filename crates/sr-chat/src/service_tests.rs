@@ -554,3 +554,140 @@ async fn a_role_mention_reads_only_the_roles_members() {
         .member_page_reads;
     assert!(reads >= 3, "@everyone still pages every member ({reads})");
 }
+
+// ---- D-725: a reply pings the replied-to author unless the sender turned the ping off ----
+
+fn reply(text: &str, to: sr_core::MessageId) -> SendMessage {
+    SendMessage {
+        content: text.into(),
+        reply_to: Some(to),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn a_reply_without_allowed_mentions_pings_the_replied_to_author() {
+    let mut f = fixture().await;
+    let rec = Arc::new(Recorder(Default::default()));
+    f.svc = f.svc.with_hooks(rec.clone());
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
+    let a = f
+        .svc
+        .send_message(BOB, f.general, reply("a", q.id))
+        .await
+        .unwrap();
+    assert_eq!(a.mention_user_ids, vec![OWNER]);
+    // The hook gets them too, so the badge is counted.
+    assert_eq!(rec.0.lock().unwrap().last().unwrap(), &vec![OWNER]);
+}
+
+#[tokio::test]
+async fn a_reply_with_the_ping_off_mentions_nobody_and_with_it_on_as_before() {
+    let f = fixture().await;
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
+    let off = SendMessage {
+        allowed_mentions: Some(crate::message_rules::AllowedMentions {
+            parse_users: true,
+            parse_roles: true,
+            parse_everyone: true,
+            replied_user: false,
+            ..Default::default()
+        }),
+        ..reply("a", q.id)
+    };
+    let a = f.svc.send_message(BOB, f.general, off).await.unwrap();
+    assert!(a.mention_user_ids.is_empty());
+    let on = SendMessage {
+        allowed_mentions: Some(crate::message_rules::AllowedMentions {
+            replied_user: true,
+            ..Default::default()
+        }),
+        ..reply("a", q.id)
+    };
+    let a = f.svc.send_message(BOB, f.general, on).await.unwrap();
+    assert_eq!(a.mention_user_ids, vec![OWNER]);
+}
+
+#[tokio::test]
+async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_adds_nobody() {
+    let f = fixture().await;
+    let own = f
+        .svc
+        .send_message(BOB, f.general, say("mine"))
+        .await
+        .unwrap();
+    let a = f
+        .svc
+        .send_message(BOB, f.general, reply("again", own.id))
+        .await
+        .unwrap();
+    assert!(a.mention_user_ids.is_empty());
+    // The replied-to author is already named in the text: once, not twice.
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
+    let a = f
+        .svc
+        .send_message(BOB, f.general, reply("<@1> yes", q.id))
+        .await
+        .unwrap();
+    assert_eq!(a.mention_user_ids, vec![OWNER]);
+    // A replied-to author who left the server cannot see the channel: not mentioned.
+    let carol = UserId::new(3);
+    f.svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .members
+        .push(member(f.guild, carol));
+    let c = f
+        .svc
+        .send_message(carol, f.general, say("hi"))
+        .await
+        .unwrap();
+    f.svc
+        .repo_for_tests()
+        .store
+        .lock()
+        .unwrap()
+        .members
+        .retain(|m| m.user_id != carol);
+    let a = f
+        .svc
+        .send_message(BOB, f.general, reply("hello", c.id))
+        .await
+        .unwrap();
+    assert!(a.mention_user_ids.is_empty());
+}
+
+#[tokio::test]
+async fn a_forward_is_not_a_reply() {
+    let f = fixture().await;
+    let q = f
+        .svc
+        .send_message(OWNER, f.general, say("q"))
+        .await
+        .unwrap();
+    // A forward cannot carry a reply (FORWARD_SHAPE), so it never reaches the reply rule: it mentions nobody.
+    let fwd = SendMessage {
+        forward: Some(crate::service::ForwardRequest {
+            source_message: q.id,
+            source_channel: f.general,
+            snapshot: crate::message::ForwardSnapshot::default(),
+        }),
+        ..Default::default()
+    };
+    let m = f.svc.send_message(BOB, f.general, fwd).await.unwrap();
+    assert!(m.mention_user_ids.is_empty());
+}

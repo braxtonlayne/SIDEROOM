@@ -2402,6 +2402,35 @@ async fn a_blocked_users_mention_does_not_badge_the_blocker() {
     assert_eq!(muted.len(), 2);
 }
 
+/// D-721 (the server half the open app now matches): an ignored author's mention adds no count either, and a
+/// block the other way (the author blocked the target) keeps it off too.
+#[tokio::test]
+async fn an_ignored_or_blocking_authors_mention_adds_no_count() {
+    let e = env().await;
+    let ch = e.ch;
+    assert_eq!(
+        e.put("/users/@me/ignores/2", CAROL, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    block(&e, BOB, ALICE).await;
+    let (s, v) = e
+        .post(
+            &format!("/channels/{ch}/messages"),
+            BOB,
+            json!({"content": "hi <@1> and <@3>"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let count = |v: &Value| {
+        v["entries"]
+            .as_array()
+            .and_then(|a| a.iter().find(|x| x["id"] == ch.to_string().as_str()))
+            .map_or(0, |x| x["mention_count"].as_i64().unwrap_or(0))
+    };
+    assert_eq!(count(&e.get("/users/@me/read-states", CAROL).await.1), 0);
+    assert_eq!(count(&e.get("/users/@me/read-states", ALICE).await.1), 0);
+}
+
 /// D-688: a request seeded with messages (the in-memory repository's stand-in for the messages table).
 fn seed_gist(e: &Env, channel: &str, id: u64, author: u64, content: &str, attachments: u32) {
     e.repo
@@ -2456,6 +2485,28 @@ async fn a_pending_request_carries_the_latest_message_as_a_preview() {
     // The sender never sees a request preview of their own conversation.
     let (_, alice) = e.get("/users/@me/channels", ALICE).await;
     assert!(alice[0].get("sr_request_preview").is_none(), "{alice}");
+}
+
+/// D-728: a request whose latest message is a long spoiler shows none of the hidden words.
+#[tokio::test]
+async fn a_long_spoiler_never_reaches_the_request_preview() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    let content = format!("look ||{}||", "hidden".repeat(40));
+    seed_gist(&e, &id, 3 << 22, ALICE, &content, 0);
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let text = bob[0]["sr_request_preview"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        !text.contains("hidden"),
+        "the hidden words leaked: {text:?}"
+    );
+    assert_eq!(text, "look\u{2026}", "{bob}");
 }
 
 #[tokio::test]

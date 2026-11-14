@@ -20,6 +20,7 @@ import {
   type SearchSort,
 } from './searchUi';
 import { ContextLine, useHitContext } from './searchContext';
+import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { formatMessageTime } from './time';
 
 type Status =
@@ -71,6 +72,7 @@ export function SearchBox({
   label: string;
 }) {
   const t = useT();
+  const hidden = useHiddenAuthors();
   const isDm = !guildId || guildId === HOME;
   const navigate = useNavigate();
   const users = useUsers();
@@ -351,19 +353,32 @@ export function SearchBox({
                           users[m.author.id]?.displayName ??
                           m.author.username ??
                           t('lounge.searchBox.unknown');
+                        // A blocked or ignored author's hit is the list's hidden message of one, no name, no
+                        // text (D-730); there is no reveal in this compact row.
+                        const kind = hidden.blocked.has(m.author.id)
+                          ? 'blocked'
+                          : hidden.ignored.has(m.author.id)
+                            ? 'ignored'
+                            : null;
                         return (
                           <HitRow key={m.id} hit={m} onJump={() => jump(m)}>
                             <span className="lng-search-meta">
-                              <strong>{name}</strong>
+                              {!kind && <strong>{name}</strong>}
                               <time dateTime={m.timestamp}>{formatMessageTime(m.timestamp)}</time>
                             </span>
                             <span className="lng-search-snippet">
-                              {highlightSegments(snippet.text, snippet.highlights).map((s, i) =>
-                                s.hit ? (
-                                  <mark key={i}>{s.text}</mark>
-                                ) : (
-                                  <span key={i}>{s.text}</span>
-                                ),
+                              {kind ? (
+                                <span className="lng-muted" data-hidden-line={kind}>
+                                  {t('lounge.messageList.hiddenRun', { count: 1, kind })}
+                                </span>
+                              ) : (
+                                highlightSegments(snippet.text, snippet.highlights).map((s, i) =>
+                                  s.hit ? (
+                                    <mark key={i}>{s.text}</mark>
+                                  ) : (
+                                    <span key={i}>{s.text}</span>
+                                  ),
+                                )
                               )}
                             </span>
                           </HitRow>

@@ -17,7 +17,8 @@ impl PgMentionSource {
 
 /// Candidate mentions of `$1` from the last seven days (the id bound prunes message
 /// partitions), in channels the user is a member of. The API drops what the caller can
-/// no longer see.
+/// no longer see. Not by an author the caller blocked or who blocked the caller, nor one the caller
+/// ignores (D-721; the rule of `muted_towards`).
 pub(crate) const MENTIONS_SQL: &str = "\
 SELECT m.channel_id, m.id FROM messages m \
 WHERE m.id >= sr_snowflake_floor(now() - interval '7 days') \
@@ -30,7 +31,7 @@ WHERE m.id >= sr_snowflake_floor(now() - interval '7 days') \
                         WHERE ($5::bigint IS NULL OR c.guild_id = $5)) \
        OR ($5::bigint IS NULL AND m.channel_id IN \
            (SELECT channel_id FROM channel_recipients WHERE user_id = $1))) \
-ORDER BY m.id DESC LIMIT $6";
+  AND NOT EXISTS (SELECT 1 FROM relationships r WHERE r.type = 2                   AND ((r.user_id = $1 AND r.target_id = m.author_id)                        OR (r.user_id = m.author_id AND r.target_id = $1)))   AND NOT EXISTS (SELECT 1 FROM user_ignores i WHERE i.user_id = $1 AND i.target_id = m.author_id) ORDER BY m.id DESC LIMIT $6";
 
 #[async_trait]
 impl MentionSource for PgMentionSource {
@@ -194,6 +195,92 @@ mod tests {
             ..q
         };
         assert_eq!(ids(src.recent(page).await.unwrap()), vec![2, 1]);
+        db.cleanup().await.expect("cleanup");
+    }
+
+    /// D-721: a mention by an author the caller blocked, who blocked the caller, or whom the caller ignores is
+    /// not in the list; an unrelated author's is, and the limit fills from older rows.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn leaves_out_mentions_by_blocked_and_ignored_authors() {
+        let db = TestDb::new().await.expect("test db");
+        let pool = db.pool();
+        for n in 1..=6 {
+            exec(pool, &format!("INSERT INTO persons (id) VALUES ({n})")).await;
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO accounts (id, person_id, username, email, password_hash)                      VALUES ({n}, {n}, 'u{n}', 'u{n}@example.test', 'x')"
+                ),
+            )
+            .await;
+        }
+        exec(
+            pool,
+            "INSERT INTO guilds (id, name, owner_id) VALUES (50, 'guild50', 1)",
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO channels (id, guild_id, type) VALUES (60, 50, 0)",
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO guild_members (guild_id, user_id) VALUES (50, 1), (50, 2), (50, 3), (50, 4), (50, 5), (50, 6)",
+        )
+        .await;
+        // 2 is blocked by the caller (1), 3 blocked the caller, 4 is ignored by the caller, 5 and 6 are unrelated.
+        exec(
+            pool,
+            "INSERT INTO relationships (user_id, target_id, type) VALUES (1, 2, 2), (3, 1, 2)",
+        )
+        .await;
+        exec(
+            pool,
+            "INSERT INTO user_ignores (user_id, target_id) VALUES (1, 4)",
+        )
+        .await;
+        let _: String = sqlx::query_scalar(
+            "SELECT sr_ensure_message_partition((now() - interval '1 day')::date)",
+        )
+        .fetch_one(pool)
+        .await
+        .expect("partition");
+        let base: i64 =
+            sqlx::query_scalar("SELECT sr_snowflake_floor(now() - interval '1 day') + 5000")
+                .fetch_one(pool)
+                .await
+                .expect("floor");
+        // Oldest first: 0 and 1 by the unrelated 5 and 6, then 2 (blocked), 3 (blocked us), 4 (ignored), all newer.
+        for (off, author) in [(0, 5), (1, 6), (2, 2), (3, 3), (4, 4)] {
+            exec(
+                pool,
+                &format!(
+                    "INSERT INTO messages (id, channel_id, author_id, mention_user_ids)                      VALUES ({}, 60, {author}, ARRAY[1]::bigint[])",
+                    base + off
+                ),
+            )
+            .await;
+        }
+        let src = PgMentionSource::new(pool.clone());
+        let q = MentionQuery {
+            user: UserId::new(1),
+            limit: 50,
+            before: None,
+            include_roles: true,
+            include_everyone: true,
+            guild: None,
+        };
+        let ids = |v: Vec<(ChannelId, MessageId)>| -> Vec<i64> {
+            v.into_iter()
+                .map(|(_, m)| i64::try_from(m.get()).unwrap() - base)
+                .collect()
+        };
+        assert_eq!(ids(src.recent(q).await.unwrap()), vec![1, 0]);
+        // The three newer rows are filtered out, so a limit of 2 is still filled from the older ones.
+        let two = MentionQuery { limit: 2, ..q };
+        assert_eq!(ids(src.recent(two).await.unwrap()), vec![1, 0]);
         db.cleanup().await.expect("cleanup");
     }
 }

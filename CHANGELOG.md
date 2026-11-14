@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 70 - 2026-11-14
+
+- **Members.** The red mention badge is the same before and after a reload (nothing from someone you blocked or ignore, and one for a mention of your role); a reply to you counts as a mention unless the sender turned the ping off, and a reply with the ping off no longer pushes; desktop notifications follow your category and server settings and your role mentions; a spoiler is never readable in a thread row, a request preview, a reply line, the Inbox, a DM toast or a confirmation; a blocked person's words no longer show in reply lines, pins, search or the Inbox, and they no longer show as typing; a restored message counts in its thread; search finds words that stood next to a list.
+- **Staff.** Nothing.
+- **For operators.** No migration. Optional: `sr-cli reindex` rebuilds the search index so older messages get the corrected text; nothing breaks without it. A bot that replies through the API and sends no `allowed_mentions` now pings the person it replies to, as with Discord. The voice tests now cover an ICE restart and a full rejoin with music on: the music now survives both (before, a full rejoin brought the microphone back but not the music).
+
 ## Phase 69 - 2026-11-14
 
 - **Members.** A notification no longer shows a spoiler's text and names the people it mentions instead of showing their ids, in the app and in the push to a closed app; the open app raises no notification or sound for someone you blocked or ignore; a reaction notification shows the message it is about; someone who is online only on a phone shows a smartphone, not a handset, and others see one presence update when you connect, not two; a thread started while you have the channel open shows its chip at once, a thread's message count follows live, and a thread of 50 or more reads "50+ messages".

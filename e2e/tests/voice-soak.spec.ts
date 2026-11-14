@@ -2,9 +2,11 @@ import type { Page } from '@playwright/test';
 import { expect, registerUser, test, type SeededUser } from '../support/fixtures';
 import {
   inbound,
+  type InboundAudioStream,
   inboundAudioStreams,
   joinVoice,
   mediaContext,
+  musicVerdict,
   playTone,
   trackPeerConnections,
   voiceServer,
@@ -395,7 +397,7 @@ test.describe('Voice soak', () => {
       // ---- Music (SOAK_MUSIC=1): member 0 (the server's owner, so it may speak and the channel allows music by
       // default) plays the tone before the churn starts. The other members' audio streams are listed first (their
       // microphones), so the music stream is the one that appears afterwards.
-      const audioBefore = new Map<number, Set<string>>();
+      const audioBefore = new Map<number, InboundAudioStream[]>();
       if (MUSIC) {
         for (const [i, m] of members.entries()) {
           if (i === 0) continue;
@@ -411,7 +413,7 @@ test.describe('Voice soak', () => {
               },
             )
             .toBe(true);
-          audioBefore.set(i, new Set((await inboundAudioStreams(m.page)).map((s) => s.id)));
+          audioBefore.set(i, await inboundAudioStreams(m.page));
         }
         await playTone(members[0]!.page);
         for (const [i, m] of members.entries()) {
@@ -514,9 +516,10 @@ test.describe('Voice soak', () => {
         let music: unknown = null;
         if (MUSIC && i !== 0) {
           const first = audioBefore.get(i)!;
+          const firstIds = new Set(first.map((s) => s.id));
           const was = new Map(streamsBefore[i]!.map((s) => [s.id, s.bytes]));
           const after = await inboundAudioStreams(m.page);
-          const added = after.filter((s) => !first.has(s.id));
+          const added = after.filter((s) => !firstIds.has(s.id));
           music = {
             audioStreams: after.length,
             newStreams: added.map((s) => ({
@@ -528,12 +531,18 @@ test.describe('Voice soak', () => {
           expect(after.length, `member ${i} still has the music stream`).toBeGreaterThanOrEqual(
             COUNT,
           );
+          const verdict = musicVerdict(
+            first,
+            after,
+            after.map((s) => ({
+              id: s.id,
+              bytesBefore: was.get(s.id) ?? 0,
+              bytesAfter: s.bytes,
+            })),
+          );
           expect(
-            added.some(
-              (s) =>
-                /opus/i.test(s.mimeType) && s.channels === 2 && s.bytes - (was.get(s.id) ?? 0) > 0,
-            ),
-            `member ${i} gets stereo Opus music that is still arriving at the end`,
+            verdict === null,
+            `member ${i} gets stereo Opus music that is still arriving at the end: ${verdict}`,
           ).toBe(true);
         }
         const f = now.frames;

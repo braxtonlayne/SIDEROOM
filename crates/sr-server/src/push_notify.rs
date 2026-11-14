@@ -147,7 +147,8 @@ pub fn mention_kind(
 ) -> MentionKind {
     MentionKind {
         direct: msg.mention_user_ids.contains(&user),
-        reply: reply_author == Some(user),
+        // D-725: "replied to you" only for a reply that pinged (the replied-to author is among the mentions).
+        reply: reply_author == Some(user) && msg.mention_user_ids.contains(&user),
         everyone: msg.mention_everyone,
         role: msg.mention_role_ids.iter().any(|r| roles.contains(r)),
     }
@@ -219,14 +220,8 @@ pub async fn load_names(src: &dyn NameSource, guild: Option<GuildId>, content: &
 /// A message as plain text on one line (D-716): a spoiler is `[spoiler]`, a mention is a name, white space
 /// (the function writes line breaks) is one space.
 pub fn plain_text(content: &str, names: &dyn sr_markdown::Resolver) -> String {
-    // The parser eats the line break before a list, so a list starts after a space of its own.
-    let mut text = String::new();
-    for node in sr_markdown::parse(content) {
-        if matches!(node, sr_markdown::Node::List { .. }) {
-            text.push(' ');
-        }
-        text.push_str(&sr_markdown::to_plain_text_with(&[node], names));
-    }
+    // Blocks are kept apart by `to_plain_text_with` itself (D-722).
+    let text = sr_markdown::to_plain_text_with(&sr_markdown::parse(content), names);
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
@@ -621,7 +616,16 @@ mod tests {
             &[sr_core::RoleId::new(9)],
             Some(UserId::new(6)),
         );
-        assert!(!k.direct && k.reply && k.role);
+        // The replied-to author is not among the mentions: the reply did not ping (D-725).
+        assert!(!k.direct && !k.reply && k.role);
+        // A reply that pinged: the author is in `mention_user_ids`.
+        let mut pinged = msg();
+        pinged.mention_user_ids.push(UserId::new(6));
+        let k = mention_kind(&pinged, UserId::new(6), &[], Some(UserId::new(6)));
+        assert!(k.direct && k.reply);
+        // A reply to someone else is no reply for this user.
+        let k = mention_kind(&pinged, UserId::new(6), &[], Some(UserId::new(7)));
+        assert!(!k.reply);
     }
 
     struct Fake(Vec<u64>);
