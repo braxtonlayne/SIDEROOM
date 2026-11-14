@@ -2402,6 +2402,35 @@ async fn a_blocked_users_mention_does_not_badge_the_blocker() {
     assert_eq!(muted.len(), 2);
 }
 
+/// D-721 (the server half the open app now matches): an ignored author's mention adds no count either, and a
+/// block the other way (the author blocked the target) keeps it off too.
+#[tokio::test]
+async fn an_ignored_or_blocking_authors_mention_adds_no_count() {
+    let e = env().await;
+    let ch = e.ch;
+    assert_eq!(
+        e.put("/users/@me/ignores/2", CAROL, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    block(&e, BOB, ALICE).await;
+    let (s, v) = e
+        .post(
+            &format!("/channels/{ch}/messages"),
+            BOB,
+            json!({"content": "hi <@1> and <@3>"}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let count = |v: &Value| {
+        v["entries"]
+            .as_array()
+            .and_then(|a| a.iter().find(|x| x["id"] == ch.to_string().as_str()))
+            .map_or(0, |x| x["mention_count"].as_i64().unwrap_or(0))
+    };
+    assert_eq!(count(&e.get("/users/@me/read-states", CAROL).await.1), 0);
+    assert_eq!(count(&e.get("/users/@me/read-states", ALICE).await.1), 0);
+}
+
 /// D-688: a request seeded with messages (the in-memory repository's stand-in for the messages table).
 fn seed_gist(e: &Env, channel: &str, id: u64, author: u64, content: &str, attachments: u32) {
     e.repo
