@@ -9,14 +9,18 @@ import { parseMarkdown, useMarkdownReady } from '../markdown';
 
 const BLOCKS: ReadonlySet<string> = new Set(['list', 'quote', 'heading', 'subtext', 'code_block']);
 
-/** What the message renderer shows for a timestamp node (`Invalid Date` when it cannot). */
+/**
+ * What the message renderer shows for a timestamp node (`Invalid Date` when it cannot), except the relative style
+ * (`:R`): a one-line text is not redrawn as time passes, so "in 5 minutes" would go stale. It is the short date and
+ * time (the `f` style) instead (D-737).
+ */
 function timeText(
   unix: number,
   style: Extract<MdNode, { type: 'timestamp' }>['style'],
   time: TimestampFormatOptions | undefined,
 ): string {
   try {
-    return formatTimestamp(unix, style, time);
+    return formatTimestamp(unix, style === 'relative' ? 'short_date_time' : style, time);
   } catch {
     return 'Invalid Date';
   }

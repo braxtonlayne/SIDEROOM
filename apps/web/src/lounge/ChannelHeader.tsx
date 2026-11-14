@@ -7,6 +7,7 @@ import { NotifyButton } from './header/NotifyButton';
 import { InboxButton } from './inbox/InboxButton';
 import { SavedButton } from './features/SavedButton';
 import { HelpButton } from './header/HelpButton';
+import { PhoneSearch } from './header/PhoneSearch';
 import { PinsButton } from './header/PinsButton';
 import { SearchBox } from './SearchBox';
 import { ThreadsButton } from './threads/ThreadsButton';
@@ -176,6 +177,10 @@ export function ChannelHeader({
               </button>
             </Tooltip>
           </>
+        )}
+        {/* D-740: onBack is only given at phone width, where the inline search box is hidden. */}
+        {onBack && channelId && (
+          <PhoneSearch guildId={guildId} channelId={channelId} label={searchLabel} />
         )}
         {dmHeader && (
           <button
