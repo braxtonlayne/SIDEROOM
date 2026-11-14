@@ -41,6 +41,7 @@ import { formatDividerDate } from './time';
 import { richCardResolvers } from './msg/RichCards';
 import { failWith } from './actionError';
 import './msg/msg.css';
+import './msg/markdown.css';
 
 /** Reports `fallback` while the scroll element has no layout (jsdom, first paint) so rows still render. */
 const FALLBACK: Rect = { width: 600, height: 800 };

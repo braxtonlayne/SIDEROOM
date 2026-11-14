@@ -4,6 +4,7 @@
 // and code blocks lose their block layout, and mentions, timestamps and the Lounge-only chips are dropped.
 import { Markdown, nodesToText, type MdNode } from '@sideroom/markdown-react';
 import { parseMarkdown, useMarkdownReady } from '../markdown';
+import '../msg/markdown.css';
 
 const BREAK: MdNode = { type: 'line_break' };
 
