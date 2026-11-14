@@ -56,7 +56,7 @@ Layering: defaults, TOML file, `SR_*` env (`__` separates nested keys).
 
 A release build (`cargo build --release`, the release binaries and the server image) refuses to start, with a message naming each key, when any of these is set (`crates/sr-server/src/release_guard.rs`, SEC-AUD-028): an empty `server.secret_key`, `unfurl.allow_private_for_tests`, `storage.endpoint = "memory:"`, `activities.origin_mode = "same_host_sandboxed"`, `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS` with an Esplora endpoint that is not a private service name or address, and a non-loopback `server.metrics_bind` without `server.metrics_token`. A debug build only warns.
 
-Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_music_egress_bits_per_second` (the music tracks' share of the egress, MUS-JB-001), `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
+Voice metrics on `/internal/metrics`: `sr_voice_rooms`, `sr_voice_participants`, `sr_voice_egress_bits_per_second`, `sr_voice_ingress_bits_per_second`, `sr_voice_music_egress_bits_per_second` (the music tracks' share of the egress, MUS-JB-001), `sr_voice_packet_loss_ratio`, `sr_voice_forwarded_packets_total`. `process_cpu_seconds_total` (Linux only; the whole process, `sr_voice::process_cpu`, D-706) is set by `sr-server` and by the standalone SFU. Voice state is held in memory on the node; see `docs/specs/lounge-voice-video.md` section 4.
 
 ## Graceful shutdown
 
