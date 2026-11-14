@@ -1,6 +1,7 @@
 import { Button, Notice, TextInput } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import {
   MAX_BUNDLE_BYTES,
@@ -11,13 +12,29 @@ import {
   keys,
   saveActivity,
   submitActivity,
-  uploadActivityBundle,
 } from '../api';
+import {
+  PackageUploader,
+  formatBytes,
+  getPackageLimits,
+  limitLine,
+  type PackageLimits,
+  type PackageProgress,
+} from '../packageUpload';
 import type { ActivityBundle, ActivityBundleDetail, ActivityMapping, DevApp } from '../types';
 import { LoadError, Loading, NotAvailable } from '../ui';
 
 /** Most URL mappings the server accepts. */
 export const MAX_MAPPINGS = 10;
+
+/** What a server without the limits route (older than wave 65) takes: the single-request upload only. */
+const LEGACY_LIMITS: PackageLimits = {
+  max_bytes: String(MAX_BUNDLE_BYTES),
+  max_files: 2000,
+  tier: 'standard',
+  resumable: false,
+  part_size: 0,
+};
 
 function size(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -66,7 +83,24 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
   const [rows, setRows] = useState<ActivityMapping[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number | null>(null);
+  const [progress, setProgress] = useState<PackageProgress | null>(null);
+  const [resumed, setResumed] = useState<string | null>(null);
+  const uploader = useRef<PackageUploader | null>(null);
+  uploader.current ??= new PackageUploader();
+  const up = uploader.current;
+  const resumeTried = useRef(false);
+  const limitsQ = useQuery({
+    queryKey: [...keys.activity(app.id), 'package-limits'],
+    queryFn: async () => {
+      try {
+        return await getPackageLimits(app.id);
+      } catch (e) {
+        if (isUnavailable(e)) return LEGACY_LIMITS;
+        throw e;
+      }
+    },
+    retry: false,
+  });
   const [uploaded, setUploaded] = useState<ActivityBundleDetail | null>(null);
   const [showFiles, setShowFiles] = useState<string | null>(null);
   const [over, setOver] = useState(false);
@@ -102,9 +136,9 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
     onError: (e) => setError(errorText(e, t('developers.activities.submitFailed'))),
   });
   const upload = useMutation({
-    mutationFn: (file: File) => {
-      setProgress(0);
-      return uploadActivityBundle(app.id, file, setProgress);
+    mutationFn: (job: () => Promise<ActivityBundleDetail>) => {
+      setProgress({ phase: 'sending', sent: 0, total: 0, checked: 0 });
+      return job();
     },
     onSuccess: (detail) => {
       setUploadError(null);
@@ -112,18 +146,39 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
       setShowFiles(detail.bundle.id);
       refresh();
     },
-    onError: (e) => setUploadError(errorText(e, t('developers.activities.uploadFailed'))),
-    onSettled: () => setProgress(null),
+    onError: (e) =>
+      setUploadError(
+        e instanceof ApiError
+          ? errorText(e, t('developers.activities.uploadFailed'))
+          : e instanceof Error && e.message
+            ? e.message
+            : t('developers.activities.uploadFailed'),
+      ),
+    onSettled: () => {
+      setProgress(null);
+      setResumed(null);
+    },
   });
+
+  // After a refresh: an upload the browser remembers for this application continues on its own.
+  useEffect(() => {
+    if (resumeTried.current) return;
+    resumeTried.current = true;
+    void up
+      .resume(app.id, setProgress)
+      .then((r) => {
+        if (!r) return;
+        setResumed(r.filename);
+        upload.mutate(() => r.bundle);
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, []);
 
   const take = (file: File | undefined) => {
     if (!file) return;
     setUploadError(null);
-    if (file.size > MAX_BUNDLE_BYTES) {
-      setUploadError(t('developers.activities.tooLarge'));
-      return;
-    }
-    upload.mutate(file);
+    upload.mutate(() => up.upload(app.id, file, setProgress, limitsQ.data ?? LEGACY_LIMITS));
   };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
@@ -253,14 +308,56 @@ export function ActivitiesTab({ app }: { app: DevApp }) {
         <Button variant="ghost" loading={upload.isPending} onClick={() => picker.current?.click()}>
           {t('developers.activities.choose')}
         </Button>
-        {progress !== null && (
-          <progress
-            value={Math.round(progress * 100)}
-            max={100}
-            aria-label={t('developers.activities.uploading')}
-          />
-        )}
       </div>
+      {limitsQ.data && (
+        <p className="dev-muted" data-testid="package-limit">
+          {limitLine(limitsQ.data)}
+        </p>
+      )}
+      {resumed && (
+        <p role="status" className="dev-muted">
+          {t('developers.packageUpload.resumed', { name: resumed })}
+        </p>
+      )}
+      {progress !== null && (
+        <div className="dev-pkg-progress" role="status" data-phase={progress.phase}>
+          {progress.phase === 'checking' ? (
+            <>
+              <span>{t('developers.packageUpload.checking')}</span>
+              <progress
+                value={progress.checked}
+                max={Math.max(1, progress.total)}
+                aria-label={t('developers.packageUpload.checking')}
+              />
+              <span className="dev-muted">
+                {t('developers.packageUpload.checked', {
+                  done: formatBytes(progress.checked),
+                  total: formatBytes(progress.total),
+                })}
+              </span>
+            </>
+          ) : (
+            <>
+              <progress
+                value={progress.sent}
+                max={Math.max(1, progress.total)}
+                aria-label={t('developers.activities.uploading')}
+              />
+              <span className="dev-muted">
+                {t('developers.packageUpload.sent', {
+                  sent: formatBytes(progress.sent),
+                  total: formatBytes(progress.total),
+                })}
+              </span>
+            </>
+          )}
+          {up.canCancel() && (
+            <Button variant="ghost" size="sm" onClick={() => void up.cancel()}>
+              {t('developers.packageUpload.cancel')}
+            </Button>
+          )}
+        </div>
+      )}
       {uploadError && (
         <p className="dev-error" role="alert">
           {uploadError}

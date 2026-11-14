@@ -520,6 +520,15 @@
   border-color: var(--ui-accent);
   background: var(--ui-bg-raised);
 }
+.dev-pkg-progress {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  margin-block-start: 8px;
+}
+.dev-pkg-progress progress {
+  inline-size: min(100%, 360px);
+}
 .dev-bundle-list {
   display: grid;
   gap: 8px;

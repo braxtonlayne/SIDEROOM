@@ -652,3 +652,241 @@ async fn the_recheck_stamps_ok_marks_failing_and_recovers() {
     assert!(res.iter().all(|r| r.id != 1));
     assert_eq!(repo.by_id(1).await.unwrap().unwrap().cors_ok_at, Some(2000));
 }
+
+// ------------------------------------------- the daily recheck of the response type row (D-645)
+
+/// A bucket with a CORS document and a probe object: a write answers `put_status`, the rest works.
+fn bucket_with_probe(put_status: u16) -> (Arc<Handler>, Arc<Mutex<Option<String>>>) {
+    let (cors, doc) = cors_store();
+    let h: Arc<Handler> = Arc::new(move |m, t, body| {
+        if t.starts_with("/shelf/.sideroom-probe") {
+            return match m {
+                "PUT" => (put_status, String::new()),
+                "GET" => (200, "sideroom probe".into()),
+                "DELETE" => (204, String::new()),
+                _ => (405, String::new()),
+            };
+        }
+        cors(m, t, body)
+    });
+    (h, doc)
+}
+
+fn allow_origin(doc: &Arc<Mutex<Option<String>>>) {
+    *doc.lock().unwrap() = Some(sr_storage::s3admin::cors_xml(&[ORIGIN.to_owned()]).unwrap());
+}
+
+fn iso_t(ms: i64) -> String {
+    format!("t{ms}")
+}
+
+fn probes(seen: &Arc<Mutex<Vec<String>>>) -> usize {
+    seen.lock()
+        .unwrap()
+        .iter()
+        .filter(|l| l.starts_with("PUT /shelf/.sideroom-probe"))
+        .count()
+}
+
+fn test_json(rows: &[(&str, &str)]) -> String {
+    let rows: Vec<String> = rows
+        .iter()
+        .map(|(id, st)| format!("{{\"id\":\"{id}\",\"status\":\"{st}\",\"message\":\"m\"}}"))
+        .collect();
+    format!("{{\"at\":\"t0\",\"rows\":[{}]}}", rows.join(","))
+}
+
+fn row_status(m: &sr_storage::mounts::Mount, id: &str) -> Option<String> {
+    let doc: serde_json::Value = serde_json::from_str(m.last_test.as_deref()?).ok()?;
+    doc["rows"]
+        .as_array()?
+        .iter()
+        .find(|r| r["id"] == id)
+        .and_then(|r| r["status"].as_str().map(str::to_owned))
+}
+
+#[tokio::test]
+async fn a_mount_without_the_row_gets_it_on_the_daily_run() {
+    let (h, doc) = bucket_with_probe(200);
+    allow_origin(&doc);
+    let (ep, seen) = fake_s3(h).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &ep), None).await.unwrap();
+    // Tested before wave 63: six rows, no response_type.
+    repo.record_test(1, 5, test_json(&[("put", "pass"), ("cors", "warn")]), None)
+        .await
+        .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(row_status(&m, "response_type").as_deref(), Some("pass"));
+    // The other rows are kept, and the mount is as it was.
+    assert_eq!(row_status(&m, "put").as_deref(), Some("pass"));
+    assert_eq!(row_status(&m, "cors").as_deref(), Some("warn"));
+    assert_eq!(m.status, MountStatus::Active);
+    assert!(!m.response_type_failed());
+    assert_eq!(probes(&seen), 1, "one probe for the mount in one run");
+}
+
+#[tokio::test]
+async fn a_provider_that_ignores_overrides_becomes_failing_and_presigns_no_get() {
+    let (h, doc) = bucket_with_probe(200);
+    allow_origin(&doc);
+    let (ep, seen) = fake_s3_with(h, false).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &ep), None).await.unwrap();
+    repo.record_test(1, 5, test_json(&[("put", "pass")]), None)
+        .await
+        .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.status, MountStatus::Failing);
+    assert_eq!(row_status(&m, "response_type").as_deref(), Some("fail"));
+    assert_eq!(
+        row_status(&m, "put").as_deref(),
+        Some("pass"),
+        "other rows kept"
+    );
+    assert!(m.last_test.as_deref().unwrap().contains("cors_recheck"));
+    // The reader the presign paths ask (D-644).
+    assert!(m.response_type_failed());
+    assert_eq!(probes(&seen), 1);
+}
+
+#[tokio::test]
+async fn a_fixed_provider_recovers_on_a_later_run() {
+    let (h, doc) = bucket_with_probe(200);
+    allow_origin(&doc);
+    let (bad, _) = fake_s3_with(h, false).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &bad), None).await.unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert!(m.response_type_failed() && m.status == MountStatus::Failing);
+
+    // The operator moves to a provider that honours the overrides.
+    let (h2, doc2) = bucket_with_probe(200);
+    allow_origin(&doc2);
+    let (good, _) = fake_s3(h2).await;
+    repo.update(
+        1,
+        MountPatch {
+            endpoint: Some(good),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 2000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.status, MountStatus::Active);
+    assert!(!m.response_type_failed());
+    assert_eq!(row_status(&m, "response_type").as_deref(), Some("pass"));
+}
+
+#[tokio::test]
+async fn a_probe_that_cannot_run_changes_nothing() {
+    // The key may not write: the check cannot be completed.
+    let (h, doc) = bucket_with_probe(403);
+    allow_origin(&doc);
+    let (ep, seen) = fake_s3_with(h, false).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &ep), None).await.unwrap();
+    let before = test_json(&[("put", "pass")]);
+    repo.record_test(1, 5, before.clone(), None).await.unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.last_test.as_deref(), Some(before.as_str()));
+    assert_eq!((m.status, m.last_test_at), (MountStatus::Active, Some(5)));
+    assert_eq!(probes(&seen), 1, "it tried");
+
+    // A service that is down: nothing changes either.
+    let port = {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        l.local_addr().unwrap().port()
+    };
+    repo.update(
+        1,
+        MountPatch {
+            endpoint: Some(format!("http://127.0.0.1:{port}")),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 2000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.last_test.as_deref(), Some(before.as_str()));
+    assert_eq!(m.status, MountStatus::Active);
+}
+
+#[tokio::test]
+async fn a_mount_with_a_passed_row_is_not_probed() {
+    let (h, doc) = bucket_with_probe(200);
+    allow_origin(&doc);
+    let (ep, seen) = fake_s3(h).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &ep), None).await.unwrap();
+    repo.record_test(1, 5, test_json(&[("response_type", "pass")]), None)
+        .await
+        .unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    assert_eq!(
+        probes(&seen),
+        0,
+        "nobody pays a daily write for a healthy mount"
+    );
+}
+
+#[tokio::test]
+async fn a_cors_failure_is_not_cleared_by_a_passed_response_type() {
+    // The bucket has no CORS rule (the job fails the mount for CORS) but honours the overrides.
+    let (h, _doc) = bucket_with_probe(200);
+    let (ep, _) = fake_s3(h).await;
+    let repo = MemoryMountRepo::new();
+    repo.create(new_mount(1, &ep), None).await.unwrap();
+    recheck_all(&repo, &PlainSealer, ORIGIN, 1000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.status, MountStatus::Failing, "failing for CORS");
+    assert_eq!(row_status(&m, "response_type").as_deref(), Some("pass"));
+    assert_eq!(row_status(&m, "cors").as_deref(), Some("fail"));
+    assert_eq!(m.cors_ok_at, None);
+    assert!(!m.response_type_failed());
+
+    // The next run: still no CORS rule, so still failing for CORS.
+    recheck_all(&repo, &PlainSealer, ORIGIN, 2000, &iso_t)
+        .await
+        .unwrap();
+    let m = repo.by_id(1).await.unwrap().unwrap();
+    assert_eq!(m.status, MountStatus::Failing);
+
+    // And the other way round: a passing CORS rule does not clear a failed response row.
+    let (h2, doc2) = bucket_with_probe(200);
+    allow_origin(&doc2);
+    let (bad, _) = fake_s3_with(h2, false).await;
+    repo.create(new_mount(2, &bad), None).await.unwrap();
+    for at in [3000, 4000] {
+        recheck_all(&repo, &PlainSealer, ORIGIN, at, &iso_t)
+            .await
+            .unwrap();
+        let m = repo.by_id(2).await.unwrap().unwrap();
+        assert_eq!(m.status, MountStatus::Failing, "run at {at}");
+        assert!(m.response_type_failed());
+        assert_eq!(m.cors_ok_at, Some(at), "CORS itself is fine");
+    }
+}

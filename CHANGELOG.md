@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 65 - 2026-11-13
+
+- **Big games.** Activities and arcade games are no longer capped at 32 MB. Packages are checked as they arrive and never loaded into memory, so the limits are settings the operator controls: 512 MB for everyone, 4 GB for reviewed apps and 32 GB for official ones by default. Big uploads go up in resumable parts, and large files play in pieces as the game asks for them.
+- **Staff tools stay with staff.** The Admin app's code is only sent to staff accounts, and never kept on the device.
+- **Safer storage.** A storage bucket that doesn't honour safe download types gives out no download links, and older buckets are checked for it every day.
+- **Steadier alerts.** Link-preview settings and the staff alert feed recover when the server falls behind.
+
 ## Phase 64 - 2026-11-12
 
 - **Phones.** Tapping Friends or Message Requests opens the page, with a back button. In a DM, the header keeps the name, call and video in view and puts the rest under "More".

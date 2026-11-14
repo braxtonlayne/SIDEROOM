@@ -81,20 +81,27 @@ pub async fn sign_code(
     }
     let build = builds.remove(0);
 
-    // Only code files are read, from our own storage, and the hash is recomputed from what was read.
+    // Only code files are read, from our own storage. The hash is recomputed from the stored objects as streams
+    // (no file is held whole); the audit scans the files up to the scan limit and warns about larger ones.
     let (manifest, connect) = svc.bundle_manifest(build.bundle_id).await?;
-    let code = svc
-        .code_files(build.application_id, &build.bundle_sha256, &manifest)
+    let recomputed = svc
+        .code_hash(build.application_id, &build.bundle_sha256, &manifest)
         .await?;
-    let refs: Vec<(&str, &[u8])> = code
-        .iter()
-        .map(|(p, d)| (p.as_str(), d.as_slice()))
-        .collect();
-    let recomputed = sandbox::code_sha256(refs.iter().copied());
     if recomputed.as_deref() != Some(hash) {
         bail!("the stored code files do not hash to {hash}; refusing to sign");
     }
-    let report = sandbox::audit(&refs, &connect);
+    let scan = svc
+        .code_files(build.application_id, &build.bundle_sha256, &manifest)
+        .await?;
+    let refs: Vec<(&str, &[u8])> = scan
+        .files
+        .iter()
+        .map(|(p, d)| (p.as_str(), d.as_slice()))
+        .collect();
+    let mut report = sandbox::audit(&refs, &connect);
+    report
+        .findings
+        .extend(sandbox::skipped_findings(&scan.skipped));
     println!(
         "audit v{}: {} code files, {} bytes, {} findings",
         report.version,

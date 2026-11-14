@@ -127,26 +127,27 @@ describe('admin shell', () => {
     ]);
   });
 
-  it('explains a 403 from /admin/me instead of rendering admin pages', async () => {
+  // SEC-AUD-172 (D-652): the staff door asks /admin/me before it imports Admin; anything but staff is not-found.
+  it('shows the not-found page for a 403 from /admin/me and renders no admin page', async () => {
     server.use(
       http.get('*/api/v1/admin/me', () =>
         HttpResponse.json({ code: 40001, message: 'Staff only.' }, { status: 403 }),
       ),
     );
     openAdmin('accounts');
-    expect(await screen.findByText('Staff only')).toBeInTheDocument();
-    expect(screen.getByText('You do not have permission to do that.')).toBeInTheDocument();
-    expect(within(nav()).queryAllByRole('button')).toEqual([]);
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
+    expect(screen.queryByText('Staff only')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
   });
 
-  it('asks signed-out visitors to log in', async () => {
+  it('shows the not-found page for a signed-out answer too', async () => {
     server.use(
       http.get('*/api/v1/admin/me', () =>
         HttpResponse.json({ message: 'Unauthorized' }, { status: 401 }),
       ),
     );
     openAdmin('accounts');
-    expect(await screen.findByText('Sign in to continue')).toBeInTheDocument();
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
   });
 
   it('redirects an unknown or forbidden section to the first allowed one', async () => {

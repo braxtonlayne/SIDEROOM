@@ -325,6 +325,41 @@ describe('signed-in files', () => {
     expect([...w.caches.keys()]).toEqual(['sr-app-b1']);
   });
 
+  it('a response that says no-store is returned and never stored; the next request goes to the network', async () => {
+    const w = boot(
+      'b1',
+      () => new Response('staff code', { headers: { 'cache-control': 'private, no-store' } }),
+    );
+    expect(await (await w.fetchEvent(req('/app/chunk-s.js', 'no-cors')))!.text()).toBe(
+      'staff code',
+    );
+    await w.fetchEvent(req('/app/chunk-s.js', 'no-cors'));
+    expect(w.network.calls).toEqual(['/app/chunk-s.js', '/app/chunk-s.js']);
+    const cached = [...w.caches.values()].flatMap((m) => [...m.keys()]);
+    expect(cached).not.toContain('/app/chunk-s.js');
+  });
+
+  it('an ordinary app file with a cache-control header is still stored', async () => {
+    const w = boot(
+      'b1',
+      () =>
+        new Response('code', {
+          headers: { 'cache-control': 'public, max-age=31536000, immutable' },
+        }),
+    );
+    await w.fetchEvent(req('/app/chunk-t.js', 'no-cors'));
+    await w.fetchEvent(req('/app/chunk-t.js', 'no-cors'));
+    expect(w.network.calls).toEqual(['/app/chunk-t.js']);
+  });
+
+  it('a 404 on an app file does not purge the app caches', async () => {
+    const store = storeOf(...appRows());
+    const w = boot('b1', () => new Response('', { status: 404 }), store);
+    const res = await w.fetchEvent(req('/app/staff/abc.js', 'no-cors'));
+    expect(res!.status).toBe(404);
+    expect(appKeys(store)).toEqual(['sr-app-b1', 'sr-app-b0']);
+  });
+
   it('a 401 on one purges every app cache and keeps the static one', async () => {
     const store = storeOf(...appRows());
     const w = boot('b1', () => new Response('', { status: 401 }), store);

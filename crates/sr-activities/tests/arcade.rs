@@ -475,12 +475,20 @@ struct Files(std::sync::Mutex<std::collections::HashMap<(i64, String), Vec<u8>>>
 
 #[async_trait]
 impl CartridgeObjects for Files {
-    async fn read(&self, shelf: i64, path: &str, len: u64) -> Result<Vec<u8>, CartridgeReadError> {
+    async fn read_range(
+        &self,
+        shelf: i64,
+        path: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError> {
         let g = self.0.lock().unwrap();
         let b = g.get(&(shelf, path.to_owned())).ok_or_else(|| {
             CartridgeReadError::Definite("is not a file on that shelf.".to_owned())
         })?;
-        Ok(b[..usize::try_from(len).unwrap().min(b.len())].to_vec())
+        let a = usize::try_from(start).unwrap().min(b.len());
+        let e = usize::try_from(end).unwrap().min(b.len());
+        Ok(b[a..e].to_vec())
     }
 }
 
@@ -1045,5 +1053,253 @@ async fn cartridges_listed_before_d568_are_rechecked_against_their_manifest() {
             .checked,
         0
     );
+    r.db.cleanup().await.unwrap();
+}
+
+/// A cartridge of `total` bytes of which the test holds only the ends (SEC-AUD-174, D-656): the zip's first files,
+/// then `total - prefix - suffix` bytes of a stored file that read as zeros, then the index. It records what was
+/// fetched, so a test can assert the whole file never was.
+struct VirtualCartridge {
+    prefix: Vec<u8>,
+    filler: u64,
+    suffix: Vec<u8>,
+    fetched: std::sync::atomic::AtomicU64,
+}
+
+impl VirtualCartridge {
+    fn new(total: u64, manifest: &str) -> Self {
+        let marker = vec![0xABu8; 1024];
+        let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let stored = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        z.start_file("sideroom.json", stored).unwrap();
+        z.write_all(manifest.as_bytes()).unwrap();
+        z.start_file("index.html", stored).unwrap();
+        z.write_all(b"<p>hi</p>").unwrap();
+        z.start_file("data.pak", stored).unwrap();
+        z.write_all(&marker).unwrap();
+        let bytes = z.finish().unwrap().into_inner();
+        let at = bytes
+            .windows(1024)
+            .position(|w| w == marker.as_slice())
+            .unwrap();
+        let prefix = bytes[..at].to_vec();
+        let mut suffix = bytes[at + 1024..].to_vec();
+        let filler = total - prefix.len() as u64 - suffix.len() as u64;
+        // The index's entry for data.pak claims the whole filler, and the end record points past it.
+        let cd = suffix
+            .windows(4)
+            .enumerate()
+            .filter(|(_, w)| *w == [0x50, 0x4b, 0x01, 0x02])
+            .map(|(i, _)| i)
+            .find(|i| suffix[*i + 46..].starts_with(b"data.pak"))
+            .unwrap();
+        suffix[cd + 20..cd + 24].copy_from_slice(&(filler as u32).to_le_bytes());
+        suffix[cd + 24..cd + 28].copy_from_slice(&(filler as u32).to_le_bytes());
+        let eocd = suffix
+            .windows(4)
+            .rposition(|w| w == [0x50, 0x4b, 0x05, 0x06])
+            .unwrap();
+        let old = u32::from_le_bytes(suffix[eocd + 16..eocd + 20].try_into().unwrap());
+        let new = old + (filler as u32 - 1024);
+        suffix[eocd + 16..eocd + 20].copy_from_slice(&new.to_le_bytes());
+        Self {
+            prefix,
+            filler,
+            suffix,
+            fetched: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    fn byte_at(&self, i: u64) -> u8 {
+        let p = self.prefix.len() as u64;
+        if i < p {
+            self.prefix[i as usize]
+        } else if i < p + self.filler {
+            0
+        } else {
+            self.suffix[(i - p - self.filler) as usize]
+        }
+    }
+}
+
+#[async_trait]
+impl CartridgeObjects for VirtualCartridge {
+    async fn read_range(
+        &self,
+        _shelf: i64,
+        _path: &str,
+        start: u64,
+        end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError> {
+        self.fetched
+            .fetch_add(end - start, std::sync::atomic::Ordering::Relaxed);
+        Ok((start..end).map(|i| self.byte_at(i)).collect())
+    }
+}
+
+async fn guild_with_shelf(pool: &PgPool, user: i64) -> (i64, i64) {
+    let guild = uid();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Big Arcade', $2)")
+        .bind(guild)
+        .bind(user)
+        .execute(pool)
+        .await
+        .unwrap();
+    (guild, shelf(pool, "guild", guild).await)
+}
+
+fn cartridge_input(shelf: i64, hash: &str) -> CartridgeInput {
+    CartridgeInput {
+        title: "Big Game".into(),
+        description: String::new(),
+        kind: "game".into(),
+        tier: None,
+        source_ref: String::new(),
+        shelf_id: Some(shelf.to_string()),
+        object_hash: Some(hash.to_owned()),
+        capabilities: vec![],
+        tip_links: vec![],
+    }
+}
+
+async fn catalog_object(pool: &PgPool, shelf: i64, path: &str, size: i64) -> String {
+    let hash: String = sqlx::query_scalar("SELECT shelf_object_hash($1)")
+        .bind(path)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO shelf_objects (shelf_id, object_hash, path, kind, size) VALUES ($1, $2, $3, 'games', $4)",
+    )
+    .bind(shelf)
+    .bind(&hash)
+    .bind(path)
+    .bind(size)
+    .execute(pool)
+    .await
+    .unwrap();
+    hash
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_cartridge_larger_than_the_old_cap_is_listed() {
+    let r = rig().await;
+    let pool = r.db.pool();
+    let user = account(pool).await;
+    let (guild, s) = guild_with_shelf(pool, user).await;
+    let total = 100 * 1024 * 1024;
+    let big = VirtualCartridge::new(
+        total,
+        r#"{"tier": "TIER_1_ORIGINAL", "capabilities": ["datachannel"]}"#,
+    );
+    let hash = catalog_object(pool, s, "games/big.zip", total as i64).await;
+    let v = r
+        .arcade
+        .add_cartridge(guild, user, cartridge_input(s, &hash), &big)
+        .await
+        .unwrap();
+    assert_eq!(v.tier, Tier::Original);
+    assert_eq!(v.capabilities, vec!["datachannel"]);
+    let fetched = big.fetched.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(
+        fetched > 0 && fetched < 16 * 1024 * 1024,
+        "fetched {fetched} bytes of 100 MiB"
+    );
+    r.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_cartridge_with_an_oversized_index_is_refused_as_definite() {
+    let r = rig().await;
+    let pool = r.db.pool();
+    let files = Files::default();
+    let user = account(pool).await;
+    let (guild, s) = guild_with_shelf(pool, user).await;
+    // The end record claims an index of 20 MiB: more than a check may fetch.
+    let mut z = game_zip(Some(r#"{"tier": "TIER_1_ORIGINAL"}"#));
+    let eocd = z
+        .windows(4)
+        .rposition(|w| w == [0x50, 0x4b, 0x05, 0x06])
+        .unwrap();
+    z[eocd + 12..eocd + 16].copy_from_slice(&(20u32 * 1024 * 1024).to_le_bytes());
+    let hash = shelf_file(pool, &files, s, "games/huge-index.zip", z).await;
+    let e = r
+        .arcade
+        .add_cartridge(guild, user, cartridge_input(s, &hash), &files)
+        .await
+        .unwrap_err();
+    match e {
+        ActivityError::Invalid("object_hash", m) => {
+            assert!(
+                m.contains("not a readable game file") && m.contains("index is too large"),
+                "{m}"
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    // The same answer is final for the re-check: the row is delisted, not deferred.
+    let id = old_cartridge(pool, guild, user, "Huge", "x", Some((s, &hash))).await;
+    let pass = r.arcade.recheck_cartridges(&files, 10, 1).await.unwrap();
+    assert_eq!((pass.deferred, pass.delisted.len()), (0, 1), "{pass:?}");
+    assert_eq!(pass.delisted[0].id, id);
+    r.db.cleanup().await.unwrap();
+}
+
+/// A shelf that cannot be asked.
+struct Down;
+
+#[async_trait]
+impl CartridgeObjects for Down {
+    async fn read_range(
+        &self,
+        _shelf: i64,
+        _path: &str,
+        _start: u64,
+        _end: u64,
+    ) -> Result<Vec<u8>, CartridgeReadError> {
+        Err(CartridgeReadError::Transient(
+            "could not be read from its shelf. Try again later.".to_owned(),
+        ))
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_transient_range_error_defers_as_before() {
+    let r = rig().await;
+    let pool = r.db.pool();
+    let files = Files::default();
+    let user = account(pool).await;
+    let (guild, s) = guild_with_shelf(pool, user).await;
+    let hash = shelf_file(
+        pool,
+        &files,
+        s,
+        "games/ok.zip",
+        game_zip(Some(r#"{"tier": "TIER_1_ORIGINAL"}"#)),
+    )
+    .await;
+    // A listing is refused with the shelf's reason and no row is made.
+    let e = r
+        .arcade
+        .add_cartridge(guild, user, cartridge_input(s, &hash), &Down)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&e, ActivityError::Invalid("object_hash", m) if m.contains("Try again later")),
+        "{e:?}"
+    );
+    // The re-check defers the old row: still listed, still unchecked.
+    old_cartridge(pool, guild, user, "Old", "x", Some((s, &hash))).await;
+    let pass = r.arcade.recheck_cartridges(&Down, 10, 1).await.unwrap();
+    assert_eq!(
+        (pass.deferred, pass.delisted.len(), pass.rewritten),
+        (1, 0, 0),
+        "{pass:?}"
+    );
+    assert_eq!(r.arcade.cartridges(guild).await.unwrap().len(), 1);
     r.db.cleanup().await.unwrap();
 }

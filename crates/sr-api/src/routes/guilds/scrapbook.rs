@@ -626,7 +626,11 @@ async fn mount_reach(
     )
     .await
     .ok()?;
-    Some((access, mount.cors_ok_at.is_some()))
+    // D-644: a mount that hands out no link cannot play a copy either.
+    Some((
+        access,
+        mount.cors_ok_at.is_some() && !mount.response_type_failed(),
+    ))
 }
 
 fn object_view(o: &Object, playable: bool) -> ScrapbookObjectView {

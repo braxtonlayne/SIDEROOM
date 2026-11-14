@@ -4,7 +4,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Row, Transaction, postgres::PgRow};
 use sr_storage::{ObjectStorage, StorageError};
@@ -12,18 +11,20 @@ use sr_storage::{ObjectStorage, StorageError};
 use crate::bundle;
 use crate::error::{ActivityError, ActivityResult};
 use crate::model::{
-    BundleDetail, BundleEntry, BundleState, BundleView, ConfigInput, ConfigView, InstanceView,
-    LobbyView, ParticipantView, PendingView, ReviewState, ShelfItem, UrlMapping,
+    BundleDetail, BundleState, BundleView, ConfigInput, ConfigView, InstanceView, LobbyView,
+    ParticipantView, PendingView, ReviewState, ShelfItem, UrlMapping,
 };
 use crate::ports::{
     ActivityEvents, ChannelAccess, ChannelPerms, EVENT_INSTANCE_UPDATE, NoChannels, NoEvents,
 };
 use crate::rules;
-use crate::sandbox;
 
 mod guest_db;
+mod ingest;
 mod trust_db;
-pub use trust_db::{BuildRef, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY};
+pub use trust_db::{
+    BuildRef, CodeScan, SCAN_FILE_MAX, SigningKeyRow, VOUCH_MIN_ACCOUNT_AGE_DAYS, VOUCHES_PER_DAY,
+};
 
 /// Length of a proxy token (64 lowercase hex digits).
 pub const PROXY_TOKEN_LEN: usize = 64;
@@ -41,8 +42,11 @@ pub type IdSource = Arc<dyn Fn() -> i64 + Send + Sync>;
 const DEV_GUILD_MAX_MEMBERS: i64 = 25;
 /// Bundles listed in the review history.
 const HISTORY: i64 = 20;
-/// Objects written at once while unpacking a bundle.
-const PUT_CONCURRENCY: usize = 8;
+/// One stored part, and the largest file written with a single `put`: 8 MiB (D-654). A larger file goes through
+/// `multipart_create` in parts of this size, so a check holds at most one part of one file.
+pub const STORE_PART_BYTES: usize = 8 * 1024 * 1024;
+/// The most bytes of a package file the service reads into memory at once (D-657); larger files are streamed.
+pub const WHOLE_FILE_MAX: u64 = 1024 * 1024;
 /// Running instances read for the Arcade's lobby strip, newest first, before the permission check (D-485).
 pub const LOBBY_SCAN: i64 = 100;
 /// Lobbies returned to the Arcade (D-485).
@@ -115,6 +119,12 @@ struct Inner {
     storage: Option<Arc<dyn ObjectStorage>>,
     /// `platform.activities_datachannel` (OPS-FLG-001): off, no instance runs with the `datachannel` capability.
     datachannel_on: std::sync::atomic::AtomicBool,
+    /// The operator's package settings (D-655); `None` gives the static defaults.
+    package_settings: Option<Arc<dyn crate::package::PackageSettings>>,
+    /// Who counts as platform-owned for the platform tier; `None` means nobody.
+    package_trust: Option<Arc<dyn crate::package::PackageTrust>>,
+    /// Size of one stored part and the largest file written with a single `put` (`STORE_PART_BYTES`).
+    part_bytes: std::sync::atomic::AtomicUsize,
 }
 
 /// The Activities backend. Cheap to clone.
@@ -159,6 +169,9 @@ impl ActivityService {
                 events: Arc::new(NoEvents),
                 storage: None,
                 datachannel_on: std::sync::atomic::AtomicBool::new(true),
+                package_settings: None,
+                package_trust: None,
+                part_bytes: std::sync::atomic::AtomicUsize::new(STORE_PART_BYTES),
             }),
         }
     }
@@ -205,7 +218,45 @@ impl ActivityService {
         self
     }
 
-    fn pool(&self) -> &PgPool {
+    /// The operator's package settings (D-655). Without them the static defaults apply. Call before the service is
+    /// shared.
+    #[must_use]
+    pub fn with_package_settings(mut self, s: Arc<dyn crate::package::PackageSettings>) -> Self {
+        if let Some(i) = Arc::get_mut(&mut self.inner) {
+            i.package_settings = Some(s);
+        }
+        self
+    }
+
+    /// Who is platform-owned (the platform tier of D-655). Without it nobody is. Call before the service is shared.
+    #[must_use]
+    pub fn with_package_trust(mut self, t: Arc<dyn crate::package::PackageTrust>) -> Self {
+        if let Some(i) = Arc::get_mut(&mut self.inner) {
+            i.package_trust = Some(t);
+        }
+        self
+    }
+
+    /// Tests: the size of one stored part, which is also the largest file written with a single `put`. Call before
+    /// the service is shared.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_part_bytes(self, bytes: usize) -> Self {
+        self.inner
+            .part_bytes
+            .store(bytes.max(1), std::sync::atomic::Ordering::Relaxed);
+        self
+    }
+
+    pub(crate) fn package_settings(&self) -> Option<&Arc<dyn crate::package::PackageSettings>> {
+        self.inner.package_settings.as_ref()
+    }
+
+    pub(crate) fn package_trust(&self) -> Option<&Arc<dyn crate::package::PackageTrust>> {
+        self.inner.package_trust.as_ref()
+    }
+
+    pub(crate) fn pool(&self) -> &PgPool {
         &self.inner.pool
     }
 
@@ -220,6 +271,7 @@ impl ActivityService {
     async fn bundles_of(&self, app: i64) -> ActivityResult<Vec<BundleView>> {
         let sql = format!(
             "SELECT {} FROM application_activity_bundles b WHERE b.application_id = $1 \
+             AND NOT (b.state = 'superseded' AND b.manifest = '[]'::jsonb) \
              ORDER BY b.uploaded_at DESC, b.id DESC LIMIT {HISTORY}",
             bundle_columns()
         );
@@ -394,9 +446,11 @@ impl ActivityService {
 
     // ------------------------------------------------------------------ bundles
 
-    /// Store an uploaded zip as a new `draft` bundle. The zip is validated first (see [`bundle`]); every
-    /// earlier draft or rejected bundle is superseded. Uploading the same zip again returns the existing
-    /// bundle. The row is written before the objects, so the collector never deletes files of a live bundle.
+    /// Store an uploaded zip as a new `draft` bundle: the single-request upload. The body is staged under
+    /// `activities/{app}/uploads/` and handed to [`ActivityService::ingest_stored_zip`], which checks it at the
+    /// application's limits ([`ActivityService::package_limits`]), stores its files and the zip, supersedes every
+    /// earlier draft or rejected bundle and returns the bundle. Uploading the same zip again returns the existing
+    /// bundle and repairs a half-written one.
     pub async fn upload_bundle(
         &self,
         app: i64,
@@ -404,115 +458,15 @@ impl ActivityService {
         zip: Vec<u8>,
     ) -> ActivityResult<BundleDetail> {
         let storage = self.storage()?.clone();
-        let zip = Bytes::from(zip);
-        let zip_for_store = zip.clone();
-        let unpacked = tokio::task::spawn_blocking(move || bundle::unpack(&zip))
+        let key = format!("activities/{app}/uploads/{}.zip", (self.inner.ids)());
+        storage
+            .put(&key, Bytes::from(zip))
             .await
-            .map_err(|e| ActivityError::Storage(e.to_string()))?
-            .map_err(|e| ActivityError::Invalid("bundle", e.text()))?;
-        let total = unpacked.total;
-        let manifest: Vec<BundleEntry> = unpacked
-            .files
-            .iter()
-            .map(|f| BundleEntry {
-                path: f.path.clone(),
-                size: i64::try_from(f.data.len()).unwrap_or(i64::MAX),
-                content_type: f.content_type.to_owned(),
-            })
-            .collect();
-        let sha = unpacked.sha256.clone();
-
-        let mut tx = self.pool().begin().await?;
-        Self::lock_row(&mut tx, app).await?;
-        let existing: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM application_activity_bundles \
-             WHERE application_id = $1 AND sha256 = $2 AND state <> 'superseded'",
-        )
-        .bind(app)
-        .bind(&sha)
-        .fetch_optional(&mut *tx)
-        .await?;
-        let (id, fresh) = match existing {
-            Some(id) => (id, false),
-            None => {
-                sqlx::query(
-                    "UPDATE application_activity_bundles SET state = 'superseded' \
-                     WHERE application_id = $1 AND state IN ('draft', 'rejected')",
-                )
-                .bind(app)
-                .execute(&mut *tx)
-                .await?;
-                let id = (self.inner.ids)();
-                sqlx::query(
-                    "INSERT INTO application_activity_bundles \
-                     (id, application_id, sha256, byte_size, entry_count, manifest, uploaded_by, \
-                      capabilities, tier, tip_links) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-                )
-                .bind(id)
-                .bind(app)
-                .bind(&sha)
-                .bind(i64::try_from(total).unwrap_or(i64::MAX))
-                .bind(i32::try_from(unpacked.entries).unwrap_or(i32::MAX))
-                .bind(json!(manifest))
-                .bind(user)
-                .bind(&unpacked.capabilities)
-                .bind(unpacked.tier.map(|t| t.as_str()))
-                .bind(json!(unpacked.tip_links))
-                .execute(&mut *tx)
-                .await?;
-                (id, true)
-            }
-        };
-        // The code hash and the sandbox's `connect` list come from the files, not from the zip's hash (ARC-SBX-001).
-        let code_hash = sandbox::code_sha256(
-            unpacked
-                .files
-                .iter()
-                .map(|f| (f.path.as_str(), f.data.as_slice())),
-        );
-        let connect = match unpacked.files.iter().find(|f| f.path == bundle::MANIFEST) {
-            Some(f) => sandbox::parse_connect(&f.data).map_err(|m| {
-                ActivityError::Invalid("bundle", format!("{}: {m}", bundle::MANIFEST))
-            })?,
-            None => Vec::new(),
-        };
-        sqlx::query(
-            "UPDATE application_activity_bundles SET code_sha256 = $2, connect_hosts = $3 WHERE id = $1",
-        )
-        .bind(id)
-        .bind(code_hash.as_deref())
-        .bind(&connect)
-        .execute(&mut *tx)
-        .await?;
-        Self::refresh_state(&mut tx, app).await?;
-        tx.commit().await?;
-
-        // Objects second; a repeated upload writes them again, which repairs a half-written bundle.
-        let mut puts: Vec<(String, Bytes)> = unpacked
-            .files
-            .into_iter()
-            .map(|f| (object_key(app, &sha, &f.path), Bytes::from(f.data)))
-            .collect();
-        puts.push((zip_key(app, &sha), zip_for_store));
-        let written = stream::iter(puts.into_iter().map(|(key, data)| {
-            let storage = storage.clone();
-            async move { storage.put(&key, data).await }
-        }))
-        .buffer_unordered(PUT_CONCURRENCY)
-        .try_collect::<Vec<()>>()
-        .await;
-        if let Err(e) = written {
-            if fresh {
-                let _ = sqlx::query(
-                    "UPDATE application_activity_bundles SET state = 'superseded' WHERE id = $1",
-                )
-                .bind(id)
-                .execute(self.pool())
-                .await;
-            }
-            return Err(ActivityError::Storage(e.to_string()));
-        }
-        self.bundle_detail(app, id).await
+            .map_err(|e| ActivityError::Storage(e.to_string()))?;
+        let result = self.ingest_stored_zip(app, user, &key, None).await;
+        // Nothing retries a single-request upload, so the staged copy never outlives it.
+        let _ = storage.delete(&key).await;
+        result
     }
 
     /// A bundle with its file listing.
@@ -535,32 +489,81 @@ impl ActivityService {
         })
     }
 
-    /// The zip of a bundle as uploaded, for the reviewer: `(sha256, bytes)`.
-    pub async fn bundle_zip(&self, app: i64, id: i64) -> ActivityResult<(String, Bytes)> {
+    /// The zip of a bundle as uploaded, for the reviewer: `(sha256, stream)`. The zip is streamed, never read whole
+    /// (D-657); its length is `stream.info.size`.
+    pub async fn bundle_zip(
+        &self,
+        app: i64,
+        id: i64,
+    ) -> ActivityResult<(String, sr_storage::ObjectStream)> {
         let storage = self.storage()?.clone();
         let detail = self.bundle_detail(app, id).await?;
         if detail.bundle.state == BundleState::Superseded {
             return Err(ActivityError::NotFound("bundle"));
         }
         let key = zip_key(app, &detail.bundle.sha256);
-        let data = match storage.get(&key).await {
-            Ok(d) => d,
-            Err(StorageError::NotFound(_)) => return Err(ActivityError::NotFound("bundle")),
-            Err(e) => return Err(ActivityError::Storage(e.to_string())),
-        };
-        Ok((detail.bundle.sha256, data))
+        match storage.get_stream(&key, None).await {
+            Ok(s) => Ok((detail.bundle.sha256, s)),
+            Err(StorageError::NotFound(_)) => Err(ActivityError::NotFound("bundle")),
+            Err(e) => Err(ActivityError::Storage(e.to_string())),
+        }
     }
 
-    /// One file of a bundle, or `None` when the bundle has no such file.
+    /// One small file of a bundle (at most [`WHOLE_FILE_MAX`] bytes), or `None` when the bundle has no such file. A
+    /// larger file is refused rather than read whole (D-657): serve it with [`ActivityService::bundle_file_stream`].
     pub async fn bundle_file(
         &self,
         app: i64,
         sha256: &str,
         path: &str,
     ) -> ActivityResult<Option<Bytes>> {
-        let storage = self.storage()?;
-        match storage.get(&object_key(app, sha256, path)).await {
-            Ok(d) => Ok(Some(d)),
+        use futures::StreamExt;
+        let Some(mut s) = self.bundle_file_stream(app, sha256, path, None).await? else {
+            return Ok(None);
+        };
+        if s.info.size > WHOLE_FILE_MAX {
+            return Err(ActivityError::Conflict(format!(
+                "{path} is larger than {WHOLE_FILE_MAX} bytes; it is only served as a stream."
+            )));
+        }
+        let mut out = Vec::with_capacity(usize::try_from(s.info.size).unwrap_or(0));
+        while let Some(chunk) = s.body.next().await {
+            out.extend_from_slice(&chunk.map_err(|e| ActivityError::Storage(e.to_string()))?);
+        }
+        Ok(Some(Bytes::from(out)))
+    }
+
+    /// The size of one file of a bundle without reading it, or `None` when the bundle has no such file.
+    pub async fn bundle_file_len(
+        &self,
+        app: i64,
+        sha256: &str,
+        path: &str,
+    ) -> ActivityResult<Option<u64>> {
+        match self.storage()?.head(&object_key(app, sha256, path)).await {
+            Ok(i) => Ok(Some(i.size)),
+            Err(StorageError::NotFound(_)) => Ok(None),
+            Err(e) => Err(ActivityError::Storage(e.to_string())),
+        }
+    }
+
+    /// One file of a bundle as a stream (D-657), or `None` when the bundle has no such file. `range` is the byte
+    /// range `[start, end)` to serve (`None`: all of it); the object's whole length is `stream.info.size` and the
+    /// range actually served `stream.range`. Nothing is buffered.
+    pub async fn bundle_file_stream(
+        &self,
+        app: i64,
+        sha256: &str,
+        path: &str,
+        range: Option<(u64, u64)>,
+    ) -> ActivityResult<Option<sr_storage::ObjectStream>> {
+        let key = object_key(app, sha256, path);
+        match self
+            .storage()?
+            .get_stream(&key, range.map(|(s, e)| s..e))
+            .await
+        {
+            Ok(s) => Ok(Some(s)),
             Err(StorageError::NotFound(_)) => Ok(None),
             Err(e) => Err(ActivityError::Storage(e.to_string())),
         }
@@ -869,6 +872,11 @@ impl ActivityService {
             let (Some(app), Some(second)) = (parts.next(), parts.next()) else {
                 continue;
             };
+            // A staged upload (`activities/{app}/uploads/...`) belongs to a check or an upload in flight; its own
+            // job expires it (the collector never touches the staging area).
+            if second == "uploads" {
+                continue;
+            }
             let sha = second.strip_suffix(".zip").unwrap_or(second);
             let Ok(app) = app.parse::<i64>() else {
                 continue;
@@ -882,6 +890,14 @@ impl ActivityService {
                 .map_err(|e| ActivityError::Storage(e.to_string()))?;
             removed += 1;
         }
+        // A claim row (see `ingest`) that was never finished, long past the grace period, is only a stub.
+        sqlx::query(
+            "DELETE FROM application_activity_bundles WHERE state = 'superseded' AND manifest = '[]'::jsonb \
+             AND superseded_at < now() - make_interval(secs => $1)",
+        )
+        .bind(GC_GRACE.as_secs_f64())
+        .execute(self.pool())
+        .await?;
         Ok(removed)
     }
 

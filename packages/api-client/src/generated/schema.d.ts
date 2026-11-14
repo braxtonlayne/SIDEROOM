@@ -5043,7 +5043,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,
+         * Upload a bundle: the request body is a zip of static files (at most 32 MiB; what it may unpack to and how many
+         *     entries it may hold is the application's package limit, which the operator sets and a refusal names;
          *     `index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal
          *     names the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are
          *     superseded. Uploading the same zip again returns the same bundle.
@@ -5072,6 +5073,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/applications/{application_id}/activity/package-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The package limits of my application: the size limit with its tier, and whether uploads can be resumed. */
+        get: operations["get_limits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/applications/{application_id}/activity/submit": {
         parameters: {
             query?: never;
@@ -5086,6 +5104,68 @@ export interface paths {
          *     being served until staff decide.
          */
         post: operations["submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start an upload of a package in parts. The answer holds the presigned part URLs; send each part with a `PUT`,
+         *     then call `complete`. `413` over the application's limit, `429` after six uploads in an hour, `409`
+         *     (`PACKAGE_PARTS_UNAVAILABLE`) when this server's storage cannot take parts.
+         */
+        post: operations["begin_upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/uploads/{upload_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where an upload stands: the parts the store holds and fresh URLs for the rest while uploading, the checked
+         *     share while checking, then the bundle or the reason it was refused.
+         */
+        get: operations["get_upload"];
+        put?: never;
+        post?: never;
+        /** Give an upload up: its parts are aborted at the store and a check in progress is cancelled. */
+        delete: operations["abort_upload"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/applications/{application_id}/activity/uploads/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * All parts are sent: the server completes the object from the parts the store holds and queues the check.
+         *     `409` (`PACKAGE_PARTS_MISSING`) names the parts that are missing.
+         */
+        post: operations["complete_upload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17374,6 +17454,11 @@ export interface components {
             decision: string;
             note?: string | null;
         };
+        /** @description `POST .../uploads` body. The size is a decimal string (a number is accepted too). */
+        ActivityPackageUploadBody: {
+            filename: string;
+            size: string;
+        };
         ActivitySubmitBody: {
             /** @description The uploaded bundle to put in front of staff. */
             bundle_id: string;
@@ -25165,6 +25250,55 @@ export interface components {
         };
         /** @enum {string} */
         PackageKind: "theme" | "profile_layout" | "emoji_pack" | "sticker_pack" | "sound_pack" | "recipe" | "server_template";
+        /** @description `GET /applications/{id}/activity/package-limits`. */
+        PackageLimitsView: {
+            /** @description Largest package for this application, in bytes (a decimal string). */
+            max_bytes: string;
+            /** Format: int64 */
+            max_files: number;
+            /** Format: int64 */
+            part_size: number;
+            /** @description False when the store cannot sign part URLs: only the single-request upload (32 MiB) works. */
+            resumable: boolean;
+            tier: components["schemas"]["PackageTierView"];
+        };
+        /** @description One presigned part URL. */
+        PackagePartUrl: {
+            /** Format: int32 */
+            part_number: number;
+            url: string;
+        };
+        /**
+         * @description Tier of an application as shown to the developer.
+         * @enum {string}
+         */
+        PackageTierView: "standard" | "reviewed" | "platform";
+        /** @description `POST /applications/{id}/activity/uploads`: the new session. */
+        PackageUploadSlot: {
+            /** Format: int32 */
+            part_count: number;
+            /** Format: int64 */
+            part_size: number;
+            parts: components["schemas"]["PackagePartUrl"][];
+            upload_id: string;
+        };
+        /**
+         * @description Where an upload stands.
+         * @enum {string}
+         */
+        PackageUploadState: "uploading" | "checking" | "ready" | "refused" | "expired";
+        /** @description `GET .../uploads/{id}` and the answer of `complete`. */
+        PackageUploadStatus: {
+            bundle_id?: string | null;
+            checked_bytes: string;
+            error?: string | null;
+            /** @description Fresh URLs for the missing parts, only while uploading. */
+            parts?: components["schemas"]["PackagePartUrl"][] | null;
+            /** @description Part numbers the store holds (right size), while uploading. */
+            received: number[];
+            state: components["schemas"]["PackageUploadState"];
+            total_bytes: string;
+        };
         PackageView: {
             author_id: string;
             author_name: string;
@@ -47357,6 +47491,36 @@ export interface operations {
             };
         };
     };
+    get_limits: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageLimitsView"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     submit: {
         parameters: {
             query?: never;
@@ -47379,6 +47543,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    begin_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityPackageUploadBody"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageUploadSlot"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageUploadStatus"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    abort_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    complete_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Application snowflake */
+                application_id: string;
+                /** @description Upload snowflake */
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageUploadStatus"];
                 };
             };
             404: {
@@ -74310,7 +74634,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description CORS_NOT_READY */
+            /** @description CORS_NOT_READY, or MOUNT_NOT_SAFE when the mount's connection test says it ignores the response type (D-644) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -76412,7 +76736,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description CORS_NOT_READY */
+            /** @description CORS_NOT_READY, or MOUNT_NOT_SAFE for a GET on a mount whose connection test says it ignores the response type (D-644) */
             409: {
                 headers: {
                     [name: string]: unknown;

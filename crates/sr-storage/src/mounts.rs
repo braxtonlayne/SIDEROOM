@@ -345,6 +345,33 @@ pub struct Mount {
 }
 
 impl Mount {
+    /// D-644: the stored connection test has a failed `response_type` row, so the provider does not (or
+    /// cannot be shown to) keep a link from opening as a page, and the mount hands no presigned GET to a client.
+    ///
+    /// Not failed: no test stored, a test that is not readable JSON, no `response_type` row (a mount tested
+    /// before D-643; the daily recheck adds the row, D-645), a pass or warn row, and a row that only says it
+    /// was skipped because the probe file could not be written (the mount's other rows say why).
+    pub fn response_type_failed(&self) -> bool {
+        let Some(text) = self.last_test.as_deref() else {
+            return false;
+        };
+        let Ok(doc) = serde_json::from_str::<serde_json::Value>(text) else {
+            return false;
+        };
+        doc.get("rows")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|rows| {
+                rows.iter().any(|r| {
+                    r.get("id").and_then(serde_json::Value::as_str) == Some("response_type")
+                        && r.get("status").and_then(serde_json::Value::as_str) == Some("fail")
+                        && !r
+                            .get("message")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|m| m.starts_with("Skipped"))
+                })
+            })
+    }
+
     /// The object key inside the bucket for a mount-relative `key`: the prefix joined with a single `/`.
     pub fn bucket_key(&self, key: &str) -> String {
         let prefix = self.prefix.trim_matches('/');
@@ -731,6 +758,44 @@ mod tests {
             &Secret::new("s3cr3t-value"),
         )
         .unwrap()
+    }
+
+    fn with_test(json: Option<&str>) -> Mount {
+        let mut m = mount_for_keys("");
+        m.last_test = json.map(str::to_owned);
+        m
+    }
+
+    #[test]
+    fn a_stored_failed_response_type_row_is_read_as_failed() {
+        let row = |status: &str, message: &str| {
+            format!(
+                "{{\"at\":\"t\",\"rows\":[{{\"id\":\"head_bucket\",\"status\":\"pass\",\"message\":\"ok\"}},{{\"id\":\"response_type\",\"status\":\"{status}\",\"message\":\"{message}\"}}]}}"
+            )
+        };
+        assert!(with_test(Some(&row("fail", "This service ignores it."))).response_type_failed());
+        assert!(!with_test(Some(&row("pass", "fine"))).response_type_failed());
+        assert!(!with_test(Some(&row("warn", "slow"))).response_type_failed());
+        // A row that only says it was skipped (the probe file could not be written) is not a verdict.
+        assert!(
+            !with_test(Some(&row(
+                "fail",
+                "Skipped: the test file could not be written."
+            )))
+            .response_type_failed()
+        );
+    }
+
+    #[test]
+    fn a_missing_row_or_unreadable_test_is_not_failed() {
+        // Tested before D-643: no row (the daily recheck covers it).
+        let old =
+            "{\"at\":\"t\",\"rows\":[{\"id\":\"cors\",\"status\":\"fail\",\"message\":\"x\"}]}";
+        assert!(!with_test(Some(old)).response_type_failed());
+        assert!(!with_test(None).response_type_failed());
+        assert!(!with_test(Some("not json {")).response_type_failed());
+        assert!(!with_test(Some("{\"rows\":\"nope\"}")).response_type_failed());
+        assert!(!with_test(Some("[]")).response_type_failed());
     }
 
     fn mount_for_keys(prefix: &str) -> Mount {

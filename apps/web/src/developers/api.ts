@@ -193,7 +193,7 @@ export const getActivityBundle = (appId: string, bundleId: string) =>
 export const submitActivity = (appId: string, bundleId: string) =>
   apiPost<ActivityConfig>(`/applications/${id(appId)}/activity/submit`, { bundle_id: bundleId });
 
-/** Largest bundle upload, matching the server (32 MiB unpacked; a zip is never larger than that). */
+/** Largest zip the single-request upload takes (the server's body limit is this plus 64 KiB). Bigger packages go in parts (packageUpload.ts); the real limit is the operator's setting and comes from `package-limits`. */
 export const MAX_BUNDLE_BYTES = 32 * 1024 * 1024;
 
 /** Upload a bundle zip with progress (`POST .../activity/bundles`, the body is the zip itself). */

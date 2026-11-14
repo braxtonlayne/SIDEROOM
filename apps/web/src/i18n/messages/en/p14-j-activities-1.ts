@@ -6,13 +6,12 @@ export default {
     'Your Activity address is a redirect URI of this application automatically, so you do not register it on the OAuth2 tab.',
   'developers.activities.bundleHeading': 'Bundle',
   'developers.activities.bundleIntro':
-    'A zip of at most 32 MiB unpacked and 2,000 files, with index.html at the top. Allowed files: html, js, mjs, css, json, map, wasm, png, jpg, jpeg, webp, gif, svg, ico, woff2, mp3, ogg, webm, txt.',
+    'A zip with index.html at the top. The size limit is a setting of the server operator, and the line under the upload button shows the limit for your application. Allowed files: html, js, mjs, css, json, map, wasm, png, jpg, jpeg, webp, gif, svg, ico, woff2, mp3, ogg, webm, txt.',
   'developers.activities.drop': 'Drop a zip here',
   'developers.activities.choose': 'Choose a zip',
   'developers.activities.pickZip': 'Activity bundle (zip)',
   'developers.activities.uploading': 'Uploading the bundle',
   'developers.activities.uploadFailed': 'The bundle could not be uploaded.',
-  'developers.activities.tooLarge': 'That file is larger than 32 MiB.',
   'developers.activities.uploaded':
     'Uploaded: {n} files, {size} unpacked. Submit it to put it in review.',
   'developers.activities.bundlesLabel': 'Bundles',

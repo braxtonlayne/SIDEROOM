@@ -192,3 +192,34 @@ Not a leak and left alone: the landing page's own copy (the owner's words from `
 - **The OAuth2 consent screen is an app route** (section 2): it is shown to signed-in members only. If the owner meant another consent screen, it becomes a surface of the table.
 - **The landing copy names no section (owner, O-7, 2026-10-29).** The default `entrance` fragment loses the three section teasers and icons ("Lounge", "Cinema", "Library"); no allow entry exists for them, so the isolation check fails if any reaches a public surface. Copy an operator writes in Admin (D-239) is their data, not the build.
 - **No migration.** Nothing touches the database; wave 30b has no range and wave 31 keeps 1560.
+
+## 11. Staff code (SEC-AUD-170..172, D-651, D-652)
+
+D-385 draws the line at sign-in; this draws a second one at the staff appointment. The class is **any appointed staff**
+(the people `GET /admin/me` answers for). Server Settings, Developers and the other member areas are not gated.
+
+- **Sorting.** `apps/web/vite/staffChunks.ts` walks the module graph from the app entry (static and dynamic imports,
+  not following a dynamic import of a *staff entry*; today `src/admin/AdminApp.tsx`). Modules it does not reach are
+  staff-only; a chunk made only of them is written to `dist/app/staff/<hash>.js` (no `[name]`, so nothing tells a member
+  the section's name). Modules member code also imports (`admin/api.ts`, `reauth.ts`, `SchemaForm.tsx`, ...) stay in
+  member chunks. A static import of a staff entry from member code fails the build, naming the importer. The plugin writes
+  `dist/app/staff-chunks.json` (the staff files and the shared `admin/` modules) for the check.
+- **The check.** `node scripts/check-staff-delivery.mjs` (after a build; CI runs it after the bundle check) fails when
+  `staff/` is empty, `app.html` references it, a member chunk statically imports it, a member file holds a marker string
+  of the Admin app, or a staff file name is not a hash. It prints, as a report only, the staff-looking modules that still
+  sit in member chunks. `check-bundle-budget.mjs` fails if the first-paint closure contains a staff file.
+- **The server.** `sr-server` answers `/app/staff/*` after the session check (`401` stays first): without an active
+  appointment (`AdminService::resolve`, read on every request, no cache; no admin service or a lookup error also counts as
+  no) the answer is the plain `404` of any absent `/app/` file, decided before the file system is asked. A first segment
+  that a case-folding or Windows file system would open as `staff` (`STAFF`, `staff.`, `STAFF~1`) is a `404` for everyone.
+  Staff files carry `Cache-Control: private, no-store`.
+- **The worker.** `sw.js` never stores a response that says `no-store` and names no path (D-385), so nothing of the staff
+  code is left in Cache Storage. The browser's HTTP cache keeps nothing either.
+- **The door.** `/admin` enters through `admin/StaffDoor.tsx`, which asks `GET /admin/me` and only then imports
+  `AdminApp`; anyone else, and a refused import (an appointment that ended), gets the not-found page. A member's network
+  log holds no refused staff file.
+- **Adding a staff entry.** Add its path to `STAFF_ENTRIES` in `staffChunks.ts`, reach it only through a dynamic import in
+  a small door like `StaffDoor`, add a marker to `check-staff-delivery.mjs` if it is a new area, build, run the check.
+- **Not covered yet.** The message catalog still carries the Admin labels to every member (D-658, wave 66), and staff-looking
+  code inside member chunks (the staff cards and message actions in the Lounge, `lounge/shell/platformStaff`) is only
+  listed by the check's report. `vite dev` serves modules unbundled and is not a delivery boundary.

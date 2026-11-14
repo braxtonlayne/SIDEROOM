@@ -339,17 +339,37 @@ impl WebGate {
 
     /// A valid `sr_session` cookie with the API's expiry policy. Bot and bearer credentials do not count.
     async fn has_session(&self, api: &AppState, headers: &HeaderMap) -> bool {
-        let Some(raw) = sr_api::auth::parse_cookie(headers, sr_api::auth::SESSION_COOKIE) else {
-            return false;
-        };
-        let Some(token) = SessionToken::parse(raw) else {
-            return false;
-        };
+        self.session_account(api, headers).await.is_some()
+    }
+
+    /// The account of a valid `sr_session` cookie (same policy as [`Self::has_session`]), or `None`.
+    async fn session_account(&self, api: &AppState, headers: &HeaderMap) -> Option<i64> {
+        let raw = sr_api::auth::parse_cookie(headers, sr_api::auth::SESSION_COOKIE)?;
+        let token = SessionToken::parse(raw)?;
         match api.sessions().find(&token.hash()).await {
-            Ok(Some(rec)) => SessionPolicy::is_valid(rec.expires_at, api.now_secs()),
-            Ok(None) => false,
+            Ok(Some(rec)) if SessionPolicy::is_valid(rec.expires_at, api.now_secs()) => {
+                Some(rec.user_id)
+            }
+            Ok(_) => None,
             Err(e) => {
                 tracing::error!(error = %e, "web gate: session lookup failed");
+                None
+            }
+        }
+    }
+
+    /// Whether `user_id` holds an active staff appointment right now (SEC-AUD-171, D-651): the same
+    /// `AdminService::resolve` the admin API uses, asked of the database on every call. No cache. No admin
+    /// service in this build, or a lookup error, is "no" (fail closed).
+    async fn is_staff(&self, api: &AppState, user_id: i64) -> bool {
+        let Some(deps) = api.extension::<sr_api::routes::admin::AdminDeps>() else {
+            return false;
+        };
+        match deps.service.resolve(user_id, None).await {
+            Ok(_) => true,
+            Err(sr_admin::AdminError::NotStaff) => false,
+            Err(e) => {
+                tracing::error!(error = %e, "web gate: staff lookup failed; refusing the staff file");
                 false
             }
         }
@@ -484,9 +504,9 @@ async fn app_entry(State(gs): State<GateState>, req: Request) -> Response {
 async fn app_file(State(gs): State<GateState>, req: Request) -> Response {
     let ip = client_ip(&req, gs.gate.trust_forwarded_for);
     // The session comes before the path: an absent file and a present one are the same `401`.
-    if !gs.gate.has_session(&gs.api, req.headers()).await {
+    let Some(user_id) = gs.gate.session_account(&gs.api, req.headers()).await else {
         return gs.gate.unauthorized(ip);
-    }
+    };
     let rel = req
         .uri()
         .path()
@@ -496,13 +516,33 @@ async fn app_file(State(gs): State<GateState>, req: Request) -> Response {
     let Some(rel) = clean_relative(&rel) else {
         return plain(StatusCode::NOT_FOUND);
     };
-    let cache = if is_hashed(&rel) {
+    // SEC-AUD-171 (D-651, D-652): `staff/` holds the chunks only the Admin app loads. Without an appointment the answer is
+    // the plain `404`, decided BEFORE the file system is asked, so a present and an absent name look the same.
+    let staff = match staff_dir(&rel) {
+        StaffDir::No => false,
+        StaffDir::Lookalike => return app_not_found(),
+        StaffDir::Yes => {
+            if !gs.gate.is_staff(&gs.api, user_id).await {
+                return app_not_found();
+            }
+            true
+        }
+    };
+    let cache = if staff {
+        // The browser keeps nothing of the staff code: removing an appointment takes effect on the next request.
+        "private, no-store"
+    } else if is_hashed(&rel) {
         "private, max-age=31536000, immutable"
     } else {
         "private, no-cache"
     };
     let path = gs.gate.root.join("app").join(&rel);
-    let mut r = file_response(&path, req.method(), content_type(&rel), cache).await;
+    let r = file_response(&path, req.method(), content_type(&rel), cache).await;
+    app_headers(r)
+}
+
+/// The headers every `/app/` answer carries (a file, or a `404` for one).
+fn app_headers(mut r: Response) -> Response {
     r.headers_mut()
         .insert(header::VARY, HeaderValue::from_static("Cookie"));
     r.headers_mut().insert(
@@ -510,6 +550,11 @@ async fn app_file(State(gs): State<GateState>, req: Request) -> Response {
         HeaderValue::from_static("noindex, nofollow"),
     );
     r
+}
+
+/// The `404` of an `/app/` file that is not there: what a refused staff file answers too (D-652).
+fn app_not_found() -> Response {
+    app_headers(plain(StatusCode::NOT_FOUND))
 }
 
 /// /emu/cores/*: the pinned emulator core files under <root>/emu/cores/, to a session only (an anonymous request gets
@@ -905,6 +950,37 @@ fn clean_relative(rel: &str) -> Option<String> {
         }
     }
     Some(rel.to_owned())
+}
+
+/// Whether a cleaned `/app/` path is under the staff directory.
+#[derive(Debug, PartialEq, Eq)]
+enum StaffDir {
+    No,
+    /// Exactly `staff/...`: needs an appointment.
+    Yes,
+    /// A first segment that a case-insensitive or Windows file system would open as `staff` (`STAFF`, `staff.`,
+    /// `STAFF~1`): never served, to anyone.
+    Lookalike,
+}
+
+fn staff_dir(rel: &str) -> StaffDir {
+    let Some((first, _)) = rel.split_once('/') else {
+        return StaffDir::No;
+    };
+    if first == "staff" {
+        return StaffDir::Yes;
+    }
+    // Windows drops trailing dots and spaces and offers 8.3 short names; NTFS and APFS fold case.
+    let folded = first.trim_end_matches(['.', ' ']);
+    let folded = match folded.rsplit_once('~') {
+        Some((stem, n)) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => stem,
+        _ => folded,
+    };
+    if folded.eq_ignore_ascii_case("staff") {
+        StaffDir::Lookalike
+    } else {
+        StaffDir::No
+    }
 }
 
 /// A name carrying a build hash (`index-1a2b3c4d.js`): safe to cache forever.

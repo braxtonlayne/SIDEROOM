@@ -235,6 +235,54 @@ async fn a_delisted_mount_stops_serving_links_minted_before_the_takedown() {
     assert_eq!(f.send("GET", &link).await.status(), StatusCode::NOT_FOUND);
 }
 
+/// D-644: a mount whose stored connection test says the provider ignores the response overrides hands no link.
+#[tokio::test]
+async fn a_mount_link_is_refused_on_a_mount_with_a_failed_response_type_row() {
+    let f = fx(true).await;
+    let link = f.signed(77, "Movies/a.mp4", 3600);
+    assert_eq!(f.send("GET", &link).await.status(), StatusCode::FOUND);
+    let test = |status: &str| {
+        format!(
+            "{{\"at\":\"t\",\"rows\":[{{\"id\":\"response_type\",\"status\":\"{status}\",\"message\":\"m\"}}]}}"
+        )
+    };
+    // Failing for another reason (a row that is not response_type) stops nothing.
+    f.repo
+        .record_test(
+            77,
+            5,
+            "{\"at\":\"t\",\"rows\":[{\"id\":\"cors\",\"status\":\"fail\",\"message\":\"m\"}]}"
+                .into(),
+            Some(sr_storage::mounts::MountStatus::Failing),
+        )
+        .await
+        .unwrap();
+    assert_eq!(f.send("GET", &link).await.status(), StatusCode::FOUND);
+    f.repo
+        .record_test(
+            77,
+            6,
+            test("fail"),
+            Some(sr_storage::mounts::MountStatus::Failing),
+        )
+        .await
+        .unwrap();
+    let r = f.send("GET", &link).await;
+    assert_eq!(r.status(), StatusCode::CONFLICT);
+    assert!(r.headers().get(header::LOCATION).is_none());
+    // A later pass lifts it.
+    f.repo
+        .record_test(
+            77,
+            7,
+            test("pass"),
+            Some(sr_storage::mounts::MountStatus::Active),
+        )
+        .await
+        .unwrap();
+    assert_eq!(f.send("GET", &link).await.status(), StatusCode::FOUND);
+}
+
 fn query_param(loc: &str, name: &str) -> Option<String> {
     let q = loc.split_once('?')?.1;
     q.split('&')

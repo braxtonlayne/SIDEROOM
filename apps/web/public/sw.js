@@ -281,7 +281,13 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
             fetch(event.request).then((res) => {
               if (kind === 'app-file' && sessionLost(res)) {
                 event.waitUntil(purgeApp());
-              } else if (res.ok && res.type === 'basic' && !res.redirected) {
+              } else if (
+                res.ok &&
+                res.type === 'basic' &&
+                !res.redirected &&
+                // SEC-AUD-172 (D-652): a response that says no-store is never kept, whatever its path.
+                !/no-store/i.test(res.headers.get('cache-control') || '')
+              ) {
                 c.put(event.request, res.clone());
               }
               return res;

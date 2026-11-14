@@ -16,7 +16,7 @@ use axum::{
     body::Bytes,
     extract::Path,
     http::{HeaderValue, StatusCode, header},
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use serde::{Deserialize, Serialize};
 use sr_activities::guest::{GuestJoined, GuestLinkCreated};
@@ -26,8 +26,9 @@ use sr_activities::model::{
 use sr_core::{ApiError, ErrorCode, PlatformPermissions};
 use utoipa::ToSchema;
 
-/// Largest bundle upload: the 32 MiB limit of a bundle plus headroom for the zip's own framing.
-pub const MAX_UPLOAD: usize = sr_activities::bundle::MAX_UNPACKED_BYTES as usize + 64 * 1024;
+/// Largest single-request bundle upload: 32 MiB (the body of this route; the package limit of an application is
+/// separate and larger, D-655) plus headroom for the zip's own framing.
+pub const MAX_UPLOAD: usize = sr_activities::bundle::SINGLE_REQUEST_MAX_BYTES as usize + 64 * 1024;
 
 fn id(raw: &str, unknown: ErrorCode) -> MsgResult<i64> {
     raw.parse::<i64>()
@@ -113,7 +114,8 @@ pub async fn put_config(
     Ok(response(&deps, app, c))
 }
 
-/// Upload a bundle: the request body is a zip of static files (at most 32 MiB unpacked and 2,000 entries,
+/// Upload a bundle: the request body is a zip of static files (at most 32 MiB; what it may unpack to and how many
+/// entries it may hold is the application's package limit, which the operator sets and a refusal names;
 /// `index.html` at the root, allow-listed file types, no symbolic links, absolute paths or `..`). A refusal
 /// names the offending entry. The new bundle is a `draft`; earlier drafts and rejected bundles are
 /// superseded. Uploading the same zip again returns the same bundle.
@@ -265,7 +267,11 @@ pub async fn admin_download(
     {
         tracing::error!(error = %e, "activity download was not written to the access log");
     }
-    let mut r = (StatusCode::OK, zip).into_response();
+    // The zip is streamed from the store, never read whole (D-657).
+    let len = zip.info.size;
+    let mut r = Response::new(axum::body::Body::from_stream(zip.body));
+    r.headers_mut()
+        .insert(header::CONTENT_LENGTH, HeaderValue::from(len));
     let h = r.headers_mut();
     h.insert(
         header::CONTENT_TYPE,

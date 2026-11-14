@@ -42,6 +42,9 @@ const rootsOf = (shell, dir) => {
 };
 // `entrance` below is the app's first load (what index.html used to be).
 const entrance = closure(rootsOf('app.html', 'app'));
+// SEC-AUD-170 (D-651, D-653): a file under /app/staff/ is served only to appointed staff, so it is never part of the
+// first paint of a member (no budget applies to it: it is not in any closure here).
+const staffInFirstPaint = [...entrance].filter((f) => f.startsWith('app/staff/'));
 
 const kb = (n) => (n / 1024).toFixed(1);
 const total = (files) => [...files].reduce((n, f) => n + gzipSize(f), 0);
@@ -101,6 +104,13 @@ for (const f of readdirSync(join(dist, 'app')).filter((x) => x.endsWith('.js')))
     );
     failed = true;
   }
+}
+
+if (staffInFirstPaint.length) {
+  rows.push(`FAIL staff      first paint loads staff files: ${staffInFirstPaint.join(', ')}`);
+  failed = true;
+} else {
+  rows.push('ok   staff      no /app/staff/ file in the first paint');
 }
 
 // SEC-AUD-145 (D-636): the first-paint chunk is the largest file app.html loads. Print its size and the room left to

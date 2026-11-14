@@ -511,7 +511,7 @@ pub async fn meta(
         (status = 400, body = ErrorBody),
         (status = 403, body = ErrorBody),
         (status = 404, body = ErrorBody),
-        (status = 409, body = ErrorBody, description = "CORS_NOT_READY"),
+        (status = 409, body = ErrorBody, description = "CORS_NOT_READY, or MOUNT_NOT_SAFE for a GET on a mount whose connection test says it ignores the response type (D-644)"),
     ),
     security(("session" = []))
 )]
@@ -562,6 +562,11 @@ pub async fn presign(
     key_allowed(&d, &r, &body.key).await?;
     if r.mount.cors_ok_at.is_none() {
         return Err(cors_not_ready());
+    }
+    // D-644: a client GET from a mount that cannot keep a link from opening as a page. A PUT (an emulator
+    // save) is not a link anyone opens and is not affected.
+    if !put && r.mount.response_type_failed() {
+        return Err(super::mount_not_safe());
     }
     // Lifetime: the settings, the cap, the hard ceiling, and what the session has left.
     let (ttl, cap) = match admin.as_deref() {

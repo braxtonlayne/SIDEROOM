@@ -13,6 +13,8 @@ use axum::{
     http::{HeaderMap, Method, Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
+use sr_admin::{AccountState, AdminService, Caller, SYSTEM_USER_ID, memory::MemoryAdminRepo};
+use sr_api::routes::admin::AdminDeps;
 use sr_api::{
     AppState,
     auth::{
@@ -25,6 +27,7 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository},
     session::SessionToken,
 };
+use sr_core::PlatformPermissions as P;
 use sr_core::{Clock, ManualClock};
 use sr_server::web::{NoOperator, OperatorInfo, PUBLIC_CSP, WebError, WebGate};
 use tower::ServiceExt;
@@ -65,6 +68,7 @@ fn web_root() -> tempfile::TempDir {
     write(r, "emu/cores/fceumm/fceumm-legacy-wasm.data", "7z-core");
     write(r, "emu/cores/extract7z.js", "self.onmessage = null;");
     write(r, "app/assets/index-1a2b3c4d.js", "console.log('app')");
+    write(r, "app/staff/abc12345.js", "console.log('staff')");
     write(r, "app/manifest.webmanifest", "{\"shortcuts\":[]}");
     write(r, "app/THIRD_PARTY_NOTICES.md", "full notices");
     write(r, "index.html", "<html>LANDING</html>");
@@ -950,4 +954,163 @@ async fn a_noisy_address_is_slowed_down_not_told_anything_new() {
     // The session is still served: only the 401s are counted.
     let r = send(&f, empty(nav("/app").header(header::COOKIE, &f.cookie))).await;
     assert_eq!(r.status, StatusCode::OK);
+}
+
+// ---- the staff directory (SEC-AUD-171, D-651, D-652) ------------------------------------------------------
+
+const STAFF_JS: &str = "/app/staff/abc12345.js";
+const MEMBER_ID: i64 = 5;
+
+/// A gate whose API carries an `AdminDeps` over an in-memory repository. The session of `cookie` is account 5,
+/// appointed as staff when `appointed`. The repository is returned so a test can end the appointment.
+async fn staff_fixture(appointed: bool) -> (Fx, Arc<MemoryAdminRepo>) {
+    let root = web_root();
+    let sessions = Arc::new(MemorySessions::new());
+    let clock = Arc::new(ManualClock::new(NOW_MS));
+    let now = clock.now_unix_ms() / 1000;
+    let repo = Arc::new(MemoryAdminRepo::new(clock.clone()));
+    repo.add_account(
+        SYSTEM_USER_ID,
+        "sideroom",
+        AccountState::Deactivated,
+        None,
+        None,
+    );
+    repo.add_account(MEMBER_ID, "member", AccountState::Active, None, None);
+    repo.add_role(1, "Basic", 1, P::STAFF_BASIC);
+    let svc = AdminService::new(repo.clone()).with_clock(clock.clone());
+    if appointed {
+        svc.appoint(
+            &Caller::operator(SYSTEM_USER_ID),
+            MEMBER_ID,
+            &[1],
+            Some("test"),
+        )
+        .await
+        .unwrap();
+    }
+    let state = AppState::builder()
+        .sessions(sessions.clone())
+        .clock(clock)
+        .extension(Arc::new(AdminDeps::new(svc)))
+        .build();
+    let cookie = session(&sessions, 100, now + 3600).await;
+    let gate = WebGate::open(root.path(), false, false, Arc::new(NoOperator)).unwrap();
+    let app = gate.install(build_router(state.clone(), Router::new()), state);
+    (
+        Fx {
+            app,
+            cookie,
+            _root: root,
+        },
+        repo,
+    )
+}
+
+async fn get_with(f: &Fx, path: &str) -> Got {
+    send(
+        f,
+        empty(req(Method::GET, path).header(header::COOKIE, &f.cookie)),
+    )
+    .await
+}
+
+#[tokio::test]
+async fn a_staff_file_without_a_session_is_401() {
+    let (f, _) = staff_fixture(true).await;
+    for path in [STAFF_JS, "/app/staff/nope0000.js"] {
+        let r = send(&f, empty(req(Method::GET, path))).await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED, "{path}");
+        assert_eq!(r.body, "");
+    }
+}
+
+#[tokio::test]
+async fn a_staff_file_to_a_member_is_404_whether_it_exists_or_not() {
+    let (f, _) = staff_fixture(false).await;
+    let present = get_with(&f, STAFF_JS).await;
+    let absent = get_with(&f, "/app/staff/zzzz9999.js").await;
+    assert_eq!(present.status, StatusCode::NOT_FOUND);
+    assert_eq!(absent.status, StatusCode::NOT_FOUND);
+    assert_eq!(present.body, absent.body);
+    assert!(!present.body.contains("staff"));
+    assert_eq!(present.headers, absent.headers);
+    // ... and it is the answer of any other file that is not there.
+    let plain_404 = get_with(&f, "/app/assets/none-1a2b3c4d.js").await;
+    assert_eq!(plain_404.status, StatusCode::NOT_FOUND);
+    assert_eq!(present.headers, plain_404.headers);
+}
+
+#[tokio::test]
+async fn a_staff_file_to_appointed_staff_is_served_no_store() {
+    let (f, _) = staff_fixture(true).await;
+    let r = get_with(&f, STAFF_JS).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.body, "console.log('staff')");
+    assert_eq!(r.h("cache-control"), "private, no-store");
+    assert_eq!(r.h("vary"), "Cookie");
+    assert_eq!(r.h("x-robots-tag"), "noindex, nofollow");
+    assert!(r.h("content-type").starts_with("text/javascript"));
+    // An absent staff file is still an ordinary 404 for staff.
+    assert_eq!(
+        get_with(&f, "/app/staff/zzzz9999.js").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn a_staff_file_is_refused_on_the_request_after_the_appointment_ends() {
+    let (f, repo) = staff_fixture(true).await;
+    assert_eq!(get_with(&f, STAFF_JS).await.status, StatusCode::OK);
+    repo.kick_from_staff_guild(MEMBER_ID);
+    let r = get_with(&f, STAFF_JS).await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND);
+    assert_eq!(r.body, "");
+}
+
+#[tokio::test]
+async fn a_staff_file_is_refused_when_there_is_no_admin_service() {
+    // The plain fixture has no AdminDeps: fail closed, even for a valid session.
+    let f = fixture(false).await;
+    assert_eq!(get_with(&f, STAFF_JS).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_staff_path_cannot_be_reached_by_case_or_encoding() {
+    for appointed in [false, true] {
+        let (f, _) = staff_fixture(appointed).await;
+        for path in [
+            "/app/staff%2Fabc12345.js",
+            "/app/staff%2fabc12345.js",
+            "/app/./staff/abc12345.js",
+            "/app/x/../staff/abc12345.js",
+            "/app/%2e/staff/abc12345.js",
+            "/app/STAFF/abc12345.js",
+            "/app/Staff/abc12345.js",
+            "/app/staff./abc12345.js",
+            "/app/STAFF~1/abc12345.js",
+            "/app/staff%20/abc12345.js",
+            "/app/staff%5Cabc12345.js",
+            "/app/staff:abc12345.js",
+        ] {
+            let r = get_with(&f, path).await;
+            assert!(
+                r.status == StatusCode::NOT_FOUND || r.status == StatusCode::BAD_REQUEST,
+                "appointed={appointed} {path} -> {}",
+                r.status
+            );
+            assert!(!r.body.contains("staff"), "{path}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn a_member_file_keeps_its_immutable_cache() {
+    // Staff and non-staff alike: only the staff directory is no-store.
+    for appointed in [false, true] {
+        let (f, _) = staff_fixture(appointed).await;
+        let r = get_with(&f, HASHED_JS).await;
+        assert_eq!(r.status, StatusCode::OK);
+        assert_eq!(r.h("cache-control"), "private, max-age=31536000, immutable");
+    }
 }
