@@ -224,6 +224,7 @@ describe('the Message Requests row (D-688)', () => {
     });
     const next = applyRequestPreview(list, 'MESSAGE_CREATE', msg({}), '1');
     expect(next[0]!.sr_request_preview).toEqual({
+      message_id: '9',
       content: 'first words',
       attachments: 1,
       timestamp: '2026-11-13T10:00:00.000000+00:00',
