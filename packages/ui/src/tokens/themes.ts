@@ -108,6 +108,9 @@ export const loungeLight: ThemeDefinition = {
     "--ui-focus": "#0068c9",
     // Amber on white is 1.9:1; the dot needs 3:1 against the surface it sits on.
     "--ui-status-idle": "#b07800",
+    // The shared green is 2.87:1 on the raised surface and 2.5:1 on the lowest; a hovered row is 2.64:1. These reach 3:1 on all of them.
+    "--ui-status-online": "#168a49",
+    "--ui-status-dnd": "#e5383b",
     "--ui-shadow-overlay": "0 8px 24px rgb(0 0 0 / 0.18)",
     "--ui-backdrop": "rgb(0 0 0 / 0.55)",
   },
@@ -138,6 +141,8 @@ export const loungeAsh: ThemeDefinition = {
     "--text-link": "#1ab2ff",
     // #fa777c is 4.33:1 on #383a40.
     "--ui-danger-text": "#ff8a8d",
+    // #f23f42 is 2.66:1 on the hovered row #404249.
+    "--ui-status-dnd": "#fa5f61",
   },
 };
 
@@ -212,8 +217,9 @@ export const loungeEditorial: ThemeDefinition = {
     "--ui-warning": "#c2b08f",
     "--ui-info": "#9aa8a0",
     "--ui-status-online": "#34c25f",
-    "--ui-status-idle": "#c2b08f",
-    "--ui-status-dnd": "#b4503f",
+    // An amber, not the tan of `--ui-warning`: the tan beside the grey offline dot told apart by lightness only (D-768).
+    "--ui-status-idle": "#d9a441",
+    "--ui-status-dnd": "#cc5c47",
     "--ui-status-offline": "#6f6c60",
     "--ui-shadow-overlay": "0 12px 32px rgb(0 0 0 / 0.55)",
     "--ui-backdrop": "rgb(8 8 7 / 0.78)",
@@ -272,8 +278,8 @@ export const sideroom: ThemeDefinition = {
     "--ui-shadow-overlay": "0 12px 32px rgb(0 0 0 / 0.55)",
     "--ui-backdrop": "rgb(8 8 7 / 0.78)",
     "--ui-status-online": "#34c25f",
-    "--ui-status-idle": "#c2b08f",
-    "--ui-status-dnd": "#b4503f",
+    "--ui-status-idle": "#d9a441",
+    "--ui-status-dnd": "#cc5c47",
     "--ui-status-offline": "#6f6c60",
   },
 };

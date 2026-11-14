@@ -634,3 +634,37 @@ async fn a_zip_sent_in_three_parts_is_checked_by_the_real_checker_and_becomes_a_
             .is_err()
     );
 }
+
+/// D-771: a start that lost the wait for another start is told to come back in a moment; only the hourly limit
+/// says an hour.
+#[test]
+fn busy_says_a_moment_and_rate_limited_says_an_hour() {
+    match up_err(PackageUploadError::Busy) {
+        MsgError::RetryAfter {
+            api,
+            retry_after_ms,
+        } => {
+            assert_eq!(api.status(), 429);
+            assert_eq!(
+                api.message,
+                "Another upload for this application is starting. Try again in a moment."
+            );
+            assert_eq!(retry_after_ms, 5_000);
+        }
+        other => panic!("{other:?}"),
+    }
+    match up_err(PackageUploadError::RateLimited) {
+        MsgError::RetryAfter {
+            api,
+            retry_after_ms,
+        } => {
+            assert_eq!(api.status(), 429);
+            assert_eq!(
+                api.message,
+                "Too many package uploads. Try again in an hour."
+            );
+            assert_eq!(retry_after_ms, 3_600_000);
+        }
+        other => panic!("{other:?}"),
+    }
+}

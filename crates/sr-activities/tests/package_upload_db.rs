@@ -724,3 +724,37 @@ async fn the_oversize_check_leaves_a_checking_or_ready_upload_alone() {
     assert_eq!(s.state, PackageUploadState::Ready);
     assert_eq!(r.state(id).await, "ready");
 }
+
+// ---- wave 73: SEC-AUD-289 (a start that lost the wait for another start is Busy, not RateLimited, D-771) ---------
+
+/// Another connection holds the application's turn; a start with a short wait answers `Busy` although the hour's
+/// count is zero, and the same start passes once the holder lets go. The refused start left nothing behind.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_start_that_waited_for_the_turn_is_busy_not_rate_limited() {
+    let r = rig().await;
+    r.uploads.set_start_wait_ms(1000);
+    let mut holder = r.pool.begin().await.unwrap();
+    sqlx::query("SELECT pg_advisory_xact_lock(1580, hashtext($1::text))")
+        .bind(r.app.to_string())
+        .execute(&mut *holder)
+        .await
+        .unwrap();
+    let e = r
+        .uploads
+        .begin(r.app, r.owner, 10, "late.zip")
+        .await
+        .unwrap_err();
+    assert_eq!(e, PackageUploadError::Busy, "{e:?}");
+    assert_eq!(r.rows_this_hour(r.app).await, 0);
+    assert!(r.store.created.lock().unwrap().is_empty());
+    holder.rollback().await.unwrap();
+    assert!(
+        r.uploads
+            .begin(r.app, r.owner, 10, "late.zip")
+            .await
+            .is_ok()
+    );
+    assert_eq!(r.rows_this_hour(r.app).await, 1);
+    assert!(r.orphans().await.is_empty());
+}
