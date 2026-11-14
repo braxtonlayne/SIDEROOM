@@ -147,6 +147,15 @@ impl PgBugReports {
         Ok((rows.into_iter().map(row).collect(), open))
     }
 
+    /// Active accounts of the platform: the query behind `accounts_active` of the Admin dashboard (bots are not people).
+    pub async fn active_accounts(&self) -> DbResult<i64> {
+        Ok(sqlx::query_scalar(
+            "SELECT count(*) FROM accounts WHERE state = 'active' AND NOT is_bot",
+        )
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
     /// One report with its description and bundle.
     pub async fn get(&self, id: i64) -> DbResult<Option<BugRow>> {
         let sql = format!("{SELECT} WHERE b.id = $2");
