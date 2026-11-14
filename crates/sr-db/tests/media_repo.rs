@@ -1485,3 +1485,616 @@ async fn retry_job_does_not_report_success_for_a_failed_cache_update() {
         .unwrap();
     assert_eq!(state, "failed");
 }
+
+// ---- subtitles (D-685, SEC-AUD-200) --------------------------------------------------------
+
+const PROBE_TWO_SUBS: &str = r#"{"streams":[
+  {"index":0,"codec_name":"h264","codec_type":"video","width":1920,"height":1080,
+   "pix_fmt":"yuv420p","field_order":"progressive","r_frame_rate":"24000/1001",
+   "avg_frame_rate":"24000/1001","disposition":{"default":1}},
+  {"index":1,"codec_name":"ac3","codec_type":"audio","channels":6,"sample_rate":"48000",
+   "disposition":{"default":1},"tags":{"language":"eng"}},
+  {"index":2,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"spa"}},
+  {"index":3,"codec_name":"subrip","codec_type":"subtitle","tags":{"language":"fra"}}
+],"format":{"format_name":"matroska,webm","duration":"1200.0"}}"#;
+
+const SRT_FILE: &str = "1\n00:00:01,000 --> 00:00:02,000\nHello <i>there</i>\n";
+const VTT_FILE: &str = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHola\n";
+const ASS_FILE: &str = "[Script Info]\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\n\
+    Format: Name, Fontname, Fontsize, PrimaryColour, Bold, Italic, Underline, Alignment\n\
+    Style: Default,Arial,48,&H00FFFFFF,0,0,0,2\n\n[Events]\n\
+    Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\
+    Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Styled\n";
+
+struct Published {
+    w: World,
+    asset: i64,
+    worker: WorkerService,
+    secret: String,
+}
+
+/// An asset through upload, probe and a finished ladder: the embedded tracks of the probe exist.
+async fn published(probe_json: &str) -> Published {
+    let json = probe_json.to_owned();
+    let w = world(FakeRunner::new(move |_| FakeResult::ok(json.clone()))).await;
+    let user = account(&w.pool).await;
+    let asset = upload(&w, user, true).await;
+    w.svc.run_probe(asset.id, false).await.unwrap();
+    let admin = account(&w.pool).await;
+    let token = w.svc.create_token(admin, "gpu").await.unwrap();
+    let worker = worker_service(
+        w.repo.clone(),
+        Arc::new(std::sync::atomic::AtomicU64::new(1000)),
+    );
+    finish_ladder(&worker, &token.secret, 1000).await;
+    Published {
+        asset: asset.id,
+        secret: token.secret,
+        w,
+        worker,
+    }
+}
+
+impl Published {
+    /// Cancel the review proxy, queue a re-transcode and let the worker finish it.
+    async fn retranscode(&self) {
+        let st = self.w.svc.status(self.asset).await.unwrap();
+        for j in st.jobs.iter().filter(|j| j.kind == JobKind::Proxy) {
+            let _ = self.w.svc.cancel_job(j.job_id.parse().unwrap()).await;
+        }
+        let out = self
+            .w
+            .svc
+            .retranscode(sr_media::retranscode::RetranscodeRequest {
+                scope: sr_media::retranscode::RetranscodeScope::Asset(self.asset as u64),
+                only_older_than_profile: None,
+                reason: "test".into(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(out.enqueued.len(), 1, "{out:?}");
+        finish_ladder(&self.worker, &self.secret, 1000).await;
+    }
+
+    async fn upload_sub(&self, label: &str, language: &str, file: &str) -> SubtitleTrack {
+        self.w
+            .svc
+            .upload_subtitle(
+                self.asset,
+                SubtitleUploadMeta {
+                    label: Some(label.into()),
+                    language: Some(language.into()),
+                    ..SubtitleUploadMeta::default()
+                },
+                file.as_bytes(),
+            )
+            .await
+            .unwrap()
+    }
+
+    async fn tracks(&self) -> Vec<StoredSubtitle> {
+        self.w.repo.subtitle_tracks(self.asset).await.unwrap()
+    }
+
+    async fn playback(&self) -> AssetPlayback {
+        self.w.repo.playback(self.asset).await.unwrap().unwrap()
+    }
+}
+
+fn upload_key(asset: i64, track: i64, ext: &str) -> String {
+    format!("subtitles/{asset}/{track}.{ext}")
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_uploaded_subtitle_survives_a_retranscode_and_still_plays() {
+    let p = published(PROBE_JSON).await;
+    let up = p.upload_sub("Deutsch", "de", SRT_FILE).await;
+    assert_eq!(up.source, SubtitleSource::Uploaded);
+    let before = p.playback().await;
+    assert_eq!(
+        before.media.subtitles.len(),
+        2,
+        "one embedded, one uploaded"
+    );
+    let old_prefix = before.base_path.clone();
+    let uploaded = before
+        .media
+        .subtitles
+        .iter()
+        .find(|s| s.name == "Deutsch")
+        .expect("the uploaded track plays");
+    assert_eq!(uploaded.vtt_path, format!("u/{}.vtt", up.id));
+    assert_eq!(uploaded.language_tag.as_deref(), Some("de"));
+    assert!(
+        before
+            .subtitle_ids
+            .contains(&(uploaded.vtt_path.clone(), up.id))
+    );
+    // It is stored as WebVTT, outside the transcode output prefix.
+    let key = upload_key(p.asset, up.id, "vtt");
+    let body = p.w.storage.get(&key).await.unwrap();
+    assert!(String::from_utf8_lossy(&body).starts_with("WEBVTT\n\n"));
+
+    p.retranscode().await;
+
+    let after = p.playback().await;
+    assert_ne!(
+        after.base_path, old_prefix,
+        "the ladder moved to a new prefix"
+    );
+    assert_eq!(
+        after.media.subtitles.len(),
+        2,
+        "the uploaded track is still there"
+    );
+    let again = after
+        .media
+        .subtitles
+        .iter()
+        .find(|s| s.name == "Deutsch")
+        .expect("still plays after the re-transcode");
+    assert_eq!(again.vtt_path, uploaded.vtt_path, "same path");
+    assert!(
+        after
+            .subtitle_ids
+            .contains(&(again.vtt_path.clone(), up.id)),
+        "the same track id"
+    );
+    assert!(
+        p.w.storage.get(&key).await.is_ok(),
+        "the object was not touched"
+    );
+    // Ordinals stay unique: the embedded track first, the uploaded one after it.
+    let ordinals: Vec<i32> = sqlx::query_scalar(
+        "SELECT ordinal FROM video_subtitle_tracks WHERE asset_id = $1 ORDER BY ordinal",
+    )
+    .bind(p.asset)
+    .fetch_all(&p.w.pool)
+    .await
+    .unwrap();
+    assert_eq!(ordinals, vec![0, 1]);
+    let order: Vec<SubtitleSource> = p.tracks().await.iter().map(|t| t.track.source).collect();
+    assert_eq!(
+        order,
+        vec![SubtitleSource::Embedded, SubtitleSource::Uploaded]
+    );
+    // The collector only ever has the replaced ladder prefix, never the subtitle prefix.
+    let queued: Vec<String> = sqlx::query_scalar("SELECT prefix FROM cinema_media_gc")
+        .fetch_all(&p.w.pool)
+        .await
+        .unwrap();
+    assert!(
+        !queued.is_empty() && queued.iter().all(|q| q.starts_with("transcode/")),
+        "{queued:?}"
+    );
+    // The playlist of the uploaded track still renders.
+    let signer = CdnSigner::new(b"s".to_vec());
+    assert!(
+        sr_media::grant::render_file(&after, &format!("u/{}.m3u8", up.id), &signer, 1000).is_some()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_hidden_track_is_in_neither_the_playback_answer_nor_the_playlist() {
+    let p = published(PROBE_JSON).await;
+    let up = p.upload_sub("Deutsch", "de", VTT_FILE).await;
+    let embedded = p
+        .tracks()
+        .await
+        .into_iter()
+        .find(|t| t.track.source == SubtitleSource::Embedded)
+        .unwrap();
+    let signer = CdnSigner::new(b"s".to_vec());
+    let master = |pb: &AssetPlayback| {
+        sr_media::grant::render_file(pb, "master.m3u8", &signer, 1000)
+            .unwrap()
+            .body
+    };
+    let pb = p.playback().await;
+    assert_eq!(pb.media.subtitles.len(), 2);
+    assert!(master(&pb).contains(&embedded.vtt_path.replace(".vtt", ".m3u8")));
+    // Hide the embedded track, then the uploaded one.
+    let hidden =
+        p.w.svc
+            .update_subtitle(
+                p.asset,
+                embedded.track.id,
+                SubtitlePatch {
+                    hidden: Some(true),
+                    ..SubtitlePatch::default()
+                },
+            )
+            .await
+            .unwrap();
+    assert!(hidden.hidden);
+    let pb = p.playback().await;
+    assert_eq!(pb.media.subtitles.len(), 1);
+    assert!(!master(&pb).contains(&embedded.vtt_path.replace(".vtt", ".m3u8")));
+    assert!(
+        sr_media::grant::render_file(
+            &pb,
+            &embedded.vtt_path.replace(".vtt", ".m3u8"),
+            &signer,
+            1000
+        )
+        .is_none()
+    );
+    assert!(
+        sr_media::grant::playback_grant(&pb, &signer, 1000)
+            .subtitles
+            .iter()
+            .all(|s| !s.vtt_url.contains(&embedded.vtt_path))
+    );
+    p.w.svc
+        .update_subtitle(
+            p.asset,
+            up.id,
+            SubtitlePatch {
+                hidden: Some(true),
+                ..SubtitlePatch::default()
+            },
+        )
+        .await
+        .unwrap();
+    let pb = p.playback().await;
+    assert!(pb.media.subtitles.is_empty() && pb.subtitle_ids.is_empty());
+    assert!(!master(&pb).contains("SUBTITLES"));
+    // Hidden tracks stay in the staff list, and showing them again brings them back.
+    let all = p.tracks().await;
+    assert_eq!(all.len(), 2);
+    assert!(all.iter().all(|t| t.track.hidden));
+    for t in &all {
+        p.w.svc
+            .update_subtitle(
+                p.asset,
+                t.track.id,
+                SubtitlePatch {
+                    hidden: Some(false),
+                    ..SubtitlePatch::default()
+                },
+            )
+            .await
+            .unwrap();
+    }
+    assert_eq!(p.playback().await.media.subtitles.len(), 2);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn edits_of_an_embedded_track_survive_a_retranscode() {
+    let p = published(PROBE_TWO_SUBS).await;
+    let tracks = p.tracks().await;
+    assert_eq!(tracks.len(), 2);
+    let (spa, fra) = (&tracks[0], &tracks[1]);
+    let fra_label = fra.track.label.clone();
+    // Staff edit the first track (label, language, flags, default) and hide it; the second is left alone.
+    p.w.svc
+        .update_subtitle(
+            p.asset,
+            spa.track.id,
+            SubtitlePatch {
+                label: Some("Castellano".into()),
+                language: Some("es-ES".into()),
+                forced: Some(true),
+                hearing_impaired: Some(true),
+                is_default: Some(true),
+                hidden: Some(true),
+            },
+        )
+        .await
+        .unwrap();
+    // Hiding alone (no other edit) is kept too.
+    p.w.svc
+        .update_subtitle(
+            p.asset,
+            fra.track.id,
+            SubtitlePatch {
+                hidden: Some(true),
+                ..SubtitlePatch::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    p.retranscode().await;
+
+    let after = p.tracks().await;
+    assert_eq!(after.len(), 2);
+    let spa2 = after.iter().find(|t| t.vtt_path == spa.vtt_path).unwrap();
+    let fra2 = after.iter().find(|t| t.vtt_path == fra.vtt_path).unwrap();
+    assert_ne!(
+        spa2.track.id, spa.track.id,
+        "the row is new, the stream is the same"
+    );
+    assert_eq!(spa2.track.label, "Castellano");
+    assert_eq!(spa2.track.language.as_deref(), Some("es-ES"));
+    assert!(
+        spa2.track.forced
+            && spa2.track.hearing_impaired
+            && spa2.track.is_default
+            && spa2.track.hidden
+    );
+    // The track that was only hidden keeps the plan's own label and flags, and stays hidden.
+    assert_eq!(fra2.track.label, fra_label);
+    assert!(fra2.track.hidden);
+    assert!(p.playback().await.media.subtitles.is_empty());
+    // A third round keeps them (the edit flag is carried with the row).
+    p.retranscode().await;
+    let third = p.tracks().await;
+    assert_eq!(
+        third
+            .iter()
+            .find(|t| t.vtt_path == spa.vtt_path)
+            .unwrap()
+            .track
+            .label,
+        "Castellano"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn setting_a_default_clears_the_other_defaults() {
+    let p = published(PROBE_TWO_SUBS).await;
+    let a = p.upload_sub("A", "de", SRT_FILE).await;
+    let b = p.upload_sub("B", "it", VTT_FILE).await;
+    let defaults = |tracks: &[StoredSubtitle]| -> Vec<i64> {
+        tracks
+            .iter()
+            .filter(|t| t.track.is_default)
+            .map(|t| t.track.id)
+            .collect()
+    };
+    let set = |id: i64| {
+        p.w.svc.update_subtitle(
+            p.asset,
+            id,
+            SubtitlePatch {
+                is_default: Some(true),
+                ..SubtitlePatch::default()
+            },
+        )
+    };
+    set(a.id).await.unwrap();
+    assert_eq!(defaults(&p.tracks().await), vec![a.id]);
+    set(b.id).await.unwrap();
+    assert_eq!(defaults(&p.tracks().await), vec![b.id]);
+    // An embedded track too, and the uploaded one that was default is cleared.
+    let embedded = p.tracks().await[0].track.id;
+    set(embedded).await.unwrap();
+    assert_eq!(defaults(&p.tracks().await), vec![embedded]);
+    // After a re-transcode there is still exactly one default (the staff's choice wins over the plan's).
+    set(a.id).await.unwrap();
+    p.retranscode().await;
+    assert_eq!(defaults(&p.tracks().await), vec![a.id]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_embedded_track_cannot_be_deleted_only_hidden() {
+    let p = published(PROBE_JSON).await;
+    let embedded = p.tracks().await.remove(0);
+    let r = p.w.svc.delete_subtitle(p.asset, embedded.track.id).await;
+    match r {
+        Err(MediaError::Invalid(m)) => assert!(m.contains("hide it instead"), "{m}"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(p.tracks().await.len(), 1, "the track is still there");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn deleting_an_uploaded_track_removes_its_objects() {
+    let p = published(PROBE_JSON).await;
+    let up = p.upload_sub("Styled", "en", ASS_FILE).await;
+    assert!(up.styled);
+    let (vtt, ass) = (
+        upload_key(p.asset, up.id, "vtt"),
+        upload_key(p.asset, up.id, "ass"),
+    );
+    assert!(p.w.storage.get(&vtt).await.is_ok() && p.w.storage.get(&ass).await.is_ok());
+    p.w.svc.delete_subtitle(p.asset, up.id).await.unwrap();
+    assert!(p.w.storage.get(&vtt).await.is_err(), "the WebVTT is gone");
+    assert!(p.w.storage.get(&ass).await.is_err(), "the ASS is gone");
+    assert_eq!(p.tracks().await.len(), 1);
+    assert!(matches!(
+        p.w.svc.delete_subtitle(p.asset, up.id).await,
+        Err(MediaError::NotFound(_))
+    ));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn deleting_the_asset_removes_uploaded_subtitles() {
+    let w = world(probe_ok()).await;
+    let user = account(&w.pool).await;
+    let a = upload(&w, user, true).await;
+    let up = w
+        .svc
+        .upload_subtitle(
+            a.id,
+            SubtitleUploadMeta {
+                language: Some("de".into()),
+                ..SubtitleUploadMeta::default()
+            },
+            SRT_FILE.as_bytes(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(up.label, "de", "the language names an unlabelled track");
+    let key = upload_key(a.id, up.id, "vtt");
+    assert!(w.storage.get(&key).await.is_ok());
+    // The asset is removed and its grace period is over: the sweep deletes the original and the uploads.
+    w.repo
+        .transition_asset(a.id, &[AssetState::Uploaded], AssetState::Removed, None)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE video_assets SET ended_at = to_timestamp(1700000000 - 5184000) WHERE id = $1",
+    )
+    .bind(a.id)
+    .execute(&w.pool)
+    .await
+    .unwrap();
+    // A removed asset takes no new subtitles.
+    let r = w
+        .svc
+        .upload_subtitle(a.id, SubtitleUploadMeta::default(), SRT_FILE.as_bytes())
+        .await;
+    assert!(matches!(r, Err(MediaError::Conflict(_))), "{r:?}");
+    let report = w.svc.sweep().await.unwrap();
+    assert_eq!(report.originals_deleted, 1, "{report:?}");
+    assert!(
+        w.storage.get(&key).await.is_err(),
+        "the uploaded file is gone"
+    );
+    let rows: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM video_subtitle_tracks WHERE asset_id = $1")
+            .bind(a.id)
+            .fetch_one(&w.pool)
+            .await
+            .unwrap();
+    assert_eq!(rows, 0);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_file_with_no_cue_is_refused() {
+    let p = published(PROBE_JSON).await;
+    for bad in [
+        &b"nothing but words"[..],
+        &b"WEBVTT\n\nNOTE only a note\n"[..],
+        &b"1\n00:00:03,000 --> 00:00:03,000\nzero length\n"[..],
+        &b""[..],
+    ] {
+        let r =
+            p.w.svc
+                .upload_subtitle(p.asset, SubtitleUploadMeta::default(), bad)
+                .await;
+        match r {
+            Err(MediaError::Invalid(m)) => assert!(m.contains("no readable cues"), "{m}"),
+            other => panic!("{bad:?}: {other:?}"),
+        }
+    }
+    assert!(
+        p.w.storage
+            .list(&format!("subtitles/{}/", p.asset))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(p.tracks().await.len(), 1, "only the embedded track");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_file_over_the_limit_is_refused() {
+    let p = published(PROBE_JSON).await;
+    let big = vec![b'a'; sr_media::subtitles::MAX_SUBTITLE_BYTES + 1];
+    let r =
+        p.w.svc
+            .upload_subtitle(p.asset, SubtitleUploadMeta::default(), &big)
+            .await;
+    match r {
+        Err(MediaError::Invalid(m)) => assert!(m.contains("larger than"), "{m}"),
+        other => panic!("{other:?}"),
+    }
+    assert!(
+        p.w.storage
+            .list(&format!("subtitles/{}/", p.asset))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_format_is_read_from_the_content_not_the_name() {
+    // The service takes bytes only (a name is never an input), so the same bytes give the same track
+    // whatever the browser called the file: SubRip, WebVTT and ASS each come out as WebVTT.
+    let p = published(PROBE_JSON).await;
+    for (file, styled, needle) in [
+        (SRT_FILE, false, "Hello <i>there</i>"),
+        (VTT_FILE, false, "Hola"),
+        (ASS_FILE, true, "Styled"),
+    ] {
+        let t = p.upload_sub("X", "en", file).await;
+        assert_eq!(t.styled, styled, "{file}");
+        let vtt =
+            p.w.storage
+                .get(&upload_key(p.asset, t.id, "vtt"))
+                .await
+                .unwrap();
+        let vtt = String::from_utf8(vtt.to_vec()).unwrap();
+        assert!(
+            vtt.starts_with("WEBVTT\n\n") && vtt.contains(needle),
+            "{vtt}"
+        );
+        assert_eq!(
+            p.w.storage
+                .get(&upload_key(p.asset, t.id, "ass"))
+                .await
+                .is_ok(),
+            styled
+        );
+    }
+    // A file that only claims to be WebVTT is parsed, not stored as sent.
+    let hostile = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<script>alert(1)</script>\n\n\
+                   STYLE\n::cue { background: url(javascript:x) }\n";
+    let t = p.upload_sub("Y", "en", hostile).await;
+    let vtt =
+        p.w.storage
+            .get(&upload_key(p.asset, t.id, "vtt"))
+            .await
+            .unwrap();
+    let vtt = String::from_utf8(vtt.to_vec()).unwrap();
+    assert!(
+        !vtt.contains("<script") && !vtt.contains("STYLE") && !vtt.contains("javascript"),
+        "{vtt}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_track_of_another_asset_is_404() {
+    let p = published(PROBE_JSON).await;
+    let up = p.upload_sub("Mine", "de", SRT_FILE).await;
+    let user = account(&p.w.pool).await;
+    let other = upload(&p.w, user, false).await;
+    assert!(matches!(
+        p.w.svc
+            .update_subtitle(
+                other.id,
+                up.id,
+                SubtitlePatch {
+                    label: Some("x".into()),
+                    ..SubtitlePatch::default()
+                }
+            )
+            .await,
+        Err(MediaError::NotFound(_))
+    ));
+    assert!(matches!(
+        p.w.svc.delete_subtitle(other.id, up.id).await,
+        Err(MediaError::NotFound(_))
+    ));
+    // The track is untouched, and a missing asset is 404 for a list and an upload.
+    let mine = p.tracks().await;
+    assert!(
+        mine.iter()
+            .any(|t| t.track.id == up.id && t.track.label == "Mine")
+    );
+    assert!(matches!(
+        p.w.svc.subtitle_tracks(1).await,
+        Err(MediaError::NotFound("asset"))
+    ));
+    assert!(matches!(
+        p.w.svc
+            .upload_subtitle(1, SubtitleUploadMeta::default(), SRT_FILE.as_bytes())
+            .await,
+        Err(MediaError::NotFound("asset"))
+    ));
+}

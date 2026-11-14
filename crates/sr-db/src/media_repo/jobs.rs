@@ -726,6 +726,18 @@ fn upload_from_row(r: &PgRow) -> Result<UploadRecord, StoreError> {
     })
 }
 
+/// What staff changed on an embedded subtitle track, read before the re-transcode replaces its row (D-685).
+struct KeptEdit {
+    source_ordinal: i32,
+    name: String,
+    language_tag: Option<String>,
+    forced: bool,
+    hearing_impaired: bool,
+    is_default: bool,
+    hidden: bool,
+    edited: bool,
+}
+
 /// Replace the asset's renditions and tracks with the finished ladder and point the asset at the
 /// new storage prefix; the previous prefix is queued for collection.
 async fn apply_ladder(
@@ -743,16 +755,46 @@ async fn apply_ladder(
             .fetch_optional(&mut *tx)
             .await?
             .flatten();
-    for table in [
-        "video_renditions",
-        "video_audio_tracks",
-        "video_subtitle_tracks",
-    ] {
+    for table in ["video_renditions", "video_audio_tracks"] {
         super::dynq(format!("DELETE FROM {table} WHERE asset_id = $1"))
             .bind(asset_id)
             .execute(&mut *tx)
             .await?;
     }
+    // Subtitles (D-685): the tracks the transcode extracted are replaced, the staff-uploaded ones are kept.
+    // What staff changed on an embedded track is read first and put back on the new row of the same source
+    // stream (the plan's `source_ordinal`).
+    let kept: Vec<KeptEdit> = sqlx::query(
+        "SELECT source_ordinal, name, language_tag, forced, hearing_impaired, is_default, hidden, edited \
+         FROM video_subtitle_tracks WHERE asset_id = $1 AND source = 'embedded' AND source_ordinal IS NOT NULL \
+           AND (edited OR hidden)",
+    )
+    .bind(asset_id)
+    .fetch_all(&mut *tx)
+    .await?
+    .iter()
+    .map(|r| KeptEdit {
+        source_ordinal: r.get("source_ordinal"),
+        name: r.get("name"),
+        language_tag: r.get("language_tag"),
+        forced: r.get("forced"),
+        hearing_impaired: r.get("hearing_impaired"),
+        is_default: r.get("is_default"),
+        hidden: r.get("hidden"),
+        edited: r.get("edited"),
+    })
+    .collect();
+    sqlx::query("DELETE FROM video_subtitle_tracks WHERE asset_id = $1 AND source = 'embedded'")
+        .bind(asset_id)
+        .execute(&mut *tx)
+        .await?;
+    // Out of the way of the new embedded ordinals (UNIQUE (asset_id, ordinal)); renumbered after them below.
+    sqlx::query(
+        "UPDATE video_subtitle_tracks SET ordinal = ordinal + 1000000 WHERE asset_id = $1 AND source = 'uploaded'",
+    )
+    .bind(asset_id)
+    .execute(&mut *tx)
+    .await?;
     let sizes: HashMap<&str, u64> = req
         .outputs
         .iter()
@@ -823,26 +865,59 @@ async fn apply_ladder(
     }
     for (i, s) in plan.subtitles.iter().enumerate() {
         let ass = (s.keep_raw && s.extract == ExtractFormat::Ass).then(|| s.raw_path.clone());
+        let source_ordinal = i32::try_from(s.source_ordinal).unwrap_or(i32::MAX);
+        let edit = kept.iter().find(|k| k.source_ordinal == source_ordinal);
+        // An edited track keeps what staff set; a track staff only hid keeps the plan's own fields.
+        let carried = edit.filter(|k| k.edited);
         sqlx::query(
             "INSERT INTO video_subtitle_tracks (id, asset_id, job_id, ordinal, name, language, language_tag, \
-               forced, hearing_impaired, is_default, vtt_path, ass_path) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+               forced, hearing_impaired, is_default, vtt_path, ass_path, source, source_ordinal, hidden, edited) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'embedded', $13, $14, $15)",
         )
         .bind(ids())
         .bind(asset_id)
         .bind(job_id)
         .bind(i32::try_from(i).unwrap_or(i32::MAX))
-        .bind(&s.label)
+        .bind(carried.map_or(s.label.as_str(), |k| k.name.as_str()))
         .bind(s.language.as_deref())
-        .bind(s.language_tag.as_deref())
-        .bind(s.forced)
-        .bind(s.hearing_impaired)
-        .bind(s.is_default)
+        .bind(match carried {
+            Some(k) => k.language_tag.as_deref(),
+            None => s.language_tag.as_deref(),
+        })
+        .bind(carried.map_or(s.forced, |k| k.forced))
+        .bind(carried.map_or(s.hearing_impaired, |k| k.hearing_impaired))
+        .bind(carried.map_or(s.is_default, |k| k.is_default))
         .bind(&s.vtt_path)
         .bind(ass)
+        .bind(source_ordinal)
+        .bind(edit.is_some_and(|k| k.hidden))
+        .bind(carried.is_some())
         .execute(&mut *tx)
         .await?;
     }
+    // The uploaded tracks follow the embedded ones, in their own order.
+    sqlx::query(
+        "UPDATE video_subtitle_tracks t SET ordinal = r.n FROM ( \
+           SELECT id, ($2::int + row_number() OVER (ORDER BY ordinal, id) - 1)::int AS n \
+           FROM video_subtitle_tracks WHERE asset_id = $1 AND source = 'uploaded') r \
+         WHERE t.id = r.id",
+    )
+    .bind(asset_id)
+    .bind(i32::try_from(plan.subtitles.len()).unwrap_or(i32::MAX))
+    .execute(&mut *tx)
+    .await?;
+    // At most one default per asset: when staff chose one (an uploaded track, or an embedded track they
+    // edited), the plan's own default on another track yields to it.
+    sqlx::query(
+        "UPDATE video_subtitle_tracks SET is_default = FALSE WHERE asset_id = $1 AND is_default AND id <> ( \
+           SELECT id FROM video_subtitle_tracks WHERE asset_id = $1 AND is_default \
+             AND (source = 'uploaded' OR edited) ORDER BY ordinal LIMIT 1) \
+         AND EXISTS (SELECT 1 FROM video_subtitle_tracks WHERE asset_id = $1 AND is_default \
+             AND (source = 'uploaded' OR edited))",
+    )
+    .bind(asset_id)
+    .execute(&mut *tx)
+    .await?;
     let posters: Vec<String> = plan.posters.iter().map(|p| p.path.clone()).collect();
     sqlx::query(
         "UPDATE video_assets SET hls_prefix = $2, sprite_vtt_path = $3, poster_paths = $4, \

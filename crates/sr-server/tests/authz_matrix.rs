@@ -2711,6 +2711,27 @@ async fn seed(
             .execute(&pool)
             .await
             .unwrap();
+        // D-685: a real asset row with one uploaded subtitle track, for the subtitle routes. The Cinema asset above
+        // is a plain reference, so the other asset routes keep answering 404 and stay in WRITE_OBSERVED.
+        {
+            let sub_asset = ids.generate().get() as i64;
+            let sub_track = ids.generate().get() as i64;
+            sqlx::query("INSERT INTO video_assets (id, state, filename, original_key, original_ext, original_size) VALUES ($1, 'published', 'authz.mkv', $2, 'mkv', 1)")
+                .bind(sub_asset)
+                .bind(format!("originals/{sub_asset}/source.mkv"))
+                .execute(&pool)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO video_subtitle_tracks (id, asset_id, job_id, ordinal, name, language_tag, vtt_path, source) VALUES ($1, $2, NULL, 0, 'Authz', 'en', $3, 'uploaded')")
+                .bind(sub_track)
+                .bind(sub_asset)
+                .bind(format!("u/{sub_track}.vtt"))
+                .execute(&pool)
+                .await
+                .unwrap();
+            a.insert("subtitle_asset_id", sub_asset.to_string());
+            a.insert("subtitle_track_id", sub_track.to_string());
+        }
         // A published series for the seasons and episodes (the film above is what Live TV plays).
         put!(
             "series_title_id",
@@ -5010,6 +5031,10 @@ fn write_body_override(method: &str, path: &str) -> Option<&'static str> {
         ("POST", "/music/library/rescan") => r#"{"mount_id":"{mount_id}"}"#,
         // A sampled `source` is neither `file` nor `edit`: a plain title edit by the mount's owner.
         ("PATCH", "/music/tracks/{track_id}") => r#"{"title":"Authz edit"}"#,
+        // D-685: a staff edit of the seeded uploaded subtitle track.
+        ("PATCH", "/admin/cinema/assets/{asset_id}/subtitles/{track_id}") => {
+            r#"{"label":"Authz edit"}"#
+        }
         ("POST", "/users/@me/music/recent") => r#"{"track_id":"{track_id}"}"#,
         ("POST", "/music/playlists/{playlist_id}/items") => r#"{"track_ids":["{guild_track_id}"]}"#,
         // MUS-JB-002/003 (wave 31): the guild's shelf track, the seeded playing row, the guild's playlist.
@@ -5768,6 +5793,17 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
         &["/cinema/", "/admin/cinema/"],
         "asset_id",
         "cinema_asset_id",
+    ),
+    // D-685: the subtitle routes act on their own seeded asset row and its uploaded track.
+    (
+        &["/admin/cinema/assets/{asset_id}/subtitles"],
+        "asset_id",
+        "subtitle_asset_id",
+    ),
+    (
+        &["/admin/cinema/assets/{asset_id}/subtitles/"],
+        "track_id",
+        "subtitle_track_id",
     ),
     (
         &["/cinema/", "/admin/cinema/"],

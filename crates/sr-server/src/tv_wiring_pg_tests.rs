@@ -503,6 +503,35 @@ async fn the_slate_setting_is_read_before_the_environment_fallback() {
     db.cleanup().await.unwrap();
 }
 
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_footer_note_setting_is_read_from_the_settings_row() {
+    use crate::tv_catalog::PgFooterNote;
+    use sr_tv::FooterNoteSource;
+    let db = TestDb::new().await.unwrap();
+    let pool = db.pool().clone();
+    let owner = account(&pool).await;
+    let source = PgFooterNote::new(pool.clone());
+    assert_eq!(source.footer_note().await, None);
+    for text in ["Times are your local time.", ""] {
+        sqlx::query(
+            "INSERT INTO platform_settings (key, value, updated_by) VALUES ($1, $2, $3)              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+        )
+        .bind(sr_admin::settings::TV_FOOTER_NOTE)
+        .bind(serde_json::json!(text))
+        .bind(owner)
+        .execute(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            source.footer_note().await.as_deref(),
+            Some(text),
+            "the service, not the source, turns empty into none"
+        );
+    }
+    db.cleanup().await.unwrap();
+}
+
 #[test]
 fn asset_ids_in_text_are_whole_positive_numbers() {
     use crate::tv_catalog::parse_asset_id;

@@ -70,6 +70,7 @@ impl AgeGate for Confirmed {
 
 struct Env {
     app: Router,
+    storage: Arc<sr_storage::ObjectStoreStorage>,
     admin: Arc<MemoryAdminRepo>,
     clock: Arc<ManualClock>,
     tokens: HashMap<i64, String>,
@@ -202,6 +203,7 @@ async fn env() -> Env {
     source.insert(live_asset(8000));
     catalog.add(adult);
     let next = Arc::new(AtomicI64::new(9000));
+    let storage = Arc::new(sr_storage::ObjectStoreStorage::in_memory());
     let tv = TvService::new(
         Arc::new(MemoryTvRepo::new()),
         Arc::new(catalog),
@@ -211,7 +213,8 @@ async fn env() -> Env {
     .with_live(LiveDeps {
         source: Arc::new(source),
         signer: Arc::new(Sig),
-    });
+    })
+    .with_logo_store(storage.clone());
 
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
@@ -224,6 +227,7 @@ async fn env() -> Env {
         .build();
     Env {
         app: build_router(state, router()),
+        storage,
         admin,
         clock,
         tokens,
@@ -323,6 +327,12 @@ async fn every_route_needs_a_session_and_staff_routes_need_manage_tv() {
             Some(channel_body(101)),
         ),
         (Method::DELETE, format!("/admin/tv/channels/{id}"), None),
+        (Method::PUT, format!("/admin/tv/channels/{id}/logo"), None),
+        (
+            Method::DELETE,
+            format!("/admin/tv/channels/{id}/logo"),
+            None,
+        ),
         (
             Method::GET,
             format!("/admin/tv/channels/{id}/schedule"),
@@ -1126,4 +1136,168 @@ async fn a_personal_pool_of_another_member_is_403_on_create_and_update() {
         .call(Some(CURATOR), Method::POST, "/admin/tv/channels", Some(own))
         .await;
     assert_eq!(s, StatusCode::CREATED, "{b}");
+}
+
+// ---- channel logos (D-686) ----
+
+impl Env {
+    /// A request with a raw body (the logo upload sends the image's bytes).
+    async fn call_bytes(
+        &self,
+        who: Option<i64>,
+        method: Method,
+        path: &str,
+        body: Vec<u8>,
+    ) -> (StatusCode, Value) {
+        let mut req = Request::builder()
+            .method(method)
+            .uri(format!("/api/v1{path}"))
+            .header("origin", "http://localhost:8080")
+            .header("content-type", "application/octet-stream");
+        if let Some(uid) = who {
+            let raw = &self.tokens[&uid];
+            req = req.header("cookie", format!("sr_session={raw}"));
+            req = req.header("x-sr-csrf", csrf::token_for(raw));
+        }
+        let resp = self
+            .app
+            .clone()
+            .oneshot(req.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    fn logged(&self, action: &str) -> usize {
+        self.admin
+            .log_rows()
+            .iter()
+            .filter(|l| l.action == action)
+            .count()
+    }
+}
+
+fn logo_png(w: u32, h: u32) -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(w, h, |_, _| image::Rgba([20, 90, 200, 255]));
+    let mut out = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    out
+}
+
+#[tokio::test]
+async fn staff_without_the_permission_get_403_and_logo_changes_are_logged() {
+    use sr_storage::ObjectStorage;
+    let e = env().await;
+    let id = create(&e, channel_body(101)).await;
+    let path = format!("/admin/tv/channels/{id}/logo");
+    // Nobody but MANAGE_TV staff: 401, 403 for a member and for staff without the permission.
+    for (m, who, want) in [
+        (Method::PUT, None, StatusCode::UNAUTHORIZED),
+        (Method::PUT, Some(MEMBER), StatusCode::FORBIDDEN),
+        (Method::PUT, Some(BASIC), StatusCode::FORBIDDEN),
+        (Method::DELETE, None, StatusCode::UNAUTHORIZED),
+        (Method::DELETE, Some(MEMBER), StatusCode::FORBIDDEN),
+        (Method::DELETE, Some(BASIC), StatusCode::FORBIDDEN),
+    ] {
+        let (s, _) = e.call_bytes(who, m.clone(), &path, logo_png(10, 10)).await;
+        assert_eq!(s, want, "{m} {who:?}");
+    }
+    assert!(e.storage.list("tv/").await.unwrap().is_empty());
+    assert_eq!(e.logged("tv.channel.logo.set"), 0);
+
+    // The curator sets a logo: bounded, stored, linked, logged.
+    let (s, c) = e
+        .call_bytes(Some(CURATOR), Method::PUT, &path, logo_png(1200, 600))
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    let url = c["logo_url"].as_str().unwrap().to_owned();
+    assert!(url.starts_with(&format!("/cdn/tv/{id}/logo-")), "{url}");
+    let key = url
+        .trim_start_matches("/cdn/")
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    let stored = e.storage.get(&key).await.unwrap();
+    let decoded = image::load_from_memory(&stored).unwrap();
+    assert_eq!((decoded.width(), decoded.height()), (512, 256));
+    assert_eq!(e.logged("tv.channel.logo.set"), 1);
+
+    // Not an image, SVG, a renamed script, an empty body: 400, nothing changes, nothing is logged.
+    for bad in [
+        b"<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>".to_vec(),
+        b"<script>alert(1)</script>".to_vec(),
+        Vec::new(),
+    ] {
+        let (s, b) = e.call_bytes(Some(CURATOR), Method::PUT, &path, bad).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    }
+    assert_eq!(e.logged("tv.channel.logo.set"), 1);
+    assert_eq!(e.storage.list("tv/").await.unwrap().len(), 1);
+    // Over 2 MiB: refused by the route's limit.
+    let (s, _) = e
+        .call_bytes(
+            Some(CURATOR),
+            Method::PUT,
+            &path,
+            vec![0u8; 2 * 1024 * 1024 + 8 * 1024],
+        )
+        .await;
+    assert_eq!(s, StatusCode::PAYLOAD_TOO_LARGE);
+    // An unknown channel is 404.
+    let (s, _) = e
+        .call_bytes(
+            Some(CURATOR),
+            Method::PUT,
+            "/admin/tv/channels/999/logo",
+            logo_png(10, 10),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    // An update cannot point the logo at a key the caller made up; echoing the current key keeps it.
+    let mut body = channel_body(101);
+    body["logo_key"] = json!("tv/9999/logo-1.png");
+    let (s, b) = e
+        .call(
+            Some(CURATOR),
+            Method::PUT,
+            &format!("/admin/tv/channels/{id}"),
+            Some(body.clone()),
+        )
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    body["logo_key"] = json!(key);
+    let (s, b) = e
+        .call(
+            Some(CURATOR),
+            Method::PUT,
+            &format!("/admin/tv/channels/{id}"),
+            Some(body),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    assert!(b["logo_url"].is_string());
+    // On create the key must be absent.
+    let mut new = channel_body(102);
+    new["logo_key"] = json!("tv/1/logo-1.png");
+    let (s, _) = e
+        .call(Some(CURATOR), Method::POST, "/admin/tv/channels", Some(new))
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+
+    // Removing clears the key, deletes the object and is logged.
+    let (s, c) = e
+        .call_bytes(Some(CURATOR), Method::DELETE, &path, Vec::new())
+        .await;
+    assert_eq!(s, StatusCode::OK, "{c}");
+    assert!(c["logo_url"].is_null());
+    assert!(e.storage.list("tv/").await.unwrap().is_empty());
+    assert_eq!(e.logged("tv.channel.logo.clear"), 1);
 }

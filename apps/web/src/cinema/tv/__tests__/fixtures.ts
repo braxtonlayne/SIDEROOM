@@ -156,6 +156,7 @@ export function wireGuide(g: TvGuide = guide()) {
     from_ms: startOfDay(NOW),
     to_ms: startOfDay(NOW) + 86_400_000,
     now_ms: g.now_ms,
+    footer_note: g.footer_note ?? null,
     channels: WIRE_CHANNELS.filter((c) => g.channels.some((x) => x.id === c.id)).map((c) => ({
       channel: c,
       blocks: (g.blocks[c.id] ?? []).map(wireBlock),

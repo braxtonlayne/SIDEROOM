@@ -214,7 +214,13 @@ fn to_playback_asset(pb: sr_media::assets::AssetPlayback) -> sr_media::playback:
         .enumerate()
         .map(|(i, s)| SubtitleExtra {
             vtt_path: s.vtt_path.clone(),
-            id: i.to_string(),
+            // The track's row id (stable across a re-transcode for an uploaded track); the position when the
+            // source gives none.
+            id: pb
+                .subtitle_ids
+                .iter()
+                .find(|(vtt, _)| *vtt == s.vtt_path)
+                .map_or_else(|| i.to_string(), |(_, id)| id.to_string()),
             ass_path: pb
                 .ass_paths
                 .iter()
@@ -262,6 +268,7 @@ mod tests {
             media: sr_media::playlist::MediaSet::default(),
             sprite: None,
             ass_paths: vec![],
+            subtitle_ids: vec![],
         };
         let a = to_playback_asset(pb);
         assert_eq!(a.storage_prefix, "transcode/9/1");

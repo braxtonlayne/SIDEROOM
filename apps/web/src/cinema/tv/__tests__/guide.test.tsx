@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { axeViolations } from '../../../../../../packages/ui/src/test-axe';
@@ -45,6 +45,17 @@ describe('Live TV guide', () => {
 
     const found = await axeViolations(container);
     expect(found.map((v) => JSON.stringify(v).slice(0, 400))).toEqual([]);
+  });
+
+  it('shows the operator footer note as plain text, and the built-in one when there is none', async () => {
+    const note = 'Times are local. <b>Bold</b> [a link](https://example.com) stays text.';
+    useTvApi({ guide: { ...guide(), footer_note: note } });
+    const { container } = renderAt('/cinema/tv');
+    await screen.findByRole('grid');
+    const foot = container.querySelector('.tv-footnote');
+    expect(foot?.textContent).toBe(note);
+    expect(foot?.querySelector('a, b')).toBeNull();
+    expect(screen.queryByText(/Channels are assembled from the SIDE ROOM library./)).toBeNull();
   });
 
   it('wears the broadcast theme on this page only', async () => {
@@ -361,6 +372,132 @@ describe('Live TV guide on a phone', () => {
     await user.click(items[0]!);
     expect(await screen.findByRole('dialog', { name: 'Cowboy Bebop' })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
+  });
+
+  it("shows the operator's footer note on the phone, and the built-in text when there is none", async () => {
+    useTvApi({ guide: { ...guide(), footer_note: 'Phone note: all times are local.' } });
+    const { container, unmount } = renderAt('/cinema/tv');
+    await screen.findByRole('list', { name: 'Channels' });
+    expect(container.querySelector('.tv-footnote')?.textContent).toBe(
+      'Phone note: all times are local.',
+    );
+    unmount();
+    useTvApi();
+    const again = renderAt('/cinema/tv');
+    await screen.findByRole('list', { name: 'Channels' });
+    expect(again.container.querySelector('.tv-footnote')?.textContent).toMatch(
+      /Channels are assembled from the SIDE ROOM library\./,
+    );
+  });
+
+  describe('swiping between channels', () => {
+    // jsdom has no PointerEvent: a MouseEvent that also carries the pointer id and type.
+    beforeEach(() => {
+      class TestPointerEvent extends MouseEvent {
+        pointerId: number;
+        pointerType: string;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerId = init.pointerId ?? 0;
+          this.pointerType = init.pointerType ?? '';
+        }
+      }
+      vi.stubGlobal('PointerEvent', TestPointerEvent);
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+    const touch = { pointerId: 1, pointerType: 'touch' };
+    const swipe = (el: Element, dx: number, dy = 0, type = 'touch') => {
+      fireEvent.pointerDown(el, { pointerId: 1, pointerType: type, clientX: 200, clientY: 300 });
+      fireEvent.pointerUp(el, {
+        pointerId: 1,
+        pointerType: type,
+        clientX: 200 + dx,
+        clientY: 300 + dy,
+      });
+    };
+    const panel = () => screen.getByRole('region', { name: /^On now, channel/ });
+
+    it('a swipe of at least 48 px, more sideways than vertical, selects the next or previous channel', async () => {
+      useTvApi();
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      renderAt('/cinema/tv');
+      const list = await screen.findByRole('list', { name: 'Channels' });
+      expect(panel()).toHaveAccessibleName('On now, channel 101');
+      // Fingers move left: the next channel.
+      swipe(list, -120, 10);
+      await waitFor(() => expect(panel()).toHaveAccessibleName('On now, channel 102'));
+      expect(screen.getByRole('status', { name: '' })).toHaveTextContent(
+        'Showing channel 102, Cartoon Network.',
+      );
+      expect(list.querySelector('[data-selected]')).toHaveTextContent('Cartoon Network');
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'smooth' });
+      // Fingers move right: the previous one; at the first channel nothing more happens.
+      swipe(list, 90, -20);
+      await waitFor(() => expect(panel()).toHaveAccessibleName('On now, channel 101'));
+      swipe(list, 150);
+      expect(panel()).toHaveAccessibleName('On now, channel 101');
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      void touch;
+    });
+
+    it('a short move, a mostly vertical one and a mouse drag do nothing', async () => {
+      useTvApi();
+      renderAt('/cinema/tv');
+      const list = await screen.findByRole('list', { name: 'Channels' });
+      swipe(list, -47, 0);
+      swipe(list, -70, 120);
+      swipe(list, -70, -70);
+      swipe(list, -200, 0, 'mouse');
+      fireEvent.pointerDown(list, {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 200,
+        clientY: 300,
+      });
+      fireEvent.pointerCancel(list, { pointerId: 1, pointerType: 'touch' });
+      fireEvent.pointerUp(list, { pointerId: 1, pointerType: 'touch', clientX: 20, clientY: 300 });
+      expect(panel()).toHaveAccessibleName('On now, channel 101');
+    });
+
+    it('never blocks vertical scrolling and does not animate when the viewer asked for less motion', async () => {
+      useTvApi();
+      const base = window.matchMedia;
+      const phoneMatch = base;
+      window.matchMedia = ((q: string) => ({
+        matches: q.includes('max-width') || q.includes('prefers-reduced-motion'),
+        media: q,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      })) as unknown as typeof window.matchMedia;
+      const scrollIntoView = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoView;
+      renderAt('/cinema/tv');
+      const list = await screen.findByRole('list', { name: 'Channels' });
+      // Nothing is prevented: the touch gesture is not cancelled by the handlers.
+      const down = createEvent.pointerDown(list, {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 200,
+        clientY: 300,
+      });
+      fireEvent(list, down);
+      const up = createEvent.pointerUp(list, {
+        pointerId: 1,
+        pointerType: 'touch',
+        clientX: 90,
+        clientY: 305,
+      });
+      fireEvent(list, up);
+      expect(down.defaultPrevented).toBe(false);
+      expect(up.defaultPrevented).toBe(false);
+      await waitFor(() => expect(panel()).toHaveAccessibleName('On now, channel 102'));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'auto' });
+      window.matchMedia = phoneMatch;
+    });
   });
 });
 

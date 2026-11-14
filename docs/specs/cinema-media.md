@@ -261,6 +261,7 @@ Staff session required (401/403). Every successful change is written to the staf
 | `POST /admin/cinema/titles/{id}/merge` | `{target_id}` -> target `Title` |
 | `POST /admin/cinema/titles/{id}/artwork` | `{slot: poster\|backdrop\|logo\|still\|season-poster, content_type: image/webp\|image/jpeg\|image/png}` -> `ArtworkUpload {key, upload_url, content_type, expires_in_secs}`: `PUT` the image to `upload_url` (same `Content-Type`), then save `key` as `poster_key` / `backdrop_key` / `logo_key` / `still_key` / a season's `poster_key` |
 | `PUT /admin/cinema/titles/{id}/asset` | `{asset_id: string\|null}` -> `Title` (links the playable asset; the asset tables belong to the ingest work) |
+| `GET|POST /admin/cinema/assets/{id}/subtitles`, `PATCH|DELETE .../subtitles/{track_id}` | the subtitles manager of a video asset (D-685): the tracks, an uploaded subtitle file, edits and the delete of an uploaded track; section 11.4. The Admin screen is the Subtitles block of the asset panel in the title editor (label, language, default, forced and hearing-impaired switches, Hide or Show for a track from the file, Delete for an uploaded one, Add subtitles with progress and the server's reason when it refuses) |
 | `POST /admin/cinema/titles/{id}/seasons` | `SeasonInput` -> 201 `Season` |
 | `PUT\|DELETE /admin/cinema/seasons/{id}` | `SeasonInput` -> `Season`; 204 |
 | `POST /admin/cinema/seasons/{id}/episodes` | `EpisodeInput` -> 201 `Episode` |
@@ -538,7 +539,9 @@ store, the S3 multipart signer is checked against the AWS documentation vectors 
 
 `video_assets` (state machine `awaiting_upload, uploaded, probing, proxy_ready, in_review, approved, transcoding,
 published, rejected, removed, failed, expired`; original key/size/tier, probe JSON, `hls_prefix`, `proxy_key`),
-`video_renditions` (video rungs with their `segment_index`), `video_audio_tracks`, `video_subtitle_tracks`,
+`video_renditions` (video rungs with their `segment_index`), `video_audio_tracks`, `video_subtitle_tracks`
+(migration 2890 adds `source` `embedded|uploaded`, `hidden`, `source_ordinal` (the source stream the track came from), `edited`,
+and makes `job_id` nullable: an uploaded track belongs to no job; see 11.4a),
 `worker_tokens` (SHA-256 only), `transcode_workers`, `transcode_jobs` (kinds `proxy`, `ladder`, `remux`; lease,
 attempt, progress, log tail), `transcode_uploads`, `cinema_download_grants`, `cinema_download_cache`,
 `cinema_downloads`, `cinema_media_gc`. `title_id`/`episode_id` on an asset and `video_titles.asset_id` stay plain
@@ -553,6 +556,10 @@ references; the catalog link is `CinemaService::link_title_asset` / `link_episod
   catalog promotes them): a copy of 4.7 GB per hour would double the storage traffic for nothing, so the asset
   records the prefix (`video_assets.hls_prefix`) and a re-transcode switches it; the replaced prefix goes to
   `cinema_media_gc` and is deleted after a grace period.
+* Subtitle files staff uploaded (D-685, 11.4a) are under `subtitles/<asset>/<track>.vtt` (and `.ass`), outside every
+  prefix a transcode job writes and the collector lists. The player reaches them through the `hls` kind as
+  `/cdn/hls/<asset>/u/<track>.vtt`; `PlaylistRenderer::storage_key` maps a `u/...` path of a track the playback answer lists
+  to that key (a hidden or deleted track maps to nothing).
 * `master.m3u8`, every media playlist, the subtitle wrapper playlists and `sprites/sprites.vtt` are **rendered on
   request** by the `hls` kind (`PlaylistRenderer`, sr-server `PgPlaylistRenderer`) with every URL signed for 6 hours,
   because the playlists ffmpeg wrote name their segments relatively. Segments, init files, WebVTT, ASS, fonts and
@@ -582,8 +589,43 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   `srw_<64 hex>` is in the create response only), workers (`GET`, `PUT .../{id}/drain`), `GET .../queue`, jobs
   (`GET .../jobs`, `GET .../jobs/{id}` with log tail, `POST .../cancel`, `POST .../retry`), `POST .../retranscode`
   (`{scope: asset|title|all, id?, only_older_than_profile?, reason?}`, capped at 500 assets), `POST .../sweep`.
+* Staff subtitles (`PUBLISH_MEDIA`, D-685): `GET /admin/cinema/assets/{asset_id}/subtitles`
+  (`{tracks: [{id, label, language, forced, hearing_impaired, is_default, hidden, source, styled}]}`, hidden tracks included),
+  `POST .../subtitles?language=&label=&forced=&hearing_impaired=` (the body is the file's bytes, at most 20 MiB, route limit
+  `MAX_SUBTITLE_BYTES` plus 64 KiB; the format is read from the content, never from a name), `PATCH .../subtitles/{track_id}`
+  (`label` 1 to 80 characters, `language` as the title editor validates one, `forced`, `hearing_impaired`, `is_default`,
+  `hidden`), `DELETE .../subtitles/{track_id}` (uploaded tracks only; an embedded one is 400 "hide it instead"). A track of
+  another asset under this asset's path is 404; an asset whose `mount_id` is not the instance bucket answers an upload with 409
+  ("this video's storage does not take subtitle uploads"). Written to the staff access log as `cinema.subtitle.upload|update|delete`.
 * Patron downloads (`/cinema/titles/{id}/downloads[?episode=]` GET picker / POST start, `/cinema/downloads/{id}`,
   `/cinema/downloads/{id}/file`): section 11.6.
+
+### 11.4a Subtitles staff manage (D-685, SEC-AUD-200)
+
+* **An upload is untrusted input.** `sr_media::subtitles::convert_upload` reads the format from the content (a `WEBVTT` header
+  line, an ASS `[Script Info]` or `[Events]` section, otherwise a SubRip `-->` line), parses it and writes WebVTT again
+  (`srt_to_webvtt`, `ass_to_webvtt`, and `vtt_to_webvtt` for WebVTT, which drops the header, `STYLE`, `REGION` and `NOTE` blocks and
+  cue identifiers, keeps well-formed `vertical`, `line`, `position`, `size` and `align` settings, keeps `<b> <i> <u>`, drops every other tag
+  with its text kept and escapes `&`, `<`, `>`). The stored file is never the uploaded bytes; an ASS file is kept next to the
+  WebVTT for styled rendering, as for extracted tracks. A file with no readable cue, over `MAX_SUBTITLE_BYTES` (20 MiB) or with
+  more than `MAX_CUES` cues is 400 with the converter's message.
+* **Why a re-transcode cannot touch an uploaded track.** A ladder completion (`apply_ladder`) replaces the renditions, the audio
+  tracks and the **embedded** subtitle rows only, in one transaction under the asset row's lock. Uploaded rows are kept with their
+  ids; their files are not under the new or the old transcode prefix (`subtitles/<asset>/`, never queued in `cinema_media_gc`),
+  and the playback path of an uploaded track is `u/<track>.vtt`, independent of `hls_prefix`. The ordinals (`UNIQUE (asset_id,
+  ordinal)`) are renumbered so the uploaded tracks follow the embedded ones.
+* **Edits of an embedded track survive by stream.** The plan's `source_ordinal` (`-map 0:s:<n>`) is stored as
+  `source_ordinal`. Before the embedded rows are replaced, the rows staff edited (`edited`: label, language, forced, hearing impaired
+  or default) or hid are read, and the new row of the same source stream gets those fields back; a track staff did not touch takes the
+  plan's values. Rows written before migration 2890 get their stream read back from the plan of the newest finished ladder job
+  (the migration); a row no plan names has none and its edits reset once. Setting a default clears the other defaults in one
+  transaction, and after a re-transcode a default staff chose wins over the plan's.
+* **Hidden tracks** are filtered in `MediaRepository::playback`, so they are in neither the playback answer nor any rendered
+  master or subtitle playlist, nor served by `storage_key`.
+* **Removal.** Deleting a track deletes its row and objects. An asset that is removed or rejected takes no uploads, and the
+  retention sweep that deletes its original also deletes the uploaded subtitle rows and objects.
+* The title's `subtitle_languages` list is not touched by a transcode completion today and is not touched by an upload either; the
+  Admin panel offers the languages the title lists as suggestions.
 
 ### 11.5 Jobs
 

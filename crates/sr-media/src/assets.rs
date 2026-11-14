@@ -386,6 +386,112 @@ pub struct AssetPlayback {
     pub sprite: Option<SpritePlan>,
     /// Staff-uploaded subtitle files retained as ASS, by subtitle `vtt_path`.
     pub ass_paths: Vec<(String, String)>,
+    /// The id of each visible subtitle track by its `vtt_path` (the row id: stable across a re-transcode for
+    /// an uploaded track).
+    #[serde(default)]
+    pub subtitle_ids: Vec<(String, i64)>,
+}
+
+// ---- subtitle tracks (D-685) ---------------------------------------------------------------
+
+/// Where a subtitle track came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+#[schema(as = CinemaSubtitleSource)]
+pub enum SubtitleSource {
+    /// Extracted from the source file by a transcode; replaced by the next one (staff edits are carried over).
+    Embedded,
+    /// Added by a staff member; kept across re-transcodes.
+    Uploaded,
+}
+
+impl SubtitleSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Embedded => "embedded",
+            Self::Uploaded => "uploaded",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "embedded" => Some(Self::Embedded),
+            "uploaded" => Some(Self::Uploaded),
+            _ => None,
+        }
+    }
+}
+
+/// A subtitle track as staff see it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[schema(as = CinemaAdminSubtitleTrack)]
+pub struct SubtitleTrack {
+    #[serde(with = "ids::id")]
+    #[schema(value_type = String)]
+    pub id: i64,
+    pub label: String,
+    /// BCP 47 tag, when known.
+    pub language: Option<String>,
+    pub forced: bool,
+    pub hearing_impaired: bool,
+    pub is_default: bool,
+    /// Left out of the playback answer and the playlists.
+    pub hidden: bool,
+    pub source: SubtitleSource,
+    /// An ASS/SSA file is kept next to the WebVTT for styled rendering.
+    pub styled: bool,
+}
+
+/// A track with the paths of its files (relative to the asset playback base).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredSubtitle {
+    pub track: SubtitleTrack,
+    pub vtt_path: String,
+    pub ass_path: Option<String>,
+}
+
+/// A track staff upload. The files are already stored under [`upload_object_key`] when this reaches the repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewUploadedSubtitle {
+    pub id: i64,
+    pub label: String,
+    pub language: Option<String>,
+    pub forced: bool,
+    pub hearing_impaired: bool,
+    pub vtt_path: String,
+    pub ass_path: Option<String>,
+}
+
+/// What a staff edit may change; `None` leaves the field as it is.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SubtitlePatch {
+    pub label: Option<String>,
+    pub language: Option<String>,
+    pub forced: Option<bool>,
+    pub hearing_impaired: Option<bool>,
+    pub is_default: Option<bool>,
+    pub hidden: Option<bool>,
+}
+
+/// The result of deleting a track.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SubtitleDelete {
+    Deleted(StoredSubtitle),
+    /// An embedded track is hidden, not deleted.
+    Embedded,
+    Missing,
+}
+
+/// The path prefix, relative to an asset playback base, of its uploaded subtitle files.
+pub const UPLOAD_REL_PREFIX: &str = "u/";
+
+/// Where the files of uploaded subtitles live in storage: `subtitles/{asset}/{track}.vtt` (and `.ass`) for the
+/// relative path `u/{track}.vtt`. No transcode job writes here and the collector only lists prefixes queued for a
+/// replaced ladder.
+pub fn upload_object_key(asset_id: i64, rel_path: &str) -> Option<String> {
+    let name = rel_path.strip_prefix(UPLOAD_REL_PREFIX)?;
+    (!name.is_empty() && !name.contains(['/', '\\']) && name != "." && name != "..")
+        .then(|| format!("subtitles/{asset_id}/{name}"))
 }
 
 // ---- the port -----------------------------------------------------------------------------
@@ -448,6 +554,49 @@ pub trait MediaRepository: JobStore {
     async fn playback_by_prefix(&self, prefix: &str) -> MediaResult<Option<AssetPlayback>>;
     /// The playable form of a ready asset (`None` while no ladder exists).
     async fn playback(&self, asset_id: i64) -> MediaResult<Option<AssetPlayback>>;
+
+    /// Every subtitle track of the asset (hidden ones included), embedded first, in ordinal order.
+    async fn subtitle_tracks(&self, _asset_id: i64) -> MediaResult<Vec<StoredSubtitle>> {
+        Err(MediaError::Backend(
+            "this repository has no subtitle tracks".into(),
+        ))
+    }
+    /// Add an uploaded track after the existing ones. `None` when the asset does not exist.
+    async fn add_uploaded_subtitle(
+        &self,
+        _asset_id: i64,
+        _new: &NewUploadedSubtitle,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        Err(MediaError::Backend(
+            "this repository has no subtitle tracks".into(),
+        ))
+    }
+    /// Change a track of the asset; `is_default: true` clears the other defaults in the same transaction.
+    /// `None` when the asset has no such track.
+    async fn update_subtitle(
+        &self,
+        _asset_id: i64,
+        _track_id: i64,
+        _patch: &SubtitlePatch,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        Err(MediaError::Backend(
+            "this repository has no subtitle tracks".into(),
+        ))
+    }
+    /// Delete an uploaded track row (the caller deletes its objects).
+    async fn delete_uploaded_subtitle(
+        &self,
+        _asset_id: i64,
+        _track_id: i64,
+    ) -> MediaResult<SubtitleDelete> {
+        Err(MediaError::Backend(
+            "this repository has no subtitle tracks".into(),
+        ))
+    }
+    /// Delete every uploaded track row of the asset and return them (the caller deletes their objects).
+    async fn remove_uploaded_subtitles(&self, _asset_id: i64) -> MediaResult<Vec<StoredSubtitle>> {
+        Ok(vec![])
+    }
 
     /// Facts for the retention sweep, oldest first, at most `limit`.
     async fn retention_facts(&self, limit: u32) -> MediaResult<Vec<AssetFacts>>;

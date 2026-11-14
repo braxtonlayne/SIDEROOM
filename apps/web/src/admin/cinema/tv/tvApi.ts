@@ -1,8 +1,9 @@
 // Data layer for the Live TV admin screens (TV-ADM-001..005): channels, schedule rules, schedule preview and
 // publish, "now" control, placing programmes, and the what-aired report. Needs MANAGE_TV (doc 07). The routes are
 // docs/specs/cinema-live-tv.md section 8.5 (`/admin/tv/*`, crate sr-tv); ids are Snowflake strings, timestamps
-// Unix milliseconds. Not on the server yet (the screens say so): guide import (TV-ADM-004), logo upload, the weekly
-// grid editor (TV-ADM-003), imported_guide channels.
+// Unix milliseconds. The channel logo is uploaded to the server (D-686: PUT/DELETE /admin/tv/channels/{id}/logo, a
+// re-encoded PNG, JPEG or WebP); the guide import, the weekly grid and imported_guide channels are on the server too
+// (routes/tv/guide.rs).
 import { ApiError, apiFetch } from '../../../api/client';
 import { toBlock, toChannel, type WireBlock, type WireChannel } from '../../../cinema/tv/api';
 import type { FillerPolicy, TvBlock, TvChannel } from '../../../cinema/tv/types';
@@ -169,14 +170,35 @@ export interface ChannelInput {
   rules: ScheduleRules | null;
 }
 
+/** What the server takes as a channel logo (D-686): PNG, JPEG or WebP, at most 2 MiB; SVG is refused. */
+export const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+/** `PUT /admin/tv/channels/{id}/logo`: the body is the image; the answer is the channel with its new logo. */
+export const setLogo = async (id: string, file: Blob): Promise<AdminChannel> =>
+  toAdmin(
+    await apiFetch<WireAdminChannel>(`/admin/tv/channels/${enc(id)}/logo`, {
+      method: 'PUT',
+      retries: 0,
+      raw: file,
+      headers: { 'content-type': file.type || 'application/octet-stream' },
+    }),
+  );
+
+/** `DELETE /admin/tv/channels/{id}/logo`: the logo is gone (the guide shows the call sign again). */
+export const clearLogo = async (id: string): Promise<AdminChannel> =>
+  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}/logo`, 'DELETE'));
+
 export const listChannels = async (): Promise<{ items: AdminChannel[] }> => {
   const r = await get<{ items: WireAdminChannel[] }>('/admin/tv/channels');
   return { items: r.items.map(toAdmin) };
 };
+/** The server reads a missing `rules` as empty but refuses `null` (422): a manual or imported-guide channel sends none. */
+const channelBody = ({ rules, ...rest }: ChannelInput) => (rules ? { ...rest, rules } : rest);
 export const createChannel = async (b: ChannelInput) =>
-  toAdmin(await send<WireAdminChannel>('/admin/tv/channels', 'POST', b));
+  toAdmin(await send<WireAdminChannel>('/admin/tv/channels', 'POST', channelBody(b)));
 export const updateChannel = async (id: string, b: ChannelInput) =>
-  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', b));
+  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', channelBody(b)));
 export const deleteChannel = (id: string) => send<void>(`/admin/tv/channels/${enc(id)}`, 'DELETE');
 /** `GET /tv/timezones`: the names the server accepts. */
 export const listTimezones = async () => (await get<{ items: string[] }>('/tv/timezones')).items;

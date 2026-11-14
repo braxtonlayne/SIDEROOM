@@ -6,6 +6,7 @@ DELETE	/activity-instances/{instance_id}/guest-links/{lobby_token}	authenticated
 DELETE	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
 DELETE	/admin/arcade/coming-soon/{entry_id}	authenticated	staff	deny	-	OPERATOR
 DELETE	/admin/arcade/featured/{application_id}	authenticated	staff	deny	-	OPERATOR
+DELETE	/admin/cinema/assets/{asset_id}/subtitles/{track_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
 DELETE	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
 DELETE	/admin/cinema/episodes/{episode_id}	authenticated	staff	deny	-	DELETE_CONTENT
 DELETE	/admin/cinema/seasons/{season_id}	authenticated	staff	deny	-	DELETE_CONTENT
@@ -30,6 +31,7 @@ DELETE	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-	OWNER
 DELETE	/admin/transcode/tokens/{token_id}	authenticated	staff	deny	-	MANAGE_TRANSCODE
 DELETE	/admin/tv/blocks/{block_id}	authenticated	staff	deny	-	MANAGE_TV
 DELETE	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
+DELETE	/admin/tv/channels/{channel_id}/logo	authenticated	staff	deny	-	MANAGE_TV
 DELETE	/applications/{application_id}	authenticated	owner	deny	-	-
 DELETE	/applications/{application_id}/activity/uploads/{upload_id}	authenticated	owner	deny	-	-
 DELETE	/applications/{application_id}/assets/{asset_id}	authenticated	owner	deny	-	-
@@ -184,6 +186,7 @@ GET	/admin/bug-reports/{bug_id}	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/bug-reports/{bug_id}/screenshot	authenticated	staff	deny	-	STAFF_BASIC
 GET	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 GET	/admin/cinema/assets/{asset_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
+GET	/admin/cinema/assets/{asset_id}/subtitles	authenticated	staff	deny	-	PUBLISH_MEDIA
 GET	/admin/cinema/collections	authenticated	staff	deny	-	MANAGE_COLLECTIONS
 GET	/admin/cinema/collections/{collection_id}	authenticated	staff	deny	-	MANAGE_COLLECTIONS
 GET	/admin/cinema/episodes/{episode_id}/markers	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -652,6 +655,7 @@ GET	/webhooks/{application_id}/{token}/messages/{message_id}	public	none	allow	-
 GET	/webhooks/{webhook_id}	authenticated	membership	allow	-	-
 GET	/webhooks/{webhook_id}/{token}	public	none	allow	-	-
 PATCH	/admin/announcements/{announcement_id}	authenticated	staff	deny	-	MANAGE_FEATURES
+PATCH	/admin/cinema/assets/{asset_id}/subtitles/{track_id}	authenticated	staff	deny	-	PUBLISH_MEDIA
 PATCH	/admin/directory/{guild_id}	authenticated	staff	deny	-	MANAGE_DIRECTORY
 PATCH	/admin/donations/config	authenticated	staff	deny	-	MANAGE_DONATIONS
 PATCH	/admin/features/{feature_id}	authenticated	staff	deny	-	MANAGE_FEATURES
@@ -755,6 +759,7 @@ POST	/admin/card-actions	authenticated	staff	deny	-	STAFF_BASIC
 POST	/admin/cinema/assets	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/complete	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/probe	authenticated	staff	deny	-	PUBLISH_MEDIA
+POST	/admin/cinema/assets/{asset_id}/subtitles	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/assets/{asset_id}/transcode	authenticated	staff	deny	-	PUBLISH_MEDIA
 POST	/admin/cinema/collections	authenticated	staff	deny	-	MANAGE_COLLECTIONS
 POST	/admin/cinema/episodes/{episode_id}/publish	authenticated	staff	deny	-	PUBLISH_MEDIA
@@ -1129,6 +1134,7 @@ PUT	/admin/staff/{account_id}/delegation	authenticated	staff	deny	-	OWNER
 PUT	/admin/staff/{account_id}/roles	authenticated	staff	deny	-	APPOINT_STAFF
 PUT	/admin/transcode/workers/{worker_id}/drain	authenticated	staff	deny	-	MANAGE_TRANSCODE
 PUT	/admin/tv/channels/{channel_id}	authenticated	staff	deny	-	MANAGE_TV
+PUT	/admin/tv/channels/{channel_id}/logo	authenticated	staff	deny	-	MANAGE_TV
 PUT	/admin/tv/channels/{channel_id}/now	authenticated	staff	deny	-	MANAGE_TV
 PUT	/admin/tv/channels/{channel_id}/slots	authenticated	staff	deny	-	MANAGE_TV
 PUT	/applications/{application_id}/activity	authenticated	owner	deny	-	-

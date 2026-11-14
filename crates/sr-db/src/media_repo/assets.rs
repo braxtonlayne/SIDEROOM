@@ -617,17 +617,20 @@ impl MediaRepository for PgMediaRepo {
                 segments: segments_of(&idx),
             });
         }
+        // Hidden tracks (D-685) are left out here, so neither the playback answer nor any playlist has them.
         let rows = sqlx::query(
-            "SELECT name, language_tag, forced, is_default, vtt_path, ass_path FROM video_subtitle_tracks \
-             WHERE asset_id = $1 ORDER BY ordinal",
+            "SELECT id, name, language_tag, forced, is_default, vtt_path, ass_path FROM video_subtitle_tracks \
+             WHERE asset_id = $1 AND NOT hidden ORDER BY ordinal",
         )
         .bind(asset_id)
         .fetch_all(&self.pool)
         .await
         .map_err(be)?;
         let mut ass_paths = Vec::new();
+        let mut subtitle_ids = Vec::new();
         for r in &rows {
             let vtt: String = r.try_get("vtt_path").map_err(be)?;
+            subtitle_ids.push((vtt.clone(), r.try_get::<i64, _>("id").map_err(be)?));
             if let Some(ass) = r.try_get::<Option<String>, _>("ass_path").map_err(be)? {
                 ass_paths.push((vtt.clone(), ass));
             }
@@ -668,6 +671,7 @@ impl MediaRepository for PgMediaRepo {
             media,
             sprite,
             ass_paths,
+            subtitle_ids,
         }))
     }
 
@@ -682,6 +686,171 @@ impl MediaRepository for PgMediaRepo {
             Some(id) => self.playback(id).await,
             None => Ok(None),
         }
+    }
+
+    async fn subtitle_tracks(&self, asset_id: i64) -> MediaResult<Vec<StoredSubtitle>> {
+        let rows = super::dynq(format!(
+            "SELECT {SUBTITLE_COLS} FROM video_subtitle_tracks WHERE asset_id = $1 \
+             ORDER BY (source = 'uploaded'), ordinal, id"
+        ))
+        .bind(asset_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(be)?;
+        rows.iter().map(subtitle_from_row).collect()
+    }
+
+    async fn add_uploaded_subtitle(
+        &self,
+        asset_id: i64,
+        new: &NewUploadedSubtitle,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        // The asset row lock orders this against a ladder completion, which renumbers the tracks.
+        let locked: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM video_assets WHERE id = $1 FOR UPDATE")
+                .bind(asset_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(be)?;
+        if locked.is_none() {
+            return Ok(None);
+        }
+        let row = super::dynq(format!(
+            "INSERT INTO video_subtitle_tracks (id, asset_id, job_id, ordinal, name, language, language_tag, \
+               forced, hearing_impaired, is_default, vtt_path, ass_path, source) \
+             SELECT $2::bigint, $1::bigint, NULL, COALESCE(MAX(ordinal) + 1, 0), $3::text, $4::text, $4::text, $5::boolean, $6::boolean, FALSE, $7::text, $8::text, 'uploaded' \
+             FROM video_subtitle_tracks WHERE asset_id = $1 \
+             RETURNING {SUBTITLE_COLS}"
+        ))
+        .bind(asset_id)
+        .bind(new.id)
+        .bind(&new.label)
+        .bind(new.language.as_deref())
+        .bind(new.forced)
+        .bind(new.hearing_impaired)
+        .bind(&new.vtt_path)
+        .bind(new.ass_path.as_deref())
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(be)?;
+        tx.commit().await.map_err(be)?;
+        subtitle_from_row(&row).map(Some)
+    }
+
+    async fn update_subtitle(
+        &self,
+        asset_id: i64,
+        track_id: i64,
+        patch: &SubtitlePatch,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        let locked: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM video_assets WHERE id = $1 FOR UPDATE")
+                .bind(asset_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(be)?;
+        if locked.is_none() {
+            return Ok(None);
+        }
+        // Label, language and the flags are what a re-transcode carries over for an embedded track, so any
+        // change to them marks it edited; hiding alone is carried over always.
+        let touched = patch.label.is_some()
+            || patch.language.is_some()
+            || patch.forced.is_some()
+            || patch.hearing_impaired.is_some()
+            || patch.is_default.is_some();
+        let row = super::dynq(format!(
+            "UPDATE video_subtitle_tracks SET \
+               name = COALESCE($3, name), \
+               language_tag = COALESCE($4, language_tag), \
+               language = CASE WHEN $4::text IS NULL THEN language ELSE $4 END, \
+               forced = COALESCE($5, forced), \
+               hearing_impaired = COALESCE($6, hearing_impaired), \
+               is_default = COALESCE($7, is_default), \
+               hidden = COALESCE($8, hidden), \
+               edited = edited OR ($9 AND source = 'embedded') \
+             WHERE id = $2 AND asset_id = $1 RETURNING {SUBTITLE_COLS}"
+        ))
+        .bind(asset_id)
+        .bind(track_id)
+        .bind(patch.label.as_deref())
+        .bind(patch.language.as_deref())
+        .bind(patch.forced)
+        .bind(patch.hearing_impaired)
+        .bind(patch.is_default)
+        .bind(patch.hidden)
+        .bind(touched)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        if patch.is_default == Some(true) {
+            // At most one default per asset: the others are cleared in the same transaction. They are marked
+            // edited too, so the clearing survives a re-transcode of an embedded track.
+            sqlx::query(
+                "UPDATE video_subtitle_tracks SET is_default = FALSE, edited = edited OR source = 'embedded' \
+                 WHERE asset_id = $1 AND id <> $2 AND is_default",
+            )
+            .bind(asset_id)
+            .bind(track_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(be)?;
+        }
+        tx.commit().await.map_err(be)?;
+        subtitle_from_row(&row).map(Some)
+    }
+
+    async fn delete_uploaded_subtitle(
+        &self,
+        asset_id: i64,
+        track_id: i64,
+    ) -> MediaResult<SubtitleDelete> {
+        let mut tx = self.pool.begin().await.map_err(be)?;
+        sqlx::query("SELECT id FROM video_assets WHERE id = $1 FOR UPDATE")
+            .bind(asset_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(be)?;
+        let found = super::dynq(format!(
+            "SELECT {SUBTITLE_COLS} FROM video_subtitle_tracks WHERE id = $2 AND asset_id = $1"
+        ))
+        .bind(asset_id)
+        .bind(track_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(be)?;
+        let Some(row) = found else {
+            return Ok(SubtitleDelete::Missing);
+        };
+        let stored = subtitle_from_row(&row)?;
+        if stored.track.source != SubtitleSource::Uploaded {
+            return Ok(SubtitleDelete::Embedded);
+        }
+        sqlx::query("DELETE FROM video_subtitle_tracks WHERE id = $2 AND asset_id = $1")
+            .bind(asset_id)
+            .bind(track_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(be)?;
+        tx.commit().await.map_err(be)?;
+        Ok(SubtitleDelete::Deleted(stored))
+    }
+
+    async fn remove_uploaded_subtitles(&self, asset_id: i64) -> MediaResult<Vec<StoredSubtitle>> {
+        let rows = super::dynq(format!(
+            "DELETE FROM video_subtitle_tracks WHERE asset_id = $1 AND source = 'uploaded' \
+             RETURNING {SUBTITLE_COLS}"
+        ))
+        .bind(asset_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(be)?;
+        rows.iter().map(subtitle_from_row).collect()
     }
 
     async fn retention_facts(&self, limit: u32) -> MediaResult<Vec<AssetFacts>> {
@@ -856,6 +1025,31 @@ impl MediaRepository for PgMediaRepo {
             .map_err(be)?;
         Ok(())
     }
+}
+
+const SUBTITLE_COLS: &str = "id, name, language_tag, forced, hearing_impaired, is_default, hidden, source, \
+     vtt_path, ass_path, ordinal";
+
+fn subtitle_from_row(r: &PgRow) -> MediaResult<StoredSubtitle> {
+    let source: String = r.try_get("source").map_err(be)?;
+    let ass_path: Option<String> = r.try_get("ass_path").map_err(be)?;
+    Ok(StoredSubtitle {
+        track: SubtitleTrack {
+            id: r.try_get("id").map_err(be)?,
+            label: r.try_get("name").map_err(be)?,
+            language: r.try_get("language_tag").map_err(be)?,
+            forced: r.try_get("forced").map_err(be)?,
+            hearing_impaired: r.try_get("hearing_impaired").map_err(be)?,
+            is_default: r.try_get("is_default").map_err(be)?,
+            hidden: r.try_get("hidden").map_err(be)?,
+            source: SubtitleSource::parse(&source).ok_or_else(|| {
+                MediaError::Backend(format!("unknown subtitle source {source:?}"))
+            })?,
+            styled: ass_path.is_some(),
+        },
+        vtt_path: r.try_get("vtt_path").map_err(be)?,
+        ass_path,
+    })
 }
 
 fn token_from_row(r: &PgRow) -> MediaResult<WorkerToken> {

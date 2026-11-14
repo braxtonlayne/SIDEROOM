@@ -109,6 +109,64 @@ pub async fn update_channel(
     Ok(Json(c))
 }
 
+/// The largest logo request body (D-686): the image's 2 MiB limit; the service answers 400 above it, the layer 413.
+pub const LOGO_BODY_LIMIT: usize = sr_tv::service::LOGO_MAX_BYTES + 4 * 1024;
+
+/// Set a channel's logo (D-686): the body is the image (PNG, JPEG or WebP, at most 2 MiB, sniffed from the
+/// content, never trusted by name). It is decoded and stored again with its metadata stripped, fitted inside
+/// 512 by 512 pixels without upscaling, transparency kept; the previous logo object is deleted. SVG is refused.
+#[utoipa::path(
+    put, path = "/admin/tv/channels/{channel_id}/logo", operation_id = "admin_tv_set_channel_logo",
+    params(("channel_id" = String, Path, description = "Channel snowflake")),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream"),
+    responses((status = 200, body = Channel), (status = 400, body = ErrorBody), (status = 401, body = ErrorBody),
+              (status = 403, body = ErrorBody), (status = 404, body = ErrorBody), (status = 413, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn set_logo(
+    ctx: StaffTv,
+    Path(channel_id): Path<String>,
+    body: axum::body::Bytes,
+) -> ApiResult<Json<Channel>> {
+    let cid = id(&channel_id, "channel")?;
+    let c = ctx
+        .svc()
+        .set_logo(ctx.actor(), cid, &body)
+        .await
+        .map_err(map_err)?;
+    ctx.audit(
+        "tv.channel.logo.set",
+        ("channel", cid),
+        json!({ "number": c.number, "name": c.name, "bytes": body.len() }),
+    )
+    .await;
+    Ok(Json(c))
+}
+
+/// Remove a channel's logo and delete its object (D-686).
+#[utoipa::path(
+    delete, path = "/admin/tv/channels/{channel_id}/logo", operation_id = "admin_tv_clear_channel_logo",
+    params(("channel_id" = String, Path, description = "Channel snowflake")),
+    responses((status = 200, body = Channel), (status = 401, body = ErrorBody), (status = 403, body = ErrorBody),
+              (status = 404, body = ErrorBody)),
+    security(("session" = []))
+)]
+pub async fn clear_logo(ctx: StaffTv, Path(channel_id): Path<String>) -> ApiResult<Json<Channel>> {
+    let cid = id(&channel_id, "channel")?;
+    let c = ctx
+        .svc()
+        .clear_logo(ctx.actor(), cid)
+        .await
+        .map_err(map_err)?;
+    ctx.audit(
+        "tv.channel.logo.clear",
+        ("channel", cid),
+        json!({ "number": c.number, "name": c.name }),
+    )
+    .await;
+    Ok(Json(c))
+}
+
 /// Delete a channel with its schedule.
 #[utoipa::path(
     delete, path = "/admin/tv/channels/{channel_id}", operation_id = "admin_tv_delete_channel",

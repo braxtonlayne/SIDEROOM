@@ -128,6 +128,7 @@ export function toChannel(w: WireChannel): TvChannel {
 
 interface WireGuide {
   now_ms?: number;
+  footer_note?: string | null;
   channels?: { channel: WireChannel; blocks: WireBlock[] }[];
 }
 
@@ -139,7 +140,12 @@ export function normaliseGuide(w: WireGuide, fallbackNow = Date.now()): TvGuide 
     channels.push(ch);
     blocks[ch.id] = (entry.blocks ?? []).map(toBlock).sort((a, b) => a.start_ms - b.start_ms);
   }
-  return { now_ms: w.now_ms ?? fallbackNow, channels, blocks, footer_note: null };
+  return {
+    now_ms: w.now_ms ?? fallbackNow,
+    channels,
+    blocks,
+    footer_note: typeof w.footer_note === 'string' && w.footer_note.trim() ? w.footer_note : null,
+  };
 }
 
 /** `GET /tv/guide?from&to` (unix ms, a window of at most 48 h). */

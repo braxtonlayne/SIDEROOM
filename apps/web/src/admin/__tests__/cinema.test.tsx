@@ -490,6 +490,48 @@ describe('Title editor', () => {
     await user.click(await screen.findByRole('button', { name: /Show transcode status/ }));
     expect(await screen.findByText('Not available yet')).toBeInTheDocument();
   });
+
+  it('opens the Subtitles block of a linked video, with the title languages as suggestions (D-685)', async () => {
+    asStaff({ perms: [...CURATOR] });
+    server.use(
+      http.get('*/api/v1/admin/cinema/titles', () =>
+        HttpResponse.json(page([title({ asset_id: '777', subtitle_languages: ['ja', 'en'] })])),
+      ),
+      http.get('*/api/v1/admin/cinema/titles/10', () =>
+        HttpResponse.json(detailOf(title({ asset_id: '777', subtitle_languages: ['ja', 'en'] }))),
+      ),
+      http.get('*/api/v1/admin/cinema/assets/777/subtitles', () =>
+        HttpResponse.json({
+          tracks: [
+            {
+              id: '1',
+              label: 'Japanese',
+              language: 'ja',
+              forced: false,
+              hearing_impaired: false,
+              is_default: true,
+              hidden: false,
+              source: 'embedded',
+              styled: false,
+            },
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { container } = openAdmin('cinema-catalog');
+    await user.click(await screen.findByRole('button', { name: 'Edit Akira' }));
+    await user.click(await screen.findByRole('tab', { name: 'Video and transcoding' }));
+    expect(screen.queryByRole('region', { name: 'Subtitles' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Show the subtitles of Akira' }));
+    const block = await screen.findByRole('region', { name: 'Subtitles' });
+    expect(await within(block).findByLabelText('Label of track 1')).toHaveValue('Japanese');
+    expect(
+      Array.from(container.querySelectorAll('datalist option')).map((o) => o.getAttribute('value')),
+    ).toEqual(['ja', 'en']);
+    await user.click(screen.getByRole('button', { name: 'Hide the subtitles of Akira' }));
+    expect(screen.queryByRole('region', { name: 'Subtitles' })).toBeNull();
+  });
 });
 
 describe('Cinema collections', () => {
