@@ -1237,6 +1237,49 @@ async fn subtitle_routes_add_their_language_to_the_title_and_report_it() {
     assert_eq!(language_added(&e, "cinema.subtitle.upload"), Value::Null);
 }
 
+/// D-719 (SEC-AUD-225): a language is stored in its short form, in the track, in the list and in the audit entry.
+#[tokio::test]
+async fn a_three_letter_language_is_stored_and_reported_in_the_short_form() {
+    let e = env_with(true).await;
+    *e.stub.one_asset.lock().unwrap() = Some(listed_asset(7));
+    let (s, a) = e
+        .call_bytes(
+            PUBLISHER,
+            Method::POST,
+            "/admin/cinema/assets/7/subtitles?language=eng",
+            SRT.as_bytes().to_vec(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(a["language"], "en", "{a}");
+    assert_eq!(*e.stub.added.lock().unwrap(), [(7, "en".to_owned())]);
+    assert_eq!(language_added(&e, "cinema.subtitle.upload"), "en");
+    // An edit to a three-letter code with a region goes the same way.
+    let id = a["id"].as_str().unwrap();
+    let (s, t) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PATCH,
+            &format!("/admin/cinema/assets/7/subtitles/{id}"),
+            Some(json!({ "language": "POR-br" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(t["language"], "pt-BR", "{t}");
+    assert_eq!(language_added(&e, "cinema.subtitle.update"), "pt-BR");
+    // A language with no two-letter form stays.
+    let (s, f) = e
+        .call_bytes(
+            PUBLISHER,
+            Method::POST,
+            "/admin/cinema/assets/7/subtitles?language=fil",
+            SRT.as_bytes().to_vec(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{f}");
+    assert_eq!(f["language"], "fil");
+}
+
 #[tokio::test]
 async fn subtitle_changes_are_validated_logged_and_scoped_to_their_asset() {
     use sr_storage::ObjectStorage;

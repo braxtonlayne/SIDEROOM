@@ -402,27 +402,28 @@ pub fn output_fps(source: Option<f64>, max_fps: u32) -> (u32, u32) {
 
 // ---- audio / subtitle helpers -------------------------------------------------------------
 
-/// ISO 639-2 to (name, BCP 47 tag) for the languages that matter most.
-fn language_info(code: &str) -> Option<(&'static str, &'static str)> {
+/// ISO 639-2 (or 639-1) code to the English name, for the languages that matter most. These are labels; the
+/// tag a track stores comes from `sr_core::language` (D-719).
+fn language_info(code: &str) -> Option<&'static str> {
     Some(match code {
-        "eng" | "en" => ("English", "en"),
-        "jpn" | "ja" => ("Japanese", "ja"),
-        "spa" | "es" => ("Spanish", "es"),
-        "fre" | "fra" | "fr" => ("French", "fr"),
-        "ger" | "deu" | "de" => ("German", "de"),
-        "ita" | "it" => ("Italian", "it"),
-        "por" | "pt" => ("Portuguese", "pt"),
-        "rus" | "ru" => ("Russian", "ru"),
-        "kor" | "ko" => ("Korean", "ko"),
-        "chi" | "zho" | "zh" => ("Chinese", "zh"),
-        "ara" | "ar" => ("Arabic", "ar"),
-        "hin" | "hi" => ("Hindi", "hi"),
-        "dut" | "nld" | "nl" => ("Dutch", "nl"),
-        "swe" | "sv" => ("Swedish", "sv"),
-        "pol" | "pl" => ("Polish", "pl"),
-        "tur" | "tr" => ("Turkish", "tr"),
-        "tha" | "th" => ("Thai", "th"),
-        "vie" | "vi" => ("Vietnamese", "vi"),
+        "eng" | "en" => "English",
+        "jpn" | "ja" => "Japanese",
+        "spa" | "es" => "Spanish",
+        "fre" | "fra" | "fr" => "French",
+        "ger" | "deu" | "de" => "German",
+        "ita" | "it" => "Italian",
+        "por" | "pt" => "Portuguese",
+        "rus" | "ru" => "Russian",
+        "kor" | "ko" => "Korean",
+        "chi" | "zho" | "zh" => "Chinese",
+        "ara" | "ar" => "Arabic",
+        "hin" | "hi" => "Hindi",
+        "dut" | "nld" | "nl" => "Dutch",
+        "swe" | "sv" => "Swedish",
+        "pol" | "pl" => "Polish",
+        "tur" | "tr" => "Turkish",
+        "tha" | "th" => "Thai",
+        "vie" | "vi" => "Vietnamese",
         _ => return None,
     })
 }
@@ -431,14 +432,19 @@ fn language_label(code: Option<&str>) -> String {
     match code {
         None => "Unknown".to_string(),
         Some(c) => language_info(c)
-            .map(|(n, _)| n.to_string())
+            .map(str::to_string)
             .unwrap_or_else(|| c.to_ascii_uppercase()),
     }
 }
 
+/// The tag a track stores (D-719): the primary subtag in its short form (`eng` becomes `en`, `por-br` becomes
+/// `pt-br`); a code with no two-letter form stays as probed (`fil`).
 fn language_tag(code: Option<&str>) -> Option<String> {
     let c = code?;
-    Some(language_info(c).map_or_else(|| c.to_string(), |(_, t)| t.to_string()))
+    Some(match c.split_once('-') {
+        Some((primary, rest)) => format!("{}-{rest}", sr_core::language::short_language(primary)),
+        None => sr_core::language::short_language(c).to_string(),
+    })
 }
 
 fn lang_slug(code: Option<&str>) -> String {
@@ -984,6 +990,24 @@ mod tests {
         assert_eq!(output_fps(Some(120.0), 60), (60, 1));
         assert_eq!(output_fps(Some(59.94), 60), (60_000, 1001));
         assert_eq!(output_fps(None, 60), (24, 1));
+    }
+
+    #[test]
+    fn a_language_outside_the_name_table_is_tagged_in_the_short_form() {
+        // D-719 (SEC-AUD-225); before it, a track tagged "fin" kept "fin".
+        assert_eq!(language_tag(Some("fin")).as_deref(), Some("fi"));
+        assert_eq!(language_tag(Some("nor")).as_deref(), Some("no"));
+        assert_eq!(language_tag(Some("eng")).as_deref(), Some("en"));
+        assert_eq!(language_tag(Some("chi")).as_deref(), Some("zh"));
+        assert_eq!(language_tag(Some("por-br")).as_deref(), Some("pt-br"));
+        // No two-letter code: as probed.
+        assert_eq!(language_tag(Some("fil")).as_deref(), Some("fil"));
+        assert_eq!(language_tag(None), None);
+        // The labels and the file names are unchanged.
+        assert_eq!(language_label(Some("ger")), "German");
+        assert_eq!(language_label(Some("fin")), "FIN");
+        assert_eq!(lang_slug(Some("fin")), "fin");
+        assert_eq!(lang_slug(Some("ger")), "ger");
     }
 
     #[test]
