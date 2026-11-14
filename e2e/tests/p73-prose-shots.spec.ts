@@ -199,7 +199,7 @@ test('headings, the thread starter line and the surfaces not looked at', async (
             : s.startsWith('h3')
               ? 'Heading three'
               : null;
-        const all = [...document.querySelectorAll(`${r} ${s}`)].filter(
+        const all = Array.from(document.querySelectorAll(`${r} ${s}`)).filter(
           (e) => e.getClientRects().length > 0,
         );
         return (want && all.find((e) => e.textContent === want)) || all[0] || null;
