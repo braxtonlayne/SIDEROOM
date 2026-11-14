@@ -8,4 +8,5 @@ export default {
   'lounge.channelSidebar.ageRestricted': 'age-restricted',
   'lounge.channelSidebar.ageRestrictedSuffix': ', age-restricted',
   'lounge.addServerDialog.browseDirectory': 'Browse the Server Directory',
+  'lounge.memberList.call': 'Call',
 } as const;
