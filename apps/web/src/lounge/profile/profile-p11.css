@@ -270,6 +270,7 @@
 }
 .lng-dm-identity:hover {
   background: var(--ui-bg-hover);
+  --ui-status-ring: var(--ui-bg-hover);
 }
 .lng-dm-welcome {
   display: flex;
