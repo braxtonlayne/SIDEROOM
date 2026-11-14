@@ -81,6 +81,7 @@ mod vouch_pg_tests;
 pub mod vouch_wiring;
 pub mod watchparty;
 pub mod web;
+pub mod web_policy;
 
 /// The OpenAPI document served at `/api/v1/openapi.json` and printed by
 /// `sr-server openapi`.

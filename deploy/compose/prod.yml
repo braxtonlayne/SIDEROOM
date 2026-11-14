@@ -117,15 +117,22 @@ services:
       SR_VOICE__ANNOUNCE_IPS: ${SR_VOICE_ANNOUNCE_IPS:-127.0.0.1}
       SR_VOICE__TURN__URLS: ${SR_VOICE_TURN_URLS:-}
       SR_VOICE__TURN__SECRET: ${SR_VOICE_TURN_SECRET:-}
-      # Activities and the Arcade's house games (docs/12 "Switching Activities on"). Also needs the web build with
-      # VITE_ACTIVITIES_ENABLED=true and the wildcard host of caddy/activities.snippet.
+      # Activities and the Arcade's house games (docs/12 "Switching Activities on"). Also needs the wildcard host of
+      # caddy/activities.snippet. The release web build is right as it is: at start the server adds the Activities
+      # frame origin to the app policy (D-682).
       SR_ACTIVITIES__ENABLED: ${SR_ACTIVITIES_ENABLED:-false}
       # PeerTube instances whose links get "Play here" (PRF-UNF-001); read from the process environment by the unfurler.
-      # Build the web app with the same list so the CSP allows them.
+      # At start the server also adds them to the app policy's `frame-src` and `connect-src` (D-682).
       SR_PEERTUBE_HOSTS: ${SR_PEERTUBE_HOSTS:-}
       # Further hosts a listed PeerTube instance serves its files and HLS segments from (D-516, D-517): a party plays
-      # a resolved address only on the instance itself or on one of these. Build the web app with the same list.
+      # a resolved address only on the instance itself or on one of these. Added to the app policy's `connect-src` at
+      # start (D-682).
       SR_MEDIA_HOSTS: ${SR_MEDIA_HOSTS:-}
+      # Extra origins for the app policy (SEC-AUD-210, D-682), comma-separated, each scheme://host[:port] (https or
+      # wss; a leading *. label allowed). Read by the server at start; a bad entry stops the start, naming the variable.
+      SR_CSP_CONNECT: ${SR_CSP_CONNECT:-}
+      SR_CSP_FRAME: ${SR_CSP_FRAME:-}
+      SR_CSP_MEDIA: ${SR_CSP_MEDIA:-}
     # Voice media (the SFU's UDP range, voice.udp_port_min..max). The same numbers on both sides: ICE announces them.
     ports:
       - "50000-50099:50000-50099/udp"

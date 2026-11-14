@@ -38,6 +38,8 @@ use sr_api::{AppState, rate_limit::client_ip};
 use sr_auth::session::{SessionPolicy, SessionToken};
 use sr_core::config::Config;
 
+use crate::web_policy::{PolicyOrigins, describe_added, merge_origins};
+
 /// The public shells' policy (docs/dev/entrance-isolation.md section 3): no `wasm-unsafe-eval`, no `blob:`, no
 /// `frame-src`, no voice or activity origins. `apps/web/src/security/csp.ts` is the other copy; `csp.test.ts`
 /// pins them together.
@@ -195,6 +197,15 @@ pub enum WebError {
     Unreadable(String, String),
     #[error("surfaces.json is needed to serve the public surfaces: {0}")]
     Surfaces(String),
+    /// SEC-AUD-210 (D-682): an `SR_CSP_CONNECT`, `SR_CSP_FRAME` or `SR_CSP_MEDIA` entry is not a plain origin.
+    #[error(
+        "{var} has an entry the app policy cannot take: \"{entry}\" ({why}). Each entry is scheme://host[:port] with scheme https or wss (http or ws only for localhost) and an optional leading *. label, separated by commas"
+    )]
+    BadCspOrigin {
+        var: String,
+        entry: String,
+        why: String,
+    },
 }
 
 /// The gate: the web root, the app policy, the surface table and the `401` bucket.
@@ -227,14 +238,31 @@ impl WebGate {
         cfg: &Config,
         operator: Arc<dyn OperatorInfo>,
     ) -> Result<Option<Arc<Self>>, WebError> {
+        Self::from_config_with(
+            cfg,
+            &crate::web_policy::PolicyInputs::from_env(cfg),
+            operator,
+        )
+    }
+
+    /// [`Self::from_config`] with the inputs of the app policy given (the process environment, in the server).
+    /// D-682: the origins the configuration and the operator's `SR_CSP_*` values imply are added to the policy the
+    /// build wrote, once, here; a bad value stops the start.
+    pub fn from_config_with(
+        cfg: &Config,
+        inputs: &crate::web_policy::PolicyInputs,
+        operator: Arc<dyn OperatorInfo>,
+    ) -> Result<Option<Arc<Self>>, WebError> {
         let Some(root) = cfg.web.root_path() else {
             return Ok(None);
         };
-        Self::open_with(
+        let origins = crate::web_policy::origins_for(inputs)?;
+        Self::open_with_origins(
             Path::new(root),
             cfg.web.serve_public,
             cfg.server.trust_forwarded_for,
             cfg.activities.same_host(),
+            &origins,
             operator,
         )
         .map(Some)
@@ -258,6 +286,26 @@ impl WebGate {
         same_host_activities: bool,
         operator: Arc<dyn OperatorInfo>,
     ) -> Result<Arc<Self>, WebError> {
+        Self::open_with_origins(
+            root,
+            serve_public,
+            trust_forwarded_for,
+            same_host_activities,
+            &PolicyOrigins::default(),
+            operator,
+        )
+    }
+
+    /// [`Self::open_with`] with the origins to add to the app policy the build wrote (SEC-AUD-210, D-682). The merged
+    /// line is the app policy and what [`emulator_csp`] starts from; the public policies are not touched.
+    pub fn open_with_origins(
+        root: &Path,
+        serve_public: bool,
+        trust_forwarded_for: bool,
+        same_host_activities: bool,
+        origins: &PolicyOrigins,
+        operator: Arc<dyn OperatorInfo>,
+    ) -> Result<Arc<Self>, WebError> {
         if !root.is_dir() {
             return Err(WebError::NoRoot(root.display().to_string()));
         }
@@ -274,7 +322,13 @@ impl WebGate {
                 ));
             }
         };
-        let csp = csp.trim();
+        let merged = merge_origins(csp.trim(), origins);
+        tracing::info!(
+            "app policy ({}): {}",
+            csp_path.display(),
+            describe_added(&merged.added)
+        );
+        let csp = merged.policy.as_str();
         let app_csp = HeaderValue::from_str(csp)
             .ok()
             .filter(|_| !csp.is_empty())

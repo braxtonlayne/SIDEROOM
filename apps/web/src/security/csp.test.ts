@@ -310,3 +310,40 @@ describe('CSP', () => {
     });
   });
 });
+
+/**
+ * SEC-AUD-210 (D-682): `csp.fixtures.json` is what `sr-server` completes the plain app policy to at start. The Rust
+ * test (`crates/sr-server/src/web_policy.rs`) merges each case's configuration into the plain policy and must get the
+ * same sources per directive; this one keeps the file equal to what the build's own function gives, so the two sides
+ * cannot drift.
+ */
+describe('CSP fixture shared with the server (SEC-AUD-210)', () => {
+  interface FixtureCase {
+    name: string;
+    config: Parameters<typeof cspOptionsFromConfig>[0];
+    extra: { connect?: string[]; frame?: string[]; media?: string[] };
+    from?: string;
+    policy: string;
+  }
+  const fixture: FixtureCase[] = JSON.parse(
+    readFileSync(resolve(__dirname, 'csp.fixtures.json'), 'utf8'),
+  );
+
+  it('is what the build gives for each configuration (vite.config.ts feeds buildCsp the same way)', () => {
+    expect(fixture.length).toBeGreaterThanOrEqual(14);
+    for (const c of fixture) {
+      const o = cspOptionsFromConfig(c.config);
+      const built = buildCsp({
+        extraConnect: [...(o.extraConnect ?? []), ...(c.extra.connect ?? [])],
+        extraFrame: [...(o.extraFrame ?? []), ...(c.extra.frame ?? [])],
+        extraMedia: c.extra.media ?? [],
+      });
+      expect(built, c.name).toBe(c.policy);
+    }
+  });
+
+  it('has the plain policy as its first case', () => {
+    expect(fixture[0]?.name).toBe('nothing set');
+    expect(fixture[0]?.policy).toBe(buildCsp());
+  });
+});

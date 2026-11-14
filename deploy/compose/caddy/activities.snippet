@@ -10,11 +10,9 @@
 # To enable it:
 #   1. Add DNS: *.activities.<domain> pointing at this host.
 #   2. Append this block to Caddyfile.prod (outside the {$SR_DOMAIN} block), replace the DNS provider line.
-#   3. Append `https://*.activities.<domain>` to frame-src in the app shell's Content-Security-Policy, in
-#      Caddyfile.prod and in the web build's SR_CSP_FRAME (apps/web/src/security/csp.ts keeps the two in
-#      step; docs/12 section 1).
-#   4. Turn it on in the server: `[activities] enabled = true` (env SR_ACTIVITIES__ENABLED=true), and build the
-#      web app with VITE_ACTIVITIES_ENABLED=true.
+#   3. Turn it on in the server: `[activities] enabled = true` (env SR_ACTIVITIES__ENABLED=true). Nothing to do
+#      for the app's Content-Security-Policy: sr-server adds `https://*.activities.<domain>` to its frame-src at
+#      start (D-682; docs/12 section 1), so the release web build is right as it is.
 #
 # sr-server answers this host itself (`routes::activities::proxy`): it serves only an approved application's
 # reviewed entry document and the paths its URL mappings allow, from the SSRF-safe client, and sets the
