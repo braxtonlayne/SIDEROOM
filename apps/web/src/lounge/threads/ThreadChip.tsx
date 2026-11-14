@@ -5,6 +5,8 @@ import type { Message } from '../data';
 import { SingleLine } from '../msg/SingleLine';
 import { useHiddenAuthors } from '../shell/hiddenAuthors';
 import { formatFullTime, formatRelativeTime, useMinuteTick } from '../time';
+import { threadCountLabel } from './threadCount';
+import { useThreadCount } from './threadStore';
 
 /**
  * The thread row under a message (LNG-THR-006, D-689): the first line is the thread's name and message count;
@@ -24,6 +26,7 @@ export function ThreadChip({
   const t = useT();
   const hidden = useHiddenAuthors();
   const now = useMinuteTick();
+  const count = useThreadCount(thread.id, thread.messageCount);
   const last = thread.last;
   const name = last ? last.author.displayName || t('lounge.messageRequests.unknown') : '';
   const kind = last
@@ -42,9 +45,7 @@ export function ThreadChip({
     >
       <Icon name="list" size={16} />
       <strong>{thread.name}</strong>
-      <span className="lng-muted">
-        {t('lounge.messageItem.threadMessageCount', { n: thread.messageCount })}
-      </span>
+      <span className="lng-muted">{threadCountLabel(t, count)}</span>
       {last && (
         <span className="lng-thread-last" data-thread-last>
           <Avatar

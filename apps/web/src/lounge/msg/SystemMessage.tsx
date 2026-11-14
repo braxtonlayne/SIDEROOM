@@ -3,6 +3,7 @@ import type { Resolvers } from '@sideroom/markdown-react';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { t, useT } from '../../i18n';
+import { useStore } from '../../store';
 import type { Message, Snowflake } from '../data';
 import { ThreadChip } from '../threads/ThreadChip';
 import { formatMessageTime } from '../time';
@@ -168,6 +169,8 @@ export function SystemMessage({
   resolvers,
 }: SystemMessageProps) {
   const t = useT();
+  // One chip per thread (D-701): when the starter message is loaded and shows it, this row does not.
+  const starterShows = useStore((s) => !!(m.thread && s.messages[m.thread.id]?.thread));
   const name = <strong className="lng-sys-name">{m.author.displayName}</strong>;
   let icon: IconName = 'arrow-right';
   let body: ReactNode;
@@ -257,7 +260,7 @@ export function SystemMessage({
           <time className="lng-msg-time" dateTime={m.createdAt}>
             {formatMessageTime(m.createdAt)}
           </time>
-          {m.type === SYSTEM_THREAD_CREATED && m.thread && onOpenThread && (
+          {m.type === SYSTEM_THREAD_CREATED && m.thread && onOpenThread && !starterShows && (
             <div className="lng-sys-thread">
               <ThreadChip
                 thread={m.thread}

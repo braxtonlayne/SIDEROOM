@@ -4,6 +4,7 @@ import { useT } from '../../i18n';
 import { useViewAsThreadParent } from '../../settings/server/viewAsMode';
 import { useLoungeGotoThread } from '../nav';
 import { threadsOf, useThreads, type ThreadInfo } from './threadStore';
+import { threadCountLabel } from './threadCount';
 
 /** Threads button in the channel header: active and archived threads of this channel (LNG-THR-001 UI). */
 export function ThreadsButton({ guildId, channelId }: { guildId: string; channelId: string }) {
@@ -128,7 +129,7 @@ export function ThreadsButton({ guildId, channelId }: { guildId: string; channel
                   {th.isPrivate && <Icon name="lock" size={16} />} {th.name}
                 </strong>
                 <span className="lng-muted">
-                  {t('lounge.threadsButton.messageCount', { count: th.messageCount })}
+                  {threadCountLabel(t, th.messageCount)}
                   {th.joined ? t('lounge.threadsButton.followingSuffix') : ''}
                 </span>
               </button>
