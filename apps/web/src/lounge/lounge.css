@@ -2191,9 +2191,16 @@
 .lng-root:not([data-mobile]) .lng-phone-search {
   display: none;
 }
+/* The header row is crowded at 375px, so the button keeps the 28px footprint of its neighbours and gets its 44px touch
+   target from a pseudo-element (it reaches 8px into the gap and the edge of each neighbour). */
 .lng-root[data-mobile] .lng-phone-search {
-  inline-size: 44px;
-  block-size: 44px;
+  position: relative;
+}
+.lng-root[data-mobile] .lng-phone-search::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: -8px;
 }
 .lng-search-sheet {
   position: absolute;
@@ -2225,6 +2232,8 @@
   color: var(--interactive-active);
 }
 .lng-search-sheet .lng-search-wrap {
+  box-sizing: border-box;
+  min-inline-size: 0;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -2235,11 +2244,14 @@
 .lng-root[data-mobile] .lng-search-sheet .lng-search {
   display: flex;
   flex: none;
+  box-sizing: border-box;
   inline-size: 100%;
+  min-inline-size: 0;
   block-size: 44px;
   padding-inline: 12px;
 }
 .lng-search-sheet .lng-search input {
+  min-inline-size: 0;
   font-size: 16px;
 }
 .lng-search-sheet .lng-search-panel {
@@ -2259,4 +2271,11 @@
 }
 .lng-search-sheet .lng-link-btn {
   min-block-size: 44px;
+}
+/* At 320px the header row has no room for the channel icon and the ten buttons: the icon (decorative) gives way, so the
+   last button stays on screen. */
+@media (max-width: 340px) {
+  .lng-root[data-mobile] .lng-header:not([data-dm]) > svg {
+    display: none;
+  }
 }

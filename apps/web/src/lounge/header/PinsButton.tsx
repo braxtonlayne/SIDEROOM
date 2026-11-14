@@ -1,6 +1,6 @@
 import { Markdown, type Resolvers } from '@sideroom/markdown-react';
 import { Icon, Popover } from '@sideroom/ui';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
 import { useSavedPrefs } from '../../settings/user/prefs';
@@ -48,6 +48,19 @@ function PinText({ m, guildId }: { m: Message; guildId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the names are read when the pin is drawn
     [guildId, m.id],
   );
+  // A pin that would fill the panel by itself stops at about twelve lines, with a fade (the Jump button opens it whole).
+  const body = useRef<HTMLDivElement>(null);
+  const [capped, setCapped] = useState(false);
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const measure = () => setCapped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    for (const c of Array.from(el.children)) ro.observe(c);
+    return () => ro.disconnect();
+  }, [m.content, hidden]);
   const fallback = m.attachments?.length ? t('lounge.pins.attachment') : t('lounge.pins.noText');
   return (
     <>
@@ -63,7 +76,7 @@ function PinText({ m, guildId }: { m: Message; guildId: string }) {
           </button>
         </p>
       ) : (
-        <div className="lng-pin-body">
+        <div className="lng-pin-body" ref={body} data-capped={capped || undefined}>
           {/* D-739: a pin is a message, drawn by the message list's renderer (no embeds, stickers or reactions).
               Until the parser is loaded there is no text to draw: never the typed text. */}
           {m.content && currentMarkdownEngine() ? (
