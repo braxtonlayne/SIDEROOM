@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
  * SEC-AUD-293 (wave 74; D-781), on the real stack with the Library's answers faked by `page.route`:
@@ -122,6 +123,7 @@ test('an ended upload: start again, and after a reload choose the file again', a
   const owner = bootstrapState().owner;
   const octx = await browser.newContext({ baseURL: ORIGIN });
   await loginApi(octx.request, owner);
+  await setStudySurfacesWith(octx.request, true); // the Library's submissions are hidden while the switch is off
   const d = await apiPost<{ submission: { id: string } }>(octx.request, '/submissions', {
     kind: 'library.series',
     payload: {
@@ -194,5 +196,6 @@ test('an ended upload: start again, and after a reload choose the file again', a
       await c.close();
     }
   }
+  await setStudySurfacesWith(octx.request, false);
   await octx.close();
 });
