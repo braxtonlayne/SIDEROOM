@@ -195,3 +195,23 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* On a phone the second line has no room for name, text and time side by side: the name and time share the first
+   half and the text takes a line of its own. */
+@media (max-width: 480px) {
+  .lng-thread-last {
+    flex-wrap: wrap;
+    row-gap: 1px;
+  }
+  .lng-thread-last-name {
+    flex: 1 1 0;
+    max-inline-size: none;
+  }
+  .lng-thread-last-time {
+    order: 2;
+  }
+  .lng-thread-last-text {
+    order: 3;
+    flex: 1 1 100%;
+  }
+}

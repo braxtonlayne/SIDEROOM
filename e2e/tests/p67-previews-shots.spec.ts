@@ -105,6 +105,18 @@ test('the message request rows show what was written', async ({ browser }) => {
   const sctx = await browser.newContext({ baseURL: ORIGIN });
   const stranger = await registerUser(sctx.request, 'stranger');
   await loginApi(sctx.request, stranger);
+  // They share a server (a DM needs one); the Owner is not their friend, so it lands in Message Requests.
+  const shared = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
+    o,
+    '/guilds',
+    { name: 'Request Booth' },
+  );
+  const sharedInvite = await apiPost<{ code: string }>(
+    o,
+    `/channels/${shared.channels.find((c) => c.type === 0)!.id}/invites`,
+    {},
+  );
+  await apiPost(sctx.request, `/invites/${sharedInvite.code}`, {});
   const dm = await apiPost<{ id: string }>(sctx.request, '/users/@me/channels', {
     recipient_id: me.id,
   });
@@ -205,25 +217,41 @@ test('the thread row shows the last message, as one line without one, and a bloc
         await page.goto(`/channels/${guild.id}/${channel}`);
         const rows = page.locator('.lng-thread-chip');
         await expect(rows).toHaveCount(3);
-        await expect(page.getByText(/I can bring the snacks/)).toBeVisible();
+        await expect(page.locator('.lng-thread-chip', { hasText: 'Saturday plans' })).toContainText(
+          'I can bring the snacks',
+        );
         await expect(page.locator('.lng-thread-chip', { hasText: 'Trailer talk' })).toContainText(
           '1 blocked message',
         );
         await expect(
-          page.locator('.lng-thread-chip', { hasText: 'House rules question' }).locator('[data-thread-last]'),
+          page
+            .locator('.lng-thread-chip', { hasText: 'House rules question' })
+            .locator('[data-thread-last]'),
         ).toHaveCount(0);
         await page.waitForTimeout(500);
         await page.screenshot({ path: resolve(OUT, `threads-${tag}.png`) });
-        // Live: a new reply moves the row without a reload.
-        if (density === 'cozy') {
-          await say(o, ta.id, `A late reply (${tag})`);
-          await expect(page.getByText(`A late reply (${tag})`)).toBeVisible();
-          await page.waitForTimeout(300);
-          await page.screenshot({ path: resolve(OUT, `threads-live-${tag}.png`) });
-        }
         await ctx.close();
       }
     }
+  }
+  // Live: a new reply moves the row without a reload (shot once, Lounge Light, desktop and phone).
+  for (const [vp, size] of Object.entries(VIEWPORTS)) {
+    await apiPatch(o, '/users/@me/settings', {
+      settings: { user_prefs: { theme: 'lounge-light', zoom: 100 } },
+    });
+    const ctx = await context(browser, octx, size, 'lounge-light');
+    const page = await ctx.newPage();
+    page.setDefaultTimeout(20_000);
+    await page.goto(`/channels/${guild.id}/${channel}`);
+    await expect(page.locator('.lng-thread-chip')).toHaveCount(3);
+    const text = `A late reply (${vp})`;
+    await say(o, ta.id, text);
+    await expect(page.locator('.lng-thread-chip', { hasText: 'Saturday plans' })).toContainText(
+      text,
+    );
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: resolve(OUT, `threads-live-${vp}-lounge-light.png`) });
+    await ctx.close();
   }
   await octx.close();
 });
