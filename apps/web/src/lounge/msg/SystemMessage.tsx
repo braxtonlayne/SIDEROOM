@@ -112,10 +112,7 @@ function ThreadStarterPreview({
     apiFetch<{
       content?: string;
       author?: { id?: string; username: string; global_name?: string | null };
-    }>(
-      `/channels/${channelId}/messages/${messageId}`,
-      { retries: 0 },
-    )
+    }>(`/channels/${channelId}/messages/${messageId}`, { retries: 0 })
       .then((m) => {
         if (live)
           setOriginal({
