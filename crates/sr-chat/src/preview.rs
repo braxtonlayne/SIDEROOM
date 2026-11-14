@@ -46,6 +46,50 @@ const CLOSERS: [&str; 7] = ["||", "**", "__", "~~", "*", "_", "`"];
 /// How many times the cut may move back looking for a place that splits no markup (D-728).
 const CUT_TRIES: usize = 16;
 
+/// `line` without a heading or subtext marker, when `sr_markdown`'s block parser would read the line as
+/// one (D-782): one to three `#` and a space, or `-# `, at the very start of the line, and something other
+/// than white space after it. This copies the condition of `crates/sr-markdown/src/block.rs`
+/// (`parse_blocks`, "Headings and subtext"); the parser's own code works on a whole region and is private,
+/// so it cannot be asked about one line.
+fn strip_marker(line: &str) -> &str {
+    let hashes = line.bytes().take_while(|&c| c == b'#').count();
+    let rest = if (1..=3).contains(&hashes) && line.as_bytes().get(hashes) == Some(&b' ') {
+        &line[hashes + 1..]
+    } else if let Some(r) = line.strip_prefix("-# ") {
+        r
+    } else {
+        return line;
+    };
+    let rest = rest.trim();
+    // A fence opener inside the heading would make the parser read the rest as code: leave such a line.
+    if rest.is_empty() || rest.contains("```") {
+        line
+    } else {
+        rest
+    }
+}
+
+/// `content` with the heading and subtext markers taken off the start of every line outside a code fence
+/// (D-782), so that the fold keeps the words and not `##`. A fence is a line holding three backticks up to
+/// the next such line; an unclosed one is no fence (the parser reads it the same way).
+fn without_markers(content: &str) -> String {
+    let lines: Vec<&str> = content.split('\n').collect();
+    let mut out: Vec<&str> = Vec::with_capacity(lines.len());
+    let mut i = 0;
+    while i < lines.len() {
+        if lines[i].contains("```")
+            && let Some(off) = lines[i + 1..].iter().position(|l| l.contains("```"))
+        {
+            out.extend_from_slice(&lines[i..=i + 1 + off]);
+            i += off + 2;
+            continue;
+        }
+        out.push(strip_marker(lines[i]));
+        i += 1;
+    }
+    out.join("\n")
+}
+
 /// The text of `content` on one line: runs of white space (line breaks included) become one space and
 /// the ends are trimmed.
 fn fold(content: &str) -> Vec<char> {
@@ -90,7 +134,7 @@ fn plain_of(s: &[char]) -> String {
 /// before the last markup opener, then to the previous white space, alternately, at most 16 times.
 /// `None` when nothing but white space is left or no such cut is left.
 pub fn excerpt(content: &str, max: usize) -> Option<String> {
-    let folded = fold(content);
+    let folded = fold(&without_markers(content));
     if folded.is_empty() {
         return None;
     }
@@ -228,6 +272,74 @@ mod tests {
         let s = "<img src=x onerror=alert(1)> [a](http://x) **b** <@123>";
         assert_eq!(excerpt(s, 140).as_deref(), Some(s));
     }
+
+    #[test]
+    fn heading_and_subtext_markers_are_dropped_at_line_starts() {
+        let ex = |s: &str| excerpt(s, 140).unwrap();
+        assert_eq!(ex("# One\n## Two\n### Three"), "One Two Three");
+        assert_eq!(ex("intro\n# Title\nmore"), "intro Title more");
+        assert_eq!(ex("-# small print\ntext"), "small print text");
+    }
+
+    #[test]
+    fn a_marker_the_parser_would_not_read_stays_as_typed() {
+        let ex = |s: &str| excerpt(s, 140).unwrap();
+        for s in [
+            "C# is fine",
+            "issue #3",
+            "#tag",
+            "a # b",
+            "#### four",
+            "#",
+            "-#nospace",
+        ] {
+            assert_eq!(ex(s), s, "{s:?}");
+        }
+        assert_eq!(ex("one\n#\ntwo"), "one # two");
+        assert_eq!(ex("one\n# \ntwo"), "one # two");
+    }
+
+    #[test]
+    fn a_fenced_block_keeps_its_lines() {
+        // Same before and after the change: the fenced lines are folded as typed.
+        assert_eq!(
+            excerpt("```\n# not a heading\n```", 140).as_deref(),
+            Some("``` # not a heading ```")
+        );
+        // An unclosed fence is no fence for the parser, so its later lines are read as lines.
+        assert_eq!(excerpt("```\n# head", 140).as_deref(), Some("``` head"));
+    }
+
+    #[test]
+    fn a_long_heading_is_cut_as_before() {
+        let s = format!("# {}", "word ".repeat(60));
+        let got = excerpt(&s, 140).unwrap();
+        assert!(got.ends_with('\u{2026}'));
+        assert!(got.starts_with("word word"));
+        assert!(!got.contains('#'));
+    }
+
+    #[test]
+    fn a_heading_with_a_spoiler_or_mention_still_passes_the_cut_check() {
+        let s = format!("# {} ||secret words here|| tail", "a ".repeat(65));
+        let got = excerpt(&s, 140).unwrap();
+        // The cut is closed (D-735) or cut back: never half a spoiler.
+        assert_eq!(got.matches("||").count() % 2, 0, "{got:?}");
+        assert!(!got.contains('#'));
+        let s = format!("## {} <@123456789012345678> tail", "a ".repeat(65));
+        let got = excerpt(&s, 140).unwrap();
+        assert!(!got.contains("<@1234") || got.contains("<@123456789012345678>"));
+    }
+
+    /// D-783: what a later line that starts with a quote or list marker prints today (unchanged).
+    #[test]
+    fn later_quote_and_list_markers_print_as_typed_today() {
+        let ex = |s: &str| excerpt(s, 140).unwrap();
+        assert_eq!(ex("a\n> quoted"), "a > quoted");
+        assert_eq!(ex("a\n>>> quoted"), "a >>> quoted");
+        assert_eq!(ex("a\n- item"), "a - item");
+        assert_eq!(ex("a\n1. item"), "a 1. item");
+    }
 }
 
 #[cfg(test)]
@@ -363,7 +475,11 @@ mod safe_cut_tests {
                     text.push_str(input);
                     text.push(' ');
                 }
-                let folded = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                // The whole is what the excerpt reads: the text without its heading and subtext markers (D-782).
+                let folded = without_markers(&text)
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 let full = to_plain_text(&parse(&folded));
                 if let Some(e) = excerpt(&text, EXCERPT_CHARS) {
                     let body = e.strip_suffix('\u{2026}').unwrap_or(&e);

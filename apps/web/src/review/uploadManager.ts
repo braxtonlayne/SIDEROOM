@@ -28,8 +28,10 @@ export interface LedgerEntry {
   done: number[];
   state: TaskState;
   error?: string;
-  /** The file itself, so a refresh can continue without choosing it again. */
-  file: File | Blob;
+  /** The file itself, so a refresh can continue without choosing it again. Dropped once the server ended the upload. */
+  file?: File | Blob;
+  /** The server ended this upload (409 at `parts` or `complete`): it is never asked about again (D-781). */
+  ended?: boolean;
 }
 
 export type Ledger = SharedLedger<LedgerEntry>;
@@ -74,10 +76,16 @@ export interface UploadTask {
   /** 0 to 1. */
   progress: number;
   error?: string;
+  /** The server ended this upload; the button starts a new one, or the file must be chosen again. */
+  ended?: boolean;
+  /** The page still holds the file (an ended upload can be started again from it). */
+  hasFile?: boolean;
 }
 
 interface Live {
   entry: LedgerEntry;
+  /** The file kept in memory for an ended upload, whose ledger entry no longer holds it. */
+  file?: File | Blob;
   urls: Map<number, string>;
   abort: AbortController;
   /** Resolves when the run ends (done, failed or paused). */
@@ -116,16 +124,20 @@ export class UploadManager {
   }
 
   private emit() {
-    this.cache = [...this.live.values()].map(({ entry }) => ({
-      id: entry.id,
-      submissionId: entry.submissionId,
-      chapterId: entry.chapterId,
-      filename: entry.filename,
-      size: entry.size,
-      state: entry.state,
-      progress: entry.partCount === 0 ? 0 : this.bytes(entry) / Math.max(1, entry.size),
-      ...(entry.error ? { error: entry.error } : {}),
-    }));
+    this.cache = [...this.live.values()].map((live) => {
+      const entry = live.entry;
+      return {
+        id: entry.id,
+        submissionId: entry.submissionId,
+        chapterId: entry.chapterId,
+        filename: entry.filename,
+        size: entry.size,
+        state: entry.state,
+        progress: entry.partCount === 0 ? 0 : this.bytes(entry) / Math.max(1, entry.size),
+        ...(entry.error ? { error: entry.error } : {}),
+        ...(entry.ended ? { ended: true, hasFile: (live.file ?? entry.file) !== undefined } : {}),
+      };
+    });
     for (const f of this.subs) f();
   }
 
@@ -138,6 +150,12 @@ export class UploadManager {
 
   /** Start uploading `file` into a chapter; resolves when it is complete (rejects when it fails or is cancelled). */
   async enqueue(submissionId: string, chapterId: string, file: File): Promise<void> {
+    const { entry, urls } = await this.open(submissionId, chapterId, file);
+    return this.start(entry, urls);
+  }
+
+  /** Ask the server for an upload slot and remember it in the ledger. */
+  private async open(submissionId: string, chapterId: string, file: File) {
     const slot = await this.api.begin(submissionId, chapterId, {
       filename: file.name,
       size_bytes: file.size,
@@ -158,13 +176,22 @@ export class UploadManager {
     };
     await this.ledger.put(entry);
     const urls = new Map(slot.multipart.parts.map((p) => [p.part_number, p.url]));
-    return this.start(entry, urls);
+    return { entry, urls };
   }
 
   /** After a refresh: continue every upload the ledger remembers that was not finished. */
   async resumeAll(): Promise<UploadTask[]> {
     for (const e of await this.ledger.all()) {
       if (e.state === 'done' || this.live.has(e.id)) continue;
+      if (e.ended) {
+        // The server ended this upload: it stays failed and nothing is asked (D-781).
+        this.live.set(e.id, {
+          entry: { ...e, state: 'failed' },
+          urls: new Map(),
+          abort: new AbortController(),
+        });
+        continue;
+      }
       // Paused uploads stay paused; the rest continue on their own.
       const entry: LedgerEntry = { ...e, state: e.state === 'paused' ? 'paused' : 'queued' };
       this.live.set(e.id, { entry, urls: new Map(), abort: new AbortController() });
@@ -196,10 +223,21 @@ export class UploadManager {
 
   private async run(live: Live, needUrls: boolean): Promise<void> {
     const e = live.entry;
+    // A 409 from the server's own answer at `parts` or `complete` (by status, never by sentence) means the
+    // upload has ended; a failing part or the network never does.
+    let endedByServer = false;
+    const ask = async <T>(call: () => Promise<T>): Promise<T> => {
+      try {
+        return await call();
+      } catch (err) {
+        endedByServer = (err as { status?: number } | null)?.status === 409;
+        throw err;
+      }
+    };
     try {
       await this.persist(live, { state: 'running', error: undefined as never });
       if (needUrls) {
-        const p = await this.api.parts(e.submissionId, e.uploadId);
+        const p = await ask(() => this.api.parts(e.submissionId, e.uploadId));
         live.entry = { ...live.entry, done: p.received.map((r) => r.part_number) };
         live.urls = new Map(p.missing.map((m) => [m.part_number, m.url]));
       }
@@ -246,15 +284,18 @@ export class UploadManager {
       );
       if (live.abort.signal.aborted) return;
       if (failure) throw new Error(failure);
-      await this.api.complete(e.submissionId, e.uploadId);
+      await ask(() => this.api.complete(e.submissionId, e.uploadId));
       await this.persist(live, { state: 'done' });
       await this.ledger.remove(e.id);
       live.settle?.(true);
     } catch (err) {
       if (live.abort.signal.aborted) return;
+      // The sentence is kept as the error; the ledger no longer holds the file of an ended upload.
+      if (endedByServer) live.file = live.entry.file;
       await this.persist(live, {
         state: 'failed',
         error: err instanceof Error ? err.message : String(err),
+        ...(endedByServer ? { ended: true, file: undefined } : {}),
       });
       live.settle?.(false);
     }
@@ -272,7 +313,29 @@ export class UploadManager {
   async resume(id: string): Promise<void> {
     const live = this.live.get(id);
     if (!live || !['paused', 'failed'].includes(live.entry.state)) return;
+    if (live.entry.ended) return this.startAgain(live);
     await this.start({ ...live.entry, state: 'queued' }, null).catch(() => undefined);
+  }
+
+  /**
+   * The server ended this upload: ask it nothing about it. With the file in hand, start a new upload of the
+   * file through the first-upload path; the old row goes once the new slot exists. Without the file, nothing.
+   */
+  private async startAgain(old: Live): Promise<void> {
+    const file = old.file ?? old.entry.file;
+    if (!file) return;
+    const { submissionId, chapterId, id } = old.entry;
+    const named = file instanceof File ? file : new File([file], old.entry.filename);
+    let opened: { entry: LedgerEntry; urls: Map<number, string> };
+    try {
+      opened = await this.open(submissionId, chapterId, named);
+    } catch (err) {
+      await this.persist(old, { error: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    await this.ledger.remove(id);
+    this.live.delete(id);
+    await this.start(opened.entry, opened.urls).catch(() => undefined);
   }
 
   /** Give the upload up: the server frees its parts and the ledger forgets it. */
@@ -281,10 +344,12 @@ export class UploadManager {
     if (!live) return;
     live.abort.abort();
     live.settle?.(false);
-    try {
-      await this.api.abort(live.entry.submissionId, live.entry.uploadId);
-    } catch {
-      /* the server expires an unused slot on its own */
+    if (!live.entry.ended) {
+      try {
+        await this.api.abort(live.entry.submissionId, live.entry.uploadId);
+      } catch {
+        /* the server expires an unused slot on its own */
+      }
     }
     await this.ledger.remove(id);
     this.live.delete(id);

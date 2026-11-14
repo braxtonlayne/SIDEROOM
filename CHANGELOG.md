@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 74 - 2026-11-14
+
+- **Members.** A thread's last message and a Message Requests line no longer show `#`, `##`, `###` or `-#` in front of the words: a message of three headings reads as the three words instead of `# One ## Two ### Three`. `C#`, `issue #3` and text inside a code block stay as typed.
+- **Library.** A Library upload that ended because a part was larger than announced can be started again with one button, and is no longer asked about again by itself at every page load.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 73 - 2026-11-14
 
 - **Members.** Headings in messages are sized as Discord's, smaller than before, and subtext sits on its own line in a muted colour. The "Thread started from" line shows a plain one-line version of the original message: a spoiler stays hidden, code and mentions are written as names, and a blocked or ignored author's text is not shown. A spoiler that the "On hover for mine" preference shows is readable. The About Me preview in Profile settings shows your bio formatted when Settings is the first page you open, instead of the raw `**` and `||` marks, and a spoiler never shows its text while the page loads. In Editorial an idle dot is an amber instead of a pale tan and a do-not-disturb dot is easier to see on a hovered row; in Lounge Light the online dot is a deeper green and easier to see; Lounge Ash's do-not-disturb dot is brighter on a hovered row.
