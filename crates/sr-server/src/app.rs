@@ -2197,6 +2197,9 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     } else {
         Router::new()
     };
+    // SEC-AUD-223 (D-697, D-706): host entries the server drops are named once; the CPU figure starts.
+    crate::web_policy::warn_about_hosts(&crate::web_policy::PolicyInputs::from_env(&cfg));
+    sr_voice::process_cpu::start();
     let web_gate =
         crate::web::WebGate::from_config(&cfg, Arc::new(crate::web::ComplianceOperator))?;
     let web_state = state.clone();

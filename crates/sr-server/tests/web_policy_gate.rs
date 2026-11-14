@@ -18,7 +18,7 @@ use sr_auth::{
 use sr_core::{Clock, ManualClock};
 use sr_server::{
     web::{NoOperator, PUBLIC_CSP, WebError, WebGate},
-    web_policy::{PolicyInputs, merge_origins, origins_for, sources_by_directive},
+    web_policy::{PolicyInputs, host_warnings, merge_origins, origins_for, sources_by_directive},
 };
 use tower::ServiceExt;
 
@@ -192,6 +192,42 @@ async fn a_bad_extra_origin_stops_the_start_with_its_name() {
         let msg = err.to_string();
         assert!(msg.contains(var) && msg.contains(bad), "{msg}");
     }
+}
+
+#[tokio::test]
+async fn a_bad_embed_host_is_warned_about_and_the_server_starts() {
+    // D-697: the opposite of a bad `SR_CSP_*` entry: the start goes on, the bad entries are dropped and named.
+    let inp = PolicyInputs {
+        peertube_hosts: "tube.example.org, http://bad.example, nodot".into(),
+        media_hosts: "cdn.example.org".into(),
+        ..inputs()
+    };
+    let fx = fixture(&inp)
+        .await
+        .unwrap_or_else(|e| panic!("a bad embed host must not stop the start: {e}"));
+    let warnings = host_warnings(&inp);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0].contains("SR_PEERTUBE_HOSTS")
+            && warnings[0].contains("\"http://bad.example\"")
+            && warnings[0].contains("\"nodot\"")
+            && !warnings[0].contains("tube.example.org"),
+        "{warnings:?}"
+    );
+    // The policy holds the good host only.
+    let origins = origins_for(&inp).unwrap();
+    assert!(
+        origins
+            .frame
+            .contains(&"https://tube.example.org".to_owned())
+    );
+    assert!(
+        !origins
+            .connect
+            .iter()
+            .any(|o| o.contains("bad.example") || o.contains("nodot"))
+    );
+    drop(fx);
 }
 
 #[tokio::test]

@@ -70,21 +70,51 @@ pub fn media_hosts_from_env() -> Vec<String> {
 
 /// `a.example, B.example:443` -> `["a.example", "b.example"]`. Entries that are not plain host names are dropped.
 pub fn parse_hosts(raw: &str) -> Vec<String> {
-    raw.split(',')
-        .map(|s| {
-            let s = s
-                .trim()
-                .trim_start_matches("https://")
-                .trim_end_matches('/');
-            s.split(':').next().unwrap_or("").to_ascii_lowercase()
-        })
-        .filter(|h| {
-            !h.is_empty()
-                && h.contains('.')
-                && h.bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
-        })
-        .collect()
+    parse_hosts_report(raw).0
+}
+
+/// [`parse_hosts`] and the entries it dropped, as written (trimmed). An empty entry between two commas is nothing,
+/// not a dropped entry (D-697).
+pub fn parse_hosts_report(raw: &str) -> (Vec<String>, Vec<String>) {
+    let mut kept = Vec::new();
+    let mut dropped = Vec::new();
+    for entry in raw.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+        let host = entry
+            .trim_start_matches("https://")
+            .trim_end_matches('/')
+            .split(':')
+            .next()
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let plain = !host.is_empty()
+            && host.contains('.')
+            && host
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
+        if plain {
+            kept.push(host);
+        } else {
+            dropped.push(entry.to_owned());
+        }
+    }
+    (kept, dropped)
+}
+
+/// The warning line for one host variable (`var`, its raw value), or `None` when every entry is a plain host name
+/// (D-697). One text for the server's start and for preflight.
+pub fn host_warning(var: &str, raw: &str) -> Option<String> {
+    let (_, dropped) = parse_hosts_report(raw);
+    if dropped.is_empty() {
+        return None;
+    }
+    let entries = dropped
+        .iter()
+        .map(|e| format!("\"{e}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "{var}: {entries} ignored: not a plain host name (write `video.example.org`, no scheme, no path)"
+    ))
 }
 
 fn is_id(s: &str, len: std::ops::RangeInclusive<usize>) -> bool {
@@ -439,6 +469,29 @@ mod tests {
             ),
             vec!["tube.example.org", "a.example"]
         );
+    }
+
+    #[test]
+    fn dropped_host_entries_are_reported_as_written() {
+        let (kept, dropped) = parse_hosts_report(
+            " Tube.Example.org , https://a.example:443/ ,,bad host,localhost,x_y.example, http://host.example,host.example/path,*.example.org,",
+        );
+        assert_eq!(kept, vec!["tube.example.org", "a.example"]);
+        assert_eq!(
+            dropped,
+            vec![
+                "bad host",
+                "localhost",
+                "x_y.example",
+                "http://host.example",
+                "host.example/path",
+                "*.example.org"
+            ]
+        );
+        assert_eq!(parse_hosts_report(""), (vec![], vec![]));
+        assert_eq!(parse_hosts_report(" , ,"), (vec![], vec![]));
+        let raw = "a.example,nodot,b.example";
+        assert_eq!(parse_hosts(raw), parse_hosts_report(raw).0);
     }
 
     #[test]
