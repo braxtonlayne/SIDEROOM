@@ -118,7 +118,11 @@ pub fn parse(bytes: &[u8]) -> Result<SeriesFile, IngestError> {
             .map_err(bad)?,
         ),
         (Some(language), None) => {
-            let label = format!("Edition ({})", language.trim());
+            // D-751 (SEC-AUD-282): the label the server makes names the language in its stored form, so `eng` and
+            // `en` give one label. An `edition` the uploader typed is never changed; a language the rules refuse
+            // gives the same error as before.
+            let language = rules::language(&language).map_err(bad)?;
+            let label = format!("Edition ({language})");
             Some(
                 rules::edition_input(&EditionInput {
                     language,
@@ -193,5 +197,41 @@ mod tests {
             assert!(e.contains(needle), "{e}");
         }
         assert!(parse(&vec![b' '; MAX_BYTES + 1]).is_err());
+    }
+
+    /// D-751: the default label is made from the stored form of the language.
+    #[test]
+    fn the_default_edition_label_uses_the_stored_form_of_the_language() {
+        for (typed, stored) in [
+            ("eng", "en"),
+            ("ENG", "en"),
+            (" en ", "en"),
+            ("zh-hant", "zh-Hant"),
+            ("pt-br", "pt-BR"),
+            ("ja", "ja"),
+        ] {
+            let body = format!(r#"{{"title":"T","language":"{typed}"}}"#);
+            let e = parse(body.as_bytes()).unwrap().edition.unwrap();
+            assert_eq!(e.language, stored, "{typed}");
+            assert_eq!(e.label, format!("Edition ({stored})"), "{typed}");
+        }
+        // Two files for one language make one edition (the same language and label), whatever was typed.
+        let a = parse(br#"{"title":"T","language":"eng"}"#).unwrap().edition;
+        let b = parse(br#"{"title":"T","language":"en"}"#).unwrap().edition;
+        assert_eq!(a, b);
+        // A label the uploader typed is never changed.
+        let e = parse(br#"{"title":"T","language":"eng","edition":"Official eng"}"#)
+            .unwrap()
+            .edition
+            .unwrap();
+        assert_eq!(
+            (e.language.as_str(), e.label.as_str()),
+            ("en", "Official eng")
+        );
+        // A language the rules refuse gives the same error.
+        let e = parse(br#"{"title":"T","language":"e_n"}"#)
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("language"), "{e}");
     }
 }
