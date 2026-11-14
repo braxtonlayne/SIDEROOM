@@ -99,6 +99,19 @@ test('every construct the renderer draws, in the list, the pins panel and search
   }
   const pinned = [ids[0], ids[2], ids[5], ids[messages.findIndex((m) => m.includes('||'))], ids[8]];
   for (const id of pinned) await apiPut(o, `/channels/${channel}/pins/${id}`, {});
+  // A thread: the same constructs in a thread panel.
+  const th = await apiPost<{ id: string }>(
+    bctx.request,
+    `/channels/${channel}/messages/${ids[1]}/threads`,
+    { name: 'Prose thread' },
+  );
+  for (const content of [
+    `thread: <@${me.id}> and \`inline code\` and ||a thread spoiler||`,
+    '> a quote in the thread\n```js\nconst inThread = true;\n```',
+  ]) {
+    await new Promise((r) => setTimeout(r, 1200));
+    await apiPost(bctx.request, `/channels/${th.id}/messages`, { content });
+  }
   await new Promise((r) => setTimeout(r, 2500));
 
   // A custom emoji's signed URL cannot be served by the memory store: answer it with a small inline image.
@@ -212,6 +225,18 @@ test('every construct the renderer draws, in the list, the pins panel and search
         JSON.stringify(await block.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }))),
       );
       expect(await overflowOf(page)).toBeLessThanOrEqual(0);
+      // The block scrolls inside itself.
+      const scrolled = await block.evaluate((el) => {
+        const ox = getComputedStyle(el).overflowX;
+        el.scrollLeft = 40;
+        return { ox, left: el.scrollLeft };
+      });
+      console.log(`RECORDED codeblock scroll ${tag}:`, JSON.stringify(scrolled));
+      if (process.env.SR_P72_ASSERT !== '0') {
+        expect(['auto', 'scroll']).toContain(scrolled.ox);
+        expect(scrolled.left).toBeGreaterThan(0);
+      }
+      expect(await overflowOf(page)).toBeLessThanOrEqual(0);
 
       // A spoiler in the list opens on a click.
       const spoiler = page.locator('.lng-msg-content .sr-md-spoiler').first();
@@ -250,6 +275,22 @@ test('every construct the renderer draws, in the list, the pins panel and search
       await pins.evaluate((el) => (el.scrollTop = el.scrollHeight));
       await page.waitForTimeout(200);
       await shot(page, `pins-scrolled-${tag}`);
+      await c.close();
+    }
+
+    // The thread panel.
+    for (const [vp, size] of [
+      ['desktop', DESKTOP],
+      ['phone', PHONE],
+    ] as const) {
+      const tag = `${vp}-${t}`;
+      const { c, page } = await open(t, size);
+      await page.goto(`/channels/${g}/${th.id}`);
+      await expect(
+        page.locator('.sr-md-quote', { hasText: 'a quote in the thread' }).last(),
+      ).toBeVisible();
+      await page.waitForTimeout(600);
+      await shot(page, `thread-${tag}`);
       await c.close();
     }
 
