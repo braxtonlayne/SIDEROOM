@@ -14,9 +14,11 @@
 //   f. a staff message's text (a value of 12 characters or more in messages/en-staff that no member fragment also
 //      holds) is in a file outside /app/staff/ or in app.html (the key is printed, never the text; SEC-AUD-187, D-663),
 //   g. dist/app/staff/ holds no catalog: none of the staff messages is inside it (the staff catalog is missing, or the
-//      fragments moved and the build did not follow).
+//      fragments moved and the build did not follow),
+//   h. a file under dist/app/ outside staff/ is the build report `staff-chunks.json` (SEC-AUD-271, D-652): the server
+//      sends every file outside staff/ to any signed-in member, and the report names every staff chunk and module.
 // It also prints a REPORT (never a failure): modules outside src/admin/ whose path looks like staff code and that sit in
-// member chunks (the wave 66 list), read from dist/app/staff-chunks.json.
+// member chunks (the wave 66 list), read from the build report apps/web/staff-chunks.json (beside dist/, not in it).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -104,7 +106,12 @@ export function staffCatalogNeedles(
  * Returns `{ failures: string[], report: string[], staffFiles: string[] }`. `catalog` (from `staffCatalogNeedles`)
  * switches on rules f and g; the unit cases of a..e pass none.
  */
-export function checkStaffDelivery(dist, markers = STAFF_MARKERS, catalog = null) {
+export function checkStaffDelivery(
+  dist,
+  markers = STAFF_MARKERS,
+  catalog = null,
+  manifestFile = join(dist, '..', 'staff-chunks.json'),
+) {
   const failures = [];
   const report = [];
   const app = join(dist, 'app');
@@ -178,8 +185,13 @@ export function checkStaffDelivery(dist, markers = STAFF_MARKERS, catalog = null
       );
   }
 
+  // h
+  for (const f of others.filter((x) => posix.basename(x).startsWith('staff-chunks')))
+    failures.push(
+      `h: app/${f} is a file every signed-in member can fetch and it lists the staff chunks: the build report belongs beside dist/, not in it`,
+    );
+
   // report
-  const manifestFile = join(app, 'staff-chunks.json');
   if (existsSync(manifestFile)) {
     const m = JSON.parse(readFileSync(manifestFile, 'utf8'));
     const looks = m.memberModulesStaffLooking ?? [];
@@ -188,7 +200,7 @@ export function checkStaffDelivery(dist, markers = STAFF_MARKERS, catalog = null
       ...looks.map((x) => `  ${x}`),
       `report: ${(m.memberModulesUnderAdmin ?? []).length} module(s) under src/admin/ are shared with member code and stay in member chunks`,
     );
-  } else report.push('report: dist/app/staff-chunks.json is missing');
+  } else report.push(`report: the build report ${manifestFile} is missing (the build writes it)`);
   return { failures, report, staffFiles };
 }
 

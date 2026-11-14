@@ -19,7 +19,8 @@ function dist(edit = () => {}) {
     'app/vendor-BBBB2222.js': 'export const v = 1;',
     'app/staff/Zk3_-9aB.js': 'export const a = "m-one";',
     'app/staff/Qq1WwEe2.css': '.x{}',
-    'app/staff-chunks.json': JSON.stringify({
+    // The build report sits beside dist/, not in it (SEC-AUD-271).
+    '../staff-chunks.json': JSON.stringify({
       version: 1,
       memberModulesStaffLooking: ['src/lounge/shell/platformStaff.ts'],
       memberModulesUnderAdmin: ['src/admin/reauth.ts'],
@@ -28,12 +29,13 @@ function dist(edit = () => {}) {
   edit(files);
   const root = mkdtempSync(join(tmpdir(), 'sr-staff-'));
   roots.push(root);
+  const out = join(root, 'dist');
   for (const [f, text] of Object.entries(files)) {
     if (text === null) continue;
-    mkdirSync(dirname(join(root, f)), { recursive: true });
-    writeFileSync(join(root, f), text);
+    mkdirSync(dirname(join(out, f)), { recursive: true });
+    writeFileSync(join(out, f), text);
   }
-  return root;
+  return out;
 }
 const run = (edit) => checkStaffDelivery(dist(edit), MARK);
 const rules = (r) => r.failures.map((f) => f[0]);
@@ -45,6 +47,26 @@ describe('check-staff-delivery', () => {
     const r = run();
     assert.deepEqual(r.failures, []);
     assert.match(r.report.join('\n'), /platformStaff/);
+  });
+  it('h: fails when the build report is inside dist/app/, where every signed-in member can fetch it', () => {
+    // Before SEC-AUD-271 the build emitted it there: the names and module paths of every staff chunk.
+    const r = run((f) => {
+      f['app/staff-chunks.json'] = f['../staff-chunks.json'];
+    });
+    assert.deepEqual(rules(r), ['h']);
+    assert.match(r.failures[0], /app\/staff-chunks\.json/);
+    // Nested or renamed with a suffix: still the report.
+    const nested = run((f) => {
+      f['app/x/staff-chunks.report.json'] = '{}';
+    });
+    assert.deepEqual(rules(nested), ['h']);
+  });
+  it('the build report is read from beside dist/, and a missing one is only said, not a failure', () => {
+    const r = run((f) => {
+      delete f['../staff-chunks.json'];
+    });
+    assert.deepEqual(r.failures, []);
+    assert.match(r.report.join('\n'), /build report .* is missing/);
   });
   it('a: fails when staff/ is empty or missing', () => {
     const r = run((f) => {

@@ -26,3 +26,6 @@ e2e/test-results/
 
 # SEC-AUD-145: written by a build with SR_BUNDLE_REPORT=1
 /apps/web/bundle-report.json
+
+# SEC-AUD-271: the staff chunk report of the build, written beside dist/ (never inside it: members can fetch dist/app/)
+/apps/web/staff-chunks.json

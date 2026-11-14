@@ -1,4 +1,5 @@
 import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Plugin } from 'vite';
 import { STAFF_ENTRIES, sortModules } from '../../../scripts/lib/staff-graph.mjs';
 
@@ -96,10 +97,13 @@ export function staffChunks(entries: readonly string[] = STAFF_ENTRIES) {
         if (name.startsWith('staff/')) staff.push(name);
       }
       const under = (id: string) => bare(id).replace(`${root}/`, '');
-      this.emitFile({
-        type: 'asset',
-        fileName: 'staff-chunks.json',
-        source: `${JSON.stringify(
+      // SEC-AUD-271 (D-652): the build report is NOT a build output. It used to be emitted as `dist/app/staff-chunks.json`,
+      // which the server sends to any signed-in member (only `app/staff/` is staff-only): the names and module paths of
+      // every staff chunk. It is written beside `dist/` (apps/web/staff-chunks.json, untracked) for
+      // `scripts/check-staff-delivery.mjs` and nothing is shipped.
+      writeFileSync(
+        join(root, 'staff-chunks.json'),
+        `${JSON.stringify(
           {
             version: 1,
             entries,
@@ -125,7 +129,7 @@ export function staffChunks(entries: readonly string[] = STAFF_ENTRIES) {
           null,
           2,
         )}\n`,
-      });
+      );
     },
   };
 
