@@ -110,10 +110,10 @@ test('a thread row and a request row hold the words, not the heading markers', a
         page.locator('.lng-msg:not(.lng-system) .lng-thread-chip', { hasText: n }),
       );
       for (const chip of chips) await expect(chip).toBeVisible();
-      await expect(chips[0]).toContainText('Alpha heading Beta heading Gamma heading');
-      await expect(chips[1]).toContainText('intro words Title words small print words');
+      await expect(chips[0]!).toContainText('Alpha heading Beta heading Gamma heading');
+      await expect(chips[1]!).toContainText('intro words Title words small print words');
       for (const chip of chips) expect(await chip.innerText()).not.toContain('#');
-      await chips[1].scrollIntoViewIfNeeded();
+      await chips[1]!.scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `thread-loaded-${tag}.png`) });
       // Live: the next message in the second thread, while the channel is open.
@@ -124,8 +124,8 @@ test('a thread row and a request row hold the words, not the heading markers', a
       const live = threads.find((m) => m.thread?.name === names[0])!.thread!.id;
       await apiPost(b, `/channels/${live}/messages`, { content: `${MIXED}\n### live heading` });
       await page.waitForTimeout(1500);
-      await chips[0].scrollIntoViewIfNeeded();
-      expect(await chips[0].innerText()).not.toContain('#');
+      await chips[0]!.scrollIntoViewIfNeeded();
+      expect(await chips[0]!.innerText()).not.toContain('#');
       await page.screenshot({ path: resolve(OUT, `thread-live-${tag}.png`) });
 
       // The Message Requests row: loaded, then live.
