@@ -126,6 +126,8 @@ describe('Live TV channel editor: the logo', () => {
     await user.click(screen.getByRole('button', { name: 'Save channel' }));
     await waitFor(() => expect(calls.saves).toHaveLength(1));
     expect((calls.saves[0] as { logo_key?: string }).logo_key).toBe('tv/501/logo-901.png');
+    // A manual channel sends no rules at all: the server refuses null (422).
+    expect(calls.saves[0]).not.toHaveProperty('rules');
 
     // Replacing swaps the image.
     await user.upload(screen.getByLabelText('Upload logo'), png(99, 'b.webp', 'image/webp'));

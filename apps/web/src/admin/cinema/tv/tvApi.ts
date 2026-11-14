@@ -193,10 +193,12 @@ export const listChannels = async (): Promise<{ items: AdminChannel[] }> => {
   const r = await get<{ items: WireAdminChannel[] }>('/admin/tv/channels');
   return { items: r.items.map(toAdmin) };
 };
+/** The server reads a missing `rules` as empty but refuses `null` (422): a manual or imported-guide channel sends none. */
+const channelBody = ({ rules, ...rest }: ChannelInput) => (rules ? { ...rest, rules } : rest);
 export const createChannel = async (b: ChannelInput) =>
-  toAdmin(await send<WireAdminChannel>('/admin/tv/channels', 'POST', b));
+  toAdmin(await send<WireAdminChannel>('/admin/tv/channels', 'POST', channelBody(b)));
 export const updateChannel = async (id: string, b: ChannelInput) =>
-  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', b));
+  toAdmin(await send<WireAdminChannel>(`/admin/tv/channels/${enc(id)}`, 'PUT', channelBody(b)));
 export const deleteChannel = (id: string) => send<void>(`/admin/tv/channels/${enc(id)}`, 'DELETE');
 /** `GET /tv/timezones`: the names the server accepts. */
 export const listTimezones = async () => (await get<{ items: string[] }>('/tv/timezones')).items;

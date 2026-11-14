@@ -263,7 +263,7 @@ test('the channel editor: upload a logo, save, reload, remove (clicked through)'
       await page.screenshot({ path: resolve(OUT, `editor-logo-uploaded-${tag}.png`) });
       // Save keeps it; a reload still shows it (the key is echoed back).
       await page.getByRole('button', { name: 'Save channel' }).click();
-      await expect(page.getByText('Channel saved.')).toBeVisible();
+      await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
       await page.reload();
       await page.getByRole('button', { name: `Open Editor ${vp} ${theme}` }).click();
       await expect(

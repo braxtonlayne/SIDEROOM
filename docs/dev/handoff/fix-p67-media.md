@@ -40,3 +40,12 @@ SEC-AUD-186 `tv.footer_note` (closes TV-UI-009); SEC-AUD-199 channel logo upload
 
 ## Proposed threat-model rows
 An uploaded subtitle is hostile input (parsed and re-written, never stored as sent, 20 MiB / cue caps, escaping, hidden tracks unserved); an uploaded image (sniffed, re-encoded, 2 MiB, no SVG, no animation); a logo key pointing at another object (refused: own key or null only).
+
+## Verification
+- Locally: sr-tv (109), sr-media subtitles (22), sr-api tv, cinema_media, cdn, playback tests (95), route_matrix (6), sr-db `media_repo` `--ignored` (23), sr-server `tv_wiring` `--ignored` (6), clippy `-D warnings` on sr-media, sr-db, sr-tv, sr-api, sr-admin, sr-server (clean), vitest for the touched web files, tsc, eslint, prettier. Not run locally (CI): the authz matrix, the whole-crate suites, the bundle and entrance checks.
+- **Watched fail without the change** (run on this branch with the fix lines removed): `a_logo_url_is_served_to_a_member_and_refused_unsigned` (no `tv` kind), `an_uploaded_subtitle_survives_a_retranscode_and_still_plays` and `a_hidden_track_is_in_neither_the_playback_answer_nor_the_playlist` (delete-all replacement, no `NOT hidden`). The others were written with the code, not run against the base.
+- **Found by the visual check:** saving a manual or imported-guide channel in the editor answered 422 (the client sent `rules: null`, the server refuses null). Fixed in `tvApi.ts` (no `rules` key unless rule-based); vitest asserts it.
+- Shots: `visual-sweep-shots/p67-media` (guide top, footer note of 200 characters, logos in the grid and now panel, the phone agenda before and after a swipe, the editor with and without a logo, uploaded, after a reload, removed, Admin > Settings with and without the saved note, the Subtitles block with four tracks, a refused upload, the delete dialog and after the flow), desktop 1280x800 and phone 375x812, Editorial, Lounge Light and Lounge Dark. The channel editor flow (upload, save, reload, remove) and the Settings flow ran on the real stack; the subtitle flow on a faked track list.
+
+## Cleanup
+Scratch databases `sr_p67_media` and `sr_p67_media_ui` dropped; `p67-media-target` deleted; no build or test of mine is running.
