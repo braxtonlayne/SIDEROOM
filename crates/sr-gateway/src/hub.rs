@@ -876,7 +876,8 @@ impl Gateway {
             .map(|s| session_entry(s))
             .collect();
         sessions.push(session_entry(&session));
-        let ready = self.ready_body(&user.user, &guilds, &session, sessions, &extras);
+        let ready_user = self.ready_user(&user.user, user.user_id, user.bot).await;
+        let ready = self.ready_body(&ready_user, &guilds, &session, sessions, &extras);
         session.deliver("READY", ready);
         for (p, sync) in payloads.into_iter().zip(syncs) {
             session.deliver("GUILD_CREATE", p);
@@ -903,6 +904,20 @@ impl Gateway {
         }
         self.refresh_presence(user.user_id, false).await;
         session
+    }
+
+    /// The user object of the account's OWN READY: the directory's object, plus `sr_platform_staff: true` when the
+    /// account holds an active staff appointment (D-673). Absent otherwise, and always for a bot. This is the only
+    /// place the flag is added: the session keeps the plain object, so no other payload can carry it.
+    pub(crate) async fn ready_user(&self, user: &Value, id: UserId, bot: bool) -> Value {
+        let mut out = user.clone();
+        if !bot
+            && self.inner.dir.is_platform_staff(id).await
+            && let Some(o) = out.as_object_mut()
+        {
+            o.insert("sr_platform_staff".to_owned(), Value::Bool(true));
+        }
+        out
     }
 
     /// The READY payload: the user, one unavailable stub per guild, the session id and the other sessions of the

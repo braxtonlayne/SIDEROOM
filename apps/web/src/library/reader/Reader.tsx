@@ -19,6 +19,7 @@ import {
   type ReaderPrefs,
 } from '../prefs';
 import { progressApi } from '../progress';
+import { useProgressSync } from '../useProgressSync';
 import type { Chapter, PageManifest, Series } from '../types';
 import { preloadImage } from './imageLoader';
 import {
@@ -105,6 +106,8 @@ function ReaderLoader({ chapterId, page, takenDown }: ReaderProps & { takenDown:
     queryKey: ['library', 'progress', chapterId],
     queryFn: () => progressApi.get(chapterId),
     staleTime: Infinity,
+    // Each opening asks the server: the base of the first save is the position read now (D-690), not one kept from an earlier visit.
+    gcTime: 0,
   });
 
   const declined = isAgeGateError(manifest.error);
@@ -161,6 +164,7 @@ function ReaderLoader({ chapterId, page, takenDown }: ReaderProps & { takenDown:
           (parsePageParam(page, 100000) ??
             (saved.data && !saved.data.completed ? Math.max(0, saved.data.page_index) : 0)) + 1
         }
+        baseMs={saved.data?.updated_at_ms ?? 0}
         chapter={{
           id: manifest.data.chapter.id,
           number: manifest.data.chapter.number,
@@ -177,6 +181,7 @@ function ReaderLoader({ chapterId, page, takenDown }: ReaderProps & { takenDown:
         title={manifest.data.chapter.title || series.data.series.title}
         seriesId={series.data.series.id}
         initialCfi={saved.data && !saved.data.completed ? (saved.data.cfi ?? null) : null}
+        baseMs={saved.data?.updated_at_ms ?? 0}
         chapter={{
           id: manifest.data.chapter.id,
           number: manifest.data.chapter.number,
@@ -194,6 +199,7 @@ function ReaderLoader({ chapterId, page, takenDown }: ReaderProps & { takenDown:
       manifest={manifest.data}
       series={series.data.series}
       initialIndex={urlIndex ?? Math.max(0, fromProgress)}
+      baseMs={saved.data?.updated_at_ms ?? 0}
     />
   );
 }
@@ -202,9 +208,11 @@ interface ViewProps {
   manifest: PageManifest;
   series: Series;
   initialIndex: number;
+  /** The `updated_at_ms` of the saved position this reader opened from (0: none). */
+  baseMs: number;
 }
 
-function ReaderView({ manifest, series, initialIndex }: ViewProps) {
+function ReaderView({ manifest, series, initialIndex, baseMs }: ViewProps) {
   const t = useT();
   const navigate = useNavigate();
   const router = useRouter();
@@ -318,29 +326,40 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
 
   const latest = useRef({ index, dirty: false });
   latest.current.index = index;
+  const sync = useProgressSync({
+    chapterId: chapter.id,
+    baseMs,
+    kind: 'pages',
+    pageCount: count,
+    current: () => {
+      const i = Math.min(latest.current.index, Math.max(0, count - 1));
+      return { pageIndex: i, percent: percentAt(i, count) };
+    },
+    jump: (p) => setIndex(clamp(p.page_index, 0, Math.max(0, count - 1))),
+  });
+  const syncSave = sync.save;
   const flush = useCallback(() => {
     if (!latest.current.dirty || count === 0) return;
     latest.current.dirty = false;
     const i = Math.min(latest.current.index, count - 1);
     const pct = percentAt(i, count);
-    void progressApi
-      .save({
-        chapterId: chapter.id,
-        seriesId: series.id,
-        seriesTitle: series.title,
-        coverUrl: series.cover_url,
-        chapterNumber: chapter.number,
-        pageCount: count,
-        pageIndex: i,
-        percent: pct,
-        completed: i >= count - 1,
-      })
-      .then(() => {
-        void qc.invalidateQueries({ queryKey: ['library', 'recent'] });
-        void qc.invalidateQueries({ queryKey: ['library', 'progress', chapter.id] });
-        void qc.invalidateQueries({ queryKey: ['library', 'series-progress', series.id] });
-      });
-  }, [chapter.id, chapter.number, count, qc, series.cover_url, series.id, series.title]);
+    void syncSave({
+      chapterId: chapter.id,
+      seriesId: series.id,
+      seriesTitle: series.title,
+      coverUrl: series.cover_url,
+      chapterNumber: chapter.number,
+      pageCount: count,
+      pageIndex: i,
+      percent: pct,
+      completed: i >= count - 1,
+    }).then((ok) => {
+      // A save that failed is tried again with the next page turn.
+      if (!ok) latest.current.dirty = true;
+      void qc.invalidateQueries({ queryKey: ['library', 'recent'] });
+      void qc.invalidateQueries({ queryKey: ['library', 'series-progress', series.id] });
+    });
+  }, [chapter.id, chapter.number, count, qc, series.cover_url, series.id, series.title, syncSave]);
 
   useEffect(() => {
     if (firstRender.current) {
@@ -592,6 +611,7 @@ function ReaderView({ manifest, series, initialIndex }: ViewProps) {
       data-fit={prefs.fit}
       onMouseMove={poke}
     >
+      {sync.ui}
       <header className="lib-reader-top" aria-label={t('library.reader.label')}>
         <Link
           to="/library/s/$seriesId"

@@ -4516,6 +4516,390 @@
         ]
       }
     },
+    "/admin/cinema/assets/{asset_id}/subtitles": {
+      "get": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "The tracks of a video, hidden ones included (`PUBLISH_MEDIA`): the ones extracted from the file first, then\nthe uploaded ones.",
+        "operationId": "admin_cinema_subtitles",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaSubtitleList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Upload a subtitle file for a video (`PUBLISH_MEDIA`): the body is the file (SubRip, WebVTT or ASS/SSA, at\nmost 20 MiB; the format is read from the content, not the name). It is parsed and stored again as WebVTT (an\nASS file is also kept for styled rendering). A file with no readable cue, over the limit or with too many\ncues is 400 with the reason; a video whose storage does not take uploads is 409. The track is kept when the\nvideo is re-encoded.",
+        "operationId": "admin_cinema_upload_subtitle",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "A BCP 47 tag such as `en` or `pt-BR` (optional).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "label",
+            "in": "query",
+            "description": "The name in the player menu, 1 to 80 characters; the language, or \"Subtitles\", when empty.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "forced",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "hearing_impaired",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaAdminSubtitleTrack"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/cinema/assets/{asset_id}/subtitles/{track_id}": {
+      "delete": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Delete an uploaded track with its files (`PUBLISH_MEDIA`). A track that came from the video file answers\n400: hide it instead.",
+        "operationId": "admin_cinema_delete_subtitle",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "subtitles"
+        ],
+        "summary": "Change a track (`PUBLISH_MEDIA`): label, language, forced, hearing impaired, default (at most one per\nvideo: the others are cleared) or hidden. The settings of an embedded track are kept when the video is\nre-encoded.",
+        "operationId": "admin_cinema_update_subtitle",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Asset snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_id",
+            "in": "path",
+            "description": "Track snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CinemaSubtitlePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CinemaAdminSubtitleTrack"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/admin/cinema/assets/{asset_id}/transcode": {
       "post": {
         "tags": [
@@ -22888,6 +23272,173 @@
             }
           },
           "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
+    "/admin/tv/channels/{channel_id}/logo": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Set a channel's logo (D-686): the body is the image (PNG, JPEG or WebP, at most 2 MiB, sniffed from the\ncontent, never trusted by name). It is decoded and stored again with its metadata stripped, fitted inside\n512 by 512 pixels without upscaling, transparency kept; the previous logo object is deleted. SVG is refused.",
+        "operationId": "admin_tv_set_channel_logo",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Remove a channel's logo and delete its object (D-686).",
+        "operationId": "admin_tv_clear_channel_logo",
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "path",
+            "description": "Channel snowflake",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TvChannel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "",
             "content": {
               "application/json": {
@@ -90258,6 +90809,55 @@
           }
         }
       },
+      "CinemaAdminSubtitleTrack": {
+        "type": "object",
+        "description": "A subtitle track as staff see it.",
+        "required": [
+          "id",
+          "label",
+          "forced",
+          "hearing_impaired",
+          "is_default",
+          "hidden",
+          "source",
+          "styled"
+        ],
+        "properties": {
+          "forced": {
+            "type": "boolean"
+          },
+          "hearing_impaired": {
+            "type": "boolean"
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Left out of the playback answer and the playlists."
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BCP 47 tag, when known."
+          },
+          "source": {
+            "$ref": "#/components/schemas/CinemaSubtitleSource"
+          },
+          "styled": {
+            "type": "boolean",
+            "description": "An ASS/SSA file is kept next to the WebVTT for styled rendering."
+          }
+        }
+      },
       "CinemaAssetPlayback": {
         "type": "object",
         "description": "Everything the player needs to start an asset.",
@@ -91575,6 +92175,74 @@
             "minimum": 0
           }
         }
+      },
+      "CinemaSubtitleList": {
+        "type": "object",
+        "required": [
+          "tracks"
+        ],
+        "properties": {
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CinemaAdminSubtitleTrack"
+            }
+          }
+        }
+      },
+      "CinemaSubtitlePatch": {
+        "type": "object",
+        "description": "Changes to a track; every field is optional.",
+        "properties": {
+          "forced": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "hearing_impaired": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "hidden": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Hide the track from viewers (or show it again)."
+          },
+          "is_default": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` makes this the default track and clears the default of the others."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "1 to 80 characters."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A BCP 47 tag such as `en` or `pt-BR`."
+          }
+        }
+      },
+      "CinemaSubtitleSource": {
+        "type": "string",
+        "description": "Where a subtitle track came from.",
+        "enum": [
+          "embedded",
+          "uploaded"
+        ]
       },
       "CinemaSubtitleTrack": {
         "type": "object",
@@ -96305,6 +96973,17 @@
             "format": "int64",
             "description": "The largest file the viewer may upload in this conversation, in bytes (D-233).",
             "minimum": 0
+          },
+          "sr_request_preview": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RequestPreviewObject",
+                "description": "With `is_message_request`: the latest message of the sender, as words only (D-688). Absent when the\nconversation holds none. SIDE ROOM extension."
+              }
+            ]
           },
           "sr_request_reason": {
             "type": [
@@ -113099,6 +113778,30 @@
           }
         }
       },
+      "RequestPreviewObject": {
+        "type": "object",
+        "description": "What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and\nhow many files it carries. Nothing else of the message (no embeds, file names or links, no author).",
+        "required": [
+          "content",
+          "attachments",
+          "timestamp"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of files on the message.",
+            "minimum": 0
+          },
+          "content": {
+            "type": "string",
+            "description": "Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files."
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      },
       "RequestStatus": {
         "type": "string",
         "enum": [
@@ -121352,6 +122055,13 @@
             "items": {
               "$ref": "#/components/schemas/TvGuideChannel"
             }
+          },
+          "footer_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The operator's line for the foot of the guide (setting `tv.footer_note`, D-687), plain text; null\nwhen none is set (the built-in text shows)."
           },
           "from_ms": {
             "type": "integer",

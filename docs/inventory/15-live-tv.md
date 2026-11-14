@@ -28,8 +28,8 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 - [x] **TV-UI-006** [FE] Program popover (synopsis, Tune in / Remind me / Go to title) (web: Remind me calls `PUT /tv/reminders/{block_id}`; synopsis and rating come from the catalog)
 - [x] **TV-UI-007** [FE] Favorites (☆) persistence
 - [x] **TV-UI-008** [FE] Local time vs channel time toggle
-- [ ] **TV-UI-009** [FE] Footer note (operator-editable) (web: shows the default text; the server has no operator-editable setting yet) _(built: the footer shows the default text; left: the operator-editable setting, `footer_note` is always null, `cinema/tv/api.ts:142`)_
-- [ ] **TV-UI-010** [FE] Mobile guide (channel list with now/next, swipe) (web: agenda list per channel; no swipe) _(built: the agenda list per channel with now and next, `cinema/tv/MobileAgenda.tsx`; left: swipe)_
+- [x] **TV-UI-009** [FE] Footer note (operator-editable) (web: shows the default text; the server has no operator-editable setting yet) _(built: the footer shows the default text; left: the operator-editable setting, `footer_note` is always null, `cinema/tv/api.ts:142`)_ _(Wave 67: built, SEC-AUD-186, D-687.)_
+- [x] **TV-UI-010** [FE] Mobile guide (channel list with now/next, swipe) (web: agenda list per channel; no swipe) _(built: the agenda list per channel with now and next, `cinema/tv/MobileAgenda.tsx`; left: swipe)_ _(Wave 67: built, SEC-AUD-202.)_
 
 ## TV-PLY — Live player
 - [x] **TV-PLY-001** [FE] Live mode of the player (no seek bar, LIVE dot, Back to live after pause)
@@ -39,7 +39,7 @@ Phase 5. Spec: [cinema-live-tv](../specs/cinema-live-tv.md). Mockup: `cinema-liv
 - [x] **TV-PLY-005** [BE][FE] Reminders ("Remind me" → notification at program start) _(p12: `PUT|DELETE /tv/reminders/{block_id}`, table `tv_reminders` (0780), fired by `userfeat.tick` as a DM + push 5 minutes ahead; a regenerated-away block ends with a "dropped" notice; tests in `sr-tv` service_tests, `sr-server` tv_wiring_pg_tests, `sr-api` tv tests)_
 
 ## TV-ADM — Admin
-- [ ] **TV-ADM-001** [FE] Channel list & editor (fields, logo upload, enable) (web: logo upload is not on the server yet) _(built: channel list, editor fields and enable switch (`admin/cinema/tv/ChannelEditor.tsx`); left: logo upload, no logo route on the server, the editor shows a "not available" line)_
+- [x] **TV-ADM-001** [FE] Channel list & editor (fields, logo upload, enable) (web: logo upload is not on the server yet) _(built: channel list, editor fields and enable switch (`admin/cinema/tv/ChannelEditor.tsx`); left: logo upload, no logo route on the server, the editor shows a "not available" line)_ _(Wave 67: logo upload built, SEC-AUD-199, D-686.)_
 - [x] **TV-ADM-002** [FE] Rules editor (pool filters UI, ordering, dayparts)
 - [x] **TV-ADM-003** [FE] Weekly grid editor (manual channels; drag programs) *(p15 rest-c: Guide tab of an imported-guide channel, `admin/cinema/tv/GuidePanel.tsx`: a week of day columns, drag a slot onto another day or edit it in a form, library title search, overlap check, saved whole through `PUT /admin/tv/channels/{id}/slots`; a lineup that repeats weekly is built as an imported-guide channel, a manual channel keeps placing programmes from the Now control tab; test `p15guide.test.tsx`)* *(p17 M-13, D-303: a manual channel points at the Imported guide for weekly lineups, in the kind notice and as a hint with a switch button on the Now control tab; test in `admin/__tests__/livetv.test.tsx`)*
 - [x] **TV-ADM-004** [BE][FE] Guide import (CSV/JSON template download, upload, fuzzy show matching, mapping report matched/ambiguous/missing, confirm) *(p15 rest-c: `sr-tv/src/guide.rs` parses CSV/JSON (weekday names or ISO numbers, 24 h or AM/PM times) and matches names with a normalised bigram score and a year hint; routes `GET /admin/tv/guide-template`, `POST|GET /admin/tv/channels/{id}/imports`, `.../imports/{import}/confirm`; the report UI is in `GuidePanel.tsx`)*

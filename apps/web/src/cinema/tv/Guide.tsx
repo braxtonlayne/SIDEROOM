@@ -269,6 +269,8 @@ function GuideContent() {
         favourites={fav.favourites}
         onToggleFavourite={fav.toggle}
         onOpen={(block) => setOpen({ block, anchor: null })}
+        selectedChannelId={selected?.id ?? null}
+        onSelectChannel={setPicked}
       />
     );
   } else {

@@ -28,7 +28,8 @@ export function ReviewHubSection() {
   );
   // A `#review-queue` card links to `?submission=<id>` (G-68): that is a submission, so open its tab.
   const search = useLocation({ select: (l) => l.searchStr }).replace(/^\?/, '');
-  const linked = /(^|&)submission=\d+/.test(search);
+  // `?submitter=<id>` is the queue filter of that tab (D-691): a reload or a shared link opens it there.
+  const linked = /(^|&)(submission|submitter)=[0-9]+/.test(search);
   // A package card links to `?package=<version id>` (D-258): open the Packages tab.
   const linkedPackage = /(^|&)package=\d+/.test(search);
   const items: TabItem[] = [];

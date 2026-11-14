@@ -36,6 +36,7 @@ import { isSystemMessage, SystemMessage } from './msg/SystemMessage';
 import { PartyMessageCard, SYSTEM_WATCH_PARTY } from '../watchparty/PartyMessageCard';
 import { formatClock, formatFullTime, formatMessageTime } from './time';
 import { ServerTagChip } from './components/ServerTagChip';
+import { ThreadChip } from './threads/ThreadChip';
 import { useScrapbookMenuEntry } from './scrapbook/useSendToScrapbook';
 
 /** Name styling taken from the author's roles (LNG-MSGUI-002). */
@@ -741,17 +742,11 @@ function MessageItemImpl(props: MessageItemProps) {
               </p>
             )}
             {m.thread && onOpenThread && (
-              <button
-                type="button"
-                className="lng-thread-chip"
-                onClick={() => onOpenThread(m, m.thread!.id)}
-              >
-                <Icon name="list" size={16} />
-                <strong>{m.thread.name}</strong>
-                <span className="lng-muted">
-                  {t('lounge.messageItem.threadMessageCount', { n: m.thread.messageCount })}
-                </span>
-              </button>
+              <ThreadChip
+                thread={m.thread}
+                resolvers={props.resolvers}
+                onOpen={() => onOpenThread(m, m.thread!.id)}
+              />
             )}
             {prefs.showReactions && (
               <ReactionRow message={m} onReact={onReact} onViewReactions={onViewReactions} />

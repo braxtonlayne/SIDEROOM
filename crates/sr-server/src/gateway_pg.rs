@@ -183,7 +183,37 @@ pub struct PgGuildDirectory {
     apps: Option<Arc<sr_apps::AppsService>>,
     offline: Option<Arc<TemporaryMembers>>,
     entitlements: Option<Arc<dyn sr_payments::entitlements::Entitlements>>,
+    staff: Option<StaffSlot>,
 }
+
+/// Whether an account holds an active staff appointment right now: the question READY asks once per
+/// session (D-673). A trait so the gateway side never names the admin crate.
+#[async_trait]
+pub trait StaffStanding: Send + Sync {
+    async fn is_staff(&self, user: UserId) -> bool;
+}
+
+/// The same resolve the admin API and the staff file gate use (`AdminService::resolve`, no cache). A lookup
+/// error is "no": the flag only shows a menu entry, and the admin API stays the boundary.
+#[async_trait]
+impl StaffStanding for sr_admin::AdminService {
+    async fn is_staff(&self, user: UserId) -> bool {
+        let Ok(id) = i64::try_from(user.get()) else {
+            return false;
+        };
+        match self.resolve(id, None).await {
+            Ok(_) => true,
+            Err(sr_admin::AdminError::NotStaff) => false,
+            Err(e) => {
+                tracing::error!(error = %e, "READY: staff lookup failed; no staff flag");
+                false
+            }
+        }
+    }
+}
+
+/// The staff source, attached late: the gateway is built before the admin service.
+pub type StaffSlot = Arc<std::sync::OnceLock<Arc<dyn StaffStanding>>>;
 
 impl PgGuildDirectory {
     pub fn new(pool: PgPool, clock: Arc<dyn Clock>) -> Self {
@@ -195,7 +225,14 @@ impl PgGuildDirectory {
             apps: None,
             offline: None,
             entitlements: None,
+            staff: None,
         }
+    }
+
+    /// Where READY learns that the account is platform staff (D-673). Without it nobody gets the flag.
+    pub fn with_staff(mut self, staff: StaffSlot) -> Self {
+        self.staff = Some(staff);
+        self
     }
 
     /// Drop temporary memberships when a user goes offline (LNG-INV-005).
@@ -454,6 +491,8 @@ impl PgGuildDirectory {
         // A conversation sitting in the viewer's Message Requests carries
         // `is_message_request: true`, as in `GET /users/@me/channels`.
         let mut private_channels: Vec<Value> = Vec::with_capacity(dms.len());
+        let mut pending: Vec<sr_core::ChannelId> = Vec::new();
+        let mut objs: Vec<DmChannelObject> = Vec::with_capacity(dms.len());
         for d in &dms {
             let mut obj = DmChannelObject::new(d, user, &users);
             let state = self.social.get_request_state(user, d.id).await?;
@@ -465,6 +504,23 @@ impl PgGuildDirectory {
                     .await?
                     .or((state == Some(RequestState::Spam)).then_some(RequestReason::Spam))
                     .map(|r| r.as_str().to_owned());
+                pending.push(d.id);
+            }
+            objs.push(obj);
+        }
+        // D-688: the latest message of every pending sender, read once for the whole READY.
+        let previews = if pending.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            self.social.latest_from_others(user, &pending).await?
+        };
+        for (mut obj, d) in objs.into_iter().zip(&dms) {
+            if let Some(g) = previews
+                .get(&d.id)
+                .filter(|_| obj.is_message_request == Some(true))
+            {
+                obj.sr_request_preview =
+                    Some(sr_api::routes::social::model::RequestPreviewObject::new(g));
             }
             private_channels.push(json!(obj));
         }
@@ -1191,6 +1247,13 @@ impl GuildDirectory for PgGuildDirectory {
             json!({})
         })
     }
+
+    async fn is_platform_staff(&self, user: UserId) -> bool {
+        match self.staff.as_ref().and_then(|s| s.get()) {
+            Some(source) => source.is_staff(user).await,
+            None => false,
+        }
+    }
 }
 
 /// Temporary membership (LNG-INV-005): a member who joined through a temporary invite and holds
@@ -1402,6 +1465,91 @@ mod tests {
             );
             assert!(c.get("recipient_ids").is_none());
         }
+    }
+
+    /// D-688: the READY row of a conversation in Message Requests carries the sender's latest message as
+    /// words and a count, for all pending rows in one read; an accepted row carries none.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn ready_request_rows_carry_the_preview() {
+        let url = std::env::var("SR_TEST_DATABASE_URL").expect("SR_TEST_DATABASE_URL must be set");
+        let pool = sr_db::connect(&sr_db::DbConfig::new(url))
+            .await
+            .expect("connect");
+        sr_db::migrate(&pool).await.expect("migrate");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let w = ((std::process::id() % 15) * 2) as u8 + 2;
+        let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
+        let (me, friend, stranger) = (
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+            account(&pool, &ids).await,
+        );
+        let repo = PgSocialRepo::new(pool.clone());
+        let accepted = ChannelId::new(ids.generate().get());
+        let request = ChannelId::new(ids.generate().get());
+        repo.insert_dm(accepted, me, friend).await.unwrap();
+        repo.insert_dm(request, stranger, me).await.unwrap();
+        repo.set_request_state(me, request, RequestState::Pending)
+            .await
+            .unwrap();
+        for (channel, author, text) in [
+            (accepted, friend, "hello friend"),
+            (
+                request,
+                stranger,
+                "hi  there
+stranger",
+            ),
+        ] {
+            sqlx::query(
+                "INSERT INTO messages (id, channel_id, author_id, content) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(ids.generate().get() as i64)
+            .bind(channel.get() as i64)
+            .bind(author.get() as i64)
+            .bind(text)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let dir = PgGuildDirectory::new(pool, clock);
+        let extras = dir.build_ready_extras(me).await.unwrap();
+        for c in extras["private_channels"].as_array().unwrap() {
+            if c["id"] == request.to_string() {
+                assert_eq!(
+                    c["sr_request_preview"]["content"], "hi there stranger",
+                    "{c}"
+                );
+                assert_eq!(c["sr_request_preview"]["attachments"], 0);
+            } else {
+                assert!(c.get("sr_request_preview").is_none(), "{c}");
+            }
+        }
+    }
+
+    /// D-673: the directory asks its staff source (attached late) and says no without one.
+    #[tokio::test]
+    async fn the_directory_asks_its_staff_source() {
+        struct Fixed(UserId);
+        #[async_trait]
+        impl StaffStanding for Fixed {
+            async fn is_staff(&self, user: UserId) -> bool {
+                user == self.0
+            }
+        }
+        let pool = PgPool::connect_lazy("postgres://u:p@127.0.0.1:1/none").expect("lazy pool");
+        let clock: Arc<dyn Clock> = Arc::new(SystemClock);
+        let slot: StaffSlot = Arc::new(std::sync::OnceLock::new());
+        let dir = PgGuildDirectory::new(pool, clock).with_staff(slot.clone());
+        let staff = UserId::new(7);
+        assert!(
+            !dir.is_platform_staff(staff).await,
+            "no source yet: no flag"
+        );
+        let _ = slot.set(Arc::new(Fixed(staff)));
+        assert!(dir.is_platform_staff(staff).await);
+        assert!(!dir.is_platform_staff(UserId::new(8)).await);
     }
 
     /// The lazy member list lists the members who can see the channel, with their hoisted

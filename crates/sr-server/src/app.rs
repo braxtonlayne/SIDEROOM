@@ -817,6 +817,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         signer: Arc::new(cdn_signer.clone()),
     })
     .with_slate_source(tv_slate.clone())
+    .with_footer_source(Arc::new(crate::tv_catalog::PgFooterNote::new(pool.clone())))
+    .with_logo_store(storage.clone())
     .with_access(Arc::new(crate::tv_catalog::GuildChannelAccess::new(
         scope_facts.clone(),
     )));
@@ -1173,6 +1175,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         None
     };
     let call_recorder = Arc::new(crate::voice::CallRecorder::default());
+    // D-673: READY says when the account is platform staff; the admin service is built later and fills this.
+    let ready_staff: crate::gateway_pg::StaffSlot = Arc::new(std::sync::OnceLock::new());
     let gateway = Gateway::new(
         GatewayConfig {
             // Cookie-authenticated web sessions may IDENTIFY from the public origin only.
@@ -1197,7 +1201,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             PgGuildDirectory::new(pool.clone(), clock.clone())
                 .with_apps(apps_service.clone())
                 .with_temporary_members(temporary_members.clone())
-                .with_entitlements(payments.entitlements.clone()),
+                .with_entitlements(payments.entitlements.clone())
+                .with_staff(ready_staff.clone()),
         ),
         bus.clone(),
     );
@@ -1528,6 +1533,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         .with_data_requests(admin_repo)
         .with_notifier(staff_voice.clone())
         .with_bus(bus.clone());
+    let _ = ready_staff.set(Arc::new(admin_service.clone()));
     // BRG-GW-001: the inbound half of the Discord bridge (one gateway shard per enabled bridge; none while every
     // server has it off, the default).
     // BRG-SYN-001: the whole-guild mirror (idle until a server owner confirms a plan; none by default). Its overwrite

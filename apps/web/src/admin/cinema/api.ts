@@ -1,6 +1,6 @@
 // REST helpers for the Cinema publisher tools: /api/v1/admin/cinema/* (docs/specs/cinema-media.md section 8.5,
 // crates/sr-api/src/routes/cinema/admin.rs). Ids are Snowflake strings, timestamps Unix milliseconds.
-import { apiFetch } from '../../api/client';
+import { ApiError, apiFetch, getCsrf } from '../../api/client';
 import { putFile } from '../../lounge/msg/upload';
 
 const send = <T>(path: string, method: string, json?: unknown) =>
@@ -246,6 +246,80 @@ export const mergeTitle = (id: string, targetId: string) =>
   send<Title>(`/admin/cinema/titles/${enc(id)}/merge`, 'POST', { target_id: targetId });
 export const linkTitleAsset = (id: string, assetId: string | null) =>
   send<Title>(`/admin/cinema/titles/${enc(id)}/asset`, 'PUT', { asset_id: assetId });
+
+// ---- subtitles (D-685): /admin/cinema/assets/{asset_id}/subtitles, PUBLISH_MEDIA ----
+
+export type SubtitleSource = 'embedded' | 'uploaded';
+export interface SubtitleTrack {
+  id: string;
+  label: string;
+  language: string | null;
+  forced: boolean;
+  hearing_impaired: boolean;
+  is_default: boolean;
+  /** Left out of the playback answer and the playlists. */
+  hidden: boolean;
+  /** `embedded`: from the video file (hide it, never delete it); `uploaded`: added by staff. */
+  source: SubtitleSource;
+  /** An ASS/SSA file is kept for styled rendering. */
+  styled: boolean;
+}
+export type SubtitlePatch = Partial<
+  Pick<
+    SubtitleTrack,
+    'label' | 'language' | 'forced' | 'hearing_impaired' | 'is_default' | 'hidden'
+  >
+>;
+/** What the server takes: SubRip, WebVTT or ASS/SSA, at most 20 MiB (the format is read from the content). */
+export const SUBTITLE_EXTENSIONS = ['.srt', '.vtt', '.ass', '.ssa'];
+export const SUBTITLE_MAX_BYTES = 20 * 1024 * 1024;
+
+const subsPath = (assetId: string) => `/admin/cinema/assets/${enc(assetId)}/subtitles`;
+export const listSubtitles = (assetId: string) =>
+  get<{ tracks: SubtitleTrack[] }>(subsPath(assetId)).then((r) => r.tracks);
+export const patchSubtitle = (assetId: string, trackId: string, patch: SubtitlePatch) =>
+  send<SubtitleTrack>(`${subsPath(assetId)}/${enc(trackId)}`, 'PATCH', patch);
+export const deleteSubtitle = (assetId: string, trackId: string) =>
+  send<void>(`${subsPath(assetId)}/${enc(trackId)}`, 'DELETE');
+
+/** POST the file's bytes (not a form) with progress; rejects with an ApiError carrying the server's sentence. */
+export async function uploadSubtitle(
+  assetId: string,
+  file: Blob,
+  meta: { language?: string; label?: string; forced?: boolean; hearing_impaired?: boolean },
+  onProgress: (fraction: number) => void = () => undefined,
+): Promise<SubtitleTrack> {
+  const token = await getCsrf();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/v1${subsPath(assetId)}${qs(meta)}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('content-type', 'application/octet-stream');
+    if (token) xhr.setRequestHeader('X-SR-CSRF', token);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && e.total > 0) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        /* no JSON body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as SubtitleTrack);
+      else
+        reject(
+          new ApiError(
+            xhr.status,
+            (body as { message?: string } | null)?.message ?? `Upload failed (${xhr.status}).`,
+            body as ConstructorParameters<typeof ApiError>[2],
+          ),
+        );
+    };
+    xhr.onerror = () => reject(new Error('The upload could not be completed.'));
+    xhr.send(file);
+  });
+}
 
 // ---- artwork ----
 

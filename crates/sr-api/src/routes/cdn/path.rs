@@ -16,6 +16,7 @@
 //! | `guild-events` | `guild-events/`  | scheduled event covers (`guild-events/{event}/{hash}`) |
 //! | `library`     | `library/`        | Library covers and reader pages (`library/{series}/{chapter}/{page}.webp`), signed |
 //! | `cinema`      | `cinema/`         | Cinema artwork (`cinema/{title}/poster.webp`, stills), signed |
+//! | `tv`          | `tv/`            | Live TV channel logos (`tv/{channel}/logo-{id}.png`), signed |
 //! | `originals`   | `originals/`      | Cinema originals (`originals/{asset}/source.mkv`), signed, handed to workers and Patron downloads |
 //! | `transcode`   | `transcode/`      | Stored transcode outputs (`transcode/{job}/{attempt}/remux/video.mp4`, segments), signed; Patron downloads |
 //! | `hls`         | `video/`          | Cinema HLS assets (`video/{asset}/v/1080p/seg_00001.m4s`, subtitles, sprites), signed; playlists are rendered on request (`PlaylistRenderer`) |
@@ -37,6 +38,7 @@ pub const KINDS: &[(&str, &str)] = &[
     ("guild-events", "guild-events"),
     ("library", "library"),
     ("cinema", "cinema"),
+    ("tv", "tv"),
     ("originals", "originals"),
     ("hls", "video"),
     ("transcode", "transcode"),

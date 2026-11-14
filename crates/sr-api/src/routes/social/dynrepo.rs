@@ -175,6 +175,13 @@ impl DmRepository for DynRepo {
     ) -> RepoResult<()> {
         self.0.set_request_reason(user, id, reason).await
     }
+    async fn latest_from_others(
+        &self,
+        user: UserId,
+        channels: &[ChannelId],
+    ) -> RepoResult<std::collections::HashMap<ChannelId, sr_chat::preview::MessageGist>> {
+        self.0.latest_from_others(user, channels).await
+    }
     async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {
         self.0.shared_protection(a, b).await
     }

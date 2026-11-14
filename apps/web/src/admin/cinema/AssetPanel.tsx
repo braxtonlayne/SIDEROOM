@@ -1,4 +1,4 @@
-// Video assets of a title (CIN-ADM-001 asset linking, CIN-ADM-002 transcode status per asset and re-run).
+// Video assets of a title (CIN-ADM-001 asset linking and subtitles, CIN-ADM-002 transcode status per asset and re-run).
 import { Badge, Button, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../i18n';
@@ -6,6 +6,7 @@ import { StateBadge, fmtMs, useAdminViewer } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, Section, useLoad, useRun } from './hooks';
 import { ReasonDialog } from '../ui';
+import { SubtitlesPanel } from './SubtitlesPanel';
 import * as tx from './transcodeApi';
 
 interface Props {
@@ -24,6 +25,7 @@ export function AssetPanel({ detail, reload }: Props) {
       <p className="ss-desc">{t('admin.assetPanel.intro')}</p>
       {(ttl.kind === 'movie' || episodes.length === 0) && (
         <AssetRow
+          languages={ttl.subtitle_languages}
           label={ttl.title}
           assetId={ttl.asset_id ?? null}
           onLink={async (id) => {
@@ -35,6 +37,7 @@ export function AssetPanel({ detail, reload }: Props) {
       {episodes.map((e) => (
         <AssetRow
           key={e.id}
+          languages={ttl.subtitle_languages}
           label={`S${e.season_number} E${e.number}${e.title ? ` · ${e.title}` : ''}`}
           assetId={e.asset_id ?? null}
           onLink={async (id) => {
@@ -50,16 +53,19 @@ export function AssetPanel({ detail, reload }: Props) {
 function AssetRow({
   label,
   assetId,
+  languages,
   onLink,
 }: {
   label: string;
   assetId: string | null;
+  languages: readonly string[];
   onLink: (id: string | null) => Promise<void>;
 }) {
   const t = useT();
   const canEdit = useAdminViewer().can('PUBLISH_MEDIA');
   const [value, setValue] = useState(assetId ?? '');
   const [open, setOpen] = useState(false);
+  const [subsOpen, setSubsOpen] = useState(false);
   const { busy, error, notice, run } = useRun();
   const dirty = value.trim() !== (assetId ?? '');
   return (
@@ -81,6 +87,21 @@ function AssetRow({
             )}
           </div>
         </div>
+        {assetId && canEdit && (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-expanded={subsOpen}
+            aria-label={
+              subsOpen
+                ? t('admin.subtitles.hideBlockFor', { label })
+                : t('admin.subtitles.showBlockFor', { label })
+            }
+            onClick={() => setSubsOpen((o) => !o)}
+          >
+            {t('admin.subtitles.title')}
+          </Button>
+        )}
         {assetId && (
           <Button
             size="sm"
@@ -122,6 +143,7 @@ function AssetRow({
       )}
       <Banner error={error} notice={notice} />
       {open && assetId && <AssetTranscodeStatus assetId={assetId} />}
+      {subsOpen && assetId && canEdit && <SubtitlesPanel assetId={assetId} languages={languages} />}
     </div>
   );
 }

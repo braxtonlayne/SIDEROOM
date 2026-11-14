@@ -402,8 +402,8 @@ describe('Live TV admin: channels', () => {
       },
     });
     expect(await screen.findByText('Channel created.')).toBeInTheDocument();
-    // Logo upload is not on the server yet and the screen says so.
-    expect(screen.getByText(/Logo upload is not available yet/)).toBeInTheDocument();
+    // The logo can be uploaded once the channel is saved (D-686).
+    expect(screen.getByLabelText('Upload logo')).toBeInTheDocument();
   });
 
   it('edits an existing channel, keeping its rules and its logo key', async () => {

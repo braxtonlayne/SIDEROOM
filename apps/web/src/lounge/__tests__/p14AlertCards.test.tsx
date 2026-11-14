@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { ComponentRows } from '../msg/Components';
 import { isSystemMessage, SYSTEM_AUTOMOD_ACTION } from '../msg/SystemMessage';
-import { parseStaffButton } from '../msg/staffActions';
+import { parseStaffButton } from '../msg/cardActions';
 
 const alertRows = [
   {

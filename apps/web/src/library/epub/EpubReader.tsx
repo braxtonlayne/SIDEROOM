@@ -5,7 +5,7 @@ import { Drawer, EmptyState, Icon, SegmentedControl, Slider, Spinner } from '@si
 import { Link } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
-import { progressApi } from '../progress';
+import { useProgressSync } from '../useProgressSync';
 import { loadFoliate, type FoliateView, type RelocateDetail, type TocItem } from './foliate';
 import { epubCss, themeColors, useEpubSettings, type EpubFlow, type EpubTheme } from './settings';
 
@@ -20,12 +20,15 @@ export function EpubReader({
   title,
   seriesId,
   initialCfi,
+  baseMs = 0,
   chapter,
 }: {
   url: string;
   title: string;
   seriesId: string;
   initialCfi?: string | null;
+  /** The `updated_at_ms` of the saved position this reader opened from (0: none). */
+  baseMs?: number;
   chapter?: {
     id: string;
     number: number;
@@ -59,6 +62,23 @@ export function EpubReader({
     fraction: 0,
     dirty: false,
   });
+
+  const sync = useProgressSync({
+    chapterId: chapter?.id ?? '',
+    baseMs,
+    kind: 'epub',
+    pageCount: STEPS,
+    current: () => ({
+      pageIndex: Math.min(STEPS - 1, Math.round(latest.current.fraction * STEPS)),
+      percent: Math.round(latest.current.fraction * 100),
+    }),
+    // The server holds the CFI; a position without one is jumped to by its fraction.
+    jump: (p) => {
+      if (p.cfi) void view.current?.goTo(p.cfi);
+      else void view.current?.goToFraction(p.percent / 100);
+    },
+  });
+  const syncSave = sync.save;
 
   // Open the book.
   useEffect(() => {
@@ -113,20 +133,20 @@ export function EpubReader({
       const l = latest.current;
       if (!l.dirty) return;
       l.dirty = false;
-      void progressApi
-        .save({
-          chapterId: chapter.id,
-          seriesId,
-          seriesTitle: chapter.seriesTitle,
-          coverUrl: chapter.coverUrl ?? null,
-          chapterNumber: chapter.number,
-          pageCount: STEPS,
-          pageIndex: Math.min(STEPS - 1, Math.round(l.fraction * STEPS)),
-          percent: Math.round(l.fraction * 100),
-          completed: l.fraction >= 0.99,
-          cfi: l.cfi,
-        })
-        .catch(() => undefined);
+      void syncSave({
+        chapterId: chapter.id,
+        seriesId,
+        seriesTitle: chapter.seriesTitle,
+        coverUrl: chapter.coverUrl ?? null,
+        chapterNumber: chapter.number,
+        pageCount: STEPS,
+        pageIndex: Math.min(STEPS - 1, Math.round(l.fraction * STEPS)),
+        percent: Math.round(l.fraction * 100),
+        completed: l.fraction >= 0.99,
+        cfi: l.cfi,
+      }).then((ok) => {
+        if (!ok) l.dirty = true;
+      });
     };
     const timer = window.setInterval(flush, SAVE_DEBOUNCE_MS);
     window.addEventListener('pagehide', flush);
@@ -135,7 +155,7 @@ export function EpubReader({
       window.removeEventListener('pagehide', flush);
       flush();
     };
-  }, [chapter, seriesId]);
+  }, [chapter, seriesId, syncSave]);
 
   // Arrow keys turn the page.
   useEffect(() => {
@@ -170,6 +190,7 @@ export function EpubReader({
   const c = themeColors(settings.theme);
   return (
     <div className="lib-reader lib-epub" style={{ background: c.bg, color: c.fg }}>
+      {sync.ui}
       <header className="lib-pdf-bar">
         {back}
         <h1 className="lib-pdf-title">{title}</h1>

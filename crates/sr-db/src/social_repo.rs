@@ -852,6 +852,16 @@ impl DmRepository for PgSocialRepo {
             .transpose()
     }
 
+    async fn latest_from_others(
+        &self,
+        user: UserId,
+        channels: &[ChannelId],
+    ) -> RepoResult<std::collections::HashMap<ChannelId, sr_chat::preview::MessageGist>> {
+        crate::previews::latest_gists(&self.pool, channels, Some(user))
+            .await
+            .map_err(db)
+    }
+
     async fn set_request_reason(
         &self,
         user: UserId,

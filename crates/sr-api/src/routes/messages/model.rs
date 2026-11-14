@@ -222,6 +222,32 @@ pub struct MessageObject {
     pub sr_bridge: Option<MessageBridgeObject>,
 }
 
+/// A thread's latest message as the row under its starter message shows it (D-689): the text cut to one
+/// line, how many files it carries, who wrote it. Nothing else of the message.
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct ThreadLastMessage {
+    pub id: String,
+    pub author: UserRef,
+    /// Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files.
+    pub content: String,
+    /// The number of files on the message.
+    pub attachments: u32,
+    pub timestamp: String,
+}
+
+impl ThreadLastMessage {
+    pub fn new(g: &sr_chat::preview::MessageGist, users: &HashMap<UserId, UserSummary>) -> Self {
+        Self {
+            id: g.id.to_string(),
+            author: UserRef::new(g.author_id, users),
+            content: sr_chat::preview::excerpt(&g.content, sr_chat::preview::EXCERPT_CHARS)
+                .unwrap_or_default(),
+            attachments: g.attachments,
+            timestamp: iso(g.id.snowflake().unix_ms()),
+        }
+    }
+}
+
 /// Where a bridged message came from. `author_avatar` is an image-proxy path, never the Discord URL.
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MessageBridgeObject {

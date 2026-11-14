@@ -12,6 +12,7 @@ on:
       - "apps/web/vite/**"
       - "apps/web/vite.config.ts"
       - "Cargo.lock"
+      - "scripts/pack-web-release.mjs"
 concurrency:
   group: release-dry-run-${{ github.ref }}
   cancel-in-progress: true
@@ -36,23 +37,34 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @sideroom/wasm build
       # D-570: the release web build is never an end-to-end build. `VITE_SR_E2E=1` compiles in test-only paths
-      # (the e2e voice observer `sr.e2e.noVoiceE2ee`, the probe core, the test tone); the flag must be unset here,
-      # and the voice opt-out must not be in the bundle.
+      # (the e2e voice observer `sr.e2e.noVoiceE2ee`, the probe core, the test tone); the flag must be unset here (this
+      # step fails before the build; scripts/pack-web-release.mjs checks it again, and that the voice opt-out is not in
+      # the bundle and that the service worker was finished by the build, as the release does).
       - name: The release web build is not an e2e build
         run: |
           if [ -n "${VITE_SR_E2E:-}" ]; then echo "VITE_SR_E2E is set; a release web build must not set it" >&2; exit 1; fi
       - run: pnpm --filter @sideroom/web build
-      - name: No e2e-only path is in the bundle
-        run: |
-          if grep -rl 'sr.e2e.noVoiceE2ee' apps/web/dist; then echo "the e2e voice opt-out is in the release bundle" >&2; exit 1; fi
-      - name: The service worker was finished by the build
-        run: |
-          ! grep -q '__SR_BUILD__' apps/web/dist/sw.js
-          grep -q 'sr-static-' apps/web/dist/sw.js
-          test -f apps/web/dist/manifest.webmanifest
-          test -f apps/web/dist/offline.html
+      # The three build checks of release.yml's `web` job, in the same order.
+      - name: Bundle budget
+        run: node scripts/check-bundle-budget.mjs
+      - name: Entrance isolation
+        run: node scripts/check-entrance-isolation.mjs
+      - name: Staff delivery
+        run: node scripts/check-staff-delivery.mjs
+      # SEC-AUD-211: the script release.yml calls, on the same build. Only the file name (and publishing) differ.
       - name: Package the web bundle
-        run: tar -C apps/web -czf sideroom-web-dryrun.tar.gz dist
+        run: node scripts/pack-web-release.mjs apps/web/dist sideroom-web-dryrun.tar.gz
+      # The layout deploy/INSTALL.md describes: `tar -xzf <file> -C <parent of SR_WEB_DIR>` gives <parent>/web/.
+      - name: The archive unpacks to the layout INSTALL describes
+        run: |
+          mkdir unpacked
+          tar -xzf sideroom-web-dryrun.tar.gz -C unpacked
+          test -f unpacked/web/app.html
+          test -f unpacked/web/app/csp.txt
+          test -f unpacked/web/sw.js
+          test -f unpacked/web/manifest.webmanifest
+          test -f unpacked/web/offline.html
+          test ! -e unpacked/dist
       - uses: actions/upload-artifact@v4
         with:
           name: web-bundle-dryrun

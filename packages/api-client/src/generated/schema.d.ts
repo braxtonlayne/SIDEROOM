@@ -1004,6 +1004,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/cinema/assets/{asset_id}/subtitles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The tracks of a video, hidden ones included (`PUBLISH_MEDIA`): the ones extracted from the file first, then
+         *     the uploaded ones.
+         */
+        get: operations["admin_cinema_subtitles"];
+        put?: never;
+        /**
+         * Upload a subtitle file for a video (`PUBLISH_MEDIA`): the body is the file (SubRip, WebVTT or ASS/SSA, at
+         *     most 20 MiB; the format is read from the content, not the name). It is parsed and stored again as WebVTT (an
+         *     ASS file is also kept for styled rendering). A file with no readable cue, over the limit or with too many
+         *     cues is 400 with the reason; a video whose storage does not take uploads is 409. The track is kept when the
+         *     video is re-encoded.
+         */
+        post: operations["admin_cinema_upload_subtitle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/cinema/assets/{asset_id}/subtitles/{track_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete an uploaded track with its files (`PUBLISH_MEDIA`). A track that came from the video file answers
+         *     400: hide it instead.
+         */
+        delete: operations["admin_cinema_delete_subtitle"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a track (`PUBLISH_MEDIA`): label, language, forced, hearing impaired, default (at most one per
+         *     video: the others are cleared) or hidden. The settings of an embedded track are kept when the video is
+         *     re-encoded.
+         */
+        patch: operations["admin_cinema_update_subtitle"];
+        trace?: never;
+    };
     "/admin/cinema/assets/{asset_id}/transcode": {
         parameters: {
             query?: never;
@@ -4741,6 +4793,28 @@ export interface paths {
          */
         post: operations["admin_tv_confirm_import"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/tv/channels/{channel_id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set a channel's logo (D-686): the body is the image (PNG, JPEG or WebP, at most 2 MiB, sniffed from the
+         *     content, never trusted by name). It is decoded and stored again with its metadata stripped, fitted inside
+         *     512 by 512 pixels without upscaling, transparency kept; the previous logo object is deleted. SVG is refused.
+         */
+        put: operations["admin_tv_set_channel_logo"];
+        post?: never;
+        /** Remove a channel's logo and delete its object (D-686). */
+        delete: operations["admin_tv_clear_channel_logo"];
         options?: never;
         head?: never;
         patch?: never;
@@ -19548,6 +19622,21 @@ export interface components {
             /** Format: int32 */
             mine?: number | null;
         };
+        /** @description A subtitle track as staff see it. */
+        CinemaAdminSubtitleTrack: {
+            forced: boolean;
+            hearing_impaired: boolean;
+            /** @description Left out of the playback answer and the playlists. */
+            hidden: boolean;
+            id: string;
+            is_default: boolean;
+            label: string;
+            /** @description BCP 47 tag, when known. */
+            language?: string | null;
+            source: components["schemas"]["CinemaSubtitleSource"];
+            /** @description An ASS/SSA file is kept next to the WebVTT for styled rendering. */
+            styled: boolean;
+        };
         /** @description Everything the player needs to start an asset. */
         CinemaAssetPlayback: {
             audio_tracks: components["schemas"]["CinemaAudioTrack"][];
@@ -19950,6 +20039,27 @@ export interface components {
             /** Format: int32 */
             thumbs_total: number;
         };
+        CinemaSubtitleList: {
+            tracks: components["schemas"]["CinemaAdminSubtitleTrack"][];
+        };
+        /** @description Changes to a track; every field is optional. */
+        CinemaSubtitlePatch: {
+            forced?: boolean | null;
+            hearing_impaired?: boolean | null;
+            /** @description Hide the track from viewers (or show it again). */
+            hidden?: boolean | null;
+            /** @description `true` makes this the default track and clears the default of the others. */
+            is_default?: boolean | null;
+            /** @description 1 to 80 characters. */
+            label?: string | null;
+            /** @description A BCP 47 tag such as `en` or `pt-BR`. */
+            language?: string | null;
+        };
+        /**
+         * @description Where a subtitle track came from.
+         * @enum {string}
+         */
+        CinemaSubtitleSource: "embedded" | "uploaded";
         /** @description One subtitle track the player can load. */
         CinemaSubtitleTrack: {
             /** @description Signed ASS URL when the source was styled (the player may render it instead). */
@@ -21608,6 +21718,7 @@ export interface components {
              * @description The largest file the viewer may upload in this conversation, in bytes (D-233).
              */
             sr_max_upload_bytes?: number | null;
+            sr_request_preview?: null | components["schemas"]["RequestPreviewObject"];
             /**
              * @description With `is_message_request`: `server_filter` or `new_account` when a server's Protection
              *     settings sent the conversation there (D-224), or `spam` when the recipient's DM spam
@@ -27219,6 +27330,20 @@ export interface components {
             /** Format: int64 */
             total: number;
         };
+        /**
+         * @description What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and
+         *     how many files it carries. Nothing else of the message (no embeds, file names or links, no author).
+         */
+        RequestPreviewObject: {
+            /**
+             * Format: int32
+             * @description The number of files on the message.
+             */
+            attachments: number;
+            /** @description Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files. */
+            content: string;
+            timestamp: string;
+        };
         /** @enum {string} */
         RequestStatus: "Open" | "Fulfilled" | "Declined";
         /** @description Body of the rescan. */
@@ -29905,6 +30030,11 @@ export interface components {
         TvFit: "overrun" | "fit";
         TvGuide: {
             channels: components["schemas"]["TvGuideChannel"][];
+            /**
+             * @description The operator's line for the foot of the guide (setting `tv.footer_note`, D-687), plain text; null
+             *     when none is set (the built-in text shows).
+             */
+            footer_note?: string | null;
             /** Format: int64 */
             from_ms: number;
             /** Format: int64 */
@@ -34157,6 +34287,247 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_subtitles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaSubtitleList"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_upload_subtitle: {
+        parameters: {
+            query?: {
+                /** @description A BCP 47 tag such as `en` or `pt-BR` (optional). */
+                language?: string;
+                /** @description The name in the player menu, 1 to 80 characters; the language, or "Subtitles", when empty. */
+                label?: string;
+                forced?: boolean;
+                hearing_impaired?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaAdminSubtitleTrack"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_delete_subtitle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_cinema_update_subtitle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Asset snowflake */
+                asset_id: string;
+                /** @description Track snowflake */
+                track_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CinemaSubtitlePatch"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CinemaAdminSubtitleTrack"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -46506,6 +46877,118 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_set_channel_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": number[];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_tv_clear_channel_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Channel snowflake */
+                channel_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TvChannel"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

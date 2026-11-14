@@ -64,6 +64,8 @@ mod resync_tests;
 #[cfg(test)]
 mod session_revoke_tests;
 #[cfg(test)]
+mod staff_flag_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod voice_tests;

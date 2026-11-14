@@ -67,11 +67,10 @@ jobs:
         run: node scripts/check-entrance-isolation.mjs
       - name: Staff delivery
         run: node scripts/check-staff-delivery.mjs
+      # SEC-AUD-211: the same script the dry run calls (release-dry-run.yml, `web-bundle`): it refuses an e2e build, an
+      # unstamped service worker and a dist that lacks a file, packs the directory as `web/` and lists the archive.
       - name: Package
-        run: |
-          mkdir -p stage
-          cp -r apps/web/dist stage/web
-          tar -C stage -czf "sideroom-${{ github.ref_name }}-web.tar.gz" web
+        run: node scripts/pack-web-release.mjs apps/web/dist "sideroom-${{ github.ref_name }}-web.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
           name: bin-web

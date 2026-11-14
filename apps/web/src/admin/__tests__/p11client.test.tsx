@@ -1,8 +1,9 @@
 // Phase-10 backends wired into the client: re-auth modal, Private Content Viewer, revoked appointments.
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useStore } from '../../store';
 import { emitDispatch } from '../../store/events';
-import { usePlatformStaff } from '../../lounge/shell/platformStaff';
+import { setPlatformStaff } from '../../lounge/shell/adminEntry';
 import { asStaff, http, HttpResponse, openAdmin, readJson, server } from './helpers';
 
 const reauthRequired = () =>
@@ -195,11 +196,11 @@ describe('revoked appointment (ADM-STF-005)', () => {
     asStaff({ perms: ['STAFF_BASIC'] });
     const { router } = openAdmin('dashboard');
     await screen.findByRole('navigation');
-    usePlatformStaff.setState({ staff: true, loaded: true });
+    setPlatformStaff(true);
     act(() => emitDispatch('SR_STAFF_ALERT', { kind: 'disk_low', detail: 'x' }));
     expect(router.state.location.pathname).toMatch(/^\/admin/);
     act(() => emitDispatch('SR_STAFF_ALERT', { kind: 'staff_revoked', revoked: true }));
     await waitFor(() => expect(router.state.location.pathname).not.toMatch(/^\/admin/));
-    expect(usePlatformStaff.getState().staff).toBe(false);
+    expect(useStore.getState().platformStaff).toBe(false);
   });
 });

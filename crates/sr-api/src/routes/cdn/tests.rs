@@ -623,3 +623,74 @@ async fn blocked_transcode_outputs_and_originals_answer_451() {
     let other = f.get(&f.url("/cdn/transcode/10/1/remux/video.mp4")).await;
     assert_eq!(other.status(), StatusCode::OK);
 }
+
+fn logo_png() -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(40, 20, |_, _| image::Rgba([10, 200, 30, 255]));
+    let mut out = Vec::new();
+    img.write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+        .unwrap();
+    out
+}
+
+/// D-686: the logo URL Live TV puts in a channel is a `/cdn/tv/...` path. It must be a CDN kind: a member
+/// who follows it gets the image, and the same path without its signature is refused.
+#[tokio::test]
+async fn a_logo_url_is_served_to_a_member_and_refused_unsigned() {
+    use sr_core::{PlatformPermissions as P, SystemClock};
+    use sr_media::playback::MemoryPlaybackSource;
+    use sr_tv::{
+        Actor, LiveDeps, MemoryTvRepo, TvService, catalog::MemoryCatalog, model::ChannelInput,
+    };
+
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    let signer = CdnSigner::new(SECRET);
+    let tv = TvService::new(
+        Arc::new(MemoryTvRepo::new()),
+        Arc::new(MemoryCatalog::new()),
+        Arc::new(SystemClock),
+        Arc::new(|| 4242),
+    )
+    .with_live(LiveDeps {
+        source: Arc::new(MemoryPlaybackSource::new()),
+        signer: Arc::new(signer.clone()),
+    })
+    .with_logo_store(storage.clone());
+    let staff = Actor {
+        user_id: 1,
+        permissions: P::MANAGE_TV,
+    };
+    let input: ChannelInput = serde_json::from_value(serde_json::json!({
+        "number": 101, "name": "Logo", "kind": "rule_based", "timezone": "UTC",
+        "filler_policy": "slate",
+        "rules": {"grid_minutes": 30, "dayparts": [
+            {"name": "All day", "start": "00:00", "end": "24:00", "mode": "sequential",
+             "pool": {"title_ids": ["7"]}}]}
+    }))
+    .unwrap();
+    let ch = tv.create_channel(staff, input).await.unwrap();
+    let ch = tv.set_logo(staff, ch.id, &logo_png()).await.unwrap();
+    let url = ch.logo_url.expect("the channel has a logo url");
+    assert!(url.starts_with("/cdn/tv/"), "{url}");
+
+    let state = AppState::builder()
+        .extension(Arc::new(CdnDeps::new(storage, signer)))
+        .build();
+    let app = layered(state);
+    let get = |uri: String| {
+        let app = app.clone();
+        async move {
+            app.oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+        }
+    };
+    let r = get(url.clone()).await;
+    assert_eq!(r.status(), StatusCode::OK, "{url}");
+    assert_eq!(h(&r, "content-type"), "image/png");
+    assert!(bytes(r).await.starts_with(b"\x89PNG"));
+    // The same object without its signature, or with a changed path, is refused.
+    let bare = url.split('?').next().unwrap().to_owned();
+    assert_eq!(get(bare).await.status(), StatusCode::FORBIDDEN);
+    let other = url.replace("/logo-", "/other-");
+    assert_eq!(get(other).await.status(), StatusCode::FORBIDDEN);
+}

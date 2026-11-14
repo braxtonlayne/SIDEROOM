@@ -60,6 +60,8 @@ pub struct Data {
     pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
     /// The two server limits (D-659, D-660); tests set them.
     pub caps: crate::limits::MemoryCaps,
+    /// How many times [`MessageStore::last_messages`] ran (the thread preview is one read per page).
+    pub last_message_reads: usize,
 }
 
 /// Cheap-to-clone handle over shared state.
@@ -210,6 +212,16 @@ impl ChannelRepository for MemoryBackend {
             .channels
             .values()
             .filter(|c| c.guild_id == Some(guild))
+            .cloned()
+            .collect())
+    }
+
+    async fn get_threads(&self, ids: &[ChannelId]) -> RepoResult<Vec<Channel>> {
+        let s = self.data();
+        Ok(ids
+            .iter()
+            .filter_map(|id| s.channels.get(id))
+            .filter(|c| c.kind.is_thread())
             .cloned()
             .collect())
     }
@@ -712,6 +724,40 @@ impl MessageStore for MemoryBackend {
     async fn forget_removed_attachment(&self, id: AttachmentId) -> StoreResult<()> {
         self.data().attachments.remove(&id);
         Ok(())
+    }
+
+    async fn last_messages(
+        &self,
+        channels: &[ChannelId],
+    ) -> StoreResult<HashMap<ChannelId, crate::preview::MessageGist>> {
+        let mut s = self.data();
+        s.last_message_reads += 1;
+        let mut out = HashMap::new();
+        for c in channels {
+            let Some(m) = s
+                .messages
+                .iter()
+                .filter(|m| m.channel_id == *c && m.is_visible() && !m.kind.is_system())
+                .max_by_key(|m| m.id)
+            else {
+                continue;
+            };
+            let attachments = s
+                .attachments
+                .values()
+                .filter(|a| a.message_id == Some(m.id) && a.state == UploadState::Attached)
+                .count();
+            out.insert(
+                *c,
+                crate::preview::MessageGist {
+                    id: m.id,
+                    author_id: m.author_id,
+                    content: m.content.clone(),
+                    attachments: attachments as u32,
+                },
+            );
+        }
+        Ok(out)
     }
 
     async fn attachments_of(

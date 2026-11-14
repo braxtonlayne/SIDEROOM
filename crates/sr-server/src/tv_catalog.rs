@@ -483,6 +483,38 @@ impl sr_tv::SlateSource for PgSlateSetting {
     }
 }
 
+/// The guide's footer note (D-687): the platform setting `tv.footer_note`, read through
+/// [`sr_tv::TvService::with_footer_source`] so a change applies within seconds and needs no restart. The service
+/// cleans the text (control characters, length); an unreadable row is no note.
+pub struct PgFooterNote {
+    pool: sqlx::PgPool,
+}
+
+impl PgFooterNote {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl sr_tv::FooterNoteSource for PgFooterNote {
+    async fn footer_note(&self) -> Option<String> {
+        let stored = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT value FROM platform_settings WHERE key = $1",
+        )
+        .bind(sr_admin::settings::TV_FOOTER_NOTE)
+        .fetch_optional(&self.pool)
+        .await;
+        match stored {
+            Ok(v) => v.as_ref().and_then(|v| v.as_str()).map(str::to_owned),
+            Err(e) => {
+                tracing::warn!(error = %e, "could not read the tv.footer_note setting");
+                None
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod shelf_tests {
     use super::*;

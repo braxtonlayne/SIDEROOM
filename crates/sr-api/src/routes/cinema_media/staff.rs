@@ -19,11 +19,11 @@ use sr_media::assets::{Asset, AssetQuery, AssetState, MediaError};
 use sr_media::service::{AssetStatus, CompleteUploadRequest, UploadRequest, UploadSlot};
 use utoipa::{IntoParams, ToSchema};
 
-const NEED: (P, &str) = (P::PUBLISH_MEDIA, "PUBLISH_MEDIA");
+pub(super) const NEED: (P, &str) = (P::PUBLISH_MEDIA, "PUBLISH_MEDIA");
 
 /// The Live TV slate is system-owned (D-269): it stays out of the Cinema catalogue and cannot be given to a
 /// title or opened for download.
-async fn refuse_slate(ctx: &MediaCtx, asset_id: i64) -> ApiResult<()> {
+pub(super) async fn refuse_slate(ctx: &MediaCtx, asset_id: i64) -> ApiResult<()> {
     if ctx.deps.slate_asset().await == Some(asset_id) {
         return Err(map_err(MediaError::Conflict(
             "this asset is the Live TV slate; change the slate with sr-cli tv slate".into(),

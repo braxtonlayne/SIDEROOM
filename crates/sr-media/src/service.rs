@@ -30,6 +30,9 @@ use std::sync::Arc;
 use tokio::io::AsyncWriteExt;
 use utoipa::ToSchema;
 
+mod subtitle_admin;
+pub use subtitle_admin::{MAX_LABEL_CHARS, SubtitleUploadMeta, clean_label};
+
 /// Containers the upload path accepts (the extension is a hint; ffprobe has the last word).
 pub const ALLOWED_EXTENSIONS: [&str; 14] = [
     "mkv", "mp4", "m4v", "mov", "avi", "webm", "ts", "m2ts", "mts", "wmv", "flv", "mpg", "mpeg",
@@ -1023,6 +1026,8 @@ impl MediaService {
             match self.storage.delete(&asset.original_key).await {
                 Ok(()) | Err(sr_storage::StorageError::NotFound(_)) => {
                     self.repo.mark_original_deleted(id).await?;
+                    // The asset was removed or rejected: the subtitles staff uploaded for it go too (D-685).
+                    self.drop_uploaded_subtitles(id).await;
                     report.originals_deleted += 1;
                     report.bytes_freed += u64::try_from(asset.original_size).unwrap_or(0);
                 }

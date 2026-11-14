@@ -217,6 +217,12 @@ pub fn router() -> Router<AppState> {
                 .delete(admin::delete_channel),
         )
         .route(
+            "/admin/tv/channels/{channel_id}/logo",
+            axum::routing::put(admin::set_logo)
+                .layer(axum::extract::DefaultBodyLimit::max(admin::LOGO_BODY_LIMIT))
+                .delete(admin::clear_logo),
+        )
+        .route(
             "/admin/tv/channels/{channel_id}/schedule",
             get(admin::schedule),
         )
@@ -279,6 +285,8 @@ pub fn router() -> Router<AppState> {
         admin::channel,
         admin::update_channel,
         admin::delete_channel,
+        admin::set_logo,
+        admin::clear_logo,
         admin::schedule,
         admin::preview,
         admin::publish,

@@ -254,6 +254,11 @@ describe('data layer', () => {
       playable: true,
     });
     expect(second).toMatchObject({ kind: 'filler', playable: false, episode_label: null });
+    expect(normaliseGuide({ footer_note: 'Reruns on Sundays' }, 5).footer_note).toBe(
+      'Reruns on Sundays',
+    );
+    expect(normaliseGuide({ footer_note: '   ' }, 5).footer_note).toBeNull();
+    expect(normaliseGuide({ footer_note: null }, 5).footer_note).toBeNull();
     expect(normaliseGuide({}, 5)).toEqual({
       now_ms: 5,
       channels: [],

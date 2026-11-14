@@ -47,7 +47,7 @@ Header tabs: **Online · All · Pending · Add Friend** (blurple-filled button),
 
 Header: avatar + name, then call, video call, pinned, add-friends-to-DM (creates a group), user-profile toggle, and search (scoped). Right **profile panel** (toggleable): banner (accent color or image), avatar + status, display name, `username • pronouns`, badges, Add Friend / ⋯ (Copy Username, Invite to Server, Add Note, Ignore, Block, Report), bio (markdown), "Member Since," mutual friends/servers summary, "View Full Profile." Group DMs add: member list, rename, icon, leave, invite link (owner).
 
-Message requests: DMs from non-friends land in Message Requests (per privacy settings) with Accept / Ignore / Block.
+Message requests: DMs from non-friends land in Message Requests (per privacy settings) with Accept / Ignore / Block. Each row shows what the sender wrote last (D-688): one line of plain text under "wants to send you a message" (the first 140 characters; mentions and emoji as text; no link, markdown block, embed or image), "Sent 1 attachment" / "Sent {n} attachments" when the message holds only files, or the text and the count together. In Likely spam the line is replaced by "Show message", which shows it for that row only (not remembered). "Likely spam" stays a section of the page, not a tab (LNG-DM-008).
 
 ## 4. User profile modal ("View Full Profile")
 
@@ -98,7 +98,7 @@ Multi-line rich input (Slate- or Lexical-based) with inline emoji/mention render
 Grouped by hoisted role with counts, then Online and Offline (offline hidden in large servers, Discord parity). Each row: avatar/status, name in role color, activity line, crown for owner, bot/app tag. Click → profile popout (banner, avatar, name, roles with add/remove for managers, note, message box, "View Full Profile"). Right-click → member context menu (Profile, Mention, Message, Call (opens or creates the DM and rings, as the DM header's button does; not for oneself, bots or blocked people; LNG-GLD-023), Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore/Block, Roles ▸, Timeout, Kick, Ban, Transfer Ownership, Copy User ID). Lazy loading in ranges via op 102.
 
 ## 8. Threads & forums
-Discord parity: threads panel (active/archived, joined), thread view in a side pane or full width, auto-archive durations, private threads (invite-only), thread member list, "N new posts" for forums, forum post creation modal (title, content, tags, media), and forum layouts.
+Discord parity: threads panel (active/archived, joined), thread view in a side pane or full width, auto-archive durations, private threads (invite-only), thread member list, the row under a message (the thread's name and message count, and a second line with the avatar and name of whoever wrote the latest message, its text on one line and its time; a blocked or ignored author's text is replaced by the "blocked message" wording; one line when the thread has no message yet; D-689, LNG-THR-006), "N new posts" for forums, forum post creation modal (title, content, tags, media), and forum layouts.
 
 ## 9. Search
 Search bar in the header ("Search <server>" / "Search <username>"). Filters `from:`, `mentions:`, `has:` (link, embed, file, image, video, sound, sticker, poll), `before:`, `during:`, `after:`, `in:`, `pinned:`, `authorType:`. Results pane with jump-to, sorted by newest/oldest/relevance. Backed by Tantivy, permission-filtered at query time, and excludes deleted messages.

@@ -46,6 +46,7 @@ pub mod music_repo;
 pub mod partitions;
 pub mod payments_repo;
 mod pool;
+mod previews;
 pub mod registration;
 pub mod review_repo;
 pub mod rich_repo;

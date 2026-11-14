@@ -618,6 +618,11 @@
 .tv-agenda {
   display: grid;
   gap: 16px;
+  /* A sideways swipe selects the neighbouring channel; the browser keeps scrolling up and down itself. */
+  touch-action: pan-y;
+}
+.tv-agenda-ch[data-selected] {
+  border-inline-start: 3px solid var(--sr-gold);
 }
 .tv-agenda-ch {
   border: 1px solid var(--sr-line);

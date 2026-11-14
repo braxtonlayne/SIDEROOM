@@ -6760,6 +6760,8 @@ name = "sr-tv"
 version = "0.0.0"
 dependencies = [
  "async-trait",
+ "bytes",
+ "image",
  "jiff",
  "serde",
  "serde_json",
@@ -6767,6 +6769,7 @@ dependencies = [
  "sr-core",
  "sr-db",
  "sr-media",
+ "sr-storage",
  "sr-watchparty",
  "thiserror 2.0.21",
  "tokio",

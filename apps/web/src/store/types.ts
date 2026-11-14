@@ -3,6 +3,8 @@
 
 export interface User {
   id: string;
+  /** The account's own READY only (D-673): true for an active staff appointment, absent otherwise. */
+  sr_platform_staff?: boolean;
   username: string;
   global_name?: string | null;
   avatar?: string | null;
@@ -126,6 +128,17 @@ export interface Member {
   communication_disabled_until?: string | null;
 }
 
+/** A thread's latest message as the row under its starter shows it (D-689): words and a count, nothing else. */
+export interface ThreadLastMessage {
+  id: string;
+  /** The small user object of a message author; `username` is absent when the account is unknown. */
+  author: { id: string; username?: string; global_name?: string | null; bot?: boolean };
+  /** Raw text cut to 140 characters (mentions as written); empty when the message holds only files. */
+  content: string;
+  attachments: number;
+  timestamp: string;
+}
+
 export interface Message {
   id: string;
   channel_id: string;
@@ -177,7 +190,13 @@ export interface Message {
   /** Text-to-speech message (needs SEND_TTS_MESSAGES). */
   tts?: boolean;
   /** The thread started from this message (its id is the message id). */
-  thread?: { id: string; name?: string | null; message_count?: number | null } | null;
+  thread?: {
+    id: string;
+    name?: string | null;
+    message_count?: number | null;
+    /** The thread's latest not-deleted message (D-689): REST views only, absent when there is none. */
+    sr_last_message?: ThreadLastMessage | null;
+  } | null;
   /** Client-only: set while the message is optimistic. Absent on server messages. */
   local?: LocalState;
 }

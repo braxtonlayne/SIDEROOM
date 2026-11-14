@@ -259,6 +259,62 @@
 .adm-cin-asset {
   margin-bottom: 12px;
 }
+.adm-cin-logo-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.adm-cin-logo img {
+  block-size: 48px;
+  inline-size: auto;
+  max-inline-size: 100%;
+  padding: 4px;
+  background: var(--ui-bg-raised);
+  border-radius: var(--ui-radius);
+}
+/* Subtitles of a video asset (D-685) */
+.adm-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-block-start: 12px;
+}
+.adm-sub-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: end;
+  padding: 10px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+.adm-sub-row[data-hidden='true'] {
+  opacity: 0.6;
+}
+.adm-sub-flags,
+.adm-sub-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+}
+.adm-sub-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
+}
+.adm-sub-add > [role='progressbar'],
+.adm-sub-add > p {
+  flex: 1 1 100%;
+  margin: 0;
+}
+@media (max-width: 560px) {
+  .adm-sub-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 /* Shared admin table (ADM-UI-002) */
 .adm-dt-bar {

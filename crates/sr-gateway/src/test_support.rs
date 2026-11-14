@@ -88,6 +88,8 @@ pub struct TestDirectory {
     blocks: Mutex<HashSet<(UserId, UserId)>>,
     /// Guild -> (user, display name) rows served by op 8.
     roster: Mutex<HashMap<GuildId, Vec<(UserId, String)>>>,
+    /// Accounts with an active staff appointment (D-673).
+    staff: Mutex<HashSet<UserId>>,
 }
 
 #[async_trait]
@@ -103,6 +105,9 @@ impl GuildDirectory for TestDirectory {
     }
     async fn age_confirmed(&self, user: UserId) -> bool {
         lock(&self.adults).contains(&user)
+    }
+    async fn is_platform_staff(&self, user: UserId) -> bool {
+        lock(&self.staff).contains(&user)
     }
     async fn blocked_peers(&self, user: UserId) -> Vec<UserId> {
         lock(&self.blocks)
@@ -196,6 +201,16 @@ impl TestWorld {
         let mut blocks = lock(&self.dir.blocks);
         blocks.insert((a, b));
         blocks.insert((b, a));
+    }
+
+    /// Give or take away `user`'s staff appointment (takes effect for the next READY).
+    pub fn set_staff(&self, user: UserId, staff: bool) {
+        let mut s = lock(&self.dir.staff);
+        if staff {
+            s.insert(user);
+        } else {
+            s.remove(&user);
+        }
     }
 
     /// Deny `user` `VIEW_CHANNEL` on `channel`.

@@ -1,7 +1,8 @@
-// Channel editor (TV-ADM-001): identity, kind, time zone, restrictions, filler policy and, for rule-based channels,
-// the rules (TV-ADM-002). Logo upload and the guide import are not on the server yet; the screen says so.
+// Channel editor (TV-ADM-001): identity, kind, time zone, restrictions, filler policy, the logo (D-686: uploaded
+// once the channel is saved, re-encoded by the server) and, for rule-based channels, the rules (TV-ADM-002). The
+// guide import of an imported-guide channel is its own tab (GuidePanel).
 import { Button, Notice, Select, Switch, TextInput } from '@sideroom/ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useT } from '../../../i18n';
 import { Banner, intOrNull, useLoad, useRun } from '../hooks';
 import { RulesEditor, validateRules } from './RulesEditor';
@@ -39,6 +40,13 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
   const [enabled, setEnabled] = useState(channel?.enabled ?? true);
   const [filler, setFiller] = useState<string>(channel?.filler_policy ?? 'slate');
   const [rules, setRules] = useState<tv.ScheduleRules>(channel?.rules ?? tv.EMPTY_RULES);
+  // The logo as the server last said (a save echoes its key back so it stays); null when there is none.
+  const [logo, setLogo] = useState<{ url: string; key: string | null } | null>(
+    channel?.logo_url ? { url: channel.logo_url, key: channel.logo_key } : null,
+  );
+  const [logoProblem, setLogoProblem] = useState<string | null>(null);
+  const logoRun = useRun();
+  const logoInput = useRef<HTMLInputElement>(null);
   const { busy, error, notice, run } = useRun();
   const zones = useLoad<string[] | null>('tv-timezones', () =>
     tv.listTimezones().catch(() => null),
@@ -70,7 +78,7 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
     era_label: era.trim() || null,
     theme: channel?.theme ?? null,
     // The API hands out the logo as a signed URL only: send its key back so a save keeps the logo.
-    ...(channel?.logo_key ? { logo_key: channel.logo_key } : {}),
+    ...(logo?.key ? { logo_key: logo.key } : {}),
     enabled,
     kind: kind as tv.AdminKind,
     timezone: timezone.trim(),
@@ -166,14 +174,81 @@ export function ChannelEditor({ channel, onSaved }: ChannelEditorProps) {
         onChange={(e) => setEnabled(e.target.checked)}
       />
 
-      {channel?.logo_url ? (
-        <figure className="adm-cin-logo">
-          <img src={channel.logo_url} alt={t('admin.channelEditor.logoAlt')} height={48} />
-          <figcaption className="ss-meta">{t('admin.channelEditor.logoNotAvailable')}</figcaption>
-        </figure>
-      ) : (
-        <p className="ss-meta">{t('admin.channelEditor.logoNotAvailableCallSign')}</p>
-      )}
+      <section className="adm-cin-logo-row" aria-label={t('admin.channelEditor.logo.title')}>
+        <div className="ss-field-label">{t('admin.channelEditor.logo.title')}</div>
+        {logo ? (
+          <figure className="adm-cin-logo">
+            <img src={logo.url} alt={t('admin.channelEditor.logoAlt')} height={48} />
+          </figure>
+        ) : (
+          <p className="ss-meta">{t('admin.channelEditor.logo.fallback')}</p>
+        )}
+        {channel ? (
+          <div className="adm-actions">
+            <input
+              ref={logoInput}
+              className="adm-file"
+              type="file"
+              accept={tv.LOGO_TYPES.join(',')}
+              aria-label={t('admin.channelEditor.logo.upload')}
+              disabled={logoRun.busy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                setLogoProblem(null);
+                if (!file) return;
+                if (!(tv.LOGO_TYPES as readonly string[]).includes(file.type))
+                  return setLogoProblem(t('admin.channelEditor.logo.wrongType'));
+                if (file.size > tv.LOGO_MAX_BYTES)
+                  return setLogoProblem(
+                    t('admin.channelEditor.logo.tooLarge', {
+                      size: (file.size / (1024 * 1024)).toFixed(1),
+                    }),
+                  );
+                void logoRun
+                  .run(async () => {
+                    const saved = await tv.setLogo(channel.id, file);
+                    setLogo(saved.logo_url ? { url: saved.logo_url, key: saved.logo_key } : null);
+                    return saved;
+                  }, t('admin.channelEditor.logo.uploaded'))
+                  .then((saved) => {
+                    if (saved) onSaved(saved);
+                  });
+              }}
+            />
+            {logo && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                loading={logoRun.busy}
+                onClick={() =>
+                  void logoRun
+                    .run(async () => {
+                      const saved = await tv.clearLogo(channel.id);
+                      setLogo(null);
+                      return saved;
+                    }, t('admin.channelEditor.logo.removed'))
+                    .then((saved) => {
+                      if (saved) onSaved(saved);
+                    })
+                }
+              >
+                {t('admin.channelEditor.logo.remove')}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <p className="ss-meta">{t('admin.channelEditor.logo.afterSave')}</p>
+        )}
+        <p className="ss-meta">{t('admin.channelEditor.logo.hint')}</p>
+        {logoProblem && (
+          <p role="alert" className="adm-art-error">
+            {logoProblem}
+          </p>
+        )}
+        <Banner error={logoRun.error} notice={logoRun.notice} />
+      </section>
 
       {kind === 'rule_based' && (
         <section aria-label={t('admin.channelEditor.rules')} className="ss-card">

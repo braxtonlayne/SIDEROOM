@@ -188,3 +188,18 @@
 .rv-file {
   font-size: 0.875rem;
 }
+
+/* A submitter's id in the queue is a button: press it to show only their submissions (D-691). */
+.rv-link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-accent, currentColor);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rv-link-btn:focus-visible {
+  outline: 2px solid var(--ui-focus-ring, currentColor);
+  outline-offset: 2px;
+}

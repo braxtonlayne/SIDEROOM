@@ -122,13 +122,4 @@ export default {
   'library.pages.history.emptyTitle': 'No reading yet',
   'library.pages.history.emptyDescription': 'Chapters you open will be listed here.',
   'library.pages.history.continue': 'Continue',
-  'library.pages.soon.requests.title': 'Requests',
-  'library.pages.soon.requests.text':
-    'Asking for a series to be added arrives with the submissions work.',
-  'library.pages.soon.lists.title': 'Reading lists',
-  'library.pages.soon.lists.text':
-    'Lists you can order, share and feature arrive with LIB-SOC-010.',
-  'library.pages.soon.upload.title': 'Upload',
-  'library.pages.soon.upload.text': 'Member uploads arrive with the submissions pipeline.',
-  'library.pages.soon.title': 'Not open yet',
 } satisfies Record<string, string>;

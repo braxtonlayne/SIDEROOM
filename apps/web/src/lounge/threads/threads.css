@@ -156,3 +156,62 @@
 .lng-channel-view:has(~ .lng-thread-pane[data-expanded]) {
   display: none;
 }
+
+/* D-689: the thread row under a message shows who wrote the latest message, its text on one line and when. The
+   name and count stay on the first line; the second line is the chip's full width and truncates its text. */
+.lng-thread-chip[data-has-last] {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  min-inline-size: 0;
+  max-inline-size: min(100%, 520px);
+  text-align: start;
+}
+.lng-thread-last {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.lng-thread-last-name {
+  flex: none;
+  max-inline-size: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.lng-thread-last-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lng-thread-last-time {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* On a phone the second line has no room for name, text and time side by side: the name and time share the first
+   half and the text takes a line of its own. */
+@media (max-width: 480px) {
+  .lng-thread-last {
+    flex-wrap: wrap;
+    row-gap: 1px;
+  }
+  .lng-thread-last-name {
+    flex: 1 1 0;
+    max-inline-size: none;
+  }
+  .lng-thread-last-time {
+    order: 2;
+  }
+  .lng-thread-last-text {
+    order: 3;
+    flex: 1 1 100%;
+  }
+}

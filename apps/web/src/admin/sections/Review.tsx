@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  Chip,
   ConfirmDialog,
   EmptyState,
   Modal,
@@ -14,7 +15,7 @@ import {
   TextArea,
   TextInput,
 } from '@sideroom/ui';
-import { useLocation } from '@tanstack/react-router';
+import { useLocation, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime, type MessageKey, useT } from '../../i18n';
 import * as rv from '../../review/api';
@@ -172,9 +173,29 @@ export function LibraryReviewPanel() {
 
 // ---- queue ----
 
+/** The submitter filter lives in the address (`?submitter=<account id>`), so a reload or a shared link keeps it (D-691). */
+const submitterFromSearch = (searchStr: string): string => {
+  const v = new URLSearchParams(searchStr).get('submitter');
+  return v && /^\d+$/.test(v) ? v : '';
+};
+
 function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
   const t = useT();
   const viewer = useAdminViewer();
+  const router = useRouter();
+  const [submitter, setSubmitterState] = useState(() =>
+    submitterFromSearch(router.state.location.searchStr),
+  );
+  const setSubmitter = (id: string) => {
+    setSubmitterState(id);
+    setOffset(0);
+    const { pathname, searchStr, hash } = router.state.location;
+    const sp = new URLSearchParams(searchStr);
+    if (id) sp.set('submitter', id);
+    else sp.delete('submitter');
+    const qs = sp.toString();
+    router.history.replace(`${pathname}${qs ? `?${qs}` : ''}${hash ? `#${hash}` : ''}`);
+  };
   const [state, setState] = useState('waiting');
   const [claimed, setClaimed] = useState('');
   const [sort, setSort] = useState('submitted:asc');
@@ -185,7 +206,7 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
   const [offset, setOffset] = useState(0);
   const [sortKey, order] = sort.split(':') as ['submitted' | 'updated' | 'title', 'asc' | 'desc'];
 
-  const key = `queue:${state}:${claimed}:${sort}:${age}:${kind}:${q}:${offset}`;
+  const key = `queue:${state}:${claimed}:${sort}:${age}:${kind}:${q}:${submitter}:${offset}`;
   const res = useResource(key, () =>
     rv.reviewQueue({
       ...(state === 'waiting' ? {} : { state: state === 'all' ? ALL_STATES : state }),
@@ -195,6 +216,7 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
       ...(age ? { min_age_hours: Number(age) } : {}),
       ...(kind ? { kind } : {}),
       ...(q ? { q } : {}),
+      ...(submitter ? { submitter } : {}),
       limit: PAGE,
       offset,
     }),
@@ -256,6 +278,19 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
         />
         <Button type="submit">{t('admin.review.filter')}</Button>
       </form>
+      {submitter && (
+        <div className="rv-actions" aria-label={t('admin.review.filterQueue')}>
+          <Chip
+            icon={<span aria-hidden="true">×</span>}
+            aria-label={`${t('admin.review.filterSubmitterChip', { name: t('admin.review.account', { id: submitter }) })}. ${t('admin.review.filterSubmitterClear')}`}
+            onClick={() => setSubmitter('')}
+          >
+            {t('admin.review.filterSubmitterChip', {
+              name: t('admin.review.account', { id: submitter }),
+            })}
+          </Chip>
+        </div>
+      )}
       <Async res={res} label={t('admin.review.loadingQueue')}>
         {(page) =>
           page.items.length === 0 ? (
@@ -291,7 +326,19 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                           </div>
                         </td>
                         <td className="adm-mono">
-                          {s.submitter_id ?? t('admin.review.deletedAccount')}
+                          {s.submitter_id ? (
+                            <button
+                              type="button"
+                              className="rv-link-btn"
+                              aria-label={`${s.submitter_id}. ${t('admin.review.filterSubmitterPress')}`}
+                              title={t('admin.review.filterSubmitterPress')}
+                              onClick={() => setSubmitter(s.submitter_id!)}
+                            >
+                              {s.submitter_id}
+                            </button>
+                          ) : (
+                            t('admin.review.deletedAccount')
+                          )}
                         </td>
                         <td>
                           <StateChip state={s.state} />
