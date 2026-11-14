@@ -40,6 +40,43 @@ jobs:
           name: bin-${{ matrix.target }}
           path: sideroom-*.tar.gz
 
+  # SEC-AUD-196 (D-668): the web app is part of the release, so an operator who installs binaries needs no Node, pnpm or
+  # wasm toolchain. Built exactly as web.yml builds it, with the same three build checks, and packed with the
+  # top-level directory `web/`; the Checksums step of `publish` covers it with the binaries.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: wasm32-unknown-unknown }
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with: { tool: wasm-pack }
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @sideroom/wasm build
+      - run: pnpm --filter @sideroom/web build
+      - name: Bundle budget
+        run: node scripts/check-bundle-budget.mjs
+      - name: Entrance isolation
+        run: node scripts/check-entrance-isolation.mjs
+      - name: Staff delivery
+        run: node scripts/check-staff-delivery.mjs
+      - name: Package
+        run: |
+          mkdir -p stage
+          cp -r apps/web/dist stage/web
+          tar -C stage -czf "sideroom-${{ github.ref_name }}-web.tar.gz" web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-web
+          path: sideroom-*-web.tar.gz
+
   images:
     runs-on: ubuntu-latest
     permissions:
@@ -70,7 +107,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish:
-    needs: [binaries, images]
+    needs: [binaries, web, images]
     runs-on: ubuntu-latest
     permissions:
       contents: write

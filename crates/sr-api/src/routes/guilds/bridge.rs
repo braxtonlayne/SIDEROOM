@@ -127,7 +127,7 @@ pub struct ErasureLeftoverObject {
     pub discord_message_id: String,
 }
 
-/// What the owner's screen shows.
+/// What the bridge screen shows (to everyone with Manage Server once the module is on, D-634).
 #[derive(Debug, Serialize, ToSchema)]
 pub struct BridgeStatusObject {
     /// The operator's switch.

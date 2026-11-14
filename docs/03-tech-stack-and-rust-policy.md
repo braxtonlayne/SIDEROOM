@@ -99,7 +99,7 @@ These are the **only** non-Rust runtime components. Adding another needs an ADR.
 | libwebp, pdfium, unrar (via bindings) | C/C++    | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
 | coturn                                | C        | No maintained Rust TURN server                                                    | 0004 |
 | Caddy (optional)                      | Go       | Convenience. Can be replaced by rustls in `sr-server`                             | —    |
-| Prometheus, Grafana (optional) | Go | Off-the-shelf monitoring images in `deploy/compose/prod.yml`, configured by `deploy/monitoring`. Nothing in the app links them. No ADR records them | — |
+| Prometheus, Grafana (optional) | Go | Off-the-shelf monitoring images in `deploy/compose/prod.yml`, configured by `deploy/monitoring`. Nothing in the app links them | 0010 |
 | Browser JS ecosystem                  | TS       | Frontend (D-151)                                                                  | —    |
 
 ## 5. Toolchain

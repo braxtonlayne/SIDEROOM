@@ -33,11 +33,25 @@ pub async fn gateway(Ext(deps): Ext<DevDeps>) -> Json<GatewayInfo> {
     })
 }
 
+/// The session start limit of `GET /gateway/bot`: fixed, because SIDE ROOM does not ration IDENTIFY (D-666).
+fn fixed_session_start_limit() -> SessionStartLimit {
+    SessionStartLimit {
+        total: 1000,
+        remaining: 1000,
+        reset_after: 0,
+        max_concurrency: 1,
+    }
+}
+
 /// Servers per shard the platform recommends (Discord: 1000).
 const GUILDS_PER_SHARD: usize = 1000;
 
 /// Gateway URL and session limits for a bot. `shards` is the recommended shard count: one
 /// per [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.
+///
+/// SIDE ROOM has no session start limit (D-666): `session_start_limit` is always `total: 1000`,
+/// `remaining: 1000`, `reset_after: 0`, `max_concurrency: 1`, there for library compatibility. The
+/// numbers are fixed and never count down; the gateway's own connection rate limits bound IDENTIFY abuse.
 #[utoipa::path(
     get, path = "/gateway/bot", tag = "bot",
     responses((status = 200, body = GatewayBotInfo), (status = 401, body = ErrorBody)),
@@ -58,12 +72,7 @@ pub async fn gateway_bot(
     Ok(Json(GatewayBotInfo {
         url: deps.gateway_url(),
         shards: installs.div_ceil(GUILDS_PER_SHARD).max(1) as u32,
-        session_start_limit: SessionStartLimit {
-            total: 1000,
-            remaining: 1000,
-            reset_after: 86_400_000,
-            max_concurrency: 1,
-        },
+        session_start_limit: fixed_session_start_limit(),
     }))
 }
 
@@ -593,5 +602,20 @@ async fn audit_permission_update(
         .await
     {
         tracing::warn!(error = %e, "command permission change was not written to the audit log");
+    }
+}
+
+#[cfg(test)]
+mod gateway_bot_limit_tests {
+    use super::*;
+
+    /// D-666: the four numbers library clients read are fixed.
+    #[test]
+    fn the_session_start_limit_is_fixed() {
+        let l = fixed_session_start_limit();
+        assert_eq!(
+            (l.total, l.remaining, l.reset_after, l.max_concurrency),
+            (1000, 1000, 0, 1)
+        );
     }
 }

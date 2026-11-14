@@ -92,7 +92,7 @@ Video names go through `sr-media::naming` (S01E02, year, group and quality tags)
 { "title": "Cowboy Bebop", "year": 1998, "kind": "anime", "tags": ["classic"],
   "artist": "…", "album": "…", "ignore": false }
 ```
-`kind` forces the section and is read with the same names as the folders above (`movie`, `series`, `anime`, `books`, `comics`, `manga`, `music`; the singular `book` and `comic` are not recognised, `section_from_kind`, `crates/sr-storage/src/index/classify.rs:328`); `ignore` skips the folder. A malformed file changes nothing.
+`kind` forces the section and is read with the same names as the folders above (`movie`, `series`, `anime`, `books`, `comics`, `manga`, `music`; the singular `book`, `ebook`, `comic` and `show` are accepted too, `section_from_kind`, `crates/sr-storage/src/index/classify.rs`); `ignore` skips the folder. A malformed file changes nothing.
 
 ### 4.2 Edits survive a re-index
 Anything a member changes in the metadata editor (title, year, kind, tags, genres, synopsis, artwork, an episode's number or title) becomes an override recorded on the row; a re-index rewrites only the fields that were not edited. A row whose files disappear from the bucket is hidden, and returns, with its edits, when the files come back. Two files for one episode number keep the first indexed; a chapter number already taken moves to the next free one (the editor fixes it).

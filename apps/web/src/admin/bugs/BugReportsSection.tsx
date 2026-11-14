@@ -1,4 +1,5 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select } from '@sideroom/ui';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import {
@@ -10,7 +11,7 @@ import {
 import type { BugReportDetail, BugStatus } from '../../bugreport/contract';
 import { setBugOpenCount } from '../../bugreport/openState';
 import { formatNumber, useT } from '../../i18n';
-import { Async, Loading, SectionHeader, fmtMs, useResource } from '../ui';
+import { Async, Loading, SectionHeader, fmtMs, useAdminViewer, useResource } from '../ui';
 import './bugs.css';
 
 /**
@@ -30,6 +31,7 @@ export function BugReportsSection() {
 
 function BugList({ onOpen }: { onOpen: (id: string) => void }) {
   const t = useT();
+  const viewer = useAdminViewer();
   const [status, setStatus] = useState<BugStatus>('open');
   const res = useResource(`admin:bug-reports:${status}`, () => listBugReports(status));
   useEffect(() => {
@@ -49,6 +51,16 @@ function BugList({ onOpen }: { onOpen: (id: string) => void }) {
       <Notice variant="info" className="ss-status">
         {t('admin.bugs.auditNotice')}
       </Notice>
+      {res.data?.beta_over_100 && (
+        <Notice variant="warning" className="ss-status">
+          {t('admin.bugs.beta100Notice')}{' '}
+          {viewer.can('MANAGE_FEATURES') && (
+            <Link to="/admin/$section" params={{ section: 'features' }}>
+              {t('admin.bugs.beta100Link')}
+            </Link>
+          )}
+        </Notice>
+      )}
       <div className="ss-toolbar">
         <Select
           aria-label={t('admin.bugs.filterStatus')}

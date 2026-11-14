@@ -48,15 +48,15 @@ Phase 3 · Decisions: D-125, D-130–D-133, D-012, D-023, D-031, D-651–D-653, 
 
 ## 3. Staff Server channels
 
-`sr-cli bootstrap` creates `#general`, a voice channel and the channels marked "seeded"; the others are created or posted to as noted (`crates/sr-cli/src/guilds.rs`, `crates/sr-server/src/staff_feed.rs`).
+`sr-cli bootstrap` creates `#general`, a voice channel and the channels marked "seeded"; the others are created or posted to as noted (`crates/sr-cli/src/guilds.rs`, `crates/sr-server/src/staff_feed.rs`). The seeded list is one constant (`STAFF_CHANNELS`); a Staff Server that lacks one of them at server start (made before the list grew, or a channel deleted since) gets it created, once, in the same category and with no overwrites, like `#alerts` (D-667; a per-server advisory lock keeps two nodes from making it twice). Everyone in the Staff Server can read these channels.
 
 | Channel | Fed by | Card actions |
 |---|---|---|
 | `#review-queue` (seeded) | review submissions | Approve · Request changes · Reject · Open review page; a package card has its own Approve |
 | `#alerts` (seeded) | system | Suspicion events, payment anomalies, transcode failures, disk over its threshold (default 80%), backup failures, hash-chain break, failing jobs, delisted cartridges, takedown byte matches. Acknowledge · Open in Admin |
 | `#crash-triage` | client crash reports | Created, staff-only, when the first crash card is posted (OPS-CRASH-001); no buttons that act |
-| `#donations` | payments | Cards are posted only if a text channel of this name exists in the Staff Server; bootstrap does not create it. A card names no donor (staff with `MANAGE_DONATIONS` open the invoice to see who paid): Open invoice |
-| `#new-members` | registrations | Posted only if a text channel of this name exists: "@new joined, invited by @issuer" with Open in invite graph |
+| `#donations` (seeded) | payments | A card names no donor (staff with `MANAGE_DONATIONS` open the invoice to see who paid): Open invoice |
+| `#new-members` (seeded) | registrations | "@new joined, invited by @issuer" with Open in invite graph |
 | `#staff-announcements`, `#ops` (both seeded), voice `General` | humans (appointment notices go to `#staff-announcements`) | — |
 
 ## 4. Appointment flow (D-132)

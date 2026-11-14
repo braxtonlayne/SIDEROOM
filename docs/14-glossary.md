@@ -8,7 +8,7 @@
 | **Activity package** | The zip a developer uploads as an Activity or Arcade game bundle. It is checked from the bucket and never held in memory. Its size limit is one of three tiers set by operator settings: every developer, an application with a staff-approved bundle, and an application owned by the Owner or by staff who review apps (D-654, D-655) |
 | **App developer** | An approved third-party developer (D-061). Not staff |
 | **Arcade** | The games room (`/games`): built-in games, community Activities, Guild Cartridges and the Emulator. Its front page is the **Front Page**, where the Operator features games (ARC-ROOM-001, D-400, D-476) |
-| **Beta bug report** | A report a member sends to platform staff from "Report a bug" (default key Alt+Shift+B) while the platform switch `platform.beta_reports` is on. It carries a description, an allow-listed debug bundle and an optional screenshot the member previewed (D-647 to D-650) |
+| **Beta bug report** | A report a member sends to platform staff from "Report a bug" (default key Alt+Shift+B) while the platform switch `platform.beta_reports` is on. It carries a description, an allow-listed debug bundle and an optional screenshot the member previewed (D-647 to D-650). Admin > Bug reports warns while the switch is on and the platform has 100 or more accounts |
 | **Bridge (Discord bridge)** | The optional mirror between mapped SIDE ROOM and Discord channels, run with the server owner's own Discord bot (BRG-COR-001, D-381) |
 | **Cap** | The 20,000 counted-account ceiling |
 | **Cartridge (Guild Cartridge)** | A game a server lists in the Arcade; it may name an object on a shelf (D-410) |
