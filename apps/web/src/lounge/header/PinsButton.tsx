@@ -9,6 +9,7 @@ import { HOME } from '../channels';
 import type { Message } from '../data';
 import { toLoungeMessage } from '../liveMap';
 import { useLoungeGotoMessage } from '../nav';
+import { useHiddenKind } from '../msg/lineText';
 import { formatMessageTime } from '../time';
 import './header.css';
 
@@ -18,6 +19,38 @@ export interface PinsButtonProps {
   channelId: string;
   /** The viewer may unpin (Pin Messages / Manage Messages). */
   canUnpin: boolean;
+}
+
+/**
+ * A pin's text. A blocked or ignored author's pin is the list's hidden message of one with its "Show" (D-730):
+ * the reveal is this pin's own, and a block made while the panel is open takes effect at once.
+ */
+function PinText({ m }: { m: Message }) {
+  const t = useT();
+  const kind = useHiddenKind(m.author.id);
+  const [shown, setShown] = useState(false);
+  const hidden = kind && !shown;
+  return (
+    <>
+      <div className="lng-pin-head">
+        {!hidden && <strong>{m.author.displayName}</strong>}
+        <span className="lng-muted">{formatMessageTime(m.createdAt)}</span>
+      </div>
+      {hidden ? (
+        <p className="lng-pin-body lng-muted" data-hidden-line={kind}>
+          {t('lounge.messageList.hiddenRun', { count: 1, kind })}{' '}
+          <button type="button" className="lng-link-btn" onClick={() => setShown(true)}>
+            {t('lounge.messageList.showHidden', { count: 1 })}
+          </button>
+        </p>
+      ) : (
+        <p className="lng-pin-body">
+          {m.content ||
+            (m.attachments?.length ? t('lounge.pins.attachment') : t('lounge.pins.noText'))}
+        </p>
+      )}
+    </>
+  );
 }
 
 /** Pinned-messages popout in the channel header: list, jump, unpin (LNG-CHN-020). */
@@ -93,14 +126,7 @@ export function PinsButton({ guildId, channelId, canUnpin }: PinsButtonProps) {
         <ul className="lng-pins-list">
           {pins?.map((m) => (
             <li key={m.id} className="lng-pin">
-              <div className="lng-pin-head">
-                <strong>{m.author.displayName}</strong>
-                <span className="lng-muted">{formatMessageTime(m.createdAt)}</span>
-              </div>
-              <p className="lng-pin-body">
-                {m.content ||
-                  (m.attachments?.length ? t('lounge.pins.attachment') : t('lounge.pins.noText'))}
-              </p>
+              <PinText m={m} />
               <div className="lng-pin-actions">
                 <button
                   type="button"

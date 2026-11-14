@@ -28,6 +28,7 @@ import { findMessageLinks, MessageLinkCard } from './msg/MessageLinkCard';
 import { EmbedList } from './msg/Embeds';
 import { ForwardedFrame } from './msg/Forwarded';
 import { InlineEdit } from './msg/InlineEdit';
+import { MessageLine, useHiddenKind } from './msg/lineText';
 import { PollView } from './msg/Poll';
 import { ReactionRow } from './msg/Reactions';
 import { REMIND_CHOICES } from './shell/savedMessages';
@@ -281,6 +282,8 @@ function MessageItemImpl(props: MessageItemProps) {
   // A webhook has no profile to open.
   const openProfile = m.author.webhook && !m.author.bridgeMember ? undefined : onOpenProfile;
   const t = useT();
+  // A blocked or ignored author's reply line names nobody, as the list's hidden run does (D-730).
+  const replyHidden = useHiddenKind(replyTarget?.author.id) !== null;
   const reportEntry = useReportEntry();
   const prefs = useSavedPrefs();
   const compact = prefs.messageDisplay === 'compact';
@@ -574,19 +577,26 @@ function MessageItemImpl(props: MessageItemProps) {
             <Icon name="reply" size={16} />
             {replyTarget ? (
               <>
-                <Avatar
-                  name={replyTarget.author.displayName}
-                  src={replyTarget.author.avatarUrl ?? null}
-                  size={24}
-                  className="lng-reply-avatar"
-                  style={{ width: 16, height: 16, fontSize: 8 }}
-                  aria-hidden="true"
+                {!replyHidden && (
+                  <>
+                    <Avatar
+                      name={replyTarget.author.displayName}
+                      src={replyTarget.author.avatarUrl ?? null}
+                      size={24}
+                      className="lng-reply-avatar"
+                      style={{ width: 16, height: 16, fontSize: 8 }}
+                      aria-hidden="true"
+                    />
+                    <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
+                  </>
+                )}
+                <MessageLine
+                  className="lng-reply-text"
+                  content={replyTarget.content}
+                  authorId={replyTarget.author.id}
+                  guildId={guildId}
+                  fallback={t('lounge.messageItem.clickToSeeAttachment')}
                 />
-                <span className="lng-reply-name">@{replyTarget.author.displayName}</span>
-                <span className="lng-reply-text">
-                  {replyTarget.content.slice(0, 120) ||
-                    t('lounge.messageItem.clickToSeeAttachment')}
-                </span>
               </>
             ) : replyState === 'deleted' ? (
               <span className="lng-reply-text lng-muted">

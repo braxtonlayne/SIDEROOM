@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api/client';
 import { t } from '../i18n';
 import { cmpId } from '../store/reducer';
+import { useHiddenKind } from './msg/lineText';
 
 /** The messages next to a search hit (LNG-SRC-005): one before and one after, read when the row is on screen. */
 export interface HitContext {
@@ -11,6 +12,8 @@ export interface HitContext {
 export interface Neighbor {
   id: string;
   author: string;
+  /** The author's id: a blocked or ignored one is not quoted (D-730). */
+  authorId?: string;
   text: string;
 }
 
@@ -18,7 +21,7 @@ interface Wire {
   id: string;
   content?: string;
   attachments?: unknown[];
-  author?: { username: string; global_name?: string | null };
+  author?: { id?: string; username: string; global_name?: string | null };
 }
 
 const cache = new Map<string, Promise<HitContext>>();
@@ -30,6 +33,7 @@ const toNeighbor = (m: Wire | undefined): Neighbor | null =>
     ? {
         id: m.id,
         author: m.author?.global_name || m.author?.username || t('lounge.searchContext.someone'),
+        ...(m.author?.id ? { authorId: m.author.id } : {}),
         text:
           m.content?.trim() || (m.attachments?.length ? t('lounge.searchContext.attachment') : ''),
       }
@@ -96,7 +100,15 @@ export function ContextLine({
   n: Neighbor | null | undefined;
   side: 'before' | 'after';
 }) {
+  const kind = useHiddenKind(n?.authorId);
   if (!n || !n.text) return null;
+  if (kind) {
+    return (
+      <span className="lng-search-context lng-muted" data-side={side} data-hidden-line={kind}>
+        {t('lounge.messageList.hiddenRun', { count: 1, kind })}
+      </span>
+    );
+  }
   return (
     <span className="lng-search-context" data-side={side}>
       <strong>{n.author}</strong> {n.text.slice(0, 140)}
