@@ -60,12 +60,16 @@ describe('rail badge', () => {
     const fresh = await within(rail).findByRole('link', { name: /Fresh Guild/ });
     expect(fresh.querySelector('.lng-new-badge')?.getAttribute('data-text')).toBe('NEW');
     expect(
-      within(rail).getByRole('link', { name: /Store Guild/ }).querySelector('.lng-new-badge'),
+      within(rail)
+        .getByRole('link', { name: /Store Guild/ })
+        .querySelector('.lng-new-badge'),
     ).toBeNull();
     await userEvent.click(fresh);
     await screen.findAllByText('lobby');
     expect(
-      within(rail).getByRole('link', { name: /Fresh Guild/ }).querySelector('.lng-new-badge'),
+      within(rail)
+        .getByRole('link', { name: /Fresh Guild/ })
+        .querySelector('.lng-new-badge'),
     ).toBeNull();
     expect(localStorage.getItem('sr.lounge.openedServers')).toContain('g2');
   });
