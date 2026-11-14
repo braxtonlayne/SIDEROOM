@@ -11,8 +11,7 @@ export default {
   'library.sync.jumpPage': 'Jump to page {page}',
   'library.sync.jumpPercent': 'Jump to {percent}%',
   'library.sync.dismiss': 'Dismiss',
-  'admin.review.filter.submitter': 'Submitter',
-  'admin.review.filter.submitterChip': 'Submitted by {name}',
-  'admin.review.filter.submitterClear': 'Show everyone\u2019s submissions',
-  'admin.review.filter.submitterPress': 'Show only this person\u2019s submissions',
+  'admin.review.filterSubmitterChip': 'Submitted by {name}',
+  'admin.review.filterSubmitterClear': 'Show everyone\u2019s submissions',
+  'admin.review.filterSubmitterPress': 'Show only this person\u2019s submissions',
 } as const;
