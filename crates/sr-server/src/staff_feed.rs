@@ -205,6 +205,18 @@ pub fn feed_card(
 /// Name of the Staff Server channel crash cards go to (OPS-CRASH-001).
 pub const CRASH_CHANNEL: &str = "crash-triage";
 
+/// Text channels the Staff Server has beside `#general` (doc 07 section 4). The bootstrap (`sr-cli bootstrap`) creates
+/// them; a Staff Server that started without one gets it at the next server start ([`StaffVoice::ensure_channels`]).
+/// `#crash-triage` is separate: it has its own overwrites ([`StaffVoice::ensure_crash_channel`]).
+pub const STAFF_CHANNELS: &[&str] = &[
+    "staff-announcements",
+    "review-queue",
+    "alerts",
+    "ops",
+    "new-members",
+    "donations",
+];
+
 /// The structured JSON of a crash card: the allow-listed card, the count and the replay buffer. Frames are trimmed
 /// (never the replay) until it fits an embed description.
 pub fn crash_card_json(view: &sr_api::routes::crash::CrashView, max_chars: usize) -> String {
@@ -579,9 +591,94 @@ impl StaffVoice {
                 if let Err(e) = r {
                     tracing::warn!(error = %e, "could not add the system user to the Staff Server");
                 }
+                self.ensure_channels().await;
                 Ok(())
             })
             .await;
+    }
+
+    /// Create the channels of [`STAFF_CHANNELS`] that the Staff Server lacks (an installation made before `#new-members`
+    /// and `#donations` existed, or a channel deleted since: it comes back at the next start, which is how the feeds
+    /// work). New channels go in the "Text Channels" category after the last text channel and carry no overwrites, like
+    /// the ones the bootstrap makes (so they are readable by exactly the members of the Staff Server). Safe with two
+    /// nodes starting together: the check and the inserts run under one transaction-scoped advisory lock taken per Staff
+    /// Server, so the second node finds the channels the first made. Logged at `info`. Returns the number created; zero
+    /// without a Staff Server.
+    pub async fn ensure_channels(&self) -> usize {
+        match self.create_missing_channels().await {
+            Ok(n) => n,
+            Err(e) => {
+                tracing::warn!(error = %e, "could not create the missing Staff Server channels");
+                0
+            }
+        }
+    }
+
+    async fn create_missing_channels(&self) -> Result<usize, String> {
+        use sr_chat::{
+            domain::{Channel, ChannelType},
+            repo::ChannelRepository,
+        };
+        let Some(guild) = self.staff_guild().await else {
+            return Ok(0);
+        };
+        let guild_id = sr_core::GuildId::new(u64::try_from(guild).map_err(|e| e.to_string())?);
+        let mut tx = self.pool.begin().await.map_err(|e| e.to_string())?;
+        sqlx::query(
+            "SELECT pg_advisory_xact_lock(hashtextextended('staff-feed-channels:' || $1::text, 0))",
+        )
+        .bind(guild)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        let have: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM channels WHERE guild_id = $1 AND type = 0 AND name IS NOT NULL",
+        )
+        .bind(guild)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        let missing: Vec<&str> = STAFF_CHANNELS
+            .iter()
+            .copied()
+            .filter(|n| !have.iter().any(|h| h == n))
+            .collect();
+        if missing.is_empty() {
+            return Ok(0);
+        }
+        let category: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM channels WHERE guild_id = $1 AND type = 4 AND name = 'Text Channels' ORDER BY id LIMIT 1",
+        )
+        .bind(guild)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        let mut position: i32 = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(position), 0) + 1 FROM channels WHERE guild_id = $1 AND type = 0",
+        )
+        .bind(guild)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+        let repo = sr_db::chat_repo::PgChatRepo::new(self.pool.clone());
+        let mut made = 0;
+        for name in missing {
+            let id = ChannelId::new(self.messages.next_id().get());
+            let mut ch = Channel::new(id, Some(guild_id), ChannelType::Text);
+            ch.name = Some(name.to_owned());
+            ch.position = position;
+            ch.parent_id = category
+                .and_then(|c| u64::try_from(c).ok())
+                .map(ChannelId::new);
+            repo.insert_channel(&ch, &[])
+                .await
+                .map_err(|e| format!("creating #{name}: {e:?}"))?;
+            tracing::info!(channel = name, "created the missing Staff Server channel");
+            position += 1;
+            made += 1;
+        }
+        tx.commit().await.map_err(|e| e.to_string())?;
+        Ok(made)
     }
 
     async fn deliver(&self, channel: ChannelId, card: Card) -> Option<i64> {

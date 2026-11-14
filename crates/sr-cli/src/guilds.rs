@@ -14,12 +14,13 @@ use sr_core::{
     config::ServerConfig,
 };
 use sr_db::{PgPool, chat_repo::PgChatRepo};
+// `STAFF_CHANNELS`: the text channels added to the Staff Server beside `#general` (doc 07 section 4;
+// `#reports` is Phase 7 and not created). One list with the server's start-up repair, which creates
+// any of them that an older Staff Server lacks.
+use sr_server::staff_feed::STAFF_CHANNELS;
 
 /// Name of the Staff Server (doc 07 section 4).
 pub const STAFF_GUILD_NAME: &str = "SIDE ROOM Staff";
-/// Text channels added to the Staff Server beside `#general` (doc 07 section 4;
-/// `#reports` is Phase 7 and not created).
-const STAFF_CHANNELS: &[&str] = &["staff-announcements", "review-queue", "alerts", "ops"];
 /// Name of the development guild.
 pub const DEV_GUILD_NAME: &str = "Side Room Dev";
 /// Messages seeded into `#general` of the development guild.
@@ -412,6 +413,34 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(color, 1);
+        drop(pool);
+        db.cleanup().await.expect("cleanup");
+    }
+    /// D-667: the bootstrap makes every channel of the fixed list, `#new-members` and `#donations` among them,
+    /// and the server's start-up repair then finds nothing to add.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn the_bootstrap_creates_the_feed_channels() {
+        let db = sr_db::testing::TestDb::new().await.expect("test db");
+        let pool = db.pool().clone();
+        let server = ServerConfig::default();
+        let snow = snowflakes(&server).unwrap();
+        let owner = account(&pool, &snow).await;
+        let guild = create_staff_guild(&pool, &server, owner, 1_800_000_000_000)
+            .await
+            .unwrap();
+        let names: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM channels WHERE guild_id = $1 AND type = 0 AND name IS NOT NULL",
+        )
+        .bind(i64::try_from(guild.get()).unwrap())
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        for want in STAFF_CHANNELS {
+            assert!(names.iter().any(|n| n == want), "missing #{want}");
+        }
+        assert!(names.iter().any(|n| n == "new-members"));
+        assert!(names.iter().any(|n| n == "donations"));
         drop(pool);
         db.cleanup().await.expect("cleanup");
     }
