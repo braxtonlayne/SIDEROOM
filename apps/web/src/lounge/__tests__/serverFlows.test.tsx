@@ -560,6 +560,46 @@ describe('Invite people', () => {
     expect(await axeViolations(dialog)).toEqual([]);
   });
 
+  it('Grant temporary membership sends temporary and explains it (LNG-INV-007)', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    });
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])),
+      http.post('*/api/v1/channels/c1/invites', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(inviteObj({ code: 'tmp111', temporary: true, max_uses: 1 }));
+      }),
+    );
+    at('/channels/g1/c1');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    await userEvent.click(within(sidebar).getByRole('button', { name: /Store Guild/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite to Server' }));
+    const dialog = await screen.findByRole('dialog', { name: /Invite people to Store Guild/ });
+    const sw = within(dialog).getByRole('switch', { name: /Grant temporary membership/ });
+    expect(sw).not.toBeChecked();
+    expect(
+      within(dialog).getByText(/removed when they disconnect, unless you give them a role/),
+    ).toBeInTheDocument();
+    await userEvent.click(sw);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
+    await within(dialog).findByText(/This link can be used once/);
+    expect(body).toEqual({ external: true, max_age: 604800, max_uses: 1, temporary: true });
+    expect(await axeViolations(dialog)).toEqual([]);
+  });
+
+  it('the server menu has no "coming soon" entries (D-670)', async () => {
+    server.use(http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])));
+    at('/channels/g1/c1');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    await userEvent.click(within(sidebar).getByRole('button', { name: /Store Guild/ }));
+    await screen.findByRole('menuitem', { name: 'Invite to Server' });
+    expect(screen.queryByRole('menuitem', { name: 'Server Support' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'App Directory' })).toBeNull();
+  });
+
   it('opens from the rail context menu too', async () => {
     at('/channels/g1/c1');
     const rail = await screen.findByRole('navigation', { name: 'Servers' });

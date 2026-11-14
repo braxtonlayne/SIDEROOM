@@ -1,4 +1,4 @@
-import { Button, Modal } from '@sideroom/ui';
+import { Button, Modal, Switch } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useStreamer } from '../settings/user/prefs';
@@ -48,6 +48,7 @@ export function InviteDialog({
   const [maxAge, setMaxAge] = useState(EXTERNAL_MAX_AGE);
   const [maxUses, setMaxUses] = useState(EXTERNAL_MAX_USES);
   const [edited, setEdited] = useState(false);
+  const [temporary, setTemporary] = useState(false);
   const [created, setCreated] = useState<rest.Invite | null>(null);
   const [invites, setInvites] = useState<rest.Invite[]>([]);
   const [listError, setListError] = useState<string | null>(null);
@@ -82,9 +83,10 @@ export function InviteDialog({
   // Client-side hiding is a convenience; the server enforces CREATE_INSTANT_INVITE.
   if (!guild?.permissions.createInvite) return null;
 
-  const explicit: rest.CreateInviteOptions | undefined = edited
-    ? { max_age: maxAge, max_uses: maxUses }
-    : undefined;
+  const explicit: rest.CreateInviteOptions | undefined =
+    edited || temporary
+      ? { max_age: maxAge, max_uses: maxUses, ...(temporary ? { temporary: true } : {}) }
+      : undefined;
 
   const generate = async () => {
     if (!channelId) return setError(t('lounge.inviteDialog.pickChannel'));
@@ -183,6 +185,12 @@ export function InviteDialog({
             </select>
           </label>
         </div>
+        <Switch
+          label={t('lounge.inviteDialog.temporary')}
+          description={t('lounge.inviteDialog.temporaryHint')}
+          checked={temporary}
+          onChange={(e) => setTemporary(e.target.checked)}
+        />
         {error && (
           <p role="alert" className="lng-form-error">
             {error}
@@ -238,6 +246,7 @@ export function InviteDialog({
                         : t('lounge.inviteDialog.usesOnly', { uses: inv.uses })}{' '}
                       {expiryLabel(inv.expires_at)}
                       {inv.channel.name ? ` · #${inv.channel.name}` : ''}
+                      {inv.temporary ? ` · ${t('lounge.inviteDialog.temporaryTag')}` : ''}
                     </small>
                   </div>
                   <Button

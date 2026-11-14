@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axeViolations } from '../../../../../packages/ui/src/test-axe';
 import { useStore } from '../../store';
@@ -99,5 +99,22 @@ describe('age-restricted channel interstitial (LNG-CHN-022)', () => {
   it('does not gate channels that are not restricted', async () => {
     at('/channels/g1/c2');
     expect(await screen.findByRole('log', { name: 'Messages in random' })).toBeInTheDocument();
+  });
+});
+
+describe('age-restricted channel mark in the sidebar (LNG-CHN-009)', () => {
+  beforeEach(() => {
+    baseHandlers();
+    useAgeAnswers.setState({ answers: {} });
+    seedLounge({ messages: [msg('100', { content: 'x' })], channels });
+  });
+
+  it('marks only the age-restricted channel and names it', async () => {
+    at('/channels/g1/c2');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    const spicy = await within(sidebar).findByRole('link', { name: /spicy, age-restricted/ });
+    expect(within(spicy).getByRole('img', { name: 'age-restricted' })).toBeInTheDocument();
+    const random = within(sidebar).getByRole('link', { name: /random/ });
+    expect(within(random).queryByRole('img', { name: 'age-restricted' })).toBeNull();
   });
 });

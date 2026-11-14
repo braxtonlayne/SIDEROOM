@@ -82,6 +82,18 @@
           "type": "image/png"
         }
       ]
+    },
+    {
+      "name": "Live TV",
+      "short_name": "Live TV",
+      "url": "/cinema/tv",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
