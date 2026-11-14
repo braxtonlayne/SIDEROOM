@@ -3428,3 +3428,69 @@ async fn a_lagged_platform_topic_sends_the_platform_marker() {
     let v = c.next_event("SR_RESYNC").await;
     assert_eq!(v["d"], json!({ "scope": "platform" }));
 }
+
+fn typing_by(user: u64, timestamp: u64) -> DomainEvent {
+    DomainEvent::TypingStarted {
+        guild: Some(G1),
+        channel: OPEN,
+        user: u(user),
+        timestamp,
+    }
+}
+
+/// SEC-AUD-257 (D-744): a block stands between two members; the typist's `TYPING_START`
+/// reaches the third member and the typist's own sessions, not the blocked one, in either direction.
+#[tokio::test]
+async fn typing_does_not_cross_a_block() {
+    let e = env();
+    e.dir.guilds.lock().unwrap().insert(u(4), vec![G1]);
+    // The directory answers per typist; the real one is symmetric (either direction).
+    e.dir.blocks.lock().unwrap().insert((u(1), u(2)));
+    e.dir.blocks.lock().unwrap().insert((u(2), u(1)));
+    let all = GUILDS_MSGS | intents::GUILD_MESSAGE_TYPING;
+    let mut a = connect(&e);
+    a.identify("bot:1", all, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", all, 1).await;
+    let mut c = connect(&e);
+    c.identify("bot:4", all, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    c.drain().await;
+
+    // 1 types: 2 hears nothing; 4 (and 1's own session) do.
+    emit(&e.bus, typing_by(1, 7)).await;
+    assert_eq!(c.expect_event("TYPING_START").await["d"]["timestamp"], 7);
+    assert_eq!(a.expect_event("TYPING_START").await["d"]["user_id"], "1");
+    b.silent().await;
+
+    // 2 types: 1 hears nothing.
+    emit(&e.bus, typing_by(2, 8)).await;
+    assert_eq!(c.expect_event("TYPING_START").await["d"]["user_id"], "2");
+    b.expect_event("TYPING_START").await;
+    a.silent().await;
+}
+
+/// Nobody blocked the typist: no audience is set and every member hears it, as before;
+/// a block between two other people changes nothing for this typist.
+#[tokio::test]
+async fn typing_is_unchanged_when_nobody_is_blocked() {
+    let e = env();
+    let all = GUILDS_MSGS | intents::GUILD_MESSAGE_TYPING;
+    let mut a = connect(&e);
+    a.identify("bot:1", all, 1).await;
+    let mut b = connect(&e);
+    b.identify("bot:2", all, 1).await;
+    settle().await;
+    a.drain().await;
+    b.drain().await;
+    emit(&e.bus, typing_by(1, 9)).await;
+    a.expect_event("TYPING_START").await;
+    b.expect_event("TYPING_START").await;
+    // A block between two other people changes nothing for this typist.
+    e.dir.blocks.lock().unwrap().insert((u(4), u(2)));
+    emit(&e.bus, typing_by(1, 10)).await;
+    a.expect_event("TYPING_START").await;
+    b.expect_event("TYPING_START").await;
+}
