@@ -62,10 +62,9 @@ interface NavItem {
     | '/library/history'
     | '/library/lists'
     | '/library/submissions'
-    | '/library/shelves'
-    | '/library/upload';
+    | '/library/shelves';
   labelKey: MessageKey;
-  icon: 'compass' | 'grid' | 'clock' | 'bookmark' | 'list' | 'upload' | 'edit' | 'heart';
+  icon: 'compass' | 'grid' | 'clock' | 'bookmark' | 'list' | 'edit' | 'heart';
   exact?: boolean;
   /** Shown only while this Study switch is on (STU-NAV-001). */
   flag?: StudyFlag;
@@ -91,12 +90,6 @@ const YOUR_SPACE: NavItem[] = [
     to: '/library/submissions',
     labelKey: 'library.shell.nav.submissions',
     icon: 'edit',
-    flag: 'ingestQueues',
-  },
-  {
-    to: '/library/upload',
-    labelKey: 'library.shell.nav.upload',
-    icon: 'upload',
     flag: 'ingestQueues',
   },
 ];

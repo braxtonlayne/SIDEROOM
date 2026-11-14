@@ -5,7 +5,8 @@ export const SDK_PAGES: DocPage[] = [
   {
     id: 'sdks',
     title: 'Bot SDKs',
-    summary: 'The Rust crate sr-sdk and the TypeScript package @sideroom/bot.',
+    summary:
+      'The Rust crate sr-sdk and the TypeScript package @sideroom/bot, both used from the repository.',
     blocks: [
       {
         t: 'p',
@@ -19,6 +20,10 @@ export const SDK_PAGES: DocPage[] = [
         code: 'use sr_sdk::{Client, CommandDef, CommandRouter, OptionDef, intents};\n\n#[tokio::main]\nasync fn main() -> sr_sdk::Result<()> {\n    let router = CommandRouter::new().command(\n        CommandDef::chat_input("echo", "Repeat some text")\n            .option(OptionDef::string("text", "What to repeat").required()),\n        |cx| async move {\n            let text = cx.args.str("text").unwrap_or_default().to_owned();\n            cx.reply(text).await\n        },\n    );\n    Client::builder(std::env::var("SR_BOT_TOKEN").unwrap(), "{origin}/api/v1")\n        .intents(intents::DEFAULT | intents::MESSAGE_CONTENT)\n        .commands(router)\n        .build()?\n        .start()\n        .await\n}',
       },
       { t: 'h', text: 'TypeScript: @sideroom/bot' },
+      {
+        t: 'p',
+        text: '@sideroom/bot is a workspace package of the SIDE ROOM repository (packages/bot). It is not published to npm or any other registry, so npm install @sideroom/bot does not work. Clone the repository and run pnpm install, then either add your own workspace package that depends on "@sideroom/bot": "workspace:*", or copy packages/bot/examples/echo.ts and run it from packages/bot with SR_BOT_TOKEN=... SR_API_URL={origin}/api/v1 node --experimental-strip-types examples/echo.ts (Node 22 or newer). The Rust crate is used the same way, as a path dependency on crates/sr-sdk.',
+      },
       {
         t: 'code',
         lang: 'typescript',

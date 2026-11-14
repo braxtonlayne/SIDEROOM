@@ -62,7 +62,7 @@ Full-screen and distraction-free. The chrome shows on tap/hover.
 Chronological feed of published chapters, filterable to followed series.
 
 ### 3.7 Upload & submissions
-See the submissions spec. Members build drafts under Submissions (`/library/submissions`); the sidebar's Upload entry (`/library/upload`) is still a placeholder page that says member uploads arrive with the submissions pipeline (`apps/web/src/library/routes.tsx:130`, `i18n/messages/en/library-3.ts:132`). Library-specific metadata: kind, title, alt titles, authors, artists, language, edition label, direction, status, year, genres, tags, age-restricted, synopsis, cover, per-chapter number/title/volume/group.
+See the submissions spec. Members build drafts under Submissions (`/library/submissions`); `/library/upload` is not a page: it redirects to `/library/submissions` under the same `ingestQueues` switch (D-672; `apps/web/src/library/routes.tsx`), and the sidebar has no separate Upload entry. Library-specific metadata: kind, title, alt titles, authors, artists, language, edition label, direction, status, year, genres, tags, age-restricted, synopsis, cover, per-chapter number/title/volume/group.
 
 ## 4. Social & discovery logic
 - **Ratings** 1–10 (shown as ★ /10 with one decimal). Aggregates are cached per scope: Global (all), Known (people you know, D-089), Friends.

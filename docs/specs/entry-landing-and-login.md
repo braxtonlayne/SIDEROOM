@@ -28,7 +28,7 @@ Logged-in users who visit `/` or `/login` are redirected to the app (ENT-UI-023:
 
 ## 2. Landing page (`/`)
 
-Layout per the mockup, with these changes: **no "The board" and no section strip at all** (the landing names no section of the app, O-7, D-385) and no demo labels.
+Layout per the mockup, with these changes: **no "The board" and no section strip at all** (the landing names no section of the app, O-7, D-385), no "glimpse inside" link (D-669) and no demo labels.
 
 | Region | Content |
 |---|---|

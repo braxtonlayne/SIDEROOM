@@ -17,7 +17,7 @@ export const PACKAGE_PAGES: DocPage[] = [
     ],
   },
   {
-    id: 'gateway',
+    id: 'gateway-events',
     title: 'Gateway reference',
     summary: 'Opcodes and dispatch events, generated from the specification.',
     blocks: [

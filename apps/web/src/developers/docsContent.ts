@@ -11,6 +11,8 @@ export type Block =
   | { t: 'ul'; items: string[] }
   | { t: 'code'; lang: string; title?: string; code: string }
   | { t: 'note'; title: string; text: string }
+  /** A paragraph that ends in a link to another documentation page. */
+  | { t: 'pagelink'; text: string; page: string; label: string }
   /** A section generated at run time (the OpenAPI list) or build time (the gateway tables). */
   | { t: 'ref'; what: 'openapi' | 'gateway' };
 
@@ -132,6 +134,12 @@ export const DOC_PAGES: DocPage[] = [
     title: 'Gateway',
     summary: 'Connect over WebSocket, identify with intents and keep the heartbeat.',
     blocks: [
+      {
+        t: 'pagelink',
+        text: 'This page is the guide: connecting, intents, sharding and resuming.',
+        page: 'gateway-events',
+        label: 'The opcode and event tables are in the Gateway reference.',
+      },
       {
         t: 'p',
         text: 'The gateway uses Discord opcodes: HELLO, then IDENTIFY with your token and intents, then READY and a GUILD_CREATE per server. Send a heartbeat at the interval HELLO gives you.',
