@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { Browser, BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import {
   apiPatch,
   apiPost,
