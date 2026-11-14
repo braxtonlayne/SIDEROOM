@@ -10,7 +10,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
 
 ## Phase 67 - 2026-11-13
 
-- **Members.** A message request shows what was written; a thread row shows its last message; the reader asks where to continue when another device read further; the Live TV guide can carry the operator's note and channel logos.
+- **Members.** A message request shows what was written; a thread row shows its last message; the reader asks where to continue when another device read further; the Live TV guide can carry the operator's note and channel logos, and on a phone you swipe between channels; a member's browser no longer asks the server whether it is staff (your own sign-in says so), so it makes no staff request.
 - **Staff.** Subtitles can be added, relabelled, hidden and removed without re-encoding; channel logos are uploaded in the editor; the review queue filters by submitter.
 - **For operators.** The web build from the release now works with Activities and with a separate voice host: the server adds the origins its configuration implies to the app's security policy when it starts, and `SR_CSP_CONNECT`, `SR_CSP_FRAME` and `SR_CSP_MEDIA` are read by the server (a bad value stops the start and names the variable). One new setting, `tv.footer_note`. The beta bug reporter may be on for the closed beta (under 100 accounts) and stays off from 100 accounts on until the lawyer's answer is in.
 
