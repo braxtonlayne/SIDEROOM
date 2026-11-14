@@ -445,22 +445,22 @@ impl Conn {
             .session_tx
             .take()
             .ok_or(Stop::Close(close::UNKNOWN_ERROR, "no session channel"))?;
+        // The platform (D-702) and the IDENTIFY presence go into `create_session`, which announces once.
         let session = self
             .gw
-            .create_session(&user, wanted, self.id, tx, shard)
+            .create_session(
+                &user,
+                wanted,
+                self.id,
+                tx,
+                shard,
+                crate::presence::platform_of(&id.properties),
+                id.presence,
+            )
             .await;
-        self.gw
-            .set_session_platform(&session, crate::presence::platform_of(&id.properties));
         self.session = Some(session.clone());
         self.authenticated_with(&id.token);
         self.touch_seen();
-        if let Some(p) = id.presence {
-            self.gw.set_session_presence(&session, p).await;
-        } else {
-            // `create_session` announced the user before the platform was known (a new session counts as `web`);
-            // announce again when the platform changes what others see (D-702: the web app sends no presence at IDENTIFY).
-            self.gw.refresh_presence(session.user, false).await;
-        }
         Ok(())
     }
 
