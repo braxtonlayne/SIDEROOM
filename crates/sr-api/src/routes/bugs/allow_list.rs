@@ -147,7 +147,9 @@ pub fn sanitize(raw: &Value, now_ms: i64) -> Result<Clean, Reason> {
     out.insert(
         "online".into(),
         // SEC-AUD-277 (D-758): nothing said, or not a boolean, is `null` (unknown), never a made-up `true`.
-        b.get("online").and_then(Value::as_bool).map_or(Value::Null, Value::Bool),
+        b.get("online")
+            .and_then(Value::as_bool)
+            .map_or(Value::Null, Value::Bool),
     );
     out.insert(
         "gateway".into(),
