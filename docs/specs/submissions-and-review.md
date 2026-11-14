@@ -40,7 +40,7 @@ Two-pane layout: file tree (left) and form (right). Kind-specific fields (see th
 - Validation summary (missing required fields, duplicates, unsupported files).
 
 ## 5. Reviewer workspace
-- Queue filters: kind, age, submitter, size, flags (possible duplicate, age-restricted, large).
+- Queue filters (as built, D-691): kind, state, claim (mine or unclaimed), age, title and submitter (press a submitter in a row; a chip clears it; `?submitter=<account id>` in the address). Size and flag filters (possible duplicate, age-restricted, large) are not built: the API has no parameter for them and sorting by age does the work in a short queue.
 - **Claim** (soft lock, 30 min, visible to other reviewers).
 - Preview: video proxy player with frame scrub; reader preview of pages; package preview (theme applied live in a sandbox frame); app manifest diff.
 - Duplicate panel: perceptual-hash matches (pages) and title/year/episode matches (video), with "merge into existing" and "mark as replacement."

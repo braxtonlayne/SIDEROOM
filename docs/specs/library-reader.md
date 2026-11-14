@@ -114,6 +114,20 @@ frame). Payload `type`: `progress` (the progress object), `progress_cleared`, `r
 `follow`, `unfollow`, `upload` (an ingest finished or failed, for the uploader) and, to followers with the bell on,
 `chapter_published`.
 
+**The client (D-690, wave 67; `apps/web/src/library/useProgressSync.tsx`, `progressEvents.ts`).** Every reader (images, PDF,
+EPUB) saves with `base_updated_at_ms`: the `updated_at_ms` of the position it got on open, then of each applied save's answer
+(`ProgressApi.save` answers `{applied: true}` or `{applied: false, server}`; local mode always applies). On `applied: false`:
+if the server's position is not further than the reader's, the save is repeated without a base (nothing is lost); if it is
+further, the reader stops saving and asks once, in a dialog: "Continue from page N" (EPUB: the percent) jumps there, takes the
+server's `updated_at_ms` as the new base and resumes saving; "Stay here" (also Escape) saves the current position without a
+base, which applies, and resumes. While the question is open nothing is saved, the save on unload included. While a chapter is
+open, an `SR_LIBRARY_UPDATE` `progress` event for it whose position is further than the reader's offers "Jump to page N" in a
+dismissible notice; the page never moves by itself and a declined position is not offered again. The frame does not say which
+session saved, so the reader ignores an event whose `updated_at_ms` is not newer than its base, or whose position is the one it
+last sent. For every other chapter the event refreshes the queries behind "continue reading", the unread list and the read
+marks. The listener runs only while the Library is mounted. A chapter opens at the server's position; the web keeps no local
+copy of progress in server mode, so a save that failed is retried at the next page turn or interval and is not kept across a reload.
+
 ### 6.3 Bookmarks (LIB-RDR-013)
 
 | Route | Meaning |

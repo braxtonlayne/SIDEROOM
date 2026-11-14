@@ -44,6 +44,7 @@ function fakeApi(o: Partial<ProgressApi> = {}) {
 }
 
 function openReader() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- a test helper that registers handlers, not a hook
   useLibraryApi();
   server.use(http.get('*/api/v1/library/chapters/:id/pages', () => HttpResponse.json(manifest(1))));
   return renderAt('/library/r/c1/1');
