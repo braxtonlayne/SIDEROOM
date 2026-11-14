@@ -93,6 +93,7 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
               {stateText(x)}
               {x.error ? `: ${x.error}` : ''}
             </span>
+            {x.ended && !x.hasFile && <span>{t('review.upload.chooseAgain')}</span>}
             <span className="rv-row">
               {x.state === 'running' && (
                 <Button
@@ -104,12 +105,16 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
                   ❚❚
                 </Button>
               )}
-              {(x.state === 'paused' || x.state === 'failed') && (
+              {(x.state === 'paused' || x.state === 'failed') && !(x.ended && !x.hasFile) && (
                 <Button
                   size="sm"
                   variant="secondary"
                   aria-label={t(
-                    x.state === 'failed' ? 'review.upload.retry' : 'review.upload.resume',
+                    x.ended
+                      ? 'review.upload.again'
+                      : x.state === 'failed'
+                        ? 'review.upload.retry'
+                        : 'review.upload.resume',
                     {
                       name: x.filename,
                     },
