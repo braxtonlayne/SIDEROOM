@@ -53,6 +53,9 @@ jobs:
       # SEC-AUD-170 (D-651): the staff delivery check's own cases (a pass fixture and one failing fixture per rule) and the staff key audit's (SEC-AUD-187).
       - name: Staff delivery (the check's own cases)
         run: node --test scripts/check-staff-delivery.test.mjs scripts/staff-keys.test.mjs
+      # SEC-AUD-211: the packing script of the release and the dry run, with its own refusals.
+      - name: Web release packing script (the script's own cases)
+        run: node --test scripts/pack-web-release.test.mjs
       - name: Shell scripts (shellcheck)
         run: shellcheck -x -S warning deploy/scripts/*.sh
       - name: Inventory progress

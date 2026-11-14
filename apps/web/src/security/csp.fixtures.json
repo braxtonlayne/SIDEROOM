@@ -1,0 +1,158 @@
+[
+  {
+    "name": "nothing set",
+    "config": {},
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "activities on with an https site",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "activitiesEnabled": true
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.chat.example.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "activities on with an http site (nothing added)",
+    "config": {
+      "publicUrl": "http://chat.example.org",
+      "activitiesEnabled": true
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "activities on with an https site and a port",
+    "config": {
+      "publicUrl": "https://chat.example.org:8443",
+      "activitiesEnabled": true
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.chat.example.org:8443; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "activities off with an https site",
+    "config": {
+      "publicUrl": "https://chat.example.org"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "voice origin equal to the site (nothing)",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "voicePublicUrl": "wss://chat.example.org/voice/ws"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "voice origin different and secure",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "voicePublicUrl": "wss://voice.example.net/voice/ws"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://voice.example.net wss://voice.example.net; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "voice origin different and plain",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "voicePublicUrl": "ws://voice.example.net:7880"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' http://voice.example.net:7880 ws://voice.example.net:7880; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "one PeerTube host",
+    "config": {
+      "peertubeHosts": "tube.example.org"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://tube.example.org; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://tube.example.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "three PeerTube hosts",
+    "config": {
+      "peertubeHosts": "tube.example.org, https://Video.example.net:443/, peer.example.com"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://tube.example.org https://video.example.net https://peer.example.com; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://tube.example.org https://video.example.net https://peer.example.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "media hosts",
+    "config": {
+      "mediaHosts": "cdn.example.org,s3.example.net"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://cdn.example.org https://s3.example.net; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "a media host that is also a PeerTube host",
+    "config": {
+      "peertubeHosts": "tube.example.org",
+      "mediaHosts": "tube.example.org,cdn.example.org"
+    },
+    "extra": {},
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://tube.example.org https://cdn.example.org; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://tube.example.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "extra connect origins",
+    "config": {},
+    "extra": {
+      "connect": ["https://api.example.net", "wss://*.voice.example.net"]
+    },
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://api.example.net wss://*.voice.example.net; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "extra frame origins",
+    "config": {},
+    "extra": {
+      "frame": ["https://frames.example.net"]
+    },
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://frames.example.net; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "extra media origins",
+    "config": {},
+    "extra": {
+      "media": ["https://img.example.net"]
+    },
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob: https://img.example.net; media-src 'self' blob: https: https://img.example.net; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "everything at once",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "activitiesEnabled": true,
+      "voicePublicUrl": "wss://voice.example.net/voice/ws",
+      "peertubeHosts": "tube.example.org,video.example.net",
+      "mediaHosts": "cdn.example.org"
+    },
+    "extra": {
+      "connect": ["https://api.example.net"],
+      "frame": ["https://frames.example.net"],
+      "media": ["https://img.example.net"]
+    },
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob: https://img.example.net; media-src 'self' blob: https: https://img.example.net; font-src 'self'; connect-src 'self' https://tube.example.org https://video.example.net https://cdn.example.org https://voice.example.net wss://voice.example.net https://api.example.net; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.chat.example.org https://tube.example.org https://video.example.net https://frames.example.net; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  },
+  {
+    "name": "a build that already holds the origins",
+    "from": "itself",
+    "config": {
+      "publicUrl": "https://chat.example.org",
+      "activitiesEnabled": true,
+      "voicePublicUrl": "wss://voice.example.net/voice/ws",
+      "peertubeHosts": "tube.example.org",
+      "mediaHosts": "cdn.example.org"
+    },
+    "extra": {
+      "connect": ["https://api.example.net"]
+    },
+    "policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: https:; font-src 'self'; connect-src 'self' https://tube.example.org https://cdn.example.org https://voice.example.net wss://voice.example.net https://api.example.net; worker-src 'self' blob:; manifest-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.activities.chat.example.org https://tube.example.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /internal/csp-report; report-to csp-endpoint"
+  }
+]

@@ -232,10 +232,12 @@ fn the_server_environment_loads_through_the_real_config_loader() {
     for l in server.section("environment") {
         let (k, v) = l.split_once(':').expect("KEY: value");
         // Read from the process environment by sr-server's payments module, not by the config loader (M-02).
-        // SR_PEERTUBE_HOSTS and SR_MEDIA_HOSTS likewise, by the unfurler and the party resolver (PRF-UNF-001).
+        // SR_PEERTUBE_HOSTS and SR_MEDIA_HOSTS likewise, by the unfurler and the party resolver (PRF-UNF-001); the
+        // SR_CSP_* origins by the web gate at start (SEC-AUD-210).
         if k.trim().starts_with("SR_PAYMENTS_")
             || k.trim() == "SR_PEERTUBE_HOSTS"
             || k.trim() == "SR_MEDIA_HOSTS"
+            || k.trim().starts_with("SR_CSP_")
         {
             continue;
         }
@@ -833,6 +835,9 @@ fn voice_is_switchable_from_the_env_file_with_an_optional_turn_profile() {
         "SR_ACTIVITIES__ENABLED",
         "SR_PEERTUBE_HOSTS",
         "SR_MEDIA_HOSTS",
+        "SR_CSP_CONNECT",
+        "SR_CSP_FRAME",
+        "SR_CSP_MEDIA",
     ] {
         assert!(vars.contains(v), "sr-server does not pass {v} through");
     }
