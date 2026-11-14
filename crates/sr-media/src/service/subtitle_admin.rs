@@ -160,6 +160,27 @@ impl MediaService {
             .ok_or(MediaError::NotFound("subtitle track"))
     }
 
+    /// D-694: after a track became visible with a language (an upload, a language edit, a hidden track shown),
+    /// add that language to the title's `subtitle_languages` when it is missing. Returns the language added, for
+    /// the audit entry. A failure is logged and never fails the change that called this.
+    pub async fn add_track_language_to_title(
+        &self,
+        asset_id: i64,
+        track: &SubtitleTrack,
+    ) -> Option<String> {
+        if track.hidden {
+            return None;
+        }
+        let tag = track.language.as_deref()?;
+        match self.repo.add_subtitle_language(asset_id, tag).await {
+            Ok(added) => added,
+            Err(e) => {
+                tracing::warn!(error = %e, asset = asset_id, "could not add a track's language to its title");
+                None
+            }
+        }
+    }
+
     /// Delete an uploaded track with its files. An embedded track is hidden instead (400).
     pub async fn delete_subtitle(&self, asset_id: i64, track_id: i64) -> MediaResult<()> {
         match self

@@ -86,7 +86,8 @@ pub async fn list(ctx: MediaCtx, Path(asset_id): Path<String>) -> ApiResult<Json
 /// most 20 MiB; the format is read from the content, not the name). It is parsed and stored again as WebVTT (an
 /// ASS file is also kept for styled rendering). A file with no readable cue, over the limit or with too many
 /// cues is 400 with the reason; a video whose storage does not take uploads is 409. The track is kept when the
-/// video is re-encoded.
+/// video is re-encoded. The track's language is added to the title's subtitle languages when it is missing
+/// (never removed; `und` adds nothing); the audit entry names the language added.
 #[utoipa::path(
     post, path = "/admin/cinema/assets/{asset_id}/subtitles", operation_id = "admin_cinema_upload_subtitle",
     params(("asset_id" = String, Path, description = "Asset snowflake"), UploadParams),
@@ -126,11 +127,13 @@ pub async fn upload(
         )
         .await
         .map_err(map_err)?;
+    // D-694: the track's language joins the title's list when it is not there yet.
+    let language_added = ctx.media().add_track_language_to_title(asset, &track).await;
     ctx.audit(
         "cinema.subtitle.upload",
         ("asset", asset),
         json!({ "track": track.id.to_string(), "language": track.language, "label": track.label,
-                "bytes": body.len(), "styled": track.styled }),
+                "bytes": body.len(), "styled": track.styled, "language_added": language_added }),
     )
     .await;
     Ok((StatusCode::CREATED, Json(track)))
@@ -138,7 +141,8 @@ pub async fn upload(
 
 /// Change a track (`PUBLISH_MEDIA`): label, language, forced, hearing impaired, default (at most one per
 /// video: the others are cleared) or hidden. The settings of an embedded track are kept when the video is
-/// re-encoded.
+/// re-encoded. A new language, or a hidden track shown again, adds its language to the title's subtitle
+/// languages when it is missing.
 #[utoipa::path(
     patch, path = "/admin/cinema/assets/{asset_id}/subtitles/{track_id}", operation_id = "admin_cinema_update_subtitle",
     params(("asset_id" = String, Path, description = "Asset snowflake"),
@@ -171,14 +175,20 @@ pub async fn update(
         is_default: b.is_default,
         hidden: b.hidden,
     };
-    let detail = json!({ "track": track_id.to_string(), "label": patch.label, "language": patch.language,
+    let mut detail = json!({ "track": track_id.to_string(), "label": patch.label, "language": patch.language,
         "forced": patch.forced, "hearing_impaired": patch.hearing_impaired,
         "is_default": patch.is_default, "hidden": patch.hidden });
+    // D-694: a new language, or a hidden track shown again, may add its language to the title.
+    let may_add = patch.language.is_some() || patch.hidden == Some(false);
     let track = ctx
         .media()
         .update_subtitle(asset, track_id, patch)
         .await
         .map_err(map_err)?;
+    if may_add {
+        detail["language_added"] =
+            json!(ctx.media().add_track_language_to_title(asset, &track).await);
+    }
     ctx.audit("cinema.subtitle.update", ("asset", asset), detail)
         .await;
     Ok(Json(track))
