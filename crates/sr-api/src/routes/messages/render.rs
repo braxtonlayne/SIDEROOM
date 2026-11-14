@@ -49,27 +49,49 @@ fn sign_attachments(deps: &MessagesDeps, objects: &mut [MessageObject]) {
 /// Only the threads under these messages are asked about, and the viewer already read the channel they sit in. A
 /// thread started from a message is a public one, so nothing the viewer could not read is previewed; a private
 /// thread (which no message starts) is previewed only inside itself, where its own starter message sits.
+///
+/// D-701: the "started a thread" row (type 18) of the parent names its thread in `message_reference.message_id`;
+/// that id joins the same id set (still one `get_threads` and one `last_messages` per page) and the row carries
+/// the thread as a starter row does, with two limits: a private thread is never embedded from its parent (that row
+/// is never written for one; the guard stays), and when the page also holds the starter message of the same thread
+/// (the thread's id is that message's id) the chip sits under the starter only, so the row carries none.
 async fn attach_threads(
     deps: &MessagesDeps,
     msgs: &[Message],
     out: &mut [MessageObject],
     preview_users: Option<&HashMap<UserId, UserSummary>>,
 ) {
-    let ids: Vec<sr_core::ChannelId> = msgs
+    let mut ids: Vec<sr_core::ChannelId> = msgs
         .iter()
         .filter(|m| m.guild_id.is_some())
         .map(|m| sr_core::ChannelId::new(m.id.get()))
         .collect();
+    ids.extend(
+        msgs.iter()
+            .filter(|m| m.guild_id.is_some() && m.kind == sr_chat::MessageType::ThreadCreated)
+            .filter_map(|m| m.reference.as_ref())
+            .map(|r| sr_core::ChannelId::new(r.message_id.get())),
+    );
+    ids.sort_unstable();
+    ids.dedup();
     if ids.is_empty() {
         return;
     }
-    let threads = match deps.repo.get_threads(&ids).await {
+    let mut threads = match deps.repo.get_threads(&ids).await {
         Ok(t) => t,
         Err(e) => {
             tracing::warn!(error = %e, "looking up message threads failed");
             return;
         }
     };
+    // A thread reached only through a type 18 row is never a private one (see above).
+    let starter_ids: HashSet<sr_core::ChannelId> = msgs
+        .iter()
+        .filter(|m| m.guild_id.is_some())
+        .map(|m| sr_core::ChannelId::new(m.id.get()))
+        .collect();
+    threads
+        .retain(|t| starter_ids.contains(&t.id) || t.kind != sr_chat::ChannelType::PrivateThread);
     let last = match preview_users {
         Some(_) => thread_previews(deps, msgs, &threads).await,
         None => HashMap::new(),
@@ -89,19 +111,40 @@ async fn attach_threads(
         }
     }
     for t in threads {
-        let Some(o) = out.iter_mut().find(|o| o.id == t.id.to_string()) else {
-            continue;
+        let tid = t.id.to_string();
+        // The starter row when the page holds it, else every "started a thread" row that names the thread.
+        let holders: Vec<usize> = if starter_ids.contains(&t.id) {
+            out.iter()
+                .enumerate()
+                .filter(|(_, o)| o.id == tid)
+                .map(|(n, _)| n)
+                .collect()
+        } else {
+            msgs.iter()
+                .zip(out.iter())
+                .enumerate()
+                .filter(|(_, (m, _))| {
+                    m.kind == sr_chat::MessageType::ThreadCreated
+                        && m.reference
+                            .as_ref()
+                            .is_some_and(|r| r.message_id.get() == t.id.get())
+                })
+                .map(|(n, _)| n)
+                .collect()
         };
-        o.thread =
-            serde_json::to_value(crate::routes::guilds::dto::ChannelObject::new(&t, &[])).ok();
-        if let (Some(g), Some(serde_json::Value::Object(obj))) =
-            (last.get(&t.id), o.thread.as_mut())
-        {
-            obj.insert(
-                "sr_last_message".to_owned(),
-                serde_json::to_value(super::model::ThreadLastMessage::new(g, &users))
-                    .unwrap_or(serde_json::Value::Null),
-            );
+        for n in holders {
+            let o = &mut out[n];
+            o.thread =
+                serde_json::to_value(crate::routes::guilds::dto::ChannelObject::new(&t, &[])).ok();
+            if let (Some(g), Some(serde_json::Value::Object(obj))) =
+                (last.get(&t.id), o.thread.as_mut())
+            {
+                obj.insert(
+                    "sr_last_message".to_owned(),
+                    serde_json::to_value(super::model::ThreadLastMessage::new(g, &users))
+                        .unwrap_or(serde_json::Value::Null),
+                );
+            }
         }
     }
 }
