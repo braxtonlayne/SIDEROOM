@@ -21718,6 +21718,7 @@ export interface components {
              * @description The largest file the viewer may upload in this conversation, in bytes (D-233).
              */
             sr_max_upload_bytes?: number | null;
+            sr_request_preview?: null | components["schemas"]["RequestPreviewObject"];
             /**
              * @description With `is_message_request`: `server_filter` or `new_account` when a server's Protection
              *     settings sent the conversation there (D-224), or `spam` when the recipient's DM spam
@@ -27328,6 +27329,20 @@ export interface components {
             offset: number;
             /** Format: int64 */
             total: number;
+        };
+        /**
+         * @description What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and
+         *     how many files it carries. Nothing else of the message (no embeds, file names or links, no author).
+         */
+        RequestPreviewObject: {
+            /**
+             * Format: int32
+             * @description The number of files on the message.
+             */
+            attachments: number;
+            /** @description Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files. */
+            content: string;
+            timestamp: string;
         };
         /** @enum {string} */
         RequestStatus: "Open" | "Fulfilled" | "Declined";

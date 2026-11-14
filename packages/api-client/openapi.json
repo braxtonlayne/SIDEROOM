@@ -96974,6 +96974,17 @@
             "description": "The largest file the viewer may upload in this conversation, in bytes (D-233).",
             "minimum": 0
           },
+          "sr_request_preview": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RequestPreviewObject",
+                "description": "With `is_message_request`: the latest message of the sender, as words only (D-688). Absent when the\nconversation holds none. SIDE ROOM extension."
+              }
+            ]
+          },
           "sr_request_reason": {
             "type": [
               "string",
@@ -113764,6 +113775,30 @@
           "total": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "RequestPreviewObject": {
+        "type": "object",
+        "description": "What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and\nhow many files it carries. Nothing else of the message (no embeds, file names or links, no author).",
+        "required": [
+          "content",
+          "attachments",
+          "timestamp"
+        ],
+        "properties": {
+          "attachments": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The number of files on the message.",
+            "minimum": 0
+          },
+          "content": {
+            "type": "string",
+            "description": "Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files."
+          },
+          "timestamp": {
+            "type": "string"
           }
         }
       },
