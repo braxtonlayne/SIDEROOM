@@ -4,10 +4,15 @@
 use crate::error::{LibraryError, LibraryResult};
 use crate::model::*;
 use crate::multipart::{
-    MultipartSlot, MultipartWiring, PART_URL_TTL, PartUrl, ReceivedPart, UploadParts, check_parts,
+    MultipartSlot, MultipartWiring, PART_URL_TTL, PartUrl, ReceivedPart, StoredPart, UploadParts,
+    check_parts, oversized_part,
 };
 use crate::service::{Actor, LibraryService};
 use crate::uploads::{IngestWiring, to_upload};
+
+/// What the uploader reads when an upload ends on an oversized or surplus part.
+const OVERSIZED_TEXT: &str =
+    "A part of this upload was larger than announced. The upload has ended; start a new one.";
 
 fn storage_err(e: impl std::fmt::Display) -> LibraryError {
     LibraryError::Storage(e.to_string())
@@ -118,6 +123,8 @@ impl LibraryService {
             .list_parts(&rec.object_key, &multipart_id)
             .await
             .map_err(storage_err)?;
+        self.end_if_oversized(&rec, &multipart_id, &stored, size, part_size, part_count)
+            .await?;
         let want = |n: u32| {
             if n == part_count {
                 size.saturating_sub(part_size * u64::from(part_count - 1))
@@ -146,6 +153,38 @@ impl LibraryService {
             missing,
             expires_in_secs: PART_URL_TTL.as_secs(),
         })
+    }
+
+    /// D-772 (SEC-AUD-290): a stored part larger than its part may be, or numbered beyond the count, ends the
+    /// upload the first time the server sees it: the store's upload is aborted and the row fails (the guarded
+    /// transition, so two calls at once end it once) with the sentence the uploader reads. A part that is too
+    /// small is not one: it can be sent again.
+    async fn end_if_oversized(
+        &self,
+        rec: &UploadRecord,
+        multipart_id: &str,
+        stored: &[StoredPart],
+        size: u64,
+        part_size: u64,
+        part_count: u32,
+    ) -> LibraryResult<()> {
+        let Some(o) = oversized_part(stored, size, part_size, part_count) else {
+            return Ok(());
+        };
+        tracing::warn!(
+            upload = rec.id,
+            part = o.number,
+            stored = o.size,
+            allowed = o.allowed,
+            "a part of a multipart upload is larger than announced; the upload ends"
+        );
+        if let Some(m) = &self.multipart
+            && let Err(e) = m.store.abort(&rec.object_key, multipart_id).await
+        {
+            tracing::warn!(upload = rec.id, error = %e, "aborting a multipart upload failed");
+        }
+        self.fail_upload(rec, OVERSIZED_TEXT, &[]).await;
+        Err(LibraryError::Conflict(OVERSIZED_TEXT.into()))
     }
 
     /// Give up an upload that was not completed: free the parts and expire the slot.
@@ -192,6 +231,8 @@ impl LibraryService {
             .list_parts(&rec.object_key, multipart_id)
             .await
             .map_err(storage_err)?;
+        self.end_if_oversized(rec, multipart_id, &stored, size, part_size, part_count)
+            .await?;
         let parts =
             check_parts(&stored, size, part_size, part_count).map_err(LibraryError::Invalid)?;
         m.store

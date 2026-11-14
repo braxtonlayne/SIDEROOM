@@ -585,7 +585,7 @@ impl LibraryService {
     }
 
     /// Mark an upload failed, tell the uploader and remove its object.
-    async fn fail_upload(&self, rec: &UploadRecord, error: &str, warnings: &[String]) {
+    pub(crate) async fn fail_upload(&self, rec: &UploadRecord, error: &str, warnings: &[String]) {
         match self
             .repo
             .finish_upload(
