@@ -43,7 +43,7 @@ Not done: a dot on an avatar with a decoration and on the smallest avatar size (
 `docs/10-design-system-and-theming.md` (status colours paragraph: the values, the hovered row as a surface, the two checks), `docs/specs/lounge-chat.md` (glyph sentence). Searched `docs/` and `apps/web/src` for the old hex values: `#c2b08f` elsewhere is `--sr-gold` or `--ui-warning`, unchanged; `docs/open-question-answers.md` and old handoffs are history.
 
 ## Changelog sources
-Prose clauses: from `p73-prose`'s committed handoff ("Changelog sentences"). Status clause: mine. Developers and Library clauses and the UPGRADE section: from the plan (uploads had committed nothing at 14:57). prose2 (SEC-AUD-291, bio preview) had no handoff: left out, the commander adds it. UPDATE_PLACEHOLDER
+Prose clauses: from `p73-prose`'s committed handoff ("Changelog sentences"). Status clause: mine. Developers and Library clauses and the UPGRADE section: from the plan (uploads had committed nothing at 14:57). prose2 (SEC-AUD-291, bio preview) had no handoff: left out, the commander adds it.
 
 ## Proposed inventory rows
 - SEC-AUD-286: "A hovered member or DM row is a surface a status sits on: `tokens-contrast.test.ts` checks online, idle and do-not-disturb at 3:1 on it and on every surface, for every theme. Lounge Light online `#168a49` and do-not-disturb `#e5383b`, Lounge Ash do-not-disturb `#fa5f61`, Editorial and Side Room do-not-disturb `#cc5c47` (D-769, D-773)."

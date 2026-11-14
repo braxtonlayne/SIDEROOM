@@ -158,8 +158,8 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 
 No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. Two behaviours an operator may be asked about:
 
-- **A package-upload start that had to wait** for another start of the same application (it waits up to 20 seconds for its turn) now answers 429 with "Another upload for this application is starting. Try again in a moment." and a retry-after of a few seconds. "Too many package uploads. Try again in an hour." is only for the hourly limit.
-- **The Library ends a resumable upload with an oversized part.** A stored part larger than that part may be, or numbered beyond the count, ends the upload the first time the server sees it, as a package upload does since wave 72; the client starts a new upload. A part that is too small can still be sent again.
+- **A package-upload start that had to wait** for another start of the same application (it waits up to 20 seconds for its turn) now answers 429 with "Another upload for this application is starting. Try again in a moment." and a retry-after of 5 seconds. "Too many package uploads. Try again in an hour." is only for the hourly limit.
+- **The Library ends a resumable upload with an oversized part.** A stored part larger than that part may be, or numbered beyond the count, ends the upload the first time the server sees it, as a package upload does since wave 72: the upload is marked failed with "A part of this upload was larger than announced. The upload has ended; start a new one.", an audit entry `library.chapter.ingest_failed` is written and the uploader is notified; they start a new upload. A part that is too small can still be sent again.
 
 ## Release notes: wave 72 (SEC-AUD-274..282)
 
