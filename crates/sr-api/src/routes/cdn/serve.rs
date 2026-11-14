@@ -231,6 +231,18 @@ pub(super) async fn serve(State(state): State<AppState>, req: Request) -> Respon
         None
     };
     let key: &str = mapped_key.as_deref().unwrap_or(&parsed.key);
+    // The blocklist was asked about the path's own key and asset above. An HLS file is stored somewhere else
+    // (`transcode/{job}/{attempt}/...`, or `subtitles/{asset}/...` for an uploaded subtitle), and a takedown also
+    // blocks those prefixes (D-335, D-695): ask about the key that is about to be read too.
+    if mapped_key.is_some()
+        && let Some(list) = deps.blocklist.as_ref()
+        && list.is_blocked_key(key).await
+    {
+        return plain(
+            StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+            "removed after a legal notice",
+        );
+    }
     let info = match deps.storage.head(key).await {
         Ok(i) => i,
         Err(StorageError::NotFound(_)) => return plain(StatusCode::NOT_FOUND, "not found"),
