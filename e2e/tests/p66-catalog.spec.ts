@@ -27,7 +27,13 @@ const distApp = resolve(
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:8080').origin;
 
 /** Texts of Admin section titles that only the staff catalog holds (messages/en-staff/admin-a-1.ts). */
-const ADMIN_TITLES = ['Platform bans', 'Staff & roles', 'Cinema transcoding', 'Ingest sources'];
+const ADMIN_TITLES = [
+  'Platform bans',
+  'Staff & roles',
+  'Cinema transcoding',
+  'Donation pricing',
+  'Crash reports',
+];
 
 function nonStaffFiles(dir = distApp, base = ''): string[] {
   expect(existsSync(dir), `${dir} exists: build the web app first`).toBe(true);
@@ -55,20 +61,14 @@ test('a member fetches every non-staff file of the app and none holds an Admin s
   for (const t of ADMIN_TITLES) expect(staffText, `${t} is in dist/app/staff`).toContain(t);
 
   const member = await signedIn(await seedUser('catalog'));
-  await member.page.goto('/');
-  const leaks = await member.page.evaluate(
-    async ([names, titles]) => {
-      const bad: string[] = [];
-      for (const n of names as string[]) {
-        const r = await fetch(`/app/${n}`);
-        if (!r.ok) continue;
-        const text = await r.text();
-        for (const t of titles as string[]) if (text.includes(t)) bad.push(`${n}: ${t}`);
-      }
-      return bad;
-    },
-    [files, ADMIN_TITLES],
-  );
+  // The member's own session fetches each file (no page navigation to race with the app's redirects).
+  const leaks: string[] = [];
+  for (const n of files) {
+    const r = await member.context.request.get(`/app/${n}`);
+    if (!r.ok()) continue;
+    const text = await r.text();
+    for (const t of ADMIN_TITLES) if (text.includes(t)) leaks.push(`${n}: ${t}`);
+  }
   expect(leaks).toEqual([]);
 });
 
@@ -174,7 +174,7 @@ test('shots: Admin sections as the Owner, Lounge and Settings as a member', asyn
       const mp = await m.newPage();
       for (const [name, path] of [
         ['lounge', '/'],
-        ['settings', '/settings'],
+        ['settings', '/settings/user/account'],
       ] as const) {
         await mp.goto(path);
         await mp.waitForLoadState('networkidle');
