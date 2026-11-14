@@ -14,7 +14,26 @@ else
   ENV_FILE="deploy/compose/.env"
   [ -f "$ENV_FILE" ] || ENV_FILE="deploy/compose/.env.example"
 fi
-set -a; . "$ENV_FILE"; set +a
+
+# SEC-AUD-270: the three keys this script needs are READ from the env file, not sourced. Sourcing runs the whole file as
+# shell, so a mail password with ';', '(', '&' or a backtick (which the installer used to write bare) broke it or ran a
+# command. The value is taken as the file spells it, with one pair of single or double quotes taken off, as compose does.
+env_value() {
+  local v
+  v="$(sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1)"
+  v="${v%$'\r'}"
+  case "$v" in
+    \'*\') v="${v#\'}"; v="${v%\'}" ;;
+    \"*\") v="${v#\"}"; v="${v%\"}" ;;
+  esac
+  printf '%s' "$v"
+}
+GARAGE_ACCESS_KEY="$(env_value GARAGE_ACCESS_KEY)"
+GARAGE_SECRET_KEY="$(env_value GARAGE_SECRET_KEY)"
+GARAGE_BUCKET="$(env_value GARAGE_BUCKET)"
+for needed in GARAGE_ACCESS_KEY GARAGE_SECRET_KEY GARAGE_BUCKET; do
+  [ -n "${!needed}" ] || { echo "error: $needed is not set in $ENV_FILE" >&2; exit 1; }
+done
 
 garage() { "${COMPOSE[@]}" exec -T garage /garage "$@"; }
 
