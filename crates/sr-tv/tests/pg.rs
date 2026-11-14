@@ -17,7 +17,7 @@ use sr_tv::tz::{MS_DAY, days_from_civil};
 fn input(number: i32) -> ChannelInput {
     serde_json::from_value(serde_json::json!({
         "number": number, "name": "Toonami", "kind": "rule_based", "timezone": "America/New_York",
-        "filler_policy": "slate", "logo_key": "tv/toonami.png", "call_sign": "TOON",
+        "filler_policy": "slate", "call_sign": "TOON",
         "rules": {"grid_minutes": 30, "dayparts": [
             {"name": "All day", "start": "00:00", "end": "24:00", "mode": "sequential",
              "pool": {"title_ids": ["7"], "genres": ["action"]}}]}
