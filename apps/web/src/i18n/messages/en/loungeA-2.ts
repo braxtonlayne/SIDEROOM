@@ -18,18 +18,14 @@ export default {
   'lounge.channelSidebar.editChannel': 'Edit Channel',
   'lounge.channelSidebar.categoryMenu': '{name} category menu',
   'lounge.channelSidebar.createChannelIn': 'Create Channel in {name}',
-  'lounge.channelSidebar.serverSupport': 'Server Support',
   'lounge.channelSidebar.inviteToServer': 'Invite to Server',
   'lounge.channelSidebar.createEvent': 'Create Event',
-  'lounge.channelSidebar.appDirectory': 'App Directory',
   'lounge.channelSidebar.privacySettings': 'Privacy Settings',
   'lounge.channelSidebar.editPerServerProfile': 'Edit Per-server Profile',
   'lounge.channelSidebar.copyServerInfo': 'Copy Server Info',
   'lounge.channelSidebar.copyServerLink': 'Copy Server Link',
   'lounge.channelSidebar.securityActions': 'Security Actions',
   'lounge.channelSidebar.serverMenu': '{name} server menu',
-  'lounge.channelSidebar.serverActionSoon':
-    'This server action ships with its own inventory item (LNG-GLD-019..034).',
   'lounge.channelSidebar.channels': '{name} channels',
   'lounge.channelSidebar.noChannels': 'No channels yet.',
   // Channel view
