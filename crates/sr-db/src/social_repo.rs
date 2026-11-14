@@ -1154,6 +1154,23 @@ impl NotificationRepository for PgSocialRepo {
         }))
     }
 
+    async fn suppressing_scopes(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        let ids: Vec<i64> = users.iter().map(|u| i(u.get())).collect();
+        let rows: Vec<(i64, bool, bool)> = sqlx::query_as(
+            "SELECT user_id, suppress_everyone, suppress_roles FROM notification_settings              WHERE guild_id = $1 AND user_id = ANY($2) AND (suppress_everyone OR suppress_roles)",
+        )
+        .bind(i(guild.get()))
+        .bind(&ids)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        Ok(rows.into_iter().map(|(u, e, r)| (uid(u), e, r)).collect())
+    }
+
     async fn put_scope(&self, s: &ScopeSettings) -> RepoResult<()> {
         sqlx::query(
             "INSERT INTO notification_settings (user_id, guild_id, level, suppress_everyone, \

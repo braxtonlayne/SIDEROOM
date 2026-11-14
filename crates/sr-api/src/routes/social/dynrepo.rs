@@ -258,6 +258,13 @@ impl NotificationRepository for DynRepo {
     async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>> {
         self.0.list_scopes(user).await
     }
+    async fn suppressing_scopes(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        self.0.suppressing_scopes(guild, users).await
+    }
 }
 
 #[async_trait]

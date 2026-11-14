@@ -624,3 +624,92 @@ async fn put_profile_after_erasure_is_refused() {
         .unwrap();
     assert_eq!(bio, None);
 }
+
+/// SEC-AUD-241 (D-726): a member whose scope for the server suppresses `@everyone` or roles gets no badge from
+/// such a message (the Postgres twin of the memory-repo tests); a direct mention and the other kind still count.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn suppress_switches_keep_the_badge_off() {
+    use sr_chat::message_hooks::MessageHooks;
+    use sr_chat::social::service::ScopeUpdate;
+    use sr_chat::{Message, MessageType, Visibility};
+    use sr_core::{GuildId, RoleId};
+
+    let pool = pool().await;
+    let (svc, ids) = service(&pool);
+    let (author, a, b, c) = (
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+        account(&pool, &ids).await,
+    );
+    befriend(&svc, author, a).await;
+    let ch = svc.open_dm(author, a).await.unwrap().channel.id;
+    // A guild-less stand-in server id: the scope table keys on it without a foreign key.
+    let guild = GuildId::new(ids.generate().get());
+    let suppress = |everyone: bool, roles: bool| ScopeUpdate {
+        suppress_everyone: Some(everyone),
+        suppress_roles: Some(roles),
+        ..Default::default()
+    };
+    svc.update_scope(a, Some(guild), &suppress(true, false))
+        .await
+        .unwrap();
+    svc.update_scope(b, Some(guild), &suppress(false, true))
+        .await
+        .unwrap();
+    let msg = |everyone: bool, users: &[UserId], roles: &[u64]| Message {
+        id: MessageId::new(ids.generate().get()),
+        channel_id: ch,
+        guild_id: Some(guild),
+        author_id: author,
+        kind: MessageType::Default,
+        content: String::new(),
+        flags: 0,
+        edited_at_ms: None,
+        reference: None,
+        attachment_ids: Vec::new(),
+        embeds: Vec::new(),
+        components: Vec::new(),
+        sticker_ids: Vec::new(),
+        poll: None,
+        mention_everyone: everyone,
+        mention_user_ids: users.to_vec(),
+        mention_role_ids: roles.iter().map(|r| RoleId::new(*r)).collect(),
+        mention_channel_ids: Vec::new(),
+        pinned: false,
+        visibility: Visibility::Visible,
+        deleted_at_ms: None,
+        purge_after_ms: None,
+        hold_id: None,
+    };
+    let count = |u: UserId| {
+        let svc = &svc;
+        async move {
+            svc.read_states(u)
+                .await
+                .unwrap()
+                .iter()
+                .find(|s| s.channel == ch)
+                .map_or(0, |s| s.mention_count)
+        }
+    };
+    // `@everyone`: `a` suppresses it (no badge), `b` and `c` do not.
+    svc.message_sent(&msg(true, &[], &[]), &[a, b, c]).await;
+    assert_eq!(count(a).await, 0);
+    assert_eq!(count(b).await, 1);
+    assert_eq!(count(c).await, 1);
+    // A role ping: `b` suppresses roles (no badge); `a` does not suppress them.
+    svc.message_sent(&msg(false, &[], &[7]), &[a, b, c]).await;
+    assert_eq!(count(a).await, 1);
+    assert_eq!(count(b).await, 1);
+    assert_eq!(count(c).await, 2);
+    // A direct mention counts for a suppressing member.
+    svc.message_sent(&msg(true, &[a], &[]), &[a, b]).await;
+    assert_eq!(count(a).await, 2);
+    assert_eq!(
+        count(b).await,
+        2,
+        "b suppresses roles, not @everyone, so this one counts for b"
+    );
+}

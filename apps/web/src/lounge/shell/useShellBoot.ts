@@ -3,6 +3,8 @@ import { LoungeDataContext } from '../data';
 import { useIgnores } from './ignores';
 import { startIdleReporter } from './idleReporter';
 import { useNotifSettings } from './notifSettings';
+import { loungeMentionGate } from './mentionRules';
+import { setMentionGate } from '../../store/mentionGate';
 import { startSocialLive, useSocial } from './social';
 import { useUserSettingsSync } from './userSettingsSync';
 import { startThreadsLive } from '../threads/threadStore';
@@ -30,6 +32,12 @@ export function useShellBoot() {
       .catch(() => undefined);
   }, [mock]);
   useEffect(() => (mock ? undefined : startSocialLive()), [mock]);
+  // The live mention badge follows the server's rules (D-721): blocked and ignored authors, the suppress switches.
+  useEffect(() => {
+    if (mock) return;
+    setMentionGate(loungeMentionGate);
+    return () => setMentionGate(null);
+  }, [mock]);
   useEffect(() => (mock ? undefined : startThreadsLive()), [mock]);
   useEffect(() => (mock ? undefined : startPreviewsLive()), [mock]);
   useEffect(() => (mock ? undefined : startIdleReporter()), [mock]);

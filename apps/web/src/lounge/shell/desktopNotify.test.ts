@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { titleWithBadge } from '../../pwa/titleBadge';
 import type { Message } from '../../store';
@@ -181,5 +183,108 @@ describe('reactionDecision', () => {
     expect(reactionDecision(ev(), rctx({ scope: scope({ channels: { c1: channel } }) }))).toBe(
       false,
     );
+  });
+});
+
+// SEC-AUD-240 (D-727): the open app decides by the server engine's order. Each case below failed on the base.
+describe('desktopDecision follows the engine', () => {
+  const role = { mention_roles: ['r1'] };
+  const withChannels = (channels: GuildNotif['channels'], over: Partial<GuildNotif> = {}) =>
+    scope({ channels, ...over });
+  it('a role mention at "only mentions" notifies as a mention', () => {
+    expect(desktopDecision(msg(role), ctx({ roles: ['r1'] }))).toBe('mention');
+    expect(desktopDecision(msg(role), ctx({ roles: ['r9'] }))).toBeNull();
+    expect(desktopDecision(msg(role), ctx())).toBeNull();
+  });
+  it('suppress-roles keeps a role mention silent', () => {
+    const s = scope({ suppressRoles: true });
+    expect(desktopDecision(msg(role), ctx({ roles: ['r1'], scope: s }))).toBeNull();
+  });
+  it('a muted category is silent', () => {
+    const s = withChannels({ cat: { muted: true, endsAt: null, level: null } }, { level: 0 });
+    expect(desktopDecision(msg(), ctx({ scope: s, categoryId: 'cat' }))).toBeNull();
+    expect(desktopDecision(msg(), ctx({ scope: s }))).toBe('message');
+  });
+  it('a category level of "nothing" is silent, and the channel beats the category', () => {
+    const s = withChannels({ cat: { muted: false, endsAt: null, level: 2 } }, { level: 0 });
+    const direct = { mentions: [{ id: 'u1', username: 'me' }] };
+    expect(desktopDecision(msg(direct), ctx({ scope: s, categoryId: 'cat' }))).toBeNull();
+    const own = withChannels(
+      {
+        cat: { muted: false, endsAt: null, level: 2 },
+        c1: { muted: false, endsAt: null, level: 0 },
+      },
+      { level: 2 },
+    );
+    expect(desktopDecision(msg(), ctx({ scope: own, categoryId: 'cat' }))).toBe('message');
+  });
+  it('a server whose default is "all messages" notifies when the person chose nothing', () => {
+    expect(desktopDecision(msg(), ctx({ guildDefault: 0 }))).toBe('message');
+    expect(desktopDecision(msg(), ctx({ guildDefault: 1 }))).toBeNull();
+    expect(desktopDecision(msg(), ctx({ guildDefault: 0, scope: scope({ level: 1 }) }))).toBeNull();
+  });
+  it('the person default sits between their server choice and the server default', () => {
+    expect(desktopDecision(msg(), ctx({ guildDefault: 1, userDefault: 0 }))).toBe('message');
+    expect(desktopDecision(msg(), ctx({ guildDefault: 0, userDefault: 2 }))).toBeNull();
+  });
+  it('a reaction is silent in a muted category', () => {
+    const s = withChannels({ cat: { muted: true, endsAt: null, level: null } });
+    const ev = { user_id: 'u2', channel_id: 'c1', message_id: 'm1', message_author_id: 'u1' };
+    const rctx = { ...ctx({ scope: s, categoryId: 'cat' }), enabled: true, silenced: false };
+    expect(reactionDecision(ev, rctx)).toBe(false);
+    expect(reactionDecision(ev, { ...rctx, categoryId: undefined })).toBe(true);
+  });
+});
+
+// The same cases the Rust engine runs (`crates/sr-chat/src/social/notify_cases.json`, test
+// `the_shared_notification_cases_hold`): one file, two implementations.
+describe('desktopDecision on the shared cases', () => {
+  interface Case {
+    name: string;
+    isDm: boolean;
+    guildDefault: number;
+    userDefault: number | null;
+    scope: {
+      level: number | null;
+      muted: boolean;
+      suppressEveryone: boolean;
+      suppressRoles: boolean;
+    };
+    category: { level: number | null; muted: boolean } | null;
+    channel: { level: number | null; muted: boolean } | null;
+    kind: { direct: boolean; reply: boolean; everyone: boolean; role: boolean };
+    expect: { notifies: boolean; mention: boolean };
+  }
+  // The tests run from apps/web.
+  const file = resolve(process.cwd(), '../../crates/sr-chat/src/social/notify_cases.json');
+  const cases = JSON.parse(readFileSync(file, 'utf8')) as Case[];
+  it('has at least 24 cases', () => expect(cases.length).toBeGreaterThanOrEqual(24));
+  it.each(cases.map((c) => [c.name, c] as const))('%s', (_name, c) => {
+    const o = (v: { level: number | null; muted: boolean } | null) =>
+      v ? { muted: v.muted, endsAt: null, level: v.level } : undefined;
+    const channels: GuildNotif['channels'] = {};
+    const ch = o(c.channel);
+    const cat = o(c.category);
+    if (ch) channels.c1 = ch;
+    if (cat) channels.cat = cat;
+    const m = msg({
+      guild_id: c.isDm ? undefined : 'g1',
+      // A reply that pinged is in `mentions` (D-725): the web reads it as a direct mention.
+      mentions: c.kind.direct || c.kind.reply ? [{ id: 'u1', username: 'me' }] : [],
+      mention_everyone: c.kind.everyone,
+      mention_roles: c.kind.role ? ['r1'] : [],
+    });
+    const got = desktopDecision(
+      m,
+      ctx({
+        scope: scope({ ...c.scope, endsAt: null, channels }),
+        categoryId: cat ? 'cat' : undefined,
+        roles: ['r1'],
+        guildDefault: c.guildDefault,
+        userDefault: c.userDefault,
+      }),
+    );
+    expect(got !== null).toBe(c.expect.notifies);
+    expect(got === 'mention').toBe(c.expect.mention);
   });
 });

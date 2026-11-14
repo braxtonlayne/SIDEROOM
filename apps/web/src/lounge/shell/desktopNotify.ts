@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { onDispatch } from '../../store/events';
 import { useStore } from '../../store';
+import { memberKey } from '../../store/reducer';
 import type { Message } from '../../store';
 import { streamerState, usePrefsStore } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
@@ -30,6 +31,14 @@ export interface NotifyContext {
   now: number;
   /** Accounts the viewer blocked or ignores: nothing from them notifies or sounds (D-717). */
   hidden: HiddenAuthors;
+  /** The viewer's role ids in the message's server; a pinged role among them is a mention (D-727). Absent: none. */
+  roles?: readonly string[];
+  /** The channel's category, or for a thread its parent channel (what the push engine passes): its mute and level count. */
+  categoryId?: string;
+  /** The server's suggested level (`default_message_notifications`); absent: 1 in a server, 0 in a DM. */
+  guildDefault?: number;
+  /** The person's own default level (`/users/@me/notification-defaults`), when known; null or absent: none. */
+  userDefault?: number | null;
 }
 
 export type NotifyKind = 'mention' | 'message';
@@ -44,13 +53,23 @@ export function desktopDecision(msg: Message, c: NotifyContext): NotifyKind | nu
   if (c.status === 'dnd') return null;
   if (c.windowFocused && c.activeChannelId === msg.channel_id) return null;
   const channel = c.scope?.channels[msg.channel_id];
-  if (isMuted(channel, c.now) || isMuted(c.scope, c.now)) return null;
+  const category = c.categoryId ? c.scope?.channels[c.categoryId] : undefined;
+  if (isMuted(channel, c.now) || isMuted(category, c.now) || isMuted(c.scope, c.now)) return null;
   const isDm = !msg.guild_id;
   const direct = (msg.mentions ?? []).some((u) => u.id === c.me);
   const everyone = !!msg.mention_everyone && !c.scope?.suppressEveryone;
-  const mention = direct || everyone;
-  // Explicit channel choice, then the server choice; unset means DMs notify for all, servers for mentions.
-  const level = channel?.level ?? c.scope?.level ?? (isDm ? 0 : 1);
+  const role =
+    !c.scope?.suppressRoles && (msg.mention_roles ?? []).some((r) => c.roles?.includes(r));
+  const mention = direct || everyone || role;
+  // The engine's order (D-727): the channel, its category, the person's choice for the server, the person's own
+  // default, the server's suggestion; with none, DMs notify for all and servers for mentions.
+  const level =
+    channel?.level ??
+    category?.level ??
+    c.scope?.level ??
+    c.userDefault ??
+    c.guildDefault ??
+    (isDm ? 0 : 1);
   if (level === 2) return null;
   if (level === 1) return mention ? 'mention' : null;
   return mention ? 'mention' : 'message';
@@ -83,7 +102,8 @@ export function reactionDecision(ev: ReactionEvent, c: ReactionContext): boolean
   if (c.status === 'dnd') return false;
   if (c.windowFocused && c.activeChannelId === ev.channel_id) return false;
   const channel = c.scope?.channels[ev.channel_id];
-  return !(isMuted(channel, c.now) || isMuted(c.scope, c.now));
+  const category = c.categoryId ? c.scope?.channels[c.categoryId] : undefined;
+  return !(isMuted(channel, c.now) || isMuted(category, c.now) || isMuted(c.scope, c.now));
 }
 
 let audio: AudioContext | null = null;
@@ -137,6 +157,7 @@ export function useDesktopNotify(): void {
             windowFocused: typeof document !== 'undefined' && document.hasFocus(),
             status: st.presences[me]?.status,
             scope: useNotifSettings.getState().byGuild[scopeKey],
+            categoryId: st.channels[ev.channel_id]?.parent_id ?? undefined,
             now: Date.now(),
             enabled: prefs.reactionNotifications,
             silenced: streamerState(prefs).silence,
@@ -202,6 +223,12 @@ export function useDesktopNotify(): void {
           scope: useNotifSettings.getState().byGuild[scopeKey],
           now: Date.now(),
           hidden: hiddenAuthorsNow(),
+          roles: msg.guild_id ? st.members[memberKey(msg.guild_id, me)]?.roles : undefined,
+          categoryId: st.channels[msg.channel_id]?.parent_id ?? undefined,
+          guildDefault: msg.guild_id
+            ? (st.guilds[msg.guild_id] as { default_message_notifications?: number } | undefined)
+                ?.default_message_notifications
+            : undefined,
         });
         if (!kind) return;
         if (kind === 'mention' ? prefs.soundMention : prefs.soundMessage) playBlip(kind);

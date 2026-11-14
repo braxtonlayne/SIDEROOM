@@ -16,6 +16,7 @@ import type {
   VoiceServerInfo,
   VoiceState,
 } from './types';
+import { mentionCounts } from './mentionGate';
 
 /** Key used in `channelIdsByGuild` for DM / group DM channels. */
 export const DM_GUILD = '@me';
@@ -750,11 +751,19 @@ export function reduceDispatch(
           }
         : {};
       // A message a moderator restored (`restored: true`, D-338) is inserted again but raises no mention badge.
+      // What counts is the server's rule (D-721): direct, `@everyone`, or one of the viewer's roles; the Lounge's gate
+      // leaves out blocked and ignored authors.
+      const me = s.currentUserId;
+      const held = me && msg.guild_id ? s.members[memberKey(msg.guild_id, me)]?.roles : undefined;
       const mentioned =
         !msg.restored &&
-        s.currentUserId !== null &&
-        msg.author.id !== s.currentUserId &&
-        ((msg.mentions ?? []).some((u) => u.id === s.currentUserId) || msg.mention_everyone);
+        me !== null &&
+        msg.author.id !== me &&
+        mentionCounts(msg, {
+          direct: (msg.mentions ?? []).some((u) => u.id === me),
+          everyone: !!msg.mention_everyone,
+          role: !!held && (msg.mention_roles ?? []).some((r) => held.includes(r)),
+        });
       let readOut = {};
       if (mentioned) {
         const rs = s.readStates[msg.channel_id] ?? {
