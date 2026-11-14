@@ -1436,3 +1436,19 @@
   font-size: 0.8125rem;
   color: var(--lng-muted, inherit);
 }
+
+/* A text spoiler stays hidden until it is clicked. markdown-react's own stylesheet is not loaded by the app, so the
+   message list carries the spoiler rules itself (wave 71: before this, spoiler text was readable in the list). */
+.sr-md-spoiler[data-revealed='false'] {
+  cursor: pointer;
+  border-radius: 3px;
+  background: var(--ui-text-faint);
+}
+.sr-md-spoiler[data-revealed='false'] .sr-md-spoiler-content {
+  opacity: 0;
+  pointer-events: none;
+}
+.sr-md-spoiler[data-revealed='true'] {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-normal) 14%, transparent);
+}

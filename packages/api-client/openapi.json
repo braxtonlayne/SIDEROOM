@@ -3593,13 +3593,22 @@
         "tags": [
           "bugs"
         ],
-        "summary": "The reports, newest first (any appointed staff member). No audit entry: the list holds no description or picture.",
+        "summary": "The reports, newest first (any appointed staff member), at most `limit` of them; `before` (a report id) starts the\npage after that report and `has_more` says whether another page exists. No audit entry: the list holds no\ndescription or picture.",
         "operationId": "list",
         "parameters": [
           {
             "name": "status",
             "in": "query",
             "description": "open or closed; omit for both",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "A report id: only older reports are returned",
             "required": false,
             "schema": {
               "type": "string"
@@ -3670,7 +3679,7 @@
         "tags": [
           "bugs"
         ],
-        "summary": "One report with its description and bundle (any appointed staff member). Leaves a platform audit entry\n(`bug.report.read`) before the data is returned.",
+        "summary": "One report with its description and bundle (any appointed staff member). Leaves a platform audit entry\n(`bug.report.read`) once the report is found and before the data is returned; an id that is not there leaves none.",
         "operationId": "detail",
         "parameters": [
           {
@@ -3737,7 +3746,7 @@
         "tags": [
           "bugs"
         ],
-        "summary": "Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry\n(`bug.report.close`) before anything changes.",
+        "summary": "Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry\n(`bug.report.close`) before anything changes, for a report that exists (an id that is not there leaves none).",
         "operationId": "close",
         "parameters": [
           {
@@ -3797,7 +3806,7 @@
         "tags": [
           "bugs"
         ],
-        "summary": "The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)\nbefore the bytes are returned. 404 when the report has no picture (never sent, closed, or older than 30 days).",
+        "summary": "The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)\nonce the picture is found and before the bytes are returned. 404 (and no entry) when the report has no picture\n(never sent, closed, or older than 30 days) or there is no such report.",
         "operationId": "screenshot",
         "parameters": [
           {
@@ -27587,7 +27596,7 @@
         "tags": [
           "bugs"
         ],
-        "summary": "Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per\nday for the platform; the server rebuilds the stored report from the allow-list. 400 for a missing or too long\ndescription or a picture that is not a JPEG, 404 while `platform.beta_reports` is off, 413 for a picture over 2 MiB,\n429 past the limits.",
+        "summary": "Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per\nday for the platform (counted BEFORE the body is decoded, so an account over its figure never makes the server\ndecode a 2 MiB picture; a body the allow-list then refuses gives its slot back); the server rebuilds the stored\nreport from the allow-list. 400 for a missing or too long description or a picture that is not a JPEG, 404 while\n`platform.beta_reports` is off, 413 for a picture over 2 MiB, 429 past the limits.",
         "operationId": "submit",
         "requestBody": {
           "content": {
@@ -88889,12 +88898,17 @@
         "required": [
           "reports",
           "open_count",
+          "has_more",
           "beta_over_100"
         ],
         "properties": {
           "beta_over_100": {
             "type": "boolean",
             "description": "D-647: `platform.beta_reports` is on and the platform has 100 or more active accounts, so the page tells staff\nthe beta tool has outgrown its purpose. No number is given: `STAFF_BASIC` staff need not learn the account count."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "More reports exist after the last one of `reports` (SEC-AUD-267): ask again with `before` set to its id."
           },
           "open_count": {
             "type": "integer",

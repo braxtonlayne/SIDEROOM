@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{PgPool, Row};
 use sr_library::multipart::{MAX_PARTS, PART_URL_TTL, PartStore, StoredPart, check_parts};
-use sr_storage::ObjectStorage;
+use sr_storage::{ObjectStorage, StorageError};
 use utoipa::ToSchema;
 
 use crate::error::{ActivityError, ActivityResult};
@@ -31,6 +31,12 @@ pub const UPLOAD_TTL_HOURS: i64 = 24;
 pub const UPLOADS_PER_HOUR: i64 = 6;
 /// Open (not yet completed) uploads one application may have; starting another aborts the older.
 pub const OPEN_UPLOADS: i64 = 2;
+/// SEC-AUD-254: when `complete` queues the check, the upload may live at least this many hours more, so the daily
+/// sweep does not expire it under the check. A check reads the zip at most four times over plus 16 MiB (the read
+/// budget of `zipstore`) and the job is tried three times (`INGEST_ATTEMPTS` of `sr-server`, backoff 5 s, 10 s),
+/// with no time limit of its own; six hours covers three attempts at a few MB/s on the largest package. A check
+/// that is still not done after it is stuck, and the sweep ends it.
+pub const CHECK_ALLOWANCE_HOURS: i64 = 6;
 /// Rows older than this many days are deleted by the sweep.
 pub const KEEP_DAYS: i64 = 7;
 /// What the page shows when a check ends for a reason that is not the package's fault.
@@ -566,6 +572,10 @@ impl PackageUploads {
 
     /// `POST .../uploads/{id}/complete`: check the parts against the announced size, let the store assemble the
     /// object and queue the check. Asking again once it is queued answers with the current state.
+    ///
+    /// SEC-AUD-254: it can be asked again after a failure between the store and the row. The assembled object is
+    /// the proof that the parts were accepted: when it is there, the parts are not asked for again (the store no
+    /// longer has them), and the row moves on to `checking`.
     pub async fn complete(&self, app: i64, id: i64) -> UploadResult<PackageUploadStatus> {
         let r = self.load(app, id).await?;
         match r.state.as_str() {
@@ -583,56 +593,86 @@ impl PackageUploads {
             .parts
             .as_ref()
             .ok_or(PackageUploadError::NoParts)?;
-        let (size, part_size, count) = dims(&r);
-        let stored = w
-            .store
-            .list_parts(&r.object_key, &r.multipart_id)
-            .await
-            .map_err(storage_err)?;
-        let missing = missing_parts(&stored, size, part_size, count);
-        if !missing.is_empty() {
-            let list = missing
-                .iter()
-                .map(u32::to_string)
-                .collect::<Vec<_>>()
-                .join(", ");
-            return Err(PackageUploadError::PartsMissing(format!(
-                "Parts {list} of {count} have not been uploaded."
-            )));
-        }
-        let parts = check_parts(&stored, size, part_size, count)
-            .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
-        if let Err(e) = w
-            .store
-            .complete(&r.object_key, &r.multipart_id, &parts)
-            .await
-        {
-            tracing::warn!(upload = id, error = %e, "completing a package upload failed");
-            return Err(ActivityError::Conflict(
-                "The storage did not accept the uploaded parts. Start a new upload.".into(),
-            )
-            .into());
+        if !self.assembled(&r).await? {
+            'assemble: {
+                let (size, part_size, count) = dims(&r);
+                let stored = match w.store.list_parts(&r.object_key, &r.multipart_id).await {
+                    Ok(s) => s,
+                    // Another `complete` may have assembled it since the look above: the store no longer knows the
+                    // upload, and the object is there.
+                    Err(_) if self.assembled(&r).await? => break 'assemble,
+                    Err(e) => return Err(storage_err(e).into()),
+                };
+                let missing = missing_parts(&stored, size, part_size, count);
+                if !missing.is_empty() {
+                    let list = missing
+                        .iter()
+                        .map(u32::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(PackageUploadError::PartsMissing(format!(
+                        "Parts {list} of {count} have not been uploaded."
+                    )));
+                }
+                let parts = check_parts(&stored, size, part_size, count)
+                    .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
+                if let Err(e) = w
+                    .store
+                    .complete(&r.object_key, &r.multipart_id, &parts)
+                    .await
+                {
+                    // Another `complete` may have won the race (the store no longer has the upload, the object is
+                    // there). Only an object that is not there is a failure.
+                    if !self.assembled(&r).await? {
+                        tracing::warn!(upload = id, error = %e, "completing a package upload failed");
+                        return Err(ActivityError::Conflict(
+                            "The storage did not accept the uploaded parts. Start a new upload."
+                                .into(),
+                        )
+                        .into());
+                    }
+                }
+            }
         }
         let moved = sqlx::query(
-            "UPDATE activity_package_uploads SET state = 'checking', checked_bytes = 0 \
+            "UPDATE activity_package_uploads SET state = 'checking', checked_bytes = 0, \
+             expires_at = GREATEST(expires_at, now() + make_interval(hours => $2::int)) \
              WHERE id = $1 AND state = 'uploading'",
         )
         .bind(id)
+        .bind(CHECK_ALLOWANCE_HOURS as i32)
         .execute(&self.inner.pool)
         .await?
         .rows_affected();
-        if moved == 1
-            && let Err(e) = self.inner.queue.enqueue(id).await
-        {
-            tracing::error!(upload = id, error = %e, "queueing a package check failed");
-            self.finish_refused(id, CHECK_FAILED).await?;
-            return Err(ActivityError::Storage(e).into());
+        if moved == 1 {
+            if let Err(e) = self.inner.queue.enqueue(id).await {
+                tracing::error!(upload = id, error = %e, "queueing a package check failed");
+                self.finish_refused(id, CHECK_FAILED).await?;
+                // Nothing will check the object now: do not leave it in the store.
+                self.delete_object(&r).await;
+                return Err(ActivityError::Storage(e).into());
+            }
+        } else {
+            // The row moved under us (given up or expired while the store assembled): the object is nobody's.
+            let now = self.load(app, id).await?;
+            if !matches!(now.state.as_str(), "checking" | "ready" | "refused") {
+                self.discard(&now).await;
+            }
         }
         Ok(self.status(app, id).await?)
     }
 
-    /// `DELETE .../uploads/{id}`: give the upload up. Parts are aborted at the store (or the staged object deleted
-    /// when the check had begun); a finished upload is left as it is.
+    /// Whether the store holds the assembled object of `r`.
+    async fn assembled(&self, r: &UploadRow) -> ActivityResult<bool> {
+        match self.inner.storage.head(&r.object_key).await {
+            Ok(_) => Ok(true),
+            Err(StorageError::NotFound(_)) => Ok(false),
+            Err(e) => Err(storage_err(e)),
+        }
+    }
+
+    /// `DELETE .../uploads/{id}`: give the upload up. Whatever it holds at the store is freed (see `discard`); a
+    /// finished upload is left as it is.
     pub async fn abort(&self, app: i64, id: i64) -> ActivityResult<()> {
         let r = self.load(app, id).await?;
         let moved = sqlx::query(
@@ -649,16 +689,27 @@ impl PackageUploads {
         Ok(())
     }
 
-    /// Free what an unfinished upload holds: its open parts, or the staged object.
+    /// Free whatever an unfinished upload holds at the store, whatever state the row was in (SEC-AUD-254): the
+    /// open parts (if the store still has them) AND the assembled object (if it is there). "Not there" is done.
+    /// The state does not decide, because the row can say `uploading` while the store already assembled the object
+    /// (the update to `checking` failed), or `checking` while the parts are long gone.
     async fn discard(&self, r: &UploadRow) {
-        if r.state == "uploading" {
-            if let Some(w) = &self.inner.parts
-                && let Err(e) = w.store.abort(&r.object_key, &r.multipart_id).await
-            {
-                tracing::warn!(upload = r.id, error = %e, "aborting a package upload failed");
+        if let Some(w) = &self.inner.parts
+            && let Err(e) = w.store.abort(&r.object_key, &r.multipart_id).await
+        {
+            // A store that no longer knows the upload may answer with an error too; the object below is what counts.
+            tracing::debug!(upload = r.id, error = %e, "aborting a package upload's parts failed");
+        }
+        self.delete_object(r).await;
+    }
+
+    /// Delete the assembled object of `r`; one that is not there is done.
+    async fn delete_object(&self, r: &UploadRow) {
+        match self.inner.storage.delete(&r.object_key).await {
+            Ok(()) | Err(StorageError::NotFound(_)) => {}
+            Err(e) => {
+                tracing::warn!(upload = r.id, error = %e, "deleting a staged package failed");
             }
-        } else if let Err(e) = self.inner.storage.delete(&r.object_key).await {
-            tracing::warn!(upload = r.id, error = %e, "deleting a staged package failed");
         }
     }
 

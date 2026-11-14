@@ -11,7 +11,7 @@ use super::repo::*;
 use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, RoleId, UserId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
@@ -52,6 +52,8 @@ pub struct Store {
     pub group_invites: HashMap<String, GroupInvite>,
     pub user_settings: HashMap<UserId, super::user_settings::UserSettings>,
     pub default_levels: HashMap<UserId, super::notifications::NotificationLevel>,
+    /// The roles a member holds in a server (tests set these: the chat store owns the real table, D-733).
+    pub member_roles: HashMap<(GuildId, UserId), Vec<RoleId>>,
 }
 
 #[derive(Default)]
@@ -70,6 +72,13 @@ impl MemoryRepo {
         self.store
             .lock()
             .map_err(|_| RepoError("store poisoned".into()))
+    }
+
+    /// Test helper: `user` holds `role` in `guild`.
+    pub fn hold_role(&self, guild: GuildId, user: UserId, role: RoleId) {
+        if let Ok(mut s) = self.lock() {
+            s.member_roles.entry((guild, user)).or_default().push(role);
+        }
     }
 
     /// Test helper: register a user so `user_exists` is true.
@@ -688,7 +697,8 @@ impl NotificationRepository for MemoryRepo {
         &self,
         guild: GuildId,
         users: &[UserId],
-    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        role_ids: &[RoleId],
+    ) -> RepoResult<Vec<(UserId, bool, bool, bool)>> {
         self.suppress_lookups
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let s = self.lock()?;
@@ -696,10 +706,15 @@ impl NotificationRepository for MemoryRepo {
             .iter()
             .filter_map(|u| {
                 let c = s.scopes.get(&(*u, Some(guild)))?;
+                let holds = s
+                    .member_roles
+                    .get(&(guild, *u))
+                    .is_some_and(|r| r.iter().any(|x| role_ids.contains(x)));
                 (c.suppress_everyone || c.suppress_roles).then_some((
                     *u,
                     c.suppress_everyone,
                     c.suppress_roles,
+                    holds,
                 ))
             })
             .collect())

@@ -5,8 +5,11 @@
  * first `max` characters (code points) on one line, runs of white space one space, no cut between a character
  * and the marks that follow it, an ellipsis ends a cut text, `null` when nothing but white space is left. A cut
  * also never falls inside markup: the one-line text of the cut text must be the start of the one-line text of
- * the whole message, else the cut moves back (to before the last markup opener, then to the previous white
- * space, alternately, at most 16 times); none left is `null`. A text of `max` characters or fewer is never
+ * the whole message. When it is not, the cut text first gets the closing mark of the run it opened (D-735: one of
+ * ||, **, __, ~~, *, _ or a backtick, tried in that order; the first whose one-line text, trimmed at the end, is
+ * the start of the whole's wins, and the result is cut text, closer, ellipsis). Only if none does, the cut moves
+ * back (to before the last markup opener, then to the previous white space, alternately, at most 16 times);
+ * none left is `null`. A text of `max` characters or fewer is never
  * parsed. When a cut is needed and the parser is not loaded the result is `null` (no text), never the raw cut.
  */
 import { currentMarkdownEngine, parseMarkdown } from '../markdown';
@@ -16,6 +19,8 @@ export const EXCERPT_CHARS = 140;
 
 /** The word the comparison uses for a spoiler (the server's `[spoiler]`). */
 const SPOILER = '[spoiler]';
+/** The closing marks a cut text may be given, in the order they are tried (D-735). */
+const CLOSERS = ['||', '**', '__', '~~', '*', '_', '`'] as const;
 /** How many times the cut may move back looking for a place that splits no markup. */
 const CUT_TRIES = 16;
 
@@ -112,6 +117,15 @@ export function excerpt(content: string, max: number = EXCERPT_CHARS): string | 
     if (cut === 0) return null;
     if (full.startsWith(lineOf(folded.slice(0, cut)))) {
       return folded.slice(0, cut).join('') + '\u2026';
+    }
+    // The first cut only: close the run the cut opened, if one closing mark makes the text read as the start of
+    // the whole (D-735). At most seven more short parses.
+    if (i === 0) {
+      for (const closer of CLOSERS) {
+        const closed = folded.slice(0, cut).join('') + closer;
+        const line = lineOf([...closed]).trimEnd();
+        if (line !== '' && full.startsWith(line)) return closed + '\u2026';
+      }
     }
     const head = folded.slice(0, cut);
     let next = -1;

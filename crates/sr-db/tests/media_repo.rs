@@ -2347,10 +2347,13 @@ async fn a_finished_transcode_adds_the_short_form() {
 /// The migration text, run again by hand on a database that already ran it.
 const MIGRATION_2970: &str = include_str!("../migrations/2970_language_codes_short_form.sql");
 
-/// The pairs of the migration's `VALUES` list, in file order.
-fn sql_pairs() -> Vec<(String, String)> {
-    let from = MIGRATION_2970.find("INSERT INTO sr_lang_pairs").unwrap();
-    let list = &MIGRATION_2970[from..];
+/// D-746: the Library's migration carries the same list again (a migration cannot use another one's temp table).
+const MIGRATION_3050: &str = include_str!("../migrations/3050_library_language_short_form.sql");
+
+/// The pairs of a migration's `VALUES` list, in file order.
+fn sql_pairs(migration: &str) -> Vec<(String, String)> {
+    let from = migration.find("INSERT INTO sr_lang_pairs").unwrap();
+    let list = &migration[from..];
     let list = &list[..list.find(";\n").unwrap()];
     let mut out = Vec::new();
     let mut rest = list;
@@ -2366,7 +2369,12 @@ fn sql_pairs() -> Vec<(String, String)> {
 
 #[test]
 fn the_sql_pairs_and_the_rust_table_are_the_same_list() {
-    let sql = sql_pairs();
+    for migration in [MIGRATION_2970, MIGRATION_3050] {
+        pairs_equal_the_rust_table(&sql_pairs(migration));
+    }
+}
+
+fn pairs_equal_the_rust_table(sql: &[(String, String)]) {
     let rust: Vec<(String, String)> = sr_core::language::LANGUAGE_PAIRS
         .iter()
         .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
@@ -2378,7 +2386,7 @@ fn the_sql_pairs_and_the_rust_table_are_the_same_list() {
             "{p:?} is in the Rust table, not in the migration"
         );
     }
-    for p in &sql {
+    for p in sql {
         assert!(
             rust.contains(p),
             "{p:?} is in the migration, not in the Rust table"

@@ -788,7 +788,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The reports, newest first (any appointed staff member). No audit entry: the list holds no description or picture. */
+        /**
+         * The reports, newest first (any appointed staff member), at most `limit` of them; `before` (a report id) starts the
+         *     page after that report and `has_more` says whether another page exists. No audit entry: the list holds no
+         *     description or picture.
+         */
         get: operations["list"];
         put?: never;
         post?: never;
@@ -807,7 +811,7 @@ export interface paths {
         };
         /**
          * One report with its description and bundle (any appointed staff member). Leaves a platform audit entry
-         *     (`bug.report.read`) before the data is returned.
+         *     (`bug.report.read`) once the report is found and before the data is returned; an id that is not there leaves none.
          */
         get: operations["detail"];
         put?: never;
@@ -829,7 +833,7 @@ export interface paths {
         put?: never;
         /**
          * Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry
-         *     (`bug.report.close`) before anything changes.
+         *     (`bug.report.close`) before anything changes, for a report that exists (an id that is not there leaves none).
          */
         post: operations["close"];
         delete?: never;
@@ -847,7 +851,8 @@ export interface paths {
         };
         /**
          * The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)
-         *     before the bytes are returned. 404 when the report has no picture (never sent, closed, or older than 30 days).
+         *     once the picture is found and before the bytes are returned. 404 (and no entry) when the report has no picture
+         *     (never sent, closed, or older than 30 days) or there is no such report.
          */
         get: operations["screenshot"];
         put?: never;
@@ -5684,9 +5689,10 @@ export interface paths {
         put?: never;
         /**
          * Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per
-         *     day for the platform; the server rebuilds the stored report from the allow-list. 400 for a missing or too long
-         *     description or a picture that is not a JPEG, 404 while `platform.beta_reports` is off, 413 for a picture over 2 MiB,
-         *     429 past the limits.
+         *     day for the platform (counted BEFORE the body is decoded, so an account over its figure never makes the server
+         *     decode a 2 MiB picture; a body the allow-list then refuses gives its slot back); the server rebuilds the stored
+         *     report from the allow-list. 400 for a missing or too long description or a picture that is not a JPEG, 404 while
+         *     `platform.beta_reports` is off, 413 for a picture over 2 MiB, 429 past the limits.
          */
         post: operations["submit"];
         delete?: never;
@@ -19018,6 +19024,8 @@ export interface components {
              *     the beta tool has outgrown its purpose. No number is given: `STAFF_BASIC` staff need not learn the account count.
              */
             beta_over_100: boolean;
+            /** @description More reports exist after the last one of `reports` (SEC-AUD-267): ask again with `before` set to its id. */
+            has_more: boolean;
             /**
              * Format: int64
              * @description Open reports in all, for the badge (not only those in `reports`).
@@ -33715,6 +33723,8 @@ export interface operations {
             query?: {
                 /** @description open or closed; omit for both */
                 status?: string;
+                /** @description A report id: only older reports are returned */
+                before?: string;
                 /** @description 1 to 200, default 50 */
                 limit?: number;
             };

@@ -695,3 +695,24 @@ Built features of waves 64 and 65 that no row named; each was checked in code on
 - [x] **SEC-AUD-250** [TEST] `voice-live.spec.ts` plays music across an ICE restart and a full rejoin of the player; the rejoin step found the music lost, and the controller now sends it after `connect()` (MUS-JB-001). Handoff `fix-p70-ops.md`.
 - [x] **SEC-AUD-251** [TEST] The soak's music check is `musicVerdict`, with eight cases that run in the e2e job without a page. Handoff `fix-p70-ops.md`.
 - [x] **SEC-AUD-252** [DOC] D-724 in the owner checklist and the voice spec; the wave's changelog and upgrade notes. Handoff `fix-p70-ops.md`.
+- [x] **SEC-AUD-253** [BE] The Library stores a language in the Cinema's short form (`eng` is `en`, a script in title case) through one function, `sr_core::language::normalise_tag`; migration 3050 rewrites the stored editions and keeps both editions of a collision, naming the old code in the label (D-746). Handoff `fix-p71-library.md`.
+- [x] **SEC-AUD-254** [BE] A package upload whose completion failed half way can be completed again; giving up and the sweep always free the stored file; a check gets at least 6 hours. Handoff `fix-p71-library.md`.
+- [x] **SEC-AUD-255** [OPS] `sr-cli bootstrap` runs one at a time, and a second run with the same Owner finishes an installation a first run left half made. Handoff `fix-p71-library.md`.
+- [x] **SEC-AUD-256** [BE] The attachment sweep treats an upload the store no longer knows as aborted. Handoff `fix-p71-library.md`.
+- [x] **SEC-AUD-257** [BE] `TYPING_START` no longer crosses a block, in servers or in a 1:1 DM (D-744). Handoff `fix-p71-signals.md`.
+- [x] **SEC-AUD-258** [BE] The badge hook knows which mentioned roles a recipient holds, so a suppress switch no longer leaves a badge from a role they lack (D-733). Handoff `fix-p71-signals.md`.
+- [x] **SEC-AUD-259** [FE] The open app follows the person's own default notification level (D-732). Handoff `fix-p71-signals.md`.
+- [x] **SEC-AUD-260** [BE/FE] A preview cut inside markup closes it, so one long spoiler or bold sentence still has a preview (D-735). Handoff `fix-p71-signals.md`.
+- [x] **SEC-AUD-261** [TEST] The Inbox mention query measured on 300,000 messages: 3 to 9 ms, no index needed. Handoff `fix-p71-signals.md`.
+- [x] **SEC-AUD-262** [FE] A pin is drawn as a message (spoiler hidden until clicked, mentions as names), and a search line never falls back to typed text (D-739). Handoff `fix-p71-panels.md`.
+- [x] **SEC-AUD-263** [FE] Search on a phone: a header button opens it as a sheet over the chat (D-740). Handoff `fix-p71-panels.md`.
+- [x] **SEC-AUD-264** [FE] A relative timestamp in a one-line text is written as a date and time (D-737). Handoff `fix-p71-panels.md`.
+- [x] **SEC-AUD-265** [FE] Editorial's status colours measured: every one meets 3:1, so nothing changed (D-741). Handoff `fix-p71-panels.md`.
+- [x] **SEC-AUD-266** [BE/FE] A bug report with parts missing no longer breaks the staff page: every key is stored, the page guards older rows. Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-267** [BE/FE] Admin > Bug reports pages with `before` and `has_more` ("Load more"). Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-268** [BE] A failed request's stored path keeps only fixed words of the API's paths; any other segment is `{}`. Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-269** [BE] The report limiter runs before the picture is decoded; an audit entry is written only for a report or picture that exists. Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-270** [OPS] The installer can be run again after a failed run, `--force` keeps dated backups, every env value is single-quoted (D-747). Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-271** [OPS] The staff chunk list is written beside the web build, out of members' reach; `check-staff-delivery` rule h guards it. Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-272** [DOC] D-745 and the fixed rejoin; the wave's changelog and upgrade notes. Handoff `fix-p71-ops.md`.
+- [x] **SEC-AUD-273** [FE] A text spoiler in the message list is hidden until clicked: markdown-react's stylesheet is not loaded by the app, so `lounge/msg/msg.css` carries the spoiler rules (found by the panels builder; checked in `e2e/tests/p71-spoiler-shots.spec.ts`, three themes, desktop and phone).

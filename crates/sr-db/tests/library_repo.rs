@@ -1249,3 +1249,272 @@ async fn editions_volumes_and_chapter_constraints() {
         w.svc.delete_chapter(w.publisher, c.id).await.unwrap_err()
     ));
 }
+
+// ---- D-746 (SEC-AUD-253): one form for a language, Library and Cinema ------------------------
+
+/// The migration text, run again by hand on a database that already ran it.
+const MIGRATION_3050: &str = include_str!("../migrations/3050_library_language_short_form.sql");
+
+type EditionState = (String, String, bool, String, String);
+
+async fn edition_state(pool: &PgPool, id: i64) -> EditionState {
+    sqlx::query_as(
+        "SELECT language, label, is_default, updated_at::text, xmin::text FROM reading_editions WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+async fn raw_edition(
+    pool: &PgPool,
+    series: i64,
+    language: &str,
+    label: &str,
+    default: bool,
+) -> i64 {
+    let id = uid();
+    sqlx::query(
+        "INSERT INTO reading_editions (id, series_id, language, label, is_default, updated_at) \
+         VALUES ($1, $2, $3, $4, $5, '2020-01-01T00:00:00Z')",
+    )
+    .bind(id)
+    .bind(series)
+    .bind(language)
+    .bind(label)
+    .bind(default)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+async fn raw_chapter(pool: &PgPool, series: i64, edition: i64, number: i32) -> i64 {
+    let id = uid();
+    sqlx::query(
+        "INSERT INTO reading_chapters (id, series_id, edition_id, number, published, published_at) \
+         VALUES ($1, $2, $3, $4::int::numeric, TRUE, now())",
+    )
+    .bind(id)
+    .bind(series)
+    .bind(edition)
+    .bind(number)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+async fn chapters_of(pool: &PgPool, edition: i64) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM reading_chapters WHERE edition_id = $1")
+        .bind(edition)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// A published series whose editions the test writes by hand (as they were stored before the migration).
+async fn raw_series(w: &World, title: &str) -> i64 {
+    let s = w
+        .svc
+        .create_series(w.publisher, w.input(title))
+        .await
+        .unwrap();
+    w.svc
+        .set_series_published(w.publisher, s.id, true)
+        .await
+        .unwrap();
+    s.id
+}
+
+type TitleLangs = (Vec<String>, Vec<String>, String);
+
+async fn title_langs(pool: &PgPool, id: i64) -> TitleLangs {
+    sqlx::query_as(
+        "SELECT languages, subtitle_languages, updated_at::text FROM video_titles WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+async fn raw_title(pool: &PgPool, languages: &[&str], subs: &[&str]) -> i64 {
+    let id = uid();
+    sqlx::query(
+        "INSERT INTO video_titles (id, kind, title, sort_title, languages, subtitle_languages, updated_at) \
+         VALUES ($1, 'movie', 'T', 't', $2, $3, '2020-01-01T00:00:00Z')",
+    )
+    .bind(id)
+    .bind(languages.iter().map(|l| (*l).to_owned()).collect::<Vec<_>>())
+    .bind(subs.iter().map(|l| (*l).to_owned()).collect::<Vec<_>>())
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+/// D-746: a language the catalog filter is asked for in one form finds a series whose edition was stored in the
+/// other (`eng`), once the migration has rewritten it; before it, the two never met (the filter compares the code
+/// as stored).
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_language_filter_finds_a_series_whose_edition_was_stored_as_eng() {
+    let w = world().await;
+    let s = raw_series(&w, "Eng").await;
+    let e = raw_edition(&w.pool, s, "eng", "Official", true).await;
+    raw_chapter(&w.pool, s, e, 1).await;
+    let q = || BrowseQuery {
+        language: Some("en".into()),
+        ..w.browse()
+    };
+    assert_eq!(w.svc.browse(w.member, q()).await.unwrap().total, 0);
+    sqlx::raw_sql(MIGRATION_3050)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    let ids = |p: SeriesPage| p.items.iter().map(|s| s.id).collect::<Vec<_>>();
+    assert_eq!(ids(w.svc.browse(w.member, q()).await.unwrap()), [s]);
+    // The filter normalises what it is asked for.
+    let eng = BrowseQuery {
+        language: Some("ENG".into()),
+        ..w.browse()
+    };
+    assert_eq!(ids(w.svc.browse(w.member, eng).await.unwrap()), [s]);
+    // A new edition written as `eng` is stored as `en`, so it meets the old one at the unique key.
+    let again = w
+        .svc
+        .create_edition(
+            w.publisher,
+            s,
+            EditionInput {
+                language: "eng".into(),
+                label: "Official".into(),
+                is_default: false,
+            },
+        )
+        .await;
+    assert!(matches!(again, Err(LibraryError::Conflict(_))), "{again:?}");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn migration_3050_rewrites_languages_keeps_every_edition_and_is_idempotent() {
+    let w = world().await;
+    let pool = &w.pool;
+
+    // A plain rewrite: the edition keeps its label, `is_default` and chapter.
+    let plain_s = raw_series(&w, "Plain").await;
+    let plain = raw_edition(pool, plain_s, "eng", "Official", true).await;
+    let plain_c = raw_chapter(pool, plain_s, plain, 1).await;
+
+    // A script subtag, a long code with a region, a code with no short form.
+    let tags_s = raw_series(&w, "Tags").await;
+    let hant = raw_edition(pool, tags_s, "zh-hant", "Hant", true).await;
+    let pt = raw_edition(pool, tags_s, "por-BR", "Pt", false).await;
+    let fil = raw_edition(pool, tags_s, "fil", "Fil", false).await;
+
+    // The collision: `en` / `Official` is there, and `eng` / `Official` would become the same pair.
+    let col_s = raw_series(&w, "Collision").await;
+    let keep = raw_edition(pool, col_s, "en", "Official", true).await;
+    let moved = raw_edition(pool, col_s, "eng", "Official", false).await;
+    raw_chapter(pool, col_s, keep, 1).await;
+    raw_chapter(pool, col_s, moved, 1).await;
+    raw_chapter(pool, col_s, moved, 2).await;
+
+    // Two rewritten editions that collide with each other: the older keeps its label.
+    let two_s = raw_series(&w, "Two").await;
+    let ger = raw_edition(pool, two_s, "ger", "A", true).await;
+    let deu = raw_edition(pool, two_s, "deu", "A", false).await;
+
+    // The bracketed label is taken too.
+    let taken_s = raw_series(&w, "Taken").await;
+    raw_edition(pool, taken_s, "en", "X", true).await;
+    raw_edition(pool, taken_s, "en", "X (eng)", false).await;
+    let taken = raw_edition(pool, taken_s, "eng", "X", false).await;
+
+    // A label of 120 characters: cut first so the whole stays within the limit.
+    let long_label = "L".repeat(120);
+    let long_s = raw_series(&w, "Long").await;
+    raw_edition(pool, long_s, "en", &long_label, true).await;
+    let long = raw_edition(pool, long_s, "eng", &long_label, false).await;
+
+    // A row that needs nothing.
+    let fine_s = raw_series(&w, "Fine").await;
+    let fine = raw_edition(pool, fine_s, "pt-BR", "Fine", true).await;
+
+    // The Cinema columns: a list with a duplicate the rewrite makes, a script, a region.
+    let title = raw_title(
+        pool,
+        &["eng", "zh-hant", "en", "zh-Hant", "fil"],
+        &["pt-br", "por-BR"],
+    )
+    .await;
+    let title_before = title_langs(pool, title).await;
+    assert_eq!(title_before.0.len(), 5);
+
+    let ids = [
+        plain, hant, pt, fil, keep, moved, ger, deu, taken, long, fine,
+    ];
+    let mut before = Vec::new();
+    for id in ids {
+        before.push(edition_state(pool, id).await);
+    }
+
+    sqlx::raw_sql(MIGRATION_3050).execute(pool).await.unwrap();
+    let mut after = Vec::new();
+    for id in ids {
+        after.push(edition_state(pool, id).await);
+    }
+    let lang_label = |i: usize| (after[i].0.as_str(), after[i].1.as_str());
+    // 0 plain
+    assert_eq!(lang_label(0), ("en", "Official"));
+    assert!(after[0].2, "is_default is kept");
+    assert_eq!(after[0].3, before[0].3, "updated_at does not move");
+    assert_eq!(chapters_of(pool, plain).await, 1);
+    let on: i64 = sqlx::query_scalar("SELECT edition_id FROM reading_chapters WHERE id = $1")
+        .bind(plain_c)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    assert_eq!(on, plain);
+    // 1, 2: script and region
+    assert_eq!(lang_label(1), ("zh-Hant", "Hant"));
+    assert_eq!(lang_label(2), ("pt-BR", "Pt"));
+    // 3 fil, 4 already short, 10 fine: not touched at all (the row version is the same)
+    for i in [3, 4, 10] {
+        assert_eq!(after[i], before[i], "row {i} needs nothing");
+    }
+    // 5 the collision: nothing merged, the rewritten edition names its old code, its chapters stay with it
+    assert_eq!(lang_label(5), ("en", "Official (eng)"));
+    assert!(!after[5].2, "is_default is kept");
+    assert_eq!(chapters_of(pool, moved).await, 2);
+    assert_eq!(chapters_of(pool, keep).await, 1);
+    // 6, 7 two rewritten ones: the older keeps the label
+    assert_eq!(lang_label(6), ("de", "A"));
+    assert_eq!(lang_label(7), ("de", "A (deu)"));
+    // 8 the bracketed label was taken: the id makes it unique
+    assert_eq!(after[8].0, "en");
+    assert_eq!(after[8].1, format!("X (eng {taken})"));
+    // 9 120 characters: cut, then the bracket, within the limit
+    assert_eq!(after[9].0, "en");
+    assert_eq!(after[9].1.chars().count(), 120);
+    assert!(after[9].1.ends_with(" (eng)"), "{}", after[9].1);
+
+    let title_after = title_langs(pool, title).await;
+    assert_eq!(
+        title_after.0,
+        ["en", "zh-Hant", "fil"],
+        "a duplicate the rewrite makes is removed"
+    );
+    assert_eq!(title_after.1, ["pt-BR"]);
+    assert_eq!(title_after.2, title_before.2, "not an edit by staff");
+
+    // A second run changes nothing, not even a row version.
+    sqlx::raw_sql(MIGRATION_3050).execute(pool).await.unwrap();
+    for (i, id) in ids.iter().enumerate() {
+        assert_eq!(edition_state(pool, *id).await, after[i], "edition {i}");
+    }
+    assert_eq!(title_langs(pool, title).await, title_after);
+}

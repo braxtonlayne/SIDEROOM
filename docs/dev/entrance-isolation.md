@@ -204,12 +204,12 @@ D-385 draws the line at sign-in; this draws a second one at the staff appointmen
   staff-only; a chunk made only of them is written to `dist/app/staff/<hash>.js` (no `[name]`, so nothing tells a member
   the section's name). Modules member code also imports (`admin/api.ts`, `reauth.ts`, `SchemaForm.tsx`, ...) stay in
   member chunks. A static import of a staff entry from member code fails the build, naming the importer. The plugin writes
-  `dist/app/staff-chunks.json` (the staff files and the shared `admin/` modules) for the check.
+  `apps/web/staff-chunks.json` (the staff files and the shared `admin/` modules) for the check: beside `dist/`, never in it, because the server sends every file of `dist/app/` outside `staff/` to any signed-in member (SEC-AUD-271); the check fails (rule h) if a report of that name is found under `dist/app/`.
 - **The check.** `node scripts/check-staff-delivery.mjs` (after a build; CI runs it after the bundle check) fails when
   `staff/` is empty, `app.html` references it, a member chunk statically imports it, a member file holds a marker string
   of the Admin app, a staff file name is not a hash, a staff message's text (12 characters or more, not also a member
   message) is in a file outside `staff/` or in `app.html` (it prints the key, never the text), or `staff/` holds no
-  catalog. It prints, as a report only, the staff-looking modules that still
+  catalog, or `dist/app/` holds the build report `staff-chunks.json` (rule h). It prints, as a report only, the staff-looking modules that still
   sit in member chunks. `check-bundle-budget.mjs` fails if the first-paint closure contains a staff file.
 - **The server.** `sr-server` answers `/app/staff/*` after the session check (`401` stays first): without an active
   appointment (`AdminService::resolve`, read on every request, no cache; no admin service or a lookup error also counts as
@@ -239,5 +239,5 @@ D-385 draws the line at sign-in; this draws a second one at the staff appointmen
   and `i18n-verify-diff` read both directories; tests register both (`test/setup.ts`).
 - **Adding a staff entry.** Add its path to `STAFF_ENTRIES` in `scripts/lib/staff-graph.mjs` (re-exported by `staffChunks.ts`), reach it only through a dynamic import in
   a small door like `StaffDoor`, add a marker to `check-staff-delivery.mjs` if it is a new area, build, run the check.
-- **Member code and the staff flag (D-673, D-674, SEC-AUD-189).** Member code never asks `/admin/me`: the account's own READY carries `user.sr_platform_staff: true` for an active staff appointment (absent for everyone else and for bots; on no other payload), the session store keeps it (`platformStaff`), and `lounge/shell/adminEntry.ts` reads it for the status menu's "Platform Admin" entry; `SR_STAFF_ALERT {revoked}` clears it and accepting an appointment offer sets it. The Lounge's card buttons are member code under `lounge/msg/cardActions.ts` (their `/admin/card-actions` call stays: the server refuses non-staff). The build report `memberModulesStaffLooking` in `dist/app/staff-chunks.json` is empty, and `scripts/check-staff-delivery.mjs` says so. The pseudo-locale (`en-XA`) of a development
+- **Member code and the staff flag (D-673, D-674, SEC-AUD-189).** Member code never asks `/admin/me`: the account's own READY carries `user.sr_platform_staff: true` for an active staff appointment (absent for everyone else and for bots; on no other payload), the session store keeps it (`platformStaff`), and `lounge/shell/adminEntry.ts` reads it for the status menu's "Platform Admin" entry; `SR_STAFF_ALERT {revoked}` clears it and accepting an appointment offer sets it. The Lounge's card buttons are member code under `lounge/msg/cardActions.ts` (their `/admin/card-actions` call stays: the server refuses non-staff). The build report `memberModulesStaffLooking` in `apps/web/staff-chunks.json` is empty, and `scripts/check-staff-delivery.mjs` says so. The pseudo-locale (`en-XA`) of a development
   or `SR_PSEUDO_LOCALE=1` build holds the staff text too; a production build has none. `vite dev` serves modules unbundled and is not a delivery boundary.

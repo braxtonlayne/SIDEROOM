@@ -45,10 +45,15 @@ impl BugStore for PgBugStore {
             .map_err(|e| e.to_string())
     }
 
-    async fn list(&self, status: Option<&str>, limit: i64) -> Result<(Vec<BugRow>, i64), String> {
+    async fn list(
+        &self,
+        status: Option<&str>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<(Vec<BugRow>, i64), String> {
         let (rows, open) = self
             .0
-            .list(status, limit)
+            .list(status, before, limit)
             .await
             .map_err(|e| e.to_string())?;
         Ok((rows.into_iter().map(row).collect(), open))
@@ -61,6 +66,10 @@ impl BugStore for PgBugStore {
     async fn get(&self, id: i64) -> Result<Option<BugRow>, String> {
         let r = self.0.get(id).await.map_err(|e| e.to_string())?;
         Ok(r.map(row))
+    }
+
+    async fn exists(&self, id: i64) -> Result<bool, String> {
+        self.0.exists(id).await.map_err(|e| e.to_string())
     }
 
     async fn screenshot(&self, id: i64) -> Result<Option<Vec<u8>>, String> {

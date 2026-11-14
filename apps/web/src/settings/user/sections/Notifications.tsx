@@ -16,6 +16,7 @@ import { WebPushCard } from '../../../pwa/WebPushCard';
 import { Card, Loaded, SectionTitle, Unavailable } from '../parts';
 import { KeywordsCard } from './KeywordsCard';
 import { PlatformDmCard } from './AccountSwitchCards';
+import { setNotifDefault } from '../../../lounge/shell/notifDefaults';
 import { PUSH_INACTIVE_CHOICES } from '../prefs';
 import type { PrefsFormProps } from './Appearance';
 
@@ -123,7 +124,10 @@ function DefaultLevelCard() {
     const level = Number(value);
     res.setData({ message_notifications: level });
     try {
-      res.setData(await patchNotificationDefaults(level));
+      const saved = await patchNotificationDefaults(level);
+      res.setData(saved);
+      // The open app's desktop decision follows the new level at once (D-732).
+      setNotifDefault(saved.message_notifications);
       toast.show({ title: t('settings.notifications.defaultUpdated'), duration: 1500 });
     } catch (e) {
       if (before) res.setData(before);

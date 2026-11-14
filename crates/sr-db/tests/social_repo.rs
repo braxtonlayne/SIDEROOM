@@ -645,8 +645,39 @@ async fn suppress_switches_keep_the_badge_off() {
     );
     befriend(&svc, author, a).await;
     let ch = svc.open_dm(author, a).await.unwrap().channel.id;
-    // A guild-less stand-in server id: the scope table keys on it without a foreign key.
+    // A real server with one role, held by `b` only: the badge hook reads who holds a mentioned role (D-733).
     let guild = GuildId::new(ids.generate().get());
+    let role = ids.generate().get();
+    let other_role = ids.generate().get();
+    sqlx::query("INSERT INTO guilds (id, name, owner_id) VALUES ($1, 'Badge room', $2)")
+        .bind(i64::try_from(guild.get()).unwrap())
+        .bind(i64::try_from(author.get()).unwrap())
+        .execute(&pool)
+        .await
+        .unwrap();
+    for r in [role, other_role] {
+        sqlx::query("INSERT INTO roles (id, guild_id, name) VALUES ($1, $2, 'r')")
+            .bind(i64::try_from(r).unwrap())
+            .bind(i64::try_from(guild.get()).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    for (member, held) in [(a, other_role), (b, role), (c, other_role)] {
+        sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+            .bind(i64::try_from(guild.get()).unwrap())
+            .bind(i64::try_from(member.get()).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO member_roles (guild_id, user_id, role_id) VALUES ($1, $2, $3)")
+            .bind(i64::try_from(guild.get()).unwrap())
+            .bind(i64::try_from(member.get()).unwrap())
+            .bind(i64::try_from(held).unwrap())
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
     let suppress = |everyone: bool, roles: bool| ScopeUpdate {
         suppress_everyone: Some(everyone),
         suppress_roles: Some(roles),
@@ -700,16 +731,26 @@ async fn suppress_switches_keep_the_badge_off() {
     assert_eq!(count(b).await, 1);
     assert_eq!(count(c).await, 1);
     // A role ping: `b` suppresses roles (no badge); `a` does not suppress them.
-    svc.message_sent(&msg(false, &[], &[7]), &[a, b, c]).await;
+    svc.message_sent(&msg(false, &[], &[role]), &[a, b, c])
+        .await;
     assert_eq!(count(a).await, 1);
     assert_eq!(count(b).await, 1);
     assert_eq!(count(c).await, 2);
+    // Both kinds on one message (D-733): `a` suppresses `@everyone` only and does not hold the role, so only
+    // `@everyone` reaches them and the badge stays off; `b` holds it and suppresses roles only: `@everyone` counts.
+    svc.message_sent(&msg(true, &[], &[role]), &[a, b]).await;
+    assert_eq!(
+        count(a).await,
+        1,
+        "a does not hold the role: only @everyone reached them"
+    );
+    assert_eq!(count(b).await, 2);
     // A direct mention counts for a suppressing member.
     svc.message_sent(&msg(true, &[a], &[]), &[a, b]).await;
     assert_eq!(count(a).await, 2);
     assert_eq!(
         count(b).await,
-        2,
+        3,
         "b suppresses roles, not @everyone, so this one counts for b"
     );
 }

@@ -2127,6 +2127,11 @@ mod suppress_badge {
         suppress(&f, 2, false, true).await;
         suppress(&f, 3, true, false).await;
         suppress(&f, 4, true, true).await;
+        for who in [2, 3, 4] {
+            f.svc
+                .repo()
+                .hold_role(GuildId::new(GUILD), u(who), RoleId::new(7));
+        }
         f.svc
             .message_sent(&msg(false, &[], &[7]), &[u(2), u(3), u(4)])
             .await;
@@ -2140,6 +2145,38 @@ mod suppress_badge {
         assert_eq!(count(&f, 2).await, 1);
         assert_eq!(count(&f, 3).await, 2);
         assert_eq!(count(&f, 4).await, 0);
+    }
+
+    /// D-733: with `@everyone` and a role mention on one message, a member who does not hold the role is reached by
+    /// `@everyone` alone, so suppressing `@everyone` keeps their badge off; one who holds it needs both switches.
+    #[tokio::test]
+    async fn a_role_the_member_does_not_hold_does_not_reach_them() {
+        let f = fx();
+        // 2 suppresses `@everyone` only and holds no mentioned role; 3 the same but holds the role;
+        // 4 suppresses both and holds it; 5 suppresses `@everyone` only and holds an unrelated role.
+        suppress(&f, 2, true, false).await;
+        suppress(&f, 3, true, false).await;
+        suppress(&f, 4, true, true).await;
+        suppress(&f, 5, true, false).await;
+        let g = GuildId::new(GUILD);
+        f.svc.repo().hold_role(g, u(3), RoleId::new(7));
+        f.svc.repo().hold_role(g, u(4), RoleId::new(7));
+        f.svc.repo().hold_role(g, u(5), RoleId::new(8));
+        f.svc
+            .message_sent(&msg(true, &[], &[7]), &[u(2), u(3), u(4), u(5)])
+            .await;
+        assert_eq!(
+            count(&f, 2).await,
+            0,
+            "not a holder: only `@everyone` reached them"
+        );
+        assert_eq!(count(&f, 3).await, 1, "holder: the role still reaches them");
+        assert_eq!(count(&f, 4).await, 0);
+        assert_eq!(count(&f, 5).await, 0);
+        // A member who suppresses roles only, and holds nothing, is reached by `@everyone` and counts.
+        suppress(&f, 6, false, true).await;
+        f.svc.message_sent(&msg(true, &[], &[7]), &[u(6)]).await;
+        assert_eq!(count(&f, 6).await, 1);
     }
 
     #[tokio::test]

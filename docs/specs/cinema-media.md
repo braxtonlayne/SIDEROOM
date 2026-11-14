@@ -634,7 +634,7 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   (`por-BR` becomes `pt-BR`); a language without a two-letter code stays (`fil`). The probed code stays in the track's `language` column and in
   file names, storage keys and playlist paths (`a/00-eng-stereo/`, `subs/00-eng.m3u8`); only the tag a client sees is short. Migration 2970
   rewrote the lists and tags that already existed (order kept, a duplicate the rewrite made removed, rows without a three-letter code
-  untouched, `updated_at` unchanged); the catalog's filters compare codes as stored, so they now find a title by `en` or `eng` alike.
+  untouched, `updated_at` unchanged); the catalog's filters compare codes as stored, so they now find a title by `en` or `eng` alike. D-746 (migration 3050, wave 71): one function, `sr_core::language::normalise_tag`, is the form for the Cinema and the Library, and a script subtag is stored in title case (`zh-hant` becomes `zh-Hant`, `sr-latn-rs` becomes `sr-Latn-RS`); the migration rewrote the Cinema columns above to it.
 * **The title's `subtitle_languages` (D-694, SEC-AUD-214).** A track that members can pick adds its language to the list of the title the video
   plays for when it is missing: after a staff upload, after a hidden track is shown, after a track's language is edited, and when a
   transcode finishes (every not-hidden track it wrote). "The title" (D-710) is every title the video plays for or was uploaded for: the title's own asset, an episode's show, a cut

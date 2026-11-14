@@ -95,11 +95,21 @@ pub struct BugRow {
 #[async_trait::async_trait]
 pub trait BugStore: Send + Sync {
     async fn insert(&self, new: &NewBug) -> Result<i64, String>;
-    /// Newest first, without description or bundle; and the number of open reports.
-    async fn list(&self, status: Option<&str>, limit: i64) -> Result<(Vec<BugRow>, i64), String>;
+    /// Newest first (highest id first), without description or bundle; and the number of open reports. `before` is
+    /// the id of the last report the caller already has (SEC-AUD-267): only reports with a smaller id are returned.
+    async fn list(
+        &self,
+        status: Option<&str>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> Result<(Vec<BugRow>, i64), String>;
     /// Active accounts of the platform (the count the Admin dashboard shows as `accounts_active`: bots excluded).
     async fn active_accounts(&self) -> Result<i64, String>;
     async fn get(&self, id: i64) -> Result<Option<BugRow>, String>;
+    /// Whether a report with this id exists (SEC-AUD-269: the audit entry of a close is written only for one that does).
+    async fn exists(&self, id: i64) -> Result<bool, String> {
+        Ok(self.get(id).await?.is_some())
+    }
     async fn screenshot(&self, id: i64) -> Result<Option<Vec<u8>>, String>;
     /// Close the report and delete its picture. Idempotent. `false` when there is no such report.
     async fn close(&self, id: i64, by: i64) -> Result<bool, String>;
@@ -176,6 +186,19 @@ impl BugLimiter {
         q.push_back(now);
         w.global.push_back(now);
         true
+    }
+
+    /// Give back the slot [`Self::allow_report`] just took, for a report that was refused after it (a description that
+    /// is not valid, a picture that is not a JPEG): such a body stores nothing and must not use up the hour or the
+    /// day. Only counts matter, so the newest stamp of the account and of the platform goes.
+    pub fn release_report(&self, user: i64) {
+        let Ok(mut w) = self.windows.lock() else {
+            return;
+        };
+        if let Some(q) = w.users.get_mut(&user) {
+            q.pop_back();
+        }
+        w.global.pop_back();
     }
 }
 
@@ -311,9 +334,10 @@ pub struct BugCreated {
 }
 
 /// Send a bug report. Session only (nothing before sign-in, D-385); at most 3 MiB; 5 per account per hour and 100 per
-/// day for the platform; the server rebuilds the stored report from the allow-list. 400 for a missing or too long
-/// description or a picture that is not a JPEG, 404 while `platform.beta_reports` is off, 413 for a picture over 2 MiB,
-/// 429 past the limits.
+/// day for the platform (counted BEFORE the body is decoded, so an account over its figure never makes the server
+/// decode a 2 MiB picture; a body the allow-list then refuses gives its slot back); the server rebuilds the stored
+/// report from the allow-list. 400 for a missing or too long description or a picture that is not a JPEG, 404 while
+/// `platform.beta_reports` is off, 413 for a picture over 2 MiB, 429 past the limits.
 #[utoipa::path(
     post, path = "/bug-reports", tag = "bugs",
     request_body = BugReportBody,
@@ -327,19 +351,7 @@ pub async fn submit(
     Ext(deps): Ext<BugDeps>,
     Json(raw): Json<Value>,
 ) -> ApiResult<(StatusCode, Json<BugCreated>)> {
-    let clean = allow_list::sanitize(&raw, now_ms()).map_err(|r| {
-        if r == allow_list::Reason::PictureTooLarge {
-            return HttpError::from(ApiError::with_message(
-                ErrorCode::RequestEntityTooLarge,
-                r.message(),
-            ));
-        }
-        HttpError::from(ApiError::invalid_form().field(
-            r.field(),
-            "INVALID_VALUE",
-            r.message().to_owned(),
-        ))
-    })?;
+    // SEC-AUD-269: the limiter first, so an account over its figure never makes the server decode and check a picture.
     if !deps.limiter.allow_report(p.user_id) {
         return Err(ApiError::with_message(
             ErrorCode::TooManyRequests,
@@ -347,6 +359,24 @@ pub async fn submit(
         )
         .into());
     }
+    let clean = match allow_list::sanitize(&raw, now_ms()) {
+        Ok(c) => c,
+        Err(r) => {
+            // Nothing is stored for a refused body, so it does not use up the hour (the slot goes back).
+            deps.limiter.release_report(p.user_id);
+            if r == allow_list::Reason::PictureTooLarge {
+                return Err(HttpError::from(ApiError::with_message(
+                    ErrorCode::RequestEntityTooLarge,
+                    r.message(),
+                )));
+            }
+            return Err(HttpError::from(ApiError::invalid_form().field(
+                r.field(),
+                "INVALID_VALUE",
+                r.message().to_owned(),
+            )));
+        }
+    };
     let id = deps
         .repo
         .insert(&NewBug {
@@ -395,6 +425,8 @@ pub struct BugList {
     pub reports: Vec<BugSummary>,
     /// Open reports in all, for the badge (not only those in `reports`).
     pub open_count: i64,
+    /// More reports exist after the last one of `reports` (SEC-AUD-267): ask again with `before` set to its id.
+    pub has_more: bool,
     /// D-647: `platform.beta_reports` is on and the platform has 100 or more active accounts, so the page tells staff
     /// the beta tool has outgrown its purpose. No number is given: `STAFF_BASIC` staff need not learn the account count.
     pub beta_over_100: bool,
@@ -430,13 +462,17 @@ fn summary(r: &BugRow) -> BugSummary {
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
     pub status: Option<String>,
+    pub before: Option<String>,
     pub limit: Option<i64>,
 }
 
-/// The reports, newest first (any appointed staff member). No audit entry: the list holds no description or picture.
+/// The reports, newest first (any appointed staff member), at most `limit` of them; `before` (a report id) starts the
+/// page after that report and `has_more` says whether another page exists. No audit entry: the list holds no
+/// description or picture.
 #[utoipa::path(
     get, path = "/admin/bug-reports", tag = "bugs",
     params(("status" = Option<String>, Query, description = "open or closed; omit for both"),
+           ("before" = Option<String>, Query, description = "A report id: only older reports are returned"),
            ("limit" = Option<i64>, Query, description = "1 to 200, default 50")),
     responses((status = 200, body = BugList), (status = 400, body = ErrorBody),
               (status = 401, body = ErrorBody), (status = 403, body = ErrorBody)),
@@ -461,11 +497,25 @@ pub async fn list(
                 .into());
         }
     };
-    let (rows, open_count) = deps
+    let before = match q.before.as_deref() {
+        None | Some("") => None,
+        Some(b) => Some(b.parse::<i64>().ok().filter(|v| *v > 0).ok_or_else(|| {
+            HttpError::from(ApiError::invalid_form().field(
+                "before",
+                "INVALID_VALUE",
+                "before is a report id.".to_owned(),
+            ))
+        })?),
+    };
+    let limit = q.limit.unwrap_or(50).clamp(1, 200);
+    // One more than the page, to know whether another page exists.
+    let (mut rows, open_count) = deps
         .repo
-        .list(status, q.limit.unwrap_or(50).clamp(1, 200))
+        .list(status, before, limit + 1)
         .await
         .map_err(|e| internal(&e))?;
+    let has_more = i64::try_from(rows.len()).is_ok_and(|n| n > limit);
+    rows.truncate(usize::try_from(limit).unwrap_or(50));
     // One cheap count per call, and only while the switch is on.
     let beta_over_100 =
         if crate::module_gate::platform_on(&state, sr_features::BETA_REPORTS_ID).await {
@@ -480,12 +530,13 @@ pub async fn list(
     Ok(Json(BugList {
         reports: rows.iter().map(summary).collect(),
         open_count,
+        has_more,
         beta_over_100,
     }))
 }
 
 /// One report with its description and bundle (any appointed staff member). Leaves a platform audit entry
-/// (`bug.report.read`) before the data is returned.
+/// (`bug.report.read`) once the report is found and before the data is returned; an id that is not there leaves none.
 #[utoipa::path(
     get, path = "/admin/bug-reports/{bug_id}", tag = "bugs",
     params(("bug_id" = String, Path, description = "Bug report id")),
@@ -500,7 +551,7 @@ pub async fn detail(
 ) -> ApiResult<Json<BugDetail>> {
     let id = parse_id(&bug_id)?;
     ctx.svc()
-        .authorize_bug_read(&ctx.caller, id)
+        .require_bug_access(&ctx.caller, "bug.report.read")
         .await
         .map_err(map_err)?;
     let row = deps
@@ -509,6 +560,11 @@ pub async fn detail(
         .await
         .map_err(|e| internal(&e))?
         .ok_or_else(unknown)?;
+    // The audit log's entry is never optional: if it cannot be written the read fails and nothing is returned.
+    ctx.svc()
+        .record_bug_access(&ctx.caller, "bug.report.read", id)
+        .await
+        .map_err(map_err)?;
     Ok(Json(BugDetail {
         summary: summary(&row),
         description: row.description.clone().unwrap_or_default(),
@@ -519,7 +575,8 @@ pub async fn detail(
 }
 
 /// The picture, as a download (any appointed staff member). Leaves a platform audit entry (`bug.screenshot.read`)
-/// before the bytes are returned. 404 when the report has no picture (never sent, closed, or older than 30 days).
+/// once the picture is found and before the bytes are returned. 404 (and no entry) when the report has no picture
+/// (never sent, closed, or older than 30 days) or there is no such report.
 #[utoipa::path(
     get, path = "/admin/bug-reports/{bug_id}/screenshot", tag = "bugs",
     params(("bug_id" = String, Path, description = "Bug report id")),
@@ -535,7 +592,7 @@ pub async fn screenshot(
 ) -> ApiResult<Response> {
     let id = parse_id(&bug_id)?;
     ctx.svc()
-        .authorize_bug_screenshot(&ctx.caller, id)
+        .require_bug_access(&ctx.caller, "bug.screenshot.read")
         .await
         .map_err(map_err)?;
     let bytes = deps
@@ -549,6 +606,10 @@ pub async fn screenshot(
                 "This report has no picture",
             ))
         })?;
+    ctx.svc()
+        .record_bug_access(&ctx.caller, "bug.screenshot.read", id)
+        .await
+        .map_err(map_err)?;
     Ok(picture_response(id, bytes))
 }
 
@@ -570,7 +631,7 @@ pub fn picture_response(id: i64, bytes: Vec<u8>) -> Response {
 }
 
 /// Close a report and delete its picture (any appointed staff member). Idempotent. Leaves a platform audit entry
-/// (`bug.report.close`) before anything changes.
+/// (`bug.report.close`) before anything changes, for a report that exists (an id that is not there leaves none).
 #[utoipa::path(
     post, path = "/admin/bug-reports/{bug_id}/close", tag = "bugs",
     params(("bug_id" = String, Path, description = "Bug report id")),
@@ -585,7 +646,14 @@ pub async fn close(
 ) -> ApiResult<StatusCode> {
     let id = parse_id(&bug_id)?;
     ctx.svc()
-        .authorize_bug_close(&ctx.caller, id)
+        .require_bug_access(&ctx.caller, "bug.report.close")
+        .await
+        .map_err(map_err)?;
+    if !deps.repo.exists(id).await.map_err(|e| internal(&e))? {
+        return Err(unknown());
+    }
+    ctx.svc()
+        .record_bug_access(&ctx.caller, "bug.report.close", id)
         .await
         .map_err(map_err)?;
     let found = deps

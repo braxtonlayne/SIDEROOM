@@ -1432,25 +1432,24 @@ impl AdminService {
         self.require(c, P::STAFF_BASIC, "bug.list").await
     }
 
-    /// Opening a bug report (its description and debug bundle) leaves the platform audit entry `bug.report.read`.
-    pub async fn authorize_bug_read(&self, c: &Caller, report: i64) -> AdminResult<()> {
-        self.bug_entry(c, "bug.report.read", report).await
+    /// The permission check of a staff read or close of a bug report: `STAFF_BASIC`, and a refusal leaves the usual
+    /// `denied` row. It writes no access entry: the route looks the report up next and calls [`Self::record_bug_access`]
+    /// only for a report (or picture) that exists, so a request for an id that is not there leaves no entry
+    /// (SEC-AUD-269).
+    pub async fn require_bug_access(&self, c: &Caller, action: &str) -> AdminResult<()> {
+        self.require(c, P::STAFF_BASIC, action).await
     }
 
-    /// Opening a bug report's picture leaves the platform audit entry `bug.screenshot.read`.
-    pub async fn authorize_bug_screenshot(&self, c: &Caller, report: i64) -> AdminResult<()> {
-        self.bug_entry(c, "bug.screenshot.read", report).await
-    }
-
-    /// Closing a bug report (which deletes its picture) leaves the platform audit entry `bug.report.close`.
-    pub async fn authorize_bug_close(&self, c: &Caller, report: i64) -> AdminResult<()> {
-        self.bug_entry(c, "bug.report.close", report).await
-    }
-
-    /// `STAFF_BASIC`, then the entry, BEFORE the caller reads or changes anything. A failure to write the entry is the
-    /// request's failure: no data is returned that was not logged. No setting turns these entries off.
-    async fn bug_entry(&self, c: &Caller, action: &str, report: i64) -> AdminResult<()> {
-        self.require(c, P::STAFF_BASIC, action).await?;
+    /// The platform audit entry of a read or close of a bug report (`bug.report.read`, `bug.screenshot.read`,
+    /// `bug.report.close`), written once the report or picture was found and BEFORE it is returned or changed. A failure
+    /// to write the entry is the request's failure: no data is returned that was not logged. No setting turns these
+    /// entries off.
+    pub async fn record_bug_access(
+        &self,
+        c: &Caller,
+        action: &str,
+        report: i64,
+    ) -> AdminResult<()> {
         let e = self.entry(
             c,
             AccessKind::AdminAction,

@@ -11,6 +11,10 @@ function isIdLike(seg: string): boolean {
 }
 
 /**
+ * SEC-AUD-268: this keeps a lower case word as typed (it cannot know a route word from a handle: it has a URL, not the
+ * route pattern). The server's allow-list is the guard: it keeps only the fixed words of the API's paths and stores
+ * every other segment as `{}`, so what this function leaves in is not what is stored.
+ *
  * The path template of a same-origin `/api/` URL, or `null`: the origin, query and fragment are dropped, every id-like
  * segment becomes `:id` (`@me` is kept), and a result the server's check would drop is dropped here first.
  */

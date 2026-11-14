@@ -2502,11 +2502,33 @@ async fn a_long_spoiler_never_reaches_the_request_preview() {
     let text = bob[0]["sr_request_preview"]["content"]
         .as_str()
         .unwrap_or_default();
-    assert!(
-        !text.contains("hidden"),
-        "the hidden words leaked: {text:?}"
+    // D-735: the cut text closes the spoiler; read as plain text the words are gone.
+    let body = text.strip_suffix('\u{2026}').unwrap_or(text);
+    assert!(text.ends_with("||\u{2026}"), "{text:?}");
+    assert_eq!(
+        sr_markdown::to_plain_text(&sr_markdown::parse(body)),
+        "look [spoiler]",
+        "{bob}"
     );
-    assert_eq!(text, "look\u{2026}", "{bob}");
+}
+
+/// SEC-AUD-260 (D-735): a request whose latest message is one long bold sentence has a preview text.
+#[tokio::test]
+async fn one_long_bold_sentence_has_a_request_preview_text() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    let content = format!("**{}end**", "word ".repeat(59));
+    seed_gist(&e, &id, 3 << 22, ALICE, &content, 0);
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let text = bob[0]["sr_request_preview"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(text.starts_with("**word word"), "{bob}");
+    assert!(text.ends_with("**\u{2026}"), "{text:?}");
 }
 
 #[tokio::test]
@@ -2623,5 +2645,37 @@ async fn no_other_payload_carries_the_staff_flag() {
                 "{path} as {who}: {v}"
             );
         }
+    }
+}
+
+/// SEC-AUD-257 (D-744): typing in a 1:1 DM is write activity, so a block closes it like a message:
+/// the route answers 204 and publishes nothing (no 50007: the typist is told nothing new).
+#[tokio::test]
+async fn a_block_closes_typing_in_a_one_to_one_dm() {
+    let e = env().await;
+    e.befriend(ALICE, BOB).await;
+    let dm = e.open_dm_with_chat_channel(ALICE, BOB).await;
+    let mut bob = e.user_events(BOB);
+    let (s, _) = e
+        .post(&format!("/channels/{dm}/typing"), ALICE, json!({}))
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert!(matches!(
+        next_event(&mut bob).await,
+        DomainEvent::TypingStarted { .. }
+    ));
+
+    block(&e, BOB, ALICE).await;
+    let mut bob = e.user_events(BOB);
+    let mut alice = e.user_events(ALICE);
+    for who in [ALICE, BOB] {
+        let (s, _) = e
+            .post(&format!("/channels/{dm}/typing"), who, json!({}))
+            .await;
+        assert_eq!(s, StatusCode::NO_CONTENT);
+    }
+    for stream in [&mut bob, &mut alice] {
+        let got = tokio::time::timeout(Duration::from_millis(200), stream.next()).await;
+        assert!(got.is_err(), "typing crossed a block: {got:?}");
     }
 }

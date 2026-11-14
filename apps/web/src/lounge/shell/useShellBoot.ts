@@ -9,6 +9,7 @@ import { startSocialLive, useSocial } from './social';
 import { useUserSettingsSync } from './userSettingsSync';
 import { startThreadsLive } from '../threads/threadStore';
 import { startPreviewsLive } from '../previewLive';
+import { startNotifDefaultsLive } from './notifDefaults';
 import { getMe } from '../../settings/user/api';
 import { adoptAccountLocale } from '../../i18n/accountLocale';
 
@@ -41,6 +42,8 @@ export function useShellBoot() {
   useEffect(() => (mock ? undefined : startThreadsLive()), [mock]);
   useEffect(() => (mock ? undefined : startPreviewsLive()), [mock]);
   useEffect(() => (mock ? undefined : startIdleReporter()), [mock]);
+  // The person's own default level joins the open app's desktop decision (D-732).
+  useEffect(() => (mock ? undefined : startNotifDefaultsLive()), [mock]);
   useEffect(() => {
     if (mock) return;
     void loadRelationships();

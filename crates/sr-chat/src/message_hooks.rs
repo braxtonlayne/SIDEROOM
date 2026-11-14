@@ -65,7 +65,8 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
                 return;
             }
         };
-        // D-726: a recipient reached only by `@everyone` or a role whose scope suppresses that kind gets no badge.
+        // D-726, D-733: a recipient reached only by `@everyone` or a role whose scope suppresses that kind gets no
+        // badge; `@everyone` reaches all of them, a role mention only the holders of one of the roles.
         // One lookup, and only for a message that has such a mention; a failure fails closed like the check above.
         let mut muted = muted;
         if let Some(guild) = m.guild_id
@@ -77,12 +78,7 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
                 .filter(|u| !m.mention_user_ids.contains(u))
                 .collect();
             match self
-                .mention_suppressed(
-                    guild,
-                    &indirect,
-                    m.mention_everyone,
-                    !m.mention_role_ids.is_empty(),
-                )
+                .mention_suppressed(guild, &indirect, m.mention_everyone, &m.mention_role_ids)
                 .await
             {
                 Ok(v) => muted.extend(v),

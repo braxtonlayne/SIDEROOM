@@ -85,6 +85,9 @@ function smoke(dir, fake, stage, extra = {}, args = []) {
   const web = join(dir, 'web');
   mkdirSync(web, { recursive: true });
   writeFileSync(join(web, 'index.html'), '<div id="root"></div>');
+  // The installer refuses a web build without app/csp.txt (D-747), as the server does.
+  mkdirSync(join(web, 'app'), { recursive: true });
+  writeFileSync(join(web, 'app', 'csp.txt'), "default-src 'self'\n");
   const r = spawnSync(
     'sh',
     [shPath(join(dir, 'deploy', 'scripts', 'prod-smoke.sh')), stage, ...args],
@@ -117,8 +120,11 @@ const indexOf = (list, needle, from = 0) => {
   );
   return i;
 };
-const envValue = (path, key) =>
-  new RegExp(`^${key}=(.*)$`, 'm').exec(readFileSync(path, 'utf8'))?.[1];
+// The value as compose reads it: the installer writes every value in single quotes (D-747).
+const envValue = (path, key) => {
+  const v = new RegExp(`^${key}=(.*)$`, 'm').exec(readFileSync(path, 'utf8'))?.[1];
+  return v !== undefined && /^'.*'$/.test(v) ? v.slice(1, -1) : v;
+};
 
 test('base-sha: the merge base on a branch, the commit before on the target, the merge parent on a pull request', () => {
   const dir = mkdtempSync(join(tmpdir(), 'sr-basesha-'));

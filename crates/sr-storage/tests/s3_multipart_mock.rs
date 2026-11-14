@@ -164,6 +164,38 @@ async fn abort_sends_a_signed_delete() {
     );
 }
 
+/// SEC-AUD-256: an upload the store no longer knows is already aborted. Before it, the attachment sweep kept the row
+/// and tried the abort again on every run for ever.
+#[tokio::test]
+async fn abort_of_an_upload_the_store_no_longer_knows_is_done() {
+    for (status, body) in [
+        (
+            "HTTP/1.1 404 Not Found",
+            "<Error><Code>NoSuchUpload</Code></Error>",
+        ),
+        ("HTTP/1.1 404 Not Found", ""),
+    ] {
+        let (m, server) = setup(vec![(status, body.to_owned())]).await;
+        m.abort("k/o.bin", "gone").await.unwrap();
+        let _ = server.await;
+    }
+}
+
+/// Any other failure of the abort is still an error (the sweep keeps the row and tries again).
+#[tokio::test]
+async fn abort_that_fails_for_another_reason_is_an_error() {
+    for status in [
+        "HTTP/1.1 500 Internal Server Error",
+        "HTTP/1.1 403 Forbidden",
+        "HTTP/1.1 503 Service Unavailable",
+    ] {
+        let (m, server) = setup(vec![(status, "<Error>nope</Error>".into())]).await;
+        let err = m.abort("k/o.bin", "up1").await.unwrap_err().to_string();
+        assert!(err.contains("multipart call failed"), "{err}");
+        let _ = server.await;
+    }
+}
+
 #[tokio::test]
 async fn list_parts_follows_the_marker_and_sorts() {
     let page1 = "<ListPartsResult><IsTruncated>true</IsTruncated><NextPartNumberMarker>2</NextPartNumberMarker>\

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../api/client';
-import { t } from '../i18n';
+import { t, useT } from '../i18n';
+import { useMarkdownReady } from './markdown';
 import { cmpId } from '../store/reducer';
-import { useHiddenKind } from './msg/lineText';
+import { messageLineText, useHiddenKind } from './msg/lineText';
 
 /** The messages next to a search hit (LNG-SRC-005): one before and one after, read when the row is on screen. */
 export interface HitContext {
@@ -14,7 +15,10 @@ export interface Neighbor {
   author: string;
   /** The author's id: a blocked or ignored one is not quoted (D-730). */
   authorId?: string;
+  /** The message's typed text, or (with `plain`) our own words for a message with only an attachment. */
   text: string;
+  /** `text` is already plain: it is not run through the markdown (D-739). */
+  plain?: true;
 }
 
 interface Wire {
@@ -34,8 +38,9 @@ const toNeighbor = (m: Wire | undefined): Neighbor | null =>
         id: m.id,
         author: m.author?.global_name || m.author?.username || t('lounge.searchContext.someone'),
         ...(m.author?.id ? { authorId: m.author.id } : {}),
-        text:
-          m.content?.trim() || (m.attachments?.length ? t('lounge.searchContext.attachment') : ''),
+        ...(m.content?.trim() || !m.attachments?.length
+          ? { text: m.content?.trim() ?? '' }
+          : { text: t('lounge.searchContext.attachment'), plain: true as const }),
       }
     : null;
 
@@ -96,10 +101,14 @@ export function useHitContext(channelId: string, hitId: string) {
 export function ContextLine({
   n,
   side,
+  guildId,
 }: {
   n: Neighbor | null | undefined;
   side: 'before' | 'after';
+  guildId?: string | null | undefined;
 }) {
+  const tt = useT();
+  useMarkdownReady();
   const kind = useHiddenKind(n?.authorId);
   if (!n || !n.text) return null;
   if (kind) {
@@ -109,9 +118,12 @@ export function ContextLine({
       </span>
     );
   }
+  // The line is the plain text of the message (D-716, D-739): a spoiler hidden, a mention named, never the typed text.
+  const text = n.plain ? n.text : messageLineText(n.text, guildId, tt('lounge.preview.spoiler'));
+  if (!text) return null;
   return (
     <span className="lng-search-context" data-side={side}>
-      <strong>{n.author}</strong> {n.text.slice(0, 140)}
+      <strong>{n.author}</strong> {text}
     </span>
   );
 }

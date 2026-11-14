@@ -11,7 +11,11 @@
 //!   copied. A commit or route that fails becomes `0000000` or `unknown` (the report is still worth having).
 //! * `bundle.at`, `viewport`, `locale`, `theme`, `online`, `gateway`, `sw`, `voice`: closed sets and clamped numbers.
 //! * `bundle.failed_requests`: at most [`MAX_FAILED`] of `{method, path, status, ms, ago_s}`; a `path` is a path
-//!   template (`^/[a-z0-9_@:./-]{1,120}$`, no run of 6 digits, no `?`, nothing id-like); an entry that fails is dropped.
+//!   template (`^/[a-z0-9_@:./-]{1,120}$`, no run of 6 digits, no `?`, nothing id-like); an entry that fails is dropped,
+//!   and a segment that is not a fixed word of a known API path (`path_words`, from the route matrix) is stored as `{}`
+//!   (SEC-AUD-268: a name or a code is never kept).
+//! * Every key of the stored bundle is always present (SEC-AUD-266): a part the body lacked, or sent invalid, is stored
+//!   with a neutral value (`viewport` 0 by 0, `gateway` `unknown`, `voice` not connected, `online` true, `sw` `none`).
 //! * `bundle.crashes`: at most [`MAX_CRASHES`] fingerprints of 64 lowercase hex characters.
 //! * `screenshot`: `image/jpeg` only, base64, at most [`MAX_PICTURE_BYTES`] decoded, with the JPEG start and end
 //!   markers. A picture that does not pass is REFUSED (the member must know it did not go), never silently dropped.
@@ -123,9 +127,12 @@ pub fn sanitize(raw: &Value, now_ms: i64) -> Result<Clean, Reason> {
     out.insert("commit".into(), json!(commit));
     out.insert("route".into(), json!(route));
     out.insert("at".into(), json!(at));
-    if let Some(v) = clean_viewport(b.get("viewport")) {
-        out.insert("viewport".into(), v);
-    }
+    // SEC-AUD-266: every key of the contract type is always written, with a neutral value when the body had none (or an
+    // invalid one), so the staff page never meets a report with a part missing.
+    out.insert(
+        "viewport".into(),
+        clean_viewport(b.get("viewport")).unwrap_or_else(|| json!({ "w": 0, "h": 0, "dpr": 0 })),
+    );
     let (caps, engine) = clean_caps(b.get("caps"));
     let mut caps_out = Map::new();
     caps_out.insert("engine".into(), json!(engine));
@@ -135,23 +142,25 @@ pub fn sanitize(raw: &Value, now_ms: i64) -> Result<Clean, Reason> {
     out.insert("caps".into(), Value::Object(caps_out));
     out.insert("locale".into(), json!(clean_locale(b.get("locale"))));
     out.insert("theme".into(), json!(clean_theme(b.get("theme"))));
-    if let Some(online) = b.get("online").and_then(Value::as_bool) {
-        out.insert("online".into(), json!(online));
-    }
-    if let Some(g) = clean_gateway(b.get("gateway")) {
-        out.insert("gateway".into(), g);
-    }
-    if let Some(sw) = pick(b.get("sw"), &SW_STATES) {
-        out.insert("sw".into(), json!(sw));
-    }
-    if let Some(c) = b
+    out.insert(
+        "online".into(),
+        json!(b.get("online").and_then(Value::as_bool).unwrap_or(true)),
+    );
+    out.insert(
+        "gateway".into(),
+        clean_gateway(b.get("gateway")).unwrap_or_else(|| json!({ "status": "unknown" })),
+    );
+    out.insert(
+        "sw".into(),
+        json!(pick(b.get("sw"), &SW_STATES).unwrap_or("none")),
+    );
+    let voice = b
         .get("voice")
         .and_then(Value::as_object)
         .and_then(|v| v.get("connected"))
         .and_then(Value::as_bool)
-    {
-        out.insert("voice".into(), json!({ "connected": c }));
-    }
+        .unwrap_or(false);
+    out.insert("voice".into(), json!({ "connected": voice }));
     out.insert(
         "failed_requests".into(),
         Value::Array(clean_failed(b.get("failed_requests"))),
@@ -289,8 +298,9 @@ fn clean_gateway(v: Option<&Value>) -> Option<Value> {
 
 // ---- failed requests and crashes ----------------------------------------------------------------------------------
 
-/// A path template: `^/[a-z0-9_@:./-]{1,120}$`, no run of 6 digits, nothing id-like. A query string, a host, an upper
-/// case letter or a percent escape cannot pass the character set.
+/// A path template: `^/[a-z0-9_@:./-]{1,120}$`, no run of 6 digits, nothing id-like, then every segment that is not a
+/// fixed word of an API path becomes `{}` (`template_segments`). A query string, a host, an upper case letter or a
+/// percent escape cannot pass the character set.
 fn clean_path(p: &str) -> Option<String> {
     let rest = p.strip_prefix('/')?;
     let ok = (1..=120).contains(&rest.len())
@@ -303,7 +313,35 @@ fn clean_path(p: &str) -> Option<String> {
         && !p
             .split(|c: char| !c.is_ascii_alphanumeric())
             .any(id_like_piece);
-    ok.then(|| p.to_owned())
+    if !ok {
+        return None;
+    }
+    template_segments(p)
+}
+
+/// SEC-AUD-268: keep a segment only when it is a fixed word of a known API path ([`path_words::PATH_WORDS`], from the
+/// route matrix), the `/api/v1` prefix, the client's own `:id` placeholder or `@me`; any other segment (a handle, an
+/// invite code, a slug: a lower case word passes the character set) becomes `{}`. A path that does not start with
+/// `/api` is dropped. Rows stored before this rule may hold such words and are not rewritten.
+fn template_segments(p: &str) -> Option<String> {
+    let mut parts = p.split('/');
+    parts.next(); // the empty piece before the leading slash
+    let mut out = String::with_capacity(p.len());
+    for (i, seg) in parts.enumerate() {
+        let keep = match i {
+            0 => {
+                if seg != "api" {
+                    return None;
+                }
+                true
+            }
+            1 if seg == "v1" => true,
+            _ => seg == ":id" || path_words::PATH_WORDS.binary_search(&seg).is_ok(),
+        };
+        out.push('/');
+        out.push_str(if keep { seg } else { "{}" });
+    }
+    Some(out)
 }
 
 fn has_digit_run(s: &str, n: usize) -> bool {
@@ -362,6 +400,8 @@ fn clean_crashes(v: Option<&Value>) -> Vec<String> {
         })
         .unwrap_or_default()
 }
+
+mod path_words;
 
 #[cfg(test)]
 mod tests;

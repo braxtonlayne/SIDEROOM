@@ -27,7 +27,7 @@ use sr_chat::social::repo::{
 };
 use sr_chat::social::safety::{MediaFilter, SafetyPrefs, SensitiveMedia, SpamFilter};
 use sr_chat::social::user_settings::UserSettings;
-use sr_core::{ChannelId, GuildId, MessageId, UserId};
+use sr_core::{ChannelId, GuildId, MessageId, RoleId, UserId};
 use std::collections::BTreeMap;
 
 /// Postgres-backed social repository.
@@ -1158,17 +1158,24 @@ impl NotificationRepository for PgSocialRepo {
         &self,
         guild: GuildId,
         users: &[UserId],
-    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        role_ids: &[RoleId],
+    ) -> RepoResult<Vec<(UserId, bool, bool, bool)>> {
         let ids: Vec<i64> = users.iter().map(|u| i(u.get())).collect();
-        let rows: Vec<(i64, bool, bool)> = sqlx::query_as(
-            "SELECT user_id, suppress_everyone, suppress_roles FROM notification_settings              WHERE guild_id = $1 AND user_id = ANY($2) AND (suppress_everyone OR suppress_roles)",
+        let roles: Vec<i64> = role_ids.iter().map(|r| i(r.get())).collect();
+        // One statement: the scopes that suppress something, and whether the person holds a mentioned role (D-733).
+        let rows: Vec<(i64, bool, bool, bool)> = sqlx::query_as(
+            "SELECT ns.user_id, ns.suppress_everyone, ns.suppress_roles, \n                    EXISTS (SELECT 1 FROM member_roles mr WHERE mr.guild_id = ns.guild_id \n                            AND mr.user_id = ns.user_id AND mr.role_id = ANY($3)) \n             FROM notification_settings ns \n             WHERE ns.guild_id = $1 AND ns.user_id = ANY($2) AND (ns.suppress_everyone OR ns.suppress_roles)",
         )
         .bind(i(guild.get()))
         .bind(&ids)
+        .bind(&roles)
         .fetch_all(&self.pool)
         .await
         .map_err(db)?;
-        Ok(rows.into_iter().map(|(u, e, r)| (uid(u), e, r)).collect())
+        Ok(rows
+            .into_iter()
+            .map(|(u, e, r, h)| (uid(u), e, r, h))
+            .collect())
     }
 
     async fn put_scope(&self, s: &ScopeSettings) -> RepoResult<()> {

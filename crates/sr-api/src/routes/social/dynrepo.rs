@@ -11,7 +11,7 @@ use sr_chat::social::read_state::{ReadState, ReadStateOp};
 use sr_chat::social::relationships::{RelOp, Relationship, RelationshipCounts};
 use sr_chat::social::repo::*;
 use sr_chat::social::user_settings::UserSettings;
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, RoleId, UserId};
 use std::sync::Arc;
 
 /// A shared, type-erased [`SocialRepository`].
@@ -262,8 +262,9 @@ impl NotificationRepository for DynRepo {
         &self,
         guild: GuildId,
         users: &[UserId],
-    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
-        self.0.suppressing_scopes(guild, users).await
+        role_ids: &[RoleId],
+    ) -> RepoResult<Vec<(UserId, bool, bool, bool)>> {
+        self.0.suppressing_scopes(guild, users, role_ids).await
     }
 }
 

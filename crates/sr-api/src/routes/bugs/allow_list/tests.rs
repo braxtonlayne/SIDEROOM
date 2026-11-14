@@ -95,7 +95,10 @@ fn a_bug_report_keeps_only_allow_listed_bundle_fields() {
     assert_eq!(c.bundle["commit"], "0000000");
     assert_eq!(c.bundle["locale"], "und");
     assert_eq!(c.bundle["theme"], "other");
-    assert!(c.bundle.get("sw").is_none());
+    assert_eq!(
+        c.bundle["sw"], "none",
+        "an invalid state is the neutral one"
+    );
     assert_eq!(c.bundle["crashes"], json!(["b".repeat(64)]));
     // The entry with a query is gone; the other keeps only its named fields.
     assert_eq!(
@@ -123,6 +126,7 @@ fn a_bug_report_keeps_only_allow_listed_bundle_fields() {
             "locale",
             "online",
             "route",
+            "sw",
             "theme",
             "viewport",
             "voice"
@@ -189,12 +193,12 @@ fn numbers_are_clamped_and_enums_are_exact() {
     v["bundle"]["gateway"] =
         json!({ "status": "connected", "reconnects": 99999999, "heartbeat_ms": -3 });
     v["bundle"]["failed_requests"] = json!([
-        { "method": "GET", "path": "/api/v1/a", "status": 500, "ms": 99999999, "ago_s": 99999999 },
+        { "method": "GET", "path": "/api/v1/users", "status": 500, "ms": 99999999, "ago_s": 99999999 },
         { "method": "get", "path": "/api/v1/b", "status": 500 },
         { "method": "TRACE", "path": "/api/v1/c", "status": 500 },
         { "method": "GET", "path": "/api/v1/d", "status": 99 },
         { "method": "GET", "path": "/api/v1/e", "status": 600 },
-        { "method": "POST", "path": "/api/v1/f", "status": 599 },
+        { "method": "POST", "path": "/api/v1/guilds", "status": 599 },
     ]);
     v["bundle"]["theme"] = json!("Lounge-Dark");
     v["bundle"]["caps"]["engine"] = json!("blink");
@@ -207,8 +211,8 @@ fn numbers_are_clamped_and_enums_are_exact() {
     assert_eq!(
         b["failed_requests"],
         json!([
-            { "method": "GET", "path": "/api/v1/a", "status": 500, "ms": 600000, "ago_s": 86400 },
-            { "method": "POST", "path": "/api/v1/f", "status": 599, "ms": 0, "ago_s": 0 },
+            { "method": "GET", "path": "/api/v1/users", "status": 500, "ms": 600000, "ago_s": 86400 },
+            { "method": "POST", "path": "/api/v1/guilds", "status": 599, "ms": 0, "ago_s": 0 },
         ])
     );
     assert_eq!(b["theme"], "other", "an enum matches exactly");
@@ -383,4 +387,166 @@ fn a_picture_over_the_size_is_refused() {
     // A text far over the limit is refused before it is decoded.
     v["screenshot"] = json!({ "type": "image/jpeg", "data": "A".repeat(4 * 1024 * 1024) });
     assert_eq!(sanitize(&v, NOW).unwrap_err(), Reason::PictureTooLarge);
+}
+
+// ---- SEC-AUD-266: a report with parts missing is stored with every key ----------------------------------------------
+
+/// The keys the staff page reads. Before SEC-AUD-266 a body without `viewport`, `gateway`, `voice`, `online` or `sw`
+/// was stored without them, and the detail page threw on `b.viewport.w`.
+const BUNDLE_KEYS: [&str; 13] = [
+    "at",
+    "caps",
+    "commit",
+    "crashes",
+    "failed_requests",
+    "gateway",
+    "locale",
+    "online",
+    "route",
+    "sw",
+    "theme",
+    "viewport",
+    "voice",
+];
+
+#[test]
+fn a_report_with_only_a_description_is_stored_with_every_key() {
+    let c = sanitize(&json!({ "description": "x" }), NOW).unwrap();
+    let mut keys: Vec<&str> = c
+        .bundle
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    assert_eq!(keys, BUNDLE_KEYS);
+    assert_eq!(c.bundle["viewport"], json!({ "w": 0, "h": 0, "dpr": 0 }));
+    assert_eq!(c.bundle["gateway"], json!({ "status": "unknown" }));
+    assert_eq!(c.bundle["voice"], json!({ "connected": false }));
+    assert_eq!(c.bundle["sw"], "none");
+    assert_eq!(c.bundle["online"], true);
+    assert!(c.bundle["caps"]["engine"].is_string());
+    assert_eq!(c.bundle["failed_requests"], json!([]));
+    assert_eq!(c.bundle["crashes"], json!([]));
+}
+
+#[test]
+fn an_invalid_part_is_stored_as_the_neutral_value_not_dropped() {
+    let mut v = good();
+    v["bundle"]["viewport"] = json!("wide");
+    v["bundle"]["gateway"] = json!({ "status": "on fire" });
+    v["bundle"]["voice"] = json!({ "connected": "yes" });
+    v["bundle"]["sw"] = json!("sleeping");
+    v["bundle"]["online"] = json!("maybe");
+    let c = sanitize(&v, NOW).unwrap();
+    assert_eq!(c.bundle["viewport"], json!({ "w": 0, "h": 0, "dpr": 0 }));
+    assert_eq!(c.bundle["gateway"], json!({ "status": "unknown" }));
+    assert_eq!(c.bundle["voice"], json!({ "connected": false }));
+    assert_eq!(c.bundle["sw"], "none");
+    assert_eq!(c.bundle["online"], true);
+}
+
+// ---- SEC-AUD-268: a name or a code never reaches the stored path ------------------------------------------------------
+
+fn failed_paths(paths: &[&str]) -> Vec<String> {
+    let mut v = good();
+    v["bundle"]["failed_requests"] = Value::Array(
+        paths
+            .iter()
+            .map(|p| json!({ "method": "GET", "path": p, "status": 500, "ms": 5, "ago_s": 1 }))
+            .collect(),
+    );
+    sanitize(&v, NOW).unwrap().bundle["failed_requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["path"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn a_name_or_a_code_in_a_path_becomes_a_placeholder() {
+    // Lower case words pass the character set and used to be stored as typed (a handle, an invite code, a slug).
+    assert_eq!(
+        failed_paths(&[
+            "/api/v1/profile-pages/alice",
+            "/api/v1/invites/abcdefgh",
+            "/api/v1/guilds/:id/members/bob",
+            "/api/v1/users/@me",
+            "/api/v1/channels/:id/messages",
+            "/api/v1/sr/csrf",
+        ]),
+        [
+            "/api/v1/profile-pages/{}",
+            "/api/v1/invites/{}",
+            "/api/v1/guilds/:id/members/{}",
+            "/api/v1/users/@me",
+            "/api/v1/channels/:id/messages",
+            "/api/v1/sr/csrf",
+        ]
+    );
+    // Not an API path at all: dropped.
+    assert!(failed_paths(&["/alice/profile", "/static/app.js"]).is_empty());
+    // A query string or a fragment cannot be stored: the entry is dropped (the web cuts them before it sends).
+    assert!(failed_paths(&["/api/v1/users/@me?token=a", "/api/v1/users#frag"]).is_empty());
+}
+
+/// The fixed segments of `route_matrix.tsv`: every `/`-separated piece of the path column that is not a `{parameter}`.
+fn matrix_rows() -> Vec<String> {
+    include_str!("../../../../tests/route_matrix.tsv")
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.trim().is_empty())
+        .map(|l| l.split('\t').nth(1).unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn the_path_words_are_the_fixed_segments_of_the_route_matrix() {
+    let mut want: Vec<String> = matrix_rows()
+        .iter()
+        .flat_map(|p| p.split('/').map(str::to_owned).collect::<Vec<_>>())
+        .filter(|s| !s.is_empty() && !s.starts_with('{'))
+        .collect();
+    want.sort();
+    want.dedup();
+    let have: Vec<String> = path_words::PATH_WORDS
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+    let missing: Vec<&String> = want.iter().filter(|w| !have.contains(w)).collect();
+    let extra: Vec<&String> = have.iter().filter(|w| !want.contains(w)).collect();
+    assert!(
+        missing.is_empty(),
+        "words of the matrix missing from path_words.rs: {missing:?}"
+    );
+    assert!(
+        extra.is_empty(),
+        "words in path_words.rs that no matrix path has: {extra:?}"
+    );
+    assert!(
+        path_words::PATH_WORDS.windows(2).all(|w| w[0] < w[1]),
+        "path_words.rs must stay sorted (byte order) and unique: the lookup is a binary search"
+    );
+}
+
+#[test]
+fn every_path_of_the_matrix_survives_as_its_own_template() {
+    for row in matrix_rows() {
+        // What a client sends: the API prefix, and `:id` where the route has a parameter.
+        let sent: String = format!(
+            "/api/v1{}",
+            row.split('/')
+                .map(|s| if s.starts_with('{') { ":id" } else { s })
+                .collect::<Vec<_>>()
+                .join("/")
+        );
+        let kept = failed_paths(&[&sent]);
+        // A path the id check refuses outright (a run of digits in a word) would show as dropped, not as changed.
+        assert_eq!(
+            kept,
+            std::slice::from_ref(&sent),
+            "the matrix path {row} did not survive as {sent}"
+        );
+    }
 }
