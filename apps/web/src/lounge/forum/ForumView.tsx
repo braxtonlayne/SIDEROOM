@@ -8,6 +8,7 @@ import { type Channel, useUsers } from '../data';
 import { snowflakeTime } from '../liveMap';
 import { useLoungeGotoThread } from '../nav';
 import { threadsOf, useThreads, type ThreadInfo } from '../threads/threadStore';
+import { threadCountLabel } from '../threads/threadCount';
 import { NewPostDialog } from './NewPostDialog';
 import {
   defaultLayout,
@@ -105,7 +106,7 @@ function PostCard({
           <span className="lng-muted lng-post-meta">
             {author}
             {' · '}
-            {t('lounge.forum.messages', { count: post.messageCount })}
+            {threadCountLabel(t, post.messageCount)}
             {starter && starter.reactions > 0
               ? ` · ${t('lounge.forum.reactions', { count: starter.reactions })}`
               : ''}
