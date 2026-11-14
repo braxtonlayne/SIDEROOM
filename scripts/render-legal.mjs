@@ -1,7 +1,7 @@
 // SEC-ENT-001 (D-385, entrance-isolation.md section 7): renders the house notes as plain HTML, with no script.
 //
 //   dist/legal/house-notes.<locale>.html   one template per locale, served by sr-server (web.rs::legal)
-//   dist/entrance/legal-<hash>.css         the one stylesheet (token custom properties only)
+//   dist/entrance/legal-<hash>.css         the one stylesheet (its own custom properties, the two fonts and the page rules)
 //
 // The text comes from the `entrance.houseNotes.*` keys (and the sign-in answers of `entrance.support.*`). The
 // template holds two placeholders the server fills, HTML-escaped, from the compliance settings:
@@ -41,7 +41,7 @@ export function loadCatalog() {
   return cat;
 }
 
-export const CSS = `/* House notes (plain HTML, no script): token custom properties only. */
+export const CSS = `/* House notes (plain HTML, no script): its own custom properties, the two fonts and the page rules. */
 :root{--bg:#111110;--bg-1:#161613;--line:#2a2b24;--text:#ece6d6;--text-2:#a9a493;--gold:#c8a96a;color-scheme:dark}
 @font-face{font-family:"Hanken Grotesk";src:url(/fonts/hanken-grotesk-variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
 @font-face{font-family:Newsreader;src:url(/fonts/newsreader-variable.woff2) format("woff2");font-weight:200 800;font-display:swap}

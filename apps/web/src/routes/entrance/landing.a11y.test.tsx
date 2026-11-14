@@ -1,4 +1,5 @@
-// RDY-A11Y-001 (a11y audit): focus after a refused code, and the reduced-motion preference on the glimpse scroll.
+// RDY-A11Y-001 (a11y audit): focus returns to the invite field after a refused code. (The landing's "glimpse
+// inside" link and its reduced-motion scroll went with D-385 and D-669.)
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryHistory, RouterProvider } from '@tanstack/react-router';

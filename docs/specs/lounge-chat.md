@@ -23,7 +23,7 @@ Phase 1 · Theme `lounge-*` · Decisions: D-040–D-046, D-010–D-012, D-021–
 - Desktop window title area: back/forward, inbox, help, and the window title (e.g. "Direct Messages", "Doge's server").
 
 ### 1.1 Server rail (72px)
-Home button (SIDE ROOM door mark, not Discord's logo) with unread badge · separator · guild icons (unread pill, mention badge, selected pill, hover tooltip, drag to reorder, **folders** with name/color, drag-onto-icon to create a folder) · Staff Server (if member, with a special frame) · `+` Add a Server · Discover (Server Directory) · Download-app button: **hidden** (PWA install prompt instead).
+Home button (SIDE ROOM door mark, not Discord's logo) with unread badge · separator · guild icons (unread pill, mention badge, selected pill, a **NEW** badge for 24 hours after the member joined (their own `joined_at`) until they first open the server (remembered per browser, LNG-RAIL-014), hover tooltip, drag to reorder, **folders** with name/color, drag-onto-icon to create a folder) · Staff Server (if member, with a special frame) · `+` Add a Server · Discover (Server Directory) · Download-app button: **hidden** (PWA install prompt instead).
 
 ### 1.2 Home sidebar (DMs)
 - "Find or start a conversation" (opens Quick Switcher, Ctrl/⌘+K).
@@ -32,7 +32,7 @@ Home button (SIDE ROOM door mark, not Discord's logo) with unread badge · separ
 - DM rows: avatar with status, name, activity line (e.g. "Glooping my glooper," a game, "Watching Cowboy Bebop"), clan/server-tag chips (e.g. `PoE`, `XBOX`, `Toy`), close button on hover, unread bold, mention badge.
 
 ### 1.3 User panel (bottom-left)
-Avatar + status, display name, custom-status line (truncated), mic toggle + dropdown (input device, input profile), headphones toggle + dropdown (output device), settings gear. When in voice: a voice-connection panel above it (RTC state, ping, channel name, disconnect, camera, screen share, activity, soundboard, noise-suppression **omitted**, D-045).
+Avatar + status, display name, custom-status line (an optional Unicode emoji, then the text; truncated; LNG-HOME-011), mic toggle + dropdown (input device, input profile), headphones toggle + dropdown (output device), settings gear. When in voice: a voice-connection panel above it (RTC state, ping, channel name, disconnect, camera, screen share, activity, soundboard, noise-suppression **omitted**, D-045).
 
 ## 2. Friends page
 
@@ -95,7 +95,7 @@ Delete → `visibility = user_deleted` → `MESSAGE_DELETE` dispatched (all clie
 Multi-line rich input (Slate- or Lexical-based) with inline emoji/mention rendering · `+` menu (Upload a File, Create Thread, Create Poll, Use Apps, Share a Cinema/Library title) · paste-to-upload · drag-and-drop overlay ("Upload to #channel") · upload queue with per-file edit (rename, spoiler, alt text, remove) · size check against `effective_limits` before upload, with a friendly "Max 30 MB. Patrons can send up to 500 MB" hint · gift slot **removed** · GIF picker (operator-configured provider: Tenor/Klipy/self-hosted, or disabled) · sticker picker · emoji picker (search, categories, server sections, skin tone, frequently used, favorites) · apps/slash-command button · voice message record button (mobile and desktop) · autocomplete popups for `@`, `#`, `:`, `/` · typing indicator ("X is typing…", "Several people are typing…") · slowmode countdown · reply bar · edit mode (Esc to cancel, Enter to save) · character counter near the limit · "You do not have permission to send messages in this channel" state · markdown preview of spoilers.
 
 ## 7. Member list
-Grouped by hoisted role with counts, then Online and Offline (offline hidden in large servers, Discord parity). Each row: avatar/status, name in role color, activity line, crown for owner, bot/app tag. Click → profile popout (banner, avatar, name, roles with add/remove for managers, note, message box, "View Full Profile"). Right-click → member context menu (Profile, Mention, Message, Call, Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore/Block, Roles ▸, Timeout, Kick, Ban, Transfer Ownership, Copy User ID). Lazy loading in ranges via op 102.
+Grouped by hoisted role with counts, then Online and Offline (offline hidden in large servers, Discord parity). Each row: avatar/status, name in role color, activity line, crown for owner, bot/app tag. Click → profile popout (banner, avatar, name, roles with add/remove for managers, note, message box, "View Full Profile"). Right-click → member context menu (Profile, Mention, Message, Call (opens or creates the DM and rings, as the DM header's button does; not for oneself, bots or blocked people; LNG-GLD-023), Add Note, Change Nickname, Invite to Server ▸, Remove Friend, Ignore/Block, Roles ▸, Timeout, Kick, Ban, Transfer Ownership, Copy User ID). Lazy loading in ranges via op 102.
 
 ## 8. Threads & forums
 Discord parity: threads panel (active/archived, joined), thread view in a side pane or full width, auto-archive durations, private threads (invite-only), thread member list, "N new posts" for forums, forum post creation modal (title, content, tags, media), and forum layouts.
