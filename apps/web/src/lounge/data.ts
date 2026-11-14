@@ -73,6 +73,8 @@ export interface Activity {
 
 export interface Presence {
   status: PresenceStatus;
+  /** Online on a phone and nowhere else (D-702): the status shows the phone glyph. */
+  phone?: boolean;
   /** The activity shown on one line (custom status first when there is no other). */
   activity?: Activity;
   /** Every activity, custom status excluded, for cards (Active Now, full profile). */

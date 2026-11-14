@@ -510,7 +510,13 @@ impl MediaRepository for PgMediaRepo {
         let sql = format!(
             "SELECT w.id, w.name, w.version, w.token_id, t.name AS token_name, (t.revoked_at IS NOT NULL) AS revoked, \
                w.capabilities, {}, w.drain, \
-               (SELECT count(*) FROM transcode_jobs j WHERE j.worker_id = w.id AND j.state = 'running') AS active \
+               (SELECT count(*) FROM transcode_jobs j WHERE j.worker_id = w.id AND j.state = 'running') AS active, \
+               (SELECT sum(CASE WHEN jsonb_typeof(j.progress -> 'speed') = 'number' THEN (j.progress ->> 'speed')::float8 END) \
+                  FROM transcode_jobs j WHERE j.worker_id = w.id AND j.state = 'running' AND j.lease_expires_at > now()) AS speed_now, \
+               (SELECT count(*) FROM transcode_jobs j WHERE j.worker_id = w.id AND j.state = 'succeeded' \
+                  AND j.finished_at > now() - interval '24 hours') AS done_24h, \
+               (SELECT count(*) FROM transcode_jobs j WHERE j.worker_id = w.id AND j.state = 'failed' \
+                  AND j.finished_at > now() - interval '24 hours') AS failed_24h \
              FROM transcode_workers w JOIN worker_tokens t ON t.id = w.token_id \
              ORDER BY w.last_seen_at DESC, w.id",
             ms("w.last_seen_at", "seen_ms")
@@ -520,6 +526,9 @@ impl MediaRepository for PgMediaRepo {
             .map(|r| {
                 let caps: Value = r.try_get("capabilities").map_err(be)?;
                 let active: i64 = r.try_get("active").map_err(be)?;
+                let speed: Option<f64> = r.try_get("speed_now").map_err(be)?;
+                let done: i64 = r.try_get("done_24h").map_err(be)?;
+                let failed: i64 = r.try_get("failed_24h").map_err(be)?;
                 Ok(WorkerView {
                     id: r.try_get("id").map_err(be)?,
                     name: r.try_get("name").map_err(be)?,
@@ -533,6 +542,9 @@ impl MediaRepository for PgMediaRepo {
                     online: false,
                     drain: r.try_get("drain").map_err(be)?,
                     active_jobs: u32::try_from(active).unwrap_or(0),
+                    speed_now: speed.map(|s| s as f32),
+                    jobs_done_24h: u32::try_from(done).unwrap_or(u32::MAX),
+                    jobs_failed_24h: u32::try_from(failed).unwrap_or(u32::MAX),
                 })
             })
             .collect()
@@ -803,6 +815,12 @@ impl MediaRepository for PgMediaRepo {
         }
         tx.commit().await.map_err(be)?;
         subtitle_from_row(&row).map(Some)
+    }
+
+    async fn add_subtitle_language(&self, asset_id: i64, tag: &str) -> MediaResult<Option<String>> {
+        super::languages::add_title_language(&self.pool, asset_id, tag)
+            .await
+            .map_err(be)
     }
 
     async fn delete_uploaded_subtitle(

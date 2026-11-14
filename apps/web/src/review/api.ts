@@ -11,6 +11,8 @@ import type {
   LibraryPreview,
   RequestPage,
   ReviewPageManifest,
+  ReviewQueuePage,
+  ReviewSubmissionDetail,
   SubmissionDetail,
   SubmissionListParams,
   SubmissionPage,
@@ -154,9 +156,9 @@ export const releaseRequest = (id: string) =>
 
 const R = '/admin/review';
 export const reviewQueue = (p: SubmissionListParams = {}) =>
-  apiFetch<SubmissionPage>(`${R}/queue${qs({ ...p })}`, { retries: 0 });
+  apiFetch<ReviewQueuePage>(`${R}/queue${qs({ ...p })}`, { retries: 0 });
 export const reviewGet = (id: string) =>
-  apiFetch<SubmissionDetail>(`${R}/submissions/${enc(id)}`, { retries: 0 });
+  apiFetch<ReviewSubmissionDetail>(`${R}/submissions/${enc(id)}`, { retries: 0 });
 export const reviewPreview = (id: string) =>
   apiFetch<{ preview: LibraryPreview }>(`${R}/submissions/${enc(id)}/preview`, { retries: 0 });
 export const reviewPages = (id: string, chapter: string) =>

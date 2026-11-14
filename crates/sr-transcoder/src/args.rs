@@ -717,6 +717,7 @@ pub(crate) mod tests {
                 .map(|s| s.to_string())
                 .collect(),
             nvenc_usable: true,
+            gpu: None,
         }
     }
 

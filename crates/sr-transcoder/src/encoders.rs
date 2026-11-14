@@ -13,6 +13,9 @@ pub struct FfmpegCaps {
     pub filters: BTreeSet<String>,
     /// A one-frame NVENC test encode succeeded (listing alone does not prove a usable GPU).
     pub nvenc_usable: bool,
+    /// The GPU's name from `nvidia-smi`, asked only when NVENC was found usable (D-705). `None` when the program
+    /// is missing or fails.
+    pub gpu: Option<String>,
 }
 
 /// Which H.264 encoder a job uses.
@@ -175,13 +178,42 @@ pub fn detect(runner: &dyn CommandRunner, ffmpeg: &str) -> FfmpegCaps {
         hwaccels: parse_hwaccels(&listing(runner, ffmpeg, "-hwaccels")),
         filters: parse_filters(&listing(runner, ffmpeg, "-filters")),
         nvenc_usable: false,
+        gpu: None,
     };
     if caps.has_encoder("h264_nvenc") && caps.hwaccels.contains("cuda") {
         let spec =
             CommandSpec::new(ffmpeg, nvenc_test_args()).with_timeout(Duration::from_secs(30));
         caps.nvenc_usable = runner.run(&spec).is_ok_and(|o| o.success());
     }
+    if caps.nvenc_usable {
+        caps.gpu = gpu_name(runner);
+    }
     caps
+}
+
+/// The names of the NVIDIA GPUs, from `nvidia-smi --query-gpu=name --format=csv,noheader` (one per line, joined
+/// with ", "). Nothing else is asked and nothing is installed: a missing program, a failure or a run over the
+/// 3 second limit is `None`, never an error (D-705).
+pub fn gpu_name(runner: &dyn CommandRunner) -> Option<String> {
+    let spec = CommandSpec::new(
+        "nvidia-smi",
+        vec!["--query-gpu=name".into(), "--format=csv,noheader".into()],
+    )
+    .with_timeout(Duration::from_secs(3))
+    .with_max_stdout(4 * 1024);
+    let out = runner.run(&spec).ok().filter(|o| o.success())?;
+    parse_gpu_names(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// `nvidia-smi` output to one cleaned name: the distinct non-empty lines, joined.
+pub fn parse_gpu_names(text: &str) -> Option<String> {
+    let mut names: Vec<&str> = Vec::new();
+    for line in text.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        if !names.contains(&line) {
+            names.push(line);
+        }
+    }
+    sr_media::worker_api::clean_gpu_name(&names.join(", "))
 }
 
 /// Does this stderr look like the GPU encoder (not the input) failed? Then a retry on libx264
@@ -252,10 +284,21 @@ vulkan
 ";
 
     fn runner(encoders: &str, nvenc_ok: bool) -> FakeRunner {
+        runner_smi(encoders, nvenc_ok, None)
+    }
+
+    /// `smi` is what `nvidia-smi` prints; `None` is a machine without the program.
+    fn runner_smi(encoders: &str, nvenc_ok: bool, smi: Option<&str>) -> FakeRunner {
         let encoders = encoders.to_string();
+        let smi = smi.map(str::to_owned);
         FakeRunner::new(move |spec| {
             let a = spec.args.join(" ");
-            if a.contains("-encoders") {
+            if spec.program == "nvidia-smi" {
+                match &smi {
+                    Some(out) => FakeResult::ok(out.clone()),
+                    None => FakeResult::fail(127, "not found"),
+                }
+            } else if a.contains("-encoders") {
                 FakeResult::ok(encoders.clone())
             } else if a.contains("-hwaccels") {
                 FakeResult::ok(HWACCELS)
@@ -320,6 +363,64 @@ vulkan
             .unwrap();
         assert_eq!(test.program, "ffmpeg");
         assert!(test.args.contains(&"lavfi".to_string()));
+    }
+
+    #[test]
+    fn the_gpu_name_comes_from_nvidia_smi_when_nvenc_works() {
+        let r = runner_smi(
+            ENCODERS,
+            true,
+            Some(
+                "NVIDIA GeForce RTX 3060
+",
+            ),
+        );
+        let caps = detect(&r, "ffmpeg");
+        assert_eq!(caps.gpu.as_deref(), Some("NVIDIA GeForce RTX 3060"));
+        // One argument vector, a 3 second limit, nothing else asked of the program.
+        let smi = r
+            .calls()
+            .into_iter()
+            .find(|c| c.program == "nvidia-smi")
+            .unwrap();
+        assert_eq!(
+            smi.args,
+            ["--query-gpu=name", "--format=csv,noheader"].map(String::from)
+        );
+        assert_eq!(smi.timeout, Duration::from_secs(3));
+        // Two cards, and a card listed twice, make one cleaned line.
+        assert_eq!(
+            parse_gpu_names(
+                "Tesla T4
+ Tesla T4
+NVIDIA A2
+
+"
+            )
+            .as_deref(),
+            Some("Tesla T4, NVIDIA A2")
+        );
+        assert_eq!(
+            parse_gpu_names(
+                "
+  
+"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn no_gpu_name_without_the_program_or_without_a_working_nvenc() {
+        // NVENC works but nvidia-smi is not on the path: no name, no error.
+        let caps = detect(&runner_smi(ENCODERS, true, None), "ffmpeg");
+        assert!(caps.nvenc_available());
+        assert_eq!(caps.gpu, None);
+        // NVENC listed but broken: the program is not even asked.
+        let r = runner_smi(ENCODERS, false, Some("NVIDIA GeForce RTX 3060"));
+        let caps = detect(&r, "ffmpeg");
+        assert_eq!(caps.gpu, None);
+        assert!(r.calls().iter().all(|c| c.program != "nvidia-smi"));
     }
 
     #[test]

@@ -641,7 +641,7 @@ pub const CATALOG: &[SettingDef] = &[
         1_048_576,
         524_288_000,
         31_457_280,
-        "Standard attachment size limit in bytes (1 MiB to 500 MiB). Anything larger is a large attachment and expires after retention.large_file_days. Applies to the next upload.",
+        "The free upload size in bytes (1 MiB to 500 MiB). Lowering it lowers what free members may upload; a member with a perk gets the larger of the perk's size and this one. Anything larger than this is a large attachment and expires after retention.large_file_days. Applies to the next upload.",
     ),
     int(
         "submissions.daily_upload_bytes",
@@ -1510,6 +1510,8 @@ mod tests {
         let d = find(UPLOADS_STANDARD_LIMIT).unwrap();
         assert_eq!((d.min as u64, d.max as u64), (1_048_576, 524_288_000));
         assert_eq!(d.default_int, 31_457_280);
+        // D-678: the description says both halves in one sentence.
+        assert!(d.description.contains("Lowering it lowers what free members may upload; a member with a perk gets the larger of the perk's size and this one."));
         assert!(d.validate(&json!(524_288_001)).is_err());
         assert!(d.validate(&json!(1_048_575)).is_err());
         assert!(

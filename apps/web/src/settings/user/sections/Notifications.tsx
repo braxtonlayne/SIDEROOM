@@ -234,6 +234,7 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
           />
           <Switch
             label={t('settings.notifications.reactions')}
+            description={t('settings.notifications.reactionsDesc')}
             checked={prefs.reactionNotifications}
             onChange={(e) => setPrefs({ reactionNotifications: e.target.checked })}
           />
@@ -241,8 +242,8 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
       </Card>
       <Card
         id="us-push"
-        title={t('settings.notifications.pushTitle')}
-        description={t('settings.notifications.pushDesc')}
+        title={t('settings.notifications.pushTitleNow')}
+        description={t('settings.notifications.pushDescNow')}
       >
         <div className="us-stack">
           <label className="us-muted" id="us-push-label">
@@ -262,13 +263,8 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
             value={String(prefs.pushInactiveMinutes)}
             onValueChange={(v) => setPrefs({ pushInactiveMinutes: Number(v) })}
           />
-          <Switch
-            label={t('settings.notifications.digest')}
-            checked={prefs.emailDigest}
-            onChange={(e) => setPrefs({ emailDigest: e.target.checked })}
-          />
         </div>
-        <Unavailable>{t('settings.notifications.pushUnavailable')}</Unavailable>
+        <Unavailable>{t('settings.notifications.pushUnavailableNow')}</Unavailable>
       </Card>
       <PlatformDmCard />
       <Card id="us-webpush" title={t('pwa.push.title')}>

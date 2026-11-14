@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { titleWithBadge } from '../../pwa/titleBadge';
 import type { Message } from '../../store';
-import { desktopDecision, type NotifyContext } from './desktopNotify';
+import {
+  desktopDecision,
+  reactionDecision,
+  type NotifyContext,
+  type ReactionContext,
+  type ReactionEvent,
+} from './desktopNotify';
 import type { GuildNotif } from './notifSettings';
 
 const msg = (over: Partial<Message> = {}): Message =>
@@ -88,5 +94,58 @@ describe('titleWithBadge', () => {
     expect(titleWithBadge('(3) SIDE ROOM', 5)).toBe('(5) SIDE ROOM');
     expect(titleWithBadge('(5) SIDE ROOM', 0)).toBe('SIDE ROOM');
     expect(titleWithBadge('x', 150)).toBe('(99+) x');
+  });
+});
+
+// SEC-AUD-221 (D-703)
+describe('reactionDecision', () => {
+  const ev = (over: Partial<ReactionEvent> = {}): ReactionEvent => ({
+    user_id: 'u2',
+    channel_id: 'c1',
+    message_id: 'm1',
+    guild_id: 'g1',
+    emoji: { id: null, name: 'x' },
+    message_author_id: 'u1',
+    ...over,
+  });
+  const rctx = (over: Partial<ReactionContext> = {}): ReactionContext => ({
+    ...ctx(),
+    enabled: true,
+    silenced: false,
+    blocked: new Set<string>(),
+    ...over,
+  });
+
+  it('notifies for a reaction on my own message', () => {
+    expect(reactionDecision(ev(), rctx())).toBe(true);
+  });
+  it('not when the message is not mine or the author is not known', () => {
+    expect(reactionDecision(ev({ message_author_id: 'u3' }), rctx())).toBe(false);
+    expect(reactionDecision(ev({ message_author_id: undefined }), rctx())).toBe(false);
+  });
+  it('not for my own reaction, nor a blocked account', () => {
+    expect(reactionDecision(ev({ user_id: 'u1' }), rctx())).toBe(false);
+    expect(reactionDecision(ev(), rctx({ blocked: new Set(['u2']) }))).toBe(false);
+  });
+  it('not when the preference is off, Streamer Mode silences, or I am in do-not-disturb', () => {
+    expect(reactionDecision(ev(), rctx({ enabled: false }))).toBe(false);
+    expect(reactionDecision(ev(), rctx({ silenced: true }))).toBe(false);
+    expect(reactionDecision(ev(), rctx({ status: 'dnd' }))).toBe(false);
+  });
+  it('not while that channel is open in a focused window, but yes elsewhere', () => {
+    expect(reactionDecision(ev(), rctx({ windowFocused: true, activeChannelId: 'c1' }))).toBe(
+      false,
+    );
+    expect(reactionDecision(ev(), rctx({ windowFocused: true, activeChannelId: 'c9' }))).toBe(true);
+    expect(reactionDecision(ev(), rctx({ windowFocused: false, activeChannelId: 'c1' }))).toBe(
+      true,
+    );
+  });
+  it('not for a muted server or channel', () => {
+    expect(reactionDecision(ev(), rctx({ scope: scope({ muted: true }) }))).toBe(false);
+    const channel = { muted: true, endsAt: null, level: null };
+    expect(reactionDecision(ev(), rctx({ scope: scope({ channels: { c1: channel } }) }))).toBe(
+      false,
+    );
   });
 });

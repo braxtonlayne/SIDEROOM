@@ -322,6 +322,11 @@ impl<'a> Worker<'a> {
             concurrency: self.cfg.concurrency,
             ffmpeg_version: self.caps.version.clone(),
             libplacebo: self.caps.has_libplacebo(),
+            gpu: if self.cfg.force_cpu {
+                None
+            } else {
+                self.caps.gpu.clone()
+            },
         }
     }
 

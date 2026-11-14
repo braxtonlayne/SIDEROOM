@@ -6,6 +6,8 @@ import { failWith } from '../actionError';
 import { useNavigate } from '@tanstack/react-router';
 import { useIsPlatformStaff } from './adminEntry';
 import { useSelfPresence, type SelfStatus } from './selfPresence';
+import { useCurrentUser, usePresence } from '../data';
+import { statusProps } from '../phoneStatus';
 
 const LABEL: Record<SelfStatus, MessageKey> = {
   online: 'lounge.statusMenu.online',
@@ -32,6 +34,8 @@ export const statusLabel = (s: SelfStatus) => t(LABEL[s]);
 export function StatusMenu({ name }: { name: string }) {
   const t = useT();
   const status = useSelfPresence((s) => s.status);
+  // D-702: on a phone alone you see your own phone glyph too.
+  const phone = usePresence(useCurrentUser().id).phone && status === 'online';
   const customText = useSelfPresence((s) => s.customText);
   const customEmoji = useSelfPresence((s) => s.customEmoji);
   const load = useSelfPresence((s) => s.load);
@@ -86,9 +90,15 @@ export function StatusMenu({ name }: { name: string }) {
         <button
           type="button"
           className="lng-user-avatar"
-          aria-label={t('lounge.statusMenu.currently', { status: t(LABEL[status]) })}
+          aria-label={t('lounge.statusMenu.currently', {
+            status: phone ? t('lounge.presence.phone') : t(LABEL[status]),
+          })}
         >
-          <Avatar name={name} size={32} status={status === 'invisible' ? 'offline' : status} />
+          <Avatar
+            name={name}
+            size={32}
+            {...statusProps({ status: status === 'invisible' ? 'offline' : status, phone })}
+          />
         </button>
       }
     />

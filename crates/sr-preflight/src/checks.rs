@@ -694,7 +694,18 @@ pub(crate) async fn voice(net: &dyn NetProbe, s: &Settings) -> Check {
 
 /// SEC-ENT-003 (D-385): the web root the server serves the app from. Unset is a warning (the server then serves
 /// no documents); a root without `app.html` or `app/csp.txt` is a failure, the server would refuse to start.
+/// The `web` row (web root, and the embed host variables the web app's policy and the unfurler read, D-697). A dropped
+/// host entry makes the row a warning (never a failure) and its detail ends with the server's own warning text.
 pub(crate) fn web_root(host: &dyn HostProbe, s: &Settings) -> Check {
+    let mut c = web_root_only(host, s);
+    if !s.embed_host_warnings.is_empty() {
+        c.status = c.status.max_with(Status::Warn);
+        c.detail = format!("{}; {}", c.detail, s.embed_host_warnings.join("; "));
+    }
+    c
+}
+
+fn web_root_only(host: &dyn HostProbe, s: &Settings) -> Check {
     let t = "Web root";
     let Some(root) = s.web_root.as_deref() else {
         return Check::new(
@@ -850,6 +861,7 @@ mod tests {
             secret_files: vec![],
             config_file: None,
             web_root: None,
+            embed_host_warnings: vec![],
         }
     }
 
@@ -1298,6 +1310,32 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(web_root(&full, &s).status, Status::Pass);
+    }
+
+    #[test]
+    fn a_dropped_embed_host_is_a_warning_in_the_web_row() {
+        let mut s = settings();
+        s.web_root = Some("/srv/web".into());
+        let full = FakeHost {
+            modes: vec![
+                ("/srv/web/app.html".into(), ModeResult::Mode(0o644)),
+                ("/srv/web/app/csp.txt".into(), ModeResult::Mode(0o644)),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(web_root(&full, &s).status, Status::Pass);
+        s.embed_host_warnings = vec![
+            "SR_PEERTUBE_HOSTS: \"nodot\" ignored: not a plain host name (write `video.example.org`, no scheme, no path)".into(),
+        ];
+        let c = web_root(&full, &s);
+        assert_eq!((c.id.as_str(), c.status), ("web", Status::Warn));
+        assert!(
+            c.detail.contains("SR_PEERTUBE_HOSTS: \"nodot\" ignored"),
+            "{}",
+            c.detail
+        );
+        // A failing web root stays a failure.
+        assert_eq!(web_root(&FakeHost::default(), &s).status, Status::Fail);
     }
 
     #[test]

@@ -112,7 +112,10 @@ $0.20 and an episode about $0.02 to $0.04.
 4. **Start the container** with the commands above (or the compose file). The host needs only
    outgoing HTTPS to your server and to your storage endpoint (Garage or Storage Box front).
 5. **Check Admin > Cinema transcoding**: the worker appears within a heartbeat (about 20 seconds) with
-   its capabilities (NVENC yes or no). Queue a small title first and watch it complete.
+   its GPU (the name `nvidia-smi` reports, asked only when the NVENC test encode worked; without a name the
+   page shows "NVENC" or the hardware methods ffmpeg listed, or "no hardware encoder"), how fast its running
+   jobs go now ("2.4x" is 2.4 times real time, summed over its jobs) and how many jobs it finished and failed
+   in the last 24 hours. A worker built before this shows no GPU name until it is updated; it works as before. Queue a small title first and watch it complete.
 6. **Let it drain, then destroy the instance.** Stop claiming new work by marking the worker
    "drain" in Admin (it finishes current jobs), wait for the queue to empty, then terminate the
    rented machine. Revoke the worker token afterwards.

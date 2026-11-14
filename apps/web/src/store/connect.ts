@@ -51,6 +51,42 @@ export function receiveDispatch(event: string, data: unknown): void {
   useStore.getState().applyDispatch(event, data);
 }
 
+/** What `clientProperties` reads of the browser (a subset of `Navigator`, so a test can hand it plain objects). */
+export interface ClientNav {
+  userAgent?: string;
+  maxTouchPoints?: number;
+  userAgentData?: { mobile?: boolean; platform?: string };
+}
+
+/**
+ * IDENTIFY `properties` (D-702): the platform decides the phone glyph other people see. `os` is `android` or `ios`
+ * on a phone or tablet browser, `web` otherwise. `userAgentData.mobile` decides where the browser has it; else the
+ * user-agent string (an iPad that claims to be a Mac is told by its touch points). Never the viewport width: a
+ * narrow desktop window is not a phone. The user-agent string is not sent.
+ */
+export function clientProperties(
+  nav: ClientNav = typeof navigator === 'undefined' ? {} : navigator,
+): {
+  os: 'android' | 'ios' | 'web';
+  browser: 'sideroom';
+  device: 'sideroom';
+} {
+  const ua = nav.userAgent ?? '';
+  const hint = nav.userAgentData?.mobile;
+  let os: 'android' | 'ios' | 'web' = 'web';
+  if (hint === true)
+    os = /ios|iphone|ipad/i.test(nav.userAgentData?.platform ?? ua) ? 'ios' : 'android';
+  else if (hint === undefined) {
+    if (/android/i.test(ua)) os = 'android';
+    else if (
+      /iphone|ipad|ipod/i.test(ua) ||
+      (/macintosh/i.test(ua) && (nav.maxTouchPoints ?? 0) > 1)
+    )
+      os = 'ios';
+  }
+  return { os, browser: 'sideroom', device: 'sideroom' };
+}
+
 /** Open the gateway (idempotent). Dispatches and connection status flow into the store. */
 export function connectGateway(opts: ConnectOptions = {}): GatewayClient {
   // Somebody wants it open now: an earlier close request (made while a hold kept it open) no longer stands.
@@ -58,6 +94,7 @@ export function connectGateway(opts: ConnectOptions = {}): GatewayClient {
   if (client) return client;
   const { setConnection } = useStore.getState();
   client = new GatewayClient({
+    properties: clientProperties(),
     ...opts,
     onDispatch: (event, data) => receiveDispatch(event, data),
     onStatus: setConnection,

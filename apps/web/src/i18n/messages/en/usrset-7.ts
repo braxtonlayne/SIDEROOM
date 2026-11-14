@@ -55,16 +55,10 @@ export default {
   'settings.notifications.blink': 'Flash the page title for new messages',
   'settings.notifications.blinkDesc': 'The tab title blinks while the window is in the background.',
   'settings.notifications.reactions': 'Notify me about reactions to my messages',
-  'settings.notifications.pushTitle': 'Push and email',
-  'settings.notifications.pushDesc':
-    'When you step away, notifications can go to your phone, or arrive as a summary.',
   'settings.notifications.pushAfter': 'Send push notifications after being inactive for',
   'settings.notifications.never': 'Never',
   'settings.notifications.oneHour': '1 hour',
   'settings.notifications.minutes': '{n, plural, one {# minute} other {# minutes}}',
-  'settings.notifications.digest': 'Email me a digest of what I missed',
-  'settings.notifications.pushUnavailable':
-    "These choices are kept on your account, but the server doesn't deliver Web Push or email digests yet, so they don't change anything today.",
   'settings.notifications.serversTitle': 'Server overrides',
   'settings.notifications.serversDesc':
     'Per-server notification level and mute. These save immediately.',

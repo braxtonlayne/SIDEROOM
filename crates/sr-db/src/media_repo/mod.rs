@@ -13,6 +13,7 @@
 mod assets;
 mod downloads;
 mod jobs;
+mod languages;
 
 pub use downloads::EntitlementDownloads;
 

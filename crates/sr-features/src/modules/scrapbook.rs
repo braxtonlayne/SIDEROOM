@@ -351,6 +351,7 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": null, "name": name}),
+            message_author: None,
         }
     }
 

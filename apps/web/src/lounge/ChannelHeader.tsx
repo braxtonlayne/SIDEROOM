@@ -1,6 +1,7 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
+import { statusProps } from './phoneStatus';
 import { FollowButton } from './header/FollowButton';
 import { NotifyButton } from './header/NotifyButton';
 import { InboxButton } from './inbox/InboxButton';
@@ -28,6 +29,8 @@ export interface ChannelHeaderProps {
   title: string;
   /** Presence status for DM headers. */
   status?: 'online' | 'idle' | 'dnd' | 'offline' | undefined;
+  /** The other person is online on a phone alone (D-702): their status shows the phone glyph. */
+  phone?: boolean | undefined;
   isDm?: boolean;
   topic?: string | null | undefined;
   membersOpen: boolean;
@@ -68,6 +71,7 @@ export function ChannelHeader({
   icon,
   title,
   status,
+  phone,
   isDm,
   topic,
   membersOpen,
@@ -117,7 +121,7 @@ export function ChannelHeader({
           }
           onClick={(e) => dm.onIdentity(e.currentTarget)}
         >
-          <Avatar name={title} size={24} {...(status ? { status } : {})} />
+          <Avatar name={title} size={24} {...(status ? statusProps({ status, phone }) : {})} />
           <span className="lng-header-title" role="heading" aria-level={1}>
             {title}
           </span>
@@ -125,7 +129,7 @@ export function ChannelHeader({
       ) : (
         <>
           {isDm ? (
-            <Avatar name={title} size={24} {...(status ? { status } : {})} />
+            <Avatar name={title} size={24} {...(status ? statusProps({ status, phone }) : {})} />
           ) : (
             <Icon name={icon} size={24} />
           )}

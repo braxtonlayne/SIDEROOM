@@ -64,7 +64,8 @@ test.describe('Lounge gaps', () => {
     await expect(pane.getByText(`inside ${stamp}`)).toBeVisible();
 
     // The parent message grows a chip, and the Threads popover lists the thread.
-    const chip = log.getByRole('button', { name: new RegExp(`Side ${stamp}`) });
+    // The "started a thread" notice also links the thread by name (D-701), so pick the chip itself.
+    const chip = log.locator('.lng-thread-chip').filter({ hasText: `Side ${stamp}` });
     await expect(chip).toBeVisible();
     await pane.getByRole('button', { name: 'Close thread' }).click();
     await expect(pane).toHaveCount(0);

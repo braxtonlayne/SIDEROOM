@@ -647,10 +647,22 @@ Built features of waves 64 and 65 that no row named; each was checked in code on
 - [x] **SEC-AUD-203** [BE/FE] Message requests show a preview of the sender's latest message (`sr_request_preview`; words only, 140 characters, hidden behind Show message for Likely spam) (D-688, LNG-DM-008). Handoff `fix-p67-previews.md`.
 - [x] **SEC-AUD-204** [BE/FE] The thread row under a starter message shows the thread's last message (`sr_last_message`, REST only), live, and never previews a private thread from its parent (D-689, LNG-THR-006). Handoff `fix-p67-previews.md`.
 - [x] **SEC-AUD-205** [BE/FE] The account's own READY carries `user.sr_platform_staff`; member code makes no `/admin/me` request; `adminEntry.ts` and `cardActions.ts` (D-673, D-674). Handoff `fix-p67-previews.md`.
-- [ ] **SEC-AUD-206** [FE] The phone glyph for a member on a phone (LNG-PRF-013): the web always identifies as `os: 'web'` and drops `client_status` from presence; not built in wave 67. Handoff `fix-p67-previews.md`.
+- [x] **SEC-AUD-206** [FE] The phone glyph for a member on a phone (LNG-PRF-013): the web always identifies as `os: 'web'` and drops `client_status` from presence; not built in wave 67. Handoff `fix-p67-previews.md`. _(Wave 68: built: the web sends its platform at IDENTIFY and keeps `client_status`; the gateway announces again once the platform is known (D-702). Handoff `fix-p68-presence.md`.)_
 - [x] **SEC-AUD-207** [FE] The reader saves with the position it started from, asks once when another device read further, offers a jump while a chapter is open, and the Library follows `SR_LIBRARY_UPDATE` (D-690, LIB-RDR-018). Handoff `fix-p67-reader.md`.
 - [x] **SEC-AUD-208** [FE] The review queue filters by submitter, kept in `?submitter=` (D-691, REV-RV-001). Handoff `fix-p67-reader.md`.
 - [x] **SEC-AUD-209** [FE] Dead message keys of wave 66 removed. Handoff `fix-p67-reader.md`.
 - [x] **SEC-AUD-210** [BE] The server completes the app policy from its configuration at start, with the `SR_CSP_*` origins validated (a bad entry stops the start); `prod.yml` passes them (D-682). Handoff `fix-p67-ops.md`.
 - [x] **SEC-AUD-211** [OPS] One packing script, `scripts/pack-web-release.mjs`, for the release and the dry run; the dry run unpacks and checks the layout. Handoff `fix-p67-ops.md`.
 - [x] **SEC-AUD-212** [DOC] The beta rule (D-684), the free upload size (D-678), the Staff Server channels (D-683), the two limits, the legal stylesheet, the wave's notes. Handoff `fix-p67-ops.md`.
+- [x] **SEC-AUD-213** [BE/FE] The review queue and detail answers carry `users` (id, username, global name, avatar); Admin > Review queues names submitters and claimers as @username, also in the filter chip (D-692). Handoff `fix-p68-staff.md`.
+- [x] **SEC-AUD-214** [BE] Subtitle tracks add their language to the title's `subtitle_languages` on upload, language edit, un-hide and finished transcode (an episode adds to its show; add only, no backfill) (D-694). Handoff `fix-p68-staff.md`.
+- [x] **SEC-AUD-215** [BE] An upheld takedown blocks `subtitles/{asset}/`, and the CDN asks the blocklist about the stored key an HLS path maps to as well as the path's own key (D-695). Handoff `fix-p68-staff.md`.
+- [x] **SEC-AUD-216** [BE/FE] Transcoding workers report their GPU name (`nvidia-smi`, cleaned to 80 printable characters), and the Workers tab shows speed now and jobs of the last 24 hours; migration 2930 (D-705, ADM-CNT-006). Handoff `fix-p68-staff.md`.
+- [x] **SEC-AUD-217** [FE] Dead message keys of waves 67 and 68 removed. Handoff `fix-p68-staff.md`.
+- [x] **SEC-AUD-218** [BE/FE] The request preview carries `message_id` and leaves at once when that message is deleted (D-699). Handoff `fix-p68-previews.md`.
+- [x] **SEC-AUD-219** [FE] Thread rows show a relative time on one shared minute tick (D-700). Handoff `fix-p68-previews.md`.
+- [x] **SEC-AUD-220** [BE/FE] The "started a thread" row carries the thread chip with its latest message, in the same one read per page; never for a private thread (D-701). Handoff `fix-p68-previews.md`.
+- [x] **SEC-AUD-221** [BE/FE] Reaction notifications: `MESSAGE_REACTION_ADD` carries `message_author_id`, and the web notifies the author (D-703, LNG-USET-052). Handoff `fix-p68-presence.md`.
+- [x] **SEC-AUD-222** [FE] The email digest switch is removed until a digest exists (D-704, LNG-USET-052). Handoff `fix-p68-presence.md`.
+- [x] **SEC-AUD-223** [OPS] A dropped `SR_PEERTUBE_HOSTS` or `SR_MEDIA_HOSTS` entry is named at start and in the preflight `web` row; `process_cpu_seconds_total` on Linux (D-697, D-706, VOX-SFU-009). Handoff `fix-p68-ops.md`.
+- [x] **SEC-AUD-224** [DOC] The ops answers (D-696..D-698), the upload description (D-678), the wave's changelog and upgrade notes. Handoff `fix-p68-ops.md`.

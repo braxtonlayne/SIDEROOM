@@ -14,6 +14,7 @@ pub mod loadtest;
 pub mod lobby;
 pub mod loss;
 pub mod metrics;
+pub mod process_cpu;
 pub mod server;
 pub mod speaking;
 pub mod ws;

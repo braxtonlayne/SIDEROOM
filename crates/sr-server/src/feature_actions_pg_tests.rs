@@ -465,6 +465,7 @@ async fn starboard_and_welcome_run_through_the_runtime() {
         message_id: m.get(),
         user: UserId::new(user),
         emoji: json!({"id": null, "name": "\u{2b50}"}),
+        message_author: None,
     };
     f.messages
         .store

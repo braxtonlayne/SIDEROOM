@@ -2,6 +2,7 @@
  * Pure mapping from the normalized store (Discord-shaped, snake_case, src/store/types.ts) to the Lounge
  * view model (camelCase, src/lounge/data.ts). No React here, so it is unit-testable on its own.
  */
+import { phoneOnly } from './phoneOnly';
 import type {
   Attachment,
   Activity,
@@ -366,9 +367,11 @@ export function toLoungePresence(p: S.Presence | undefined, now = Date.now()): P
   const custom = all.find((a) => a.kind === 'custom');
   const rich = all.filter((a) => a.kind !== 'custom');
   const first = all[0];
-  if (!first) return { status };
+  const phone = phoneOnly(p) ? { phone: true as const } : {};
+  if (!first) return { status, ...phone };
   return {
     status,
+    ...phone,
     activity: first,
     ...(rich.length ? { activities: rich } : {}),
     ...(custom ? { custom } : {}),

@@ -1049,6 +1049,7 @@ async fn rest_message_family_is_dispatched_with_payloads() {
             message_id: 5,
             user: u(2),
             emoji: json!({"id": null, "name": "x"}),
+            message_author: None,
         },
     )
     .await;
@@ -2613,6 +2614,122 @@ async fn dnd_from_one_session_applies_to_all_and_invisible_hides_the_platforms()
         json!({}),
         "invisible shows no platform"
     );
+}
+
+/// SEC-AUD-206 (D-702): the web app's IDENTIFY `properties` on a phone make the session `mobile` for everyone else.
+#[tokio::test]
+async fn a_phone_session_is_reported_as_mobile_to_others() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut phone = connect(&e);
+    phone
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "android", "browser": "sideroom", "device": "sideroom"}),
+        )
+        .await;
+    // The session is announced first as the default platform (and the watcher hears of itself), then again once
+    // IDENTIFY's `properties` are read: wait for the phone's own update.
+    let mut p = watcher.expect_event("PRESENCE_UPDATE").await;
+    for _ in 0..4 {
+        if p["d"]["user"]["id"] == "1" && p["d"]["client_status"] == json!({"mobile": "online"}) {
+            break;
+        }
+        p = watcher.expect_event("PRESENCE_UPDATE").await;
+    }
+    assert_eq!(p["d"]["status"], "online");
+    assert_eq!(p["d"]["client_status"], json!({"mobile": "online"}));
+    watcher.drain().await;
+
+    // A desktop-class tab of the same account turns it into both.
+    let mut web = connect(&e);
+    web.identify_with(
+        "user:1",
+        0,
+        1,
+        json!({"os": "web", "browser": "sideroom", "device": "sideroom"}),
+    )
+    .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(
+        p["d"]["client_status"],
+        json!({"web": "online", "mobile": "online"})
+    );
+}
+
+#[tokio::test]
+async fn an_invisible_phone_session_reports_no_client_status() {
+    let e = env();
+    let mut watcher = connect(&e);
+    watcher.identify("user:2", 0, 1).await;
+    let mut phone = connect(&e);
+    phone
+        .identify_with(
+            "user:1",
+            0,
+            1,
+            json!({"os": "ios", "browser": "sideroom", "device": "sideroom"}),
+        )
+        .await;
+    settle().await;
+    watcher.drain().await;
+    phone
+        .send(json!({"op": 3, "d": {"status": "invisible", "activities": []}}))
+        .await;
+    let p = watcher.expect_event("PRESENCE_UPDATE").await;
+    assert_eq!(p["d"]["status"], "offline");
+    assert_eq!(p["d"]["client_status"], json!({}));
+}
+
+/// SEC-AUD-221 (D-703): the reaction event names the message's author when the sender knew it, and has no field
+/// when it did not (a reaction the bridge brought in).
+#[tokio::test]
+async fn a_reaction_add_names_the_messages_author() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    emit(
+        &e.bus,
+        DomainEvent::ReactionAdded {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+            user: u(2),
+            emoji: json!({"id": null, "name": "x"}),
+            message_author: Some(u(1)),
+        },
+    )
+    .await;
+    let r = a.expect_event("MESSAGE_REACTION_ADD").await;
+    assert_eq!(r["d"]["message_author_id"], "1");
+}
+
+#[tokio::test]
+async fn a_reaction_from_the_bridge_without_an_author_has_no_field() {
+    let e = env();
+    let mut a = connect(&e);
+    a.identify("user:1", 0, 1).await;
+    settle().await;
+    a.drain().await;
+    emit(
+        &e.bus,
+        DomainEvent::ReactionAdded {
+            guild: Some(G1),
+            channel: OPEN,
+            message_id: 5,
+            user: u(2),
+            emoji: json!({"id": null, "name": "x"}),
+            message_author: None,
+        },
+    )
+    .await;
+    let r = a.expect_event("MESSAGE_REACTION_ADD").await;
+    assert!(r["d"].get("message_author_id").is_none());
 }
 
 // ---------------------------------------------------------------- sharding (DEV-BOT-002)

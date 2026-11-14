@@ -367,6 +367,13 @@ pub struct WorkerView {
     pub online: bool,
     pub drain: bool,
     pub active_jobs: u32,
+    /// Sum of the `speed` (times real time) of the jobs the worker runs now whose lease has not run out; none
+    /// when it runs nothing or no running job has reported a speed yet (D-705).
+    pub speed_now: Option<f32>,
+    /// Jobs the worker finished in the last 24 hours.
+    pub jobs_done_24h: u32,
+    /// Jobs the worker failed in the last 24 hours.
+    pub jobs_failed_24h: u32,
 }
 
 // ---- playback ----------------------------------------------------------------------------
@@ -582,6 +589,17 @@ pub trait MediaRepository: JobStore {
         Err(MediaError::Backend(
             "this repository has no subtitle tracks".into(),
         ))
+    }
+    /// D-694: add `tag` (a track's language) to `subtitle_languages` of the title the asset plays for (a
+    /// title, an episode's show or a cut), when it is missing. Returns the language as stored when it was added
+    /// to at least one title; `None` for `und`, an empty or unusable tag, an asset linked to no title, or a
+    /// language already listed. Never removes.
+    async fn add_subtitle_language(
+        &self,
+        _asset_id: i64,
+        _tag: &str,
+    ) -> MediaResult<Option<String>> {
+        Ok(None)
     }
     /// Delete an uploaded track row (the caller deletes its objects).
     async fn delete_uploaded_subtitle(

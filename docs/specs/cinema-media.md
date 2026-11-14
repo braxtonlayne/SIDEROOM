@@ -105,7 +105,7 @@ All routes are under `/api/v1/transcode/worker` and need `Authorization: Bearer 
 
 | Method and path | Purpose | Body → response |
 |---|---|---|
-| `POST /register` | Announce name, version, capabilities (NVENC, encoders, concurrency, libplacebo). Same token + name keeps the worker id | `RegisterRequest` → `{ worker_id, heartbeat_secs, lease_secs, poll_secs }` |
+| `POST /register` | Announce name, version, capabilities (NVENC, encoders, hwaccels, concurrency, libplacebo, and the optional `gpu` name). Same token + name keeps the worker id | `RegisterRequest` → `{ worker_id, heartbeat_secs, lease_secs, poll_secs }` |
 | `POST /workers/{worker_id}/heartbeat` | Liveness; also recycles jobs whose lease expired | `{ active_jobs }` → `{ cancel_jobs[], drain }` |
 | `POST /workers/{worker_id}/claim` | Atomically claim the best queued job (priority desc, then age; proxies are queued with high priority) | `{ kinds[] }` → `{ job: null \| ClaimedJob }` |
 | `POST /jobs/{job_id}/progress` | Stage, percent, fps, speed; extends the lease | `ProgressRequest` → `{ cancel, lease_expires_at }` |
@@ -113,6 +113,8 @@ All routes are under `/api/v1/transcode/worker` and need `Authorization: Bearer 
 | `POST /jobs/{job_id}/uploads/{upload_id}/complete` | Finish it with the part ETags | `{ parts[{part_number,etag}] }` → `{ ok }` |
 | `POST /jobs/{job_id}/complete` | Finish the job: output list, segment index per rendition, encoder, wall time, log tail | `CompleteRequest` → `{ ok }` |
 | `POST /jobs/{job_id}/fail` | Fail (retryable or not) or acknowledge a cancel, with stage, message and log tail | `FailRequest` → `{ ok }` |
+
+**GPU name (D-705).** `capabilities.gpu` is optional (`#[serde(default)]`: a worker built before it sends none and still registers). The worker fills it from `nvidia-smi --query-gpu=name --format=csv,noheader` (3 second limit, one argument vector, no shell) and only when its NVENC test encode worked; a missing program or a failure is no name, never an error, and a worker held to the CPU (`--force-cpu`) sends none. ffmpeg prints no device name during the probe, so that program is the only source. The name is the worker's own text: the server keeps at most 80 printable characters (control and direction-changing characters dropped, trimmed; empty is none) where it stores a registration.
 
 `ClaimedJob` carries the job id, attempt, `spec` (`proxy` plan or `ladder` plan, so the worker needs no server-side logic), a **signed GET URL of the original** (8 h, `/cdn/originals/<key>?ex=&sig=`), its size and extension, the lease expiry and a maximum output budget (max of 20 GiB and 2x the original).
 
@@ -586,7 +588,7 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   webm ts m2ts mts wmv flv mpg mpeg ogv. Begin and complete are written to the staff access log
   (`cinema.asset.upload.begin|complete`).
 * Transcoding admin (`MANAGE_TRANSCODE`): tokens (`GET|POST /admin/transcode/tokens`, `DELETE .../{id}`; the secret
-  `srw_<64 hex>` is in the create response only), workers (`GET`, `PUT .../{id}/drain`), `GET .../queue`, jobs
+  `srw_<64 hex>` is in the create response only), workers (`GET`, `PUT .../{id}/drain`; each worker also carries `speed_now`, the sum of the `speed` of its running jobs whose lease has not run out (none when it runs nothing), and `jobs_done_24h` and `jobs_failed_24h`, read from the job rows in the one query that lists the workers; the page shows the GPU name, else the hardware encoders the worker found, else "no hardware encoder", with "2.4x now" and "14 done, 1 failed in 24 h"; migration 2930 indexes `(worker_id, finished_at)` for finished jobs, since nothing indexed `worker_id` and jobs are never deleted), `GET .../queue`, jobs
   (`GET .../jobs`, `GET .../jobs/{id}` with log tail, `POST .../cancel`, `POST .../retry`), `POST .../retranscode`
   (`{scope: asset|title|all, id?, only_older_than_profile?, reason?}`, capped at 500 assets), `POST .../sweep`.
 * Staff subtitles (`PUBLISH_MEDIA`, D-685): `GET /admin/cinema/assets/{asset_id}/subtitles`
@@ -624,8 +626,17 @@ exists). `sr_media::playback::playback_grant(&pb, signer, now)` turns it into th
   master or subtitle playlist, nor served by `storage_key`.
 * **Removal.** Deleting a track deletes its row and objects. An asset that is removed or rejected takes no uploads, and the
   retention sweep that deletes its original also deletes the uploaded subtitle rows and objects.
-* The title's `subtitle_languages` list is not touched by a transcode completion today and is not touched by an upload either; the
-  Admin panel offers the languages the title lists as suggestions.
+* **The title's `subtitle_languages` (D-694, SEC-AUD-214).** A track that members can pick adds its language to the list of the title the video
+  plays for when it is missing: after a staff upload, after a hidden track is shown, after a track's language is edited, and when a
+  transcode finishes (every not-hidden track it wrote). A video that plays for an episode adds to its show; an asset linked to no title adds
+  nothing. The language is stored as the title editor accepts it (`pt-br` becomes `pt-BR`); `und`, an empty tag and a tag the editor would
+  refuse add nothing, and the list stops at its 40 entries. Nothing is ever removed: hiding or deleting a track leaves the list (staff edit it
+  in the title editor). A failure is logged and never fails the upload, the edit or the completion; the audit entry of an upload or an edit
+  carries `language_added` (the language, or null). The list is what the catalog's "subtitles in" filter and facet read; the search index
+  holds no languages, so the column is all there is to update. Titles that already have tracks are not backfilled: the next upload, edit or
+  re-encode fills the list. The SQL lives in `sr-db` (`media_repo/languages.rs`) behind `MediaRepository::add_subtitle_language`, called by
+  `MediaService::add_track_language_to_title` from the subtitle routes and by the repository itself after the ladder completion commits
+  (`sr-media` does not depend on `sr-cinema`). A title editor that is open in another tab shows the old list until it is reloaded.
 
 ### 11.5 Jobs
 

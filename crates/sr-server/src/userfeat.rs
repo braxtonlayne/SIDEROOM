@@ -354,6 +354,7 @@ impl Poster for SystemPoster {
                         message_id: message.get(),
                         user: system(),
                         emoji: key.json(),
+                        message_author: Some(msg.author_id),
                     })
                     .await;
             }

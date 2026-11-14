@@ -219,7 +219,7 @@ export const SETTINGS_INDEX: readonly SettingsEntry[] = [
     keywords: 'badge flash title',
   },
   { section: 'notifications', card: 'us-sounds', label: 'Notification sounds' },
-  { section: 'notifications', card: 'us-push', label: 'Push and email', keywords: 'digest' },
+  { section: 'notifications', card: 'us-push', label: 'Push notifications' },
   {
     section: 'notifications',
     card: 'us-servers',

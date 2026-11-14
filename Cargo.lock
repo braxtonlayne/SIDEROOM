@@ -6543,6 +6543,7 @@ dependencies = [
  "sr-db",
  "sr-net",
  "sr-storage",
+ "sr-unfurl",
  "sr-voice-proto",
  "tokio",
 ]

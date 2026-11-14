@@ -39,6 +39,10 @@
 .idle { background: var(--ui-status-idle); }
 .dnd { background: var(--ui-status-dnd); }
 .offline { background: var(--ui-status-offline); }
+/* An icon in the dot's place: the page-colour ring stays, the status colour is the glyph's. */
+.statusIcon { display: grid; place-items: center; background: var(--ui-bg); border: 0; padding: 1px; }
+.statusIcon.online { color: var(--ui-status-online); }
+.statusIcon > svg { width: 100%; height: 100%; }
 .decoration { position: absolute; inset: -12%; display: grid; place-items: center; pointer-events: none; }
 .decoration > * { max-width: 100%; max-height: 100%; }
 

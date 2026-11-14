@@ -266,6 +266,9 @@ pub enum DomainEvent {
         message_id: u64,
         user: UserId,
         emoji: serde_json::Value,
+        /// Whose message it is (Discord's `message_author_id`; SEC-AUD-221, D-703). `None` where the sender does not know.
+        #[serde(default)]
+        message_author: Option<UserId>,
     },
     /// `MESSAGE_REACTION_REMOVE`.
     ReactionRemoved {
@@ -767,6 +770,7 @@ mod tests {
             message_id: 3,
             user: UserId::new(4),
             emoji: serde_json::json!({"id": null, "name": "x"}),
+            message_author: None,
         };
         assert_eq!(
             e.topics(),

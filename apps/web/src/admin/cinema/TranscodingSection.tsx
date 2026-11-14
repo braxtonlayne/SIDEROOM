@@ -14,7 +14,7 @@ import {
   TextInput,
 } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
-import { useT } from '../../i18n';
+import { formatNumber, useT } from '../../i18n';
 import {
   LoadMore,
   ReasonDialog,
@@ -119,10 +119,12 @@ function WorkersTab() {
                     n: w.active_jobs,
                     seen: fmtMs(w.last_seen_ms),
                   })}
-                  {w.capabilities.nvenc ? ' · NVENC' : ''}
                   {w.capabilities.concurrency
                     ? ` · ${t('admin.transcoding.workers.atOnce', { n: w.capabilities.concurrency })}`
                     : ''}
+                </div>
+                <div className="ss-meta" data-testid={`worker-gear-${w.id}`}>
+                  <WorkerGear w={w} />
                 </div>
               </div>
               <Switch
@@ -145,6 +147,47 @@ function WorkersTab() {
           ))}
         </ul>
       )}
+    </>
+  );
+}
+
+/** The GPU (its name; else the hardware encoders the worker found; else "no hardware encoder") and the throughput. */
+function WorkerGear({ w }: { w: tx.Worker }) {
+  const t = useT();
+  const caps = w.capabilities;
+  const hardware = [...(caps.nvenc ? ['NVENC'] : []), ...(caps.hwaccels ?? [])]
+    .filter((h, i, all) => all.indexOf(h) === i)
+    .join(', ');
+  const parts: React.ReactNode[] = [
+    caps.gpu ? (
+      <span className="adm-gpu">{caps.gpu}</span>
+    ) : hardware ? (
+      hardware
+    ) : (
+      t('admin.transcoding.workers.noHardware')
+    ),
+  ];
+  if (w.speed_now != null)
+    parts.push(
+      t('admin.transcoding.workers.speedNow', {
+        speed: formatNumber(w.speed_now, { maximumFractionDigits: 1 }),
+      }),
+    );
+  if (w.jobs_done_24h != null && w.jobs_failed_24h != null)
+    parts.push(
+      t('admin.transcoding.workers.last24h', {
+        done: formatNumber(w.jobs_done_24h),
+        failed: formatNumber(w.jobs_failed_24h),
+      }),
+    );
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={i}>
+          {i > 0 ? ' · ' : ''}
+          {p}
+        </span>
+      ))}
     </>
   );
 }

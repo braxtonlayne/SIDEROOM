@@ -1,6 +1,5 @@
 // Wave 67, media (SEC-AUD-199, D-686): the Live TV channel logo row of the channel editor. Admin strings sit in this
-// catalog until `scripts/staff-keys.mjs --write` moves what only staff code names. Dead since this wave:
-// admin.channelEditor.logoNotAvailable, admin.channelEditor.logoNotAvailableCallSign.
+// catalog until `scripts/staff-keys.mjs --write` moves what only staff code names. Two keys it stopped using were removed in wave 68 (SEC-AUD-217).
 export default {
   'admin.channelEditor.logo.title': 'Logo',
   'admin.channelEditor.logo.fallback': 'No logo. The guide shows the call sign as text instead.',

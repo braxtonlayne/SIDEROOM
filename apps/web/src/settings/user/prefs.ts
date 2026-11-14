@@ -101,6 +101,7 @@ export interface UserPrefs {
   dmToasts: boolean;
   /** Minutes without activity before notifications go to the phone instead (0 = never). */
   pushInactiveMinutes: number;
+  /** Kept and never read: the Settings switch left the page until a digest exists (SEC-AUD-222, D-704). */
   emailDigest: boolean;
   // Activity privacy
   shareActivity: boolean;

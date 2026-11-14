@@ -44,6 +44,7 @@ import type {
   CinemaPreview,
   LibraryPreview,
   ReviewPage,
+  ReviewUser,
   Submission,
   SubmissionDetail,
   SubmissionItem,
@@ -130,13 +131,24 @@ const REJECT_LABEL_KEYS: Record<string, MessageKey> = {
   Other: 'admin.review.rejectOther',
 };
 
+/** The people a reviewer answer names, by account id (D-692). A deleted account is not in it. */
+type People = ReadonlyMap<string, ReviewUser>;
+const peopleOf = (users: readonly ReviewUser[] | undefined): People =>
+  new Map((users ?? []).map((u) => [u.id, u]));
+
+/** `@username`, or "Account <id>" when the answer does not name the account. */
+const person = (t: TFn, people: People, id: string) => {
+  const u = people.get(id);
+  return u ? `@${u.username}` : t('admin.review.account', { id });
+};
+
 /** Who a lease or an event actor is, from the reviewer's point of view. */
-const who = (t: TFn, me: string, id: string | null) =>
+const who = (t: TFn, me: string, id: string | null, people: People = new Map()) =>
   id === null
     ? t('admin.review.someone')
     : id === me
       ? t('admin.review.you')
-      : t('admin.review.account', { id });
+      : person(t, people, id);
 
 /** The Library submissions workspace (a tab of the Review Queues hub). */
 export function LibraryReviewPanel() {
@@ -282,18 +294,19 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
         <div className="rv-actions" aria-label={t('admin.review.filterQueue')}>
           <Chip
             icon={<span aria-hidden="true">×</span>}
-            aria-label={`${t('admin.review.filterSubmitterChip', { name: t('admin.review.account', { id: submitter }) })}. ${t('admin.review.filterSubmitterClear')}`}
+            aria-label={`${t('admin.review.filterSubmitterChip', { name: person(t, peopleOf(res.data?.users), submitter) })}. ${t('admin.review.filterSubmitterClear')}`}
             onClick={() => setSubmitter('')}
           >
             {t('admin.review.filterSubmitterChip', {
-              name: t('admin.review.account', { id: submitter }),
+              name: person(t, peopleOf(res.data?.users), submitter),
             })}
           </Chip>
         </div>
       )}
       <Async res={res} label={t('admin.review.loadingQueue')}>
-        {(page) =>
-          page.items.length === 0 ? (
+        {(page) => {
+          const people = peopleOf(page.users);
+          return page.items.length === 0 ? (
             <EmptyState
               title={t('admin.review.emptyTitle')}
               description={t('admin.review.emptyDescription')}
@@ -315,47 +328,57 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {page.items.map((s) => (
-                      <tr key={s.id}>
-                        <td>
-                          <strong>{s.title}</strong>
-                          <div className="rv-muted">
-                            {s.kind === 'library.items'
-                              ? t('admin.review.kindItems')
-                              : t('admin.review.kindSeries')}
-                          </div>
-                        </td>
-                        <td className="adm-mono">
-                          {s.submitter_id ? (
-                            <button
-                              type="button"
-                              className="rv-link-btn"
-                              aria-label={`${s.submitter_id}. ${t('admin.review.filterSubmitterPress')}`}
-                              title={t('admin.review.filterSubmitterPress')}
-                              onClick={() => setSubmitter(s.submitter_id!)}
+                    {page.items.map((s) => {
+                      const submitterUser = s.submitter_id ? people.get(s.submitter_id) : undefined;
+                      return (
+                        <tr key={s.id}>
+                          <td>
+                            <strong>{s.title}</strong>
+                            <div className="rv-muted">
+                              {s.kind === 'library.items'
+                                ? t('admin.review.kindItems')
+                                : t('admin.review.kindSeries')}
+                            </div>
+                          </td>
+                          <td className={submitterUser ? undefined : 'adm-mono'}>
+                            {s.submitter_id ? (
+                              <button
+                                type="button"
+                                className="rv-link-btn"
+                                aria-label={`${submitterUser ? `@${submitterUser.username}` : s.submitter_id}. ${t('admin.review.filterSubmitterPress')}`}
+                                title={
+                                  submitterUser?.global_name
+                                    ? t('admin.review.submitterTitle', {
+                                        name: submitterUser.global_name,
+                                        hint: t('admin.review.filterSubmitterPress'),
+                                      })
+                                    : t('admin.review.filterSubmitterPress')
+                                }
+                                onClick={() => setSubmitter(s.submitter_id!)}
+                              >
+                                {submitterUser ? `@${submitterUser.username}` : s.submitter_id}
+                              </button>
+                            ) : (
+                              t('admin.review.deletedAccount')
+                            )}
+                          </td>
+                          <td>
+                            <StateChip state={s.state} />
+                          </td>
+                          <td>{s.submitted_at_ms ? ago(s.submitted_at_ms) : ''}</td>
+                          <td>{claimText(t, s, viewer.userId, people)}</td>
+                          <td>
+                            <Button
+                              size="sm"
+                              aria-label={t('admin.review.openAria', { title: s.title })}
+                              onClick={() => onOpen(s.id)}
                             >
-                              {s.submitter_id}
-                            </button>
-                          ) : (
-                            t('admin.review.deletedAccount')
-                          )}
-                        </td>
-                        <td>
-                          <StateChip state={s.state} />
-                        </td>
-                        <td>{s.submitted_at_ms ? ago(s.submitted_at_ms) : ''}</td>
-                        <td>{claimText(t, s, viewer.userId)}</td>
-                        <td>
-                          <Button
-                            size="sm"
-                            aria-label={t('admin.review.openAria', { title: s.title })}
-                            onClick={() => onOpen(s.id)}
-                          >
-                            {t('admin.review.open')}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                              {t('admin.review.open')}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -385,18 +408,17 @@ function ReviewQueue({ onOpen }: { onOpen: (id: string) => void }) {
                 </div>
               </div>
             </>
-          )
-        }
+          );
+        }}
       </Async>
     </>
   );
 }
 
-function claimText(t: TFn, s: Submission, me: string): string {
+function claimText(t: TFn, s: Submission, me: string, people: People): string {
   if (!s.claimed_by || !s.claim_expires_at_ms || s.claim_expires_at_ms <= Date.now())
     return t('admin.review.free');
-  const by =
-    s.claimed_by === me ? t('admin.review.you') : t('admin.review.account', { id: s.claimed_by });
+  const by = who(t, me, s.claimed_by, people);
   return t('admin.review.claimUntil', {
     by,
     time: formatTime(s.claim_expires_at_ms),
@@ -416,7 +438,14 @@ function ReviewDetail({
 }) {
   const t = useT();
   const viewer = useAdminViewer();
-  const res = useResource(`review:${id}`, () => rv.reviewGet(id));
+  // The names ride on the GET only; the answers of claim, release and the decisions do not carry them, so
+  // the people of the last GET are kept beside the submission (D-692).
+  const [people, setPeople] = useState<People>(() => new Map());
+  const res = useResource(`review:${id}`, async () => {
+    const { users, ...detail } = await rv.reviewGet(id);
+    setPeople((prev) => new Map([...prev, ...peopleOf(users)]));
+    return detail;
+  });
   const preview = useResource(
     `review-preview:${id}`,
     async () => (await rv.reviewPreview(id)).preview,
@@ -511,7 +540,23 @@ function ReviewDetail({
             <dl className="rv-kv" aria-label={t('admin.review.detailsLabel')}>
               <div className="rv-kv-row">
                 <dt>{t('admin.review.dtSubmitter')}</dt>
-                <dd className="adm-mono">{s.submitter_id ?? t('admin.review.deletedAccount')}</dd>
+                <dd>
+                  {s.submitter_id ? (
+                    <>
+                      {people.has(s.submitter_id) && (
+                        <>
+                          {person(t, people, s.submitter_id)}
+                          {people.get(s.submitter_id)?.global_name
+                            ? ` (${people.get(s.submitter_id)?.global_name})`
+                            : ''}{' '}
+                        </>
+                      )}
+                      <span className="adm-mono">{s.submitter_id}</span>
+                    </>
+                  ) : (
+                    t('admin.review.deletedAccount')
+                  )}
+                </dd>
               </div>
               <div className="rv-kv-row">
                 <dt>{t('admin.review.dtSubmitted')}</dt>
@@ -519,7 +564,7 @@ function ReviewDetail({
               </div>
               <div className="rv-kv-row">
                 <dt>{t('admin.review.dtClaim')}</dt>
-                <dd>{claimText(t, s, viewer.userId)}</dd>
+                <dd>{claimText(t, s, viewer.userId, people)}</dd>
               </div>
               {s.summary && (
                 <div className="rv-kv-row">
@@ -594,8 +639,8 @@ function ReviewDetail({
             {!canDecide && s.state === 'in_review' && (
               <p className="rv-muted">
                 {heldByOther
-                  ? t('admin.review.heldByOther', {
-                      id: s.claimed_by ?? '',
+                  ? t('admin.review.heldByOtherNamed', {
+                      name: person(t, people, s.claimed_by ?? ''),
                       when: fmtWhen(s.claim_expires_at_ms),
                     })
                   : t('admin.review.claimToDecide')}
@@ -699,7 +744,7 @@ function ReviewDetail({
 
             <section className="rv-panel" aria-labelledby="rv-time-h">
               <h3 id="rv-time-h">{t('admin.review.timelineTitle')}</h3>
-              <Timeline events={d.events} actorLabel={(a) => who(t, viewer.userId, a)} />
+              <Timeline events={d.events} actorLabel={(a) => who(t, viewer.userId, a, people)} />
               <NoteForm
                 busy={action.busy}
                 onSend={(body, internal) =>
@@ -728,7 +773,9 @@ function ReviewDetail({
             <ConfirmDialog
               open={dialog === 'takeover'}
               title={t('admin.review.takeOver')}
-              description={t('admin.review.takeOverDescription', { id: s.claimed_by ?? '' })}
+              description={t('admin.review.takeOverDescriptionNamed', {
+                name: person(t, people, s.claimed_by ?? ''),
+              })}
               confirmLabel={t('admin.review.takeOverConfirm')}
               loading={action.busy}
               onCancel={() => setDialog(null)}

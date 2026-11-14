@@ -2726,3 +2726,180 @@ async fn a_private_thread_is_never_previewed_under_a_message_of_its_parent() {
     let (_, v) = e.get("/messages?limit=5", "bob").await;
     assert!(v[0]["thread"].get("sr_last_message").is_none(), "{v}");
 }
+
+// ---- D-701: the "started a thread" row carries the chip ------------------------------------------
+
+/// Turn the stored message `row` (said in the parent channel) into the "started a thread" row of `thread`:
+/// type 18, its reference naming the thread (`service.rs` writes it so).
+fn make_thread_created_row(e: &Env, row: &str, thread: ChannelId) {
+    let mut d = e.backend.data();
+    let m = d
+        .messages
+        .iter_mut()
+        .find(|m| m.id.to_string() == row)
+        .unwrap();
+    m.kind = MessageType::ThreadCreated;
+    m.reference = Some(sr_chat::domain::MessageReference {
+        message_id: sr_core::MessageId::new(thread.get()),
+        channel_id: thread,
+        forward: None,
+    });
+}
+
+#[tokio::test]
+async fn a_thread_created_row_carries_the_thread_and_its_last_message() {
+    let e = env().await;
+    // A thread started without a message: its id is no message of the page.
+    let anchor = e.say("owner", "anchor").await;
+    let tid = seed_thread(
+        &e,
+        &(anchor["id"].as_str().unwrap().parse::<u64>().unwrap() + 7).to_string(),
+        &[(OWNER, "first", false), (BOB, "the newest", false)],
+    );
+    let row = e.say("owner", "a thread").await;
+    let rid = row["id"].as_str().unwrap().to_owned();
+    make_thread_created_row(&e, &rid, tid);
+    let (s, v) = e.get("/messages?limit=5", "bob").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let r = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == rid.as_str())
+        .unwrap();
+    assert_eq!(r["type"], 18);
+    assert_eq!(r["thread"]["id"], tid.to_string(), "{r}");
+    assert_eq!(r["thread"]["sr_last_message"]["content"], "the newest");
+    // The single read carries it too.
+    let (_, one) = e.get(&format!("/messages/{rid}"), "bob").await;
+    assert_eq!(one["thread"]["sr_last_message"]["content"], "the newest");
+}
+
+#[tokio::test]
+async fn a_deleted_thread_gives_the_plain_row() {
+    let e = env().await;
+    let row = e.say("owner", "gone thread").await;
+    let rid = row["id"].as_str().unwrap().to_owned();
+    // The thread it names does not exist.
+    make_thread_created_row(&e, &rid, ChannelId::new(987_654_321));
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    let r = &v.as_array().unwrap()[0];
+    assert_eq!(r["type"], 18);
+    assert!(r.get("thread").is_none_or(Value::is_null), "{r}");
+}
+
+#[tokio::test]
+async fn the_page_still_costs_one_preview_query() {
+    let e = env().await;
+    for n in 0..25 {
+        let starter = e.say("owner", &format!("topic {n}")).await;
+        seed_thread(
+            &e,
+            starter["id"].as_str().unwrap(),
+            &[(BOB, &format!("reply {n}"), false)],
+        );
+    }
+    let base: u64 = e.say("owner", "base").await["id"]
+        .as_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    for n in 0..25u64 {
+        let tid = seed_thread(
+            &e,
+            &(base + 1000 + n).to_string(),
+            &[(BOB, &format!("note {n}"), false)],
+        );
+        let row = e.say("owner", "started").await;
+        make_thread_created_row(&e, row["id"].as_str().unwrap(), tid);
+    }
+    let before = e.backend.data().last_message_reads;
+    let (s, v) = e.get("/messages?limit=51", "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    let rows = v.as_array().unwrap();
+    assert_eq!(rows.len(), 51);
+    assert_eq!(rows.iter().filter(|m| m["type"] == 18).count(), 25, "{v}");
+    assert!(rows.iter().filter(|m| m["type"] == 18).all(|m| {
+        m["thread"]["sr_last_message"]["content"]
+            .as_str()
+            .is_some_and(|c| c.starts_with("note "))
+    }));
+    assert_eq!(
+        e.backend.data().last_message_reads - before,
+        1,
+        "fifty threads of both kinds, one preview read"
+    );
+}
+
+/// A thread started from a message has the starter message AND a type 18 row in the parent, with the same thread:
+/// the chip sits under the starter only. Where the starter is on another page, the type 18 row carries it.
+#[tokio::test]
+async fn a_page_with_both_rows_shows_the_chip_once() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    let tid = seed_thread(&e, &sid, &[(BOB, "the reply", false)]);
+    // The seeded reply has the id after the starter's, which the test clock also gives the next message: move it.
+    for m in e
+        .backend
+        .data()
+        .messages
+        .iter_mut()
+        .filter(|m| m.channel_id == tid)
+    {
+        m.id = sr_core::MessageId::new(m.id.get() + (1 << 30));
+    }
+    let row = e.say("owner", "started a thread").await;
+    let rid = row["id"].as_str().unwrap().to_owned();
+    make_thread_created_row(&e, &rid, tid);
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    let rows = v.as_array().unwrap();
+    let st = rows.iter().find(|m| m["id"] == sid.as_str()).unwrap();
+    let sys = rows.iter().find(|m| m["id"] == rid.as_str()).unwrap();
+    assert_eq!(
+        st["thread"]["sr_last_message"]["content"], "the reply",
+        "{v}"
+    );
+    assert!(sys.get("thread").is_none_or(Value::is_null), "{sys}");
+    // A page that ends before the starter: the row carries the chip.
+    let (_, v) = e.get("/messages?limit=1", "bob").await;
+    let only = &v.as_array().unwrap()[0];
+    assert_eq!(only["id"], rid.as_str());
+    assert_eq!(
+        only["thread"]["sr_last_message"]["content"], "the reply",
+        "{v}"
+    );
+}
+
+/// The twin of `a_private_thread_is_never_previewed_under_a_message_of_its_parent` for the system row.
+#[tokio::test]
+async fn a_private_thread_is_never_embedded_in_a_thread_created_row() {
+    use sr_chat::threads::model::ThreadInfo;
+    use sr_chat::{Channel, ChannelType};
+    let e = env().await;
+    let anchor = e.say("owner", "anchor").await;
+    let tid = seed_thread(
+        &e,
+        &(anchor["id"].as_str().unwrap().parse::<u64>().unwrap() + 9).to_string(),
+        &[(OWNER, "secret plans", false)],
+    );
+    {
+        let mut d = e.backend.data();
+        let mut t = Channel::new(tid, Some(e.guild), ChannelType::PrivateThread);
+        t.parent_id = Some(e.ch);
+        t.thread = Some(ThreadInfo::new(T0, 60));
+        d.channels.insert(tid, t);
+    }
+    let row = e.say("owner", "somehow a row").await;
+    let rid = row["id"].as_str().unwrap().to_owned();
+    make_thread_created_row(&e, &rid, tid);
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    let r = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == rid.as_str())
+        .unwrap();
+    assert!(r.get("thread").is_none_or(Value::is_null), "{r}");
+    assert!(!v.to_string().contains("secret plans"), "{v}");
+}

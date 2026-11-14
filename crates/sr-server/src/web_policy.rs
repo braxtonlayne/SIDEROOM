@@ -167,7 +167,9 @@ fn check_extra_entry(entry: &str) -> Result<(), &'static str> {
     };
     let scheme = scheme.to_ascii_lowercase();
     if !matches!(scheme.as_str(), "https" | "wss" | "http" | "ws") {
-        return Err("the scheme must be https or wss (http or ws only for localhost)");
+        return Err(
+            "the scheme must be https or wss (http or ws only for a loopback host such as localhost)",
+        );
     }
     if rest.contains(['/', '?', '#', '@']) {
         return Err("it must be an origin without a path");
@@ -199,7 +201,9 @@ fn check_extra_entry(entry: &str) -> Result<(), &'static str> {
         return Err("the host is not a host name");
     }
     if matches!(scheme.as_str(), "http" | "ws") && !is_loopback(&host) {
-        return Err("the scheme must be https or wss (http or ws only for localhost)");
+        return Err(
+            "the scheme must be https or wss (http or ws only for a loopback host such as localhost)",
+        );
     }
     Ok(())
 }
@@ -220,6 +224,28 @@ pub fn parse_extra_origins(var: &str, raw: &str) -> Result<Vec<String>, WebError
         push_unique(&mut out, entry.to_owned());
     }
     Ok(out)
+}
+
+/// The warnings for the entries of `SR_PEERTUBE_HOSTS` and `SR_MEDIA_HOSTS` that are not plain host names (D-697):
+/// one line per variable that has any, none for a clean or empty one. The entries are dropped by the policy and the
+/// unfurler already; this only says so. Never an error: the start goes on.
+pub fn host_warnings(inp: &PolicyInputs) -> Vec<String> {
+    [
+        (sr_unfurl::embed::PEERTUBE_HOSTS_ENV, &inp.peertube_hosts),
+        (sr_unfurl::embed::MEDIA_HOSTS_ENV, &inp.media_hosts),
+    ]
+    .into_iter()
+    .filter_map(|(var, raw)| sr_unfurl::embed::host_warning(var, raw))
+    .collect()
+}
+
+/// Logs [`host_warnings`] once at start and returns them.
+pub fn warn_about_hosts(inp: &PolicyInputs) -> Vec<String> {
+    let warnings = host_warnings(inp);
+    for w in &warnings {
+        tracing::warn!("{w}");
+    }
+    warnings
 }
 
 /// Everything the server adds: the configuration's origins, then the operator's extra ones, validated.
@@ -579,6 +605,46 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn a_lan_address_over_http_is_refused_with_the_loopback_message() {
+        // D-698: no LAN exception; the message says why.
+        for var in [CSP_CONNECT_ENV, CSP_FRAME_ENV, CSP_MEDIA_ENV] {
+            let msg = parse_extra_origins(var, "http://192.168.1.10")
+                .unwrap_err()
+                .to_string();
+            assert!(
+                msg.contains(var) && msg.contains("http://192.168.1.10"),
+                "{msg}"
+            );
+            assert!(msg.contains("loopback"), "{msg}");
+        }
+        assert!(parse_extra_origins(CSP_CONNECT_ENV, "ws://192.168.1.10:9").is_err());
+    }
+
+    #[test]
+    fn host_warnings_name_the_variable_and_each_dropped_entry() {
+        let inp = PolicyInputs {
+            peertube_hosts: "tube.example.org, http://bad.example, nodot".into(),
+            media_hosts: "cdn.example.org,,".into(),
+            ..PolicyInputs::default()
+        };
+        assert_eq!(
+            host_warnings(&inp),
+            vec![
+                "SR_PEERTUBE_HOSTS: \"http://bad.example\", \"nodot\" ignored: not a plain host name (write `video.example.org`, no scheme, no path)"
+            ]
+        );
+        assert!(host_warnings(&PolicyInputs::default()).is_empty());
+        let both = PolicyInputs {
+            peertube_hosts: "x".into(),
+            media_hosts: "y z.example".into(),
+            ..PolicyInputs::default()
+        };
+        let w = host_warnings(&both);
+        assert_eq!(w.len(), 2);
+        assert!(w[1].starts_with("SR_MEDIA_HOSTS: \"y z.example\" ignored"));
     }
 
     #[test]

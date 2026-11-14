@@ -480,6 +480,39 @@ fn nvenc_failure_falls_back_to_cpu() {
     assert!(st.fails.is_empty());
 }
 
+/// D-705: the registration carries the GPU name the probe learned, and none when the worker is held to the CPU.
+#[test]
+fn the_registration_carries_the_gpu_name_unless_held_to_the_cpu() {
+    let root = TempRoot::new();
+    let api = FakeApi::default();
+    let run = runner(0, never_fail());
+    let mut c = caps(true);
+    c.gpu = Some("NVIDIA GeForce RTX 3060".into());
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        c.clone(),
+    );
+    assert_eq!(
+        w.capabilities().gpu.as_deref(),
+        Some("NVIDIA GeForce RTX 3060")
+    );
+    let mut forced = cfg(&root.0);
+    forced.force_cpu = true;
+    let w = Worker::new(&api, &FakeTransfer { short_by: 0 }, &run, forced, c);
+    assert_eq!(w.capabilities().gpu, None);
+    let w = Worker::new(
+        &api,
+        &FakeTransfer { short_by: 0 },
+        &run,
+        cfg(&root.0),
+        caps(false),
+    );
+    assert_eq!(w.capabilities().gpu, None);
+}
+
 #[test]
 fn nvenc_is_used_when_it_works() {
     let root = TempRoot::new();

@@ -2451,10 +2451,29 @@ async fn a_pending_request_carries_the_latest_message_as_a_preview() {
     // Words and a count only: no author, embeds or file names.
     let mut keys: Vec<&str> = p.as_object().unwrap().keys().map(String::as_str).collect();
     keys.sort_unstable();
-    assert_eq!(keys, ["attachments", "content", "timestamp"]);
+    assert_eq!(keys, ["attachments", "content", "message_id", "timestamp"]);
+    assert_eq!(p["message_id"], (3u64 << 22).to_string());
     // The sender never sees a request preview of their own conversation.
     let (_, alice) = e.get("/users/@me/channels", ALICE).await;
     assert!(alice[0].get("sr_request_preview").is_none(), "{alice}");
+}
+
+#[tokio::test]
+async fn the_preview_names_the_message_it_shows() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    seed_gist(&e, &id, 5 << 22, ALICE, "first", 0);
+    seed_gist(&e, &id, 9 << 22, ALICE, "second", 0);
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(
+        bob[0]["sr_request_preview"]["message_id"],
+        (9u64 << 22).to_string(),
+        "{bob}"
+    );
 }
 
 #[tokio::test]

@@ -511,9 +511,6 @@ export default {
   'admin.channelEditor.ageRestricted': 'Age-restricted channel',
   'admin.channelEditor.enabled': 'Enabled',
   'admin.channelEditor.logoAlt': 'Channel logo',
-  'admin.channelEditor.logoNotAvailable': 'Logo upload is not available yet.',
-  'admin.channelEditor.logoNotAvailableCallSign':
-    'Logo upload is not available yet; the call sign is shown instead.',
   'admin.channelEditor.rules': 'Schedule rules',
   'admin.channelEditor.manual.title': 'Manual channel',
   'admin.channelEditor.guide.title': 'Imported guide',

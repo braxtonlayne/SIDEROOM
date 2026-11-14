@@ -5,6 +5,7 @@ import type {
   Member,
   Message,
   MessageWindow,
+  ClientStatus,
   Presence,
   PresenceStatus,
   ReadState,
@@ -208,15 +209,31 @@ function putChannels(s: StoreData, bucket: string, list: Channel[]): Partial<Sto
   };
 }
 
+const CLIENT_KINDS = ['web', 'mobile', 'desktop'] as const;
+const STATUSES: readonly string[] = ['online', 'idle', 'dnd', 'offline'];
+
+/** The `client_status` of a wire presence: only the three known kinds with a known status; anything else is dropped. */
+function toClientStatus(v: unknown): ClientStatus | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: ClientStatus = {};
+  for (const k of CLIENT_KINDS) {
+    const x = (v as Obj)[k];
+    if (typeof x === 'string' && STATUSES.includes(x)) out[k] = x as PresenceStatus;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function putPresences(s: StoreData, list: Obj[]): Record<string, Presence> {
   const out = { ...s.presences };
   for (const p of list) {
     const userId = (p.user as User | undefined)?.id ?? (p.user_id as string | undefined);
     if (!userId) continue;
+    const clientStatus = toClientStatus(p.client_status);
     out[userId] = {
       user_id: userId,
       status: ((p.status as PresenceStatus | undefined) ?? 'offline') as PresenceStatus,
       activities: (p.activities as unknown[] | undefined) ?? [],
+      ...(clientStatus ? { client_status: clientStatus } : {}),
     };
   }
   return out;
