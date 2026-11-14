@@ -40,7 +40,7 @@ describe('the phone glyph in the member list', () => {
     expect(within(bobRow).getByRole('img', { name: 'Online on a phone' })).toBeInTheDocument();
     expect(within(bobRow).queryByRole('img', { name: 'Online' })).toBeNull();
     expect(bobRow.getAttribute('aria-label')).toContain('online on a phone');
-    expect(bobRow.querySelector('[data-icon="phone"]')).not.toBeNull();
+    expect(bobRow.querySelector('[data-icon="smartphone"]')).not.toBeNull();
 
     useStore.setState({
       presences: {
@@ -55,6 +55,6 @@ describe('the phone glyph in the member list', () => {
     await waitFor(() =>
       expect(within(bobRow).getByRole('img', { name: 'Online' })).toBeInTheDocument(),
     );
-    expect(bobRow.querySelector('[data-icon="phone"]')).toBeNull();
+    expect(bobRow.querySelector('[data-icon="smartphone"]')).toBeNull();
   });
 });
