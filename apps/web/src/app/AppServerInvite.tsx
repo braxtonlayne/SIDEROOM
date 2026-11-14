@@ -74,7 +74,9 @@ export function AppServerInvite() {
         },
       });
     } catch (e) {
-      setError(inviteErrorMessage(e));
+      // The limit sentences load on demand: this page is part of the first-paint chunk and the limits are rare.
+      const limit = await import('../lounge/limitErrors').then((m) => m.limitErrorText(e, t));
+      setError(limit ?? inviteErrorMessage(e));
       setAccepting(false);
     }
   };

@@ -1,6 +1,7 @@
 import { Avatar, Button, EmptyState, Modal, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { limitErrorText } from '../limitErrors';
 import { useT } from '../../i18n';
 import { cdnUrl } from '../../store/cdn';
 import { useGuilds } from '../data';
@@ -35,7 +36,10 @@ function Card({ g, onJoined }: { g: DirectoryGuild; onJoined: (id: string) => vo
       onJoined(g.id);
       goto(g.id);
     } catch (e) {
-      setError(e instanceof ApiError && e.message ? e.message : t('lounge.directory.joinError'));
+      setError(
+        limitErrorText(e, t) ??
+          (e instanceof ApiError && e.message ? e.message : t('lounge.directory.joinError')),
+      );
       setBusy(false);
     }
   };

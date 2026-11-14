@@ -111,4 +111,24 @@ describe('LNG-RAIL-011 Server Directory', () => {
     await userEvent.click(within(card).getByRole('button', { name: 'Join' }));
     expect(await within(card).findByRole('alert')).toBeInTheDocument();
   });
+
+  it('says the server is full, or that the account is in the most servers (D-659, D-660)', async () => {
+    let answer = { code: 30019, message: 'Maximum number of server members reached' };
+    server.use(
+      http.post('*/api/v1/directory/d1/join', () => HttpResponse.json(answer, { status: 400 })),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Discover' }));
+    const dlg = await screen.findByRole('dialog', { name: 'Server Directory' });
+    const card = await within(dlg).findByRole('listitem', { name: 'Chess Club' });
+    await userEvent.click(within(card).getByRole('button', { name: 'Join' }));
+    expect(await within(card).findByText('This server is full.')).toBeInTheDocument();
+    answer = { code: 30001, message: 'Maximum number of guilds reached (3)' };
+    await userEvent.click(within(card).getByRole('button', { name: 'Join' }));
+    expect(
+      await within(card).findByText(
+        'You’re in the most servers one account can be in here (3). Leave one to join or create another.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
