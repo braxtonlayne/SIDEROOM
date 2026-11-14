@@ -106,7 +106,7 @@ test('the lines around the list: plain text, and nothing of a blocked author', a
 
   const theme = (t: string, extra: Record<string, unknown> = {}) =>
     apiPatch(o, '/users/@me/settings', {
-      settings: { user_prefs: { theme: t, zoom: 100, ...extra } },
+      settings: { user_prefs: { theme: t, zoom: 100, messageDisplay: 'cozy', ...extra } },
     });
   const open = async (t: string, size: { width: number; height: number }, extra = {}) => {
     await theme(t, extra);
@@ -197,29 +197,23 @@ test('the lines around the list: plain text, and nothing of a blocked author', a
     }
     await shot(card, `linkcard-${tag}`);
 
-    // Search results: bobby's line is a hit, with the lines either side of it.
-    const searchBox = page.getByRole('searchbox').first();
-    if (vp === 'phone') {
-      await page
-        .getByRole('button', { name: /search/i })
-        .first()
-        .click()
-        .catch(() => undefined);
+    // The header search box is not shown on a phone (`.lng-root[data-mobile] .lng-search`): desktop only.
+    if (vp === 'desktop') {
+      const searchBox = page.getByRole('searchbox').first();
+      await searchBox.fill('needlehaystack');
+      await searchBox.press('Enter');
+      const panel = page.getByRole('region', { name: 'Search results' });
+      await expect(panel).toBeVisible();
+      await page.waitForTimeout(1500);
+      const searchText = (await panel.innerText()).replace(/\s+/g, ' ');
+      console.log(`RECORDED search ${tag}:`, searchText.slice(0, 240));
+      if (phase === 'after') {
+        expect(searchText).not.toContain('needlehaystack');
+        expect(searchText).toContain('blocked message');
+      }
+      await shot(page, `search-${tag}`);
+      await page.keyboard.press('Escape');
     }
-    await searchBox.fill('needlehaystack');
-    await searchBox.press('Enter');
-    const panel = page.getByRole('region', { name: 'Search results' });
-    await expect(panel).toBeVisible();
-    await page.waitForTimeout(1500);
-    const searchText = (await panel.innerText()).replace(/\s+/g, ' ');
-    console.log(`RECORDED search ${tag}:`, searchText.slice(0, 240));
-    if (phase === 'after') {
-      expect(searchText).not.toContain('needlehaystack');
-      expect(searchText).toContain('blocked message');
-    }
-    await shot(page, `search-${tag}`);
-    await page.keyboard.press('Escape');
-
     await c.close();
   };
 

@@ -271,9 +271,11 @@ describe('the pins panel (D-730)', () => {
     await openPins([wire(bob), wire(carol, { id: 'p2', content: 'hello' })]);
     expect(await screen.findByText('hello')).toBeInTheDocument();
     expect(screen.queryByText(/psst/)).toBeNull();
+    expect(screen.queryByText('Bob')).toBeNull();
     expect(screen.getByText('1 blocked message')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Show message' }));
     expect(screen.getByText(/psst/)).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
   });
 
   it('updates when a block is made while it is open', async () => {
@@ -287,13 +289,13 @@ describe('the pins panel (D-730)', () => {
 
 describe('the message-link card (D-730)', () => {
   const link = { guildId: 'g1', channelId: 'c1', messageId: 'm1' };
-  const linked = (author: unknown) =>
+  const linked = (author: unknown, content = 'secret words') =>
     server.use(
       http.get('*/api/v1/channels/c1/messages/m1', () =>
         HttpResponse.json({
           id: 'm1',
           author,
-          content: 'secret words',
+          content,
           timestamp: '2026-01-01T00:00:00Z',
           attachments: [{ id: 'a' }],
         }),
@@ -306,12 +308,20 @@ describe('the message-link card (D-730)', () => {
     expect(await screen.findByText('secret words')).toBeInTheDocument();
   });
 
+  it('quotes plain text: the spoiler hidden, the mention named (D-729)', async () => {
+    linked(bob, RAW);
+    const { container } = render(<MessageLinkCard link={link} />);
+    expect(await screen.findByText('psst [spoiler] @Dana')).toBeInTheDocument();
+    expectPlain(container);
+  });
+
   it('shows the wording instead of the quoted text for a blocked author', async () => {
     block('2');
     linked(bob);
     render(<MessageLinkCard link={link} />);
     expect(await screen.findByText('1 blocked message')).toBeInTheDocument();
     expect(screen.queryByText('secret words')).toBeNull();
+    expect(screen.queryByText('Bob')).toBeNull();
     expect(screen.queryByText(/attachment/i)).toBeNull();
   });
 });

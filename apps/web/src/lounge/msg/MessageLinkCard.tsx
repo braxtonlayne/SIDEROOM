@@ -4,7 +4,8 @@ import { apiFetch } from '../../api/client';
 import { formatDate, useT } from '../../i18n';
 import { useAllChannels } from '../data';
 import { useLoungeGotoMessage } from '../nav';
-import { useHiddenKind } from './lineText';
+import { messageLineText, useHiddenKind } from './lineText';
+import { useMarkdownReady } from '../markdown';
 
 export interface MessageLinkRef {
   guildId: string;
@@ -50,6 +51,7 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
   const channels = useAllChannels();
   const goto = useLoungeGotoMessage();
   const channel = (channels[link.guildId] ?? []).find((c) => c.id === link.channelId);
+  useMarkdownReady();
   const hiddenKind = useHiddenKind(typeof msg === 'object' ? msg?.author?.id : undefined);
 
   useEffect(() => {
@@ -66,13 +68,21 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
   if (!msg || msg === 'denied') return null;
   const name =
     msg.author?.global_name || msg.author?.username || t('lounge.messageLinkCard.someone');
+  // The quoted text is plain, by D-716's rule (D-729): a spoiler's text is not shown, a mention reads as a name.
   const text =
-    msg.content?.trim() ||
-    (msg.attachments?.length ? t('lounge.messageLinkCard.clickToSeeAttachment') : '');
+    messageLineText(
+      msg.content ?? '',
+      link.guildId === '@me' ? null : link.guildId,
+      t('lounge.preview.spoiler'),
+    ) || (msg.attachments?.length ? t('lounge.messageLinkCard.clickToSeeAttachment') : '');
   return (
     <section
       className="lng-embed lng-msglink"
-      aria-label={t('lounge.messageLinkCard.linkedFrom', { name })}
+      aria-label={
+        hiddenKind
+          ? t('lounge.messageLinkCard.message')
+          : t('lounge.messageLinkCard.linkedFrom', { name })
+      }
     >
       <div className="lng-embed-main">
         <div className="lng-embed-provider">
@@ -83,8 +93,8 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
               : t('lounge.messageLinkCard.message')}
         </div>
         <div className="lng-msglink-head">
-          <Avatar name={name} size={24} aria-hidden="true" />
-          <strong>{name}</strong>
+          {!hiddenKind && <Avatar name={name} size={24} aria-hidden="true" />}
+          {!hiddenKind && <strong>{name}</strong>}
           {msg.timestamp && (
             <time className="lng-muted" dateTime={msg.timestamp}>
               {formatDate(new Date(msg.timestamp), {})}
@@ -96,7 +106,7 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
             {t('lounge.messageList.hiddenRun', { count: 1, kind: hiddenKind })}
           </div>
         ) : (
-          text && <div className="lng-msglink-text">{text.slice(0, 280)}</div>
+          text && <div className="lng-msglink-text">{text}</div>
         )}
         <button
           type="button"
