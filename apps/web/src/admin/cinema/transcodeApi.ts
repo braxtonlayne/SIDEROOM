@@ -38,7 +38,11 @@ export interface WorkerCapabilities {
   nvenc?: boolean;
   libplacebo?: boolean;
   encoders?: string[];
+  /** Hardware acceleration methods ffmpeg listed on the worker (`cuda`, `vaapi`). */
+  hwaccels?: string[];
   concurrency?: number;
+  /** The GPU's name, when the worker could learn it (D-705). Text from the worker; React escapes it. */
+  gpu?: string | null;
 }
 export interface Worker {
   id: string;
@@ -49,6 +53,10 @@ export interface Worker {
   online: boolean;
   drain: boolean;
   active_jobs: number;
+  /** Times real time, summed over the jobs it runs now; null when it runs nothing (D-705). */
+  speed_now?: number | null;
+  jobs_done_24h?: number;
+  jobs_failed_24h?: number;
   token_name?: string;
   token_revoked?: boolean;
 }

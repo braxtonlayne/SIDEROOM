@@ -654,3 +654,8 @@ label.adm-check-row {
   color: var(--ui-text-muted);
   text-decoration: line-through;
 }
+
+/* The GPU name of a transcoding worker (D-705): the one part of its meta line that is not muted. */
+.adm-gpu {
+  color: var(--ui-text);
+}
