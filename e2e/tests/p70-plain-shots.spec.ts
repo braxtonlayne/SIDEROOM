@@ -120,7 +120,12 @@ test('a long spoiler never reaches a thread row or a request row, loaded or live
       await page.goto('/channels/@me');
       await page.getByRole('button', { name: /Message Requests/ }).click();
       const region = page.getByRole('region', { name: 'Message Requests' });
-      const line = region.locator('[data-request-preview]');
+      const row = region.getByRole('listitem').filter({ hasText: bUser.username });
+      const line = row.locator('[data-request-preview]');
+      // A new account is filed as likely spam: the line shows after "Show message" (the rule, D-688).
+      const showIt = row.getByRole('button', { name: /Show the message/ });
+      await row.locator('.lng-request-preview').waitFor();
+      if (await showIt.count()) await showIt.click();
       await expect(line).toContainText('look');
       expect(await line.innerText()).not.toContain(SECRET);
       await page.waitForTimeout(400);
