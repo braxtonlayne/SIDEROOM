@@ -130,28 +130,13 @@ pub fn series_input(i: &SeriesInput) -> LibraryResult<(SeriesInput, ReadingDirec
     Ok((out, direction))
 }
 
-/// A BCP 47 shaped language tag, normalised (`pt-br` becomes `pt-BR`).
+/// A BCP 47 shaped language tag in the stored form (D-746): `pt-br` becomes `pt-BR`, `eng` becomes `en`,
+/// `zh-hant` becomes `zh-Hant` (one function with the Cinema's, `sr_core::language::normalise_tag`).
 pub fn language(raw: &str) -> LibraryResult<String> {
-    let parts: Vec<&str> = raw.trim().split('-').collect();
-    let ok = !parts.is_empty()
-        && (2..=3).contains(&parts[0].len())
-        && parts[0].bytes().all(|b| b.is_ascii_alphabetic())
-        && parts[1..]
-            .iter()
-            .all(|p| (2..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric()));
-    if !ok {
-        return invalid("language must be a BCP 47 tag such as en or pt-BR");
+    match sr_core::language::normalise_tag(raw) {
+        Some(l) => Ok(l),
+        None => invalid("language must be a BCP 47 tag such as en or pt-BR"),
     }
-    let mut out = parts[0].to_ascii_lowercase();
-    for p in &parts[1..] {
-        out.push('-');
-        if p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic()) {
-            out.push_str(&p.to_ascii_uppercase());
-        } else {
-            out.push_str(p);
-        }
-    }
-    Ok(out)
 }
 
 pub fn edition_input(i: &EditionInput) -> LibraryResult<EditionInput> {
@@ -463,6 +448,14 @@ mod tests {
         assert_eq!(language("EN").unwrap(), "en");
         assert_eq!(language("pt-br").unwrap(), "pt-BR");
         assert_eq!(language("zh-Hant").unwrap(), "zh-Hant");
+        // D-746 (SEC-AUD-253): one form for a language; before it `eng` and `en` were two values, and `zh-hant`
+        // stayed as typed.
+        assert_eq!(language("eng").unwrap(), "en");
+        assert_eq!(language(" ENG ").unwrap(), "en");
+        assert_eq!(language("POR-br").unwrap(), "pt-BR");
+        assert_eq!(language("zh-hant").unwrap(), "zh-Hant");
+        assert_eq!(language("fil").unwrap(), "fil");
+        assert_eq!(language("eng").unwrap(), language("en").unwrap());
         assert!(language("e").is_err());
         assert!(language("en_US").is_err());
         assert!(language("").is_err());

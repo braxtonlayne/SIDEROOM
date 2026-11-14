@@ -130,31 +130,15 @@ fn opt_key(what: &str, k: &Option<String>) -> CinemaResult<Option<String>> {
     }
 }
 
-/// A BCP 47 shaped language tag, normalised (`pt-br` becomes `pt-BR`). D-719: a three-letter primary subtag that
-/// has a two-letter code becomes it (`eng` becomes `en`, `POR-br` becomes `pt-BR`); one that has none stays
-/// (`fil`).
+/// A BCP 47 shaped language tag in the stored form. D-719: a three-letter primary subtag that has a two-letter
+/// code becomes it (`eng` becomes `en`, `POR-br` becomes `pt-BR`); one that has none stays (`fil`). D-746: a
+/// script subtag is in title case (`zh-hant` becomes `zh-Hant`). One function with the Library's
+/// (`sr_core::language::normalise_tag`).
 pub fn language(raw: &str) -> CinemaResult<String> {
-    let parts: Vec<&str> = raw.trim().split('-').collect();
-    let ok = !parts.is_empty()
-        && (2..=3).contains(&parts[0].len())
-        && parts[0].bytes().all(|b| b.is_ascii_alphabetic())
-        && parts[1..]
-            .iter()
-            .all(|p| (2..=8).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_alphanumeric()));
-    if !ok {
-        return invalid("language must be a BCP 47 tag such as en or pt-BR");
+    match sr_core::language::normalise_tag(raw) {
+        Some(l) => Ok(l),
+        None => invalid("language must be a BCP 47 tag such as en or pt-BR"),
     }
-    let lower = parts[0].to_ascii_lowercase();
-    let mut out = sr_core::language::short_language(&lower).to_owned();
-    for p in &parts[1..] {
-        out.push('-');
-        if p.len() == 2 && p.bytes().all(|b| b.is_ascii_alphabetic()) {
-            out.push_str(&p.to_ascii_uppercase());
-        } else {
-            out.push_str(p);
-        }
-    }
-    Ok(out)
 }
 
 fn languages(what: &str, items: &[String]) -> CinemaResult<Vec<String>> {
@@ -553,7 +537,7 @@ mod tests {
         assert_eq!(language("POR-br").unwrap(), "pt-BR");
         assert_eq!(language("ger").unwrap(), "de");
         assert_eq!(language("deu").unwrap(), "de");
-        assert_eq!(language("zh-hant").unwrap(), "zh-hant");
+        assert_eq!(language("zh-hant").unwrap(), "zh-Hant"); // D-746: was "zh-hant"
         assert_eq!(language("chi-Hant").unwrap(), "zh-Hant");
         // No two-letter code: stays.
         assert_eq!(language("fil").unwrap(), "fil");

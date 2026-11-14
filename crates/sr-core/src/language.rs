@@ -231,9 +231,74 @@ pub fn short_language(primary: &str) -> &str {
         .map_or(primary, |i| LANGUAGE_PAIRS[i].1)
 }
 
+/// D-746: a BCP 47 shaped language tag in the one stored form, for the Library and the Cinema. The tag is trimmed
+/// and split on `-`. The primary subtag is 2 or 3 ASCII letters, lower-cased, then [`short_language`] (`eng`
+/// becomes `en`). Every later subtag is 2 to 8 ASCII letters or digits: a 4-letter all-alphabetic one is a script
+/// and is written in title case (`hant` becomes `Hant`), a 2-letter all-alphabetic one is a region and is written
+/// in upper case (`br` becomes `BR`), anything else stays as typed (`1996`, `rozaj`). `None` when the shape is
+/// wrong (an empty tag, a one-letter or four-letter primary subtag, an empty or over-long later subtag).
+pub fn normalise_tag(raw: &str) -> Option<String> {
+    let mut parts = raw.trim().split('-');
+    let primary = parts.next()?;
+    if !(2..=3).contains(&primary.len()) || !primary.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return None;
+    }
+    let lower = primary.to_ascii_lowercase();
+    let mut out = short_language(&lower).to_owned();
+    for p in parts {
+        if !(2..=8).contains(&p.len()) || !p.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return None;
+        }
+        out.push('-');
+        let alpha = p.bytes().all(|b| b.is_ascii_alphabetic());
+        if alpha && p.len() == 4 {
+            out.push_str(&p[..1].to_ascii_uppercase());
+            out.push_str(&p[1..].to_ascii_lowercase());
+        } else if alpha && p.len() == 2 {
+            out.push_str(&p.to_ascii_uppercase());
+        } else {
+            out.push_str(p);
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn normalise_tag_cases() {
+        for (raw, want) in [
+            ("eng", Some("en")),
+            (" ENG ", Some("en")),
+            ("POR-br", Some("pt-BR")),
+            ("zh-hant", Some("zh-Hant")),
+            ("zh-HANT", Some("zh-Hant")),
+            ("chi-hant", Some("zh-Hant")),
+            ("fil", Some("fil")),
+            ("sr-latn-rs", Some("sr-Latn-RS")),
+            ("en", Some("en")),
+            ("de-1996", Some("de-1996")),
+            ("de-DE-1996", Some("de-DE-1996")),
+            ("e", None),
+            ("engl", None),
+            ("", None),
+            ("   ", None),
+            ("en-", None),
+            ("en_US", None),
+            ("en-x", None),
+            ("en-abcdefghi", None),
+            ("e1g", None),
+        ] {
+            assert_eq!(normalise_tag(raw).as_deref(), want, "{raw:?}");
+        }
+        // Idempotent.
+        for raw in ["eng", "sr-latn-rs", "POR-br", "de-1996"] {
+            let once = normalise_tag(raw).unwrap();
+            assert_eq!(normalise_tag(&once).as_deref(), Some(once.as_str()));
+        }
+    }
 
     #[test]
     fn named_pairs() {
