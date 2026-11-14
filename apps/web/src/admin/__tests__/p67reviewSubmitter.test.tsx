@@ -62,7 +62,7 @@ describe('review queue submitter filter', () => {
 
   it('opens already filtered from the address', async () => {
     const seen = useQueue();
-    openAdmin('review?submitter=77');
+    openAdmin('review?submitter=77'); // the hub opens on the Submissions tab, where the filter lives
     expect(
       await screen.findByRole('button', { name: /Submitted by Account 77/ }),
     ).toBeInTheDocument();

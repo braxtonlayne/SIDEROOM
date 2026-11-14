@@ -1620,7 +1620,7 @@
 /* The reader's notice that another device read further (D-690): one at a time, over the page, never moving it. */
 .lib-sync-notice {
   position: fixed;
-  inset-block-start: 12px;
+  inset-block-start: 64px;
   inset-inline: 12px;
   z-index: 40;
   display: flex;
