@@ -3,7 +3,8 @@
 // spoilers, inline code, links, emoji, line breaks) and flattens the rest to plain text: headings, quotes, lists
 // and code blocks lose their block layout, and mentions, timestamps and the Lounge-only chips are dropped.
 import { Markdown, nodesToText, type MdNode } from '@sideroom/markdown-react';
-import { parseMarkdown, useMarkdownReady } from '../markdown';
+import { useEffect, useState } from 'react';
+import { loadMarkdownEngine, parseMarkdown, useMarkdownReady } from '../markdown';
 import '../msg/markdown.css';
 
 const BREAK: MdNode = { type: 'line_break' };
@@ -67,14 +68,26 @@ export const profileBioText = (text: string): string =>
 
 /**
  * About Me as shown on every profile surface (popout, full profile, the Settings preview), so that all of them
- * render the same text the same way.
+ * render the same text the same way. It starts the parser itself (D-775): Settings can be the first page loaded,
+ * with no Lounge shell to do it. Until the parser is ready it draws nothing of the text (a spoiler is never shown
+ * as typed); if the load failed it draws the typed text.
  */
 export function ProfileBio({ text }: { text: string }) {
-  useMarkdownReady();
+  const ready = useMarkdownReady();
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    loadMarkdownEngine().catch(() => {
+      if (live) setFailed(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   if (!text) return null;
   return (
     <div className="lng-pop-bio" data-profile-bio>
-      <Markdown nodes={profileSubset(parseMarkdown(text))} />
+      {ready || failed ? <Markdown nodes={profileSubset(parseMarkdown(text))} /> : null}
     </div>
   );
 }

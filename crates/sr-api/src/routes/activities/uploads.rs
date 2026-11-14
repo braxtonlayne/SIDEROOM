@@ -49,6 +49,13 @@ pub(super) fn up_err(e: PackageUploadError) -> MsgError {
             ),
             retry_after_ms: 3_600_000,
         },
+        PackageUploadError::Busy => MsgError::RetryAfter {
+            api: ApiError::with_message(
+                ErrorCode::TooManyRequests,
+                "Another upload for this application is starting. Try again in a moment.",
+            ),
+            retry_after_ms: 5_000,
+        },
         PackageUploadError::NoParts => {
             let m = "This server's storage cannot take resumable uploads.";
             ApiError::with_message(ErrorCode::SrConflict, m)

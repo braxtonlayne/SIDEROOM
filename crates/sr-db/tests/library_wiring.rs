@@ -1873,3 +1873,167 @@ async fn duplicates_match_by_title_and_by_cover_artwork() {
             .all(|(id, _)| *id != same_title && *id != same_art)
     );
 }
+
+// ---- wave 73: SEC-AUD-290 (a stored part larger than announced, or beyond the count, ends the upload, D-772) -----
+
+const OVERSIZED_PART_TEXT: &str =
+    "A part of this upload was larger than announced. The upload has ended; start a new one.";
+
+struct Resumable {
+    svc: LibraryService,
+    parts: Arc<sr_library::MemoryPartStore>,
+    upload: i64,
+    multipart_id: String,
+    publisher: Actor,
+    pool: PgPool,
+}
+
+impl Resumable {
+    async fn row(&self) -> (String, Option<String>) {
+        sqlx::query_as("SELECT status, error FROM reading_uploads WHERE id = $1")
+            .bind(self.upload)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+    fn put(&self, n: u32, len: usize) {
+        self.parts
+            .put_part(&self.multipart_id, n, Bytes::from(vec![7u8; len]));
+    }
+}
+
+/// An upload of 10 bytes in parts of 4 (three parts: 4, 4, 2), nothing sent yet.
+async fn resumable_upload(w: &World) -> Resumable {
+    use sr_library::{MemoryPartStore, MultipartWiring};
+    let (s, e) = w.series(false).await;
+    let c = w.chapter(s, e, 1.0, 1).await;
+    let parts = Arc::new(MemoryPartStore::new(w.storage.clone()));
+    let svc = w
+        .svc
+        .clone()
+        .with_multipart(MultipartWiring::new(parts.clone()).with_part_size(4));
+    let slot = svc
+        .begin_upload(
+            w.publisher,
+            c,
+            UploadRequest {
+                filename: "Ch 1.cbz".into(),
+                size_bytes: 10,
+                multipart: true,
+            },
+        )
+        .await
+        .unwrap();
+    let multipart_id: String = sqlx::query_scalar(
+        "SELECT multipart_id FROM reading_upload_multipart WHERE upload_id = $1",
+    )
+    .bind(slot.upload.id)
+    .fetch_one(&w.pool)
+    .await
+    .unwrap();
+    Resumable {
+        svc,
+        parts,
+        upload: slot.upload.id,
+        multipart_id,
+        publisher: w.publisher,
+        pool: w.pool.clone(),
+    }
+}
+
+fn conflict_text(e: sr_library::LibraryError) -> String {
+    match e {
+        sr_library::LibraryError::Conflict(m) => m,
+        other => panic!("not a Conflict: {other:?}"),
+    }
+}
+
+/// The upload has ended: the row failed with the sentence, the store holds nothing, and every later call answers
+/// what an ended upload answers.
+async fn assert_ended(r: &Resumable) {
+    let (status, error) = r.row().await;
+    assert_eq!(status, "failed");
+    assert_eq!(error.as_deref(), Some(OVERSIZED_PART_TEXT));
+    assert!(r.parts.aborted().contains(&r.multipart_id));
+    let again = conflict_text(r.svc.upload_parts(r.publisher, r.upload).await.unwrap_err());
+    assert_eq!(again, "this upload is failed; start a new one");
+    let again = conflict_text(
+        r.svc
+            .complete_upload(r.publisher, r.upload)
+            .await
+            .unwrap_err(),
+    );
+    assert_eq!(again, "this upload is failed; start a new one");
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_oversized_part_ends_the_upload_when_its_parts_are_asked_for() {
+    let w = world().await;
+    let r = resumable_upload(&w).await;
+    r.put(1, 9);
+    r.put(2, 4);
+    r.put(3, 2);
+    let e = r.svc.upload_parts(r.publisher, r.upload).await.unwrap_err();
+    assert_eq!(conflict_text(e), OVERSIZED_PART_TEXT);
+    assert_ended(&r).await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_oversized_part_ends_the_upload_at_complete() {
+    let w = world().await;
+    let r = resumable_upload(&w).await;
+    r.put(1, 9);
+    r.put(2, 4);
+    r.put(3, 2);
+    let e = r
+        .svc
+        .complete_upload(r.publisher, r.upload)
+        .await
+        .unwrap_err();
+    assert_eq!(conflict_text(e), OVERSIZED_PART_TEXT);
+    assert_ended(&r).await;
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_surplus_part_ends_the_upload_the_same_way() {
+    let w = world().await;
+    for at_complete in [false, true] {
+        let r = resumable_upload(&w).await;
+        r.put(1, 4);
+        r.put(2, 4);
+        r.put(3, 2);
+        r.put(5, 1);
+        let e = if at_complete {
+            r.svc
+                .complete_upload(r.publisher, r.upload)
+                .await
+                .unwrap_err()
+        } else {
+            r.svc.upload_parts(r.publisher, r.upload).await.unwrap_err()
+        };
+        assert_eq!(conflict_text(e), OVERSIZED_PART_TEXT);
+        assert_ended(&r).await;
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_too_small_part_can_be_sent_again_and_the_upload_completes() {
+    let w = world().await;
+    let r = resumable_upload(&w).await;
+    r.put(1, 3);
+    r.put(2, 4);
+    r.put(3, 2);
+    let resume = r.svc.upload_parts(r.publisher, r.upload).await.unwrap();
+    assert_eq!(resume.missing.len(), 1);
+    assert_eq!(resume.missing[0].part_number, 1);
+    assert!(r.svc.complete_upload(r.publisher, r.upload).await.is_err());
+    assert_eq!(r.row().await.0, "awaiting_upload");
+    assert!(r.parts.aborted().is_empty());
+    r.put(1, 4);
+    let up = r.svc.complete_upload(r.publisher, r.upload).await.unwrap();
+    assert_eq!(up.status.as_str(), "queued");
+}
