@@ -45,64 +45,66 @@ export function BridgeSection({ guildId, viewer }: SectionProps) {
         title={t('settings.bridge.title')}
         description={t('settings.bridge.description')}
       />
-      <Notice variant="info" title={t('settings.bridge.privacyTitle')}>
-        {t('settings.bridge.privacy')}
-      </Notice>
-      <Async res={res} label={t('settings.bridge.loading')}>
-        {(status) => (
-          <div className="ss-form ss-bridge">
-            {status.mode === 'whole_guild' && (
-              <Notice variant="info" title={t('settings.bridgeSync.privacy.title')}>
-                {t('settings.bridgeSync.privacy.body', {
-                  name: status.discord_guild_name ?? t('settings.bridgeSync.privacy.noName'),
-                })}
-              </Notice>
-            )}
-            {status.token_set && (
-              <ModeCard
+      <div className="ss-form ss-bridge">
+        <Notice variant="info" title={t('settings.bridge.privacyTitle')}>
+          {t('settings.bridge.privacy')}
+        </Notice>
+        <Async res={res} label={t('settings.bridge.loading')}>
+          {(status) => (
+            <>
+              {status.mode === 'whole_guild' && (
+                <Notice variant="info" title={t('settings.bridgeSync.privacy.title')}>
+                  {t('settings.bridgeSync.privacy.body', {
+                    name: status.discord_guild_name ?? t('settings.bridgeSync.privacy.noName'),
+                  })}
+                </Notice>
+              )}
+              {status.token_set && (
+                <ModeCard
+                  guildId={guildId}
+                  isOwner={viewer.isOwner}
+                  status={status}
+                  onPrepare={() => setPlanning(true)}
+                  onChanged={async () => {
+                    setPlanning(false);
+                    await reload();
+                  }}
+                />
+              )}
+              {planning && status.mode === 'selective' && (
+                <PlanView
+                  guildId={guildId}
+                  isOwner={viewer.isOwner}
+                  discordName={status.discord_guild_name ?? ''}
+                  onClose={() => setPlanning(false)}
+                  onStarted={async () => {
+                    setPlanning(false);
+                    await reload();
+                  }}
+                />
+              )}
+              {status.mode === 'whole_guild' && <SyncStatus guildId={guildId} />}
+              {status.mode === 'whole_guild' && <ConflictLog guildId={guildId} />}
+              <TokenCard
                 guildId={guildId}
                 isOwner={viewer.isOwner}
-                status={status}
-                onPrepare={() => setPlanning(true)}
-                onChanged={async () => {
-                  setPlanning(false);
-                  await reload();
-                }}
-              />
-            )}
-            {planning && status.mode === 'selective' && (
-              <PlanView
-                guildId={guildId}
-                isOwner={viewer.isOwner}
-                discordName={status.discord_guild_name ?? ''}
-                onClose={() => setPlanning(false)}
-                onStarted={async () => {
-                  setPlanning(false);
-                  await reload();
-                }}
-              />
-            )}
-            {status.mode === 'whole_guild' && <SyncStatus guildId={guildId} />}
-            {status.mode === 'whole_guild' && <ConflictLog guildId={guildId} />}
-            <TokenCard
-              guildId={guildId}
-              isOwner={viewer.isOwner}
-              status={status}
-              onStatus={(next) => res.set(next)}
-            />
-            {status.token_set && status.mode === 'selective' && (
-              <MapCard
-                guildId={guildId}
                 status={status}
                 onStatus={(next) => res.set(next)}
-                reload={res.reload}
               />
-            )}
-            <ErasureLeftovers status={status} />
-            <SwitchOffCard guildId={guildId} isOwner={viewer.isOwner} />
-          </div>
-        )}
-      </Async>
+              {status.token_set && status.mode === 'selective' && (
+                <MapCard
+                  guildId={guildId}
+                  status={status}
+                  onStatus={(next) => res.set(next)}
+                  reload={res.reload}
+                />
+              )}
+              <ErasureLeftovers status={status} />
+              <SwitchOffCard guildId={guildId} isOwner={viewer.isOwner} />
+            </>
+          )}
+        </Async>
+      </div>
     </>
   );
 }
