@@ -118,12 +118,12 @@ test('Admin > Bug reports: the Online row of a report without `online` reads Unk
           .click();
         await expect(page.getByRole('button', { name: 'Close report' })).toBeVisible();
         const cell = page
-          .locator('#adm-bug-debug')
+          .getByRole('region', { name: /debug/i })
           .getByText('Online', { exact: true })
           .locator('xpath=following-sibling::dd[1]');
         await expect(cell).toHaveText(want[name] ?? '');
         await page.waitForTimeout(300);
-        await page.locator('#adm-bug-debug').scrollIntoViewIfNeeded();
+        await page.getByRole('region', { name: /debug/i }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: resolve(OUT, `detail-${name}-${tag}.png`), fullPage: true });
       }
       await c.close();
