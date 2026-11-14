@@ -41,6 +41,7 @@ const ctx = (over: Partial<NotifyContext> = {}): NotifyContext => ({
   status: 'online',
   scope: scope(),
   now: Date.parse('2026-01-01T00:00:00Z'),
+  hidden: { blocked: new Set<string>(), ignored: new Set<string>() },
   ...over,
 });
 
@@ -88,6 +89,35 @@ describe('desktopDecision', () => {
   });
 });
 
+// SEC-AUD-228 (D-717): nothing from an account the viewer blocked or ignores.
+describe('desktopDecision and hidden authors', () => {
+  const hidden = (blocked: string[], ignored: string[]) => ({
+    hidden: { blocked: new Set(blocked), ignored: new Set(ignored) },
+  });
+  const mention = { mentions: [{ id: 'u1', username: 'me' }] };
+  it('a blocked author raises nothing, for a mention or a direct message', () => {
+    expect(desktopDecision(msg(mention), ctx(hidden(['u2'], [])))).toBeNull();
+    expect(
+      desktopDecision(
+        msg({ guild_id: undefined }),
+        ctx({ scope: undefined, ...hidden(['u2'], []) }),
+      ),
+    ).toBeNull();
+  });
+  it('an ignored author raises nothing, for a mention or a direct message', () => {
+    expect(desktopDecision(msg(mention), ctx(hidden([], ['u2'])))).toBeNull();
+    expect(
+      desktopDecision(
+        msg({ guild_id: undefined }),
+        ctx({ scope: undefined, ...hidden([], ['u2']) }),
+      ),
+    ).toBeNull();
+  });
+  it('someone else being blocked changes nothing', () => {
+    expect(desktopDecision(msg(mention), ctx(hidden(['u7'], ['u8'])))).toBe('mention');
+  });
+});
+
 describe('titleWithBadge', () => {
   it('adds, replaces and removes the unread prefix', () => {
     expect(titleWithBadge('SIDE ROOM', 3)).toBe('(3) SIDE ROOM');
@@ -112,7 +142,6 @@ describe('reactionDecision', () => {
     ...ctx(),
     enabled: true,
     silenced: false,
-    blocked: new Set<string>(),
     ...over,
   });
 
@@ -123,9 +152,14 @@ describe('reactionDecision', () => {
     expect(reactionDecision(ev({ message_author_id: 'u3' }), rctx())).toBe(false);
     expect(reactionDecision(ev({ message_author_id: undefined }), rctx())).toBe(false);
   });
-  it('not for my own reaction, nor a blocked account', () => {
+  it('not for my own reaction, nor a blocked or ignored account (D-717)', () => {
     expect(reactionDecision(ev({ user_id: 'u1' }), rctx())).toBe(false);
-    expect(reactionDecision(ev(), rctx({ blocked: new Set(['u2']) }))).toBe(false);
+    const hidden = (blocked: string[], ignored: string[]) => ({
+      hidden: { blocked: new Set(blocked), ignored: new Set(ignored) },
+    });
+    expect(reactionDecision(ev(), rctx(hidden(['u2'], [])))).toBe(false);
+    expect(reactionDecision(ev(), rctx(hidden([], ['u2'])))).toBe(false);
+    expect(reactionDecision(ev(), rctx(hidden(['u9'], ['u8'])))).toBe(true);
   });
   it('not when the preference is off, Streamer Mode silences, or I am in do-not-disturb', () => {
     expect(reactionDecision(ev(), rctx({ enabled: false }))).toBe(false);
