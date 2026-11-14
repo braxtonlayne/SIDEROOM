@@ -4816,7 +4816,12 @@ const WRITE_OBSERVED_LEN: usize = 40;
 /// cartridge's tier is read from its file's `sideroom.json` on a shelf bucket, which the matrix has not got, so the
 /// Owner's listing is refused with 400 on `source_ref` after the `MANAGE_GUILD` check passed. Its refusals for every
 /// other actor are asserted as usual.
-const SHAPE_CEILING: [usize; 6] = [7, 28, 5, 4, 6, 48];
+///
+/// Wave 67 raised `admin` from 28 to 30 for `PUT /admin/tv/channels/{channel_id}/logo` (SEC-AUD-199, D-686) and
+/// `POST /admin/cinema/assets/{asset_id}/subtitles` (SEC-AUD-200, D-685): each body is a raw image or a raw WebVTT
+/// file that the matrix's JSON bodies cannot carry, so the Owner's write is refused as malformed (400) once the
+/// staff check passed. Their refusals for every other actor are asserted as usual.
+const SHAPE_CEILING: [usize; 6] = [7, 30, 5, 4, 6, 48];
 
 /// Rightful actors that differ from [`control_of`]'s rule, by route.
 fn rightful_override(method: &str, path: &str) -> Option<&'static str> {
