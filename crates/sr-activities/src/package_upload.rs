@@ -594,38 +594,43 @@ impl PackageUploads {
             .as_ref()
             .ok_or(PackageUploadError::NoParts)?;
         if !self.assembled(&r).await? {
-            let (size, part_size, count) = dims(&r);
-            let stored = w
-                .store
-                .list_parts(&r.object_key, &r.multipart_id)
-                .await
-                .map_err(storage_err)?;
-            let missing = missing_parts(&stored, size, part_size, count);
-            if !missing.is_empty() {
-                let list = missing
-                    .iter()
-                    .map(u32::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(PackageUploadError::PartsMissing(format!(
-                    "Parts {list} of {count} have not been uploaded."
-                )));
-            }
-            let parts = check_parts(&stored, size, part_size, count)
-                .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
-            if let Err(e) = w
-                .store
-                .complete(&r.object_key, &r.multipart_id, &parts)
-                .await
-            {
-                // Another `complete` may have won the race (the store no longer has the upload, the object is
-                // there). Only an object that is not there is a failure.
-                if !self.assembled(&r).await? {
-                    tracing::warn!(upload = id, error = %e, "completing a package upload failed");
-                    return Err(ActivityError::Conflict(
-                        "The storage did not accept the uploaded parts. Start a new upload.".into(),
-                    )
-                    .into());
+            'assemble: {
+                let (size, part_size, count) = dims(&r);
+                let stored = match w.store.list_parts(&r.object_key, &r.multipart_id).await {
+                    Ok(s) => s,
+                    // Another `complete` may have assembled it since the look above: the store no longer knows the
+                    // upload, and the object is there.
+                    Err(_) if self.assembled(&r).await? => break 'assemble,
+                    Err(e) => return Err(storage_err(e)),
+                };
+                let missing = missing_parts(&stored, size, part_size, count);
+                if !missing.is_empty() {
+                    let list = missing
+                        .iter()
+                        .map(u32::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(PackageUploadError::PartsMissing(format!(
+                        "Parts {list} of {count} have not been uploaded."
+                    )));
+                }
+                let parts = check_parts(&stored, size, part_size, count)
+                    .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
+                if let Err(e) = w
+                    .store
+                    .complete(&r.object_key, &r.multipart_id, &parts)
+                    .await
+                {
+                    // Another `complete` may have won the race (the store no longer has the upload, the object is
+                    // there). Only an object that is not there is a failure.
+                    if !self.assembled(&r).await? {
+                        tracing::warn!(upload = id, error = %e, "completing a package upload failed");
+                        return Err(ActivityError::Conflict(
+                            "The storage did not accept the uploaded parts. Start a new upload."
+                                .into(),
+                        )
+                        .into());
+                    }
                 }
             }
         }
