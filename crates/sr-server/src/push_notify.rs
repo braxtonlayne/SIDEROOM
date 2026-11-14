@@ -220,14 +220,8 @@ pub async fn load_names(src: &dyn NameSource, guild: Option<GuildId>, content: &
 /// A message as plain text on one line (D-716): a spoiler is `[spoiler]`, a mention is a name, white space
 /// (the function writes line breaks) is one space.
 pub fn plain_text(content: &str, names: &dyn sr_markdown::Resolver) -> String {
-    // The parser eats the line break before a list, so a list starts after a space of its own.
-    let mut text = String::new();
-    for node in sr_markdown::parse(content) {
-        if matches!(node, sr_markdown::Node::List { .. }) {
-            text.push(' ');
-        }
-        text.push_str(&sr_markdown::to_plain_text_with(&[node], names));
-    }
+    // Blocks are kept apart by `to_plain_text_with` itself (D-722).
+    let text = sr_markdown::to_plain_text_with(&sr_markdown::parse(content), names);
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
