@@ -42,6 +42,10 @@ pub struct Store {
     pub requests: HashMap<(UserId, ChannelId), RequestState>,
     /// Why a pending request is in Message Requests (a server setting), per `(recipient, channel)`.
     pub request_reasons: HashMap<(UserId, ChannelId), RequestReason>,
+    /// Messages of conversations, oldest first (tests seed these for the request preview, D-688).
+    pub gists: HashMap<ChannelId, Vec<crate::preview::MessageGist>>,
+    /// How many times [`DmRepository::latest_from_others`] ran.
+    pub gist_reads: usize,
     /// Protection settings of the servers an (ordered) pair shares; set by tests.
     pub protection: HashMap<(UserId, UserId), SharedProtection>,
     /// Group DM invites by code (G-47).
@@ -513,6 +517,22 @@ impl DmRepository for MemoryRepo {
             None => s.request_reasons.remove(&(user, id)),
         };
         Ok(())
+    }
+
+    async fn latest_from_others(
+        &self,
+        user: UserId,
+        channels: &[ChannelId],
+    ) -> RepoResult<HashMap<ChannelId, crate::preview::MessageGist>> {
+        let mut s = self.lock()?;
+        s.gist_reads += 1;
+        Ok(channels
+            .iter()
+            .filter_map(|c| {
+                let g = s.gists.get(c)?.iter().rev().find(|g| g.author_id != user)?;
+                Some((*c, g.clone()))
+            })
+            .collect())
     }
 
     async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection> {

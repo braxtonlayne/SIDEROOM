@@ -631,6 +631,18 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(self.repo.get_request_reason(user, channel).await?)
     }
 
+    /// The latest message each of `channels` holds from someone other than `user`, in one read (D-688).
+    pub async fn request_previews(
+        &self,
+        user: UserId,
+        channels: &[ChannelId],
+    ) -> SocialResult<std::collections::HashMap<ChannelId, crate::preview::MessageGist>> {
+        if channels.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        Ok(self.repo.latest_from_others(user, channels).await?)
+    }
+
     /// Should attachments `sender` uploads to `channel` carry the spoiler flag? True in a
     /// 1:1 conversation sitting in the other person's Message Requests when a server the
     /// two share has `explicit_media_filter_dms` on (D-224; nothing is scanned).

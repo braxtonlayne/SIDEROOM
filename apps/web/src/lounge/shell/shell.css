@@ -697,3 +697,12 @@
     overflow-wrap: anywhere;
   }
 }
+
+/* D-688: the sender's words under "wants to send you a message": one plain line, cut by the row's width. */
+.lng-request-preview {
+  color: var(--text-normal);
+}
+.lng-request-preview > .lng-link-btn {
+  padding: 0;
+  font-size: 12px;
+}
