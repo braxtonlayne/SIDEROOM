@@ -1,7 +1,15 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { apiPatch, apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import {
+  apiPatch,
+  apiPost,
+  bootstrapState,
+  expect,
+  loginApi,
+  registerUser,
+  test,
+} from '../support/fixtures';
 import { ALL_SKINS, serveTone, setSkin, startPlaying } from '../support/playerAudio';
 
 /**
@@ -104,7 +112,6 @@ test('the bottom player sits above the composer everywhere, and not otherwise', 
   const octx = await browser.newContext({ baseURL: ORIGIN });
   await loginApi(octx.request, owner);
   const a = octx.request;
-  const me = await (await a.get('/api/v1/users/@me')).json();
   const guild = await apiPost<{ id: string; channels: { id: string; type: number }[] }>(
     a,
     '/guilds',
@@ -120,7 +127,15 @@ test('the bottom player sits above the composer everywhere, and not otherwise', 
     { name: 'Listening thread' },
   );
   await apiPost(a, `/channels/${th.id}/messages`, { content: 'In the thread' });
-  const dm = await apiPost<{ id: string }>(a, '/users/@me/channels', { recipient_id: me.id });
+  const bctx = await browser.newContext({ baseURL: ORIGIN });
+  const bUser = await registerUser(bctx.request, 'bob75player');
+  await loginApi(bctx.request, bUser);
+  const invite = await apiPost<{ code: string }>(a, `/channels/${channel}/invites`, {});
+  await apiPost(bctx.request, `/invites/${invite.code}`, {});
+  const me = await (await a.get('/api/v1/users/@me')).json();
+  const dm = await apiPost<{ id: string }>(bctx.request, '/users/@me/channels', {
+    recipient_id: me.id,
+  });
   const report: string[] = [];
 
   for (const theme of THEMES) {
@@ -177,6 +192,14 @@ test('the bottom player sits above the composer everywhere, and not otherwise', 
 
       // A DM, a thread.
       await page.goto(`/channels/@me/${dm.id}`);
+      const accept = page.getByRole('button', { name: 'Accept' });
+      if (
+        await accept.waitFor({ timeout: 6000 }).then(
+          () => true,
+          () => false,
+        )
+      )
+        await accept.click();
       await expect(page.locator('.lng-composer-wrap textarea')).toBeVisible();
       await play(page);
       await expectClear(page, `${tag} dm`);
@@ -219,5 +242,6 @@ test('the bottom player sits above the composer everywhere, and not otherwise', 
     }
   }
   console.log(report.join('\n'));
+  await bctx.close();
   await octx.close();
 });
