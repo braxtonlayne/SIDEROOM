@@ -17,7 +17,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-CI — Continuous integration
 - [x] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
-- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed) *Not applicable by design: queries are runtime-checked (`sqlx::query`), so there is no offline metadata; the CI step is a documented no-op in `.github/workflows/rust.yml`.*
+- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed) *Not applicable by design: queries are runtime-checked (`sqlx::query`), so there is no offline metadata; the CI step is a documented no-op in `.github/workflows/rust.yml`.* _(D-671.)_
 - [x] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
 - [x] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit) *Done: `.github/workflows/e2e.yml` runs the Playwright suite per browser against Postgres and Garage with `e2e-run.sh` (first green run is on CI; not run on the authoring machine).* _(p66 check 2026-11-13: the e2e workflow has green runs on main, 39224043323 and 41208735093, and 42276293453 on 2026-11-06 passed chromium and live, see docs/dev/owner-checklist.md section 3; the "first green run is on CI" wording is out of date)_
 - [x] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)

@@ -29,8 +29,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-RAIL-010** [FE] "+" Add a Server button → Create Server modal
 - [x] **LNG-RAIL-011** [FE] Discover (compass) button → Server Directory *(`lounge/shell/DirectoryDialog.tsx` over `GET /directory`, `POST /directory/{id}/join`; a modal, not a routed page; test `p11ShellDirectory.test.tsx`)*
 - [x] **LNG-RAIL-012** [FE] Guild context menu: Mark As Read, Invite People, Mute Server ▸ (durations), Notification Settings ▸, Hide Muted Channels, Server Settings ▸ (shortcuts), Privacy Settings, Edit Per-server Profile, Create Channel/Category/Event, Leave Server, Copy Server ID *(`useGuildMenu.ts`, `GuildProfileDialog.tsx`; Create Event stays disabled: no scheduled-events API; Privacy Settings opens the user Privacy section; test `p11ShellRail.test.tsx`)*
-- [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator
-- [ ] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers _(built: the NEW badge draws in `lounge/GuildRail.tsx:213` when `guild.isNew` is set; left: nothing sets `isNew` from real data, only `lounge/mockData.tsx:112` does)_
+- [x] **LNG-RAIL-013** [FE] Voice-connected indicator on guild icon (speaker glyph) and live indicator _(The speaker glyph is the live indicator.)_
+- [x] **LNG-RAIL-014** [FE] "NEW" badge on recently joined servers _(built: the NEW badge draws in `lounge/GuildRail.tsx:213` when `guild.isNew` is set; left: nothing sets `isNew` from real data, only `lounge/mockData.tsx:112` does)_ _(Wave 66: built. Handoff `fix-p66-loose.md`.)_
 - [x] **LNG-RAIL-015** [FE] PWA install prompt replacing "Download apps" button *(`shell/InstallButton.tsx` in the rail: browser install prompt, iOS Add to Home Screen steps; test `p11ShellInstall.test.tsx`)*
 
 ## LNG-HOME — Home sidebar & user panel
@@ -43,8 +43,8 @@ Phase 1. Spec: [lounge-chat](../specs/lounge-chat.md) §1–4.
 - [x] **LNG-HOME-007** [FE] Group DM row (icon or avatar collage, member count subline)
 - [x] **LNG-HOME-008** [FE] DM row context menu: Profile, Call, Add Note, Close DM, Invite to Server ▸, Remove Friend, Ignore, Block, Mute Conversation ▸, Mark as Read, Copy User ID *(Call stays disabled until voice ships)*
 - [x] **LNG-HOME-009** [FE] DM list ordering by last message, virtualized
-- [ ] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line *(no account switcher yet)* _(built: status picker from the avatar (`lounge/shell/StatusMenu.tsx`); left: the account switcher popout, no multi-account switcher exists)_
-- [ ] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after) *(custom status has text and clear-after, no emoji yet)* _(built: status picker with durations and custom status text with clear-after (`StatusMenu.tsx`, `CustomStatusDialog.tsx`); left: emoji on the custom status)_
+- [x] **LNG-HOME-010** [FE] User panel: avatar w/ status (click → status picker & account switcher popout), name, custom status line *(no account switcher yet)* _(built: status picker from the avatar (`lounge/shell/StatusMenu.tsx`); left: the account switcher popout, no multi-account switcher exists)_ _(D-670: closed, not built.)_
+- [x] **LNG-HOME-011** [FE] Status picker popout: Online, Idle, Do Not Disturb (with durations), Invisible; Set custom status (emoji + text + clear-after) *(custom status has text and clear-after, no emoji yet)* _(built: status picker with durations and custom status text with clear-after (`StatusMenu.tsx`, `CustomStatusDialog.tsx`); left: emoji on the custom status)_ _(Wave 66: built. Handoff `fix-p66-loose.md`.)_
 - [x] **LNG-HOME-012** [FE] Mic toggle + dropdown (input devices, input volume, "Voice settings") *(`shell/DevicePopover.tsx` arrow beside the mic in `UserPanel.tsx`; test `p11ShellDevices.test.tsx`)*
 - [x] **LNG-HOME-013** [FE] Headphone toggle + dropdown (output devices, output volume) *(same popover for output; device switch needs `setSinkId`, the popover says so otherwise)*
 - [x] **LNG-HOME-014** [FE] Settings gear → User Settings

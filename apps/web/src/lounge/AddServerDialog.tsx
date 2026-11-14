@@ -9,6 +9,7 @@ import { useStore } from '../store';
 import type { Channel as StoreChannel } from '../store';
 import { listBuiltinTemplates, type BuiltinTemplate } from '../store/rest';
 import { useCurrentUser } from './data';
+import { useLoungeUi } from './store';
 import { inviteErrorMessage, parseInviteCode } from './inviteFlow';
 import { limitErrorText } from './limitErrors';
 
@@ -41,6 +42,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
   const [purpose, setPurpose] = useState<Purpose>(null);
   const me = useCurrentUser();
   const goto = useGotoGuild();
+  const openDialog = useLoungeUi((s) => s.openDialog);
   const [name, setName] = useState(
     me.displayName ? t('lounge.addServer.defaultName', { name: me.displayName }) : '',
   );
@@ -312,6 +314,9 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
               <li>example.com/invite/cool-people</li>
             </ul>
           </div>
+          <Button variant="ghost" onClick={() => openDialog({ kind: 'directory' })}>
+            {t('lounge.addServerDialog.browseDirectory')}
+          </Button>
           <div className="lng-form-actions">
             <Button variant="ghost" onClick={() => go('choose')}>
               {t('lounge.addServerDialog.back')}
