@@ -1478,7 +1478,7 @@ mod tests {
             .expect("connect");
         sr_db::migrate(&pool).await.expect("migrate");
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
-        let w = ((std::process::id() % 16) * 2) as u8 + 2;
+        let w = ((std::process::id() % 15) * 2) as u8 + 2;
         let ids = SnowflakeGenerator::new(clock.clone(), w, w).expect("ids");
         let (me, friend, stranger) = (
             account(&pool, &ids).await,
@@ -1493,6 +1493,7 @@ mod tests {
         repo.set_request_state(me, request, RequestState::Pending)
             .await
             .unwrap();
+        let mut request_message = 0u64;
         for (channel, author, text) in [
             (accepted, friend, "hello friend"),
             (
@@ -1505,7 +1506,13 @@ stranger",
             sqlx::query(
                 "INSERT INTO messages (id, channel_id, author_id, content) VALUES ($1, $2, $3, $4)",
             )
-            .bind(ids.generate().get() as i64)
+            .bind({
+                let id = ids.generate().get();
+                if channel == request {
+                    request_message = id;
+                }
+                id as i64
+            })
             .bind(channel.get() as i64)
             .bind(author.get() as i64)
             .bind(text)
@@ -1522,6 +1529,11 @@ stranger",
                     "{c}"
                 );
                 assert_eq!(c["sr_request_preview"]["attachments"], 0);
+                assert_eq!(
+                    c["sr_request_preview"]["message_id"],
+                    request_message.to_string(),
+                    "{c}"
+                );
             } else {
                 assert!(c.get("sr_request_preview").is_none(), "{c}");
             }
