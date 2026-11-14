@@ -86,9 +86,7 @@ test('pins drawn as messages, search with a spoiler beside the word, search on a
   );
   const g = guild.id;
   const channel = guild.channels.find((c) => c.type === 0)!.id;
-  const channel2 = (
-    await apiPost<{ id: string }>(o, `/guilds/${g}/channels`, { name: 'elsewhere', type: 0 })
-  ).id;
+  await apiPost<{ id: string }>(o, `/guilds/${g}/channels`, { name: 'elsewhere', type: 0 });
   const invite = await apiPost<{ code: string }>(o, `/channels/${channel}/invites`, {});
   const bob = await member(browser, 'bobby', invite.code);
   const carol = await member(browser, 'carolyn', invite.code);

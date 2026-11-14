@@ -40,7 +40,10 @@ test('a spoiler in the message list is hidden until clicked', async ({ browser }
       });
       await c.addInitScript(
         (p) => {
-          localStorage.setItem('sr.user.prefs', JSON.stringify({ state: { prefs: p }, version: 2 }));
+          localStorage.setItem(
+            'sr.user.prefs',
+            JSON.stringify({ state: { prefs: p }, version: 2 }),
+          );
         },
         { theme, zoom: 100 },
       );
