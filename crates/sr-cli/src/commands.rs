@@ -350,6 +350,16 @@ fn read_password(given: Option<String>) -> Result<String> {
     Ok(pw)
 }
 
+/// What a bootstrap run did.
+#[derive(Debug)]
+struct Bootstrapped {
+    owner_id: i64,
+    staff: sr_core::GuildId,
+    link: String,
+    /// The run finished an installation that an earlier run left half made.
+    resumed: bool,
+}
+
 async fn bootstrap(
     pool: &PgPool,
     cfg: &Config,
@@ -358,20 +368,128 @@ async fn bootstrap(
     email: String,
     password: Option<String>,
 ) -> Result<()> {
-    if accounts::has_real_accounts(pool).await? {
+    let username = username.to_lowercase();
+    // A finished installation is refused before anything is asked.
+    let real = accounts::real_accounts(pool, 2).await?;
+    let finished = match real.as_slice() {
+        [] => false,
+        [owner] => matches!(
+            guilds::staff_server_state(pool, owner.id).await?,
+            guilds::StaffServerState::Done(_)
+        ),
+        _ => true,
+    };
+    if finished {
         bail!("this instance is already bootstrapped (accounts exist)");
     }
-    let username = username.to_lowercase();
     let password = read_password(password)?;
+    let done = bootstrap_with(pool, cfg, ids, &username, &email, &password).await?;
+    if done.resumed {
+        println!(
+            "Finished the earlier bootstrap of Owner '{username}' (id {}).",
+            done.owner_id
+        );
+    } else {
+        println!("Owner '{username}' created (id {}).", done.owner_id);
+    }
+    println!(
+        "Staff Server ready (guild {}); default staff roles created.",
+        done.staff
+    );
+    println!("One-time login link (valid 1h, single use):\n{}", done.link);
+    Ok(())
+}
+
+/// The bootstrap itself, under the advisory lock (SEC-AUD-255).
+///
+/// A run that stops after the Owner is committed (the Staff Server fails, the process is killed) leaves an
+/// installation with an Owner and no Staff Server, which the next run used to refuse ("already bootstrapped") with
+/// nothing else to finish it. Now that run, and only that run, finishes the work: exactly one real account exists,
+/// it is active, its username and email are the ones given, the password given is its password, and its Staff
+/// Server is missing or unfinished. Every other state with accounts is refused as before, so this is no way to get
+/// a login link for a working installation: that has a finished Staff Server, and a caller who does not know the
+/// Owner's password is refused in the half-made state too.
+async fn bootstrap_with(
+    pool: &PgPool,
+    cfg: &Config,
+    ids: IdSource,
+    username: &str,
+    email: &str,
+    password: &str,
+) -> Result<Bootstrapped> {
+    let Some(_lock) = accounts::try_bootstrap_lock(pool).await? else {
+        bail!("another bootstrap is running; wait for it to end");
+    };
+    let real = accounts::real_accounts(pool, 2).await?;
+    // The password rule is checked before anything is written.
+    if password.chars().count() < MIN_PASSWORD_LEN {
+        bail!("password must be at least {MIN_PASSWORD_LEN} characters");
+    }
     // Same rule as the sign-up and reset forms (sr_auth::password::strength).
     let local_part = email.split('@').next().unwrap_or("");
-    if strength(&password, &[username.as_str(), local_part, "sideroom"]) != Verdict::Ok {
+    if strength(password, &[username, local_part, "sideroom"]) != Verdict::Ok {
         bail!("password is too easy to guess; use a longer or less common one");
     }
-    let hash = hasher()?
-        .hash(&password)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let owner_id = match real.as_slice() {
+        [] => {
+            let hash = hasher()?
+                .hash(password)
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            create_owner(pool, ids.clone(), username, email, &hash).await?
+        }
+        [owner] => {
+            let unfinished = !matches!(
+                guilds::staff_server_state(pool, owner.id).await?,
+                guilds::StaffServerState::Done(_)
+            );
+            if !unfinished {
+                bail!("this instance is already bootstrapped (accounts exist)");
+            }
+            let same = owner.state == "active"
+                && owner.username == username
+                && owner.email.eq_ignore_ascii_case(email)
+                && hasher()?
+                    .verify(password, &owner.password_hash)
+                    .unwrap_or(false);
+            if !same {
+                bail!(
+                    "this instance is already bootstrapped (accounts exist); its Staff Server is not finished, \
+                     but only the same username, email and password as the first run can finish it"
+                );
+            }
+            owner.id
+        }
+        _ => bail!("this instance is already bootstrapped (accounts exist)"),
+    };
+    let resumed = !real.is_empty();
 
+    let staff = match guilds::staff_server_state(pool, owner_id).await? {
+        guilds::StaffServerState::Done(g) => g,
+        guilds::StaffServerState::Unfinished(g) => {
+            guilds::finish_staff_guild(pool, &cfg.server, g, owner_id).await?;
+            g
+        }
+        guilds::StaffServerState::Missing => {
+            guilds::create_staff_guild(pool, &cfg.server, owner_id, now_ms()).await?
+        }
+    };
+    let link = login_link(pool, cfg, ids, owner_id).await?;
+    Ok(Bootstrapped {
+        owner_id,
+        staff,
+        link,
+        resumed,
+    })
+}
+
+/// The system user and the Owner.
+async fn create_owner(
+    pool: &PgPool,
+    ids: IdSource,
+    username: &str,
+    email: &str,
+    hash: &str,
+) -> Result<i64> {
     // System user "SIDE ROOM" (id = 1). Deactivated: cannot log in and does not
     // count toward the account cap; the password hash is an unusable marker.
     // The SYSTEM flag marks it for user objects (open question 44).
@@ -399,10 +517,10 @@ async fn bootstrap(
         &NewAccount {
             id: owner_id,
             person_id: ids(),
-            username: &username,
+            username,
             display_name: None,
-            email: &email,
-            password_hash: &hash,
+            email,
+            password_hash: hash,
             state: "active",
             email_verified: true,
             initial_credits: INITIAL_CREDITS,
@@ -415,14 +533,7 @@ async fn bootstrap(
     if !created {
         bail!("username or email already in use");
     }
-
-    let staff = guilds::create_staff_guild(pool, &cfg.server, owner_id, now_ms()).await?;
-    println!("Staff Server created (guild {staff}); default staff roles created.");
-
-    let link = login_link(pool, cfg, ids, owner_id).await?;
-    println!("Owner '{username}' created (id {owner_id}).");
-    println!("One-time login link (valid 1h, single use):\n{link}");
-    Ok(())
+    Ok(owner_id)
 }
 
 async fn login_link(pool: &PgPool, cfg: &Config, ids: IdSource, account_id: i64) -> Result<String> {
@@ -1333,5 +1444,259 @@ mod tests {
     fn password_length_enforced() {
         assert!(read_password(Some("short".into())).is_err());
         assert!(read_password(Some("long-enough-password".into())).is_ok());
+    }
+
+    // ---- SEC-AUD-255: a bootstrap that cannot be left half done ----------------------------------------------
+
+    const OWNER_PW: &str = "correct-horse-battery-staple-9";
+
+    async fn boot_rig() -> (sr_db::testing::TestDb, PgPool, Config, IdSource) {
+        let db = sr_db::testing::TestDb::new().await.expect("test db");
+        let pool = db.pool().clone();
+        let mut cfg = Config::default();
+        cfg.server.public_url = "https://sideroom.example".into();
+        let ids = id_source(&cfg.server).unwrap();
+        (db, pool, cfg, ids)
+    }
+
+    async fn run(
+        pool: &PgPool,
+        cfg: &Config,
+        ids: &IdSource,
+        password: &str,
+    ) -> Result<Bootstrapped> {
+        bootstrap_with(
+            pool,
+            cfg,
+            ids.clone(),
+            "ownerone",
+            "owner@example.test",
+            password,
+        )
+        .await
+    }
+
+    async fn count(pool: &PgPool, sql: &'static str) -> i64 {
+        sqlx::query_scalar(sql).fetch_one(pool).await.unwrap()
+    }
+
+    /// Make the Staff Server's first insert fail, as a database that went away right after the Owner was committed.
+    async fn break_guilds(pool: &PgPool) {
+        for q in [
+            "CREATE FUNCTION p71_no_guilds() RETURNS trigger LANGUAGE plpgsql AS \
+             $$ BEGIN RAISE EXCEPTION 'no guild now'; END $$",
+            "CREATE TRIGGER p71_no_guilds BEFORE INSERT ON guilds FOR EACH ROW EXECUTE FUNCTION p71_no_guilds()",
+        ] {
+            sqlx::query(q).execute(pool).await.unwrap();
+        }
+    }
+
+    async fn mend_guilds(pool: &PgPool) {
+        sqlx::query("DROP TRIGGER p71_no_guilds ON guilds")
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    /// The Owner is committed and the Staff Server fails: before the fix the next run answered "already
+    /// bootstrapped" and nothing else made the Staff Server or a login link. Now it finishes the work, once.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_stopped_bootstrap_is_finished_by_the_next_run() {
+        let (db, pool, cfg, ids) = boot_rig().await;
+        break_guilds(&pool).await;
+        assert!(run(&pool, &cfg, &ids, OWNER_PW).await.is_err());
+        assert_eq!(accounts::real_accounts(&pool, 5).await.unwrap().len(), 1);
+        assert_eq!(count(&pool, "SELECT count(*) FROM guilds").await, 0);
+        // Still broken: it fails the same way and makes nothing twice.
+        assert!(run(&pool, &cfg, &ids, OWNER_PW).await.is_err());
+        assert_eq!(accounts::real_accounts(&pool, 5).await.unwrap().len(), 1);
+        mend_guilds(&pool).await;
+
+        let done = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap();
+        assert!(done.resumed);
+        assert!(
+            done.link
+                .starts_with("https://sideroom.example/login/link?token=")
+        );
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM guilds WHERE is_staff_guild").await,
+            1
+        );
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM staff_appointments").await,
+            1
+        );
+        assert_eq!(accounts::real_accounts(&pool, 5).await.unwrap().len(), 1);
+        // The installation is finished: every later run is refused, with the right credentials too.
+        let again = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap_err();
+        assert!(
+            again.to_string().contains("already bootstrapped"),
+            "{again}"
+        );
+        assert_eq!(count(&pool, "SELECT count(*) FROM guilds").await, 1);
+        db.cleanup().await.expect("cleanup");
+    }
+
+    /// A Staff Server that was made only in part (the row, not the channels, the roles or the appointment) is
+    /// finished, not made a second time.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_half_made_staff_server_is_finished_not_duplicated() {
+        let (db, pool, cfg, ids) = boot_rig().await;
+        let first = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap();
+        assert!(!first.resumed);
+        let guild = i64::try_from(first.staff.get()).unwrap();
+        // Undo the last steps of making it.
+        for q in [
+            "DELETE FROM staff_appointments",
+            "DELETE FROM channels WHERE guild_id = $1 AND name = 'alerts'",
+            "UPDATE guilds SET settings = settings - 'alerts_channel_id' WHERE id = $1",
+        ] {
+            let mut query = sqlx::query(q);
+            if q.contains("$1") {
+                query = query.bind(guild);
+            }
+            query.execute(&pool).await.unwrap();
+        }
+        let channels_before = count(&pool, "SELECT count(*) FROM channels").await;
+        let done = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap();
+        assert!(done.resumed);
+        assert_eq!(done.staff, first.staff);
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM guilds WHERE is_staff_guild").await,
+            1
+        );
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM staff_appointments").await,
+            1
+        );
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM channels").await,
+            channels_before + 1,
+            "the lost #alerts is back, nothing else was added"
+        );
+        let alerts: Option<String> =
+            sqlx::query_scalar("SELECT settings ->> 'alerts_channel_id' FROM guilds WHERE id = $1")
+                .bind(guild)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert!(alerts.is_some());
+        db.cleanup().await.expect("cleanup");
+    }
+
+    /// The finishing run is no way into a working installation, nor into a half made one for a stranger.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn only_the_first_runs_owner_can_finish_a_half_made_installation() {
+        let (db, pool, cfg, ids) = boot_rig().await;
+        break_guilds(&pool).await;
+        assert!(run(&pool, &cfg, &ids, OWNER_PW).await.is_err());
+        mend_guilds(&pool).await;
+        let links = || count(&pool, "SELECT count(*) FROM email_tokens");
+        let links_before = links().await;
+        // Another password, another username, another email: refused, nothing made, no link.
+        let wrong_pw = run(&pool, &cfg, &ids, "another-long-password-77").await;
+        assert!(wrong_pw.is_err());
+        let wrong_name = bootstrap_with(
+            &pool,
+            &cfg,
+            ids.clone(),
+            "someoneelse",
+            "owner@example.test",
+            OWNER_PW,
+        )
+        .await;
+        assert!(wrong_name.is_err());
+        let wrong_mail = bootstrap_with(
+            &pool,
+            &cfg,
+            ids.clone(),
+            "ownerone",
+            "else@example.test",
+            OWNER_PW,
+        )
+        .await;
+        assert!(wrong_mail.is_err());
+        assert_eq!(count(&pool, "SELECT count(*) FROM guilds").await, 0);
+        assert_eq!(links().await, links_before);
+        // A second real account: refused, whatever the credentials.
+        db.cleanup().await.expect("cleanup");
+
+        let (db, pool, cfg, ids) = boot_rig().await;
+        let _ = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap();
+        let id = next_id();
+        sqlx::query("INSERT INTO persons (id) VALUES ($1)")
+            .bind(id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO accounts (id, person_id, username, email, password_hash) VALUES ($1, $1, 'second', 'second@example.test', 'x')",
+        )
+        .bind(id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("DELETE FROM staff_appointments")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let e = run(&pool, &cfg, &ids, OWNER_PW).await.unwrap_err();
+        assert!(e.to_string().contains("already bootstrapped"), "{e}");
+        db.cleanup().await.expect("cleanup");
+    }
+
+    fn next_id() -> i64 {
+        static N: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+        let base = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(1, |d| d.as_micros() as i64);
+        base * 1000 + N.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 1000
+    }
+
+    /// The password rule is checked before anything is written: a weak password leaves no system user, no
+    /// Owner, nothing.
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn a_weak_password_writes_nothing() {
+        let (db, pool, cfg, ids) = boot_rig().await;
+        let before = count(&pool, "SELECT count(*) FROM accounts").await;
+        for pw in ["short", "password1234"] {
+            assert!(run(&pool, &cfg, &ids, pw).await.is_err(), "{pw}");
+        }
+        assert_eq!(count(&pool, "SELECT count(*) FROM accounts").await, before);
+        assert_eq!(count(&pool, "SELECT count(*) FROM persons").await, 0);
+        assert_eq!(count(&pool, "SELECT count(*) FROM guilds").await, 0);
+        db.cleanup().await.expect("cleanup");
+    }
+
+    /// Two runs at once: one wins, the other is refused (the lock, or the finished installation).
+    #[tokio::test]
+    #[ignore = "needs SR_TEST_DATABASE_URL"]
+    async fn two_bootstraps_at_once_one_wins() {
+        let (db, pool, cfg, ids) = boot_rig().await;
+        let (a, b) = tokio::join!(
+            run(&pool, &cfg, &ids, OWNER_PW),
+            run(&pool, &cfg, &ids, OWNER_PW)
+        );
+        assert_eq!(
+            [a.is_ok(), b.is_ok()].iter().filter(|ok| **ok).count(),
+            1,
+            "{a:?} / {b:?}"
+        );
+        let refused = a.err().or(b.err()).unwrap().to_string();
+        assert!(
+            refused.contains("another bootstrap is running")
+                || refused.contains("already bootstrapped"),
+            "{refused}"
+        );
+        assert_eq!(accounts::real_accounts(&pool, 5).await.unwrap().len(), 1);
+        assert_eq!(
+            count(&pool, "SELECT count(*) FROM guilds WHERE is_staff_guild").await,
+            1
+        );
+        db.cleanup().await.expect("cleanup");
     }
 }

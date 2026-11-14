@@ -431,14 +431,20 @@ impl S3Multipart {
         Ok(out)
     }
 
-    /// Abandon an upload and free its parts.
+    /// Abandon an upload and free its parts. SEC-AUD-256: an upload the store no longer knows (`404`,
+    /// `NoSuchUpload`: it was completed, aborted before, or expired there) is already gone, so that is success;
+    /// any other failure is still an error.
     pub async fn abort(&self, key: &str, upload_id: &str) -> Result<()> {
         check_key(key)?;
         check_upload_id(upload_id)?;
         let q = format!("uploadId={}", uri_encode(upload_id, false));
-        self.send("DELETE", key, &q, &q, None, Vec::new())
-            .await
-            .map(|_| ())
+        let (status, text) = self
+            .send_raw("DELETE", key, &q, &q, None, &[], Vec::new())
+            .await?;
+        if (200..300).contains(&status) || status == 404 || text.contains("NoSuchUpload") {
+            return Ok(());
+        }
+        Err(failed("DELETE", status, &text))
     }
 
     async fn send(
@@ -473,6 +479,35 @@ impl S3Multipart {
         extra: &[(&str, String)],
         body: Vec<u8>,
     ) -> Result<String> {
+        let (status, text) = self
+            .send_raw(
+                method,
+                key,
+                canonical_query,
+                url_query,
+                content_type,
+                extra,
+                body,
+            )
+            .await?;
+        if (200..300).contains(&status) {
+            return Ok(text);
+        }
+        Err(failed(method, status, &text))
+    }
+
+    /// One signed call; the answer is the status and the body whatever the status is.
+    #[allow(clippy::too_many_arguments)]
+    async fn send_raw(
+        &self,
+        method: &str,
+        key: &str,
+        canonical_query: &str,
+        url_query: &str,
+        content_type: Option<&str>,
+        extra: &[(&str, String)],
+        body: Vec<u8>,
+    ) -> Result<(u16, String)> {
         let amz = amz_date(now_secs());
         let payload_hash = sha256_hex(&body);
         let mut headers: Vec<(String, String)> = vec![
@@ -532,14 +567,18 @@ impl S3Multipart {
             .text()
             .await
             .map_err(|e| StorageError::Backend(e.without_url().to_string()))?;
-        if status.is_success() {
-            return Ok(text);
-        }
-        let snippet: String = text.chars().take(300).collect();
-        Err(StorageError::Backend(format!(
-            "{method} multipart call failed with {status}: {snippet}"
-        )))
+        Ok((status.as_u16(), text))
     }
+}
+
+/// The error of a multipart call that did not succeed.
+fn failed(method: &str, status: u16, text: &str) -> StorageError {
+    let status = reqwest::StatusCode::from_u16(status)
+        .map_or_else(|_| status.to_string(), |s| s.to_string());
+    let snippet: String = text.chars().take(300).collect();
+    StorageError::Backend(format!(
+        "{method} multipart call failed with {status}: {snippet}"
+    ))
 }
 
 /// A key that may also be a folder marker (one trailing slash).

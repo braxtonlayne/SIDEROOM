@@ -132,6 +132,57 @@ pub async fn has_real_accounts(pool: &PgPool) -> DbResult<bool> {
     )
 }
 
+/// A real (not system) account as the bootstrap needs to see it (SEC-AUD-255).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RealAccount {
+    pub id: i64,
+    pub username: String,
+    pub email: String,
+    pub password_hash: String,
+    pub state: String,
+}
+
+/// At most `limit` accounts other than the system user, oldest first.
+pub async fn real_accounts(pool: &PgPool, limit: i64) -> DbResult<Vec<RealAccount>> {
+    let rows: Vec<(i64, String, String, String, String)> = sqlx::query_as(
+        "SELECT id, username, email, password_hash, state::text FROM accounts WHERE id <> $1 \
+         ORDER BY created_at, id LIMIT $2",
+    )
+    .bind(SYSTEM_USER_ID)
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, username, email, password_hash, state)| RealAccount {
+            id,
+            username,
+            email,
+            password_hash,
+            state,
+        })
+        .collect())
+}
+
+/// Key of the advisory lock that one `sr-cli bootstrap` holds for as long as it runs.
+const BOOTSTRAP_LOCK_KEY: i64 = 0x5352_424F_4F54;
+
+/// The advisory lock of a running bootstrap (SEC-AUD-255). It is held by an open transaction, so it is released
+/// when this value is dropped, however the command ends (an error, a panic, a killed process: the connection goes).
+pub struct BootstrapLock {
+    _tx: sqlx::Transaction<'static, sqlx::Postgres>,
+}
+
+/// Take the bootstrap lock, or `None` when another bootstrap holds it. Does not wait.
+pub async fn try_bootstrap_lock(pool: &PgPool) -> DbResult<Option<BootstrapLock>> {
+    let mut tx = pool.begin().await?;
+    let got: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
+        .bind(BOOTSTRAP_LOCK_KEY)
+        .fetch_one(&mut *tx)
+        .await?;
+    Ok(got.then_some(BootstrapLock { _tx: tx }))
+}
+
 /// What [`reset_2fa`] removed.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Reset2fa {
