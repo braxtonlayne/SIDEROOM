@@ -1884,6 +1884,23 @@ async fn seed(
         let ids_map = if tenant_b { &mut b } else { &mut a };
         ids_map.insert("legal_mount_id", id.to_string());
     }
+    // --- SEC-AUD-176 seeds: one open Activity package upload per tenant, for the `/applications/{application_id}/
+    // activity/uploads/{upload_id}` routes (the generic `upload_id` is a Library upload, which those routes rightly
+    // answer as unknown). The session row alone is enough to reach the handler; completing it finds no stored parts.
+    for ids_map in [&mut a, &mut b] {
+        let pkg_upload_id = ids.generate().get() as i64;
+        let app_id: i64 = ids_map["application_id"].parse().unwrap();
+        sqlx::query(
+            "INSERT INTO activity_package_uploads              (id, application_id, created_by, expires_at, size, part_size, part_count, object_key, multipart_id)              SELECT $1, $2, owner_id, now() + interval '1 day', 1024, 1024, 1, $3, 'authz-matrix-upload'              FROM applications WHERE id = $2",
+        )
+        .bind(pkg_upload_id)
+        .bind(app_id)
+        .bind(format!("activities/{app_id}/uploads/{pkg_upload_id}.zip"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        ids_map.insert("pkg_upload_id", pkg_upload_id.to_string());
+    }
     // --- BYOS-BRW-001 seeds (byos-browser): one open upload per tenant, for the `{mount_upload_id}` routes ---
     for (who, ids_map) in [("member", &mut a), ("ownerb", &mut b)] {
         use sr_storage::uploads::UploadLedger as _;
@@ -5807,6 +5824,11 @@ const OVERLAYS: &[(&[&str], &str, &str)] = &[
     (&["/sr/invites/"], "code", "sr_invite_code"),
     (&["templates/{code}"], "code", "template_code"),
     (&["/channels/"], "upload_id", "attach_upload_id"),
+    (
+        &["activity/uploads/{upload_id}"],
+        "upload_id",
+        "pkg_upload_id",
+    ),
     (
         &["sr/applications/{application_id}"],
         "application_id",
