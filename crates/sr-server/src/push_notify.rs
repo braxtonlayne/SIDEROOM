@@ -147,7 +147,8 @@ pub fn mention_kind(
 ) -> MentionKind {
     MentionKind {
         direct: msg.mention_user_ids.contains(&user),
-        reply: reply_author == Some(user),
+        // D-725: "replied to you" only for a reply that pinged (the replied-to author is among the mentions).
+        reply: reply_author == Some(user) && msg.mention_user_ids.contains(&user),
         everyone: msg.mention_everyone,
         role: msg.mention_role_ids.iter().any(|r| roles.contains(r)),
     }
@@ -621,7 +622,16 @@ mod tests {
             &[sr_core::RoleId::new(9)],
             Some(UserId::new(6)),
         );
-        assert!(!k.direct && k.reply && k.role);
+        // The replied-to author is not among the mentions: the reply did not ping (D-725).
+        assert!(!k.direct && !k.reply && k.role);
+        // A reply that pinged: the author is in `mention_user_ids`.
+        let mut pinged = msg();
+        pinged.mention_user_ids.push(UserId::new(6));
+        let k = mention_kind(&pinged, UserId::new(6), &[], Some(UserId::new(6)));
+        assert!(k.direct && k.reply);
+        // A reply to someone else is no reply for this user.
+        let k = mention_kind(&pinged, UserId::new(6), &[], Some(UserId::new(7)));
+        assert!(!k.reply);
     }
 
     struct Fake(Vec<u64>);

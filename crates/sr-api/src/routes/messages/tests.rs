@@ -603,6 +603,55 @@ async fn replies_reference_visible_messages_only() {
     assert!(v.get("message_reference").is_none());
 }
 
+/// D-725: a reply names the replied-to author in `mentions` unless the request turns the ping off.
+#[tokio::test]
+async fn a_reply_pings_the_replied_to_author_unless_turned_off() {
+    let e = env().await;
+    let q = e.say("owner", "question").await;
+    let fid = id_of(&q);
+    let reference = json!({"message_id": fid});
+    let (s, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "answer", "message_reference": reference}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{r}");
+    assert_eq!(r["mentions"].as_array().unwrap().len(), 1, "{r}");
+    assert_eq!(r["mentions"][0]["id"], "1");
+    // The ping switched off in the composer: `replied_user: false`.
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "quiet", "message_reference": reference,
+                   "allowed_mentions": {"parse": ["users", "roles", "everyone"], "replied_user": false}}),
+        )
+        .await;
+    assert_eq!(r["mentions"], json!([]), "{r}");
+    // `replied_user: true` as before.
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "loud", "message_reference": reference,
+                   "allowed_mentions": {"replied_user": true}}),
+        )
+        .await;
+    assert_eq!(r["mentions"][0]["id"], "1", "{r}");
+    // A reply to one's own message mentions nobody.
+    let own = e.say("bob", "mine").await;
+    let (_, r) = e
+        .post(
+            "/messages",
+            "bob",
+            json!({"content": "again", "message_reference": {"message_id": id_of(&own)}}),
+        )
+        .await;
+    assert_eq!(r["mentions"], json!([]), "{r}");
+}
+
 #[tokio::test]
 async fn mentions_are_permission_gated() {
     let e = env().await;
