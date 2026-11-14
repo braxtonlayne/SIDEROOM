@@ -158,7 +158,7 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 
 No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. The one server change is the text of `content` in a thread row's last message and in a Message Requests row's preview: a heading marker (`# `, `## `, `### `) or a subtext marker (`-# `) at the start of a line is left off before the lines are joined. The field and its type are unchanged and nothing is stored differently, so no client or integration needs an update.
 
-## Release notes: wave 73 (SEC-AUD-283..290)
+## Release notes: wave 73 (SEC-AUD-283..291)
 
 No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. Two behaviours an operator may be asked about:
 

@@ -2,7 +2,7 @@
  * Markdown seam for the Lounge.
  *
  * The parser is the Rust `sr-markdown` crate compiled to WASM, loaded lazily through `@sideroom/wasm`.
- * `loadMarkdownEngine()` starts that load (the Lounge shell calls it on mount). Until it resolves, messages
+ * `loadMarkdownEngine()` starts that load (the Lounge shell, the composer and About Me call it on mount). Until it resolves, messages
  * render as plain text so nothing waits on the download. Unit tests inject `testFallbackEngine`, a small TS
  * stand-in, through `setMarkdownEngine` instead of loading the bundle.
  */
