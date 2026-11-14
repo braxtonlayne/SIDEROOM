@@ -2,19 +2,23 @@ import { Button, ConfirmDialog, Modal } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import { useT } from '../../i18n';
 import { dmTitle } from '../channels';
+import { MessageLine } from './lineText';
 import { useAllChannels, useDms, useUsers, type Message, type Snowflake } from '../data';
 
 function Preview({ message }: { message: Message }) {
   const t = useT();
-  const text =
-    message.content.slice(0, 200) ||
-    (message.attachments?.length
-      ? t('lounge.messageDialogs.attachmentCount', { n: message.attachments.length })
-      : '');
+  const fallback = message.attachments?.length
+    ? t('lounge.messageDialogs.attachmentCount', { n: message.attachments.length })
+    : '';
   return (
     <span className="lng-preview">
       <strong>{message.author.displayName}</strong>
-      <span className="lng-preview-text">{text}</span>
+      <MessageLine
+        className="lng-preview-text"
+        content={message.content}
+        authorId={message.author.id}
+        fallback={fallback}
+      />
     </span>
   );
 }

@@ -6,6 +6,7 @@ import { useStore } from '../../store';
 import type { Message } from '../../store';
 import { onDispatch } from '../../store/events';
 import { HOME } from '../channels';
+import { messageLineText } from '../msg/lineText';
 import { useLoungeRoute } from '../nav';
 import { desktopDecision } from './desktopNotify';
 import { hiddenAuthorsNow } from './hiddenAuthors';
@@ -47,7 +48,7 @@ export function DmToasts(): null {
         const who = msg.author.global_name ?? msg.author.username;
         toast.show({
           title: t('lounge.dmToast.title', { name: who }),
-          description: msg.content.slice(0, 140),
+          description: messageLineText(msg.content, null, t('lounge.preview.spoiler')),
           duration: 6000,
         });
       })();

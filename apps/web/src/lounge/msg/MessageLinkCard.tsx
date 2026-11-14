@@ -4,6 +4,7 @@ import { apiFetch } from '../../api/client';
 import { formatDate, useT } from '../../i18n';
 import { useAllChannels } from '../data';
 import { useLoungeGotoMessage } from '../nav';
+import { useHiddenKind } from './lineText';
 
 export interface MessageLinkRef {
   guildId: string;
@@ -38,7 +39,7 @@ export function findMessageLinks(content: string, origin: string, limit = 2): Me
 interface Linked {
   content?: string;
   timestamp?: string;
-  author?: { username: string; global_name?: string | null };
+  author?: { id?: string; username: string; global_name?: string | null };
   attachments?: unknown[];
 }
 
@@ -49,6 +50,7 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
   const channels = useAllChannels();
   const goto = useLoungeGotoMessage();
   const channel = (channels[link.guildId] ?? []).find((c) => c.id === link.channelId);
+  const hiddenKind = useHiddenKind(typeof msg === 'object' ? msg?.author?.id : undefined);
 
   useEffect(() => {
     let live = true;
@@ -89,7 +91,13 @@ export function MessageLinkCard({ link }: { link: MessageLinkRef }) {
             </time>
           )}
         </div>
-        {text && <div className="lng-msglink-text">{text.slice(0, 280)}</div>}
+        {hiddenKind ? (
+          <div className="lng-msglink-text lng-muted" data-hidden-line={hiddenKind}>
+            {t('lounge.messageList.hiddenRun', { count: 1, kind: hiddenKind })}
+          </div>
+        ) : (
+          text && <div className="lng-msglink-text">{text.slice(0, 280)}</div>
+        )}
         <button
           type="button"
           className="lng-link-btn"

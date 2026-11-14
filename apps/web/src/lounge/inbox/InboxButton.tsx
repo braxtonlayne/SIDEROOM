@@ -6,6 +6,8 @@ import { useStore } from '../../store';
 import type { Message } from '../../store';
 import { HOME } from '../channels';
 import { useLoungeGoto, useLoungeGotoMessage, useLoungeRoute } from '../nav';
+import { MessageLine } from '../msg/lineText';
+import { useHiddenAuthors } from '../shell/hiddenAuthors';
 import { ForYou } from './ForYou';
 import { unreadRows } from './unreads';
 
@@ -16,6 +18,7 @@ function Mentions({ onGo }: { onGo: () => void }) {
   const route = useLoungeRoute();
   const goto = useLoungeGotoMessage();
   const channels = useStore((s) => s.channels);
+  const hidden = useHiddenAuthors();
   const [roles, setRoles] = useState(true);
   const [everyone, setEveryone] = useState(true);
   const [thisServer, setThisServer] = useState(false);
@@ -68,6 +71,8 @@ function Mentions({ onGo }: { onGo: () => void }) {
       {list?.length === 0 && <p className="lng-muted">{t('lounge.inbox.noMentions')}</p>}
       <ul className="lng-inbox-list">
         {list?.map((m) => {
+          // A blocked or ignored author's mention is not listed (D-730): the web's guard beside the server's.
+          if (hidden.blocked.has(m.author.id) || hidden.ignored.has(m.author.id)) return null;
           const ch = channels[m.channel_id];
           const where = ch?.name ? `#${ch.name}` : t('lounge.inbox.directMessage');
           return (
@@ -82,7 +87,12 @@ function Mentions({ onGo }: { onGo: () => void }) {
               >
                 <strong>{m.author.global_name ?? m.author.username}</strong>
                 <span className="lng-muted"> {where}</span>
-                <span className="lng-inbox-snippet">{m.content.slice(0, 140)}</span>
+                <MessageLine
+                  className="lng-inbox-snippet"
+                  content={m.content}
+                  authorId={m.author.id}
+                  guildId={m.guild_id}
+                />
               </button>
             </li>
           );
