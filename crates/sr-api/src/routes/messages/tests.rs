@@ -2536,3 +2536,193 @@ async fn changing_the_days_leaves_stored_attachments_alone() {
     assert_eq!(s, StatusCode::OK, "{v}");
     assert_eq!(v["attachments"][0]["expires_after"], 10 * 24 * 3600);
 }
+
+// ---- D-689: the thread row's last message --------------------------------------------------------
+
+/// A thread started from the message `starter` (its id is the message id), seeded into the memory backend,
+/// with `lines` as its messages in order: `(author, content, deleted)`. Returns the thread id.
+fn seed_thread(e: &Env, starter: &str, lines: &[(u64, &str, bool)]) -> ChannelId {
+    use sr_chat::threads::model::ThreadInfo;
+    use sr_chat::{Channel, ChannelType, Message, Visibility};
+    let id = ChannelId::new(starter.parse().unwrap());
+    let mut t = Channel::new(id, Some(e.guild), ChannelType::PublicThread);
+    t.parent_id = Some(e.ch);
+    t.thread = Some(ThreadInfo::new(T0, 60));
+    let mut d = e.backend.data();
+    d.channels.insert(id, t);
+    for (n, (author, content, deleted)) in lines.iter().enumerate() {
+        d.messages.push(Message {
+            id: sr_core::MessageId::new(id.get() + 1 + n as u64),
+            channel_id: id,
+            guild_id: Some(e.guild),
+            author_id: UserId::new(*author),
+            kind: MessageType::Default,
+            content: (*content).to_owned(),
+            flags: 0,
+            edited_at_ms: None,
+            reference: None,
+            attachment_ids: Vec::new(),
+            embeds: Vec::new(),
+            components: Vec::new(),
+            sticker_ids: Vec::new(),
+            poll: None,
+            mention_everyone: false,
+            mention_user_ids: Vec::new(),
+            mention_role_ids: Vec::new(),
+            mention_channel_ids: Vec::new(),
+            pinned: false,
+            visibility: if *deleted {
+                Visibility::UserDeleted
+            } else {
+                Visibility::Visible
+            },
+            deleted_at_ms: deleted.then_some(T0),
+            purge_after_ms: None,
+            hold_id: None,
+        });
+    }
+    id
+}
+
+#[tokio::test]
+async fn a_message_with_a_thread_carries_the_threads_last_message() {
+    let e = env().await;
+    e.backend.data().users.insert(
+        UserId::new(BOB),
+        sr_chat::repo::UserSummary {
+            id: UserId::new(BOB),
+            username: "bob".into(),
+            display_name: Some("Bobby".into()),
+            avatar_key: None,
+            banner_key: None,
+            bot: false,
+            primary_guild: None,
+            patron: false,
+        },
+    );
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    seed_thread(
+        &e,
+        &sid,
+        &[
+            (OWNER, "first reply", false),
+            (BOB, "  the\nlast   words ", false),
+        ],
+    );
+    let (s, v) = e.get("/messages?limit=5", "bob").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let row = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == sid.as_str())
+        .unwrap();
+    let last = &row["thread"]["sr_last_message"];
+    assert_eq!(last["content"], "the last words", "{row}");
+    assert_eq!(last["author"]["id"], BOB.to_string());
+    assert_eq!(last["author"]["global_name"], "Bobby");
+    assert_eq!(last["attachments"], 0);
+    assert!(last["timestamp"].as_str().is_some());
+    let mut keys: Vec<&str> = last
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        ["attachments", "author", "content", "id", "timestamp"]
+    );
+    // The single-message read carries it too.
+    let (_, one) = e.get(&format!("/messages/{sid}"), "bob").await;
+    assert_eq!(
+        one["thread"]["sr_last_message"]["content"],
+        "the last words"
+    );
+}
+
+#[tokio::test]
+async fn a_thread_without_messages_carries_none() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    seed_thread(&e, &sid, &[]);
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    let row = &v.as_array().unwrap()[0];
+    assert!(row["thread"].is_object(), "{row}");
+    assert!(row["thread"].get("sr_last_message").is_none(), "{row}");
+}
+
+#[tokio::test]
+async fn a_deleted_last_message_falls_back_to_the_one_before() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    seed_thread(
+        &e,
+        &sid,
+        &[(BOB, "the one before", false), (OWNER, "taken back", true)],
+    );
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    assert_eq!(
+        v[0]["thread"]["sr_last_message"]["content"], "the one before",
+        "{v}"
+    );
+    // Every message of the thread deleted: none.
+    let starter = e.say("owner", "another").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    seed_thread(&e, &sid, &[(BOB, "gone", true)]);
+    let (_, v) = e.get("/messages?limit=1", "bob").await;
+    assert!(v[0]["thread"].get("sr_last_message").is_none(), "{v}");
+}
+
+#[tokio::test]
+async fn fifty_messages_with_threads_cost_one_preview_query() {
+    let e = env().await;
+    for n in 0..50 {
+        let starter = e.say("owner", &format!("topic {n}")).await;
+        seed_thread(
+            &e,
+            starter["id"].as_str().unwrap(),
+            &[(BOB, &format!("reply {n}"), false)],
+        );
+    }
+    let before = e.backend.data().last_message_reads;
+    let (s, v) = e.get("/messages?limit=50", "bob").await;
+    assert_eq!(s, StatusCode::OK);
+    let rows = v.as_array().unwrap();
+    assert_eq!(rows.len(), 50);
+    assert!(rows.iter().all(|m| {
+        m["thread"]["sr_last_message"]["content"]
+            .as_str()
+            .is_some_and(|c| c.starts_with("reply "))
+    }));
+    assert_eq!(
+        e.backend.data().last_message_reads - before,
+        1,
+        "fifty threads, one preview read"
+    );
+}
+
+/// Which threads can be embedded for whom: only a thread started from a message is looked up, that is a public
+/// one, and the viewer is already reading the channel it hangs in. A private thread is previewed only inside itself.
+#[tokio::test]
+async fn a_private_thread_is_never_previewed_under_a_message_of_its_parent() {
+    use sr_chat::threads::model::ThreadInfo;
+    use sr_chat::{Channel, ChannelType};
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    let id = seed_thread(&e, &sid, &[(OWNER, "secret plans", false)]);
+    {
+        let mut d = e.backend.data();
+        let mut t = Channel::new(id, Some(e.guild), ChannelType::PrivateThread);
+        t.parent_id = Some(e.ch);
+        t.thread = Some(ThreadInfo::new(T0, 60));
+        d.channels.insert(id, t);
+    }
+    let (_, v) = e.get("/messages?limit=5", "bob").await;
+    assert!(v[0]["thread"].get("sr_last_message").is_none(), "{v}");
+}
