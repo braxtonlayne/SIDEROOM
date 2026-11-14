@@ -2414,15 +2414,18 @@ async fn insert_title(pool: &PgPool, languages: &[&str], subs: &[&str]) -> i64 {
     id
 }
 
-async fn track_tag(pool: &PgPool, table: &str, asset: i64, ordinal: i32) -> Option<String> {
-    sqlx::query_scalar(&format!(
-        "SELECT language_tag FROM {table} WHERE asset_id = $1 AND ordinal = $2"
-    ))
-    .bind(asset)
-    .bind(ordinal)
-    .fetch_one(pool)
-    .await
-    .unwrap()
+async fn track_tag(pool: &PgPool, audio: bool, asset: i64, ordinal: i32) -> Option<String> {
+    let sql = if audio {
+        "SELECT language_tag FROM video_audio_tracks WHERE asset_id = $1 AND ordinal = $2"
+    } else {
+        "SELECT language_tag FROM video_subtitle_tracks WHERE asset_id = $1 AND ordinal = $2"
+    };
+    sqlx::query_scalar(sql)
+        .bind(asset)
+        .bind(ordinal)
+        .fetch_one(pool)
+        .await
+        .unwrap()
 }
 
 #[tokio::test]
@@ -2480,21 +2483,15 @@ async fn migration_2970_rewrites_three_letter_codes_and_only_those_and_is_idempo
     assert_eq!(after[1], before[1]);
     assert_eq!(after[2], before[2]);
     assert_eq!(
-        track_tag(pool, "video_audio_tracks", p.asset, 0)
-            .await
-            .as_deref(),
+        track_tag(pool, true, p.asset, 0).await.as_deref(),
         Some("de")
     );
     assert_eq!(
-        track_tag(pool, "video_subtitle_tracks", p.asset, 0)
-            .await
-            .as_deref(),
+        track_tag(pool, false, p.asset, 0).await.as_deref(),
         Some("de")
     );
     assert_eq!(
-        track_tag(pool, "video_subtitle_tracks", p.asset, 1)
-            .await
-            .as_deref(),
+        track_tag(pool, false, p.asset, 1).await.as_deref(),
         Some("fil")
     );
     let probed: Option<String> = sqlx::query_scalar(
@@ -2516,9 +2513,7 @@ async fn migration_2970_rewrites_three_letter_codes_and_only_those_and_is_idempo
         assert_eq!(title_state(pool, *id).await, after[i]);
     }
     assert_eq!(
-        track_tag(pool, "video_subtitle_tracks", p.asset, 0)
-            .await
-            .as_deref(),
+        track_tag(pool, false, p.asset, 0).await.as_deref(),
         Some("de")
     );
 }
