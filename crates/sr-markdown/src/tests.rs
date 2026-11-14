@@ -554,3 +554,64 @@ fn ids_serialize_as_strings_above_2_pow_53() {
     let legacy: Node = serde_json::from_str(r#"{"type":"user_mention","id":7}"#).unwrap();
     assert_eq!(legacy, Node::UserMention { id: 7 });
 }
+
+/// D-722: a block (list, quote, heading, subtext, code block) stands on its own line in plain text, whatever
+/// stands before or after it. One row per pair; `want` is what the text reads now.
+#[test]
+fn plain_text_keeps_blocks_apart() {
+    let rows: &[(&str, &str, &str)] = &[
+        ("text then list", "two\n- a", "two\na\n"),
+        ("text then code block", "two\n```\nx\n```", "two\nx"),
+        ("code block then text", "```\nx\n```\ntwo", "x\ntwo"),
+        ("text then quote", "two\n> q", "two\nq\n"),
+        ("quote then text", "> q\ntwo", "q\ntwo"),
+        ("text then heading", "two\n# h", "two\nh\n"),
+        ("heading then text", "# h\ntwo", "h\ntwo"),
+        ("text then subtext", "two\n-# s", "two\ns\n"),
+        ("list then text", "- a\ntwo", "a\ntwo"),
+        ("a list inside a quote", "> two\n> - a", "two\na\n\n"),
+        ("two lists", "- a\n1. b", "a\nb\n"),
+        ("a list alone", "- a\n- b", "a\nb\n"),
+        ("no block, no separator", "two\nthree", "two\nthree"),
+    ];
+    let mut wrong = Vec::new();
+    for (name, input, want) in rows {
+        let got = to_plain_text(&parse(input));
+        if got != *want {
+            wrong.push(format!("{name}: {input:?} gives {got:?}, want {want:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
+
+#[test]
+fn plain_text_blocks_with_a_resolver_across_the_edge() {
+    struct R;
+    impl Resolver for R {
+        fn user(&self, id: u64) -> Option<String> {
+            Some(format!("u{id}"))
+        }
+    }
+    assert_eq!(
+        to_plain_text_with(&parse("hi <@5>\n- <@6>\nbye"), &R),
+        "hi @u5\n@u6\nbye"
+    );
+}
+
+#[test]
+fn plain_text_timestamp_is_a_utc_date() {
+    let t = |s: &str| to_plain_text(&parse(s));
+    assert_eq!(t("at <t:1700000000:R>"), "at 2023-11-14 22:13 UTC");
+    assert_eq!(t("<t:0>"), "1970-01-01 00:00 UTC");
+    // A leap day.
+    assert_eq!(t("<t:1709208000>"), "2024-02-29 12:00 UTC");
+    // 2038-01-19 03:14:07 (the 32-bit limit) reads to the minute.
+    assert_eq!(t("<t:2147483647>"), "2038-01-19 03:14 UTC");
+    // Every style letter reads the same.
+    for s in ["t", "T", "d", "D", "f", "F", "R"] {
+        assert_eq!(t(&format!("<t:1700000000:{s}>")), "2023-11-14 22:13 UTC");
+    }
+    // Out of range is not a date: it stays the number.
+    assert_eq!(t("<t:-5>"), "-5");
+    assert_eq!(t("<t:99999999999999>"), "99999999999999");
+}

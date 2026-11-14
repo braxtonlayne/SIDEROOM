@@ -8,11 +8,11 @@
  * cache of the last 20 messages, else one read of the message raced against a 2 second timer (D-712). Nothing
  * is written to the store.
  */
-import type { MdNode, Resolvers } from '@sideroom/markdown-react';
+import type { Resolvers } from '@sideroom/markdown-react';
 import { apiFetch } from '../../api/client';
 import { useStore } from '../../store';
 import { currentMarkdownEngine, parseMarkdown } from '../markdown';
-import { excerpt, EXCERPT_CHARS } from '../msg/excerpt';
+import { excerptPlain, EXCERPT_CHARS } from '../msg/excerpt';
 import { singleLineText } from '../msg/SingleLine';
 
 /** `notificationText` of a message: plain, on one line, at most 140 characters, `''` when it cannot be made plain. */
@@ -22,12 +22,9 @@ export function notificationText(
   spoilerWord: string,
 ): string {
   if (!currentMarkdownEngine()) return '';
-  // The parser eats the line break before a list: give each list a space of its own.
-  const nodes = parseMarkdown(content).flatMap((n): MdNode[] =>
-    n.type === 'list' ? [{ type: 'text', text: ' ' }, n] : [n],
-  );
-  const line = singleLineText(nodes, resolvers, spoilerWord);
-  return excerpt(line, EXCERPT_CHARS) ?? '';
+  const line = singleLineText(parseMarkdown(content), resolvers, spoilerWord);
+  // The line is plain text already: it has no markup to split, so it takes the plain cut.
+  return excerptPlain(line, EXCERPT_CHARS) ?? '';
 }
 
 /** The names the store holds, without a hook: users, and the roles and channels of `guildId`. */

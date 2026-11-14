@@ -11,7 +11,8 @@
  *   key is the thread's id, which is the row's `message_reference.message_id`. When the page also holds the
  *   starter message of that thread (same id) the chip sits under the starter only, and the row has none.
  * - A Message Request: the sender's next message replaces its preview, built here with the same excerpt rule
- *   the server uses. The preview names its message (D-699): deleting that message (or a bulk delete naming it)
+ *   the server uses (D-728: the cut never splits markup; when the parser is not loaded and a cut is needed the preview
+ *   has no text, only its attachment count). The preview names its message (D-699): deleting that message (or a bulk delete naming it)
  *   removes the preview at once, and an edit of it rebuilds the text. A preview without an id (an older server's
  *   answer in a cached state) is left alone.
  * - A "started a thread" row that arrives live (D-715): the gateway never carries the thread on a message, so the

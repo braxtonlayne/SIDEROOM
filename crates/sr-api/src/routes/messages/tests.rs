@@ -2692,6 +2692,34 @@ async fn a_message_with_a_thread_carries_the_threads_last_message() {
     );
 }
 
+/// D-728: a thread whose latest message is a long spoiler never carries the hidden words in its row, however
+/// the 140-character cut falls.
+#[tokio::test]
+async fn a_long_spoiler_never_reaches_the_thread_row() {
+    let e = env().await;
+    let starter = e.say("owner", "start here").await;
+    let sid = starter["id"].as_str().unwrap().to_owned();
+    let secret = "hidden".repeat(40);
+    let content = format!("look ||{secret}||");
+    seed_thread(&e, &sid, &[(OWNER, content.as_str(), false)]);
+    let (s, v) = e.get("/messages?limit=5", "owner").await;
+    assert_eq!(s, StatusCode::OK, "{v}");
+    let row = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == sid.as_str())
+        .unwrap();
+    let text = row["thread"]["sr_last_message"]["content"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        !text.contains("hidden"),
+        "the hidden words leaked: {text:?}"
+    );
+    assert_eq!(text, "look\u{2026}", "{row}");
+}
+
 #[tokio::test]
 async fn a_thread_without_messages_carries_none() {
     let e = env().await;

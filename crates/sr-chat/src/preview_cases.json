@@ -1,0 +1,18 @@
+{
+  "description": "Cut cases for the preview excerpt (D-728), run by crates/sr-chat/src/preview.rs and by apps/web/src/lounge/__tests__/p70Plain.test.tsx with the same inputs and outputs. A part is a string or {repeat, times}; parts are joined. want null: no text. max is 140 unless given.",
+  "cases": [
+    { "name": "plain 140 letters is whole", "input": [{ "repeat": "a", "times": 140 }], "want": [{ "repeat": "a", "times": 140 }] },
+    { "name": "plain 141 letters is cut", "input": [{ "repeat": "a", "times": 141 }], "want": [{ "repeat": "a", "times": 140 }, "\u2026"] },
+    { "name": "a spoiler split at the cut", "input": ["a ||", { "repeat": "x", "times": 200 }, "||"], "want": ["a\u2026"] },
+    { "name": "a spoiler that ends before the cut is kept", "input": ["a ||hid|| ", { "repeat": "x", "times": 200 }], "want": ["a ||hid|| ", { "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "a spoiler wholly after the cut", "input": [{ "repeat": "x", "times": 150 }, " ||secret||"], "want": [{ "repeat": "x", "times": 140 }, "\u2026"] },
+    { "name": "a mention split at the cut", "input": [{ "repeat": "x", "times": 130 }, " <@123456789012345678> tail"], "want": [{ "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "a custom emoji split at the cut", "input": [{ "repeat": "x", "times": 130 }, " <:wave:123456789012345678> tail"], "want": [{ "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "a link split at the cut", "input": [{ "repeat": "x", "times": 130 }, " [label](https://example.com/page) tail"], "want": [{ "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "bold split at the cut", "input": [{ "repeat": "x", "times": 130 }, " **bold words here** tail"], "want": [{ "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "a code span split at the cut", "input": [{ "repeat": "x", "times": 130 }, " `some code here` tail"], "want": [{ "repeat": "x", "times": 130 }, "\u2026"] },
+    { "name": "bold that ends before the cut is kept", "input": ["**b** ", { "repeat": "x", "times": 200 }], "want": ["**b** ", { "repeat": "x", "times": 134 }, "\u2026"] },
+    { "name": "one long spoiler has no text", "input": ["||", { "repeat": "x", "times": 300 }, "||"], "want": null },
+    { "name": "a short spoiler is not touched", "input": ["look ||", { "repeat": "x", "times": 20 }, "||"], "want": ["look ||", { "repeat": "x", "times": 20 }, "||"] }
+  ]
+}

@@ -149,6 +149,16 @@ mod tests {
         }
     }
 
+    /// D-722: a list after a line of text is indexed as separate words (it was `twoa`).
+    #[test]
+    fn a_list_is_indexed_apart_from_the_text_before_it() {
+        let MessageEvent::Created(i) = MessageEvent::from(&msg("two\n- a")) else {
+            panic!("expected Created");
+        };
+        let words: Vec<&str> = i.content.split_whitespace().collect();
+        assert_eq!(words, vec!["two", "a"]);
+    }
+
     #[test]
     fn plain_text_flags_and_timestamp() {
         let mut m = msg("**bold** see https://example.com/x and <@9>");

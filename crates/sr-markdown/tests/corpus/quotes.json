@@ -220,7 +220,7 @@
           "type": "quote"
         }
       ],
-      "plain": "a\n>b\n",
+      "plain": "a\n>\nb\n",
       "jumbo": false
     },
     {
@@ -356,7 +356,7 @@
           "type": "quote"
         }
       ],
-      "plain": "xy\nz\n",
+      "plain": "x\ny\nz\n",
       "jumbo": false
     },
     {
@@ -393,7 +393,7 @@
           "type": "text"
         }
       ],
-      "plain": "ab\nc",
+      "plain": "a\nb\nc",
       "jumbo": false
     },
     {
@@ -773,7 +773,7 @@
           "type": "quote"
         }
       ],
-      "plain": ">> ab\n",
+      "plain": ">> a\nb\n",
       "jumbo": false
     }
   ]
