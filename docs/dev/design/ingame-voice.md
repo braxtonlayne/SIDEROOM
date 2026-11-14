@@ -1,6 +1,6 @@
 # In-game voice: the media leg of the lobby sub-room (design note, not built)
 
-Status: **designed, not built.** ARC-GST-001 (wave 43) builds the lobby's *data* leg and reserves the manifest flag
+Status: **designed, not built** (checked against `integration/phase65`, 2026-11-13: `LobbyMedia` and the `media_*` signalling ops do not exist, `ingame_voice` is still `FlagStatus::Reserved`, `crates/sr-activities/src/arcade.rs:137`; only the key label `MEDIA_KEY_LABEL` is defined, `crates/sr-voice/src/lobby.rs:47`). ARC-GST-001 (wave 43) builds the lobby's *data* leg and reserves the manifest flag
 `ingame_voice`. This note says where the media leg attaches, so that adding it later is additive: no change to the
 guest socket's isolation rule, to the lobby's keys, or to any game that does not use voice.
 

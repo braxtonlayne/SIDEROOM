@@ -63,6 +63,12 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     links: [{ href: '/channels', label: 'help.handbook.lounge.link' }],
   },
   {
+    id: 'rooms',
+    title: 'help.handbook.rooms.title',
+    body: ['help.handbook.rooms.body'],
+    links: [{ href: '/study', label: 'help.handbook.rooms.link' }],
+  },
+  {
     id: 'submit',
     title: 'help.handbook.submit.title',
     body: ['help.handbook.submit.body'],
@@ -114,6 +120,12 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
     links: [{ href: '/settings/user/profile', label: 'help.handbook.profiles.link' }],
   },
   {
+    id: 'vouches',
+    title: 'help.handbook.vouches.title',
+    body: ['help.handbook.vouches.body', 'help.handbook.vouches.fallout'],
+    links: [{ href: '/settings/user/profile', label: 'help.handbook.vouches.link' }],
+  },
+  {
     id: 'bridge',
     title: 'help.handbook.bridge.title',
     body: [
@@ -126,7 +138,11 @@ export const HANDBOOK_SECTIONS: readonly HandbookSection[] = [
   {
     id: 'activities',
     title: 'help.handbook.activities.title',
-    body: ['help.handbook.activities.body1', 'help.handbook.activities.body2'],
+    body: [
+      'help.handbook.activities.body1',
+      'help.handbook.activities.body2',
+      'help.handbook.activities.body3',
+    ],
     links: [{ href: '/channels', label: 'help.handbook.activities.link' }],
   },
   {

@@ -28,12 +28,4 @@ export default {
   'profile.guestbook.report': 'Report',
   'profile.guestbook.reportNote': 'Report the note from {name}',
   'moderation.reportDialog.title.guestbookNote': 'Report this guestbook note',
-  'admin.moderation.target.guestbookNote': 'Guestbook note',
-  'admin.moderation.guestbookNote.visitor': 'Left by a visitor without an account',
-  'admin.moderation.guestbookNote.author': 'Left by {name}',
-  'admin.moderation.guestbookNote.pending': 'Waiting for approval',
-  'admin.moderation.guestbookNote.approved': 'Approved',
-  'admin.moderation.guestbookNote.page': 'On the page of {name}',
-  'admin.moderation.guestbookNote.remove': 'Remove note',
-  'admin.moderation.guestbookNote.removed': 'The note was removed.',
 } satisfies Record<string, string>;

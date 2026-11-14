@@ -36,7 +36,6 @@ export default {
     'This could not be loaded. Close and open the profile to try again.',
   'moderation.reportDialog.blockFailed':
     'Your report was sent, but blocking this person did not work. Block them from their profile.',
-  'admin.graph.lookupFailed': 'The search did not work. Try again.',
   'settings.extensions.retry': 'Try again',
   'settings.profile.retry': 'Try again',
   'settings.activity.loadError':

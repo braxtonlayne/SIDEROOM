@@ -17,9 +17,9 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 
 ## FND-CI — Continuous integration
 - [x] **FND-CI-001** [OPS] GitHub Actions: Rust fmt + clippy (`-D warnings`) + nextest with Postgres service
-- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed) *Not applicable by design: queries are runtime-checked (`sqlx::query`), so there is no offline metadata; the CI step is a documented no-op in `.github/workflows/rust.yml`.*
+- [x] **FND-CI-002** [OPS] `sqlx prepare --check` (offline query metadata committed) *Not applicable by design: queries are runtime-checked (`sqlx::query`), so there is no offline metadata; the CI step is a documented no-op in `.github/workflows/rust.yml`.* _(D-671.)_
 - [x] **FND-CI-003** [OPS] Web lint, typecheck, Vitest
-- [x] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit) *Done: `.github/workflows/e2e.yml` runs the Playwright suite per browser against Postgres and Garage with `e2e-run.sh` (first green run is on CI; not run on the authoring machine).*
+- [x] **FND-CI-004** [OPS] Playwright e2e job against the compose stack (Chromium, Firefox, WebKit) *Done: `.github/workflows/e2e.yml` runs the Playwright suite per browser against Postgres and Garage with `e2e-run.sh` (first green run is on CI; not run on the authoring machine).* _(p66 check 2026-11-13: the e2e workflow has green runs on main, 39224043323 and 41208735093, and 42276293453 on 2026-11-06 passed chromium and live, see docs/dev/owner-checklist.md section 3; the "first green run is on CI" wording is out of date)_
 - [x] **FND-CI-005** [OPS] WASM build + wasm tests (`wasm-bindgen-test` headless)
 - [x] **FND-CI-006** [OPS] OpenAPI drift check (generated client must match committed)
 - [x] **FND-CI-007** [OPS] Release workflow: static musl binaries (x86_64, aarch64), container images (server, voice, transcoder-cuda), checksums, changelog
@@ -44,7 +44,7 @@ Phase 0. Spec refs: docs 02, 03, 04, 10, 12.
 - [x] **FND-DB-006** [BE] Job runner (tokio tasks, concurrency per kind, graceful shutdown)
 - [x] **FND-DB-007** [DB] Monthly partition manager for `messages` (create-ahead job)
 - [x] **FND-DB-008** [BE] Repository pattern + transaction helper (`with_tx`) + advisory lock helper
-- [x] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media) _(`sr-cli seed` creates users and the dev guild with 200 messages; library samples with CC0 media are not seeded)_ _p16: `crates/sr-cli/src/library_seed.rs` seeds three published sample series (manga, comic, webtoon; 10 chapters-pages total) with pages drawn in code (CC0), run through the real ingest pipeline into the bucket; idempotent, skips when storage is unreachable or `memory:`; Postgres test `samples_are_seeded_published_and_idempotent`. Cinema samples (video) still need a transcode run_
+- [x] **FND-DB-009** [OPS] Seed command (dev data: users, servers, messages, library samples with CC0 media) _(`sr-cli seed` creates users and the dev guild with 200 messages; library samples with CC0 media are not seeded)_ _p16: `crates/sr-cli/src/library_seed.rs` seeds three published sample series (manga, comic, webtoon; 10 chapters-pages total) with pages drawn in code (CC0), run through the real ingest pipeline into the bucket; idempotent, skips when storage is unreachable or `memory:`; Postgres test `samples_are_seeded_published_and_idempotent`. Cinema samples (video) still need a transcode run_ _(p66 check 2026-11-13: the "not seeded" clause above is out of date: `crates/sr-cli/src/library_seed.rs` seeds the CC0 samples, see the p16 clause)_
 
 ## FND-EVT — `sr-events`
 - [x] **FND-EVT-001** [BE] `EventBus` trait + `InProcessBus` (tokio broadcast per topic)

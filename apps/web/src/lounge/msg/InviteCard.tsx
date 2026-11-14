@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { formatNumber, useT } from '../../i18n';
 import { rest, useStore } from '../../store';
 import { inviteErrorMessage } from '../inviteFlow';
+import { limitErrorText } from '../limitErrors';
 
 /** An invite link in this site's own address space: `https://this-host/invite/CODE`. */
 export function findInviteCode(content: string, origin: string): string | null {
@@ -112,7 +113,7 @@ export function InviteCard({ code }: { code: string }) {
             .getState()
             .acceptInvite(code)
             .then(open)
-            .catch((e: unknown) => setErr(inviteErrorMessage(e)))
+            .catch((e: unknown) => setErr(limitErrorText(e, t) ?? inviteErrorMessage(e)))
             .finally(() => setJoining(false));
         }}
       >

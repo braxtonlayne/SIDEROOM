@@ -11,6 +11,8 @@ export type Block =
   | { t: 'ul'; items: string[] }
   | { t: 'code'; lang: string; title?: string; code: string }
   | { t: 'note'; title: string; text: string }
+  /** A paragraph that ends in a link to another documentation page. */
+  | { t: 'pagelink'; text: string; page: string; label: string }
   /** A section generated at run time (the OpenAPI list) or build time (the gateway tables). */
   | { t: 'ref'; what: 'openapi' | 'gateway' };
 
@@ -122,6 +124,7 @@ export const DOC_PAGES: DocPage[] = [
           'guilds: the servers the person is in',
           'bot: add your bot to a server (shows the permissions you ask for)',
           'applications.commands: install your slash commands in a server',
+          'applications.commands.permissions.update: change who may use your commands',
         ],
       },
     ],
@@ -131,6 +134,12 @@ export const DOC_PAGES: DocPage[] = [
     title: 'Gateway',
     summary: 'Connect over WebSocket, identify with intents and keep the heartbeat.',
     blocks: [
+      {
+        t: 'pagelink',
+        text: 'This page is the guide: connecting, intents, sharding and resuming.',
+        page: 'gateway-events',
+        label: 'The opcode and event tables are in the Gateway reference.',
+      },
       {
         t: 'p',
         text: 'The gateway uses Discord opcodes: HELLO, then IDENTIFY with your token and intents, then READY and a GUILD_CREATE per server. Send a heartbeat at the interval HELLO gives you.',
@@ -195,11 +204,11 @@ export const DOC_PAGES: DocPage[] = [
       {
         t: 'ul',
         items: [
-          'Each bot token gets 50 requests per second across all routes; a global 429 carries X-RateLimit-Global: true.',
+          'Each bot token gets 50 requests per second across all routes by default; a global 429 carries X-RateLimit-Global: true.',
           'Other limits are per route bucket. Routes in the same bucket share the same budget.',
-          'Some routes are stricter: token exchange 30 a minute, authorize 20 a minute, creating applications 5 an hour, secret and token resets 5 an hour per application.',
+          'Some routes are stricter: token exchange 30 a minute, authorize 20 a minute (an operator can change that), creating applications 5 an hour, secret and token resets 5 an hour per application.',
           'Wait for retry_after, then retry once. Do not hammer the route.',
-          'Repeated 429s on authentication routes grow the wait (30 seconds up to 15 minutes).',
+          'Repeated failed sign-ins on the login route grow the wait (30 seconds, doubling up to 15 minutes).',
           'Sharded bots should spread REST calls instead of bursting after a reconnect.',
         ],
       },

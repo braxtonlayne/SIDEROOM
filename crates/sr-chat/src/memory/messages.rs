@@ -58,6 +58,8 @@ pub struct Data {
     pub bans: Vec<crate::admin_repo::Ban>,
     /// How members joined (tests seed this).
     pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
+    /// The two server limits (D-659, D-660); tests set them.
+    pub caps: crate::limits::MemoryCaps,
 }
 
 /// Cheap-to-clone handle over shared state.
@@ -85,6 +87,11 @@ impl MemoryBackend {
 impl GuildRepository for MemoryBackend {
     async fn insert_guild(&self, bp: &GuildBlueprint) -> RepoResult<()> {
         let mut s = self.data();
+        if !bp.guild.is_staff_guild {
+            s.caps
+                .check_user(&s.members, &s.guilds, bp.guild.owner_id)
+                .map_err(crate::error::cap_hit_to_repo)?;
+        }
         s.guilds.insert(bp.guild.id, bp.guild.clone());
         s.roles.push(bp.everyone_role.clone());
         s.members.push(bp.owner_member.clone());

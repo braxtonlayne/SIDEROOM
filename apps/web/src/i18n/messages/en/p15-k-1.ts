@@ -27,6 +27,4 @@ export default {
   'review.reviewerEdit.noChapters': 'This submission has no draft chapters to edit.',
   'review.reviewerEdit.chaptersLoading': 'Loading chapters',
   'review.reviewerEdit.chaptersError': 'The chapters could not be loaded.',
-  'admin.appearance.defaultsHint':
-    'Default themes and the integrations policy are edited under Features (sections Appearance and Email & Integrations).',
 } satisfies Record<string, string>;

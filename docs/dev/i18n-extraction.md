@@ -7,6 +7,10 @@ catalog is a set of fragment files merged automatically (`apps/web/src/i18n/mess
 
 - Write ONLY your own fragment: `apps/web/src/i18n/messages/en/<fragment>.ts`.
 - Format: `export default { 'key': 'English text', ... } satisfies Record<string, string>;` (plain object, no logic).
+- Admin wording needs no special place: add it to your fragment as for any other string. Message keys that only
+  staff-only code (the Admin app and what only it loads) names are moved to `messages/en-staff/` by
+  `node scripts/staff-keys.mjs --write` (CI runs `--check`), so a member never receives them
+  (docs/dev/entrance-isolation.md section 11). Name a key as a literal, or through a literal prefix (`'admin.limits.' + id`).
 - Never edit `messages/en.ts`, `merge.ts` or another agent's fragment. A key defined in two fragments makes
   the merge throw (naming the key and both files), so keep your keys inside your own area/component.
 
@@ -14,8 +18,10 @@ catalog is a set of fragment files merged automatically (`apps/web/src/i18n/mess
 
 `<area>.<component>.<thing>`
 
-- `area` is the top-level folder: `lounge`, `settings`, `library`, `cinema`, `admin`, `developers`,
-  `watchparty`, `support`, `components`, `lib`, `review`, `pwa`.
+- `area` is the first key segment, not a folder. Areas in use include: `admin`, `settings`, `lounge`, `cinema`,
+  `tools`, `library`, `developers`, `review`, `entrance`, `support`, `watchparty`, `player`, `arcade`, `profile`,
+  `help`, `studio`, `storage`, `music`, `moderation`, `a11y`, `pwa`, `lib`, `app`. Check `messages/en/*.ts` for the
+  full set before you add a new one.
 - `component` is the component or module name in camelCase (`messageComposer`); `thing` is camelCase
   (`sendButton`, `emptyState`). Add more segments only when needed (`...rules.title`).
 - One sentence per key. Do not split a sentence across keys or concatenate pieces; use ICU variables.

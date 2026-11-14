@@ -48,6 +48,10 @@ jobs:
       # and no staff entry marker is outside that directory.
       - name: Staff delivery
         run: node scripts/check-staff-delivery.mjs
+      # SEC-AUD-187 (D-663): every message key only staff-only modules name lives in messages/en-staff, and no key in
+      # en-staff is named by a member module. To fix a failure: node scripts/staff-keys.mjs --write.
+      - name: Staff message keys
+        run: node scripts/staff-keys.mjs --check
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist

@@ -30,6 +30,15 @@ function Blocks({ blocks }: { blocks: Block[] }) {
             );
           case 'code':
             return <CodeBlock key={i} lang={b.lang} title={b.title} code={fill(b.code)} />;
+          case 'pagelink':
+            return (
+              <p key={i}>
+                {fill(b.text)}{' '}
+                <Link to="/developers/docs/$page" params={{ page: b.page }} className="dev-link">
+                  {b.label}
+                </Link>
+              </p>
+            );
           case 'ref':
             return b.what === 'openapi' ? (
               <OpenApiReference key={i} />

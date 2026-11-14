@@ -57,6 +57,11 @@ pub struct Store {
     pub event_interest: Vec<(u64, UserId, i64)>,
     pub app_forms: HashMap<GuildId, ApplicationForm>,
     pub applications: Vec<Application>,
+    /// The two server limits (D-659, D-660) for the invite and directory joins; tests set them.
+    pub caps: crate::limits::MemoryCaps,
+    /// This repository cannot see members, so a test sets the limit the next approval meets: nothing
+    /// changes and the application stays pending, as in the Postgres repository.
+    pub approval_cap: Option<sr_core::guild_caps::CapHit>,
 }
 
 #[derive(Default)]
@@ -742,6 +747,14 @@ impl ApplicationRepository for MemorySettingsRepo {
             if approve && banned {
                 return Err(RepoError(APPLICANT_BANNED.to_owned()));
             }
+            if approve
+                && let Some(hit) = s.approval_cap
+                && s.applications.iter().any(|a| {
+                    a.guild_id == guild && a.id == id && a.status == ApplicationStatus::Pending
+                })
+            {
+                return Err(crate::error::cap_hit_to_repo(hit));
+            }
             let Some(a) = s.applications.iter_mut().find(|a| {
                 a.guild_id == guild && a.id == id && a.status == ApplicationStatus::Pending
             }) else {
@@ -916,6 +929,8 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                 if s.bans.contains(&(inv.guild_id, user)) {
                     return Err(SettingsError::Banned);
                 }
+                s.caps.check_user(members, guilds, user)?;
+                s.caps.check_guild(members, guilds, inv.guild_id)?;
                 let pending = community.is_some_and(|c| c.community_enabled && c.screening_enabled);
                 let member = crate::domain::Member {
                     guild_id: inv.guild_id,
@@ -960,7 +975,7 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
     ) -> super::SettingsResult<Option<crate::domain::Member>> {
         use super::SettingsError;
         self.settings.with(|s| {
-            self.chat.with_state(|members, _, _| {
+            self.chat.with_state(|members, guilds, _| {
                 if members
                     .iter()
                     .any(|m| m.guild_id == guild && m.user_id == user)
@@ -974,6 +989,8 @@ impl<C: ChatMemory> super::join::InviteJoinRepository for MemoryInviteJoin<C> {
                 if s.bans.contains(&(guild, user)) {
                     return Err(SettingsError::Banned);
                 }
+                s.caps.check_user(members, guilds, user)?;
+                s.caps.check_guild(members, guilds, guild)?;
                 let member = crate::domain::Member {
                     guild_id: guild,
                     user_id: user,

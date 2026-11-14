@@ -50,9 +50,9 @@ jobs:
       # finished service worker agree on what is public.
       - name: Entrance isolation (allowed imports, the lists agree, the check's own cases)
         run: node --test scripts/entrance-allowed.test.mjs scripts/entrance-agreement.test.mjs scripts/check-entrance-isolation.test.mjs
-      # SEC-AUD-170 (D-651): the staff delivery check's own cases (a pass fixture and one failing fixture per rule).
+      # SEC-AUD-170 (D-651): the staff delivery check's own cases (a pass fixture and one failing fixture per rule) and the staff key audit's (SEC-AUD-187).
       - name: Staff delivery (the check's own cases)
-        run: node --test scripts/check-staff-delivery.test.mjs
+        run: node --test scripts/check-staff-delivery.test.mjs scripts/staff-keys.test.mjs
       - name: Shell scripts (shellcheck)
         run: shellcheck -x -S warning deploy/scripts/*.sh
       - name: Inventory progress

@@ -192,6 +192,25 @@ describe('profile popout extras (LNG-PRF-003, 008, 009, 010, 011)', () => {
     const pop = await openPopout();
     expect(await within(pop).findByText('riding the rails')).toHaveClass('prf-bubble');
   });
+
+  it('shows the emoji of a custom status, alone or with text (LNG-HOME-011)', async () => {
+    setup();
+    const { useStore } = await import('../../store');
+    useStore.setState({
+      presences: {
+        '2': {
+          user_id: '2',
+          status: 'online',
+          activities: [
+            { type: 4, name: 'Custom Status', state: null, emoji: { name: '🎧', id: null } },
+          ],
+        },
+      },
+    });
+    at('/channels/g1/c1');
+    const pop = await openPopout();
+    expect(await within(pop).findByText('🎧')).toHaveClass('prf-bubble');
+  });
 });
 
 describe('full profile (LNG-PRF-004..007)', () => {

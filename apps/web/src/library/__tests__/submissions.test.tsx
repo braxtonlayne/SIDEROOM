@@ -558,3 +558,20 @@ describe('Library submission page', () => {
 
 // STU-NAV-001: the storefront surfaces are off by default; these tests exercise them.
 beforeEach(() => switchStudySurfacesOn());
+
+describe('/library/upload (D-672)', () => {
+  it('redirects to the member submissions while the switch is on', async () => {
+    useSubmissionsApi({ list: [] });
+    const { router } = renderAt('/library/upload');
+    expect(await screen.findByText('No submissions yet')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/library/submissions');
+  });
+
+  it('stays hidden, as before, while the ingest switch is off', async () => {
+    useSubmissionsApi({ list: [] });
+    switchStudySurfacesOn(['platform.ingest_queues']);
+    const { router } = renderAt('/library/upload');
+    expect(await screen.findByText(/not found|can.t be found/i)).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/library/upload');
+  });
+});

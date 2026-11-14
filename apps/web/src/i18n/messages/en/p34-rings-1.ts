@@ -1,6 +1,5 @@
 // PRF-RNG-001: 24-hour status rings (apps/web/src/lounge/rings).
 export default {
-  'admin.moderation.target.statusRing': 'Status ring',
   'lounge.rings.tray.label': 'Rings',
   'lounge.rings.tray.add': 'Add a ring',
   'lounge.rings.tray.yours': 'Your rings',

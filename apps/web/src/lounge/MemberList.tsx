@@ -19,7 +19,9 @@ import { ListLoadFailed } from './ListLoadFailed';
 import { buildMemberRows, type MemberEntry } from './memberGroups';
 import { openProfilePopout } from './profile/popoutStore';
 import { setMemberRole } from './profile/memberRoles';
+import { startDmCall } from './shell/dmCall';
 import { useOpenDm } from './shell/dm';
+import { useSocial } from './shell/social';
 import { useUserMenuEntries } from './shell/userMenu';
 import { useLoungeUi } from './store';
 import { useVoiceMenuEntries } from './voice/useVoiceMenu';
@@ -54,6 +56,7 @@ function MemberRowView({
   const openDm = useOpenDm();
   const openDialog = useLoungeUi((s) => s.openDialog);
   const isSelf = u.id === me.id;
+  const blocked = useSocial((st) => st.relationships.some((r) => r.id === u.id && r.type === 2));
   const userEntries = useUserMenuEntries(isSelf ? undefined : { id: u.id, name }, guildId);
   // Only people connected to a voice channel get these (volume, mute, and for moderators server mute / move).
   const voiceEntries = useVoiceMenuEntries(guildId, { id: u.id, name });
@@ -94,6 +97,18 @@ function MemberRowView({
       disabled: isSelf || !!u.bot,
       onSelect: () => void openDm([u.id]).catch(failWith('lounge.actionError.openDm')),
     },
+    // LNG-GLD-023: what the DM header's call button does (open or create the DM, ring); not for oneself, bots or blocked people.
+    ...(isSelf || u.bot || blocked
+      ? []
+      : [
+          {
+            label: t('lounge.memberList.call'),
+            onSelect: () =>
+              void openDm([u.id])
+                .then((dm) => startDmCall(dm.id, name, false))
+                .catch(failWith('lounge.actionError.openDm')),
+          } as MenuEntry,
+        ]),
     ...(userEntries.note ? [userEntries.note] : []),
     {
       label: t('lounge.memberList.changeNickname'),

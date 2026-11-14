@@ -478,13 +478,17 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         ]));
     let cdn_signer =
         sr_storage::cdn::CdnSigner::new(secret_key(cfg.server.secret_key.expose())?.to_vec());
+    // D-662: the upload size policy (the standard limit and the large-file lifetime) follows the operator's
+    // settings; it starts at the defaults and is set from the stored settings once the admin service exists.
+    let (upload_policy_tx, upload_policy_rx) =
+        watch::channel(sr_storage::upload::SizePolicy::default());
     let messages = routes::messages::MessagesDeps::new(
         PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days),
         Arc::new(sr_db::chat_repo::PgMessageStore::new(pool.clone())),
         storage.clone(),
         bus.clone(),
         Arc::new(routes::messages::FixedEntitlements(
-            sr_storage::upload::SizePolicy::default().standard_limit,
+            upload_policy_rx.borrow().standard_limit,
         )),
         Arc::new(PgChatRepo::new(pool.clone()).with_patron_grace_days(patron_grace_days)),
         Some(message_hooks),
@@ -494,6 +498,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     )
     .context("message snowflake generator")?
     .with_cdn_signer(cdn_signer.clone())
+    .with_live_size_policy(upload_policy_rx.clone())
     .with_audit(audit_sink.clone())
     // Age-restricted channels need the 18+ answer (D-032, LNG-CHN-006).
     .with_age_gate(Arc::new(crate::settings_pg::PgAgeGate::new(pool.clone())));
@@ -1276,7 +1281,7 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
     let messages = messages.with_upload_entitlements(Arc::new(
         crate::upload_limits::PaymentsUploadLimits::new(
             payments.entitlements.clone(),
-            sr_storage::upload::SizePolicy::default().standard_limit,
+            upload_policy_rx.clone(),
         ),
     ));
     let messages = Arc::new(
@@ -1724,8 +1729,21 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         }
         tokio::sync::watch::channel(start)
     };
+    // D-662: the stored upload settings, read once; later edits arrive through `PATCH /admin/settings`.
+    {
+        use sr_admin::settings as k;
+        let get = |key: &'static str| {
+            let svc = admin_service.clone();
+            async move { svc.setting_value_i64(key).await.ok() }
+        };
+        upload_policy_tx.send_replace(sr_storage::upload::SizePolicy::from_settings(
+            get(k::UPLOADS_STANDARD_LIMIT).await,
+            get(k::RETENTION_LARGE_FILE_DAYS).await,
+        ));
+    }
     let mut admin = routes::admin::AdminDeps::new(admin_service)
         .with_rate_config(rate_tx)
+        .with_upload_policy(upload_policy_tx)
         .with_features(features.clone())
         .with_integrations(integrations)
         .with_system_probe(Arc::new(crate::admin_jobs::FsProbe::new(
@@ -1775,6 +1793,11 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
             ),
         ))))
         .extension(Arc::new(guilds.clone()))
+        .extension(Arc::new(
+            sr_api::routes::guilds::member_limit::MemberLimitSource(Arc::new(PgMemberLimit(
+                pool.clone(),
+            ))),
+        ))
         .extension(Arc::new(routes::settings::features::GuildFeatures {
             ctx: feature_ctx,
             roles: Arc::new(routes::settings::features::BackendRoles(guilds.0.clone())),
@@ -2296,6 +2319,20 @@ pub fn feature_registry() -> anyhow::Result<FeatureRegistry> {
 }
 
 /// What the operator configured, for the Setup checklist (ADM-DASH-003). Notes carry no secrets.
+/// The `guilds.max_members` limit in force, read from the stored setting on each call (D-660, D-661).
+struct PgMemberLimit(sqlx::PgPool);
+
+#[async_trait::async_trait]
+impl sr_api::routes::guilds::member_limit::MemberLimit for PgMemberLimit {
+    async fn members_limit(&self) -> u64 {
+        sr_db::guild_caps::guild_members_limit_now(&self.0)
+            .await
+            .ok()
+            .and_then(|n| u64::try_from(n).ok())
+            .unwrap_or_else(sr_api::routes::guilds::member_limit::default_limit)
+    }
+}
+
 fn integration_status(
     cfg: &sr_core::config::Config,
     voice: bool,

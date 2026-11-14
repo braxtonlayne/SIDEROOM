@@ -564,6 +564,11 @@ pub struct GuildObject {
     /// The largest file the caller may upload here, in bytes (D-233). Only on `GET /guilds/{id}`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_max_upload_bytes: Option<u64>,
+    /// The most members the server may have (D-660; the operator's `guilds.max_members`), `null` for the Staff
+    /// Server, which has no limit. Only on `GET /guilds/{id}`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Option<u64>)]
+    pub max_members: Option<Option<u64>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub roles: Option<Vec<RoleObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -604,6 +609,7 @@ impl GuildObject {
             approximate_member_count: None,
             approximate_presence_count: None,
             sr_max_upload_bytes: None,
+            max_members: None,
             roles: roles.map(|r| r.iter().map(RoleObject::from).collect()),
             channels: channels.map(<[ChannelObject]>::to_vec),
             sr_profile: GuildSrProfileObject {

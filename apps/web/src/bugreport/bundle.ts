@@ -82,7 +82,7 @@ function cleanGateway(g: unknown): BugBundle['gateway'] {
     ? (s as BugGatewayStatus)
     : 'closed';
   const out: BugBundle['gateway'] = { status };
-  const reconnects = int(raw?.reconnects, 0, 1_000_000);
+  const reconnects = int(raw?.reconnects, 0, 10_000);
   if (reconnects !== null) out.reconnects = reconnects;
   const hb = int(raw?.heartbeat_ms, 0, 600_000);
   if (hb !== null) out.heartbeat_ms = hb;

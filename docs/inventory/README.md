@@ -1,6 +1,6 @@
 # Component Inventory
 
-This is an exhaustive, atomic list (**1,018 items** at creation) of everything that must be built for SIDE ROOM to function. It runs top-down through each section, and for the Lounge it walks through every Discord menu, button, and screen visible in the reference material or known Discord behavior. Agents claim items by ID.
+This is an exhaustive, atomic list (**1,018 items** at creation, 1,442 on 2026-11-13 with the launch-readiness and feature-phase files) of everything that must be built for SIDE ROOM to function. It runs top-down through each section, and for the Lounge it walks through every Discord menu, button, and screen visible in the reference material or known Discord behavior. Agents claim items by ID.
 
 ## How to read an item
 
@@ -42,7 +42,10 @@ An item is "done" when it meets the definition of done in [AGENTS.md](../../AGEN
 | 18 | [Cross-cutting](18-cross-cutting.md) | `XC` | all |
 | 19 | [Moderation & compliance](19-moderation.md) | `MOD` | 7 |
 | 20 | [Launch readiness](20-launch-readiness.md) | `RDY` | waves 20 to 24 ([roadmap](../dev/roadmap-p20.md), D-352) |
-| 21 | [Feature phase](21-feature-phase.md) | `BYOS`, `SEC`, `MUS`, `PRF`, `ARC`, `ACT` and others | waves 27 to 47 ([roadmap](../dev/roadmap-p27.md), D-380) |
+| 21 | [Feature phase](21-feature-phase.md) | `BYOS`, `SEC`, `MUS`, `PRF`, `ARC`, `ACT` and others | waves 27 to 65 ([roadmap-p27](../dev/roadmap-p27.md), D-380; [roadmap-p28](../dev/roadmap-p28.md) for waves 41 to 49; the audit rows of waves 53 to 65 are `SEC-AUD-*`) |
 
 ## Counting progress
+
+On 2026-11-13: 1,402 of 1,442 rows are ticked. Open rows: 32 in files 01 to 19 (each carries a note saying what is built and what is left), 5 in file 20 and 3 in file 21 (these wait on a run, a download or the owner).
+
 `grep -c "\- \[x\]" docs/inventory/*.md` vs `grep -c "\- \[ \]"`. A CI job publishes a per-file progress table to the PR summary (item XC-CI-006).

@@ -377,6 +377,9 @@
   background: var(--ui-status-online);
   color: #fff;
 }
+.lng-new-badge::before {
+  content: attr(data-text);
+}
 .lng-new-badge {
   position: absolute;
   bottom: -6px;
@@ -384,7 +387,7 @@
   transform: translateX(-50%);
   padding: 0 4px;
   border-radius: 8px;
-  background: var(--brand);
+  background: var(--danger);
   color: #fff;
   font-size: 9px;
   font-weight: 800;
@@ -533,6 +536,23 @@
 /* XC-VIS-002: a long name squeezed the channel icon to a dot ("#" half size next to the others). */
 .lng-channel > svg {
   flex: none;
+}
+/* LNG-CHN-009: an age-restricted channel's icon with a small warning mark at its lower corner. */
+.lng-channel-glyph {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.lng-channel-glyph-mark {
+  position: absolute;
+  inset-inline-end: -4px;
+  inset-block-end: -3px;
+  width: 11px;
+  height: 11px;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--ui-bg);
+  color: var(--ui-warning, currentColor);
 }
 .lng-voice-limit {
   margin-inline-start: auto;
@@ -2154,4 +2174,14 @@
     background: var(--bg-base-low);
     border-block-end: 1px solid var(--ui-border);
   }
+}
+
+/* LNG-HOME-011: the custom status dialog's emoji button sits left of the text field. */
+.lng-status-emoji-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.lng-status-emoji-row > :last-child {
+  flex: 1;
 }

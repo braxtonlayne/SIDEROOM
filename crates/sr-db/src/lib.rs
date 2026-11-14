@@ -26,6 +26,7 @@ pub mod data_export;
 pub mod directory_repo;
 mod error;
 mod guild_admin_repo;
+pub mod guild_caps;
 pub mod hold_guard;
 pub mod index_repo;
 pub mod ingest_sources_repo;

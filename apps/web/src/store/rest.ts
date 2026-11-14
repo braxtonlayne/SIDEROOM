@@ -206,6 +206,8 @@ export interface CreateInviteOptions {
   max_uses?: number;
   /** "Copy link": the invite leaves the platform, so the server defaults to a single use (D-022). */
   external?: boolean;
+  /** Members who join with it are removed when they disconnect, unless they hold a role (LNG-INV-005). */
+  temporary?: boolean;
 }
 
 export interface CreateChannelBody {

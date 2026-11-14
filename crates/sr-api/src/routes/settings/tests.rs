@@ -4219,3 +4219,97 @@ async fn an_rsvp_dispatch_carries_the_events_channel() {
     assert_eq!(ext["guild_scheduled_event_id"], xid);
     assert!(ext["channel_id"].is_null(), "{ext}");
 }
+
+// ---- the two server limits (SEC-AUD-183; D-659, D-660) ---------------------------------
+
+/// An accept at a limit answers 400 with Discord's code and the fixed texts, consumes no use and adds no member.
+#[tokio::test]
+async fn accepting_at_a_limit_answers_30001_with_the_number_and_30019() {
+    let e = wired().await;
+    let code = new_invite(&e, json!({"max_uses": 5})).await;
+
+    // The server is full: the owner, bob and mod already are members.
+    e.repo.with(|s| s.caps.members = Some(3));
+    let (s, body) = e.accept(CAROL, &code).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(body["code"], 30019);
+    assert_eq!(body["message"], "Maximum number of server members reached");
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &code), 0, "a refused accept must not consume");
+
+    // The account is at its own limit (it already is in the one server).
+    e.repo.with(|s| {
+        s.caps.members = None;
+        s.caps.per_user = Some(1);
+    });
+    e.backend.data().members.push(Member {
+        guild_id: GuildId::new(777),
+        user_id: UserId::new(CAROL),
+        nick: None,
+        role_ids: vec![],
+        joined_at_ms: T0,
+        communication_disabled_until_ms: None,
+        pending: false,
+        avatar_key: None,
+        banner_key: None,
+        bio: None,
+        extras: Default::default(),
+    });
+    let mut other = e.backend.data().guilds[&e.guild].clone();
+    other.id = GuildId::new(777);
+    e.backend.data().guilds.insert(other.id, other);
+    let (s, body) = e.accept(CAROL, &code).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{body}");
+    assert_eq!(body["code"], 30001);
+    assert_eq!(body["message"], "Maximum number of guilds reached (1)");
+    assert!(!is_member(&e, CAROL));
+    assert_eq!(uses(&e, &code), 0);
+
+    // An existing member is told "already a member" whatever the limits say.
+    let (s, _) = e.accept(BOB, &code).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(uses(&e, &code), 0);
+}
+
+/// An approval at a limit: the approver sees 30019, or 30001 that names the applicant; the application stays pending.
+#[tokio::test]
+async fn approving_an_application_at_a_limit_names_which_limit() {
+    use sr_core::guild_caps::CapHit;
+    let e = env().await;
+    let form = e.g("/sr/applications/form");
+    let apps = e.g("/sr/applications");
+    let (s, _) = e
+        .put(
+            &form,
+            "mod",
+            json!({"enabled": true, "questions": [{"label": "Why?", "kind": "short"}]}),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (s, a) = e.post(&apps, "carol", json!({"answers": []})).await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    let decision = format!("{apps}/{}/decision", a["id"].as_str().unwrap());
+
+    e.repo
+        .with(|s| s.approval_cap = Some(CapHit::GuildMembers(25_000)));
+    let (s, r) = e.post(&decision, "mod", json!({"approve": true})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{r}");
+    assert_eq!(r["code"], 30019);
+    assert_eq!(r["message"], "Maximum number of server members reached");
+
+    e.repo
+        .with(|s| s.approval_cap = Some(CapHit::UserServers(200)));
+    let (s, r) = e.post(&decision, "mod", json!({"approve": true})).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{r}");
+    assert_eq!(r["code"], 30001);
+    assert_eq!(
+        r["message"],
+        "This member is in the most servers one account can be in."
+    );
+    let (_, mine) = e.get(&format!("{apps}/@me"), "carol").await;
+    assert_eq!(mine["status"], "pending", "the application stays pending");
+
+    // Rejecting is not a limit matter.
+    let (s, _) = e.post(&decision, "mod", json!({"approve": false})).await;
+    assert_eq!(s, StatusCode::OK);
+}

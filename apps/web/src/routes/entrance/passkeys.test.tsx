@@ -150,6 +150,19 @@ describe('passkey as the second step', () => {
     expect(screen.queryByRole('button', { name: 'Use your passkey' })).toBeNull();
   });
 
+  it('the sign-in and 2FA routes do not accept a methods search parameter (D-557)', () => {
+    const router = at('/login');
+    const routes = router.routesByPath as Record<
+      string,
+      { options: { validateSearch: (s: Record<string, unknown>) => Record<string, unknown> } }
+    >;
+    for (const path of ['/login', '/login/2fa']) {
+      expect(
+        routes[path]!.options.validateSearch({ next: '/app', error: 'x', methods: 'passkey' }),
+      ).toEqual({ next: '/app', error: 'x' });
+    }
+  });
+
   it('does not ask the server when the password step stored the methods', async () => {
     sessionStorage.setItem('sr.mfaMethods', JSON.stringify(['totp', 'recovery']));
     let asked = 0;

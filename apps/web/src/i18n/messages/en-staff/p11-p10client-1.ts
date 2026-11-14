@@ -1,0 +1,32 @@
+export default {
+  'admin.adminApp.section.privateContent': 'Private content',
+  'admin.privateContent.title': 'Private content',
+  'admin.privateContent.description':
+    'Read a conversation when a report or an investigation needs it. Deleted messages stay readable for a limited time.',
+  'admin.privateContent.logged':
+    'Access is logged. Every read is written to the access log with your reason before any message is shown.',
+  'admin.privateContent.mode': 'Look up by',
+  'admin.privateContent.modeChannel': 'Channel',
+  'admin.privateContent.modeAccount': 'Account DMs',
+  'admin.privateContent.modeGuild': 'Server channels',
+  'admin.privateContent.targetChannel': 'Channel ID',
+  'admin.privateContent.targetAccount': 'Account ID',
+  'admin.privateContent.targetGuild': 'Server ID',
+  'admin.privateContent.reason': 'Reason (required, kept in the access log)',
+  'admin.privateContent.read': 'Read messages',
+  'admin.privateContent.findChannels': 'Find channels',
+  'admin.privateContent.channelsLabel': 'Channels',
+  'admin.privateContent.noChannels': 'No channels found.',
+  'admin.privateContent.privateChannel': 'private',
+  'admin.privateContent.messagesLabel': 'Messages',
+  'admin.privateContent.retention':
+    'Newest first. Deleted messages older than {days, plural, one {# day} other {# days}} are gone for good.',
+  'admin.privateContent.noMessages': 'No messages.',
+  'admin.privateContent.staffRemoved': 'Removed by staff',
+  'admin.privateContent.userDeleted': 'Deleted by the author',
+  'admin.privateContent.edited': 'Edited',
+  'admin.privateContent.attachments': '{count, plural, one {# attachment} other {# attachments}}',
+  'admin.privateContent.history': 'Edit history ({count})',
+  'admin.privateContent.older': 'Load older messages',
+  'admin.privateContent.error': 'Could not read this conversation.',
+} satisfies Record<string, string>;

@@ -9,7 +9,7 @@ Applied as rules:
 1. **All code we write for the backend is Rust.** No exceptions without an ADR.
 2. **Infrastructure we run** (databases, storage, relays) should be Rust when a production-ready Rust option exists. Otherwise use the best mature option and record why in an ADR.
 3. **Frontend** is TypeScript + React. Any logic that also exists on the server, or that is CPU- or crypto-heavy, is a Rust crate compiled to WASM (`wasm-bindgen` + `wasm-pack`).
-4. **Codecs and native libraries** may be used through Rust bindings (e.g. FFmpeg via `ffmpeg-next`). The orchestration around them is Rust.
+4. **Codecs and native libraries** may be used through Rust bindings (e.g. FFmpeg, run as command-line tools, or through `ffmpeg-next` behind an off-by-default feature). The orchestration around them is Rust.
 
 ## 2. Backend stack
 
@@ -21,7 +21,7 @@ Applied as rules:
 | WebSocket                         | `axum::extract::ws` (tungstenite)                                                                                                                                    | ✅                            |                                                                                                                                                                                                                          |
 | OpenAPI | `utoipa` + `utoipa-scalar` | ✅ | Generates `openapi.json` (`/api/v1/openapi.json`, browsable with Scalar) → TS client |
 | Serialization | `serde`, `serde_json` | ✅ | JSON only. MessagePack (`rmp-serde`) is not built; the gateway speaks `encoding=json` |
-| Database driver                   | `sqlx` 0.9 (Postgres, compile-time checked queries)                                                                                                                  | ✅                            |                                                                                                                                                                                                                          |
+| Database driver                   | `sqlx` 0.9 (Postgres; plain runtime queries and `sqlx::migrate!`, no `query!` macros, so there is no `.sqlx/` offline cache)                                                                                                                  | ✅                            |                                                                                                                                                                                                                          |
 | Database                          | **PostgreSQL 17**                                                                                                                                                    | ❌ C                          | See ADR-0001. SurrealDB evaluated and rejected for the system of record                                                                                                                                                  |
 | Cache                             | `moka`                                                                                                                                                               | ✅                            | In-process. No Redis                                                                                                                                                                                                     |
 | Job queue                         | Postgres `SKIP LOCKED` in `sr-db::jobs`                                                                                                                              | ✅                            |                                                                                                                                                                                                                          |
@@ -99,11 +99,12 @@ These are the **only** non-Rust runtime components. Adding another needs an ADR.
 | libwebp, pdfium, unrar (via bindings) | C/C++    | Format support. pdfium: approved, not used: PDFs are rendered client-side (D-217) | 0005 |
 | coturn                                | C        | No maintained Rust TURN server                                                    | 0004 |
 | Caddy (optional)                      | Go       | Convenience. Can be replaced by rustls in `sr-server`                             | —    |
+| Prometheus, Grafana (optional) | Go | Off-the-shelf monitoring images in `deploy/compose/prod.yml`, configured by `deploy/monitoring`. Nothing in the app links them | 0010 |
 | Browser JS ecosystem                  | TS       | Frontend (D-151)                                                                  | —    |
 
 ## 5. Toolchain
 
 - Rust stable, pinned in `rust-toolchain.toml`. Edition 2024.
-- `cargo-deny` (licenses, advisories), `cargo-nextest`, `sqlx-cli` (offline mode with `.sqlx/` committed).
-- Node LTS + pnpm.
+- `cargo-deny` (licenses, advisories) and `cargo-nextest`, both run in `.github/workflows/rust.yml`. Migrations run from `sr-db::migrate` (also `sr-cli migrate`), so `sqlx-cli` is not needed.
+- Node 24 (`.nvmrc`; `engines` asks for 22 or later) and pnpm 10.12.1 (`packageManager` in `package.json`).
 - Pre-commit: `cargo fmt`, `pnpm lint-staged`.

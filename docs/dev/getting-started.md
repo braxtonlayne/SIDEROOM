@@ -42,7 +42,7 @@ node scripts/check-entrance-isolation.mjs
 | Garage S3 | `http://127.0.0.1:3900`, region `garage`, bucket `sideroom-dev` |
 | Caddy (dev proxy) | `http://localhost:8088` |
 | Mailpit | SMTP `127.0.0.1:1025`, UI `http://localhost:8025` |
-| coturn | `127.0.0.1:3478` |
+| coturn | `3478` (UDP and TCP, all interfaces; relay ports `49152-49200/udp`) |
 
 All credentials are dev-only and live in `deploy/compose/.env.example`; copy it to `deploy/compose/.env` to override.
 

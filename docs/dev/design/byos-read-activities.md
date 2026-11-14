@@ -12,7 +12,7 @@ Status: **built and decided** (D-465): option 3 for small files, option 1 for bi
   a new object, or a reload, asks again. Then the page mints the URL with the member's own session through the route
   the Study already uses, `GET /shelves/{shelf_id}/objects/{object_hash}/url` (STU-ZK-001, 41-C). That route checks
   the grant, the kind rule and every delisting at the moment it mints and answers a presigned GET for that object,
-  ten minutes at most (less when the session ends sooner). No new server route, no new authorization row.
+  ten minutes at most (less when the session ends sooner). The URL carries the response-type overrides of D-641 (the bucket answers with the app's type table, not the object's stored type), and a mount whose stored connection test has a failed `response_type` row hands no URL at all (D-644, `crates/sr-api/src/routes/storage/shelf_access.rs:487`). No new server route, no new authorization row.
 - **Guests** (D-397): the guest bridge is an allow-list (`apps/web/src/public/guest-play/capabilities.ts`);
   `shelfObjectUrl` is not on it, so a guest's game gets `NOT_AUTHORIZED` before any code runs (`guest.test.ts`
   walks every protocol command). `byos_read` is also not in `GUEST_MANIFEST_CAPABILITIES`.

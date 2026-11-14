@@ -14,6 +14,7 @@ use sr_core::{ChannelId, GuildId, UserId};
 
 use crate::chat_repo::{db, i, u};
 use crate::guild_admin_repo::lock_membership;
+use crate::guild_caps::{CapError, check_guild_cap, check_user_cap};
 use crate::settings_repo::{INVITE_USABLE, invite_cols, invite_from};
 
 #[derive(Clone)]
@@ -87,6 +88,22 @@ async fn read_vanity(
         u32::try_from(uses).unwrap_or(0),
         now_ms,
     )))
+}
+
+/// Both limits for one more membership (D-659, D-660), after the other checks and before the insert. A
+/// refusal leaves nothing behind: the caller returns before any row or invite use.
+async fn check_caps(
+    tx: &mut Transaction<'_, Postgres>,
+    guild: i64,
+    user: i64,
+) -> SettingsResult<()> {
+    let cap_err = |e: CapError| match e {
+        CapError::Hit(h) => SettingsError::from(h),
+        CapError::Db(e) => SettingsError::from(db(e)),
+    };
+    check_user_cap(tx, user).await.map_err(cap_err)?;
+    check_guild_cap(tx, guild).await.map_err(cap_err)?;
+    Ok(())
 }
 
 /// Revoked invites read as unknown, like everywhere else.
@@ -168,6 +185,8 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         if banned {
             return Err(SettingsError::Banned);
         }
+
+        check_caps(&mut tx, guild, uid).await?;
 
         // Claim the membership row first: a concurrent accept by the same user
         // waits on the unique key and then sees the conflict, so it neither
@@ -299,6 +318,7 @@ impl InviteJoinRepository for PgInviteJoinRepo {
         if banned {
             return Err(SettingsError::Banned);
         }
+        check_caps(&mut tx, g, uid).await?;
         let inserted = sqlx::query(
             "INSERT INTO guild_members (guild_id, user_id, joined_at, pending, join_source) \
              VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), \

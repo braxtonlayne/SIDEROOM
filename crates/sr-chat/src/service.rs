@@ -167,7 +167,10 @@ impl<R: ChatRepository> ChatService<R> {
 
     pub async fn create_guild(&self, owner: UserId, name: &str) -> ChatResult<GuildBlueprint> {
         let bp = guild_rules::plan_new_guild(owner, name, self.now(), || self.ids.generate())?;
-        self.repo.insert_guild(&bp).await?;
+        self.repo
+            .insert_guild(&bp)
+            .await
+            .map_err(ChatError::from_repo)?;
         Ok(bp)
     }
 
@@ -182,7 +185,10 @@ impl<R: ChatRepository> ChatService<R> {
         let bp = guild_rules::plan_guild_from_snapshot(owner, name, self.now(), snapshot, || {
             self.ids.generate()
         })?;
-        self.repo.insert_guild(&bp).await?;
+        self.repo
+            .insert_guild(&bp)
+            .await
+            .map_err(ChatError::from_repo)?;
         Ok(bp)
     }
 

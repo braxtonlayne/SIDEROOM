@@ -5,6 +5,7 @@ import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { useT, type MessageKey } from '../i18n';
+import { limitErrorText } from '../lounge/limitErrors';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
 import { errorText, previewAuthorize, submitAuthorize, type AuthorizeQuery } from './api';
 import { AppIcon } from './Applications';
@@ -117,7 +118,8 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
         );
       else void navigate({ to: '/channels' });
     },
-    onError: (e) => setError(errorText(e, t('developers.authorize.failed'))),
+    onError: (e) =>
+      setError(limitErrorText(e, t, 'bot') ?? errorText(e, t('developers.authorize.failed'))),
   });
 
   if (!q)

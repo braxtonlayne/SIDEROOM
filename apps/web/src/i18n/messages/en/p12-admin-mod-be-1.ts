@@ -1,23 +1,13 @@
 export default {
-  'admin.staff.formerTitle': 'Former staff',
-  'admin.staff.formerLabel': 'Closed appointments',
-  'admin.staff.formerReason.left': 'Left the Staff Server',
-  'admin.staff.formerReason.kicked': 'Removed from the Staff Server',
-  'admin.staff.formerReason.revoked': 'Appointment revoked',
-  'admin.staff.formerWhen': 'ended {when}',
   'settings.auditText.a200': 'decided the membership application of',
   'settings.auditText.moduleActor': 'SIDE ROOM · {module}',
   'admin.accounts.banReasonNone': 'Reason category (optional)',
-  'admin.accounts.banReasonLabel': 'Reason category',
   'admin.accounts.banReason.illegalContent': 'Illegal content (serious)',
   'admin.accounts.banReason.childSafety': 'Child safety (serious)',
   'admin.accounts.banReason.fraud': 'Fraud (serious)',
   'admin.accounts.banReason.platformAbuse': 'Platform abuse (serious)',
   'admin.accounts.banReason.harassment': 'Harassment',
   'admin.accounts.banReason.banEvasion': 'Ban evasion',
-  'admin.accounts.banSeriousToggle': 'Serious ban',
-  'admin.accounts.banSeriousToggleHint':
-    'A serious ban raises suspicion on the account that invited this person.',
   'settings.account.removalRetained':
     'Your profile, password, passkeys, sessions and email address are removed from your account; the linked Discord identity is kept only to recognise you if you return. These records stay: Person record, Invite graph, Invoices (kept {years} years after the year of payment, then no longer linked to you), Staff-side moderation history, Messages, uploads, reactions and poll votes you did not delete, Content under a moderation hold, Linked Discord identity, Your original username, email address and display name, in a staff-only archive, This request and its audit trail. They are kept to stop banned people returning, to meet accounting duties and to keep staff decisions accountable.',
   'settings.userNav.invites': 'Invites',

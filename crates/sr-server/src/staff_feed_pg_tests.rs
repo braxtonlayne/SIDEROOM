@@ -90,6 +90,7 @@ async fn fx() -> Fx {
         "donations",
         "staff-announcements",
         "review-queue",
+        "ops",
     ] {
         let id = ids.generate().get() as i64;
         sqlx::query(
@@ -1416,5 +1417,129 @@ async fn crash_triage_is_created_once_staff_only_and_receives_allow_listed_cards
     assert_eq!(got.count, 2);
     assert_eq!(got.replay.as_array().unwrap().len(), 3);
     assert_eq!(store.list(10).await.unwrap().len(), 1);
+    f.db.cleanup().await.unwrap();
+}
+
+async fn channel_count(f: &Fx, name: &str) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM channels WHERE guild_id = $1 AND name = $2")
+        .bind(f.guild.get() as i64)
+        .bind(name)
+        .fetch_one(&f.pool)
+        .await
+        .unwrap()
+}
+
+/// An older Staff Server: the two feed channels do not exist.
+async fn drop_feed_channels(f: &Fx) {
+    sqlx::query(
+        "DELETE FROM channels WHERE guild_id = $1 AND name IN ('new-members', 'donations')",
+    )
+    .bind(f.guild.get() as i64)
+    .execute(&f.pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_staff_server_without_them_gets_them_at_start_once() {
+    let f = fx().await;
+    drop_feed_channels(&f).await;
+    assert_eq!(channel_count(&f, "new-members").await, 0);
+    // Two nodes starting together: both look, one creates (the per-guild advisory lock), the other finds them.
+    let (a, b) = tokio::join!(f.voice.ensure_channels(), f.voice.ensure_channels());
+    assert_eq!(a + b, 2, "each missing channel is made exactly once");
+    for name in sr_server_channels() {
+        assert_eq!(channel_count(&f, name).await, 1, "{name}");
+    }
+    // Again at the next start: nothing new.
+    assert_eq!(f.voice.ensure_channels().await, 0);
+    assert_eq!(channel_count(&f, "donations").await, 1);
+    // Same category and no overwrites, like #alerts.
+    let parent_of = |name: &'static str| {
+        let pool = f.pool.clone();
+        let g = f.guild.get() as i64;
+        async move {
+            sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT parent_id FROM channels WHERE guild_id = $1 AND name = $2",
+            )
+            .bind(g)
+            .bind(name)
+            .fetch_one(&pool)
+            .await
+            .unwrap()
+        }
+    };
+    let new_members = parent_of("new-members").await;
+    assert_eq!(new_members, parent_of("donations").await);
+    let overwrites: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM permission_overwrites o JOIN channels c ON c.id = o.channel_id \
+         WHERE c.guild_id = $1 AND c.name IN ('new-members', 'donations')",
+    )
+    .bind(f.guild.get() as i64)
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(overwrites, 0);
+    f.db.cleanup().await.unwrap();
+}
+
+fn sr_server_channels() -> [&'static str; 2] {
+    ["new-members", "donations"]
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_new_member_card_is_posted_not_dropped() {
+    let f = fx().await;
+    drop_feed_channels(&f).await;
+    let card = feed_card(
+        StaffFeedKind::NewMember,
+        "New member",
+        "@new joined, invited by @issuer.",
+        None,
+        "https://sr.test",
+    );
+    assert!(
+        f.voice.post("new-members", card).await,
+        "the card is posted"
+    );
+    let id: i64 =
+        sqlx::query_scalar("SELECT id FROM channels WHERE guild_id = $1 AND name = 'new-members'")
+            .bind(f.guild.get() as i64)
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        messages_in(&f.pool, ChannelId::new(id as u64)).await.len(),
+        1
+    );
+    f.db.cleanup().await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn no_staff_server_means_no_channel_and_no_error() {
+    let f = fx().await;
+    drop_feed_channels(&f).await;
+    sqlx::query("UPDATE guilds SET is_staff_guild = false WHERE id = $1")
+        .bind(f.guild.get() as i64)
+        .execute(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(f.voice.ensure_channels().await, 0);
+    assert!(
+        !f.voice
+            .post(
+                "new-members",
+                feed_card(StaffFeedKind::NewMember, "x", "y", None, "https://sr.test")
+            )
+            .await
+    );
+    let n: i64 = sqlx::query_scalar("SELECT count(*) FROM channels WHERE name = 'new-members'")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(n, 0);
     f.db.cleanup().await.unwrap();
 }

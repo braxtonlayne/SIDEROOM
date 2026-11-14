@@ -64,6 +64,7 @@ struct Stored {
 #[derive(Default)]
 struct MemoryBugs {
     rows: Mutex<Vec<Stored>>,
+    accounts: std::sync::atomic::AtomicI64,
 }
 
 impl MemoryBugs {
@@ -114,6 +115,9 @@ impl BugStore for MemoryBugs {
             .map(|s| Self::view(s, false))
             .collect();
         Ok((out, i64::try_from(open).unwrap()))
+    }
+    async fn active_accounts(&self) -> Result<i64, String> {
+        Ok(self.accounts.load(std::sync::atomic::Ordering::SeqCst))
     }
     async fn get(&self, id: i64) -> Result<Option<BugRow>, String> {
         let rows = self.rows.lock().unwrap();
@@ -859,4 +863,35 @@ fn the_picture_is_an_inert_download_with_fixed_headers() {
     );
     assert_eq!(h["x-content-type-options"], "nosniff");
     assert_eq!(h[header::CACHE_CONTROL], "no-store");
+}
+
+/// The `beta_over_100` of the staff list, read by a STAFF_BASIC member.
+async fn beta_flag(fx: &Fx) -> bool {
+    let (s, v) = fx
+        .call(Some(STAFF), Method::GET, "/admin/bug-reports", None)
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(v.get("accounts").is_none() && v.get("account_count").is_none());
+    v["beta_over_100"].as_bool().unwrap()
+}
+
+/// SEC-AUD-195 (D-647, D-665): the list says, with one boolean and no number, when the beta reporter is on and the
+/// platform has 100 or more active accounts. STAFF_BASIC staff read it.
+#[tokio::test]
+async fn the_list_says_when_the_beta_is_on_with_100_accounts() {
+    let fx = fixture(true, BugLimits::default()).await;
+    let set = |n: i64| {
+        fx.store
+            .accounts
+            .store(n, std::sync::atomic::Ordering::SeqCst)
+    };
+    set(99);
+    assert!(!beta_flag(&fx).await, "99 accounts: no notice");
+    set(100);
+    assert!(beta_flag(&fx).await, "100 accounts: the notice");
+    fx.features
+        .set_enabled(BETA_REPORTS_ID, &ScopeRef::Platform, Some(false))
+        .await
+        .unwrap();
+    assert!(!beta_flag(&fx).await, "switch off: no notice");
 }

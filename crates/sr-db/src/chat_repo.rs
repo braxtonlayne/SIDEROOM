@@ -484,6 +484,12 @@ impl GuildRepository for PgChatRepo {
     async fn insert_guild(&self, bp: &GuildBlueprint) -> RepoResult<()> {
         let g = &bp.guild;
         let mut tx = self.pool.begin().await.map_err(db)?;
+        // D-659: the owner may be in one more server. The Staff Server is never counted (D-661).
+        if !g.is_staff_guild {
+            crate::guild_caps::check_user_cap(&mut tx, i(g.owner_id.get()))
+                .await
+                .map_err(crate::guild_caps::repo_err)?;
+        }
         // The system channel FK is set after the channels exist.
         sqlx::query(
             "INSERT INTO guilds (id, name, description, icon_key, owner_id, is_staff_guild, \

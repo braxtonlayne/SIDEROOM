@@ -54,6 +54,10 @@ impl BugStore for PgBugStore {
         Ok((rows.into_iter().map(row).collect(), open))
     }
 
+    async fn active_accounts(&self) -> Result<i64, String> {
+        self.0.active_accounts().await.map_err(|e| e.to_string())
+    }
+
     async fn get(&self, id: i64) -> Result<Option<BugRow>, String> {
         let r = self.0.get(id).await.map_err(|e| e.to_string())?;
         Ok(r.map(row))

@@ -86,7 +86,7 @@ per IP, so run it once per few minutes), then prints `PASS`/`FAIL` per check and
 non-zero on any failure. It signs its own S3 requests to look at objects directly.
 
 Attachment URLs (`/cdn/attachments/...?ex=&sig=`) are served by the `/cdn/*` route (docs/05 section 5.2),
-so the CDN fetch and `Range` checks should now pass. The emoji image is still checked straight from S3.
+so the CDN fetch and `Range` checks cover those URLs. The emoji image is checked straight from S3 (`e2e/support/storage-live.mjs`, step 7).
 
 To stop: kill the server and the S3 process, `dropdb -U postgres sr_s3`, delete the
 throwaway data dirs.

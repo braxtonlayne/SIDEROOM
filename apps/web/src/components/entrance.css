@@ -6,10 +6,10 @@
   font-family: var(--sr-font-body);
   background: var(--sr-bg-1);
   --ent-pad: clamp(20px, 5.3vw, 90px);
-  /* OQ-XC-6, XC-A11Y: --sr-text-3 (#6f6c60) is about 3.6:1 on the entrance background (--sr-bg-1, #161613),
-     under the 4.5:1 AA floor for small text. The token stays as calibrated; entrance copy that must be
-     read uses this scoped token. #8c8878 on #161613 measures 5.1:1 (WCAG relative luminance 0.245 vs
-     0.0079). Documented in docs/10 section 2. */
+  /* OQ-XC-6, XC-A11Y: this scoped token was added when --sr-text-3 was #6f6c60, about 3.6:1 on the entrance
+     background (--sr-bg-1, #161613), under the 4.5:1 AA floor for small text. RDY-A11Y-001 later lifted
+     --sr-text-3 to #918d7e; the entrance keeps its own token. #8c8878 on #161613 measures 5.1:1 (WCAG
+     relative luminance 0.245 vs 0.0079). Documented in docs/10 section 2. */
   --sr-entrance-text-muted: #8c8878;
   /* D-577: danger text on the entrance surfaces, the entrance palette's --ui-danger-text. #d97a68 is 5.99:1 on
      --sr-bg-1 (#161613), 6.24:1 on --sr-bg-0 and 5.60:1 on --sr-bg-2 (entranceDangerText.test.ts). */

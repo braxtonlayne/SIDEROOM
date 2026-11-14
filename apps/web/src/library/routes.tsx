@@ -1,4 +1,4 @@
-import { createRoute, type AnyRoute } from '@tanstack/react-router';
+import { createRoute, Navigate, type AnyRoute } from '@tanstack/react-router';
 import { HiddenWhenOff } from '../study/Hidden';
 import { createShelfRoutes } from '../storage/shelves/routes';
 import { lazyNamed } from '../lib/lazyRoute';
@@ -12,7 +12,6 @@ const HistoryPage = lazyNamed(() => import('./Pages'), 'HistoryPage');
 const ListsPage = lazyNamed(() => import('./Lists'), 'ListsPage');
 const ListPage = lazyNamed(() => import('./Lists'), 'ListPage');
 const RankingsPage = lazyNamed(() => import('./Rankings'), 'RankingsPage');
-const SoonPage = lazyNamed(() => import('./Pages'), 'SoonPage');
 const Reader = lazyNamed(() => import('./reader/Reader'), 'Reader');
 const SeriesPage = lazyNamed(() => import('./SeriesPage'), 'SeriesPage');
 const RequestsBoard = lazyNamed(() => import('../review/RequestsBoard'), 'RequestsBoard');
@@ -30,7 +29,8 @@ const LibraryRoot = lazyNamed(() => import('./LibraryRoot'), 'LibraryRoot');
  *   /library/r/:chapterId[/:page] Reader (full screen, outside the section chrome); ?s= is the series id
  *   /library/rankings             Rankings (week, month, all time)
  *   /library/lists[/:listId]      Reading lists and one list
- *   /library/me, /history, /requests, /upload
+ *   /library/me, /history, /requests
+ *   /library/upload               Redirects to /library/submissions (D-672), hidden with the same switch
  *   /library/submissions[?series=ID]  My submissions;  /library/submissions/:submissionId  one submission
  * The section owns its own query cache, the "Are you 18 or older?" gate and the theme.
  */
@@ -129,7 +129,7 @@ export function createLibraryRoutes(root: AnyRoute) {
     submission,
     child('upload', () => (
       <HiddenWhenOff flag="ingestQueues">
-        <SoonPage page="upload" />
+        <Navigate to="/library/submissions" replace />
       </HiddenWhenOff>
     )),
     ...createShelfRoutes(layout, 'library'),

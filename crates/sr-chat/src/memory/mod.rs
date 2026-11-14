@@ -35,6 +35,8 @@ pub struct Store {
     pub joins: HashMap<(GuildId, UserId), crate::admin_repo::MemberJoin>,
     /// How many member pages `page_members` or `page_members_with_roles` served (tests assert fan-out cost).
     pub member_page_reads: u32,
+    /// The two server limits (D-659, D-660); tests set them.
+    pub caps: crate::limits::MemoryCaps,
 }
 
 /// Cloning shares the same store, so tests can keep a handle while the service owns a clone.
@@ -55,6 +57,11 @@ impl MemoryRepo {
 impl GuildRepository for MemoryRepo {
     async fn insert_guild(&self, bp: &GuildBlueprint) -> RepoResult<()> {
         let mut s = self.lock()?;
+        if !bp.guild.is_staff_guild {
+            s.caps
+                .check_user(&s.members, &s.guilds, bp.guild.owner_id)
+                .map_err(crate::error::cap_hit_to_repo)?;
+        }
         s.guilds.insert(bp.guild.id, bp.guild.clone());
         s.roles.push(bp.everyone_role.clone());
         s.roles.extend(bp.extra_roles.iter().cloned());

@@ -33,6 +33,22 @@ pub trait UploadEntitlements: Send + Sync {
     async fn max_upload_bytes(&self, user: UserId, guild: Option<GuildId>) -> u64;
 }
 
+/// The size policy the two upload settings in a list of platform settings give (`GET /admin/settings`, D-662):
+/// a missing, non-numeric or out-of-range entry keeps the default.
+pub fn size_policy_from_settings(views: &[sr_admin::SettingView]) -> SizePolicy {
+    use sr_admin::settings as k;
+    let get = |key: &str| {
+        views
+            .iter()
+            .find(|v| v.key == key)
+            .and_then(|v| v.value.as_i64())
+    };
+    SizePolicy::from_settings(
+        get(k::UPLOADS_STANDARD_LIMIT),
+        get(k::RETENTION_LARGE_FILE_DAYS),
+    )
+}
+
 /// What the message pipeline needs to know about a viewer to apply their safety settings
 /// (D-230): the `sensitive_media` preferences and who their friends are. Implemented by the
 /// social routes so the message path need not know about `SocialService`.
@@ -222,7 +238,11 @@ pub struct MessagesDeps {
     safety: Option<Arc<dyn ViewerSafety>>,
     audit: Option<Arc<dyn crate::routes::guilds::backend::AuditSink>>,
     pub limits: ChatLimits,
+    /// The size policy at startup; the live one (below) replaces it when the operator edits the settings.
     pub size_policy: SizePolicy,
+    /// The size policy the operator's `uploads.standard_limit_bytes` and `retention.large_file_days` settings
+    /// give, following edits without a restart (D-662). Read through [`MessagesDeps::policy`].
+    live_size_policy: Option<tokio::sync::watch::Receiver<SizePolicy>>,
     /// How long a nonce keeps deduplicating (Discord: a few minutes).
     pub nonce_window_ms: i64,
     pub upload_url_ttl: Duration,
@@ -278,6 +298,7 @@ impl MessagesDeps {
             audit: None,
             limits,
             size_policy: SizePolicy::default(),
+            live_size_policy: None,
             nonce_window_ms: i64::try_from(NONCE_WINDOW.as_millis()).unwrap_or(i64::MAX),
             upload_url_ttl: Duration::from_secs(15 * 60),
             multipart: None,
@@ -481,8 +502,21 @@ impl MessagesDeps {
     /// `sr_max_upload_bytes` on `GET /guilds/{id}` and `GET /users/@me/channels` only (D-233,
     /// D-238); a change arrives as `SR_ENTITLEMENT_UPDATE`.
     pub async fn effective_upload_limit(&self, user: UserId, guild: Option<GuildId>) -> u64 {
-        self.size_policy
+        self.policy()
             .effective_limit(self.upload_limit(user, guild).await)
+    }
+
+    /// The size policy in force now: the live one when the composition root registered it, else the startup one.
+    pub fn policy(&self) -> SizePolicy {
+        self.live_size_policy
+            .as_ref()
+            .map_or(self.size_policy, |rx| *rx.borrow())
+    }
+
+    /// Follow the operator's upload settings (D-662): a change applies to the next upload.
+    pub fn with_live_size_policy(mut self, rx: tokio::sync::watch::Receiver<SizePolicy>) -> Self {
+        self.live_size_policy = Some(rx);
+        self
     }
 
     /// The server a channel belongs to (`None` for DMs, groups and unknown channels).

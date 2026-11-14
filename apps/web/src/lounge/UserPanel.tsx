@@ -1,7 +1,7 @@
 import { Icon, Tooltip, useToast } from '@sideroom/ui';
 import { useT } from '../i18n';
 import { useOpenUserSettings } from '../settings/user/nav';
-import { useCurrentUser, usePresence } from './data';
+import { customStatusLabel, useCurrentUser, usePresence } from './data';
 import { useSelfPresence } from './shell/selfPresence';
 import { DevicePopover } from './shell/DevicePopover';
 import { statusLabel, StatusMenu } from './shell/StatusMenu';
@@ -15,6 +15,7 @@ export function UserPanel() {
   const presence = usePresence(me.id);
   const selfStatus = useSelfPresence((s) => s.status);
   const selfCustom = useSelfPresence((s) => s.customText);
+  const selfEmoji = useSelfPresence((s) => s.customEmoji);
   const toast = useToast();
   const micMuted = useVoiceSession((s) => s.selfMute || s.serverMute);
   const serverMuted = useVoiceSession((s) => s.serverMute);
@@ -46,10 +47,11 @@ export function UserPanel() {
           <span className="lng-user-text">
             <span className="lng-user-name">{me.displayName}</span>{' '}
             <span className="lng-user-sub">
-              {selfCustom ??
-                (presence.activity?.kind === 'custom'
-                  ? presence.activity.text
-                  : statusLabel(selfStatus))}
+              {selfCustom || selfEmoji
+                ? customStatusLabel({ text: selfCustom ?? '', emoji: selfEmoji ?? undefined })
+                : presence.activity?.kind === 'custom'
+                  ? customStatusLabel(presence.activity)
+                  : statusLabel(selfStatus)}
             </span>
           </span>
         </button>

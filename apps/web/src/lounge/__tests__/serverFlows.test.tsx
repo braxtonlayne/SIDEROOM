@@ -211,6 +211,22 @@ describe('logged-in invite acceptance', () => {
     expect(useStore.getState().guilds.g2?.name).toBe('Book Club');
   });
 
+  it('says the server is full when the invite meets the member limit (D-660)', async () => {
+    preview();
+    server.use(
+      http.post('*/api/v1/invites/abc123', () =>
+        HttpResponse.json(
+          { code: 30019, message: 'Maximum number of server members reached' },
+          { status: 400 },
+        ),
+      ),
+    );
+    const router = at('/invite/abc123');
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept invite' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This server is full.');
+    expect(router.state.location.pathname).toBe('/invite/abc123');
+  });
+
   it.each([
     [404, { code: 10006, message: 'Unknown Invite' }, /invalid or has expired/],
     [403, { code: 40007, message: 'banned' }, /banned/],
@@ -313,6 +329,56 @@ describe('Add a Server', () => {
     await userEvent.type(screen.getByLabelText('Invite link or code'), 'abc123');
     await userEvent.click(screen.getByRole('button', { name: 'Join Server' }));
     expect(await screen.findByText(/banned from this server/)).toBeInTheDocument();
+  });
+});
+
+describe('The two server limits (SEC-AUD-184; D-659, D-660)', () => {
+  const MAX_SERVERS =
+    'You’re in the most servers one account can be in here (200). Leave one to join or create another.';
+  beforeEach(() => {
+    seed('1');
+    quiet();
+  });
+
+  it('Create My Own says the account is in the most servers it can be in, with the number', async () => {
+    server.use(
+      http.post('*/api/v1/guilds', () =>
+        HttpResponse.json(
+          { code: 30001, message: 'Maximum number of guilds reached (200)' },
+          { status: 400 },
+        ),
+      ),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Create My Own' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'skip this question' }));
+    const name = screen.getByLabelText('Server name');
+    await userEvent.clear(name);
+    await userEvent.type(name, 'One more');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(await screen.findByText(MAX_SERVERS)).toBeInTheDocument();
+    expect(screen.queryByText(/Maximum number of guilds/)).toBeNull();
+  });
+
+  it('Join a Server says the server is full, or that the account is in the most servers', async () => {
+    let answer: { code: number; message: string } = {
+      code: 30019,
+      message: 'Maximum number of server members reached',
+    };
+    server.use(
+      http.post('*/api/v1/invites/:code', () => HttpResponse.json(answer, { status: 400 })),
+    );
+    at('/channels/g1/c1');
+    await userEvent.click(await screen.findByRole('button', { name: 'Add a Server' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Join a Server' }));
+    await userEvent.type(screen.getByLabelText('Invite link or code'), 'abc123');
+    await userEvent.click(screen.getByRole('button', { name: 'Join Server' }));
+    expect(await screen.findByText('This server is full.')).toBeInTheDocument();
+    answer = { code: 30001, message: 'Maximum number of guilds reached (200)' };
+    await userEvent.click(screen.getByRole('button', { name: 'Join Server' }));
+    expect(await screen.findByText(MAX_SERVERS)).toBeInTheDocument();
+    expect(screen.queryByText('This server is full.')).toBeNull();
   });
 });
 
@@ -558,6 +624,46 @@ describe('Invite people', () => {
     expect(body).toEqual({ external: true });
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/invite/ext111'));
     expect(await axeViolations(dialog)).toEqual([]);
+  });
+
+  it('Grant temporary membership sends temporary and explains it (LNG-INV-007)', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    });
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])),
+      http.post('*/api/v1/channels/c1/invites', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(inviteObj({ code: 'tmp111', temporary: true, max_uses: 1 }));
+      }),
+    );
+    at('/channels/g1/c1');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    await userEvent.click(within(sidebar).getByRole('button', { name: /Store Guild/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Invite to Server' }));
+    const dialog = await screen.findByRole('dialog', { name: /Invite people to Store Guild/ });
+    const sw = within(dialog).getByRole('switch', { name: /Grant temporary membership/ });
+    expect(sw).not.toBeChecked();
+    expect(
+      within(dialog).getByText(/removed when they disconnect, unless you give them a role/),
+    ).toBeInTheDocument();
+    await userEvent.click(sw);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Copy link' }));
+    await within(dialog).findByText(/This link can be used once/);
+    expect(body).toEqual({ external: true, max_age: 604800, max_uses: 1, temporary: true });
+    expect(await axeViolations(dialog)).toEqual([]);
+  });
+
+  it('the server menu has no "coming soon" entries (D-670)', async () => {
+    server.use(http.get('*/api/v1/guilds/g1/invites', () => HttpResponse.json([])));
+    at('/channels/g1/c1');
+    const sidebar = await screen.findByTestId('channel-sidebar');
+    await userEvent.click(within(sidebar).getByRole('button', { name: /Store Guild/ }));
+    await screen.findByRole('menuitem', { name: 'Invite to Server' });
+    expect(screen.queryByRole('menuitem', { name: 'Server Support' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'App Directory' })).toBeNull();
   });
 
   it('opens from the rail context menu too', async () => {

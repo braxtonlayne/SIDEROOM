@@ -6,9 +6,9 @@
 
 **The server will not start and complains about `secret_key`.** It must be 64 hex characters (`openssl rand -hex 32`). An empty key is only allowed when `public_url` is a localhost address.
 
-**Which ports must be open?** 80 and 443 (TCP, plus UDP 443 for HTTP/3) to the proxy. Voice adds UDP 50000-50100 and TCP 3479 (`sr-voice`), and coturn adds 3478 (udp+tcp), 5349 and its relay range. Nothing else: Postgres, Garage and the metrics port stay on the private network.
+**Which ports must be open?** 80 and 443 (TCP, plus UDP 443 for HTTP/3) to the proxy. Voice adds UDP 50000-50099 (`voice.udp_port_min` to `voice.udp_port_max`; ICE-TCP is off unless `voice.tcp_port` is set), and coturn adds 3478 (udp+tcp), 5349 (tcp) and its relay range 49152-49999 (udp). Nothing else: Postgres, Garage and the metrics port stay on the private network.
 
-**How do I see metrics?** `deploy/compose/prod.yml --profile monitoring` starts Prometheus and Grafana with the "SIDE ROOM overview" dashboard. Grafana listens on `127.0.0.1:3000`; use an SSH tunnel. The raw metrics are at `/internal/metrics` on `server.metrics_bind`, never public.
+**How do I see metrics?** `deploy/compose/prod.yml --profile monitoring` starts Prometheus and Grafana with the "SIDE ROOM overview" dashboard. Grafana listens on `127.0.0.1:3000`; use an SSH tunnel. The raw metrics are at `/internal/metrics` on `server.metrics_bind` (default `127.0.0.1:9100`), never public (Caddy answers 404 to `/internal/*`). A release build refuses a `metrics_bind` that is not loopback unless `server.metrics_token` is set.
 
 **Why does the browser show a "new version" toast?** The app is an installable web app. After a deploy the service worker downloads the new build in the background and asks before switching, so nobody loses a half-written message to a surprise reload.
 

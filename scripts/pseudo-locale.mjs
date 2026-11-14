@@ -8,7 +8,7 @@
 // virtual module `virtual:sr-pseudo-locale`, only on a dev host or when SR_PSEUDO_LOCALE=1 is set for the build.
 // apps/web/src/i18n/pseudo.ts does the same transform at runtime for `ar-XB`; pseudoLocale.test.ts proves
 // the two agree on every key, so keep the alphabet and the padding rule identical in both.
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -149,14 +149,20 @@ export function pseudoMessage(src) {
   return `[${parse(0, false)}]`;
 }
 
-/** Reads every fragment of apps/web/src/i18n/messages/en into one key to English text object. */
-export function readEnglishCatalog(dir) {
+/** Reads every fragment of apps/web/src/i18n/messages/en (and en-staff beside it) into one key to English text object. */
+export function readEnglishCatalog(dir, includeStaff = true) {
   const catalog = {};
   const owner = {};
-  for (const file of readdirSync(dir)
-    .filter((f) => f.endsWith('.ts'))
-    .sort()) {
-    const body = readFileSync(join(dir, file), 'utf8')
+  // SEC-AUD-187: the staff fragments (messages/en-staff) are part of the English catalog too.
+  const dirs = [dir, ...(includeStaff ? [`${dir}-staff`] : [])].filter((d) => existsSync(d));
+  const files = dirs.flatMap((d) =>
+    readdirSync(d)
+      .filter((f) => f.endsWith('.ts'))
+      .sort()
+      .map((f) => [d, f]),
+  );
+  for (const [d, file] of files) {
+    const body = readFileSync(join(d, file), 'utf8')
       .replace(/^\s*export\s+default\s+/m, 'module.exports = ')
       .replace(/\}\s*(?:satisfies\s+Record<string,\s*string>|as\s+const)\s*;?\s*$/m, '}');
     const sandbox = { module: { exports: {} } };

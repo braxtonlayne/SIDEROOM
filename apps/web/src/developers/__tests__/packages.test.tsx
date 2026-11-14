@@ -145,7 +145,7 @@ describe('developer portal: Packages (EXT-PKG-003, EXT-PKG-007)', () => {
     await userEvent.setup().type(screen.getByLabelText('Search endpoints'), 'public');
     expect(screen.getByText('Showing 1 of 2 endpoints.')).toBeInTheDocument();
 
-    await router.navigate({ to: '/developers/docs/$page', params: { page: 'gateway' } });
+    await router.navigate({ to: '/developers/docs/$page', params: { page: 'gateway-events' } });
     expect(await screen.findByRole('table', { name: 'Gateway opcodes' })).toBeInTheDocument();
     expect(screen.getByText('IDENTIFY')).toBeInTheDocument();
     expect(screen.getByText('SR_ACTIVITY_INSTANCE_UPDATE')).toBeInTheDocument();

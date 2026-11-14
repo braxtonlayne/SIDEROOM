@@ -5,6 +5,8 @@ Phase 4 · Theme `sideroom` · Mockup `assets/mockups/library-home.jpg` · Decis
 ## 1. Scope
 Manga, manhwa, manhua, webtoons (vertical), Western comics, PDFs, EPUB novels and books. Global library (D-080). Multiple **editions** per series (language, official vs. fan release, group). Chapters can belong to volumes.
 
+**The Study reframe (D-400, wave 41).** The Library is the "Reading" side of The Study (`/study`). Its storefront surfaces sit behind platform switches that are off by default and answer 404 while off: Requests (`platform.requests_board`), Rankings and the Trending row of the home page (`platform.global_trending`), and Submissions and Upload (`platform.ingest_queues`, which also gates the member submission API, D-404). With them off the sidebar shows Home, Browse, Latest updates, Shelves, My library, Reading history and Reading lists (`apps/web/src/library/Shell.tsx:74-101`, `routes.tsx`). `/library/shelves` lists the member's storage shelves (BYOS).
+
 ## 2. Information architecture
 
 Top bar: `SIDE ROOM / The lounge · The cinema · **The library**`.
@@ -23,9 +25,10 @@ Top: search "Search manga, authors, and genres…" (instant results dropdown: se
 | Block | Behavior |
 |---|---|
 | H1 "Find your next good story." + subline | Static, operator-editable |
-| **The Spotlight** | Curated hero (staff, Collections & Spotlight). Artwork backdrop with gradient, eyebrow, title, rating ★, status, genre chips, tagline, `Start reading` / `View details`, carousel dots, "Handpicked for your next…" caption |
+| **The Spotlight** | The five most recently updated series (staff curation, Collections & Spotlight, is not built: `apps/web/src/library/Home.tsx:71`). Artwork backdrop with gradient, eyebrow, title, rating ★, status, genre chips, tagline, `Start reading` / `View details`, carousel dots, "Handpicked for your next…" caption |
 | **Pick up where you left off** | Cards with cover, title, "Chapter 36 · Page 2 of 6," progress bar. Links to Reading history |
-| **Trending this week** | Poster row with rank badge on #1, type · chapter, rating, genres. **Scope switch: Friends · People you know · Global** (D-089). "See rankings" |
+| **Trending this week** | (Only while `platform.global_trending` is on.) Poster row with rank badge on #1, type · chapter, rating, genres. **Scope switch: Friends · People you know · Global** (D-089). "See rankings" |
+| **Because you read X** | Up to three recommendation rows (section 6.6) |
 | **Follow your curiosity** | Genre chips → Browse filtered |
 | **Fresh off the press** | Latest chapters: cover thumbnail, series, "Chapter 138 · English," release group label (replaces "Sample release"), ▷ read |
 | **A little inspiration** | Featured reading list card ("For a slow Sunday") with a fanned cover stack |
@@ -40,13 +43,13 @@ Backdrop + cover, title, alt titles, authors/artists, status, year, rating (scor
 
 ### 3.4 Reader (`/library/r/:chapterId[/:page]`)
 Full-screen and distraction-free. The chrome shows on tap/hover.
-- **Modes:** paged RTL (default for manga), paged LTR, **double page** (spread-aware; offset toggle for cover pages), **vertical scroll** (webtoon; continuous, gapless option), **long strip**, and EPUB reflowable mode (font, size, line height, theme, margins) via foliate-js. PDF: image mode, or native pdf.js mode.
+- **Modes:** paged RTL (default for manga), paged LTR, **double page** (spread-aware; offset toggle for cover pages), **vertical scroll** (webtoon; continuous, gapless option), **long strip**, and EPUB reflowable mode (font, size, line height, theme, margins) via foliate-js. PDF: read in the browser with pdf.js (D-217); the server does not rasterize pages.
 - **Fit:** width, height, original, smart. **Zoom** (pinch, wheel, double-tap), pan.
 - **Navigation:** tap zones (configurable, inverted for RTL), keyboard (←/→ honour direction, space, Home/End, `F` full-screen, `D` double page, `M` mode menu), page slider with thumbnails, chapter prev/next, auto-advance to the next chapter with an end-of-chapter card ("Next: Chapter 37 →," comments count, rate chapter).
-- **Preloading:** next 3 pages and the first pages of the next chapter. Images are served as WebP in sized variants (w=720/1080/1600/original) chosen by viewport × DPR.
+- **Preloading:** the next pages (a reader setting, 1 to 10, default 3) and the first pages of the next chapter. Images are served as WebP in sized variants (w=720/1080/1600/original) chosen by viewport × DPR.
 - **Progress:** saved per chapter (page index / EPUB CFI) on page turn (debounced 2s) and on unload. Synced across devices (`SR_LIBRARY_UPDATE`). "Continue on this device?" prompt when another device is further ahead.
 - **Bookmarks:** per page, with optional note. Bookmarks panel.
-- **Reader settings** (per series override): mode, direction, background color (black/grey/white/sepia), page gap, crop borders (auto-detect, WASM), image smoothing, brightness overlay.
+- **Reader settings** (per series override): mode, direction, background color (black/grey/white/sepia), page gap, crop borders (borders found at ingest on the server, LIB-ING-007; off by default), image smoothing, brightness overlay.
 - **Offline:** the PWA caches the current and next chapter automatically (free; cache only, not a file download). **Downloads** (CBZ/PDF/EPUB file export) are Patron-only (D-075).
 - Comments drawer per chapter (spoiler-tag support).
 
@@ -59,7 +62,7 @@ Full-screen and distraction-free. The chrome shows on tap/hover.
 Chronological feed of published chapters, filterable to followed series.
 
 ### 3.7 Upload & submissions
-See the submissions spec. Library-specific metadata: kind, title, alt titles, authors, artists, language, edition label, direction, status, year, genres, tags, age-restricted, synopsis, cover, per-chapter number/title/volume/group.
+See the submissions spec. Members build drafts under Submissions (`/library/submissions`); `/library/upload` is not a page: it redirects to `/library/submissions` under the same `ingestQueues` switch (D-672; `apps/web/src/library/routes.tsx`), and the sidebar has no separate Upload entry. Library-specific metadata: kind, title, alt titles, authors, artists, language, edition label, direction, status, year, genres, tags, age-restricted, synopsis, cover, per-chapter number/title/volume/group.
 
 ## 4. Social & discovery logic
 - **Ratings** 1–10 (shown as ★ /10 with one decimal). Aggregates are cached per scope: Global (all), Known (people you know, D-089), Friends.
@@ -69,12 +72,12 @@ See the submissions spec. Library-specific metadata: kind, title, alt titles, au
 - **Notifications:** followed-series new chapter (in-app, push, optional Lounge feed channel).
 
 ## 5. Acceptance criteria
-- [ ] Page turns are < 100 ms perceived on a mid-range phone, with preloaded pages decoded off-main-thread.
-- [ ] RTL, LTR, double-page, and vertical modes work with keyboard, touch, and mouse. Direction defaults from the series and can be overridden per series.
-- [ ] Progress on phone shows on desktop within 5s.
-- [ ] Trending differs correctly between Friends, Known, and Global for a seeded dataset (integration test).
-- [ ] Non-Patrons have no download endpoint access (403 server-side).
-- [ ] Age-restricted series are visible to everyone, but opening one (reader, page URLs) needs a confirmed 18+ answer: unconfirmed accounts get the "Are you 18 or older?" dialog once (403 `900011`), and the yes is remembered permanently (D-032, D-184).
+- [ ] Page turns are < 100 ms perceived on a mid-range phone, with preloaded pages decoded off-main-thread. _(built: preloading `apps/web/src/library/reader/imageLoader.ts`; left: no measurement on a phone)_
+- [x] RTL, LTR, double-page, and vertical modes work with keyboard, touch, and mouse. Direction defaults from the series and can be overridden per series. _(`apps/web/src/library/reader/Reader.tsx:216,476`, `prefs.ts:135`; tests `apps/web/src/library/__tests__/reader.test.tsx:25,160,168`)_
+- [ ] Progress on phone shows on desktop within 5s. _(built: debounced save and `SR_LIBRARY_UPDATE` `progress` events, section 6.2; left: no test or run measures 5 s)_
+- [x] Trending differs correctly between Friends, Known, and Global for a seeded dataset (integration test). _(`crates/sr-library-social/tests/db.rs:902` runs `rankings_scoped` for each scope)_
+- [x] Non-Patrons have no download endpoint access (403 server-side). _(`crates/sr-api/src/routes/library/downloads.rs:24`, test `crates/sr-api/src/routes/library/tests.rs:1200`)_
+- [x] Age-restricted series are visible to everyone, but opening one (reader, page URLs) needs a confirmed 18+ answer: unconfirmed accounts get the "Are you 18 or older?" dialog once (403 `900011`), and the yes is remembered permanently (D-032, D-184). _(`crates/sr-api/src/routes/library/tests.rs:971` answers 900011; the dialog is `AgeGateProvider`, `apps/web/src/library/LibraryRoot.tsx:64`)_
 
 ## 6. HTTP API added in phase 4 (as built)
 
@@ -138,7 +141,7 @@ will have). The file goes straight to object storage through a presigned URL, th
 For archives the job replaces the chapter's whole page list (the chapter keeps its published state; publish it as usual). For
 EPUB and PDF the original is kept as the chapter's `source_key` and `GET /library/chapters/{id}/pages` returns `source_url` (a signed link) with no pages.
 Only one upload per chapter may be in flight (`409` otherwise). Each upload and each outcome is written to the staff access log.
-Operator settings (Admin, Limits, group `library`): `library.ingest.rar_enabled` (default on), `library.ingest.max_upload_mb`.
+An upload may also be multipart and resumable (`GET .../uploads/{id}/parts`, `.../inspect`; see the submissions spec section 10). Operator settings (Admin, Limits, group `library`): `library.ingest.rar_enabled` (default on), `library.ingest.max_upload_mb`.
 
 ### 6.5 Storage garbage collection
 

@@ -280,7 +280,6 @@ describe('chrome and other pages', () => {
       'Reading history',
       'Reading lists',
       'Submissions',
-      'Upload',
       'Help & shortcuts',
       'Settings',
     ])

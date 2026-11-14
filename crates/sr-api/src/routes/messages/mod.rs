@@ -40,6 +40,7 @@ mod tests;
 
 pub use deps::{
     DmAnnouncer, DmSendGate, FixedEntitlements, MessagesDeps, UploadEntitlements, ViewerSafety,
+    size_policy_from_settings,
 };
 pub use rich::{JobScheduler, RichDeps, UnfurlGate};
 

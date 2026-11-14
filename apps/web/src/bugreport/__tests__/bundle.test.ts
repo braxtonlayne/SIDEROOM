@@ -71,6 +71,24 @@ describe('buildBundle', () => {
     });
   });
 
+  it('clamps reconnects and heartbeat to the server limits and leaves absent ones out', () => {
+    const gw = (g: object) => buildBundle({ ...good(), gateway: () => g }, NOW).gateway;
+    expect(gw({ status: 'connected', reconnects: 99_999, heartbeat_ms: 9_999_999 })).toEqual({
+      status: 'connected',
+      reconnects: 10_000,
+      heartbeat_ms: 600_000,
+    });
+    expect(gw({ status: 'connected', reconnects: -4, heartbeat_ms: 40.6 })).toEqual({
+      status: 'connected',
+      reconnects: 0,
+      heartbeat_ms: 41,
+    });
+    expect(gw({ status: 'connected', reconnects: 0 })).toEqual({
+      status: 'connected',
+      reconnects: 0,
+    });
+  });
+
   it('maps themes', () => {
     const th = (id: unknown) => buildBundle({ ...good(), theme: () => id }, NOW).theme;
     expect(th('lounge-editorial')).toBe('editorial');

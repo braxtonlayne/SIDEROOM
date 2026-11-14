@@ -1,6 +1,6 @@
 # SDK compatibility test list (DEV-SDK-003)
 
-This is the list of behaviours a Discord library must see for a bot to port to SIDE ROOM by changing the base URLs and the token (doc 05 section 7). It has three tiers. Tier 1 runs in CI today; tiers 2 and 3 are the plan for the real libraries.
+This is the list of behaviours a Discord library must see for a bot to port to SIDE ROOM by changing the base URLs and the token (doc 05 section 7). It has three tiers. Tier 1 runs in CI today (the Postgres-backed ignored suite of `rust.yml`), tier 2 runs weekly for discord.js and serenity, and tier 3 is still a plan.
 
 What is and is not Discord-compatible is spelled out in [specs/developer-platform.md](../specs/developer-platform.md) section 2. Where this list says "differs", the porting guide must say so too.
 
@@ -55,7 +55,7 @@ Known library-visible differences to expect (each is in the spec, section 2): sh
 
 ### Status of the weekly run (RDY-DEV-004, 2026-10-26)
 
-The first scheduled run, 2026-10-26 06:00 UTC ([run 40318281178](https://github.com/braxtonlayne/SIDEROOM/actions/runs/40318281178)), passed 7 of 7 for discord.js 14.27.0 and 7 of 7 for serenity 0.12.5; no issue was opened. Later dated results belong in the issue the workflow opens or in the run artifact. discord.py and twilight stay unrun (RDY-DEV-003, P26-NEXT-1).
+The first scheduled run, 2026-10-26 06:00 UTC ([run 40318281178](https://github.com/braxtonlayne/SIDEROOM/actions/runs/40318281178)), passed 7 of 7 for discord.js 14.27.0 and 7 of 7 for serenity 0.12.5; no issue was opened. The dispatch run of 2026-10-20 (39432856749) and the scheduled run of 2026-11-02 (41459846383) also printed all seven checks `ok` for both libraries (recorded in `docs/inventory/17-developer-platform.md`, DEV-SDK-003). Later dated results belong in the issue the workflow opens or in the run artifact. discord.py and twilight stay unrun (RDY-DEV-003, P26-NEXT-1).
 
 ## First-party SDKs (not Discord libraries)
 
@@ -74,4 +74,4 @@ The first scheduled run, 2026-10-26 06:00 UTC ([run 40318281178](https://github.
 
 ## Tier 3: conformance fixtures (planned)
 
-`crates/sr-compat-tests` (doc 05 section 7): recorded Discord request/response pairs from a test guild replayed against SIDE ROOM, including the permission-filtered `GET /guilds/{id}/channels` case (D-160). Needs a human with a Discord bot and server to record the fixtures (open question 8).
+The crate `crates/sr-compat-tests` (doc 05 section 7) does not exist yet. It is meant to hold recorded Discord request/response pairs from a test guild replayed against SIDE ROOM, including the permission-filtered `GET /guilds/{id}/channels` case (D-160). Needs a human with a Discord bot and server to record the fixtures (open question 8).

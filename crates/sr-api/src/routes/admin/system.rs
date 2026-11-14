@@ -66,6 +66,11 @@ pub async fn patch_settings(
         let next = crate::rate_limit::RateConfig::from_settings(&views);
         tx.send_if_modified(|cur| std::mem::replace(cur, next) != next);
     }
+    // D-662: the upload size policy follows the two upload settings from the next upload on.
+    if let Some(tx) = &ctx.deps.upload_policy {
+        let next = crate::routes::messages::size_policy_from_settings(&views);
+        tx.send_if_modified(|cur| std::mem::replace(cur, next) != next);
+    }
     Ok(Json(views))
 }
 

@@ -834,6 +834,29 @@ async fn every_account_search_is_logged() {
     );
 }
 
+/// D-662: a stored row of a setting that is no longer listed is left in the table, never shown, and never fails
+/// the page; a patch that names it is refused like any unknown key.
+#[tokio::test]
+async fn the_removed_settings_are_not_listed_and_a_stored_row_of_one_is_ignored() {
+    let e = env();
+    let owner = e.svc.resolve(OWNER, None).await.unwrap();
+    e.repo.seed_setting("messages.max_length", json!(4_000));
+    e.repo.seed_setting("invites.credit_price_usd", json!(20));
+    // An old stored standard limit above the new maximum reads as the default for the policy.
+    e.repo
+        .seed_setting("uploads.standard_limit_bytes", json!(107_374_182_400_i64));
+    let view = e.svc.settings_view(&owner).await.unwrap();
+    for gone in ["messages.max_length", "invites.credit_price_usd"] {
+        assert!(view.iter().all(|s| s.key != gone), "{gone} is still listed");
+    }
+    assert_eq!(view.len(), crate::settings::CATALOG.len());
+    let r = e
+        .svc
+        .patch_settings(&owner, &[("messages.max_length".into(), json!(100))], None)
+        .await;
+    assert!(matches!(r, Err(AdminError::Invalid(m)) if m.contains("messages.max_length")));
+}
+
 #[tokio::test]
 async fn settings_are_validated_and_thresholds_ordered() {
     let e = env();

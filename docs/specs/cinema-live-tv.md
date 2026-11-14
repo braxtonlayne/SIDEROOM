@@ -35,22 +35,22 @@ Expected production lineup (the owner's words): several "Adult Swim" channels fr
 - Channel timezone (D-103), default = operator timezone. The guide displays viewer-local times with a toggle to "channel time" (useful for era-authentic "8 PM block" channels).
 - `resolve(channel, window) -> Vec<Block{start, end, asset_id, rendition_set, offset_ms}>` is deterministic: same inputs give the same schedule (seeded RNG per channel per week for shuffles). Results are cached per channel per day and invalidated on edits or library changes.
 - Programs whose duration doesn't fit the slot: trim policy (`cut` at slot end / `overrun` and shift / `fit` with filler). Default `overrun` for series, `cut` never for movies.
-- **Live playlist generation:** on `GET /tv/{channel}/live/{height}.m3u8`:
+- **Live playlist generation:** on `GET /tv/channels/{id}/live/v/{height}.m3u8` (section 8.4):
   1. now = server time. Find the current block and the segment index covering `now - block.start`.
   2. Emit a sliding-window media playlist (e.g. 6 segments) of signed URLs to existing VOD segments for that rendition, `#EXT-X-MEDIA-SEQUENCE` derived from wall-clock (so all viewers share sequence numbers), `#EXT-X-DISCONTINUITY` at program boundaries, `#EXT-X-PROGRAM-DATE-TIME` tags.
   3. A master playlist lists the 1080/720/480 variants (only those available for all upcoming blocks. If a program lacks a rung, the player drops to the common subset).
   4. **One numbering domain (D-267).** The slate is part of the same media-sequence and discontinuity-sequence chain as the programmes: the first slate segment after a programme is its last segment number + 1 (discontinuity sequence + 1), every later slate segment adds one, a programme that starts after a gap counts on from the slate segment on air at its start, and the window across such a boundary lists both sides with `#EXT-X-DISCONTINUITY`, `#EXT-X-MAP` and `#EXT-X-PROGRAM-DATE-TIME`. Numbers are wall-clock seeded only where nothing precedes them. The slate counts on from a per-channel chain anchor stored with the channel (the end of the last viewed programme and the numbers after it, D-285), so the numbers stay monotone whatever the length of a gap. While a channel is off air the master offers the standard rung set and `GET /tv/channels/{id}/tune` answers `state: off_air` with `slate: true` and the slate `master_url` (`current` and `offset_ms` null), so the player plays the slate with its off-air captions over it; without a slate there is no `master_url` and `slate` is false. per playlist request (a few per viewer per minute). "Dies once they leave" (D-101) is automatic.
-- Guide API: `GET /sr/tv/guide?from&to&channels=` returns blocks for the grid. `GET /sr/tv/channels/{id}/now`.
+- Guide API (as built, section 8): `GET /tv/guide?from&to&channels=` returns blocks for the grid. `GET /tv/channels/{id}/now`.
 
 ## 6. Admin (MANAGE_TV)
 Channel editor: number, call sign, name, era label, logo upload, kind, timezone, age-restricted flag, filler policy, rules editor (for rule_based), weekly grid editor (manual), **guide import** (CSV/JSON template with columns `weekday, start_time, duration, show, season?, episode?, note`; the importer fuzzy-matches shows to library titles and shows a mapping report: matched / ambiguous (pick) / missing (will be skipped)), schedule preview (next 7 days), "simulate now" time-travel for testing.
 
 ## 7. Acceptance criteria
-- [ ] Two browsers tuning into the same channel at the same moment show the same frame within ±1 segment (6s).
-- [ ] Joining 17 minutes into a program starts 17 minutes in.
-- [ ] With zero viewers, no CPU or I/O is attributable to the channel (verified by metrics).
-- [ ] An imported guide with 30% missing shows plays continuously with skips/filler and never errors.
-- [ ] Safari (native HLS) handles discontinuities between programs with different audio layouts.
+- [ ] Two browsers tuning into the same channel at the same moment show the same frame within ±1 segment (6s). _(built: the media sequence is derived from stored per-block bases, identical for every viewer, section 8.4; left: nothing has played a real stream, section 8)_
+- [x] Joining 17 minutes into a program starts 17 minutes in. _(`crates/sr-tv/src/service_tests.rs:171`, `resolve_tests.rs:225`)_
+- [ ] With zero viewers, no CPU or I/O is attributable to the channel (verified by metrics). _(built: no per-channel process, each playlist request computes from the clock; left: no metrics check found)_
+- [x] An imported guide with 30% missing shows plays continuously with skips/filler and never errors. _(`crates/sr-tv/src/resolve_tests.rs:113`, `service_tests.rs:1215`; the 30 % figure itself is not a fixture)_
+- [ ] Safari (native HLS) handles discontinuities between programs with different audio layouts. _(built: `#EXT-X-DISCONTINUITY` and a new `#EXT-X-MAP` at every boundary, section 8.4; left: needs a real Safari run, none recorded)_
 
 ## 8. HTTP API as built (phase 8, crate `sr-tv`)
 
@@ -115,6 +115,7 @@ Items without a runtime or an asset are never scheduled. Bumpers are published t
 | `GET /tv/channels/{id}/now` | `{channel_id, at_ms, offset_ms?, current?: Block, next?: Block, viewers}`; `offset_ms` is how far into the current block's programme the wall clock is (17 minutes in = 1020000) |
 | `GET /tv/guide?from=&to=&channels=` | `{from_ms, to_ms, now_ms, channels: [{channel: Channel (no now/next), blocks: Block[]}]}`; `from` default now rounded down to the half hour, `to` default `from`+4 h, window at most 48 h (400 otherwise), `channels` is a comma list of ids (default all enabled). Blocks overlapping the window are returned whole |
 | `GET /tv/timezones` | `{items: string[]}` every IANA zone (jiff's bundled database) |
+| `GET /tv/reminders` | the caller's pending reminders (a reminder whose block was regenerated away is listed with `title: null` until the next tick drops it) |
 | `PUT /tv/reminders/{block_id}?lead_minutes=` | 204. Remind the caller before an upcoming programme (default 5 minutes, 0 to 120); setting it again moves it; 400 for a programme that already started. Session only (bots 403). Fired by the `userfeat.tick` job (15 s) as a DM from the system user, which is a notification and a push like any DM. When the block was regenerated away by then, the DM says the reminder was dropped |
 | `DELETE /tv/reminders/{block_id}` | 204 (also when none was set) |
 | `GET /tv/favorites` | `{items: string[]}` the caller's starred channel ids |
@@ -149,6 +150,7 @@ Every successful change is written to the staff access log: `tv.channel.create|u
 | `DELETE /admin/tv/blocks/{id}` | 204 |
 | `PUT /admin/tv/channels/{id}/now` | `{title_id, episode_id?, offset_ms?}` -> `Block`: starts that programme now (`offset_ms` into it), cutting the block on air; the schedule continues after it |
 | `GET /admin/tv/channels/{id}/now?at_ms=` | as the member `now` but at any moment (time travel, "simulate now"), reads stored blocks only |
+| `GET /admin/tv/slate` | whether an off-air slate is configured (platform setting `tv.slate_asset`, made by `sr-cli tv slate`, D-269), its asset id and whether it plays |
 | `GET /admin/tv/report?from=&to=&channel=` | `{from_ms, to_ms, channels: [{channel_id, number, name, aired_ms, programmes, overrides}], items: [{block: Block, aired_ms}]}` what aired: stored blocks that started before now, clipped to the window (default the last 24 h, at most 31 days). Viewer figures are not persisted (D-101) |
 
 ### 8.6 Imported guides (`imported_guide`, migration 1000)

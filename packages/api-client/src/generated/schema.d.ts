@@ -8141,6 +8141,9 @@ export interface paths {
         /**
          * Gateway URL and session limits for a bot. `shards` is the recommended shard count: one
          *     per [`GUILDS_PER_SHARD`] servers the application is installed in, at least 1.
+         * @description SIDE ROOM has no session start limit (D-666): `session_start_limit` is always `total: 1000`,
+         *     `remaining: 1000`, `reset_after: 0`, `max_concurrency: 1`, there for library compatibility. The
+         *     numbers are fixed and never count down; the gateway's own connection rate limits bound IDENTIFY abuse.
          */
         get: operations["gateway_bot"];
         put?: never;
@@ -18789,7 +18792,7 @@ export interface components {
         BridgeRestoredObject: {
             discord_channel_id: string;
         };
-        /** @description What the owner's screen shows. */
+        /** @description What the bridge screen shows (to everyone with Manage Server once the module is on, D-634). */
         BridgeStatusObject: {
             bridge?: null | components["schemas"]["BridgeObject"];
             /** @description A bot token is held. */
@@ -18934,6 +18937,11 @@ export interface components {
             status: string;
         };
         BugList: {
+            /**
+             * @description D-647: `platform.beta_reports` is on and the platform has 100 or more active accounts, so the page tells staff
+             *     the beta tool has outgrown its purpose. No number is given: `STAFF_BASIC` staff need not learn the account count.
+             */
+            beta_over_100: boolean;
             /**
              * Format: int64
              * @description Open reports in all, for the badge (not only those in `reports`).
@@ -22479,6 +22487,12 @@ export interface components {
              *     in the rail and show the staff badge.
              */
             is_staff_guild?: boolean;
+            /**
+             * Format: int64
+             * @description The most members the server may have (D-660; the operator's `guilds.max_members`), `null` for the Staff
+             *     Server, which has no limit. Only on `GET /guilds/{id}`.
+             */
+            max_members?: number | null;
             /**
              * Format: int32
              * @description 0 none, 1 elevated: moderator actions need a recent second factor

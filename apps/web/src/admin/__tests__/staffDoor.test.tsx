@@ -33,3 +33,42 @@ describe('StaffDoor (SEC-AUD-172)', () => {
     expect(screen.getByRole('status')).toBeTruthy();
   });
 });
+
+describe('StaffDoor and the staff catalog (SEC-AUD-187, D-663)', () => {
+  it('the Admin app renders only after the staff catalog has registered', async () => {
+    let registered: () => void = () => {};
+    const loadCatalog = vi.fn(() => new Promise<void>((r) => (registered = r)));
+    const load = vi.fn(() => Promise.resolve(Page));
+    render(<StaffDoor ask={() => Promise.resolve({})} load={load} loadCatalog={loadCatalog} />);
+    await waitFor(() => expect(loadCatalog).toHaveBeenCalledTimes(1));
+    // The Admin chunk is in, the catalog is not: nothing of the app is shown yet.
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('admin page')).toBeNull();
+    registered();
+    expect(await screen.findByText('admin page')).toBeTruthy();
+  });
+
+  it('a member (the /admin/me question is refused) never asks for the staff catalog', async () => {
+    const loadCatalog = vi.fn(() => Promise.resolve());
+    render(
+      <StaffDoor
+        ask={() => Promise.reject(new Error('403'))}
+        load={() => Promise.resolve(Page)}
+        loadCatalog={loadCatalog}
+      />,
+    );
+    expect(await screen.findByText('nothing here')).toBeTruthy();
+    expect(loadCatalog).not.toHaveBeenCalled();
+  });
+
+  it('a catalog that cannot load still opens the app (the catalog settles degraded, keys show)', async () => {
+    render(
+      <StaffDoor
+        ask={() => Promise.resolve({})}
+        load={() => Promise.resolve(Page)}
+        loadCatalog={() => Promise.resolve()}
+      />,
+    );
+    expect(await screen.findByText('admin page')).toBeTruthy();
+  });
+});

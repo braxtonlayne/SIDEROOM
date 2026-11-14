@@ -28,7 +28,7 @@ use crate::routes::admin::{StaffCtx, map_err};
 use crate::state::AppState;
 use axum::{
     Json,
-    extract::{DefaultBodyLimit, Path, Query},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::{HeaderName, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -97,6 +97,8 @@ pub trait BugStore: Send + Sync {
     async fn insert(&self, new: &NewBug) -> Result<i64, String>;
     /// Newest first, without description or bundle; and the number of open reports.
     async fn list(&self, status: Option<&str>, limit: i64) -> Result<(Vec<BugRow>, i64), String>;
+    /// Active accounts of the platform (the count the Admin dashboard shows as `accounts_active`: bots excluded).
+    async fn active_accounts(&self) -> Result<i64, String>;
     async fn get(&self, id: i64) -> Result<Option<BugRow>, String>;
     async fn screenshot(&self, id: i64) -> Result<Option<Vec<u8>>, String>;
     /// Close the report and delete its picture. Idempotent. `false` when there is no such report.
@@ -393,7 +395,13 @@ pub struct BugList {
     pub reports: Vec<BugSummary>,
     /// Open reports in all, for the badge (not only those in `reports`).
     pub open_count: i64,
+    /// D-647: `platform.beta_reports` is on and the platform has 100 or more active accounts, so the page tells staff
+    /// the beta tool has outgrown its purpose. No number is given: `STAFF_BASIC` staff need not learn the account count.
+    pub beta_over_100: bool,
 }
+
+/// The active-account count at which the beta bug reporter is reported as outgrown (D-647).
+pub const BETA_NOTICE_ACCOUNTS: i64 = 100;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct BugDetail {
@@ -435,6 +443,7 @@ pub struct ListQuery {
     security(("session" = []))
 )]
 pub async fn list(
+    State(state): State<AppState>,
     ctx: StaffCtx,
     Ext(deps): Ext<BugDeps>,
     Query(q): Query<ListQuery>,
@@ -457,9 +466,21 @@ pub async fn list(
         .list(status, q.limit.unwrap_or(50).clamp(1, 200))
         .await
         .map_err(|e| internal(&e))?;
+    // One cheap count per call, and only while the switch is on.
+    let beta_over_100 =
+        if crate::module_gate::platform_on(&state, sr_features::BETA_REPORTS_ID).await {
+            deps.repo
+                .active_accounts()
+                .await
+                .map_err(|e| internal(&e))?
+                >= BETA_NOTICE_ACCOUNTS
+        } else {
+            false
+        };
     Ok(Json(BugList {
         reports: rows.iter().map(summary).collect(),
         open_count,
+        beta_over_100,
     }))
 }
 

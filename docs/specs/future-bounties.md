@@ -1,6 +1,6 @@
 # Future Idea — Content Bounties
 
-**Status: documented only. Do not build** (D-090). Captured so the idea isn't lost and so current schemas don't block it.
+**Status: documented only. Do not build** (D-090). Captured so the idea isn't lost and so current schemas don't block it. As of `integration/phase65` nothing of it is built: no `bounty_*` column exists under `crates/sr-db/migrations/`, and the requests board (`crates/sr-api/src/routes/review/requests.rs`) is non-bounty only.
 
 ## 1. Idea
 A member requests a title or series (normal Request, see the submissions spec §7) and **attaches a bounty**: a promise to pay whoever gets a matching submission approved.

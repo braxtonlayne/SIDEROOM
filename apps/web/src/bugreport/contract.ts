@@ -89,6 +89,8 @@ export interface BugReportRow {
 export interface BugReportList {
   reports: BugReportRow[];
   open_count: number;
+  /** D-647: the beta reporter is on and the platform has 100 or more active accounts (no number is given). */
+  beta_over_100?: boolean;
 }
 
 export interface BugReportDetail extends BugReportRow {

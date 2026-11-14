@@ -1,6 +1,6 @@
 # Spec — Watch Parties
 
-Phase 5 · Decisions: D-110 · Permissions: `START_WATCH_PARTY`, `CONTROL_WATCH_PARTY` (doc 07).
+Phase 5 · Decisions: D-110, D-515 to D-518 (outside media) · Permissions: `START_WATCH_PARTY`, `CONTROL_WATCH_PARTY` (doc 07).
 
 ## 1. What it is
 Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, with chat and voice. Each viewer streams the HLS media themselves from SIDE ROOM. Only **control state** is synchronized, so a party costs about the same as N people watching separately.
@@ -12,6 +12,7 @@ Synchronized playback of Cinema content (VOD or a Live TV channel) for a group, 
 | Lounge voice channel → **Start Watch Party** (call bar button) | Party bound to that voice channel. Voice continues as normal (E2EE call) |
 | **Watch party room** preset (create-channel dialog, D-208) | There is no channel type of its own: `POST /guilds/{id}/channels {type: 2, sr_watch_party_room: true, sr_watch_party_title_id?, sr_watch_party_episode_id?}` (the title is optional since D-227: without one the room starts empty, `media: null`) creates the voice channel and a persistent party bound to it in one request (the new channel is removed again when the party cannot start). The creator is not left in the party; the first person to join the empty room becomes host |
 | Lounge message `<cinema:…>` card → **Watch together** | Starts a party in that channel |
+| Chat card with a YouTube, Vimeo, PeerTube or direct-file link → **Watch together** | A party on media outside the Cinema catalog (PRF-UNF-001, section 7.5a). Needs the platform switch `platform.watch_together_embeds` (`crates/sr-api/src/routes/watchparty/mod.rs:51`) |
 | Live TV → **Watch together** (guide now panel, live player) | Party on a live channel: `POST /watch-parties {tv_channel_id}` (instead of `title_id`). The media has `live: true`, `title_id` and `asset_id` carry the TV channel id, there is no duration, nobody seeks or pauses, and every participant tunes the channel themselves (`GET /tv/channels/{id}/tune`, age check included). `PUT /watch-parties/{id}/media {tv_channel_id}` switches a party to a channel; a live channel cannot be queued. `sr-tv` answers the `PlayGate::resolve_live` check |
 
 A system message in the channel ("@host started a watch party: *Akira* ▶ Join") updates live (viewers count, now playing).
@@ -38,10 +39,10 @@ A system message in the channel ("@host started a watch party: *Akira* ▶ Join"
 Concurrent parties per server by server level (doc 08). Party size ≤ the server's voice channel limit (if voice-bound), otherwise 50. Age-restricted titles require every participant to have confirmed 18+. Unconfirmed users see "This party is showing age-restricted content."
 
 ## 6. Acceptance criteria
-- [ ] 10 viewers stay within ±300 ms of each other for a full film on mixed networks (sim test).
-- [ ] Host pause/seek reflects on all clients within 500 ms.
-- [ ] Navigating from the theatre to the Lounge keeps both the voice call and the mini player running.
-- [ ] Shared-control off: non-hosts' play/pause buttons are disabled, and the server rejects their control ops.
+- [x] 10 viewers stay within ±300 ms of each other for a full film on mixed networks (sim test). _(built: `apps/web/src/watchparty/__tests__/drift.sim.test.ts:121` runs ten real controllers with skew and jitter for ten simulated minutes and asserts 300 ms; it is a simulation, not a full film on real networks)_
+- [ ] Host pause/seek reflects on all clients within 500 ms. _(built: every change is dispatched as `WATCH_PARTY_PLAYBACK`, `crates/sr-watchparty/src/ports.rs:14`; left: no test or run measures the 500 ms)_
+- [x] Navigating from the theatre to the Lounge keeps both the voice call and the mini player running. _(`apps/web/src/watchparty/Theatre.tsx:45` hands a Cinema party to the mini player on leaving; `__tests__/theatre.test.tsx:424`; the voice session is app-wide, so it is not tied to the theatre. A party on an outside link has no mini player and stops when the viewer leaves)_
+- [x] Shared-control off: non-hosts' play/pause buttons are disabled, and the server rejects their control ops. _(`apps/web/src/watchparty/ControlBar.tsx:44-81` (`aria-disabled`), `crates/sr-watchparty/src/playback.rs:82` (`Forbidden`), `rules.rs:256`)_
 
 ## 7. HTTP and gateway API as built
 
@@ -53,7 +54,7 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 - **Party** `{id, host_id, binding, guild_id?, channel_id?, invite_code?, media, playback, settings, participants[], queue[], created_at_ms, ended, you?}`.
   `binding` is `channel` (a guild text or voice channel), `dm` (DM or group DM) or `private` (joined by link).
   `invite_code` is only returned to members of a private party; the share link is `/cinema/party/{id}?code={invite_code}`.
-- **Media** `{title_id, episode_id ("0" = movie), variant_id?, asset_id, title, episode_label?, duration_ms?, age_restricted, live}`. The server resolves it with the catalog's play check (`CinemaService::resolve_play`): the title must be published and playable, a restricted one needs the caller's age confirmation (403, code 900011, D-184). **The party never hands out media URLs.** Every participant fetches HLS themselves through the normal `GET /cinema/assets/{asset_id}/playback` checks.
+- **Media** `{title_id, episode_id ("0" = movie), variant_id?, asset_id, title, episode_label?, duration_ms?, age_restricted, live, kind, url?, provider?, page_url?, format?}`; `kind` is `cinema`, `embed` or `direct` (section 7.5a). The server resolves it with the catalog's play check (`CinemaService::resolve_play`): the title must be published and playable, a restricted one needs the caller's age confirmation (403, code 900011, D-184). **The party never hands out media URLs.** Every participant fetches HLS themselves through the normal `GET /cinema/assets/{asset_id}/playback` checks.
 - **Playback** `{version, playing, position_ms, rate, at_ms, server_time_ms, expected_position_ms, auto_paused, duration_ms?, live}`. The media should be at `position_ms + (server_clock - at_ms) * rate` while `playing`. `version` increases by one with every change and orders the states; a client ignores anything not newer than what it applied. `server_time_ms` is stamped on every state.
 - **Settings** `{shared_control, queue_policy, auto_pause_buffering, max_wait_ms, persistent, max_participants}`. `shared_control` and `queue_policy` are `host`, `controllers` (the host, participants the host named controllers, and members with `CONTROL_WATCH_PARTY` in the bound channel) or `everyone`. Defaults: shared control `host`, queue `controllers`, auto-pause on, max wait 10 s, 50 participants (at most the voice limit of a voice-bound channel).
 - **You** `{member, host, can_control, can_queue, can_manage}` (present on REST reads, absent in gateway events).
@@ -62,7 +63,7 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 | Method and path | Who | Notes |
 |---|---|---|
 | `GET /watch-parties/time` | any member | `{server_time_ms}`: clock sample for the offset estimate |
-| `POST /watch-parties` | member | `{title_id, episode_id?, variant_id?, channel_id?, start_ms?, settings?}`. With `channel_id`: needs view and `START_WATCH_PARTY` (DM recipients always may). Without: private. 201. 409 if the channel already has a party or the server is at its limit (docs/08: 2/4/8/16 by level; level 0 until server levels exist). The caller leaves any other party |
+| `POST /watch-parties` | member | `{title_id, episode_id?, variant_id?, tv_channel_id?, empty?, external?, channel_id?, start_ms?, settings?}` (`external` is `{url, title?}`, section 7.5a). With `channel_id`: needs view and `START_WATCH_PARTY` (DM recipients always may). Without: private. 201. 409 if the channel already has a party or the server is at its limit (docs/08: 2/4/8/16 by level; level 0 until server levels exist). The caller leaves any other party |
 | `GET /watch-parties/me` | member | the party the caller is in (404 if none) |
 | `GET /watch-parties/{id}` | member or channel viewer | masked for non-members without age confirmation when restricted |
 | `GET /channels/{channel_id}/watch-party` | channel viewer | the channel's live party |
@@ -74,14 +75,14 @@ session, and use snowflakes as decimal strings. Times are unix milliseconds on t
 | `PUT /watch-parties/{id}/controllers/{user_id}` | host or manager | `{controller}` |
 | `DELETE /watch-parties/{id}/members/{user_id}` | host or manager | kick and bar |
 | `POST /watch-parties/{id}/playback` | controllers (`ended`: any participant) | `{action: play, pause, seek, rate or ended; position_ms?, rate?, expected_version?}` returns the Playback. 403 without control, 409 `{..., playback}` on a stale `expected_version`, 429 over the rate limit |
-| `PUT /watch-parties/{id}/media` | controllers | `{title_id, episode_id?, variant_id?, start_ms?}`; restricted media removes participants without age confirmation |
-| `POST /watch-parties/{id}/queue` | per `queue_policy` | `{title_id, episode_id?, variant_id?}` (max 100) |
+| `PUT /watch-parties/{id}/media` | controllers | `{title_id, episode_id?, variant_id?, tv_channel_id?, external?, start_ms?}`; restricted media removes participants without age confirmation |
+| `POST /watch-parties/{id}/queue` | per `queue_policy` | `{title_id, episode_id?, variant_id?}` (max 100; 30 writes per minute) |
 | `PATCH /watch-parties/{id}/queue/{item}` | controllers | `{position}` |
 | `DELETE /watch-parties/{id}/queue/{item}` | per policy, or who added it | |
 | `POST /watch-parties/{id}/next` | controllers | skip to the next queue entry (409 if empty) |
 | `POST /watch-parties/{id}/heartbeat` | participant | `{rtt_ms?, buffering?, ready?}` returns `{server_time_ms, playback, member}`; send every 15 to 30 s |
 | `POST /watch-parties/{id}/reactions` | participant | `{emoji}`, 8 per 5 s |
-| `POST /watch-parties/{id}/messages` | participant | `{content}` ephemeral chat of private parties (not stored), 6 per 10 s |
+| `POST /watch-parties/{id}/messages` | participant | `{content}` (up to 500 characters) ephemeral chat of private parties (not stored), 6 per 10 s |
 | `GET /watch-parties/{id}/audit` | host or manager | party-level audit entries, newest first |
 
 **Who may join.** Private: the invite code (404 otherwise, so parties cannot be probed). Bound: anyone who can see the channel. Always: not kicked, not full, and for a restricted title age-confirmed (else 403 900011; the client shows "This party is showing age-restricted content"). An account is in at most one party at a time: joining or creating leaves the previous party.
@@ -108,3 +109,6 @@ A party bound to a channel has one **card**: a message of type **200** authored 
 ### 7.5 Phase 13 rules
 - **Empty rooms (D-227).** A persistent party bound to a voice channel may have `media: null` and state `idle`. The room preset does not ask for a title; the first person to join an idle room hosts and picks the media, and the play gate, limits and age rule run at that moment. Ad-hoc parties still need media at creation.
 - **Live party media (P12-TVW-3).** Live TV media is identified by `title_id` with `live: true` and is gated at tune time (the channel's own access rules), not at party creation.
+
+### 7.5a Media outside the catalog (PRF-UNF-001)
+A party can play a YouTube or Vimeo link (the provider's privacy-enhanced embed), a PeerTube link or a direct media file instead of a Cinema title: `external: {url, title?}` on `POST /watch-parties` and `PUT /watch-parties/{id}/media`. It is refused with `FeatureDisabled` unless `platform.watch_together_embeds` is on (`crates/sr-api/src/routes/watchparty/mod.rs:51`). Media `kind` is `embed` (an iframe the sync controller drives through the provider's `postMessage` commands, no provider script) or `direct` (the browser's own `<video>`, a file or an HLS playlist, `format` `file|hls`). The server fetches nothing for YouTube, Vimeo or a file; it checks the address and stores the canonical form (`crates/sr-watchparty/src/external.rs`). A link to an instance in `SR_PEERTUBE_HOSTS` (D-515, D-516) is the one fetch: once at start or media change the server asks the instance's public API for the file or playlist (largest web video at or under 1080p, else the first HLS playlist) and the party plays it as `direct` media, only when its host is the instance or in `SR_MEDIA_HOSTS` (D-517); a live, password-protected or unavailable video is refused with its own sentence (D-532). Migration `2360_party_peertube.sql` adds `media_page_url` and `media_format`. A party on an outside link has no mini player (leaving the theatre stops it), and the viewer's browser loads it only after a click (`apps/web/src/watchparty/ExternalStage.tsx`). Playback commands, queue and drift handling are the same as for Cinema media.

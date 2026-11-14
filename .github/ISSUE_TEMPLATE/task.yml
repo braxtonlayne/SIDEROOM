@@ -16,4 +16,4 @@ body:
     id: phase
     attributes:
       label: Phase
-      options: ["0 Foundation","1 Lounge text","2 Lounge voice","3 Staff/Donations","4 Library","5 Cinema","6 Developer platform","7 Moderation"]
+      options: ["0 Foundation","1 Lounge text","2 Lounge voice","3 Staff/Donations","4 Library","5 Cinema","6 Developer platform","7 Moderation","20-26 Launch readiness","27-48 Feature phase","49 and later: audit fixes and follow-ups"]

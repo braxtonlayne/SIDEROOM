@@ -6,7 +6,7 @@ Running the instance after the install (daily checks, settings, Admin > System, 
 
 ## Quick install (Docker Compose, one host)
 
-`deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner and brings the whole stack up. The server image carries `sr-cli`, so no host binary is needed.
+`deploy/install.sh` does sections 3 to 5 for the Compose stack. It asks for the domain, the mail server and the Owner account, generates every secret fresh (`deploy/compose/.env.prod` and `garage.prod.toml`, mode 0600), then starts Postgres and Garage, creates the bucket and key, applies the migrations and the bucket CORS rule, creates the Owner, installs the starter packs that ship with the release (`packages/starter-packs`), brings the whole stack up and ends with `sr-cli preflight`, whose table says whether the box is ready for the first invite (`SR_INSTALL_PREFLIGHT=warn|strict|skip`; a FAIL row is reported, and with `strict` makes the script exit 3). It also asks whether to fetch the emulator cores (`SR_INSTALL_EMU_CORES`, [EMULATOR.md](EMULATOR.md)) and whether to run the optional `electrs` container for donations (`SR_PAYMENTS_ELECTRS`, doc 12). The server image carries `sr-cli`, so no host binary is needed.
 
 ```
 deploy/install.sh              # interactive
@@ -14,11 +14,11 @@ deploy/install.sh --yes        # answers from SR_DOMAIN, SMTP_HOST, SR_OWNER_EMA
 deploy/install.sh --no-start   # write the files and print the commands instead of running them
 ```
 
-It refuses to touch an existing installation unless `--force` (which regenerates every secret and keeps the old files as `*.bak`). The web build must be unpacked into `SR_WEB_DIR` (`/opt/sideroom/web` by default) before Caddy can serve it. Back up `.env.prod`: `SR_SECRET_KEY` decrypts every stored TOTP secret. The rest of this page is the manual route and the reference for what the script does.
+It refuses to touch an existing installation unless `--force` (which regenerates every secret and keeps the old files as `*.bak`). The web build must be unpacked into `SR_WEB_DIR` (`/opt/sideroom/web` by default) before Caddy can serve it: it is the release file `sideroom-<tag>-web.tar.gz` (its top-level directory is `web/`, so `tar -xzf sideroom-<tag>-web.tar.gz -C /opt/sideroom` fills `/opt/sideroom/web`; check it against `SHA256SUMS` first). That build is the default one; if you need `VITE_PUBLIC_URL`, `VITE_ACTIVITIES_ENABLED` or `VITE_VOICE_PUBLIC_URL` set (doc 12 "Install steps"), build `apps/web` from source instead. Back up `.env.prod`: `SR_SECRET_KEY` decrypts every stored TOTP secret. The rest of this page is the manual route and the reference for what the script does.
 
 **Local import folder.** The installer also asks for a folder on the host (default `/srv/sideroom/ingest`, created when missing; type `none` to leave local folders off). Compose mounts it into `sr-server` read-only at the same path and sets `SR_INGEST__ROOTS` to it (`SR_INGEST_DIR` and `SR_INGEST_ROOTS` in `.env.prod`; an empty `SR_INGEST_ROOTS` turns local folders off). There is one root; put the series under a `library/` sub-folder, named as in [ingest-naming-conventions](../docs/specs/ingest-naming-conventions.md). The mount is read-only and the ingest ledger never moves, renames or deletes files in it. The Hetzner Storage Box is a backup target, not a mount: until the owner mounts one on the host, pointing `SR_INGEST_DIR` at the mounted path is the only change needed.
 
-The ordered path from an empty server to the first invites (harden, DNS, install, preflight, a restore, monitoring, the Setup Wizard, the lawyer settings) is [GO-LIVE.md](GO-LIVE.md).
+The ordered path from an empty server to the first invites (harden, DNS, install, preflight, a restore, monitoring, the Setup checklist, the lawyer settings) is [GO-LIVE.md](GO-LIVE.md).
 
 ## 1. What you need
 
@@ -79,6 +79,8 @@ from = "SIDE ROOM <no-reply@example.org>"
 
 Put `database.url`, `server.secret_key`, `storage.access_key`, `storage.secret_key`, `smtp.password` and `discord.client_secret` in the environment, not in this file.
 
+A release build of `sr-server` (the image and the release binaries) refuses to start, naming the key, when it finds a setting meant for tests: an empty `server.secret_key`, `unfurl.allow_private_for_tests`, `storage.endpoint = "memory:"`, `activities.origin_mode = "same_host_sandboxed"`, or a `server.metrics_bind` that is not loopback while `server.metrics_token` is empty (UPGRADE.md, wave 54). `gateway.max_unidentified_per_ip` (default 32) limits the sockets one client address may hold before they sign in; raise it when many members share one address.
+
 Limits that are product settings (upload size, invite caps) are stored in the database and set from the admin pages, not here. (doc 12 §3)
 
 **Voice, Activities and PeerTube on the Compose route.** All three are off by default and switched on from `.env.prod`; `prod.yml` passes them to `sr-server`.
@@ -111,8 +113,6 @@ Limits that are product settings (upload size, invite caps) are stored in the da
    sr-cli bootstrap --owner-username <name> --owner-email <email>
    ```
 
-   Known gap: bootstrap creates the Staff Server but not its default roles yet (see the open questions).
-
    Then give the bucket its CORS rule. Chat uploads are presigned `PUT`s from the browser straight to the bucket (D-175), so without the rule the browser blocks them. The command reads the `[storage]` settings and does not need the database. It is safe to run again, because the rule is replaced, not appended:
 
    ```
@@ -123,11 +123,11 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 5. **Start the server.** `sr-server` (or `sr-server serve`) reads `SR_CONFIG`. Check `GET /healthz` (liveness) and `GET /readyz` (checks Postgres and object storage); `sr-server healthcheck` runs the `/readyz` probe from the command line and is what the container health check uses.
 
-6. **Put the reverse proxy in front, and give the server the web build.** Set `web.root` (`SR_WEB__ROOT`) to the unpacked `apps/web/dist`: `sr-server` serves the app (`/app`, `/app/*`, every in-app path) from it to a signed-in session only and refuses to start when `app/csp.txt` is missing; the proxy serves only the public files and forwards every other path to the server (D-385). Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*` (the shipped Caddyfile forwards only `POST /internal/csp-report`, the browsers' CSP violation reports) or `/readyz` (it names each dependency and its error; the shipped Caddyfile answers it with 404), and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the public part of the web app (landing, sign-in, invite, fonts, icons, service worker) with the security headers and the public Content-Security-Policy, proxying everything else to the server; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
+6. **Put the reverse proxy in front, and give the server the web build.** Set `web.root` (`SR_WEB__ROOT`) to the unpacked web build (the release file `sideroom-<tag>-web.tar.gz`, which is `apps/web/dist`): `sr-server` serves the app (`/app`, `/app/*`, every in-app path) from it to a signed-in session only and refuses to start when `app/csp.txt` is missing; the proxy serves only the public files and forwards every other path to the server (D-385). Forward `/api/*`, `/gateway` and `/cdn/*` to `server.bind`. Do not forward `/internal/*` (the shipped Caddyfile forwards only `POST /internal/csp-report`, the browsers' CSP violation reports) or `/readyz` (it names each dependency and its error; the shipped Caddyfile answers it with 404), and keep `metrics_bind` on loopback. `deploy/compose/caddy/Caddyfile.prod` does this and also serves the public part of the web app (landing, sign-in, invite, fonts, icons, service worker) with the security headers and the public Content-Security-Policy, proxying everything else to the server; `deploy/compose/prod.yml` is the whole stack as Docker Compose, and `deploy/systemd/` has the units for the plain-binary route. For everything around the install see [BACKUP.md](BACKUP.md), [UPGRADE.md](UPGRADE.md), [RUNBOOK.md](RUNBOOK.md), [GARAGE.md](GARAGE.md) and the [FAQ](FAQ.md).
 
 7. **Set the stop timeout.** The server drains for `shutdown_grace_secs` after SIGTERM, then for jobs again. Set the container or service stop timeout above `2 * shutdown_grace_secs` (50 s by default, so use 60 s). Docker's default of 10 s cuts the drain short.
 
-Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check.
+Do not run `sr-cli seed` on an installation you care about. It refuses unless `server.public_url` is local, and `--force` overrides that check (and then needs `--password`: at least 12 characters, not the built-in development password).
 
 Backups: `sr-cli backup` takes a one-off dump with a checksum manifest and `sr-cli restore` loads one back (both need the PostgreSQL client tools); the scripts in `deploy/scripts` add the schedule, retention, object snapshots, WAL archiving and the restore drill. See [BACKUP.md](BACKUP.md). Keep the `server.secret_key` value with the backups, because the TOTP secrets in the database cannot be read without it.
 
@@ -138,7 +138,7 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 | Path | What goes there |
 |---|---|
 | `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries (take them out of the server image with `docker cp`, or build them), mode 0755 |
-| `/opt/sideroom/web` | the built `apps/web/dist` of the same release, readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
+| `/opt/sideroom/web` | the web build of the same release (`sideroom-<tag>-web.tar.gz`, the built `apps/web/dist`), readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
 | `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
 | `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
 | `/var/lib/sideroom` | the server's state and search index (`StateDirectory=sideroom` creates it) |
@@ -149,8 +149,8 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
    useradd --system --no-create-home --shell /usr/sbin/nologin sideroom
    install -d -m 755 /opt/sideroom/bin
    install -m 755 sr-server sr-cli /opt/sideroom/bin/
-   install -d -m 755 /opt/sideroom/web
-   cp -R dist/. /opt/sideroom/web/   # the release's built apps/web/dist
+   install -d -m 755 /opt/sideroom
+   tar -xzf sideroom-<tag>-web.tar.gz -C /opt/sideroom   # the release's built apps/web/dist, as /opt/sideroom/web
    test -f /opt/sideroom/web/app/csp.txt
    install -d -m 700 /etc/sideroom
    ```

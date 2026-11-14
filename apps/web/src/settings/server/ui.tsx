@@ -71,11 +71,13 @@ export function Async<T>({
 }
 
 /** Runs a mutation, tracking busy state and a user-facing error. */
-export function useAction() {
+export function useAction(describe?: (e: unknown) => string | null) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const live = useRef(true);
+  const describeRef = useRef(describe);
+  describeRef.current = describe;
   const run = useCallback(
     async <T,>(fn: () => Promise<T>, doneText?: string): Promise<T | undefined> => {
       setBusy(true);
@@ -86,7 +88,7 @@ export function useAction() {
         if (doneText && live.current) setDone(doneText);
         return out;
       } catch (e) {
-        if (live.current) setError(errorText(e));
+        if (live.current) setError(describeRef.current?.(e) ?? errorText(e));
         return undefined;
       } finally {
         if (live.current) setBusy(false);

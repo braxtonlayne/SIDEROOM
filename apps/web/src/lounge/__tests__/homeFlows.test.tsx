@@ -35,7 +35,12 @@ function seed() {
   useLoungeUi.setState(useLoungeUi.getInitialState(), true);
   useNotifSettings.setState({ byGuild: {} });
   useSocial.getState().reset();
-  useSelfPresence.setState({ status: 'online', customText: null, loaded: false });
+  useSelfPresence.setState({
+    status: 'online',
+    customText: null,
+    customEmoji: null,
+    loaded: false,
+  });
   useStore.setState({
     currentUserId: '1',
     users: { '1': me, '2': bob, '3': cat },
@@ -588,6 +593,35 @@ describe('status picker', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(body).toEqual({ custom_status: { text: 'Reading manga' } }));
     expect(await screen.findByText('Reading manga')).toBeInTheDocument();
+  });
+});
+
+describe('custom status emoji (LNG-HOME-011)', () => {
+  it('sends the picked emoji with the text and shows both', async () => {
+    seed();
+    quiet();
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.patch('*/api/v1/users/@me/presence', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          status: 'online',
+          custom_status: { text: 'Reading manga', emoji_name: '📚' },
+        });
+      }),
+    );
+    at('/channels/@me');
+    await userEvent.click(await screen.findByRole('button', { name: /Set status/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Set Custom Status' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Set a custom status' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Choose an emoji' }));
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'books' }));
+    await userEvent.type(within(dialog).getByLabelText("What's happening?"), 'Reading manga');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(body).toEqual({ custom_status: { text: 'Reading manga', emoji_name: '📚' } }),
+    );
+    expect(await screen.findByText('📚 Reading manga')).toBeInTheDocument();
   });
 });
 
