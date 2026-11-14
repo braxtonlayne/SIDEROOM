@@ -79,6 +79,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 - The feature works in the latest Chrome, Firefox, and Safari, and as an installed PWA on Android and iOS.
 - Every page it adds or changes is in the page sweep and has passed the visual check (section 4): shot at desktop and phone width in light and dark, looked at, and fixed.
 - The feature respects permissions server-side. Client-side hiding is never the security boundary.
+- No hard-coded user-visible text in the web app: the text is a message key, `t('...')`. `node scripts/i18n-audit.mjs --max 0` must pass (it runs in the Repo checks workflow and prints the files that fail).
 - Errors are typed (`thiserror` in libraries, `anyhow` only in binaries) and user-facing errors have copy.
 - New settings appear in the correct settings menu through the feature registry.
 - No `unwrap()`/`expect()` on fallible runtime paths outside tests and startup.

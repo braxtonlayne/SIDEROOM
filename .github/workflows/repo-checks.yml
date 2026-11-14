@@ -37,6 +37,9 @@ jobs:
       # UTL-SRC-001: the drawer search corpus (10 to 30 phrases per tool, no duplicates) and its ids equal the registry ids.
       - name: Tools search corpus
         run: node scripts/check-tools-corpus.mjs
+      # SEC-AUD-235: no hard-coded user-visible string in the web app (move the text to a message key: t('...')). Reads source only.
+      - name: Hard-coded strings (i18n audit)
+        run: node scripts/i18n-audit.mjs --max 0
       - name: Dependabot directories exist
         run: node scripts/check-dependabot.mjs
       # OPS-CRASH-001 (T45): the secret-pattern grep of a built crash card bites on the hostile fixture and passes the card
