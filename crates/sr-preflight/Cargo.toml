@@ -20,6 +20,7 @@ sr-core = { path = "../sr-core" }
 sr-db = { path = "../sr-db" }
 sr-net = { path = "../sr-net" }
 sr-storage = { path = "../sr-storage" }
+sr-unfurl = { path = "../sr-unfurl" }
 sr-voice-proto = { path = "../sr-voice-proto" }
 tokio = { workspace = true, features = ["net", "time", "io-util", "rt", "macros"] }
 

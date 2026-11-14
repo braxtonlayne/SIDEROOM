@@ -199,7 +199,7 @@ pub enum WebError {
     Surfaces(String),
     /// SEC-AUD-210 (D-682): an `SR_CSP_CONNECT`, `SR_CSP_FRAME` or `SR_CSP_MEDIA` entry is not a plain origin.
     #[error(
-        "{var} has an entry the app policy cannot take: \"{entry}\" ({why}). Each entry is scheme://host[:port] with scheme https or wss (http or ws only for localhost) and an optional leading *. label, separated by commas"
+        "{var} has an entry the app policy cannot take: \"{entry}\" ({why}). Each entry is scheme://host[:port] with scheme https or wss (http or ws only for a loopback host such as localhost) and an optional leading *. label, separated by commas"
     )]
     BadCspOrigin {
         var: String,

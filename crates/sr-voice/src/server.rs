@@ -386,6 +386,7 @@ pub async fn start(cfg: SfuConfig) -> Result<SfuHandle, StartError> {
         return Err(StartError::NoAnnounce);
     };
     metrics::describe();
+    crate::process_cpu::start();
 
     let mut socks = Vec::new();
     let mut ports = Vec::new();

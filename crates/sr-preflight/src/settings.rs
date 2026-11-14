@@ -39,6 +39,9 @@ pub struct Settings {
     pub config_file: Option<String>,
     /// `web.root` (`SR_WEB__ROOT`): the built web app the server serves behind the session (D-385).
     pub web_root: Option<String>,
+    /// One warning line per embed host variable (`SR_PEERTUBE_HOSTS`, `SR_MEDIA_HOSTS`) that holds an entry the
+    /// server will drop (D-697), as the server writes it at start. Empty when both are clean.
+    pub embed_host_warnings: Vec<String>,
 }
 
 impl Settings {
@@ -87,6 +90,13 @@ impl Settings {
             secret_files,
             config_file: config_file.map(str::to_owned),
             web_root: cfg.web.root_path().map(str::to_owned),
+            embed_host_warnings: [
+                sr_unfurl::embed::PEERTUBE_HOSTS_ENV,
+                sr_unfurl::embed::MEDIA_HOSTS_ENV,
+            ]
+            .into_iter()
+            .filter_map(|var| sr_unfurl::embed::host_warning(var, &env(var).unwrap_or_default()))
+            .collect(),
         }
     }
 }
@@ -116,6 +126,12 @@ mod tests {
             )]
         );
         assert!(s.disk_paths.contains(&".".to_owned()));
+        assert!(s.embed_host_warnings.is_empty());
+        let bad =
+            |k: &str| (k == "SR_PEERTUBE_HOSTS").then(|| "tube.example.org, nodot".to_owned());
+        let b = Settings::from_config(&cfg, None, &bad);
+        assert_eq!(b.embed_host_warnings.len(), 1);
+        assert!(b.embed_host_warnings[0].starts_with("SR_PEERTUBE_HOSTS: \"nodot\" ignored"));
         assert_eq!(s.config_file.as_deref(), Some("/etc/sideroom/config.toml"));
         assert!(s.smtp.is_none());
     }

@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 68 - 2026-11-14
+
+- **Members.** Someone who is online only on a phone shows a phone in place of the green dot; you get a desktop notification when someone reacts to your message (the "Reaction notifications" switch now does what it says); a message request's preview disappears when its message is deleted; thread rows say "5m ago" and also show under "started a thread"; the email digest switch is gone until a digest exists.
+- **Staff.** The review queue names who submitted; uploaded and embedded subtitles show in the catalog's subtitle filter; Admin > Transcoding shows each worker's GPU and speed.
+- **For operators.** A mistyped host in `SR_PEERTUBE_HOSTS` or `SR_MEDIA_HOSTS` is named in a warning at start (and by `sr-cli preflight`) instead of being ignored in silence; on Linux the server and the standalone SFU report `process_cpu_seconds_total`.
+
 ## Phase 67 - 2026-11-13
 
 - **Members.** A message request shows what was written; a thread row shows its last message; the reader asks where to continue when another device read further; the Live TV guide can carry the operator's note and channel logos, and on a phone you swipe between channels; a member's browser no longer asks the server whether it is staff (your own sign-in says so), so it makes no staff request.
