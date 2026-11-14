@@ -374,7 +374,8 @@ impl Gateway {
                 .iter()
                 .map(|x| session_entry(x))
                 .collect();
-            let ready = self.ready_body(&s.user_json(), &guilds, s, entries, &extras);
+            let ready_user = self.ready_user(&s.user_json(), user, s.bot).await;
+            let ready = self.ready_body(&ready_user, &guilds, s, entries, &extras);
             let st = self.st();
             let moved = guilds
                 .iter()

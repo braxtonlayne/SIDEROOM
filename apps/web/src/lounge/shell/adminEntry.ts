@@ -1,66 +1,22 @@
 /**
- * Whether the signed-in person is platform staff (ADM-STF-011). `/admin/me` answers 200 for staff and 401/403
- * otherwise, so that answer is read once per session. A check that could not be made (offline, a 5xx, a timeout)
- * is not remembered as "not staff": the next use tries again (SEC-AUD-137a). It only decides whether the
- * "Platform Admin" entry is shown; the admin API is the security boundary.
+ * Whether the signed-in person is platform staff, for the one thing that asks: the "Platform Admin" entry of the
+ * status menu (ADM-STF-011). The account's own READY carries the answer (`user.sr_platform_staff`, D-673); the
+ * session store keeps it, so this is a store read and makes no request. `SR_STAFF_ALERT` with `revoked` clears
+ * it, accepting an appointment offer sets it, and a new session reads it afresh. It only decides whether an
+ * entry is shown: the admin API is the security boundary, and the staff door still asks `/admin/me` before it
+ * loads staff code.
  */
-import { useEffect } from 'react';
-import { create } from 'zustand';
-import { ApiError, apiFetch } from '../../api/client';
+import { useStore } from '../../store';
 import { onDispatch } from '../../store/events';
 
-interface PlatformStaffState {
-  staff: boolean;
-  loaded: boolean;
-  load(): Promise<void>;
-}
-
-let inflight: Promise<void> | null = null;
-/** When the last check failed without an answer; a retry waits a few seconds so a broken network is not hammered. */
-let failedAt = 0;
-const RETRY_AFTER_MS = 3000;
-
-export const usePlatformStaff = create<PlatformStaffState>()((set, get) => ({
-  staff: false,
-  loaded: false,
-  load() {
-    if (get().loaded) return Promise.resolve();
-    if (!inflight && failedAt && Date.now() - failedAt < RETRY_AFTER_MS) return Promise.resolve();
-    inflight ??= apiFetch<{ user_id: string }>('/admin/me', { retries: 0 })
-      .then(() => {
-        failedAt = 0;
-        set({ staff: true, loaded: true });
-      })
-      .catch((e: unknown) => {
-        // 401/403 is the server's answer "not staff"; anything else is no answer and is asked again.
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
-          failedAt = 0;
-          set({ staff: false, loaded: true });
-        } else failedAt = Date.now();
-      })
-      .finally(() => {
-        inflight = null;
-      });
-    return inflight;
-  },
-}));
-
-/** Forget the check and its retry cooldown (sign-out, tests): the next use asks the server again. */
-export function resetPlatformStaffCheck(): void {
-  failedAt = 0;
-  inflight = null;
-  usePlatformStaff.setState({ staff: false, loaded: false });
-}
-
-/** True for platform staff; triggers the one-time check on first use. */
+/** True for platform staff (the READY flag). */
 export function useIsPlatformStaff(): boolean {
-  const staff = usePlatformStaff((s) => s.staff);
-  const load = usePlatformStaff((s) => s.load);
-  // On mount (each use of the menu), not on every render: a failed check is asked again the next time.
-  useEffect(() => {
-    void load();
-  }, [load]);
-  return staff;
+  return useStore((s) => s.platformStaff);
+}
+
+/** Set by accepting an appointment offer; cleared by a revocation. */
+export function setPlatformStaff(staff: boolean): void {
+  if (useStore.getState().platformStaff !== staff) useStore.setState({ platformStaff: staff });
 }
 
 /** True for a gateway `SR_STAFF_ALERT` that says the staff appointment of this account ended. */
@@ -69,5 +25,5 @@ export const isStaffRevoked = (event: string, data: unknown): boolean =>
 
 // The server pushes the end of an appointment (ADM-STF-005): the Platform Admin entries disappear at once.
 onDispatch((event, data) => {
-  if (isStaffRevoked(event, data)) usePlatformStaff.setState({ staff: false, loaded: true });
+  if (isStaffRevoked(event, data)) setPlatformStaff(false);
 });

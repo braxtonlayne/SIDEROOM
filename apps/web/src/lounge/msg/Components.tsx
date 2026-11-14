@@ -7,7 +7,8 @@ import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
 import { newNonce, sendInteraction } from '../apps/interactions';
 import { useReportOutcome } from '../apps/useReportOutcome';
 import { isHttpUrl } from './format';
-import { parseStaffButton, runStaffButton } from './staffActions';
+import { setPlatformStaff } from '../shell/adminEntry';
+import { parseStaffButton, runStaffButton } from './cardActions';
 import { isCardButton, useCardPress } from '../../tools/cards/press';
 
 export type { RawComponent };
@@ -64,6 +65,8 @@ export function ComponentRows({
     setBusy(key);
     try {
       const out = await runStaffButton(button, { ...context, guildId }, values);
+      // Accepting an appointment makes this account staff now: the menu shows the entry without a new session.
+      if (button.kind === 'offer' && button.accept && out.ok !== false) setPlatformStaff(true);
       toast.show({
         title: out.message ?? t('lounge.components.staffDone'),
         variant: out.ok === false ? 'warning' : 'success',

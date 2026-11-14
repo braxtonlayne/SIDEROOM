@@ -4,7 +4,7 @@ import { t, useT, type MessageKey } from '../../i18n';
 import { useLoungeUi } from '../store';
 import { failWith } from '../actionError';
 import { useNavigate } from '@tanstack/react-router';
-import { useIsPlatformStaff } from './platformStaff';
+import { useIsPlatformStaff } from './adminEntry';
 import { useSelfPresence, type SelfStatus } from './selfPresence';
 
 const LABEL: Record<SelfStatus, MessageKey> = {

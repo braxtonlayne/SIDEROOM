@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { ComponentRows } from '../msg/Components';
-import { parseStaffButton } from '../msg/staffActions';
+import { parseStaffButton } from '../msg/cardActions';
 
 const rows = [
   {
