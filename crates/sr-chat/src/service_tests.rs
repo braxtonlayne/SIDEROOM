@@ -655,8 +655,8 @@ async fn a_reply_to_ones_own_message_or_to_someone_who_cannot_see_the_channel_ad
 async fn a_forward_is_not_a_reply() {
     let f = fixture().await;
     let q = f.svc.send_message(OWNER, f.general, say("q")).await.unwrap();
+    // A forward cannot carry a reply (FORWARD_SHAPE), so it never reaches the reply rule: it mentions nobody.
     let fwd = SendMessage {
-        reply_to: Some(q.id),
         forward: Some(crate::service::ForwardRequest {
             source_message: q.id,
             source_channel: f.general,
