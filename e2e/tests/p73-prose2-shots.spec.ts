@@ -76,6 +76,14 @@ test('About Me as markdown with Settings loaded first', async ({ browser }) => {
     });
     await page.goto(path);
     await page.waitForTimeout(3000);
+    // The dev proxy sometimes refuses one request (localhost resolves to ::1); press Try again, as a member would.
+    for (let i = 0; i < 3; i++) {
+      const retry = page.getByRole('button', { name: 'Try again' });
+      if (!(await retry.isVisible().catch(() => false))) break;
+      console.log('RECORDED retry', path);
+      await retry.click();
+      await page.waitForTimeout(2000);
+    }
     return { c, page, wasm };
   };
   const state = (page: Page) =>
