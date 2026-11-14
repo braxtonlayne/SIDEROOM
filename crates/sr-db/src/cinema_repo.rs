@@ -216,6 +216,17 @@ fn trailer_from(r: &PgRow) -> CinemaResult<TrailerRecord> {
     })
 }
 
+/// D-719: a filter value's primary language is read in the stored short form, so `eng` still finds `en`.
+fn short_form(tag: &str) -> String {
+    let (primary, rest) = tag.split_once('-').unwrap_or((tag, ""));
+    let primary = sr_core::language::short_language(primary).to_ascii_lowercase();
+    if rest.is_empty() {
+        primary
+    } else {
+        format!("{primary}-{rest}")
+    }
+}
+
 const TRAILER_COLS: &str = "id, title_id, label, kind, language, asset_id";
 
 fn marker_from(r: &PgRow) -> CinemaResult<MarkerRecord> {
@@ -431,12 +442,12 @@ fn push_from_where(qb: &mut QueryBuilder<Postgres>, q: &BrowseQuery, scope: Scop
     }
     if let Some(l) = &q.language {
         qb.push(" AND ")
-            .push_bind(l.clone())
+            .push_bind(short_form(l))
             .push(" = ANY(t.languages)");
     }
     if let Some(l) = &q.subtitle_language {
         qb.push(" AND ")
-            .push_bind(l.clone())
+            .push_bind(short_form(l))
             .push(" = ANY(t.subtitle_languages)");
     }
     if let Some(since) = q.since_ms {
@@ -1888,5 +1899,17 @@ impl CinemaRepository for PgCinemaRepo {
         let rec = fetch_collection(&mut tx, id, false).await?;
         tx.commit().await.map_err(db)?;
         Ok(rec)
+    }
+}
+
+#[cfg(test)]
+mod short_form_tests {
+    #[test]
+    fn a_three_letter_filter_value_finds_the_short_form() {
+        assert_eq!(super::short_form("eng"), "en");
+        assert_eq!(super::short_form("ENG"), "en");
+        assert_eq!(super::short_form("por-BR"), "pt-BR");
+        assert_eq!(super::short_form("en"), "en");
+        assert_eq!(super::short_form("fil"), "fil");
     }
 }
