@@ -31,13 +31,18 @@
   align-items: baseline;
   font-size: 13px;
 }
+/* D-739: a pin is drawn as a message (block markdown: lists, code, quotes), whole; the panel scrolls. */
 .lng-pin-body {
   margin: 4px 0;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  min-inline-size: 0;
   overflow-wrap: anywhere;
+}
+.lng-pin-body .sr-md {
+  font-size: 14px;
+}
+.lng-pin-body pre {
+  max-inline-size: 100%;
+  overflow-x: auto;
 }
 .lng-pin-actions {
   display: flex;

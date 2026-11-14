@@ -1,15 +1,21 @@
+import { Markdown, type Resolvers } from '@sideroom/markdown-react';
 import { Icon, Popover } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
+import { useSavedPrefs } from '../../settings/user/prefs';
 import { useStore } from '../../store';
 import * as rest from '../../store/rest';
 import type * as S from '../../store/types';
 import { HOME } from '../channels';
 import type { Message } from '../data';
 import { toLoungeMessage } from '../liveMap';
+import { currentMarkdownEngine, isJumbo, parseMarkdown, useMarkdownReady } from '../markdown';
 import { useLoungeGotoMessage } from '../nav';
+import { CustomEmoji } from '../msg/CustomEmoji';
 import { useHiddenKind } from '../msg/lineText';
+import { richCardResolvers } from '../msg/RichCards';
+import { storeResolvers } from '../shell/notifyText';
 import { formatMessageTime } from '../time';
 import './header.css';
 
@@ -25,11 +31,24 @@ export interface PinsButtonProps {
  * A pin's text. A blocked or ignored author's pin is the list's hidden message of one with its "Show" (D-730):
  * the reveal is this pin's own, and a block made while the panel is open takes effect at once.
  */
-function PinText({ m }: { m: Message }) {
+function PinText({ m, guildId }: { m: Message; guildId: string }) {
   const t = useT();
+  useMarkdownReady();
+  const { spoilers } = useSavedPrefs();
   const kind = useHiddenKind(m.author.id);
   const [shown, setShown] = useState(false);
   const hidden = kind && !shown;
+  // The message list's resolvers for this server (names from the store, a custom emoji, the rich cards).
+  const resolvers: Resolvers = useMemo(
+    () => ({
+      ...storeResolvers(guildId === HOME ? null : guildId),
+      ...richCardResolvers,
+      customEmoji: (e) => <CustomEmoji id={e.id} name={e.name} animated={e.animated} />,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the names are read when the pin is drawn
+    [guildId, m.id],
+  );
+  const fallback = m.attachments?.length ? t('lounge.pins.attachment') : t('lounge.pins.noText');
   return (
     <>
       <div className="lng-pin-head">
@@ -44,10 +63,20 @@ function PinText({ m }: { m: Message }) {
           </button>
         </p>
       ) : (
-        <p className="lng-pin-body">
-          {m.content ||
-            (m.attachments?.length ? t('lounge.pins.attachment') : t('lounge.pins.noText'))}
-        </p>
+        <div className="lng-pin-body">
+          {/* D-739: a pin is a message, drawn by the message list's renderer (no embeds, stickers or reactions).
+              Until the parser is loaded there is no text to draw: never the typed text. */}
+          {m.content && currentMarkdownEngine() ? (
+            <Markdown
+              nodes={parseMarkdown(m.content)}
+              jumbo={isJumbo(m.content)}
+              revealSpoilers={spoilers === 'always'}
+              resolvers={resolvers}
+            />
+          ) : (
+            fallback
+          )}
+        </div>
       )}
     </>
   );
@@ -126,7 +155,7 @@ export function PinsButton({ guildId, channelId, canUnpin }: PinsButtonProps) {
         <ul className="lng-pins-list">
           {pins?.map((m) => (
             <li key={m.id} className="lng-pin">
-              <PinText m={m} />
+              <PinText m={m} guildId={guildId} />
               <div className="lng-pin-actions">
                 <button
                   type="button"

@@ -2185,3 +2185,78 @@
 .lng-status-emoji-row > :last-child {
   flex: 1;
 }
+
+/* D-740 (SEC-AUD-263): search on a phone. The header button and the sheet that fills the chat pane (it is portalled
+   into .lng-main, which is the positioned pane on a phone); the desktop panel's own rules stay for the desktop. */
+.lng-root:not([data-mobile]) .lng-phone-search {
+  display: none;
+}
+.lng-root[data-mobile] .lng-phone-search {
+  inline-size: 44px;
+  block-size: 44px;
+}
+.lng-search-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  min-block-size: 0;
+  background: var(--bg-base-low);
+}
+.lng-search-sheet-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  block-size: 52px;
+  padding-inline: 4px 16px;
+  border-block-end: 1px solid var(--ui-border);
+}
+.lng-search-sheet-close {
+  inline-size: 44px;
+  block-size: 44px;
+}
+.lng-search-sheet-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--interactive-active);
+}
+.lng-search-sheet .lng-search-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-block-size: 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+.lng-root[data-mobile] .lng-search-sheet .lng-search {
+  display: flex;
+  flex: none;
+  inline-size: 100%;
+  block-size: 44px;
+  padding-inline: 12px;
+}
+.lng-search-sheet .lng-search input {
+  font-size: 16px;
+}
+.lng-search-sheet .lng-search-panel {
+  position: static;
+  flex: 1;
+  inline-size: auto;
+  max-block-size: none;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.lng-search-sheet .lng-chip {
+  min-block-size: 44px;
+  padding-inline: 14px;
+}
+.lng-search-sheet .lng-link-btn {
+  min-block-size: 44px;
+}

@@ -20,6 +20,8 @@ import {
   type SearchSort,
 } from './searchUi';
 import { ContextLine, useHitContext } from './searchContext';
+import { useMarkdownReady } from './markdown';
+import { messageLineText } from './msg/lineText';
 import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { formatMessageTime } from './time';
 
@@ -34,10 +36,12 @@ const CHIPS = ['from:', 'in:', 'has:link', 'has:image', 'pinned:true'] as const;
 /** One result: the hit with the message before and after it (LNG-SRC-005) and a Jump button. */
 function HitRow({
   hit,
+  guildId,
   onJump,
   children,
 }: {
   hit: rest.SearchHit;
+  guildId: string | undefined;
   onJump: () => void;
   children: ReactNode;
 }) {
@@ -45,12 +49,12 @@ function HitRow({
   const { ref, ctx } = useHitContext(hit.channel_id, hit.id);
   return (
     <li ref={ref} className="lng-search-row">
-      <ContextLine n={ctx?.before} side="before" />
+      <ContextLine n={ctx?.before} side="before" guildId={guildId} />
       <button type="button" className="lng-search-hit" onClick={onJump}>
         {children}
         <span className="lng-search-jump">{t('lounge.searchBox.jump')}</span>
       </button>
-      <ContextLine n={ctx?.after} side="after" />
+      <ContextLine n={ctx?.after} side="after" guildId={guildId} />
     </li>
   );
 }
@@ -66,19 +70,27 @@ export function SearchBox({
   guildId,
   channelId,
   label,
+  sheet,
 }: {
   guildId: string | undefined;
   channelId: string;
   label: string;
+  /**
+   * The phone's full-pane sheet (D-740): the filters and results are always shown under the box, the box is focused
+   * on open, Escape closes the sheet, and choosing a hit closes it too.
+   */
+  sheet?: { onClose: () => void; onJump: () => void } | undefined;
 }) {
   const t = useT();
+  useMarkdownReady();
   const hidden = useHiddenAuthors();
   const isDm = !guildId || guildId === HOME;
   const navigate = useNavigate();
   const users = useUsers();
   const channels = useChannels(isDm ? undefined : guildId);
   const [text, setText] = useState('');
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = sheet ? true : openState;
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [sort, setSort] = useState<SearchSort>('new');
   const [page, setPage] = useState(0);
@@ -104,14 +116,20 @@ export function SearchBox({
     [users, channels],
   );
 
+  // The phone sheet opens with the box focused.
   useEffect(() => {
-    if (!open) return;
+    if (sheet) input.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
+  }, []);
+
+  useEffect(() => {
+    if (!open || sheet) return;
     const away = (e: MouseEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', away);
     return () => document.removeEventListener('mousedown', away);
-  }, [open]);
+  }, [open, sheet]);
 
   const token = currentToken(text).token;
   const options = useMemo(
@@ -179,7 +197,10 @@ export function SearchBox({
 
   const jump = (m: rest.SearchHit) => {
     setOpen(false);
+    sheet?.onJump();
     void navigate({
+      // The phone sheet pushed one history entry; the jump takes its place.
+      replace: !!sheet,
       to: '/channels/$guildId/$channelId/$messageId',
       params: { guildId: isDm ? HOME : guildId, channelId: m.channel_id, messageId: m.id },
     });
@@ -196,7 +217,7 @@ export function SearchBox({
   const showHistory = open && !hasText && history.length > 0;
 
   return (
-    <div className="lng-search-wrap" ref={root}>
+    <div className="lng-search-wrap" data-sheet={sheet ? '' : undefined} ref={root}>
       <form className="lng-search" role="search" onSubmit={(e) => run(e)}>
         <Icon name="search" size={16} />
         <input
@@ -214,8 +235,10 @@ export function SearchBox({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') setOpen(false);
-            else if (options.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            if (e.key === 'Escape') {
+              if (sheet) sheet.onClose();
+              else setOpen(false);
+            } else if (options.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
               e.preventDefault();
               const n = options.length;
               setOptIndex((optActive + (e.key === 'ArrowDown' ? 1 : n - 1)) % n);
@@ -348,7 +371,11 @@ export function SearchBox({
                     {where && <h3 className="lng-search-channel">#{where}</h3>}
                     <ul className="lng-search-results">
                       {g.hits.map((m) => {
-                        const snippet = m.sr_snippet ?? { text: m.content, highlights: [] };
+                        // The server's snippet is plain already; without one the line is the message's plain text (D-739).
+                        const snippet = m.sr_snippet ?? {
+                          text: messageLineText(m.content, guildId, t('lounge.preview.spoiler')),
+                          highlights: [],
+                        };
                         const name =
                           users[m.author.id]?.displayName ??
                           m.author.username ??
@@ -361,7 +388,7 @@ export function SearchBox({
                             ? 'ignored'
                             : null;
                         return (
-                          <HitRow key={m.id} hit={m} onJump={() => jump(m)}>
+                          <HitRow key={m.id} hit={m} guildId={guildId} onJump={() => jump(m)}>
                             <span className="lng-search-meta">
                               {!kind && <strong>{name}</strong>}
                               <time dateTime={m.timestamp}>{formatMessageTime(m.timestamp)}</time>
