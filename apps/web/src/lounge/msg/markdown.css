@@ -2,7 +2,7 @@
    panel, a thread, search, a reply preview). The package's own stylesheet (packages/markdown-react/src/markdown.css) is
    imported by nothing in the app: its colours belong to no theme. These rules use the app's tokens and logical
    properties and name the renderer's bare sr-md-* classes, so one rule serves every surface (D-757).
-   Headings, lists, subtext, links, timestamps, line breaks and long words already draw right (shot on the base) and get no rule here. */
+   Lists, links, timestamps, line breaks and long words already draw right (shot on the base) and get no rule here. Headings and subtext are sized as Discord's (D-763). */
 
 /* A mention: a chip with a tinted backdrop in the brand colour. @everyone, @here, roles, channels and the rest share it. */
 .sr-md-mention {
@@ -88,5 +88,42 @@ img.sr-md-emoji {
 }
 .sr-md-spoiler[data-revealed='true'] {
   border-radius: 3px;
+  background: color-mix(in srgb, var(--text-normal) 14%, transparent);
+}
+
+/* Headings: Discord's sizes (D-763): 1.5em, 1.25em and 1em of the text, bold, 16px above and 8px below, and no space
+   above when the heading opens the message. The renderer emits h1 to h3 with this class. */
+h1.sr-md-heading,
+h2.sr-md-heading,
+h3.sr-md-heading {
+  margin-block: 16px 8px;
+  font-weight: 700;
+  line-height: 1.375;
+}
+h1.sr-md-heading {
+  font-size: 1.5em;
+}
+h2.sr-md-heading {
+  font-size: 1.25em;
+}
+h3.sr-md-heading {
+  font-size: 1em;
+}
+/* :first-child sees elements only: a heading after some typed text also matches (the renderer emits bare text), and
+   then sits close under that text. A wrap of the text in the package would fix that; it is not done here. */
+.sr-md > .sr-md-heading:first-child {
+  margin-block-start: 0;
+}
+
+/* Subtext: small, muted, on a line of its own (the renderer emits an inline small, so the line before it ran on). */
+.sr-md-subtext {
+  display: block;
+  font-size: 0.75em;
+  line-height: 1.375;
+  color: var(--text-muted);
+}
+/* "On hover for mine" (settings/user/prefs-effects.css shows the text while the pointer is over a closed spoiler): the
+   cover stays dark under it, so the shown text read at about 2:1. The hovered spoiler takes a revealed one's backdrop. */
+.lng-msg-content[data-spoilers='hover'] .sr-md-spoiler[data-revealed='false']:hover {
   background: color-mix(in srgb, var(--text-normal) 14%, transparent);
 }
