@@ -7,15 +7,17 @@
 // Nothing else in the UI imports either one.
 //
 // Routes used (the OpenAPI document is the contract):
-//   PUT    /library/chapters/{id}/progress   {page_index, percent, completed}   -> {progress, applied}
+//   PUT    /library/chapters/{id}/progress   {page_index, percent, completed, cfi?, base_updated_at_ms?} -> {progress, applied}
 //   GET    /library/chapters/{id}/progress   -> Progress (404 when none)
 //   GET    /library/me/progress?limit=       -> {items: [{series, chapter}], next_before}
 //   GET    /library/chapters/{id}/bookmarks  -> {bookmarks: [Bookmark]}
 //   PUT    /library/chapters/{id}/bookmarks  {page_index, note?} -> Bookmark (one per page)
 //   DELETE /library/bookmarks/{id}
 //
-// The server also supports a conflict prompt (base_updated_at_ms / applied: false). The reader does not use it yet,
-// so a save always applies.
+// The conflict answer (D-690, LIB-RDR-018): a save may name the position it started from (`baseUpdatedAtMs`, sent as
+// `base_updated_at_ms`; 0 when this reader found none). When the server holds a newer one, nothing is written and
+// the answer is `{ applied: false, server }`; `useProgressSync` (./useProgressSync.tsx) asks the reader what to do.
+// A save without a base always applies. `localProgress` has one device and always applies.
 import { apiFetch } from '../api/client';
 import type { Chapter, ChapterProgress, Series } from './types';
 import { t } from '../i18n';
@@ -36,7 +38,16 @@ export interface ProgressInput {
   completed: boolean;
   /** EPUB position (LIB-RDR-010); omitted for image and PDF chapters. */
   cfi?: string | null;
+  /**
+   * The `updated_at_ms` of the position this reader last got from the server for the chapter (0: none). The server
+   * keeps a newer position and answers `applied: false`. Leave it out to overwrite whatever is stored.
+   */
+  baseUpdatedAtMs?: number | null;
 }
+
+/** What a save came to: written (the stored position, null in local mode), or kept back for a newer one. */
+export type SaveResult =
+  { applied: true; progress: ChapterProgress | null } | { applied: false; server: ChapterProgress };
 
 export interface RecentItem extends ProgressInput {
   updatedAtMs: number;
@@ -51,7 +62,7 @@ export interface Bookmark {
 }
 
 export interface ProgressApi {
-  save(p: ProgressInput): Promise<void>;
+  save(p: ProgressInput): Promise<SaveResult>;
   recent(limit: number): Promise<RecentItem[]>;
   /** Per-chapter progress of one series, for read marks. Empty for the server (the chapter list carries it). */
   forSeries(seriesId: string): Promise<Record<string, ChapterProgress>>;
@@ -83,16 +94,24 @@ const fromWire = (chapterId: string, b: WireBookmark): Bookmark => ({
 
 export const httpProgress: ProgressApi = {
   async save(p) {
-    await apiFetch(`/library/chapters/${encodeURIComponent(p.chapterId)}/progress`, {
-      method: 'PUT',
-      json: {
-        page_index: p.pageIndex,
-        percent: p.percent,
-        completed: p.completed,
-        ...(p.cfi ? { cfi: p.cfi } : {}),
+    const r = await apiFetch<{ progress: ChapterProgress; applied: boolean }>(
+      `/library/chapters/${encodeURIComponent(p.chapterId)}/progress`,
+      {
+        method: 'PUT',
+        json: {
+          page_index: p.pageIndex,
+          percent: p.percent,
+          completed: p.completed,
+          ...(p.cfi ? { cfi: p.cfi } : {}),
+          ...(p.baseUpdatedAtMs != null ? { base_updated_at_ms: p.baseUpdatedAtMs } : {}),
+        },
+        retries: 0,
       },
-      retries: 0,
-    });
+    );
+    // An answer without a verdict (an old server) is an applied save.
+    return r.applied === false
+      ? { applied: false, server: r.progress }
+      : { applied: true, progress: r.progress ?? null };
   },
   async recent(limit) {
     const r = await apiFetch<{ items: { series: Series; chapter: Chapter }[] }>(
@@ -181,7 +200,7 @@ export const localProgress: ProgressApi = {
     const all = readJson<Record<string, RecentItem>>(PROGRESS_KEY, {});
     all[p.chapterId] = { ...p, updatedAtMs: Date.now() };
     writeJson(PROGRESS_KEY, all);
-    return Promise.resolve();
+    return Promise.resolve({ applied: true, progress: null });
   },
   recent(limit) {
     const all = Object.values(readJson<Record<string, RecentItem>>(PROGRESS_KEY, {}));

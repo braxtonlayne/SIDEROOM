@@ -1,9 +1,10 @@
 import { ThemeProvider, ToastProvider } from '@sideroom/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { AgeGateProvider } from '../lib/ageGate';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
+import { startProgressSync } from './progressEvents';
 import { LibraryShell, useRequireSession } from './Shell';
 import './library.css';
 
@@ -29,6 +30,9 @@ export function LibraryRoot() {
         },
       }),
   );
+
+  // Another device's reading position refreshes "continue reading" and the read marks, and reaches an open reader (D-690).
+  useEffect(() => startProgressSync(client), [client]);
 
   // The shared UI kit renders plain anchors (PosterCard, ArrowLink): route in-app links without a reload.
   const onClick = (e: MouseEvent<HTMLElement>) => {

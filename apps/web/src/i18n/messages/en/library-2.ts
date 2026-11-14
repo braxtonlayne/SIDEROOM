@@ -14,7 +14,6 @@ export default {
   'library.shell.nav.readingHistory': 'Reading history',
   'library.shell.nav.readingLists': 'Reading lists',
   'library.shell.nav.submissions': 'Submissions',
-  'library.shell.nav.upload': 'Upload',
   'library.shell.followedCount': '{count} followed',
   'library.shell.sidebarNav': 'Library',
   'library.shell.discover': 'Discover',
