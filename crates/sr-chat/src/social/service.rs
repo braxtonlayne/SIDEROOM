@@ -13,7 +13,7 @@ use super::read_state::{self, ReadState, ReadStateOp};
 use super::relationships::{self, PairCounts, PairState, Plan, Relationship, RelationshipKind};
 use super::repo::{SocialRepository, kind_of};
 use super::{SocialError, SocialLimits, SocialResult};
-use sr_core::{ChannelId, Clock, GuildId, MessageId, SnowflakeGenerator, UserId};
+use sr_core::{ChannelId, Clock, GuildId, MessageId, RoleId, SnowflakeGenerator, UserId};
 use std::sync::Arc;
 
 pub struct SocialService<R> {
@@ -919,22 +919,26 @@ impl<R: SocialRepository> SocialService<R> {
     }
 
     /// Of the recipients a message reached only through `@everyone`/`@here` or a role (`indirect`), the ones whose
-    /// scope for `guild` suppresses every kind that reached them: no badge for them (D-726).
+    /// scope for `guild` suppresses every kind that reached them: no badge for them (D-726). `@everyone` reaches
+    /// every recipient; a role mention (`role_ids`) only those who hold one of the roles (D-733).
     pub async fn mention_suppressed(
         &self,
         guild: GuildId,
         indirect: &[UserId],
         everyone: bool,
-        roles: bool,
+        role_ids: &[RoleId],
     ) -> SocialResult<Vec<UserId>> {
-        if indirect.is_empty() || !(everyone || roles) {
+        if indirect.is_empty() || !(everyone || !role_ids.is_empty()) {
             return Ok(Vec::new());
         }
-        let rows = self.repo.suppressing_scopes(guild, indirect).await?;
+        let rows = self
+            .repo
+            .suppressing_scopes(guild, indirect, role_ids)
+            .await?;
         Ok(rows
             .into_iter()
-            .filter(|&(_, se, sr)| notifications::badge_suppressed(everyone, roles, se, sr))
-            .map(|(u, _, _)| u)
+            .filter(|&(_, se, sr, holds)| notifications::badge_suppressed(everyone, holds, se, sr))
+            .map(|(u, _, _, _)| u)
             .collect())
     }
 

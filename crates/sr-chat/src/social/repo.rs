@@ -13,7 +13,7 @@ use super::safety::SafetyPrefs;
 use super::user_settings::UserSettings;
 use crate::error::RepoError;
 use async_trait::async_trait;
-use sr_core::{ChannelId, GuildId, UserId};
+use sr_core::{ChannelId, GuildId, RoleId, UserId};
 
 pub type RepoResult<T> = Result<T, RepoError>;
 
@@ -218,23 +218,15 @@ pub trait NotificationRepository: Send + Sync {
     /// the person never touched have no row; the caller treats a missing one as the defaults.
     async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>>;
     /// Of `users`, those whose scope for `guild` suppresses `@everyone`/`@here` or role mentions, as
-    /// `(user, suppress_everyone, suppress_roles)` (D-726). A user with neither switch on is left out. One query
-    /// where the store can.
+    /// `(user, suppress_everyone, suppress_roles, holds_role)` (D-726, D-733): `holds_role` is whether the user holds
+    /// one of `role_ids` in `guild`, so the caller can tell which kinds of mention really reach them. A user with
+    /// neither switch on is left out. One query where the store can.
     async fn suppressing_scopes(
         &self,
         guild: GuildId,
         users: &[UserId],
-    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
-        let mut out = Vec::new();
-        for &u in users {
-            if let Some(s) = self.get_scope(u, Some(guild)).await?
-                && (s.suppress_everyone || s.suppress_roles)
-            {
-                out.push((u, s.suppress_everyone, s.suppress_roles));
-            }
-        }
-        Ok(out)
-    }
+        role_ids: &[RoleId],
+    ) -> RepoResult<Vec<(UserId, bool, bool, bool)>>;
 }
 
 #[async_trait]

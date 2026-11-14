@@ -98,9 +98,10 @@ pub struct ScopeSettings {
     pub mute: Mute,
 }
 
-/// Whether a recipient reached only by `@everyone`/`@here` (`everyone`) and/or a pinged role (`roles`) keeps the
-/// mention badge off, given their two suppress switches (D-726). With both kinds on the message, one switch is not
-/// enough: the other kind may still reach them.
+/// Whether a recipient reached only by `@everyone`/`@here` (`everyone`: the message has it) and/or a pinged role
+/// (`roles`: they hold one of the mentioned roles, D-733) keeps the mention badge off, given their two suppress
+/// switches (D-726). When both kinds reach them, one switch is not enough; a kind that does not reach them does not
+/// count; reached by nothing, nothing is suppressed.
 pub fn badge_suppressed(
     everyone: bool,
     roles: bool,
