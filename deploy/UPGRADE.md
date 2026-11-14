@@ -153,3 +153,10 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 - `sr-cli seed` on a non-local instance (`server.public_url` not a localhost address) needs `--force` and also `--password`, at least 12 characters and not the built-in development password.
 - With no mail server configured (the log-only mail transport), the server never writes a message body to its log (CHANGELOG, Phase 60).
 - An Activity's old files are kept for a day after an update so people mid-session are not cut off (migration `2670_activity_bundle_superseded_at.sql`).
+
+## Release notes: replies ping by default; an optional search reindex (wave 70, SEC-AUD-237..252, D-721..D-731)
+
+- **No migration, nothing required.**
+- **A reply now pings the person it replies to** when an API client sends no `allowed_mentions`, as with Discord. A bot that replies and must not ping sends `allowed_mentions` with `replied_user: false`. A reply with the ping off no longer sends a push.
+- **Optional: `sr-cli reindex`.** Messages indexed before this version keep a list glued to the word before it (the search does not find the word on its own) until the index is rebuilt; nothing breaks without it. The command only queues the `search.reindex` job; a running `sr-server` picks it up and runs it in the background. The job clears the index and rebuilds it from every visible message, channel by channel in pages of 1,000, with a commit every 50,000 documents. It reads and holds no database locks, but search returns partial results until it finishes (about 30 seconds for 200,000 messages on a debug build; scale up from that). Run it at a quiet hour, once, after the new version is up.
+- **The voice tests.** `voice-live.spec.ts` now covers music across an ICE restart (passes) and across a full rejoin (a `test.fixme` until the fault described in doc `specs/lounge-voice-video.md` section 4.13 is fixed). Nothing runs for an operator; the soak dispatch is unchanged (`music` input).
