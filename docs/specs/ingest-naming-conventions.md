@@ -66,6 +66,8 @@ Video: MKV, MP4, M4V, MOV, AVI, WebM, TS, MPEG, WMV (anything FFmpeg can decode)
   "edition": "Official English", "direction": "rtl", "authors": ["…"],
   "status": "ongoing", "year": 2020, "genres": ["Fantasy"], "age_restricted": false }
 ```
+`language` is stored in its normalised form (`eng` becomes `en`, `zh-hant` becomes `zh-Hant`). Without `edition`, the series gets one default edition labelled `Edition (<the stored language>)`, for example `Edition (en)` for `eng`; an `edition` you type is kept as typed.
+
 A Cinema `title.json` is not read by any importer on `integration/phase65` (searched `crates/` and `apps/web/src` for `title.json`); Cinema titles take their details from the folder names and the submission form.
 
 ## 3. Parser

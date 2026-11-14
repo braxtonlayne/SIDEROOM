@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicI64, Ordering},
+    atomic::{AtomicI64, AtomicU64, Ordering},
 };
 
 use async_trait::async_trait;
@@ -15,7 +15,7 @@ use bytes::Bytes;
 use sr_activities::model::BundleDetail;
 use sr_activities::package_upload::{
     CHECK_ALLOWANCE_HOURS, IngestProgress, PackageIngest, PackageLimits, PackageQueue, PackageTier,
-    PackageUploadState, PackageUploads, PartsWiring,
+    PackageUploadError, PackageUploadState, PackageUploads, PartsWiring, UPLOADS_PER_HOUR,
 };
 use sr_activities::{ActivityError, ActivityResult};
 use sr_db::PgPool;
@@ -80,12 +80,22 @@ async fn application(pool: &PgPool, owner: i64) -> i64 {
 struct RealisticStore {
     inner: MemoryPartStore,
     gone: tokio::sync::Mutex<BTreeSet<String>>,
+    /// Milliseconds `create` waits (the window between the count and the insert of a start).
+    create_delay_ms: AtomicU64,
+    /// Every upload id `create` handed out.
+    created: Mutex<Vec<String>>,
 }
 
 #[async_trait]
 impl PartStore for RealisticStore {
     async fn create(&self, key: &str, content_type: &str) -> Result<String, String> {
-        self.inner.create(key, content_type).await
+        let ms = self.create_delay_ms.load(Ordering::Relaxed);
+        if ms > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+        }
+        let id = self.inner.create(key, content_type).await?;
+        self.created.lock().unwrap().push(id.clone());
+        Ok(id)
     }
     fn presign_part(
         &self,
@@ -187,6 +197,8 @@ async fn rig() -> Rig {
     let store = Arc::new(RealisticStore {
         inner: MemoryPartStore::new(storage.clone()),
         gone: tokio::sync::Mutex::new(BTreeSet::new()),
+        create_delay_ms: AtomicU64::new(0),
+        created: Mutex::new(Vec::new()),
     });
     let queue = Arc::new(RecordingQueue::default());
     let uploads = PackageUploads::new(
@@ -457,4 +469,258 @@ async fn complete_with_a_part_missing_is_still_refused_and_the_upload_stays_open
         sr_activities::package_upload::PackageUploadError::PartsMissing(_)
     ));
     assert_eq!(r.state(id).await, "uploading");
+}
+
+// ---- wave 72: SEC-AUD-280 (the hourly limit under concurrent starts, D-761) ---------------------------------------
+
+impl Rig {
+    /// `n` uploads of this application created within the last hour (given up, so they hold nothing).
+    async fn seed_recent(&self, app: i64, n: i64) {
+        for _ in 0..n {
+            sqlx::query(
+                "INSERT INTO activity_package_uploads \
+                 (id, application_id, created_by, expires_at, size, part_size, part_count, object_key, multipart_id, state) \
+                 VALUES ($1, $2, $3, now() + interval '1 day', 10, 4, 3, 'seed', 'seed', 'aborted')",
+            )
+            .bind(next())
+            .bind(app)
+            .bind(self.owner)
+            .execute(&self.pool)
+            .await
+            .unwrap();
+        }
+    }
+
+    async fn rows_this_hour(&self, app: i64) -> i64 {
+        sqlx::query_scalar(
+            "SELECT count(*) FROM activity_package_uploads \
+             WHERE application_id = $1 AND created_at > now() - interval '1 hour'",
+        )
+        .bind(app)
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+    }
+
+    /// Upload ids the store handed out that no row names and that the store still holds (parked bytes).
+    async fn orphans(&self) -> Vec<String> {
+        let rows: Vec<String> =
+            sqlx::query_scalar("SELECT multipart_id FROM activity_package_uploads")
+                .fetch_all(&self.pool)
+                .await
+                .unwrap();
+        let gone = self.store.gone.lock().await.clone();
+        let created = self.store.created.lock().unwrap().clone();
+        created
+            .into_iter()
+            .filter(|c| !rows.contains(c) && !gone.contains(c))
+            .collect()
+    }
+
+    async fn multipart_of(&self, id: i64) -> String {
+        sqlx::query_scalar("SELECT multipart_id FROM activity_package_uploads WHERE id = $1")
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap()
+    }
+}
+
+/// Several starts at once, each counting before any has inserted (the store's `create` waits): exactly one passes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn concurrent_starts_cannot_pass_the_hourly_limit() {
+    let r = rig().await;
+    r.seed_recent(r.app, UPLOADS_PER_HOUR - 1).await;
+    r.store.create_delay_ms.store(200, Ordering::Relaxed);
+    let (a, b, c, d) = tokio::join!(
+        r.uploads.begin(r.app, r.owner, 10, "a.zip"),
+        r.uploads.begin(r.app, r.owner, 10, "b.zip"),
+        r.uploads.begin(r.app, r.owner, 10, "c.zip"),
+        r.uploads.begin(r.app, r.owner, 10, "d.zip"),
+    );
+    let all = [a, b, c, d];
+    let ok = all.iter().filter(|x| x.is_ok()).count();
+    let limited = all
+        .iter()
+        .filter(|x| matches!(x, Err(PackageUploadError::RateLimited)))
+        .count();
+    assert_eq!((ok, limited), (1, 3), "{all:?}");
+    assert_eq!(r.rows_this_hour(r.app).await, UPLOADS_PER_HOUR);
+    assert!(
+        r.orphans().await.is_empty(),
+        "the store holds an upload no row names"
+    );
+}
+
+/// Two applications starting at once do not wait for each other.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn starts_of_two_applications_do_not_block_each_other() {
+    let r = rig().await;
+    let other = application(&r.pool, r.owner).await;
+    r.store.create_delay_ms.store(500, Ordering::Relaxed);
+    let t = std::time::Instant::now();
+    let (a, b) = tokio::join!(
+        r.uploads.begin(r.app, r.owner, 10, "a.zip"),
+        r.uploads.begin(other, r.owner, 10, "b.zip"),
+    );
+    assert!(a.is_ok() && b.is_ok());
+    assert!(
+        t.elapsed() < std::time::Duration::from_millis(900),
+        "the starts ran one after the other: {:?}",
+        t.elapsed()
+    );
+}
+
+/// A single start still works, and still aborts the older open sessions (at most two stay open).
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_single_start_still_aborts_the_older_open_sessions() {
+    let r = rig().await;
+    let mut ids = Vec::new();
+    for n in 0..3 {
+        let slot = r
+            .uploads
+            .begin(r.app, r.owner, 10, &format!("{n}.zip"))
+            .await
+            .unwrap();
+        assert_eq!(slot.part_count, 3);
+        ids.push(slot.upload_id.parse::<i64>().unwrap());
+    }
+    assert_eq!(r.state(ids[0]).await, "aborted");
+    assert_eq!(r.state(ids[1]).await, "uploading");
+    assert_eq!(r.state(ids[2]).await, "uploading");
+    assert_eq!(r.rows_this_hour(r.app).await, 3);
+    // The sixth start of the hour passes, the seventh does not.
+    r.seed_recent(r.app, UPLOADS_PER_HOUR - 4).await;
+    assert!(r.uploads.begin(r.app, r.owner, 10, "x.zip").await.is_ok());
+    assert_eq!(
+        r.uploads
+            .begin(r.app, r.owner, 10, "y.zip")
+            .await
+            .unwrap_err(),
+        PackageUploadError::RateLimited
+    );
+}
+
+// ---- wave 72: SEC-AUD-281 (an oversized or surplus part ends the upload, D-762) -----------------------------------
+
+const ENDED: &str = "This upload has ended. Start a new one.";
+
+fn ended() -> PackageUploadError {
+    PackageUploadError::Activity(ActivityError::Conflict(ENDED.into()))
+}
+
+impl Rig {
+    /// A new upload of 10 bytes in parts of 4 with the given parts put.
+    async fn upload_with(&self, parts: &[(u32, usize)]) -> (i64, String) {
+        let slot = self
+            .uploads
+            .begin(self.app, self.owner, 10, "game.zip")
+            .await
+            .unwrap();
+        let id: i64 = slot.upload_id.parse().unwrap();
+        let mp = self.multipart_of(id).await;
+        for (n, len) in parts {
+            self.store
+                .inner
+                .put_part(&mp, *n, Bytes::from(vec![7u8; *len]));
+        }
+        (id, mp)
+    }
+
+    fn aborted_at_the_store(&self, mp: &str) -> bool {
+        self.store.inner.aborted().iter().any(|a| a == mp)
+    }
+}
+
+/// (a) A part with more bytes than it may hold ends the upload at `complete`.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn complete_ends_an_upload_whose_part_is_larger_than_announced() {
+    let r = rig().await;
+    let (id, mp) = r.upload_with(&[(1, 9), (2, 4), (3, 2)]).await;
+    assert_eq!(r.uploads.complete(r.app, id).await.unwrap_err(), ended());
+    assert_eq!(r.state(id).await, "aborted");
+    assert!(r.aborted_at_the_store(&mp));
+    // A second `complete` answers the same.
+    assert_eq!(r.uploads.complete(r.app, id).await.unwrap_err(), ended());
+    assert!(r.queue.queued.lock().unwrap().is_empty());
+}
+
+/// (b) A part numbered beyond the announced count ends it too.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn complete_ends_an_upload_with_a_part_beyond_the_count() {
+    let r = rig().await;
+    let (id, mp) = r.upload_with(&[(1, 4), (2, 4), (3, 2), (4, 1)]).await;
+    assert_eq!(r.uploads.complete(r.app, id).await.unwrap_err(), ended());
+    assert_eq!(r.state(id).await, "aborted");
+    assert!(r.aborted_at_the_store(&mp));
+}
+
+/// (c) Asking for the missing parts' URLs ends it, and hands out no new URL for the part that holds too much.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_missing_parts_call_ends_an_upload_whose_part_is_larger_than_announced() {
+    let r = rig().await;
+    let (id, mp) = r.upload_with(&[(1, 9)]).await;
+    let e = r.uploads.status(r.app, id).await;
+    assert_eq!(
+        e.as_ref().err(),
+        Some(&ActivityError::Conflict(ENDED.into())),
+        "the upload goes on: {e:?}"
+    );
+    assert_eq!(r.state(id).await, "aborted");
+    assert!(r.aborted_at_the_store(&mp));
+    // Once ended, the status is the ended state (no URLs).
+    let s = r.uploads.status(r.app, id).await.unwrap();
+    assert_eq!(s.state, PackageUploadState::Expired);
+    assert!(s.parts.is_none());
+}
+
+/// A part that is too small (a cut-off transfer) is still "missing": it can be sent again and the upload completes.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_too_small_part_can_be_sent_again() {
+    let r = rig().await;
+    let (id, mp) = r.upload_with(&[(1, 3), (2, 4), (3, 2)]).await;
+    let e = r.uploads.complete(r.app, id).await.unwrap_err();
+    assert!(matches!(e, PackageUploadError::PartsMissing(_)), "{e:?}");
+    assert_eq!(r.state(id).await, "uploading");
+    let s = r.uploads.status(r.app, id).await.unwrap();
+    assert_eq!(s.state, PackageUploadState::Uploading);
+    assert_eq!(s.parts.unwrap().len(), 1);
+    r.store.inner.put_part(&mp, 1, Bytes::from(vec![7u8; 4]));
+    let done = r.uploads.complete(r.app, id).await.unwrap();
+    assert_eq!(done.state, PackageUploadState::Checking);
+}
+
+/// An upload that is already `checking` or `ready` is not touched by the check.
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_oversize_check_leaves_a_checking_or_ready_upload_alone() {
+    let r = rig().await;
+    let (id, mp) = r.upload_with(&[(1, 4), (2, 4), (3, 2)]).await;
+    r.uploads.complete(r.app, id).await.unwrap();
+    // A stray part appears after the store assembled the object.
+    r.store.inner.put_part(&mp, 9, Bytes::from(vec![7u8; 50]));
+    let again = r.uploads.complete(r.app, id).await.unwrap();
+    assert_eq!(again.state, PackageUploadState::Checking);
+    let s = r.uploads.status(r.app, id).await.unwrap();
+    assert_eq!(s.state, PackageUploadState::Checking);
+    assert_eq!(r.state(id).await, "checking");
+    let key = sr_activities::package_upload::staged_key(r.app, id);
+    assert!(r.there(&key).await);
+    sqlx::query("UPDATE activity_package_uploads SET state = 'ready' WHERE id = $1")
+        .bind(id)
+        .execute(&r.pool)
+        .await
+        .unwrap();
+    let s = r.uploads.status(r.app, id).await.unwrap();
+    assert_eq!(s.state, PackageUploadState::Ready);
+    let s = r.uploads.complete(r.app, id).await.unwrap();
+    assert_eq!(s.state, PackageUploadState::Ready);
+    assert_eq!(r.state(id).await, "ready");
 }

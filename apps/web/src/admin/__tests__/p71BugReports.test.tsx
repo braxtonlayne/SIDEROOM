@@ -162,3 +162,32 @@ describe('the list pages (SEC-AUD-267)', () => {
     expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument();
   });
 });
+
+describe('a report whose browser said nothing about being online (SEC-AUD-277, D-758)', () => {
+  const onlineCell = () => {
+    const debug = screen.getByRole('region', { name: /debug/i });
+    return within(debug).getByText('Online').nextElementSibling as HTMLElement;
+  };
+
+  it('reads "Unknown" for online: null and for a row without the key', async () => {
+    await openReport({ ...FULL_BUNDLE, online: null });
+    expect(onlineCell()).toHaveTextContent('Unknown');
+  });
+
+  it('reads "Unknown" for a row stored before the key existed', async () => {
+    const { online: _gone, ...old } = FULL_BUNDLE;
+    void _gone;
+    await openReport(old);
+    expect(onlineCell()).toHaveTextContent('Unknown');
+  });
+
+  it('still reads Yes and No for true and false', async () => {
+    await openReport({ ...FULL_BUNDLE, online: true });
+    expect(onlineCell()).toHaveTextContent('Yes');
+  });
+
+  it('reads No for false', async () => {
+    await openReport({ ...FULL_BUNDLE, online: false });
+    expect(onlineCell()).toHaveTextContent('No');
+  });
+});

@@ -16,6 +16,7 @@ import { useDeveloperMode, useSavedPrefs } from '../settings/user/prefs';
 import { EmojiPicker } from './components/EmojiPicker';
 import type { Message, Snowflake } from './data';
 import { isJumbo, parseMarkdown, useMarkdownReady } from './markdown';
+import './msg/markdown.css';
 import { showRawSuspiciousLinks } from './suspiciousLinks';
 import { useStore } from '../store';
 import { AttachmentList } from './msg/Attachments';

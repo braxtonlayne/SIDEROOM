@@ -40,6 +40,18 @@ function pairs(t: Tokens, fgs: string[], bgs: string[]): [string, string][] {
   return fgs.flatMap((f) => bgs.map((b): [string, string] => [f, b])).filter(([f, b]) => has(t, f) && has(t, b));
 }
 
+/** Hue (degrees) and HSL saturation (0..1) of a `#rrggbb` colour. */
+function hsl(hex: string): { hue: number; saturation: number } {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return { hue: 0, saturation: 0 };
+  const saturation = d / (1 - Math.abs(max + min - 1));
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { hue: (h * 60 + 360) % 360, saturation };
+}
+
 const ids = Object.keys(THEMES) as ThemeId[];
 
 describe("token set: normal contrast", () => {
@@ -85,6 +97,26 @@ describe("token set: normal contrast", () => {
     const bg = t["--ui-bg"]!;
     for (const name of ["--ui-focus", "--ui-status-online", "--ui-status-idle", "--ui-status-dnd"])
       if (has(t, name)) expect(contrastRatio(t[name]!, bg), name).toBeGreaterThanOrEqual(3);
+  });
+
+  // The Editorial look (and its Cinema, Library and TV sibling); the Lounge themes keep their own values.
+  it.each(ids.filter((id) => id === "lounge-editorial" || id.startsWith("sideroom")))("%s: the status colours reach 3:1 on every surface a status sits on (D-741, D-756)", (id) => {
+    const t = effective(id, false);
+    for (const name of ["--ui-status-online", "--ui-status-idle", "--ui-status-dnd"])
+      if (has(t, name))
+        for (const surface of [...SURFACES, ...LOUNGE_SURFACES])
+          if (has(t, surface)) expect(contrastRatio(t[name]!, t[surface]!), `${name} on ${surface} ${t[surface]}`).toBeGreaterThanOrEqual(3);
+  });
+
+  // D-756: 3:1 was met by the olive and missed by eye. Online is a clear green: a green hue, and saturated enough
+  // to read as a colour at 13 px beside the warm browns (a pale or greyish green fails).
+  it.each(ids)("%s: the online colour is a clear, saturated green (D-756)", (id) => {
+    const t = effective(id, false);
+    if (!has(t, "--ui-status-online")) return;
+    const { hue, saturation } = hsl(t["--ui-status-online"]!);
+    expect(hue, "hue").toBeGreaterThanOrEqual(100);
+    expect(hue, "hue").toBeLessThanOrEqual(165);
+    expect(saturation, "saturation").toBeGreaterThanOrEqual(0.5);
   });
 });
 

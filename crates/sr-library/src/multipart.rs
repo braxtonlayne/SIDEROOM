@@ -217,6 +217,45 @@ pub fn check_parts(
     Ok(out)
 }
 
+/// A stored part the announced size does not allow (D-762): numbered beyond the announced count, or larger than
+/// that part may be.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OversizedPart {
+    pub number: u32,
+    /// Bytes the store holds for it.
+    pub size: u64,
+    /// Bytes it may hold; 0 for a part numbered beyond the announced count.
+    pub allowed: u64,
+}
+
+/// The first stored part (lowest number) that is numbered beyond `part_count` (or 0) or larger than its expected
+/// size. A part that is too small is not one: it is a cut-off transfer that can be sent again.
+pub fn oversized_part(
+    stored: &[StoredPart],
+    size: u64,
+    part_size: u64,
+    part_count: u32,
+) -> Option<OversizedPart> {
+    stored
+        .iter()
+        .filter_map(|p| {
+            let beyond = p.number == 0 || p.number > part_count;
+            let allowed = if beyond {
+                0
+            } else if p.number == part_count {
+                size.saturating_sub(part_size.saturating_mul(u64::from(part_count - 1)))
+            } else {
+                part_size
+            };
+            (beyond || p.size > allowed).then_some(OversizedPart {
+                number: p.number,
+                size: p.size,
+                allowed,
+            })
+        })
+        .min_by_key(|o| o.number)
+}
+
 /// An in-memory [`PartStore`] for tests: parts are put with [`MemoryPartStore::put_part`] (the
 /// stand-in for the browser's `PUT`), completion assembles the object in the given storage.
 pub struct MemoryPartStore {
@@ -384,5 +423,31 @@ mod tests {
         )
         .unwrap_err();
         assert!(e.contains("beyond"), "{e}");
+    }
+
+    #[test]
+    fn a_part_larger_than_allowed_or_beyond_the_count_is_oversized() {
+        // 10 bytes in parts of 4: 4 + 4 + 2.
+        let ok = [part(1, 4), part(2, 4), part(3, 2)];
+        assert_eq!(oversized_part(&ok, 10, 4, 3), None);
+        assert_eq!(oversized_part(&[], 10, 4, 3), None);
+        // Too small is not oversized (it is sent again).
+        assert_eq!(oversized_part(&[part(1, 3), part(3, 1)], 10, 4, 3), None);
+        // A middle part over its size.
+        let got = oversized_part(&[part(1, 9), part(2, 4)], 10, 4, 3).unwrap();
+        assert_eq!((got.number, got.size, got.allowed), (1, 9, 4));
+        // The last part holds only what is left.
+        let got = oversized_part(&[part(3, 3)], 10, 4, 3).unwrap();
+        assert_eq!((got.number, got.size, got.allowed), (3, 3, 2));
+        // Numbered beyond the count, or 0.
+        let got = oversized_part(&[part(1, 4), part(4, 1)], 10, 4, 3).unwrap();
+        assert_eq!((got.number, got.size, got.allowed), (4, 1, 0));
+        assert!(oversized_part(&[part(0, 1)], 10, 4, 3).is_some());
+        // The lowest number is the one named.
+        let got = oversized_part(&[part(5, 1), part(2, 9)], 10, 4, 3).unwrap();
+        assert_eq!(got.number, 2);
+        // One part: the whole size.
+        assert_eq!(oversized_part(&[part(1, 10)], 10, 16, 1), None);
+        assert!(oversized_part(&[part(1, 11)], 10, 16, 1).is_some());
     }
 }

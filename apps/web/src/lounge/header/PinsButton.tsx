@@ -17,6 +17,7 @@ import { useHiddenKind } from '../msg/lineText';
 import { richCardResolvers } from '../msg/RichCards';
 import { storeResolvers } from '../shell/notifyText';
 import { formatMessageTime } from '../time';
+import '../msg/markdown.css';
 import './header.css';
 
 export interface PinsButtonProps {

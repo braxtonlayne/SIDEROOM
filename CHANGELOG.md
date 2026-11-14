@@ -8,6 +8,14 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 72 - 2026-11-14
+
+- **Members.** The message list and the pinned messages panel now draw mentions as chips, code with a backdrop and highlight colours, quotes with a bar and emoji at the right size. Editorial's online dot is a clear green instead of an olive, and someone online on a phone shows a solid phone shape instead of a thin outline.
+- **Staff.** A bug report from a browser that did not say whether it was online reads "Unknown" under Online in Admin > Bug reports, instead of "Yes". Reports already stored are not rewritten.
+- **Developers.** Starting several package uploads at the same moment can no longer pass the six-an-hour limit. A package upload with a part larger than announced ends at once ("This upload has ended. Start a new one.").
+- **Library.** A `series.json` with a language and no edition gets the label `Edition (en)` for `eng`; existing labels are not rewritten.
+- **Operators.** No migration and nothing to do. The install guide now says that finishing a half-made first run asks for the Owner's password again.
+
 ## Phase 71 - 2026-11-14
 
 - **Members.** A spoiler in the chat is hidden until you click it (before, its words could be read in the message list), and so is a spoiler in the pinned messages panel, which now shows each pin as the message it is. Search works on a phone: a search button in the channel header opens it over the chat. Someone you blocked no longer sees you typing, nor you them. The red mention badge leaves out a role you do not hold when you suppress `@everyone`, and the app follows your own default notification level. A preview that is one long spoiler or bold sentence now shows it (the spoiler stays hidden). A relative time in a one-line preview reads as a date. The Library stores `eng` and `en` as one language, so its language filter no longer splits one language in two.

@@ -1,0 +1,92 @@
+/* What @sideroom/markdown-react draws, styled once for every Lounge surface that renders it (the message list, the pins
+   panel, a thread, search, a reply preview). The package's own stylesheet (packages/markdown-react/src/markdown.css) is
+   imported by nothing in the app: its colours belong to no theme. These rules use the app's tokens and logical
+   properties and name the renderer's bare sr-md-* classes, so one rule serves every surface (D-757).
+   Headings, lists, subtext, links, timestamps, line breaks and long words already draw right (shot on the base) and get no rule here. */
+
+/* A mention: a chip with a tinted backdrop in the brand colour. @everyone, @here, roles, channels and the rest share it. */
+.sr-md-mention {
+  padding-inline: 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--brand) 25%, transparent);
+  color: color-mix(in srgb, var(--brand) 70%, var(--text-normal));
+  font-weight: 500;
+}
+button.sr-md-mention {
+  border: 0;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.sr-md-mention:hover {
+  background: color-mix(in srgb, var(--brand) 40%, transparent);
+}
+
+/* Code. */
+.sr-md-code,
+.sr-md-codeblock {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-normal) 10%, transparent);
+  font-family: var(--ui-font-mono, ui-monospace, Menlo, Consolas, monospace);
+}
+.sr-md-code {
+  padding: 0.1em 0.3em;
+  font-size: 0.875em;
+}
+.sr-md-codeblock {
+  display: block;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin-block: 0.25em;
+  padding: 0.5em 0.75em;
+  border: 1px solid var(--ui-border);
+  font-size: 0.875em;
+  line-height: 1.4;
+  overflow-x: auto;
+  white-space: pre;
+}
+/* Shiki tokens carry both theme colours as variables (highlight.tsx); the theme's colour-scheme picks one. */
+.sr-md-codeblock .sr-md-tok {
+  color: var(--shiki-light, inherit);
+  color: light-dark(var(--shiki-light, inherit), var(--shiki-dark, inherit));
+}
+
+/* A quote: a 4px bar. */
+.sr-md-quote {
+  margin-block: 0.25em;
+  margin-inline: 0;
+  padding-inline-start: 0.75em;
+  border-inline-start: 4px solid var(--ui-border);
+}
+
+/* Emoji: an inline image sits on the text; a message that is only emoji is large. */
+img.sr-md-emoji {
+  inline-size: 1.375em;
+  block-size: 1.375em;
+  vertical-align: -0.3em;
+  object-fit: contain;
+}
+/* The parser emits unicode emoji as plain text, so the whole message grows (the root carries sr-md-jumbo). */
+.sr-md-jumbo {
+  font-size: 2.75rem;
+  line-height: 1.1;
+}
+.sr-md-jumbo img.sr-md-emoji {
+  inline-size: 3rem;
+  block-size: 3rem;
+}
+
+/* A text spoiler stays hidden until it is clicked. */
+.sr-md-spoiler[data-revealed='false'] {
+  cursor: pointer;
+  border-radius: 3px;
+  background: var(--ui-text-faint);
+}
+.sr-md-spoiler[data-revealed='false'] .sr-md-spoiler-content {
+  opacity: 0;
+  pointer-events: none;
+}
+.sr-md-spoiler[data-revealed='true'] {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-normal) 14%, transparent);
+}
