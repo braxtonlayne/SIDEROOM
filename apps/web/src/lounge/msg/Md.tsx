@@ -1,5 +1,6 @@
 import { Markdown, type Resolvers } from '@sideroom/markdown-react';
 import { parseMarkdown, useMarkdownReady } from '../markdown';
+import './markdown.css';
 
 /** Markdown for a string that is not a whole message (embed text, poll text, forwards). */
 export function Md({ text, resolvers }: { text: string; resolvers?: Resolvers | undefined }) {

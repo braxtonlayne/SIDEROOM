@@ -44,42 +44,7 @@
 .lng-pin-body[data-capped] {
   mask-image: linear-gradient(to bottom, #000 calc(100% - 3em), transparent);
 }
-/* markdown-react's own stylesheet (packages/markdown-react/src/markdown.css) is not imported anywhere in the app, so the
-   pin carries the few rules it needs: a spoiler hidden until it is clicked, a mention chip, code and a quote bar. */
-.lng-pin-body .sr-md-spoiler[data-revealed='false'] {
-  cursor: pointer;
-  border-radius: 3px;
-  background: var(--ui-text-faint);
-}
-.lng-pin-body .sr-md-spoiler[data-revealed='false'] .sr-md-spoiler-content {
-  opacity: 0;
-  pointer-events: none;
-}
-.lng-pin-body .sr-md-spoiler[data-revealed='true'] {
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--text-normal) 14%, transparent);
-}
-.lng-pin-body .sr-md-mention {
-  padding-inline: 2px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--brand) 25%, transparent);
-}
-.lng-pin-body .sr-md-code,
-.lng-pin-body .sr-md-codeblock {
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--text-normal) 10%, transparent);
-  font-family: var(--ui-font-mono, ui-monospace, Menlo, Consolas, monospace);
-}
-.lng-pin-body .sr-md-codeblock {
-  margin-block: 0.25em;
-  padding: 0.5em 0.75em;
-  white-space: pre;
-}
-.lng-pin-body .sr-md-quote {
-  margin-block: 0.25em;
-  padding-inline-start: 0.75em;
-  border-inline-start: 4px solid var(--ui-border);
-}
+/* The pin's own rule for what the renderer draws; the sr-md-* rules are in ../msg/markdown.css. */
 .lng-pin-body pre {
   max-inline-size: 100%;
   overflow-x: auto;
