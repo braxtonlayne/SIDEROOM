@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::{PgPool, Row};
-use sr_library::multipart::{MAX_PARTS, PART_URL_TTL, PartStore, StoredPart, check_parts};
+use sr_library::multipart::{
+    MAX_PARTS, PART_URL_TTL, PartStore, StoredPart, check_parts, oversized_part,
+};
 use sr_storage::{ObjectStorage, StorageError};
 use utoipa::ToSchema;
 
@@ -31,6 +33,11 @@ pub const UPLOAD_TTL_HOURS: i64 = 24;
 pub const UPLOADS_PER_HOUR: i64 = 6;
 /// Open (not yet completed) uploads one application may have; starting another aborts the older.
 pub const OPEN_UPLOADS: i64 = 2;
+/// Class of the two-key advisory lock a start takes per application (D-761). The only other two-key advisory locks
+/// of the platform are the music library's 1550 and 1551.
+const START_LOCK_CLASS: i32 = 1580;
+/// The answer of every call on an upload that has ended.
+const ENDED_TEXT: &str = "This upload has ended. Start a new one.";
 /// SEC-AUD-254: when `complete` queues the check, the upload may live at least this many hours more, so the daily
 /// sweep does not expire it under the check. A check reads the zip at most four times over plus 16 MiB (the read
 /// budget of `zipstore`) and the job is tried three times (`INGEST_ATTEMPTS` of `sr-server`, backoff 5 s, 10 s),
@@ -454,32 +461,57 @@ impl PackageUploads {
                 tier_word(limits.tier)
             )));
         }
+        // D-761 (SEC-AUD-280): the count of the hour, the abort of the older sessions, the store's `create` and the
+        // insert are one step per application. A transaction takes the application's advisory lock first (a start
+        // waits for another start of the same application; other applications are not touched), so two starts
+        // cannot both count five and both go on. The lock lets go at the commit or when the transaction is dropped.
+        let mut tx = self.inner.pool.begin().await?;
+        // A start that waits longer than this (the holder's store is hanging) is answered like a start over the
+        // limit, so a waiting start cannot hold a database connection for long.
+        sqlx::query("SET LOCAL lock_timeout = '20s'")
+            .execute(&mut *tx)
+            .await?;
+        if let Err(e) = sqlx::query("SELECT pg_advisory_xact_lock($1, hashtext($2::text))")
+            .bind(START_LOCK_CLASS)
+            .bind(app.to_string())
+            .execute(&mut *tx)
+            .await
+        {
+            return Err(match &e {
+                // 55P03: lock_not_available.
+                sqlx::Error::Database(d) if d.code().as_deref() == Some("55P03") => {
+                    PackageUploadError::RateLimited
+                }
+                _ => e.into(),
+            });
+        }
         let recent: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM activity_package_uploads \
              WHERE application_id = $1 AND created_at > now() - interval '1 hour'",
         )
         .bind(app)
-        .fetch_one(&self.inner.pool)
+        .fetch_one(&mut *tx)
         .await?;
         if recent >= UPLOADS_PER_HOUR {
             return Err(PackageUploadError::RateLimited);
         }
-        // At most OPEN_UPLOADS open sessions: the older ones are aborted to make room for this one.
+        // At most OPEN_UPLOADS open sessions: the older ones are given up to make room for this one. The rows are
+        // marked here, under the lock; what they hold at the store is freed after the commit (so the lock holder
+        // needs no second connection, and a start that fails frees nothing).
         let keep = OPEN_UPLOADS - 1;
-        let older = sqlx::query(
-            "SELECT id FROM activity_package_uploads WHERE application_id = $1 AND state = 'uploading' \
-             ORDER BY created_at DESC, id DESC OFFSET $2",
-        )
+        let older = sqlx::query(concat!(
+            "UPDATE activity_package_uploads SET state = 'aborted' WHERE state = 'uploading' AND id IN \
+             (SELECT id FROM activity_package_uploads WHERE application_id = $1 AND state = 'uploading' \
+              ORDER BY created_at DESC, id DESC OFFSET $2) RETURNING ",
+            cols!()
+        ))
         .bind(app)
         .bind(keep)
-        .fetch_all(&self.inner.pool)
-        .await?;
-        for r in older {
-            let id: i64 = r.try_get("id")?;
-            if let Err(e) = self.abort(app, id).await {
-                tracing::warn!(error = ?e, "aborting an older package upload failed");
-            }
-        }
+        .fetch_all(&mut *tx)
+        .await?
+        .iter()
+        .map(row_of)
+        .collect::<Result<Vec<_>, _>>()?;
 
         let id = (self.inner.ids)();
         let key = staged_key(app, id);
@@ -503,11 +535,19 @@ impl PackageUploads {
         .bind(i32::try_from(part_count).unwrap_or(i32::MAX))
         .bind(&key)
         .bind(&multipart_id)
-        .execute(&self.inner.pool)
+        .execute(&mut *tx)
         .await;
         if let Err(e) = inserted {
             let _ = w.store.abort(&key, &multipart_id).await;
             return Err(e.into());
+        }
+        if let Err(e) = tx.commit().await {
+            // Nothing was written: the store's upload belongs to nobody.
+            let _ = w.store.abort(&key, &multipart_id).await;
+            return Err(e.into());
+        }
+        for r in &older {
+            self.discard(r).await;
         }
         let parts = self.presign(&w, &key, &multipart_id, 1..=part_count)?;
         Ok(PackageUploadSlot {
@@ -564,6 +604,7 @@ impl PackageUploads {
             .list_parts(&r.object_key, &r.multipart_id)
             .await
             .map_err(storage_err)?;
+        self.end_if_oversized(&r, &stored).await?;
         let missing = missing_parts(&stored, size, part_size, count);
         let received: Vec<u32> = (1..=count).filter(|n| !missing.contains(n)).collect();
         let urls = self.presign(w, &r.object_key, &r.multipart_id, missing.into_iter())?;
@@ -582,10 +623,7 @@ impl PackageUploads {
             "uploading" if !r.lapsed => {}
             "checking" | "ready" | "refused" => return Ok(Self::view(&r, Vec::new(), None)),
             _ => {
-                return Err(ActivityError::Conflict(
-                    "This upload has ended. Start a new one.".into(),
-                )
-                .into());
+                return Err(ActivityError::Conflict(ENDED_TEXT.into()).into());
             }
         }
         let w = self
@@ -595,37 +633,44 @@ impl PackageUploads {
             .ok_or(PackageUploadError::NoParts)?;
         if !self.assembled(&r).await? {
             let (size, part_size, count) = dims(&r);
-            let stored = w
-                .store
-                .list_parts(&r.object_key, &r.multipart_id)
-                .await
-                .map_err(storage_err)?;
-            let missing = missing_parts(&stored, size, part_size, count);
-            if !missing.is_empty() {
-                let list = missing
-                    .iter()
-                    .map(u32::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return Err(PackageUploadError::PartsMissing(format!(
-                    "Parts {list} of {count} have not been uploaded."
-                )));
-            }
-            let parts = check_parts(&stored, size, part_size, count)
-                .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
-            if let Err(e) = w
-                .store
-                .complete(&r.object_key, &r.multipart_id, &parts)
-                .await
-            {
-                // Another `complete` may have won the race (the store no longer has the upload, the object is
-                // there). Only an object that is not there is a failure.
-                if !self.assembled(&r).await? {
-                    tracing::warn!(upload = id, error = %e, "completing a package upload failed");
-                    return Err(ActivityError::Conflict(
-                        "The storage did not accept the uploaded parts. Start a new upload.".into(),
-                    )
-                    .into());
+            let listed = w.store.list_parts(&r.object_key, &r.multipart_id).await;
+            let stored = match listed {
+                Ok(s) => Some(s),
+                // Another `complete` assembled the object between the check above and this listing: the store no
+                // longer has the upload, and the object is the proof.
+                Err(_) if self.assembled(&r).await? => None,
+                Err(e) => return Err(storage_err(e).into()),
+            };
+            if let Some(stored) = stored {
+                self.end_if_oversized(&r, &stored).await?;
+                let missing = missing_parts(&stored, size, part_size, count);
+                if !missing.is_empty() {
+                    let list = missing
+                        .iter()
+                        .map(u32::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    return Err(PackageUploadError::PartsMissing(format!(
+                        "Parts {list} of {count} have not been uploaded."
+                    )));
+                }
+                let parts = check_parts(&stored, size, part_size, count)
+                    .map_err(|m| PackageUploadError::Activity(ActivityError::Conflict(m)))?;
+                if let Err(e) = w
+                    .store
+                    .complete(&r.object_key, &r.multipart_id, &parts)
+                    .await
+                {
+                    // Another `complete` may have won the race (the store no longer has the upload, the object is
+                    // there). Only an object that is not there is a failure.
+                    if !self.assembled(&r).await? {
+                        tracing::warn!(upload = id, error = %e, "completing a package upload failed");
+                        return Err(ActivityError::Conflict(
+                            "The storage did not accept the uploaded parts. Start a new upload."
+                                .into(),
+                        )
+                        .into());
+                    }
                 }
             }
         }
@@ -655,6 +700,27 @@ impl PackageUploads {
             }
         }
         Ok(self.status(app, id).await?)
+    }
+
+    /// D-762 (SEC-AUD-281): an open upload whose store holds a part larger than that part may be, or a part
+    /// numbered beyond the announced count, has ended: the upload is given up (state `aborted`, the parts aborted)
+    /// and the caller gets the ended answer. The server cannot stop the `PUT`, but it does not keep what it has
+    /// seen. A part that is too small is not touched (it is sent again). One warning, with the sizes and no name.
+    async fn end_if_oversized(&self, r: &UploadRow, stored: &[StoredPart]) -> ActivityResult<()> {
+        let (size, part_size, count) = dims(r);
+        let Some(o) = oversized_part(stored, size, part_size, count) else {
+            return Ok(());
+        };
+        tracing::warn!(
+            application = r.application_id,
+            upload = r.id,
+            part = o.number,
+            stored_bytes = o.size,
+            allowed_bytes = o.allowed,
+            "a package upload holds a part larger than announced; the upload ends"
+        );
+        self.abort(r.application_id, r.id).await?;
+        Err(ActivityError::Conflict(ENDED_TEXT.into()))
     }
 
     /// Whether the store holds the assembled object of `r`.
