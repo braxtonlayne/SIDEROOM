@@ -6,6 +6,7 @@ import { t, useT } from '../../i18n';
 import { useStore } from '../../store';
 import type { Message, Snowflake } from '../data';
 import { ThreadChip } from '../threads/ThreadChip';
+import { MessageLine } from './lineText';
 import { formatMessageTime } from '../time';
 
 /** Discord message types that are not authored chat (LNG-MSGUI-030). */
@@ -103,11 +104,15 @@ function ThreadStarterPreview({
 }) {
   const t = useT();
   const [original, setOriginal] = useState<
-    { author: string; text: string } | null | 'gone' | 'failed'
+    { author: string; authorId: string; text: string } | null | 'gone' | 'failed'
   >(null);
+  const guildId = useStore((s) => s.channels[channelId]?.guild_id ?? null);
   useEffect(() => {
     let live = true;
-    apiFetch<{ content?: string; author?: { username: string; global_name?: string | null } }>(
+    apiFetch<{
+      content?: string;
+      author?: { id?: string; username: string; global_name?: string | null };
+    }>(
       `/channels/${channelId}/messages/${messageId}`,
       { retries: 0 },
     )
@@ -115,6 +120,7 @@ function ThreadStarterPreview({
         if (live)
           setOriginal({
             author: m.author?.global_name || m.author?.username || '',
+            authorId: m.author?.id ?? '',
             text: m.content || '',
           });
       })
@@ -139,8 +145,13 @@ function ThreadStarterPreview({
           <strong className="lng-sys-name">
             {original.author || t('lounge.systemMessage.someone')}
           </strong>{' '}
+          {/* D-764: the starter's text as D-729's plain line (never the typed text), cut by that function. */}
           <q className="lng-sys-quote">
-            {(original.text || t('lounge.systemMessage.attachment')).slice(0, 200)}
+            {original.text ? (
+              <MessageLine content={original.text} authorId={original.authorId} guildId={guildId} />
+            ) : (
+              t('lounge.systemMessage.attachment')
+            )}
           </q>
         </>
       ) : (
