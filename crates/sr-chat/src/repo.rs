@@ -501,6 +501,14 @@ pub trait MessageStore: Send + Sync {
     ) -> StoreResult<Option<DetachedAttachment>>;
     /// Delete the row of a removed attachment once its object is gone (no-op while a hold covers it).
     async fn forget_removed_attachment(&self, id: AttachmentId) -> StoreResult<()>;
+    /// For a page of messages with threads (D-689): in each of `channels` the latest not-deleted message a person
+    /// wrote, with its attachment count, read for all of them in ONE query. A channel with none is left out.
+    async fn last_messages(
+        &self,
+        _channels: &[ChannelId],
+    ) -> StoreResult<HashMap<ChannelId, crate::preview::MessageGist>> {
+        Ok(HashMap::new())
+    }
     /// Attachments belonging to messages (any state `Attached`).
     async fn attachments_of(
         &self,

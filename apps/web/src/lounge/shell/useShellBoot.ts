@@ -6,6 +6,7 @@ import { useNotifSettings } from './notifSettings';
 import { startSocialLive, useSocial } from './social';
 import { useUserSettingsSync } from './userSettingsSync';
 import { startThreadsLive } from '../threads/threadStore';
+import { startPreviewsLive } from '../previewLive';
 import { getMe } from '../../settings/user/api';
 import { adoptAccountLocale } from '../../i18n/accountLocale';
 
@@ -30,6 +31,7 @@ export function useShellBoot() {
   }, [mock]);
   useEffect(() => (mock ? undefined : startSocialLive()), [mock]);
   useEffect(() => (mock ? undefined : startThreadsLive()), [mock]);
+  useEffect(() => (mock ? undefined : startPreviewsLive()), [mock]);
   useEffect(() => (mock ? undefined : startIdleReporter()), [mock]);
   useEffect(() => {
     if (mock) return;

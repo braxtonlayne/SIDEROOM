@@ -261,6 +261,13 @@ pub trait GuildDirectory: Send + Sync {
     async fn ready_extras(&self, _user: UserId) -> Value {
         json!({})
     }
+
+    /// Whether the account holds an active platform staff appointment right now (D-673). Asked once per
+    /// IDENTIFY and once per resync, to put `sr_platform_staff: true` on the account's OWN READY user; never
+    /// per event, and never for a bot. Default: no (a directory without a staff source says nothing).
+    async fn is_platform_staff(&self, _user: UserId) -> bool {
+        false
+    }
 }
 
 /// What an op 8 `REQUEST_GUILD_MEMBERS` asks the directory for (D-242).

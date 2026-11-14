@@ -527,6 +527,23 @@ export function toLoungeMessage(m: S.Message): Message {
             id: m.thread.id,
             name: m.thread.name ?? 'Thread',
             messageCount: m.thread.message_count ?? 0,
+            ...(m.thread.sr_last_message
+              ? {
+                  last: {
+                    id: m.thread.sr_last_message.id,
+                    author: {
+                      id: m.thread.sr_last_message.author.id,
+                      displayName:
+                        m.thread.sr_last_message.author.global_name ||
+                        m.thread.sr_last_message.author.username ||
+                        '',
+                    },
+                    content: m.thread.sr_last_message.content,
+                    attachments: m.thread.sr_last_message.attachments,
+                    createdAt: m.thread.sr_last_message.timestamp,
+                  },
+                }
+              : {}),
           },
         }
       : {}),

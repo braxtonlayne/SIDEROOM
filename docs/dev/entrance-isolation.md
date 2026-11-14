@@ -239,7 +239,5 @@ D-385 draws the line at sign-in; this draws a second one at the staff appointmen
   and `i18n-verify-diff` read both directories; tests register both (`test/setup.ts`).
 - **Adding a staff entry.** Add its path to `STAFF_ENTRIES` in `scripts/lib/staff-graph.mjs` (re-exported by `staffChunks.ts`), reach it only through a dynamic import in
   a small door like `StaffDoor`, add a marker to `check-staff-delivery.mjs` if it is a new area, build, run the check.
-- **Not covered yet.** Staff-looking code inside member chunks (the staff cards and message actions in the Lounge,
-  `lounge/shell/platformStaff`) is only listed by the check's report: the client has no datum that says the account is
-  staff before it asks (D-664 stopped there; see the wave 66 catalog handoff). The pseudo-locale (`en-XA`) of a development
+- **Member code and the staff flag (D-673, D-674, SEC-AUD-189).** Member code never asks `/admin/me`: the account's own READY carries `user.sr_platform_staff: true` for an active staff appointment (absent for everyone else and for bots; on no other payload), the session store keeps it (`platformStaff`), and `lounge/shell/adminEntry.ts` reads it for the status menu's "Platform Admin" entry; `SR_STAFF_ALERT {revoked}` clears it and accepting an appointment offer sets it. The Lounge's card buttons are member code under `lounge/msg/cardActions.ts` (their `/admin/card-actions` call stays: the server refuses non-staff). The build report `memberModulesStaffLooking` in `dist/app/staff-chunks.json` is empty, and `scripts/check-staff-delivery.mjs` says so. The pseudo-locale (`en-XA`) of a development
   or `SR_PSEUDO_LOCALE=1` build holds the staff text too; a production build has none. `vite dev` serves modules unbundled and is not a delivery boundary.

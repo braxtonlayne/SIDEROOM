@@ -22,6 +22,7 @@ pub mod message_hooks;
 pub mod message_rules;
 pub mod perms;
 pub mod poll_rules;
+pub mod preview;
 pub mod profile;
 pub mod repo;
 pub mod rich_repo;

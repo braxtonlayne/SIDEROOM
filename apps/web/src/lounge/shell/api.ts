@@ -46,6 +46,14 @@ export const ignoreUser = (userId: string) =>
     useIgnores.getState().add(userId),
   );
 
+/** What a Message Requests row shows of the sender's latest message (D-688): words and a count, nothing else. */
+export interface RequestPreview {
+  /** Raw text cut to 140 characters (mentions as written); empty when the message holds only files. */
+  content: string;
+  attachments: number;
+  timestamp: string;
+}
+
 export interface DmObject {
   id: string;
   type: number;
@@ -55,6 +63,8 @@ export interface DmObject {
   is_message_request?: boolean | null;
   /** With `is_message_request`: `server_filter` or `new_account` when a shared server's Protection settings sent it here (D-224). */
   sr_request_reason?: 'server_filter' | 'new_account' | 'spam' | null;
+  /** With `is_message_request`: the sender's latest message as words only (D-688). Absent when there is none. */
+  sr_request_preview?: RequestPreview | null;
 }
 /** Open (or find) a 1:1 DM, or create a group DM when more than one id is given. */
 export const createDm = (recipientIds: string[]) =>

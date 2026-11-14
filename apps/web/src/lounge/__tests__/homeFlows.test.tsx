@@ -10,7 +10,6 @@ import { useLoungeUi } from '../store';
 import { connectionMessage } from '../shell/Banners';
 import { useNotifSettings } from '../shell/notifSettings';
 import { useSelfPresence } from '../shell/selfPresence';
-import { resetPlatformStaffCheck, usePlatformStaff } from '../shell/platformStaff';
 import { useSocial } from '../shell/social';
 import { warmLoungeRoute } from '../../test/warmRoutes';
 import { byosMockHandlers, mockMount } from '../../settings/user/storage/mocks';
@@ -701,15 +700,12 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
   beforeEach(() => {
     seed();
     quiet();
-    resetPlatformStaffCheck();
+    // The READY flag (D-673): off unless a test says the account is staff.
+    useStore.setState({ platformStaff: false });
   });
 
   it('shows Platform Admin in the user menu to staff and opens /admin', async () => {
-    server.use(
-      http.get('*/api/v1/admin/me', () =>
-        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
-      ),
-    );
+    useStore.setState({ platformStaff: true });
     const router = at('/channels/@me');
     await userEvent.click(await screen.findByRole('button', { name: /Set status/ }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Platform Admin' }));
@@ -717,24 +713,24 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
   });
 
   it('does not show it to people who are not staff', async () => {
+    // No request to /admin/me from member code: the menu has nothing to ask (D-673).
+    const asked: string[] = [];
     server.use(
-      http.get('*/api/v1/admin/me', () =>
-        HttpResponse.json({ message: 'Missing permissions' }, { status: 403 }),
-      ),
+      http.get('*/api/v1/admin/me', () => {
+        asked.push('/admin/me');
+        return HttpResponse.json({ message: 'Missing permissions' }, { status: 403 });
+      }),
     );
     at('/channels/@me');
     await userEvent.click(await screen.findByRole('button', { name: /Set status/ }));
     await screen.findByRole('menuitem', { name: 'Invisible' });
-    await waitFor(() => expect(usePlatformStaff.getState().loaded).toBe(true));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(asked).toEqual([]);
     expect(screen.queryByRole('menuitem', { name: 'Platform Admin' })).toBeNull();
   });
 
   it('frames the Staff Server in the rail and offers Platform Admin in its server menu', async () => {
-    server.use(
-      http.get('*/api/v1/admin/me', () =>
-        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
-      ),
-    );
+    useStore.setState({ platformStaff: true });
     useStore.setState({
       guilds: { g1: { id: 'g1', name: 'Staff Server', owner_id: '1', is_staff_guild: true } },
     });
@@ -749,11 +745,7 @@ describe('platform admin entry points (ADM-STF-010, ADM-STF-011)', () => {
   });
 
   it('offers no invite entry in the Staff Server menu, but does in other servers (ADM-STF-003)', async () => {
-    server.use(
-      http.get('*/api/v1/admin/me', () =>
-        HttpResponse.json({ is_owner: false, platform_permissions: '1', user_id: '1' }),
-      ),
-    );
+    useStore.setState({ platformStaff: true });
     useStore.setState({
       guilds: { g1: { id: 'g1', name: 'Staff Server', owner_id: '1', is_staff_guild: true } },
     });

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { isStaffRevoked } from '../lounge/shell/platformStaff';
+import { isStaffRevoked } from '../lounge/shell/adminEntry';
 import { onDispatch } from '../store/events';
 
 /** Runs `onRevoked` when the server pushes the end of this account's appointment (ADM-STF-005). */

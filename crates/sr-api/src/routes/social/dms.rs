@@ -7,7 +7,9 @@
 use super::deps::SocialDeps;
 use super::error::{ApiJson, MsgResult, invalid};
 use super::events::SocialEvent;
-use super::model::{CreateDmBody, DmChannelObject, EditDmBody, MessageRequestBody};
+use super::model::{
+    CreateDmBody, DmChannelObject, EditDmBody, MessageRequestBody, RequestPreviewObject,
+};
 use super::util::{actor, channel_id, user_id};
 use crate::routes::MaybeExt;
 use crate::routes::media::MediaDeps;
@@ -42,6 +44,7 @@ pub async fn list(
         .summaries(dms.iter().flat_map(|d| d.recipients.iter().copied()))
         .await?;
     let mut out = Vec::with_capacity(dms.len());
+    let mut pending: Vec<ChannelId> = Vec::new();
     for dm in &dms {
         let mut obj = DmChannelObject::new(dm, me, &users);
         obj.sr_max_upload_bytes = limit;
@@ -55,8 +58,19 @@ pub async fn list(
                 .await?
                 .or((state == Some(RequestState::Spam)).then_some(RequestReason::Spam))
                 .map(|r| r.as_str().to_owned());
+            pending.push(dm.id);
         }
         out.push(obj);
+    }
+    // D-688: what each pending sender wrote last, for all of them in one read.
+    let previews = deps.service.request_previews(me, &pending).await?;
+    for (obj, dm) in out.iter_mut().zip(&dms) {
+        if let Some(g) = previews
+            .get(&dm.id)
+            .filter(|_| obj.is_message_request == Some(true))
+        {
+            obj.sr_request_preview = Some(RequestPreviewObject::new(g));
+        }
     }
     Ok(Json(out))
 }
@@ -478,6 +492,15 @@ pub(crate) async fn announce(
                 .request_reason(*user, dm.id)
                 .await?
                 .map(|r| r.as_str().to_owned());
+            // D-688: a request that opens with its first message already stored carries it.
+            if let Some(g) = deps
+                .service
+                .request_previews(*user, &[dm.id])
+                .await?
+                .get(&dm.id)
+            {
+                obj.sr_request_preview = Some(RequestPreviewObject::new(g));
+            }
         }
         let payload: Value = serde_json::to_value(obj).unwrap_or(Value::Null);
         deps.emit(SocialEvent::new(name, vec![*user], payload).for_channel(dm.id))

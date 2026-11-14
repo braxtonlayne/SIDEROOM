@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { HOME } from '../channels';
+import { SingleLine } from '../msg/SingleLine';
 import { useLoungeGoto } from '../nav';
 import { blockUser, respondToMessageRequest, type DmObject } from './api';
 import { rememberDm } from './dm';
@@ -17,6 +18,8 @@ export function MessageRequestsPage({ onBack }: { onBack?: (() => void) | undefi
   const goto = useLoungeGoto();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // "Likely spam": the rows whose message was asked for. Not remembered: leaving the page hides them again.
+  const [shown, setShown] = useState<ReadonlySet<string>>(new Set());
 
   const answer = async (
     dm: DmObject,
@@ -50,6 +53,8 @@ export function MessageRequestsPage({ onBack }: { onBack?: (() => void) | undefi
     const from = dm.recipients[0];
     const name = from ? wireName(from) : t('lounge.messageRequests.unknown');
     const reason = requestReasonText(dm, t);
+    const preview = dm.sr_request_preview;
+    const hidden = dm.sr_request_reason === 'spam' && !shown.has(dm.id);
     return (
       <li key={dm.id} className="lng-friend-row">
         <Avatar name={name} size={32} />
@@ -57,6 +62,26 @@ export function MessageRequestsPage({ onBack }: { onBack?: (() => void) | undefi
           <span className="lng-friend-name">{name}</span>
           <span className="lng-friend-sub">{t('lounge.messageRequests.wantsToMessage')}</span>
           {reason && <span className="lng-friend-sub">{reason}</span>}
+          {preview &&
+            (hidden ? (
+              <span className="lng-friend-sub lng-request-preview">
+                <button
+                  type="button"
+                  className="lng-link-btn"
+                  aria-label={t('lounge.preview.showMessageLabel', { name })}
+                  onClick={() => setShown((s) => new Set(s).add(dm.id))}
+                >
+                  {t('lounge.preview.showMessage')}
+                </button>
+              </span>
+            ) : (
+              <span className="lng-friend-sub lng-request-preview" data-request-preview>
+                {preview.content && <SingleLine text={preview.content} />}
+                {preview.content && preview.attachments > 0 && ' · '}
+                {preview.attachments > 0 &&
+                  t('lounge.preview.attachments', { count: preview.attachments })}
+              </span>
+            ))}
         </span>
         <Button
           size="sm"

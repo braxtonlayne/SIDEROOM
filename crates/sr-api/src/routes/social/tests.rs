@@ -2401,3 +2401,157 @@ async fn a_blocked_users_mention_does_not_badge_the_blocker() {
         .unwrap();
     assert_eq!(muted.len(), 2);
 }
+
+/// D-688: a request seeded with messages (the in-memory repository's stand-in for the messages table).
+fn seed_gist(e: &Env, channel: &str, id: u64, author: u64, content: &str, attachments: u32) {
+    e.repo
+        .store
+        .lock()
+        .unwrap()
+        .gists
+        .entry(ChannelId::new(channel.parse().unwrap()))
+        .or_default()
+        .push(sr_chat::preview::MessageGist {
+            id: sr_core::MessageId::new(id),
+            author_id: UserId::new(author),
+            content: content.to_owned(),
+            attachments,
+        });
+}
+
+#[tokio::test]
+async fn a_pending_request_carries_the_latest_message_as_a_preview() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    seed_gist(&e, &id, 1 << 22, ALICE, "an older hello", 0);
+    seed_gist(
+        &e,
+        &id,
+        2 << 22,
+        BOB,
+        "the recipient's own reply is never the preview",
+        0,
+    );
+    seed_gist(&e, &id, 3 << 22, ALICE, "  line one\n\nline two  ", 2);
+
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(bob[0]["is_message_request"], true);
+    let p = &bob[0]["sr_request_preview"];
+    assert_eq!(p["content"], "line one line two", "{bob}");
+    assert_eq!(p["attachments"], 2);
+    assert!(
+        p["timestamp"]
+            .as_str()
+            .is_some_and(|t| t.ends_with("+00:00"))
+    );
+    // Words and a count only: no author, embeds or file names.
+    let mut keys: Vec<&str> = p.as_object().unwrap().keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(keys, ["attachments", "content", "timestamp"]);
+    // The sender never sees a request preview of their own conversation.
+    let (_, alice) = e.get("/users/@me/channels", ALICE).await;
+    assert!(alice[0].get("sr_request_preview").is_none(), "{alice}");
+}
+
+#[tokio::test]
+async fn an_accepted_conversation_carries_none() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    seed_gist(&e, &id, 3 << 22, ALICE, "hello", 0);
+    assert!(e.get("/users/@me/channels", BOB).await.1[0]["sr_request_preview"].is_object());
+    assert_eq!(
+        e.put(
+            &format!("/users/@me/channels/{id}/request"),
+            BOB,
+            Some(json!({"state": "accepted"}))
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert!(bob[0].get("is_message_request").is_none_or(Value::is_null));
+    assert!(bob[0].get("sr_request_preview").is_none(), "{bob}");
+}
+
+#[tokio::test]
+async fn an_attachment_only_message_gives_a_count() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    let (_, dm) = e
+        .post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let id = dm["id"].as_str().unwrap().to_owned();
+    seed_gist(&e, &id, 3 << 22, ALICE, "   ", 3);
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(bob[0]["sr_request_preview"]["content"], "");
+    assert_eq!(bob[0]["sr_request_preview"]["attachments"], 3);
+}
+
+#[tokio::test]
+async fn a_request_without_a_message_has_no_preview() {
+    let e = env().await;
+    e.share_guild(ALICE, BOB);
+    e.post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    assert_eq!(bob[0]["is_message_request"], true);
+    assert!(bob[0].get("sr_request_preview").is_none(), "{bob}");
+}
+
+#[tokio::test]
+async fn the_preview_is_read_in_one_query() {
+    let e = env().await;
+    for from in [ALICE, CAROL, DAVE] {
+        e.share_guild(from.min(BOB), from.max(BOB));
+        let (s, dm) = e
+            .post("/users/@me/channels", from, json!({"recipient_id": "2"}))
+            .await;
+        assert_eq!(s, StatusCode::OK, "{dm}");
+        seed_gist(&e, dm["id"].as_str().unwrap(), 3 << 22, from, "hi", 0);
+    }
+    let before = e.repo.store.lock().unwrap().gist_reads;
+    let (_, bob) = e.get("/users/@me/channels", BOB).await;
+    let rows = bob.as_array().unwrap();
+    assert_eq!(rows.len(), 3);
+    assert!(
+        rows.iter()
+            .all(|r| r["sr_request_preview"]["content"] == "hi")
+    );
+    assert_eq!(
+        e.repo.store.lock().unwrap().gist_reads - before,
+        1,
+        "three pending conversations, one preview read"
+    );
+}
+
+/// D-673: the staff flag is on the account's own READY user and nowhere else; nothing the social routes
+/// serve (a profile, the conversation list, the relationships) has a field for it.
+#[tokio::test]
+async fn no_other_payload_carries_the_staff_flag() {
+    let e = env().await;
+    e.post("/users/@me/channels", ALICE, json!({"recipient_id": "2"}))
+        .await;
+    for who in [ALICE, BOB] {
+        for path in [
+            "/users/1/profile",
+            "/users/2/profile",
+            "/users/@me/channels",
+            "/users/@me/relationships",
+        ] {
+            let (_, v) = e.get(path, who).await;
+            assert!(
+                !v.to_string().contains("sr_platform_staff"),
+                "{path} as {who}: {v}"
+            );
+        }
+    }
+}

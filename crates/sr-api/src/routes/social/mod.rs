@@ -192,6 +192,7 @@ pub fn router() -> Router<AppState> {
         model::NoteObject,
         model::NoteBody,
         model::DmChannelObject,
+        model::RequestPreviewObject,
         model::CreateDmBody,
         model::EditDmBody,
         model::MessageRequestBody,

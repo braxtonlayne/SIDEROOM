@@ -381,7 +381,22 @@ export interface Message {
   /** A friend's DM the recipient's "Filter all" spam level flagged (flag 1 << 29): shown behind a notice. */
   likelySpam?: boolean;
   /** The thread started from this message. */
-  thread?: { id: Snowflake; name: string; messageCount: number } | null;
+  thread?: {
+    id: Snowflake;
+    name: string;
+    messageCount: number;
+    /** The thread's latest message, for the second line of the row (D-689). */
+    last?: ThreadLast | null;
+  } | null;
+}
+
+/** The latest message of a thread, as the row under its starter shows it. */
+export interface ThreadLast {
+  id: Snowflake;
+  author: { id: Snowflake; displayName: string; avatarUrl?: string | null };
+  content: string;
+  attachments: number;
+  createdAt: string;
 }
 
 export interface MessagesState {

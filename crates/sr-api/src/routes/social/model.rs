@@ -183,9 +183,35 @@ pub struct DmChannelObject {
     /// SIDE ROOM extension.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_request_reason: Option<String>,
+    /// With `is_message_request`: the latest message of the sender, as words only (D-688). Absent when the
+    /// conversation holds none. SIDE ROOM extension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sr_request_preview: Option<RequestPreviewObject>,
     /// The largest file the viewer may upload in this conversation, in bytes (D-233).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sr_max_upload_bytes: Option<u64>,
+}
+
+/// What a Message Requests row shows of the sender's latest message: its first 140 characters on one line and
+/// how many files it carries. Nothing else of the message (no embeds, file names or links, no author).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+pub struct RequestPreviewObject {
+    /// Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files.
+    pub content: String,
+    /// The number of files on the message.
+    pub attachments: u32,
+    pub timestamp: String,
+}
+
+impl RequestPreviewObject {
+    pub fn new(g: &sr_chat::preview::MessageGist) -> Self {
+        Self {
+            content: sr_chat::preview::excerpt(&g.content, sr_chat::preview::EXCERPT_CHARS)
+                .unwrap_or_default(),
+            attachments: g.attachments,
+            timestamp: crate::routes::messages::model::iso(g.id.snowflake().unix_ms()),
+        }
+    }
 }
 
 impl DmChannelObject {
@@ -205,6 +231,7 @@ impl DmChannelObject {
             icon: dm.icon_key.clone(),
             is_message_request: None,
             sr_request_reason: None,
+            sr_request_preview: None,
             sr_max_upload_bytes: None,
         }
     }

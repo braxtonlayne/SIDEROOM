@@ -43,7 +43,18 @@ fn sign_attachments(deps: &MessagesDeps, objects: &mut [MessageObject]) {
 }
 
 /// Attach the thread started from each message (a thread shares its starter's id).
-async fn attach_threads(deps: &MessagesDeps, msgs: &[Message], out: &mut [MessageObject]) {
+///
+/// With `preview_users` (the REST views, never a gateway payload: one payload goes to every viewer) each thread
+/// also carries `sr_last_message` (D-689): its latest not-deleted message, read for the whole page in ONE query.
+/// Only the threads under these messages are asked about, and the viewer already read the channel they sit in. A
+/// thread started from a message is a public one, so nothing the viewer could not read is previewed; a private
+/// thread (which no message starts) is previewed only inside itself, where its own starter message sits.
+async fn attach_threads(
+    deps: &MessagesDeps,
+    msgs: &[Message],
+    out: &mut [MessageObject],
+    preview_users: Option<&HashMap<UserId, UserSummary>>,
+) {
     let ids: Vec<sr_core::ChannelId> = msgs
         .iter()
         .filter(|m| m.guild_id.is_some())
@@ -59,12 +70,65 @@ async fn attach_threads(deps: &MessagesDeps, msgs: &[Message], out: &mut [Messag
             return;
         }
     };
+    let last = match preview_users {
+        Some(_) => thread_previews(deps, msgs, &threads).await,
+        None => HashMap::new(),
+    };
+    let mut users = preview_users.cloned().unwrap_or_default();
+    let missing: Vec<UserId> = last
+        .values()
+        .map(|g| g.author_id)
+        .filter(|u| !users.contains_key(u))
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+    if !missing.is_empty() {
+        match deps.users.users(&missing).await {
+            Ok(found) => users.extend(found.into_iter().map(|u| (u.id, u))),
+            Err(e) => tracing::warn!(error = %e, "looking up thread preview authors failed"),
+        }
+    }
     for t in threads {
         let Some(o) = out.iter_mut().find(|o| o.id == t.id.to_string()) else {
             continue;
         };
         o.thread =
             serde_json::to_value(crate::routes::guilds::dto::ChannelObject::new(&t, &[])).ok();
+        if let (Some(g), Some(serde_json::Value::Object(obj))) =
+            (last.get(&t.id), o.thread.as_mut())
+        {
+            obj.insert(
+                "sr_last_message".to_owned(),
+                serde_json::to_value(super::model::ThreadLastMessage::new(g, &users))
+                    .unwrap_or(serde_json::Value::Null),
+            );
+        }
+    }
+}
+
+/// The latest message of each thread of the page that may be previewed (see [`attach_threads`]).
+async fn thread_previews(
+    deps: &MessagesDeps,
+    msgs: &[Message],
+    threads: &[sr_chat::Channel],
+) -> HashMap<sr_core::ChannelId, sr_chat::preview::MessageGist> {
+    let ask: Vec<sr_core::ChannelId> = threads
+        .iter()
+        .filter(|t| {
+            t.kind != sr_chat::ChannelType::PrivateThread
+                || msgs.iter().any(|m| m.channel_id == t.id)
+        })
+        .map(|t| t.id)
+        .collect();
+    if ask.is_empty() {
+        return HashMap::new();
+    }
+    match deps.store.last_messages(&ask).await {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::warn!(error = %e, "reading thread previews failed");
+            HashMap::new()
+        }
     }
 }
 
@@ -95,7 +159,7 @@ pub async fn render_many(
         o.flags = sr_chat::message_flags::for_viewer(o.flags, m.author_id, viewer);
     }
     super::rich_model::decorate(deps, Some(viewer), msgs, &mut out).await?;
-    attach_threads(deps, msgs, &mut out).await;
+    attach_threads(deps, msgs, &mut out, Some(&users)).await;
     sign_attachments(deps, &mut out);
     // D-230: the viewer's sensitive-media settings, after signing so a blocked URL stays empty.
     deps.apply_sensitive(viewer, msgs, &mut out).await;
@@ -125,7 +189,7 @@ pub async fn event_payload(deps: &MessagesDeps, msg: &Message) -> MsgResult<serd
     let mut objs = vec![MessageObject::build(msg, &atts, &[], nonce, &users)];
     super::rich_model::decorate(deps, None, std::slice::from_ref(msg), &mut objs).await?;
     sign_attachments(deps, &mut objs);
-    attach_threads(deps, std::slice::from_ref(msg), &mut objs).await;
+    attach_threads(deps, std::slice::from_ref(msg), &mut objs, None).await;
     Ok(objs[0].to_value())
 }
 

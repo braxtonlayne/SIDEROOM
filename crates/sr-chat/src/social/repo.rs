@@ -158,6 +158,15 @@ pub trait DmRepository: Send + Sync {
         id: ChannelId,
         reason: Option<RequestReason>,
     ) -> RepoResult<()>;
+    /// For a Message Requests list (D-688): in each of `channels`, the latest not-deleted message that
+    /// `user` did not write, read for all of them in ONE query. A channel with none is left out.
+    async fn latest_from_others(
+        &self,
+        _user: UserId,
+        _channels: &[ChannelId],
+    ) -> RepoResult<std::collections::HashMap<ChannelId, crate::preview::MessageGist>> {
+        Ok(std::collections::HashMap::new())
+    }
     /// Server Protection settings of the servers `a` and `b` share (D-224).
     async fn shared_protection(&self, a: UserId, b: UserId) -> RepoResult<SharedProtection>;
     /// Group DM invites (G-47).

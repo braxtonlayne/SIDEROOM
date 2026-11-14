@@ -1937,6 +1937,15 @@ impl MessageStore for PgMessageStore {
         Ok(())
     }
 
+    async fn last_messages(
+        &self,
+        channels: &[ChannelId],
+    ) -> StoreResult<HashMap<ChannelId, sr_chat::preview::MessageGist>> {
+        crate::previews::latest_gists(&self.pool, channels, None)
+            .await
+            .map_err(sdb)
+    }
+
     async fn attachments_of(
         &self,
         messages: &[MessageId],

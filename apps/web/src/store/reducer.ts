@@ -25,6 +25,8 @@ export const memberKey = (guildId: string, userId: string) => `${guildId}:${user
 
 export interface StoreData {
   currentUserId: string | null;
+  /** The account's own READY says it holds a staff appointment (D-673); only the status menu entry reads it. */
+  platformStaff: boolean;
   users: Record<string, User>;
   guilds: Record<string, Guild>;
   guildOrder: string[];
@@ -56,6 +58,7 @@ export interface StoreData {
 
 export const emptyData = (): StoreData => ({
   currentUserId: null,
+  platformStaff: false,
   users: {},
   guilds: {},
   guildOrder: [],
@@ -471,6 +474,7 @@ export function reduceDispatch(
       const { windows, messages } = staleWindows(s);
       let out: Partial<StoreData> = {
         currentUserId: next.currentUserId,
+        platformStaff: user.sr_platform_staff === true,
         users: next.users,
         guilds: next.guilds,
         guildOrder: next.guildOrder,
@@ -757,15 +761,17 @@ export function reduceDispatch(
       // A full message object (it has `content`) leaves out `components` when it has none: a card the
       // server rewrote without its buttons must lose them here too, not keep the old rows.
       const full = 'content' in d;
+      const merged = {
+        ...existing,
+        ...(full ? { components: undefined } : {}),
+        ...(d as object),
+      } as Message;
+      // An update carries the thread without its latest-message preview (D-689): the row keeps the one it has.
+      const kept = existing.thread?.sr_last_message;
+      if (kept && merged.thread && !merged.thread.sr_last_message)
+        merged.thread = { ...merged.thread, sr_last_message: kept };
       return {
-        messages: {
-          ...s.messages,
-          [id]: {
-            ...existing,
-            ...(full ? { components: undefined } : {}),
-            ...(d as object),
-          } as Message,
-        },
+        messages: { ...s.messages, [id]: merged },
         users: d.author ? addUser(s.users, d.author) : s.users,
       };
     }
