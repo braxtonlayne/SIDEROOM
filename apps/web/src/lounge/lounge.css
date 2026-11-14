@@ -157,6 +157,7 @@
   flex-direction: column;
   width: var(--lounge-channel-list, 240px);
   background: var(--bg-base-lower);
+  --ui-status-ring: var(--bg-base-lower);
   border-start-start-radius: 8px;
   min-height: 0;
 }
@@ -170,6 +171,7 @@
   flex: none;
   min-width: 0;
   background: var(--bg-base-lower);
+  --ui-status-ring: var(--bg-base-lower);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -671,6 +673,7 @@
 .lng-dm:hover,
 .lng-dm[data-selected] {
   background: var(--ui-bg-hover);
+  --ui-status-ring: var(--ui-bg-hover);
   color: var(--interactive-active);
 }
 .lng-dm[data-unread] .lng-dm-name {
@@ -761,6 +764,7 @@
 }
 .lng-user-id:hover {
   background: var(--ui-bg-hover);
+  --ui-status-ring: var(--ui-bg-hover);
 }
 .lng-user-text {
   display: flex;
@@ -1358,6 +1362,7 @@
 }
 .lng-member:hover {
   background: var(--ui-bg-hover);
+  --ui-status-ring: var(--ui-bg-hover);
 }
 /* Offline members: dim the avatar, not the name (a half-transparent name is 3.8:1; RDY-A11Y-001). */
 .lng-member[data-offline] > :first-child {

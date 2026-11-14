@@ -211,6 +211,7 @@
 }
 .lng-friend-row:hover {
   background: var(--bg-base-low);
+  --ui-status-ring: var(--bg-base-low);
 }
 .lng-friend-text {
   display: flex;
