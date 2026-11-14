@@ -78,6 +78,7 @@ impl ReactionRoles {
                 message_id,
                 user,
                 emoji,
+                ..
             } => {
                 if let Some(key) = event_emoji_key(emoji) {
                     self.added(ctx, *g, *channel, *message_id, *user, &key)
@@ -298,6 +299,7 @@ mod tests {
             message_id: MSG,
             user: UserId::new(user),
             emoji: json!({"id": id, "name": name}),
+            message_author: None,
         }
     }
 
@@ -358,6 +360,7 @@ mod tests {
                 message_id: 999,
                 user: UserId::new(5),
                 emoji: json!({"id": null, "name": "\u{1f34e}"}),
+                message_author: None,
             },
         )
         .await;
