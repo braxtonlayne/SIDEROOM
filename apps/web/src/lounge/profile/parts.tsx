@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { useDeveloperMode } from '../../settings/user/prefs';
 import { useT } from '../../i18n';
+import { statusProps } from '../phoneStatus';
 import { customStatusLabel, type Activity } from '../data';
 import { acceptFriend } from '../shell/api';
 import { friendsOf, useSocial } from '../shell/social';
@@ -35,7 +36,7 @@ export function ProfileAvatar({ view, size = 80 }: { view: ProfileView; size?: 5
       name={view.name}
       src={view.avatarUrl}
       size={size}
-      status={view.presence.status}
+      {...statusProps(view.presence)}
       ring={view.patron}
       decoration={decorationNode(view.decoration)}
     />

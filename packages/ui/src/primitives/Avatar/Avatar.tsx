@@ -18,6 +18,10 @@ export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "chil
   animatedSrc?: string | null;
   size?: 24 | 32 | 40 | 56 | 80;
   status?: AvatarStatus;
+  /** Drawn in the status dot's place (same corner and size, a ring of the page colour); coloured as the status. */
+  statusIcon?: ReactNode;
+  /** Accessible name of the status when `statusIcon` replaces the dot; defaults to the status word. */
+  statusLabel?: string;
   speaking?: boolean;
   /** Patron ring (D-256): a thin accent ring outside the avatar, drawn from tokens, no artwork. */
   ring?: boolean;
@@ -40,7 +44,7 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, ring, decoration, className, style, ...rest }: AvatarProps) {
+export function Avatar({ name, src, animatedSrc, size = 40, status, statusIcon, statusLabel, speaking, ring, decoration, className, style, ...rest }: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
   return (
@@ -72,11 +76,13 @@ export function Avatar({ name, src, animatedSrc, size = 40, status, speaking, ri
       )}
       {status && (
         <span
-          className={cx(styles.status, styles[status])}
+          className={cx(styles.status, styles[status], !!statusIcon && styles.statusIcon)}
           role="img"
-          aria-label={STATUS_LABEL[status]}
+          aria-label={statusLabel ?? STATUS_LABEL[status]}
           style={{ width: Math.max(8, size * 0.28), height: Math.max(8, size * 0.28) }}
-        />
+        >
+          {statusIcon}
+        </span>
       )}
     </span>
   );

@@ -9,6 +9,7 @@ import {
   type MenuEntry,
 } from '@sideroom/ui';
 import { useT } from '../i18n';
+import { statusProps } from './phoneStatus';
 import { useDeveloperMode } from '../settings/user/prefs';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { useStore } from '../store';
@@ -149,7 +150,7 @@ function DmRow({ dm, selected }: { dm: DmChannel; selected: boolean }) {
             />
           ) : (
             <RingAvatar userId={first?.id} name={title} interactive={false}>
-              <Avatar name={title} size={32} {...(p ? { status: p.status } : {})} />
+              <Avatar name={title} size={32} {...(p ? statusProps(p) : {})} />
             </RingAvatar>
           )}
           <span className="lng-dm-text">

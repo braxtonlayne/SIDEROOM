@@ -456,6 +456,10 @@ impl Conn {
         self.touch_seen();
         if let Some(p) = id.presence {
             self.gw.set_session_presence(&session, p).await;
+        } else {
+            // `create_session` announced the user before the platform was known (a new session counts as `web`);
+            // announce again when the platform changes what others see (D-702: the web app sends no presence at IDENTIFY).
+            self.gw.refresh_presence(session.user, false).await;
         }
         Ok(())
     }

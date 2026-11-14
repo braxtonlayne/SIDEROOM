@@ -156,6 +156,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         title={title}
         isDm={isDm}
         status={isDm && dm && dm.recipientIds.length === 1 ? presence.status : undefined}
+        phone={presence.phone}
         topic={channel?.topic}
         membersOpen={membersOpen}
         onToggleMembers={() => setMembersOpen(!membersOpen)}

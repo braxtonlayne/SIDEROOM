@@ -2,6 +2,7 @@ import { Avatar, ContextMenu, Icon, VirtualList, type MenuEntry } from '@sideroo
 import { RovingScope } from '../a11y/RovingNav';
 import { useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
+import { statusProps } from './phoneStatus';
 import { nameStyle } from '../lib/roleGradient';
 import { useDeveloperMode } from '../settings/user/prefs';
 import { useViewAsMembers } from '../settings/server/viewAsMode';
@@ -51,6 +52,7 @@ function MemberRowView({
   const { member, presence, stops } = entry;
   const u = member.user;
   const name = member.nick ?? u.displayName;
+  const statusText = presence.phone ? t('lounge.presence.phoneInline') : presence.status;
   const me = useCurrentUser();
   const roles = useRoles(guildId);
   const openDm = useOpenDm();
@@ -186,17 +188,17 @@ function MemberRowView({
           presence.activity
             ? t('lounge.memberList.rowLabelActivity', {
                 name,
-                status: presence.status,
+                status: statusText,
                 activity: presence.activity.text,
               })
-            : t('lounge.memberList.rowLabel', { name, status: presence.status })
+            : t('lounge.memberList.rowLabel', { name, status: statusText })
         }
       >
         <Avatar
           name={name}
           src={u.avatarUrl ?? null}
           size={32}
-          status={presence.status}
+          {...statusProps(presence)}
           ring={u.patron}
         />
         <span className="lng-member-text">

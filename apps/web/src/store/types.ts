@@ -301,7 +301,15 @@ export interface Presence {
   user_id: string;
   status: PresenceStatus;
   activities: unknown[];
+  /** The status per kind of client the person is signed in on (D-702); absent for an invisible or offline person. */
+  client_status?: ClientStatus;
 }
+
+export type ClientStatus = {
+  web?: PresenceStatus;
+  mobile?: PresenceStatus;
+  desktop?: PresenceStatus;
+};
 
 export interface ReadState {
   channel_id: string;

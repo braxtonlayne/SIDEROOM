@@ -2,6 +2,7 @@ import { Avatar, Button, Checkbox, EmptyState, Modal, Spinner, TextInput } from 
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
+import { statusProps } from '../phoneStatus';
 import { HOME } from '../channels';
 import { useLoungeGoto } from '../nav';
 import { useCurrentUser, useDms, usePresenceMap } from '../data';
@@ -183,11 +184,7 @@ export function CreateDmDialog({
             const on = picked.includes(r.id);
             return (
               <li key={r.id} className="lng-pick-row">
-                <Avatar
-                  name={wireName(r.user)}
-                  size={32}
-                  status={presence[r.id]?.status ?? 'offline'}
-                />
+                <Avatar name={wireName(r.user)} size={32} {...statusProps(presence[r.id])} />
                 <Checkbox
                   label={wireName(r.user)}
                   description={r.user.username}
