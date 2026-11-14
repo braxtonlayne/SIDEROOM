@@ -32,6 +32,7 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 
 - **Humans:** read [docs/00-vision-and-scope.md](docs/00-vision-and-scope.md), then [docs/02-architecture.md](docs/02-architecture.md).
 - **AI coding agents:** read [AGENTS.md](AGENTS.md) first. It tells you exactly what to read for the task you were given.
+- **Contributing** (branches, commits, checks): [CONTRIBUTING.md](CONTRIBUTING.md).
 - **Every decision the owner has made**, with its rationale, is in [docs/01-decisions-log.md](docs/01-decisions-log.md). When docs disagree, the decisions log wins.
 
 ## Repository layout

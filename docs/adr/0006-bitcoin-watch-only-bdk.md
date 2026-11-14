@@ -1,5 +1,7 @@
 # ADR-0006: Self-custodial BTC payments with BDK watch-only wallets
 
+> **Note (2026-11-13, SEC-AUD-198):** the code does not use `bdk_wallet` or `bdk_esplora`. `sr-payments` derives addresses with `secp256k1`, `bitcoin_hashes` and `bech32` and has its own Esplora client, as decided in D-207 (see the Phase 8 note and the Addendum below). The Decision section is kept as written.
+
 - **Status:** accepted; amended 2026-10-15 (D-207, see Addendum)
 - **Date:** 2026-10-11
 

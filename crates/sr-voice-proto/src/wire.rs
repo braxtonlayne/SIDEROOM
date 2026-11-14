@@ -33,9 +33,9 @@ pub mod op {
     pub const CLIENT_CONNECT: u8 = 10;
     /// S->C: `{user_id}`, a participant left.
     pub const CLIENT_DISCONNECT: u8 = 11;
-    /// Reserved: video publish/subscribe (simulcast layers, screen share).
+    /// Both directions: video publish/subscribe (simulcast layers, screen share), see [`crate::video::Video`].
     pub const VIDEO: u8 = 12;
-    /// Reserved: egress governor and quality notices.
+    /// S->C: egress governor and quality notices, see [`crate::video::Quality`].
     pub const QUALITY: u8 = 13;
 }
 
