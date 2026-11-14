@@ -15,8 +15,4 @@ export default {
   'moderation.ageButton.errorDenied': 'You do not have the permission to change this mark.',
   'moderation.ageButton.errorGone': 'This item no longer exists.',
   'moderation.ageButton.errorGeneric': 'The change could not be saved. Try again.',
-
-  // ---- Review hub: Reports tile (MOD-DASH-002, D-339) ----
-  'admin.reviewHub.reportsTile':
-    '{n, plural, one {# report is waiting for someone to pick it up} other {# reports are waiting for someone to pick them up}}.',
 } satisfies Record<string, string>;

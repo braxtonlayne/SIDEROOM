@@ -1,4 +1,6 @@
+import { writeFileSync } from 'node:fs';
 import type { Plugin } from 'vite';
+import { STAFF_ENTRIES, sortModules } from '../../../scripts/lib/staff-graph.mjs';
 
 /**
  * SEC-AUD-170 (D-651, docs/dev/entrance-isolation.md "Staff code"): the app build puts every chunk that only a staff
@@ -13,17 +15,17 @@ import type { Plugin } from 'vite';
  *   `admin/api.ts`, ...) is in the member set and stays where it is: that is correct.
  * - a chunk none of whose modules is in the member set is a staff chunk.
  *
+ * The walk and the entry list live in `scripts/lib/staff-graph.mjs`, shared with the key audit
+ * (`scripts/staff-keys.mjs`, D-663), so "staff-only" has one definition. Two entries: the Admin app, and the staff
+ * message catalog (`src/i18n/messages/en.staff.ts`, which the door loads beside the Admin app).
+ *
  * HOW TO ADD A STAFF ENTRY: add its path (relative to `apps/web`, forward slashes) to `STAFF_ENTRIES`, reach it from
  * member code ONLY through a dynamic `import()` made by a small door that asks the server first (see
  * `src/admin/StaffDoor.tsx`), and run the build and `node scripts/check-staff-delivery.mjs`. A static import of a staff
  * entry from member code fails the build, naming the importer.
  */
-export const STAFF_ENTRIES: readonly string[] = ['src/admin/AdminApp.tsx'];
-
-export interface ModuleNode {
-  importedIds: readonly string[];
-  dynamicallyImportedIds: readonly string[];
-}
+export { STAFF_ENTRIES, sortModules };
+export type { ModuleNode } from '../../../scripts/lib/staff-graph.mjs';
 
 const slash = (p: string) => p.replaceAll('\\', '/');
 const bare = (id: string) => slash(id.split('?')[0]!);
@@ -31,37 +33,6 @@ const bare = (id: string) => slash(id.split('?')[0]!);
 export interface Sorted {
   member: Set<string>;
   staff: Set<string>;
-}
-
-/** Pure graph walk; `all` is every module id of the build, `entries` the app entry modules. */
-export function sortModules(
-  all: Iterable<string>,
-  entries: Iterable<string>,
-  info: (id: string) => ModuleNode | null,
-  isStaffEntry: (id: string) => boolean,
-): Sorted {
-  const member = new Set<string>();
-  const stack: string[] = [...entries];
-  while (stack.length) {
-    const id = stack.pop()!;
-    if (member.has(id)) continue;
-    member.add(id);
-    const node = info(id);
-    if (!node) continue;
-    for (const next of node.importedIds) {
-      if (isStaffEntry(next)) {
-        throw new Error(
-          `staff entry ${bare(next)} is imported statically by ${bare(id)}: reach it only through a dynamic import() ` +
-            'made by a door that asks the server first (D-651)',
-        );
-      }
-      stack.push(next);
-    }
-    for (const next of node.dynamicallyImportedIds) if (!isStaffEntry(next)) stack.push(next);
-  }
-  const staff = new Set<string>();
-  for (const id of all) if (!member.has(id)) staff.add(id);
-  return { member, staff };
 }
 
 export function staffChunks(entries: readonly string[] = STAFF_ENTRIES) {
@@ -91,11 +62,21 @@ export function staffChunks(entries: readonly string[] = STAFF_ENTRIES) {
         return this.error((e as Error).message);
       }
       sorted = result;
-      if (![...result.staff].some(isStaffEntry)) {
+      const missing = entries.filter(
+        (e) => ![...result.staff].some((id) => bare(id).endsWith(`/${e}`)),
+      );
+      if (missing.length) {
         this.error(
-          `staff entries ${entries.join(', ')} are not in the build as staff-only modules: the list in vite/staffChunks.ts is stale`,
+          `staff entries ${missing.join(', ')} are not in the build as staff-only modules: the list in vite/staffChunks.ts is stale`,
         );
       }
+      // For the key audit's cross-check (scripts/staff-keys.mjs --modules): the build's own staff module list.
+      const dump = process.env.SR_STAFF_MODULES_OUT;
+      if (dump)
+        writeFileSync(
+          dump,
+          JSON.stringify([...result.staff].map((id) => bare(id).replace(`${root}/`, '')).sort()),
+        );
     },
     generateBundle(_o, bundle) {
       if (!sorted) return;

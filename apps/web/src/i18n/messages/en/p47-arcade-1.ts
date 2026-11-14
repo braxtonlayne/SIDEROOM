@@ -62,5 +62,4 @@ export default {
   'arcade.cartridges.removeShort': 'Unlist',
   'arcade.tier.tagReimplementation': 'Clean-room',
   'arcade.emulator.openShort': 'Open',
-  'arcade.admin.heroNote': 'Positions 1 and 2 are the Arcade’s two large cards.',
 } satisfies Record<string, string>;
