@@ -10,12 +10,20 @@
   inline-size: max-content;
   max-inline-size: calc(100vw / var(--sr-overlay-zoom, 1) - 1rem);
 }
+.sr-ply-dock[data-dock='bottom-end'],
+.sr-ply-dock[data-dock='bottom-start'] {
+  /* D-789: above a mounted composer (--sr-composer-clear, set by lounge/composerClearance.ts in viewport px; the
+     overlay root is zoomed, so divide by its zoom like the widths here). Capped so a tall skin on a short screen
+     stays whole: it scrolls inside its own box. */
+  --sr-ply-lift: calc(0.5rem + var(--sr-composer-clear, 0px) / var(--sr-overlay-zoom, 1));
+  inset-block-end: var(--sr-ply-lift);
+  max-block-size: calc(100vh / var(--sr-overlay-zoom, 1) - var(--sr-ply-lift) - 0.5rem);
+  overflow-y: auto;
+}
 .sr-ply-dock[data-dock='bottom-end'] {
-  inset-block-end: 0.5rem;
   inset-inline-end: 0.5rem;
 }
 .sr-ply-dock[data-dock='bottom-start'] {
-  inset-block-end: 0.5rem;
   inset-inline-start: 0.5rem;
 }
 .sr-ply-dock[data-dock='top-end'] {
