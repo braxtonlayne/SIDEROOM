@@ -234,6 +234,7 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
           />
           <Switch
             label={t('settings.notifications.reactions')}
+            description={t('settings.notifications.reactionsDesc')}
             checked={prefs.reactionNotifications}
             onChange={(e) => setPrefs({ reactionNotifications: e.target.checked })}
           />
@@ -261,11 +262,6 @@ export function NotificationsSection({ prefs, setPrefs }: PrefsFormProps) {
             }))}
             value={String(prefs.pushInactiveMinutes)}
             onValueChange={(v) => setPrefs({ pushInactiveMinutes: Number(v) })}
-          />
-          <Switch
-            label={t('settings.notifications.digest')}
-            checked={prefs.emailDigest}
-            onChange={(e) => setPrefs({ emailDigest: e.target.checked })}
           />
         </div>
         <Unavailable>{t('settings.notifications.pushUnavailable')}</Unavailable>
