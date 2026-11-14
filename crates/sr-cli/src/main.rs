@@ -33,7 +33,9 @@ pub struct Cli {
 pub enum Command {
     /// Apply pending database migrations.
     Migrate,
-    /// First-run setup: system user, Owner account, one-time login link.
+    /// First-run setup: system user, Owner account, Staff Server, one-time login link. A finished installation is
+    /// refused. If an earlier run stopped after the Owner was made, run it again with the same username, email and
+    /// password: it finishes the Staff Server and prints a new login link.
     Bootstrap {
         #[arg(long)]
         owner_username: String,

@@ -81,16 +81,55 @@ pub async fn create_staff_guild(
             .map_err(|e| anyhow::anyhow!("planning the Staff Server: {e}"))?;
     bp.guild.is_staff_guild = true;
     let guild = bp.guild.id;
-    let category = text_category(&bp.channels)?;
     let repo = PgChatRepo::new(pool.clone());
     repo.insert_guild(&bp)
         .await
         .map_err(|e| anyhow::anyhow!("creating the Staff Server: {e}"))?;
+    finish_staff_guild(pool, server, guild, owner).await?;
+    Ok(guild)
+}
 
+/// SEC-AUD-255: everything of the Staff Server that follows its row, each step only where it is missing, so it
+/// finishes a Staff Server that a stopped `bootstrap` left half made: the staff channels beside `#general`
+/// (found by name), `#alerts` recorded in `guilds.settings`, and the default staff roles with the Owner's
+/// appointment ([`ensure_staff_roles`]).
+pub async fn finish_staff_guild(
+    pool: &PgPool,
+    server: &ServerConfig,
+    guild: GuildId,
+    owner: i64,
+) -> Result<()> {
+    let snow = snowflakes(server)?;
+    let g = i64::try_from(guild.get()).unwrap_or(0);
+    let repo = PgChatRepo::new(pool.clone());
+    let category: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM channels WHERE guild_id = $1 AND name = 'Text Channels' ORDER BY id LIMIT 1",
+    )
+    .bind(g)
+    .fetch_optional(pool)
+    .await
+    .context("looking for the Text Channels category")?;
+    let category = ChannelId::from(Snowflake::from(
+        u64::try_from(category.context("the Staff Server has no Text Channels category")?)
+            .unwrap_or(0),
+    ));
     let mut alerts = None;
     for (i, name) in STAFF_CHANNELS.iter().enumerate() {
-        let position = i32::try_from(i + 1).unwrap_or(i32::MAX);
-        let id = add_text_channel(&repo, &snow, guild, category, name, position).await?;
+        let existing: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM channels WHERE guild_id = $1 AND type = 0 AND name = $2 ORDER BY id LIMIT 1",
+        )
+        .bind(g)
+        .bind(*name)
+        .fetch_optional(pool)
+        .await
+        .with_context(|| format!("looking for #{name}"))?;
+        let id = match existing {
+            Some(id) => ChannelId::from(Snowflake::from(u64::try_from(id).unwrap_or(0))),
+            None => {
+                let position = i32::try_from(i + 1).unwrap_or(i32::MAX);
+                add_text_channel(&repo, &snow, guild, category, name, position).await?
+            }
+        };
         if *name == "alerts" {
             alerts = Some(id);
         }
@@ -100,14 +139,43 @@ pub async fn create_staff_guild(
             "UPDATE guilds SET settings = jsonb_set(settings, '{alerts_channel_id}', to_jsonb($2::text)) \
              WHERE id = $1",
         )
-        .bind(i64::try_from(guild.get()).unwrap_or(0))
+        .bind(g)
         .bind(alerts.get().to_string())
         .execute(pool)
         .await
         .context("recording #alerts on the Staff Server")?;
     }
     ensure_staff_roles(pool, server, guild, owner).await?;
-    Ok(guild)
+    Ok(())
+}
+
+/// How far the Staff Server of `owner` got (SEC-AUD-255).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StaffServerState {
+    /// No Staff Server row.
+    Missing,
+    /// The row is there, but the Owner has no appointment yet (the last step of making it).
+    Unfinished(GuildId),
+    /// The row and the Owner's appointment (a revoked one counts: the row stays).
+    Done(GuildId),
+}
+
+/// Whether the Staff Server exists and was finished for `owner`.
+pub async fn staff_server_state(pool: &PgPool, owner: i64) -> Result<StaffServerState> {
+    let Some((guild, _)) = find_staff_guild(pool).await? else {
+        return Ok(StaffServerState::Missing);
+    };
+    let appointed: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM staff_appointments WHERE account_id = $1)")
+            .bind(owner)
+            .fetch_one(pool)
+            .await
+            .context("looking for the Owner's appointment")?;
+    Ok(if appointed {
+        StaffServerState::Done(guild)
+    } else {
+        StaffServerState::Unfinished(guild)
+    })
 }
 
 /// Make sure the Staff Server has every default staff role and that its owner holds
