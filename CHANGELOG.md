@@ -11,6 +11,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
 ## Phase 74 - 2026-11-14
 
 - **Members.** A thread's last message and a Message Requests line no longer show `#`, `##`, `###` or `-#` in front of the words: a message of three headings reads as the three words instead of `# One ## Two ### Three`. `C#`, `issue #3` and text inside a code block stay as typed.
+- **Library.** A Library upload that ended because a part was larger than announced can be started again with one button, and is no longer asked about again by itself at every page load.
 - **Operators.** No migration and nothing to do.
 
 ## Phase 73 - 2026-11-14
