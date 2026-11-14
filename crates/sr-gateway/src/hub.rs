@@ -1124,6 +1124,16 @@ impl Gateway {
             if let DomainEvent::UserUpdated { user, .. } = &ev {
                 d.audience = Some(self.guild_users(guild, Some(*user)));
             }
+            // A block hides typing both ways, as it hides presence (SEC-AUD-257, D-744). One
+            // directory call per typing event; an empty answer leaves the audience unset.
+            if let DomainEvent::TypingStarted { user, .. } = &ev {
+                let hidden = self.inner.dir.blocked_peers(*user).await;
+                if !hidden.is_empty() {
+                    let mut a = self.guild_users(guild, None);
+                    a.retain(|u| !hidden.contains(u));
+                    d.audience = Some(a);
+                }
+            }
             if let DomainEvent::ThreadMembersUpdated { also, .. } = &ev {
                 for u in also {
                     self.dispatch_user(*u, d.name, d.data.clone()).await;

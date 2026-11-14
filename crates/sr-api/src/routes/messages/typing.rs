@@ -36,6 +36,11 @@ pub async fn trigger_typing(
     if !acc.channel.kind.accepts_messages() {
         return Err(ChatError::MissingPermissions.into());
     }
+    // A block ends a 1:1 DM's activity as it ends its messages (SEC-AUD-257, D-744). The answer
+    // stays 204 and nothing is published: the typist learns nothing a send would not tell them.
+    if deps.require_dm_open(&acc, user).await.is_err() {
+        return Ok(StatusCode::NO_CONTENT);
+    }
     deps.publish(DomainEvent::TypingStarted {
         guild: acc.channel.guild_id,
         channel: channel_id,
