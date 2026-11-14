@@ -88,6 +88,9 @@ export class GatewayClient {
   private sessionTimer: ReturnType<typeof setTimeout> | undefined;
   private everConnected = false;
   private generation = 0;
+  private opened = 0;
+  private beatSentAt = 0;
+  private lastRttMs: number | null = null;
   private readonly opts: GatewayOptions;
 
   constructor(opts: GatewayOptions) {
@@ -99,6 +102,14 @@ export class GatewayClient {
   }
   get session(): string | null {
     return this.sessionId;
+  }
+  /** Connections opened after the first one (a RESUME counts), for the debug bundle (D-665). */
+  get reconnects(): number {
+    return Math.max(0, this.opened - 1);
+  }
+  /** Last heartbeat round trip (send to ACK) in milliseconds; null before the first ACK (D-665). */
+  get heartbeatMs(): number | null {
+    return this.lastRttMs;
   }
 
   /** Deterministic exponential cap (1 s doubling, 30 s max); `delayMs` adds jitter. */
@@ -158,6 +169,7 @@ export class GatewayClient {
       url += `${url.includes('?') ? '&' : '?'}compress=zstd-stream`;
     }
     const gen = ++this.generation;
+    this.opened++;
     const ws = (this.opts.createSocket ?? ((u) => new WebSocket(u) as unknown as SocketLike))(url);
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
@@ -204,6 +216,7 @@ export class GatewayClient {
         this.beat();
         break;
       case Op.HEARTBEAT_ACK:
+        if (this.ackPending) this.lastRttMs = Math.round(performance.now() - this.beatSentAt);
         this.ackPending = false;
         break;
       case Op.RECONNECT:
@@ -287,6 +300,7 @@ export class GatewayClient {
 
   private beat() {
     this.ackPending = true;
+    this.beatSentAt = performance.now();
     this.send(Op.HEARTBEAT, this.seq);
   }
 
