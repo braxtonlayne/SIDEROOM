@@ -83,9 +83,35 @@ test('the Owner opens /admin and sees titles, not keys; the staff catalog came f
   });
   await s.page.goto('/admin/access-log');
   await expect(s.page.getByRole('heading', { name: 'Access log' })).toBeVisible();
-  await expect(s.page.getByRole('link', { name: 'Platform bans' })).toBeVisible();
+  await expect(s.page.getByText('Platform bans', { exact: true }).first()).toBeVisible();
   expect(await s.page.locator('body').innerText()).not.toMatch(/\badmin\.[A-Za-z]+\.[A-Za-z.]+/);
   expect(staffUrls.length).toBeGreaterThan(1);
+});
+
+test('click through: staff opens Admin and three sections, signs out; a member gets not-found', async ({
+  owner,
+  seedUser,
+  signedIn,
+}) => {
+  const s = await signedIn(owner);
+  await s.page.goto('/admin');
+  await expect(s.page.getByText('Platform bans', { exact: true }).first()).toBeVisible();
+  for (const [label, path] of [
+    ['Platform bans', '/admin/bans'],
+    ['Invites', '/admin/invites'],
+    ['Jobs', '/admin/jobs'],
+  ] as const) {
+    await s.page.getByText(label, { exact: true }).first().click();
+    await expect(s.page).toHaveURL(new RegExp(`${path}$`));
+    expect(await s.page.locator('body').innerText()).not.toMatch(/admin.[A-Za-z]+.[A-Za-z.]+/);
+  }
+  // Sign out (the session cookie goes), then a member signs in and opens /admin.
+  await s.context.clearCookies();
+  await s.page.goto('/admin');
+  await expect(s.page.getByText('Platform bans', { exact: true })).toHaveCount(0);
+  const member = await signedIn(await seedUser('catclick'));
+  await member.page.goto('/admin');
+  await expect(member.page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
 });
 
 // ---- the visual check (local only) -------------------------------------------------------------------------
@@ -93,7 +119,7 @@ test('the Owner opens /admin and sees titles, not keys; the staff catalog came f
 const OUT = process.env.SR_P66_OUT ?? resolve('test-results/p66-catalog');
 const THEMES = ['lounge-editorial', 'lounge-light', 'lounge-dark'] as const;
 const VIEWPORTS = { desktop: { width: 1280, height: 800 }, phone: { width: 375, height: 812 } };
-const SECTIONS = ['', 'settings', 'bug-reports', 'review', 'runbook'];
+const SECTIONS = ['', 'limits', 'features', 'bug-reports', 'review', 'runbook'];
 
 async function themed(
   browser: Browser,
