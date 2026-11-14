@@ -98,6 +98,18 @@ pub struct ScopeSettings {
     pub mute: Mute,
 }
 
+/// Whether a recipient reached only by `@everyone`/`@here` (`everyone`) and/or a pinged role (`roles`) keeps the
+/// mention badge off, given their two suppress switches (D-726). With both kinds on the message, one switch is not
+/// enough: the other kind may still reach them.
+pub fn badge_suppressed(
+    everyone: bool,
+    roles: bool,
+    suppress_everyone: bool,
+    suppress_roles: bool,
+) -> bool {
+    (!everyone || suppress_everyone) && (!roles || suppress_roles) && (everyone || roles)
+}
+
 impl ScopeSettings {
     pub fn new(user: UserId, guild: Option<GuildId>) -> Self {
         Self {

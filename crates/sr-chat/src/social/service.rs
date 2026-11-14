@@ -918,6 +918,26 @@ impl<R: SocialRepository> SocialService<R> {
         Ok(self.repo.muted_towards(author, mentioned).await?)
     }
 
+    /// Of the recipients a message reached only through `@everyone`/`@here` or a role (`indirect`), the ones whose
+    /// scope for `guild` suppresses every kind that reached them: no badge for them (D-726).
+    pub async fn mention_suppressed(
+        &self,
+        guild: GuildId,
+        indirect: &[UserId],
+        everyone: bool,
+        roles: bool,
+    ) -> SocialResult<Vec<UserId>> {
+        if indirect.is_empty() || !(everyone || roles) {
+            return Ok(Vec::new());
+        }
+        let rows = self.repo.suppressing_scopes(guild, indirect).await?;
+        Ok(rows
+            .into_iter()
+            .filter(|&(_, se, sr)| notifications::badge_suppressed(everyone, roles, se, sr))
+            .map(|(u, _, _)| u)
+            .collect())
+    }
+
     pub async fn record_eligible_mentions(
         &self,
         author: UserId,

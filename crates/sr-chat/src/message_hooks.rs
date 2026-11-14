@@ -65,6 +65,33 @@ impl<R: SocialRepository + 'static> MessageHooks for SocialService<R> {
                 return;
             }
         };
+        // D-726: a recipient reached only by `@everyone` or a role whose scope suppresses that kind gets no badge.
+        // One lookup, and only for a message that has such a mention; a failure fails closed like the check above.
+        let mut muted = muted;
+        if let Some(guild) = m.guild_id
+            && (m.mention_everyone || !m.mention_role_ids.is_empty())
+        {
+            let indirect: Vec<UserId> = notify
+                .iter()
+                .copied()
+                .filter(|u| !m.mention_user_ids.contains(u))
+                .collect();
+            match self
+                .mention_suppressed(
+                    guild,
+                    &indirect,
+                    m.mention_everyone,
+                    !m.mention_role_ids.is_empty(),
+                )
+                .await
+            {
+                Ok(v) => muted.extend(v),
+                Err(e) => {
+                    tracing::warn!(error = %e, channel = %m.channel_id, "mention suppress check failed");
+                    return;
+                }
+            }
+        }
         if let Err(e) = self
             .record_eligible_mentions(m.author_id, notify, m.channel_id, |u| !muted.contains(&u))
             .await

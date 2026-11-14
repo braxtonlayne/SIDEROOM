@@ -1,0 +1,902 @@
+[
+ {
+  "name": "server default only-mentions: a plain message is silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "server default all: a plain message notifies",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "server default nothing: a direct mention is silent",
+  "isDm": false,
+  "guildDefault": 2,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the person default (all) beats the server default (only mentions)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": 0,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "the person default (nothing) beats the server default (all)",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": 2,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the person choice for the server (only mentions) beats the person default (all)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": 0,
+  "scope": {
+   "level": 1,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the person choice for the server (all) beats the person default (nothing)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": 2,
+  "scope": {
+   "level": 0,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "the category (all) beats the server choice (nothing)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": 2,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": 0,
+   "muted": false
+  },
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "the category (nothing) beats the server choice (all)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": 0,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": 2,
+   "muted": false
+  },
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the channel (only mentions) beats the category (all)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": 0,
+   "muted": false
+  },
+  "channel": {
+   "level": 1,
+   "muted": false
+  },
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the channel (all) beats the category (nothing)",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": 2,
+   "muted": false
+  },
+  "channel": {
+   "level": 0,
+   "muted": false
+  },
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "a channel without a level inherits the server choice",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": 0,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": {
+   "level": null,
+   "muted": false
+  },
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "a direct message with no choice notifies for every message",
+  "isDm": true,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "a direct message scope of only mentions: plain is silent",
+  "isDm": true,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": 1,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a direct message scope of only mentions: a direct mention notifies",
+  "isDm": true,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": 1,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "a muted channel is silent even for a direct mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": {
+   "level": 0,
+   "muted": true
+  },
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a muted category is silent even when the channel says all",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": null,
+   "muted": true
+  },
+  "channel": {
+   "level": 0,
+   "muted": false
+  },
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a muted server is silent even for a direct mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": true,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a muted category is silent for a plain message at level all",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": {
+   "level": null,
+   "muted": true
+  },
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a channel that is not muted inside a muted server is silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": true,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": {
+   "level": 0,
+   "muted": false
+  },
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a direct mention notifies and is a mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "a reply that pinged notifies and is a mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": true,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "@everyone notifies and is a mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "@everyone with suppress-everyone is silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a role mention notifies and is a mention",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": true
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "a role mention with suppress-roles is silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": true
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": true
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a role mention with only suppress-everyone set notifies",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": true
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "@everyone and a role, suppress-everyone set: the role still reaches",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": true
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "@everyone and a role, both suppressed: silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": true
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": true
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "a direct mention still notifies when both are suppressed",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": true
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "level all, @everyone suppressed: it notifies as a plain message",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": true,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "level all, role suppressed: it notifies as a plain message",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": true
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": true
+  },
+  "expect": {
+   "notifies": true,
+   "mention": false
+  }
+ },
+ {
+  "name": "level all, a direct mention is a mention",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": true,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "level all, a role mention is a mention",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": null,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": true
+  },
+  "expect": {
+   "notifies": true,
+   "mention": true
+  }
+ },
+ {
+  "name": "level nothing: @everyone is silent",
+  "isDm": false,
+  "guildDefault": 1,
+  "userDefault": null,
+  "scope": {
+   "level": 2,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": true,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ },
+ {
+  "name": "the person default (only mentions) over a server default of all: plain is silent",
+  "isDm": false,
+  "guildDefault": 0,
+  "userDefault": 1,
+  "scope": {
+   "level": null,
+   "muted": false,
+   "suppressEveryone": false,
+   "suppressRoles": false
+  },
+  "category": null,
+  "channel": null,
+  "kind": {
+   "direct": false,
+   "reply": false,
+   "everyone": false,
+   "role": false
+  },
+  "expect": {
+   "notifies": false,
+   "mention": false
+  }
+ }
+]

@@ -57,6 +57,8 @@ pub struct Store {
 #[derive(Default)]
 pub struct MemoryRepo {
     pub store: Mutex<Store>,
+    /// How many times `suppressing_scopes` ran (tests: a message with direct mentions only makes no lookup).
+    pub suppress_lookups: std::sync::atomic::AtomicUsize,
 }
 
 fn pair(a: UserId, b: UserId) -> (UserId, UserId) {
@@ -680,6 +682,24 @@ impl NotificationRepository for MemoryRepo {
             .collect();
         v.sort_by_key(|o| o.channel);
         Ok(v)
+    }
+
+    async fn suppressing_scopes(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        self.suppress_lookups
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let s = self.lock()?;
+        Ok(users
+            .iter()
+            .filter_map(|u| {
+                let c = s.scopes.get(&(*u, Some(guild)))?;
+                (c.suppress_everyone || c.suppress_roles)
+                    .then_some((*u, c.suppress_everyone, c.suppress_roles))
+            })
+            .collect())
     }
 
     async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>> {

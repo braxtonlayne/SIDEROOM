@@ -217,6 +217,24 @@ pub trait NotificationRepository: Send + Sync {
     /// Every stored scope row of the user (guilds and the DM scope), ordered by guild id. Scopes
     /// the person never touched have no row; the caller treats a missing one as the defaults.
     async fn list_scopes(&self, user: UserId) -> RepoResult<Vec<ScopeSettings>>;
+    /// Of `users`, those whose scope for `guild` suppresses `@everyone`/`@here` or role mentions, as
+    /// `(user, suppress_everyone, suppress_roles)` (D-726). A user with neither switch on is left out. One query
+    /// where the store can.
+    async fn suppressing_scopes(
+        &self,
+        guild: GuildId,
+        users: &[UserId],
+    ) -> RepoResult<Vec<(UserId, bool, bool)>> {
+        let mut out = Vec::new();
+        for &u in users {
+            if let Some(s) = self.get_scope(u, Some(guild)).await?
+                && (s.suppress_everyone || s.suppress_roles)
+            {
+                out.push((u, s.suppress_everyone, s.suppress_roles));
+            }
+        }
+        Ok(out)
+    }
 }
 
 #[async_trait]
