@@ -26,7 +26,7 @@ use sr_auth::{
     repo::{SessionRecord, SessionRepository},
     session::SessionToken,
 };
-use sr_core::{PlatformPermissions as P, SystemClock};
+use sr_core::{PlatformPermissions as P, SystemClock, UserId};
 use sr_review::memory::MemoryReviewRepo;
 use sr_review::model::{DuplicateMatch, MediaRef, Submission, SubmissionItem};
 use sr_review::repo::NewItem;
@@ -167,8 +167,40 @@ impl ReviewEvents for Sink {
     }
 }
 
+/// The accounts the people lookup knows (OTHER is "gone"); counts its calls.
+#[derive(Default)]
+struct StubUsers(std::sync::atomic::AtomicUsize);
+
+#[async_trait]
+impl sr_chat::repo::UserLookup for StubUsers {
+    async fn users(
+        &self,
+        ids: &[UserId],
+    ) -> sr_chat::repo::RepoResult<Vec<sr_chat::repo::UserSummary>> {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Ok(ids
+            .iter()
+            .filter(|i| [MEMBER, REVIEWER].contains(&(i.get() as i64)))
+            .map(|i| {
+                let member = i.get() as i64 == MEMBER;
+                sr_chat::repo::UserSummary {
+                    id: *i,
+                    username: if member { "member" } else { "reviewer" }.into(),
+                    display_name: member.then(|| "Member M".to_owned()),
+                    avatar_key: None,
+                    banner_key: None,
+                    bot: false,
+                    primary_guild: None,
+                    patron: false,
+                }
+            })
+            .collect())
+    }
+}
+
 struct Env {
     app: Router,
+    users: Arc<StubUsers>,
     admin: Arc<MemoryAdminRepo>,
     tokens: HashMap<i64, String>,
     sink: Arc<Sink>,
@@ -252,12 +284,13 @@ async fn env() -> Env {
 
     let mut settings = ApiSettings::default();
     settings.rate_limit.enabled = false;
+    let users = Arc::new(StubUsers::default());
     let state = AppState::builder()
         .settings(settings)
         .sessions(sessions)
         .bots(bots)
         .extension(Arc::new(AdminDeps::new(svc)))
-        .extension(Arc::new(ReviewDeps::new(review)))
+        .extension(Arc::new(ReviewDeps::new(review).with_users(users.clone())))
         .extension(Arc::new(LookupDeps::new(
             vec![Arc::new(FixedLookup)],
             Arc::new(LookupOn),
@@ -265,6 +298,7 @@ async fn env() -> Env {
         )))
         .build();
     Env {
+        users,
         app: build_router(state, router()),
         admin,
         tokens,
@@ -1268,4 +1302,158 @@ async fn the_media_list_names_each_video_and_says_when_there_is_no_proxy() {
     // Members cannot read it.
     let (st, _) = e.call(Some(MEMBER), Method::GET, &path, None).await;
     assert_eq!(st, StatusCode::FORBIDDEN);
+}
+
+impl Env {
+    async fn submit(&self, who: i64, title: &str) -> String {
+        let id = self.create(who, title).await;
+        let (st, b) = self
+            .call(
+                Some(who),
+                Method::POST,
+                &format!("/submissions/{id}/submit"),
+                None,
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{b}");
+        id
+    }
+
+    fn calls(&self) -> usize {
+        self.users.0.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+fn names(b: &Value) -> Vec<String> {
+    let mut v: Vec<String> = b["users"]
+        .as_array()
+        .expect("users is an array")
+        .iter()
+        .map(|u| u["username"].as_str().unwrap().to_owned())
+        .collect();
+    v.sort();
+    v
+}
+
+#[tokio::test]
+async fn the_queue_names_its_submitters_and_claimers() {
+    let e = env().await;
+    let a = e.submit(MEMBER, "Alpha").await;
+    e.submit(MEMBER, "Beta").await;
+    let (st, _) = e
+        .call(
+            Some(REVIEWER),
+            Method::POST,
+            &format!("/admin/review/submissions/{a}/claim"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, q) = e
+        .call(Some(OWNER), Method::GET, "/admin/review/queue", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(names(&q), ["member", "reviewer"], "{q}");
+    let m = q["users"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|u| u["username"] == "member")
+        .unwrap();
+    assert_eq!(m["id"], MEMBER.to_string());
+    assert_eq!(m["global_name"], "Member M");
+    // Nothing else of an account rides along.
+    let mut keys: Vec<&String> = m.as_object().unwrap().keys().collect();
+    keys.sort();
+    assert_eq!(keys, ["avatar", "global_name", "id", "username"]);
+    // The detail names the same two people.
+    let (st, d) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/admin/review/submissions/{a}"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{d}");
+    assert_eq!(names(&d), ["member", "reviewer"], "{d}");
+    assert_eq!(d["submission"]["id"], a);
+}
+
+#[tokio::test]
+async fn the_filters_account_is_named_even_with_no_rows() {
+    let e = env().await;
+    e.submit(OTHER, "Gamma").await;
+    let (st, q) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/admin/review/queue?submitter={MEMBER}"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(q["total"], 0);
+    assert_eq!(names(&q), ["member"], "{q}");
+}
+
+#[tokio::test]
+async fn a_deleted_submitter_is_absent_not_an_error() {
+    let e = env().await;
+    // OTHER is not known to the lookup: the same answer as for a deleted account.
+    let id = e.submit(OTHER, "Gone").await;
+    let (st, q) = e
+        .call(Some(OWNER), Method::GET, "/admin/review/queue", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(q["total"], 1);
+    assert_eq!(q["items"][0]["submitter_id"], OTHER.to_string());
+    assert!(names(&q).is_empty(), "{q}");
+    let (st, d) = e
+        .call(
+            Some(OWNER),
+            Method::GET,
+            &format!("/admin/review/submissions/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{d}");
+    assert!(names(&d).is_empty(), "{d}");
+}
+
+#[tokio::test]
+async fn the_names_cost_one_query() {
+    let e = env().await;
+    for i in 0..6 {
+        let who = if i % 2 == 0 { MEMBER } else { OTHER };
+        e.submit(who, &format!("Row {i}")).await;
+    }
+    let before = e.calls();
+    let (st, q) = e
+        .call(Some(OWNER), Method::GET, "/admin/review/queue", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{q}");
+    assert_eq!(q["items"].as_array().unwrap().len(), 6);
+    assert_eq!(e.calls() - before, 1, "one lookup for the whole page");
+}
+
+#[tokio::test]
+async fn a_members_own_list_carries_no_users() {
+    let e = env().await;
+    let id = e.submit(MEMBER, "Mine").await;
+    let (st, l) = e
+        .call(Some(MEMBER), Method::GET, "/submissions", None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{l}");
+    assert!(l.get("users").is_none(), "{l}");
+    let (st, d) = e
+        .call(
+            Some(MEMBER),
+            Method::GET,
+            &format!("/submissions/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{d}");
+    assert!(d.get("users").is_none(), "{d}");
 }

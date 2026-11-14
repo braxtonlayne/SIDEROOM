@@ -77,7 +77,6 @@ export default {
   'admin.review.approve': 'Approve',
   'admin.review.requestChanges': 'Request changes',
   'admin.review.reject': 'Reject',
-  'admin.review.heldByOther': 'Account {id} is reviewing this until {when}.',
   'admin.review.claimToDecide': 'Claim this submission to decide on it.',
   'admin.review.whatChanged': 'What changed',
   'admin.review.firstSubmission': 'First submission: everything below is new.',
@@ -103,8 +102,6 @@ export default {
   'admin.review.approveAll': '{approved} approved items will be published now.',
   'admin.review.approveConfirm': 'Approve and publish',
   'admin.review.approved': 'Approved.',
-  'admin.review.takeOverDescription':
-    'Account {id} is still reviewing this. They will lose the claim and cannot decide any more.',
   'admin.review.takeOverConfirm': 'Take over',
   'admin.review.tookOver': 'You took over the claim.',
   'admin.review.changesDescription':

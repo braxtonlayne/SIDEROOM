@@ -71,6 +71,10 @@ pub(crate) struct Stub {
     /// The one asset `get_asset` knows (subtitle tests), and the subtitle rows of any asset.
     one_asset: Mutex<Option<Asset>>,
     subs: Mutex<Vec<(i64, StoredSubtitle)>>,
+    /// `add_subtitle_language` calls (D-694): the title's list, as far as the stub keeps one.
+    added: Mutex<Vec<(i64, String)>>,
+    /// Make `add_subtitle_language` fail.
+    fail_language: std::sync::atomic::AtomicBool,
 }
 
 #[async_trait]
@@ -230,6 +234,18 @@ impl MediaRepository for Stub {
         t.is_default = p.is_default.unwrap_or(t.is_default);
         t.hidden = p.hidden.unwrap_or(t.hidden);
         Ok(Some(subs[i].1.clone()))
+    }
+    async fn add_subtitle_language(&self, asset: i64, tag: &str) -> MediaResult<Option<String>> {
+        if self.fail_language.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(MediaError::Backend("the title list is down".into()));
+        }
+        let mut added = self.added.lock().unwrap();
+        let tag = tag.to_owned();
+        if added.iter().any(|(a, t)| *a == asset && *t == tag) {
+            return Ok(None);
+        }
+        added.push((asset, tag.clone()));
+        Ok(Some(tag))
     }
     async fn delete_uploaded_subtitle(
         &self,
@@ -1127,6 +1143,98 @@ async fn list_tracks(e: &Env) -> (StatusCode, Value) {
         None,
     )
     .await
+}
+
+/// The `language_added` of the last audit row of `action`.
+fn language_added(e: &Env, action: &str) -> Value {
+    let row = e
+        .admin
+        .log_rows()
+        .into_iter()
+        .rfind(|l| l.action == action)
+        .expect("an audit row");
+    serde_json::from_str::<Value>(&row.detail).unwrap()["language_added"].clone()
+}
+
+/// D-694 at the routes: what reaches the title's list, and what the audit entry says about it.
+#[tokio::test]
+async fn subtitle_routes_add_their_language_to_the_title_and_report_it() {
+    let e = env_with(true).await;
+    *e.stub.one_asset.lock().unwrap() = Some(listed_asset(7));
+    async fn post(e: &Env, q: &str) -> (StatusCode, Value) {
+        let path = format!("/admin/cinema/assets/7/subtitles{q}");
+        e.call_bytes(PUBLISHER, Method::POST, &path, SRT.as_bytes().to_vec())
+            .await
+    }
+    async fn patch(e: &Env, id: &str, body: Value) -> (StatusCode, Value) {
+        let path = format!("/admin/cinema/assets/7/subtitles/{id}");
+        e.call(Some(PUBLISHER), Method::PATCH, &path, Some(body))
+            .await
+    }
+
+    // No language: nothing to add, nothing asked of the title.
+    let (s, _) = post(&e, "").await;
+    assert_eq!(s, StatusCode::CREATED);
+    assert!(e.stub.added.lock().unwrap().is_empty());
+    assert_eq!(language_added(&e, "cinema.subtitle.upload"), Value::Null);
+
+    // A language: added, and the audit entry names it in the normalised form.
+    let (s, a) = post(&e, "?language=pt-br").await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(*e.stub.added.lock().unwrap(), [(7, "pt-BR".to_owned())]);
+    assert_eq!(language_added(&e, "cinema.subtitle.upload"), "pt-BR");
+    // The same language again: already there, so the audit entry names none.
+    let (s, _) = post(&e, "?language=pt-BR").await;
+    assert_eq!(s, StatusCode::CREATED);
+    assert_eq!(language_added(&e, "cinema.subtitle.upload"), Value::Null);
+
+    // An edit of the language adds the new one; the old one stays.
+    let id = a["id"].as_str().unwrap();
+    let (s, t) = patch(&e, id, json!({ "language": "de" })).await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    assert_eq!(language_added(&e, "cinema.subtitle.update"), "de");
+    assert_eq!(e.stub.added.lock().unwrap().len(), 2);
+    // A label edit asks nothing of the title.
+    let (s, _) = patch(&e, id, json!({ "label": "Deutsch" })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(e.stub.added.lock().unwrap().len(), 2);
+    // Hiding adds nothing and removes nothing; showing again offers the language (already there: none new).
+    let (s, _) = patch(&e, id, json!({ "hidden": true })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(e.stub.added.lock().unwrap().len(), 2);
+    let (s, _) = patch(&e, id, json!({ "language": "fr", "hidden": true })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        e.stub.added.lock().unwrap().len(),
+        2,
+        "a hidden track adds nothing, even with a new language"
+    );
+    let (s, _) = patch(&e, id, json!({ "hidden": false })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(
+        *e.stub.added.lock().unwrap().last().unwrap(),
+        (7, "fr".to_owned())
+    );
+    assert_eq!(language_added(&e, "cinema.subtitle.update"), "fr");
+    // Deleting removes nothing from the title (the stub's list only grows).
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::DELETE,
+            &format!("/admin/cinema/assets/7/subtitles/{id}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(e.stub.added.lock().unwrap().len(), 3);
+
+    // A failure to add never fails the upload; the audit entry names none.
+    e.stub
+        .fail_language
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let (s, b) = post(&e, "?language=it").await;
+    assert_eq!(s, StatusCode::CREATED, "{b}");
+    assert_eq!(language_added(&e, "cinema.subtitle.upload"), Value::Null);
 }
 
 #[tokio::test]

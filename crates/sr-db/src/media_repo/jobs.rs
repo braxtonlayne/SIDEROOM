@@ -207,6 +207,33 @@ async fn settle_running(
     Ok(outcome)
 }
 
+impl PgMediaRepo {
+    /// D-694: the languages of the asset's not-hidden embedded tracks go to its title when missing. Best effort:
+    /// a failure is logged, never returned.
+    async fn add_embedded_languages(&self, asset_id: i64) {
+        let tags: Result<Vec<String>, sqlx::Error> = sqlx::query_scalar(
+            "SELECT DISTINCT language_tag FROM video_subtitle_tracks              WHERE asset_id = $1 AND source = 'embedded' AND NOT hidden AND language_tag IS NOT NULL",
+        )
+        .bind(asset_id)
+        .fetch_all(&self.pool)
+        .await;
+        match tags {
+            Ok(tags) => {
+                for tag in tags {
+                    if let Err(e) =
+                        super::languages::add_title_language(&self.pool, asset_id, &tag).await
+                    {
+                        tracing::warn!(error = %e, asset = asset_id, "could not add an embedded track's language to its title");
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, asset = asset_id, "could not read the embedded tracks to add their languages to the title");
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl JobStore for PgMediaRepo {
     async fn authenticate(&self, token_sha256: &str) -> Result<Option<TokenInfo>, StoreError> {
@@ -519,6 +546,7 @@ impl JobStore for PgMediaRepo {
         let spec: JobSpec =
             serde_json::from_value(row.try_get("spec").map_err(se)?).map_err(json_err)?;
         let prefix = format!("transcode/{id}/{attempt}");
+        let is_ladder = matches!(spec, JobSpec::Ladder { .. });
         match &spec {
             JobSpec::Proxy { plan } => {
                 sqlx::query(
@@ -605,6 +633,11 @@ impl JobStore for PgMediaRepo {
             }
         }
         tx.commit().await.map_err(se)?;
+        if is_ladder {
+            // D-694: the not-hidden tracks the ladder wrote add their languages to the title. After the commit, so
+            // a failure here can never undo the completion; it is logged.
+            self.add_embedded_languages(asset_id).await;
+        }
         Ok(())
     }
 

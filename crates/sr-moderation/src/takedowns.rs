@@ -581,6 +581,16 @@ async fn block_asset(
         &format!("originals/{asset}/"),
     )
     .await?;
+    // The uploaded subtitle files of the asset (D-685, D-695): reachable only through the asset's playback, which
+    // the `hls_asset` row above blocks, so this is the second lock.
+    block(
+        conn,
+        ids,
+        notice_id,
+        "prefix",
+        &format!("subtitles/{asset}/"),
+    )
+    .await?;
     // Every transcode output of the asset, every attempt (D-335 item 2): the Patron download links and the
     // stored renditions live under `transcode/{job}/`.
     let jobs: Vec<i64> = sqlx::query_scalar("SELECT id FROM transcode_jobs WHERE asset_id = $1")

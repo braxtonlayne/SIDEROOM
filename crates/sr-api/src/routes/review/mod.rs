@@ -67,6 +67,8 @@ pub struct ReviewDeps {
     pub library: Option<LibraryDraftOps>,
     /// Review proxies of Cinema videos (absent when Cinema media is off).
     pub media: Option<ReviewMedia>,
+    /// Names of the people a reviewer's answers mention (D-692); without it `users` is empty.
+    pub users: Option<Arc<dyn sr_chat::repo::UserLookup>>,
 }
 
 impl ReviewDeps {
@@ -75,7 +77,13 @@ impl ReviewDeps {
             service,
             library: None,
             media: None,
+            users: None,
         }
+    }
+
+    pub fn with_users(mut self, users: Arc<dyn sr_chat::repo::UserLookup>) -> Self {
+        self.users = Some(users);
+        self
     }
 
     pub fn with_media(mut self, media: ReviewMedia) -> Self {
@@ -639,6 +647,9 @@ pub fn router() -> Router<AppState> {
         reviewer::ClaimBody,
         reviewer::RevokeCreditsBody,
         reviewer::RevokedCredits,
+        reviewer::ReviewUser,
+        reviewer::ReviewQueuePage,
+        reviewer::ReviewSubmissionDetail,
         sr_review::model::Credit,
         sr_review::model::UploadAllowance,
         sr_review::model::SubmissionState,

@@ -370,3 +370,69 @@ async fn an_uploaded_subtitle_is_served_from_its_own_prefix_and_an_unlisted_one_
     assert_eq!(s, StatusCode::OK, "{playlist}");
     assert!(playlist.contains("/cdn/hls/777/u/55.vtt?ex="), "{playlist}");
 }
+
+/// D-695: an upheld takedown of the video answers 451 for its uploaded subtitle too. Before SEC-AUD-215 the asset's own
+/// block (`hls_asset`) already refused it. The `subtitles/{asset}/` prefix `block_asset` now writes is the second
+/// lock, and it only works because the CDN also asks the blocklist about the key it is about to read: the check
+/// above the key mapping sees `video/{asset}/u/55.vtt`, never `subtitles/{asset}/55.vtt` (this test failed with 200
+/// for the prefix alone until `serve.rs` asked about the mapped key).
+#[tokio::test]
+async fn an_upheld_takedown_refuses_the_uploaded_subtitle_by_either_lock() {
+    use sr_media::playback::SubtitleExtra;
+    use sr_media::playlist::SubtitleVariant;
+    use sr_moderation::blocklist::{BlockSet, MediaBlocklist};
+    let e = env().await;
+    let mut a = sr_media::playback::sample_asset(777);
+    a.storage_prefix = "transcode/9/1".into();
+    a.media.subtitles.push(SubtitleVariant {
+        name: "Deutsch".into(),
+        language_tag: Some("de".into()),
+        forced: false,
+        is_default: false,
+        vtt_path: "u/55.vtt".into(),
+        playlist_path: "u/55.m3u8".into(),
+        duration_secs: 18.0,
+    });
+    a.subtitle_extras.push(SubtitleExtra {
+        vtt_path: "u/55.vtt".into(),
+        id: "55".into(),
+        ass_path: None,
+    });
+    e.source.insert(a);
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    storage
+        .put("subtitles/777/55.vtt", Bytes::from("WEBVTT\n"))
+        .await
+        .unwrap();
+    let app_with = |rows: Vec<(&str, &str)>| {
+        let list = BlockSet::from_rows(rows.into_iter().map(|(k, v)| (k.to_owned(), v.to_owned())));
+        let deps = cdn::CdnDeps::new(storage.clone(), signer())
+            .with_playlists(e.playback.clone())
+            .with_blocklist(Arc::new(MediaBlocklist::fixed(list)));
+        cdn::layered(AppState::builder().extension(Arc::new(deps)).build())
+    };
+    // No notice: served.
+    let (s, _, _) = cdn_get(&app_with(vec![]), "/cdn/hls/777/u/55.vtt").await;
+    assert_eq!(s, StatusCode::OK);
+    // Only the asset's block (what a notice wrote before this change).
+    let (s, _, _) = cdn_get(
+        &app_with(vec![("hls_asset", "777")]),
+        "/cdn/hls/777/u/55.vtt",
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
+    // Only the new prefix lock.
+    let (s, _, _) = cdn_get(
+        &app_with(vec![("prefix", "subtitles/777/")]),
+        "/cdn/hls/777/u/55.vtt",
+    )
+    .await;
+    assert_eq!(s, StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS);
+    // Another asset's subtitles are not named by it.
+    let (s, _, _) = cdn_get(
+        &app_with(vec![("prefix", "subtitles/7770/")]),
+        "/cdn/hls/777/u/55.vtt",
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+}

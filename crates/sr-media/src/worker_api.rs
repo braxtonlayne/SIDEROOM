@@ -41,6 +41,26 @@ pub struct WorkerCapabilities {
     pub ffmpeg_version: Option<String>,
     /// ffmpeg was built with libplacebo (needed for Dolby Vision profile 5).
     pub libplacebo: bool,
+    /// The name of the GPU the worker encodes on, when it could learn it (D-705). Optional: an older worker
+    /// sends none. Untrusted text from the worker: the server cleans it ([`clean_gpu_name`]).
+    #[serde(default)]
+    pub gpu: Option<String>,
+}
+
+/// The most characters of a GPU name the server keeps.
+pub const MAX_GPU_NAME_CHARS: usize = 80;
+
+/// A GPU name as stored (D-705): control and direction-changing characters dropped, trimmed, at most
+/// [`MAX_GPU_NAME_CHARS`] characters; `None` when nothing is left.
+pub fn clean_gpu_name(raw: &str) -> Option<String> {
+    let printable = |c: &char| {
+        !c.is_control()
+            && !matches!(*c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}')
+    };
+    let kept: String = raw.chars().filter(printable).collect();
+    let name: String = kept.trim().chars().take(MAX_GPU_NAME_CHARS).collect();
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_owned())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -809,11 +829,13 @@ impl WorkerService {
     pub async fn register(
         &self,
         caller: &Caller,
-        req: RegisterRequest,
+        mut req: RegisterRequest,
     ) -> Result<RegisterResponse, ApiError> {
         if req.name.is_empty() || req.name.len() > 64 || req.capabilities.concurrency > 64 {
             return Err(ApiError::BadRequest("invalid registration".into()));
         }
+        // D-705: the GPU name is the worker's own text; the page shows it, so it is cleaned where it is stored.
+        req.capabilities.gpu = req.capabilities.gpu.as_deref().and_then(clean_gpu_name);
         let w = self
             .store
             .upsert_worker(&caller.0, &req, self.now())
@@ -1760,6 +1782,7 @@ pub(crate) mod test_support {
                 concurrency: 2,
                 ffmpeg_version: Some("7.0".into()),
                 libplacebo: false,
+                gpu: None,
             },
         }
     }
@@ -1807,6 +1830,65 @@ mod tests {
                 .await,
             Err(ApiError::Forbidden)
         );
+    }
+
+    async fn stored(h: &Harness, id: &str) -> Option<String> {
+        h.store
+            .get_worker(id)
+            .await
+            .unwrap()
+            .unwrap()
+            .capabilities
+            .gpu
+    }
+
+    #[tokio::test]
+    async fn the_server_cleans_a_workers_gpu_name() {
+        let h = harness();
+        let c = caller(&h).await;
+        let reg = |gpu: Option<&str>| {
+            let mut r = register_req();
+            r.capabilities.gpu = gpu.map(str::to_owned);
+            r
+        };
+        let id = h
+            .svc
+            .register(&c, reg(Some("  NVIDIA GeForce RTX 3060\n")))
+            .await
+            .unwrap()
+            .worker_id;
+        assert_eq!(
+            stored(&h, &id).await.as_deref(),
+            Some("NVIDIA GeForce RTX 3060")
+        );
+        // Control characters and direction overrides go, the length is capped at 80 characters.
+        let long = format!("A\u{202E}B\u{0}C{}", "x".repeat(200));
+        h.svc.register(&c, reg(Some(&long))).await.unwrap();
+        let got = stored(&h, &id).await.unwrap();
+        assert_eq!(got.chars().count(), 80, "{got}");
+        assert!(got.starts_with("ABCxx"), "{got}");
+        // Empty, blank and all-control names are no name.
+        for none in ["", "   ", "\u{7}\u{8}"] {
+            h.svc.register(&c, reg(Some(none))).await.unwrap();
+            assert_eq!(stored(&h, &id).await, None, "{none:?}");
+        }
+        h.svc.register(&c, reg(None)).await.unwrap();
+        assert_eq!(stored(&h, &id).await, None);
+        assert_eq!(clean_gpu_name("Tesla T4"), Some("Tesla T4".into()));
+    }
+
+    /// A worker built before D-705 sends no `gpu`: its registration still parses and stores no name.
+    #[tokio::test]
+    async fn an_older_worker_without_a_gpu_field_still_registers() {
+        let body = r#"{"name":"old-box","version":"0.0.9","capabilities":{"nvenc":true,
+            "encoders":["h264_nvenc"],"hwaccels":["cuda"],"concurrency":1,
+            "ffmpeg_version":"6.1","libplacebo":false}}"#;
+        let req: RegisterRequest = serde_json::from_str(body).unwrap();
+        assert_eq!(req.capabilities.gpu, None);
+        let h = harness();
+        let c = caller(&h).await;
+        let id = h.svc.register(&c, req).await.unwrap().worker_id;
+        assert_eq!(stored(&h, &id).await, None);
     }
 
     #[tokio::test]

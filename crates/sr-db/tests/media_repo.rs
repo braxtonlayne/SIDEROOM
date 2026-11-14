@@ -2098,3 +2098,421 @@ async fn a_track_of_another_asset_is_404() {
         Err(MediaError::NotFound("asset"))
     ));
 }
+
+// ---- subtitle languages join the title (D-694, SEC-AUD-214) ---------------------------------
+
+/// An asset through upload and probe with a worker, the ladder not finished yet.
+async fn staged(probe_json: &str) -> Published {
+    let json = probe_json.to_owned();
+    let w = world(FakeRunner::new(move |_| FakeResult::ok(json.clone()))).await;
+    let user = account(&w.pool).await;
+    let asset = upload(&w, user, true).await;
+    w.svc.run_probe(asset.id, false).await.unwrap();
+    let admin = account(&w.pool).await;
+    let token = w.svc.create_token(admin, "gpu").await.unwrap();
+    let worker = worker_service(
+        w.repo.clone(),
+        Arc::new(std::sync::atomic::AtomicU64::new(1000)),
+    );
+    Published {
+        asset: asset.id,
+        secret: token.secret,
+        w,
+        worker,
+    }
+}
+
+impl Published {
+    /// A published title that plays this asset.
+    async fn film(&self, languages: &[&str]) -> i64 {
+        let t = next_id();
+        sqlx::query(
+            "INSERT INTO video_titles (id, kind, title, sort_title, published, published_at, asset_id, subtitle_languages) \
+             VALUES ($1, 'movie', 'Film', 'film', TRUE, now(), $2, $3)",
+        )
+        .bind(t)
+        .bind(self.asset)
+        .bind(languages.iter().map(|l| (*l).to_owned()).collect::<Vec<_>>())
+        .execute(&self.w.pool)
+        .await
+        .unwrap();
+        t
+    }
+
+    /// A show whose one episode plays this asset; returns the show.
+    async fn show(&self) -> i64 {
+        let (t, season, ep) = (next_id(), next_id(), next_id());
+        sqlx::query(
+            "INSERT INTO video_titles (id, kind, title, sort_title, published, published_at) \
+             VALUES ($1, 'series', 'Show', 'show', TRUE, now())",
+        )
+        .bind(t)
+        .execute(&self.w.pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO video_seasons (id, title_id, number) VALUES ($1, $2, 1)")
+            .bind(season)
+            .bind(t)
+            .execute(&self.w.pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO video_episodes (id, title_id, season_id, number, asset_id) VALUES ($1, $2, $3, 1, $4)",
+        )
+        .bind(ep)
+        .bind(t)
+        .bind(season)
+        .bind(self.asset)
+        .execute(&self.w.pool)
+        .await
+        .unwrap();
+        t
+    }
+
+    async fn languages_of(&self, title: i64) -> Vec<String> {
+        let mut v: Vec<String> =
+            sqlx::query_scalar("SELECT subtitle_languages FROM video_titles WHERE id = $1")
+                .bind(title)
+                .fetch_one(&self.w.pool)
+                .await
+                .unwrap();
+        v.sort();
+        v
+    }
+
+    /// What the route does after a change: offer the track's language to its title.
+    async fn offer(&self, track: &SubtitleTrack) -> Option<String> {
+        self.w
+            .svc
+            .add_track_language_to_title(self.asset, track)
+            .await
+    }
+
+    async fn patch(&self, track: i64, patch: SubtitlePatch) -> SubtitleTrack {
+        self.w
+            .svc
+            .update_subtitle(self.asset, track, patch)
+            .await
+            .unwrap()
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_uploaded_track_adds_its_language_to_the_title() {
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&["en"]).await;
+    let up = p.upload_sub("Portugues", "pt-br", SRT_FILE).await;
+    assert_eq!(p.offer(&up).await.as_deref(), Some("pt-BR"));
+    assert_eq!(p.languages_of(title).await, ["en", "pt-BR"]);
+    // Offered again: already there, nothing changes, nothing to report.
+    assert_eq!(p.offer(&up).await, None);
+    assert_eq!(p.languages_of(title).await, ["en", "pt-BR"]);
+    // An asset no title plays adds nothing and is no error.
+    let lone = published(PROBE_JSON).await;
+    let t = lone.upload_sub("Deutsch", "de", SRT_FILE).await;
+    assert_eq!(lone.offer(&t).await, None);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_episodes_track_adds_to_the_show() {
+    let p = published(PROBE_JSON).await;
+    let show = p.show().await;
+    let up = p.upload_sub("Deutsch", "de", SRT_FILE).await;
+    assert_eq!(p.offer(&up).await.as_deref(), Some("de"));
+    assert_eq!(p.languages_of(show).await, ["de"]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn showing_a_hidden_track_adds_its_language() {
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&[]).await;
+    let up = p.upload_sub("Deutsch", "de", SRT_FILE).await;
+    let hidden = p
+        .patch(
+            up.id,
+            SubtitlePatch {
+                hidden: Some(true),
+                ..SubtitlePatch::default()
+            },
+        )
+        .await;
+    assert_eq!(p.offer(&hidden).await, None, "a hidden track adds nothing");
+    assert!(p.languages_of(title).await.is_empty());
+    let shown = p
+        .patch(
+            up.id,
+            SubtitlePatch {
+                hidden: Some(false),
+                ..SubtitlePatch::default()
+            },
+        )
+        .await;
+    assert_eq!(p.offer(&shown).await.as_deref(), Some("de"));
+    assert_eq!(p.languages_of(title).await, ["de"]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_language_edit_adds_the_new_one_and_keeps_the_old() {
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&[]).await;
+    let up = p.upload_sub("Track", "de", SRT_FILE).await;
+    assert_eq!(p.offer(&up).await.as_deref(), Some("de"));
+    let edited = p
+        .patch(
+            up.id,
+            SubtitlePatch {
+                language: Some("it".into()),
+                ..SubtitlePatch::default()
+            },
+        )
+        .await;
+    assert_eq!(p.offer(&edited).await.as_deref(), Some("it"));
+    assert_eq!(
+        p.languages_of(title).await,
+        ["de", "it"],
+        "the old one stays"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_finished_transcode_adds_the_embedded_languages() {
+    let p = staged(PROBE_TWO_SUBS).await;
+    let title = p.film(&["en"]).await;
+    finish_ladder(&p.worker, &p.secret, 1000).await;
+    assert_eq!(p.languages_of(title).await, ["en", "es", "fr"]);
+
+    // A track staff hid stays out on the next transcode: empty the list, hide fr, encode again.
+    sqlx::query("UPDATE video_titles SET subtitle_languages = '{}' WHERE id = $1")
+        .bind(title)
+        .execute(&p.w.pool)
+        .await
+        .unwrap();
+    let fr = p
+        .tracks()
+        .await
+        .into_iter()
+        .find(|t| t.track.language.as_deref() == Some("fr"))
+        .expect("the French track")
+        .track;
+    p.patch(
+        fr.id,
+        SubtitlePatch {
+            hidden: Some(true),
+            ..SubtitlePatch::default()
+        },
+    )
+    .await;
+    p.retranscode().await;
+    assert_eq!(
+        p.languages_of(title).await,
+        ["es"],
+        "the hidden track adds nothing"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn hiding_or_deleting_a_track_removes_nothing() {
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&[]).await;
+    let up = p.upload_sub("Deutsch", "de", SRT_FILE).await;
+    assert_eq!(p.offer(&up).await.as_deref(), Some("de"));
+    p.patch(
+        up.id,
+        SubtitlePatch {
+            hidden: Some(true),
+            ..SubtitlePatch::default()
+        },
+    )
+    .await;
+    assert_eq!(p.languages_of(title).await, ["de"]);
+    p.w.svc.delete_subtitle(p.asset, up.id).await.unwrap();
+    assert_eq!(p.languages_of(title).await, ["de"]);
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn und_adds_nothing() {
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&[]).await;
+    let und = p.upload_sub("Unknown", "und", SRT_FILE).await;
+    assert_eq!(p.offer(&und).await, None);
+    let none =
+        p.w.svc
+            .upload_subtitle(p.asset, SubtitleUploadMeta::default(), SRT_FILE.as_bytes())
+            .await
+            .unwrap();
+    assert_eq!(none.language, None);
+    assert_eq!(p.offer(&none).await, None);
+    // A tag the title editor would refuse adds nothing.
+    let odd = SubtitleTrack {
+        language: Some("x-klingon".into()),
+        ..none
+    };
+    assert_eq!(p.offer(&odd).await, None);
+    assert!(p.languages_of(title).await.is_empty());
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_catalog_filter_finds_the_title_afterwards() {
+    use sr_cinema::model::{BrowseQuery, Scope};
+    use sr_cinema::repo::CinemaRepository;
+    let p = published(PROBE_JSON).await;
+    let title = p.film(&["en"]).await;
+    let cinema = sr_db::cinema_repo::PgCinemaRepo::new(p.w.pool.clone());
+    let q = BrowseQuery {
+        subtitle_language: Some("de".into()),
+        limit: 10,
+        ..BrowseQuery::default()
+    };
+    assert_eq!(cinema.browse(&q, Scope::Public).await.unwrap().total, 0);
+    let up = p.upload_sub("Deutsch", "de", SRT_FILE).await;
+    assert_eq!(p.offer(&up).await.as_deref(), Some("de"));
+    let found = cinema.browse(&q, Scope::Public).await.unwrap();
+    assert_eq!(
+        found.items.iter().map(|t| t.id).collect::<Vec<_>>(),
+        [title]
+    );
+    let facets = cinema.facets(None, true).await.unwrap();
+    assert!(facets.subtitle_languages.iter().any(|f| f.name == "de"));
+}
+
+// ---- workers show their throughput (D-705, SEC-AUD-216) -------------------------------------
+
+struct Fleet {
+    w: World,
+    asset: i64,
+    ids: Vec<String>,
+}
+
+/// `n` registered workers (named `w0`, `w1`, ...) on one token, and an asset to hang jobs on.
+async fn fleet(n: usize) -> Fleet {
+    let w = world(probe_ok()).await;
+    let user = account(&w.pool).await;
+    let asset = upload(&w, user, false).await.id;
+    let admin = account(&w.pool).await;
+    let token = w.svc.create_token(admin, "fleet").await.unwrap();
+    let svc = worker_service(
+        w.repo.clone(),
+        Arc::new(std::sync::atomic::AtomicU64::new(1000)),
+    );
+    let c = svc.authenticate(Some(&token.secret)).await.unwrap();
+    let mut ids = Vec::new();
+    for i in 0..n {
+        let caps = WorkerCapabilities {
+            gpu: Some(format!("GPU {i}")),
+            ..WorkerCapabilities::default()
+        };
+        ids.push(
+            svc.register(
+                &c,
+                RegisterRequest {
+                    name: format!("w{i}"),
+                    version: "1".into(),
+                    capabilities: caps,
+                },
+            )
+            .await
+            .unwrap()
+            .worker_id,
+        );
+    }
+    Fleet { w, asset, ids }
+}
+
+impl Fleet {
+    /// A job of `worker`. `lease_secs` is the lease's end relative to now, `finished_hours_ago` the finish time.
+    async fn job(
+        &self,
+        worker: usize,
+        state: &str,
+        speed: Option<f64>,
+        lease_secs: i64,
+        finished_hours_ago: Option<i64>,
+    ) {
+        sqlx::query(
+            "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, state, \
+               worker_id, lease_expires_at, progress, finished_at) \
+             VALUES ($1, $2, 'remux', '{}'::jsonb, 'k', 1, 'mkv', $3, $4, \
+               now() + make_interval(secs => $5), $6, now() - make_interval(hours => $7))",
+        )
+        .bind(next_id())
+        .bind(self.asset)
+        .bind(state)
+        .bind(&self.ids[worker])
+        .bind(lease_secs as f64)
+        .bind(speed.map(|s| serde_json::json!({ "stage": "encode", "percent": 10, "speed": s })))
+        .bind(finished_hours_ago.map(|h| h as i32))
+        .execute(&self.w.pool)
+        .await
+        .unwrap();
+    }
+
+    async fn view(&self, worker: usize) -> WorkerView {
+        self.w
+            .repo
+            .list_workers()
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|v| v.id == self.ids[worker])
+            .expect("the worker is listed")
+    }
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn speed_now_sums_running_jobs_with_a_live_lease() {
+    let f = fleet(2).await;
+    assert_eq!(f.view(0).await.speed_now, None, "it runs nothing");
+    f.job(0, "running", Some(2.5), 60, None).await;
+    f.job(0, "running", Some(1.0), 60, None).await;
+    // A running job that has not reported a speed yet adds nothing; a queued or finished one is not running.
+    f.job(0, "running", None, 60, None).await;
+    f.job(0, "succeeded", Some(9.0), 60, Some(1)).await;
+    let a = f.view(0).await;
+    assert_eq!(a.speed_now, Some(3.5));
+    assert_eq!(a.active_jobs, 3);
+    // The other worker's jobs are not summed into this one, and a running job without a speed is no speed.
+    f.job(1, "running", None, 60, None).await;
+    assert_eq!(f.view(1).await.speed_now, None);
+    // The GPU name rides on the capabilities.
+    assert_eq!(a.capabilities.gpu.as_deref(), Some("GPU 0"));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn an_expired_lease_does_not_count() {
+    let f = fleet(1).await;
+    f.job(0, "running", Some(4.0), -30, None).await;
+    assert_eq!(f.view(0).await.speed_now, None, "a dead lease is no speed");
+    f.job(0, "running", Some(1.5), 30, None).await;
+    assert_eq!(f.view(0).await.speed_now, Some(1.5));
+}
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn the_day_counts_are_per_worker() {
+    let f = fleet(2).await;
+    for h in [1, 5, 23] {
+        f.job(0, "succeeded", None, 0, Some(h)).await;
+    }
+    f.job(0, "failed", None, 0, Some(2)).await;
+    // Older than a day, cancelled and queued jobs are not counted.
+    f.job(0, "succeeded", None, 0, Some(25)).await;
+    f.job(0, "failed", None, 0, Some(48)).await;
+    f.job(0, "cancelled", None, 0, Some(1)).await;
+    f.job(1, "succeeded", None, 0, Some(3)).await;
+    f.job(1, "failed", None, 0, Some(4)).await;
+    f.job(1, "failed", None, 0, Some(6)).await;
+    let a = f.view(0).await;
+    assert_eq!((a.jobs_done_24h, a.jobs_failed_24h), (3, 1));
+    let b = f.view(1).await;
+    assert_eq!((b.jobs_done_24h, b.jobs_failed_24h), (1, 2));
+}

@@ -69,6 +69,24 @@ export interface SubmissionPage {
   offset: number;
 }
 
+/** The small user object of a reviewer's answers (D-692): a submitter or a claimer. */
+export interface ReviewUser {
+  id: string;
+  username: string;
+  global_name: string | null;
+  avatar: string | null;
+}
+
+/** `GET /admin/review/queue`: the page and the people it names. A deleted account is not in `users`. */
+export interface ReviewQueuePage extends SubmissionPage {
+  users: ReviewUser[];
+}
+
+/** `GET /admin/review/submissions/{id}`: the detail and its submitter and claimer. */
+export interface ReviewSubmissionDetail extends SubmissionDetail {
+  users: ReviewUser[];
+}
+
 export interface KindInfo {
   id: string;
   label: string;

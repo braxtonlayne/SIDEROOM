@@ -1212,6 +1212,20 @@ async fn uphold_blocks_transcode_and_original_objects_and_restore_lifts_them() {
         list.is_blocked_key(&format!("originals/{asset}/source.mkv"))
             .await
     );
+    // D-695: the uploaded subtitle files of the asset, and only that asset's.
+    assert!(
+        list.is_blocked_key(&format!("subtitles/{asset}/55.vtt"))
+            .await
+    );
+    assert!(
+        list.is_blocked_key(&format!("subtitles/{asset}/55.ass"))
+            .await
+    );
+    assert!(
+        !list
+            .is_blocked_key(&format!("subtitles/{}0/55.vtt", asset))
+            .await
+    );
     assert!(list.is_blocked_asset(asset).await);
     w.m.restore_notice(&who, id, Some("mistake")).await.unwrap();
     assert_eq!(
@@ -1227,6 +1241,11 @@ async fn uphold_blocks_transcode_and_original_objects_and_restore_lifts_them() {
     assert!(
         !fresh
             .is_blocked_key(&format!("transcode/{}/1/remux/video.mp4", jobs[0]))
+            .await
+    );
+    assert!(
+        !fresh
+            .is_blocked_key(&format!("subtitles/{asset}/55.vtt"))
             .await
     );
 }

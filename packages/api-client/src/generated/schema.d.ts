@@ -1022,7 +1022,8 @@ export interface paths {
          *     most 20 MiB; the format is read from the content, not the name). It is parsed and stored again as WebVTT (an
          *     ASS file is also kept for styled rendering). A file with no readable cue, over the limit or with too many
          *     cues is 400 with the reason; a video whose storage does not take uploads is 409. The track is kept when the
-         *     video is re-encoded.
+         *     video is re-encoded. The track's language is added to the title's subtitle languages when it is missing
+         *     (never removed; `und` adds nothing); the audit entry names the language added.
          */
         post: operations["admin_cinema_upload_subtitle"];
         delete?: never;
@@ -1051,7 +1052,8 @@ export interface paths {
         /**
          * Change a track (`PUBLISH_MEDIA`): label, language, forced, hearing impaired, default (at most one per
          *     video: the others are cleared) or hidden. The settings of an embedded track are kept when the video is
-         *     re-encoded.
+         *     re-encoded. A new language, or a hidden track shown again, adds its language to the title's subtitle
+         *     languages when it is missing.
          */
         patch: operations["admin_cinema_update_subtitle"];
         trace?: never;
@@ -27476,11 +27478,33 @@ export interface components {
             /** @description The copy is gone now. */
             removed: boolean;
         };
+        /** @description The review queue page: the submissions and the people they name (D-692). */
+        ReviewQueuePage: components["schemas"]["SubmissionPage"] & {
+            /**
+             * @description Each submitter and claimer on the page and the account of the `submitter` filter, even when no row matches.
+             *     A deleted account is absent.
+             */
+            users: components["schemas"]["ReviewUser"][];
+        };
         /**
          * @description Where an application's Activity is in review.
          * @enum {string}
          */
         ReviewState: "draft" | "pending" | "approved" | "rejected";
+        /** @description A submission for review: the submission, its items and timeline, and the people it names (D-692). */
+        ReviewSubmissionDetail: components["schemas"]["SubmissionDetail"] & {
+            /** @description The submitter and the claimer. A deleted account is absent. */
+            users: components["schemas"]["ReviewUser"][];
+        };
+        /** @description The small user object a reviewer sees for a submitter or a claimer (D-692): never an email or a flag. */
+        ReviewUser: {
+            /** @description Avatar hash (`/cdn/avatars/{id}/{hash}.png`), when one is set. */
+            avatar?: string | null;
+            /** @description The display name, when the account has one. */
+            global_name?: string | null;
+            id: string;
+            username: string;
+        };
         /** @description Body of `POST /admin/review/submissions/{id}/revoke-credits`. */
         RevokeCreditsBody: {
             /** @description Only these published items (item snowflakes); omitted: every credit of the submission. */
@@ -31256,6 +31280,11 @@ export interface components {
             concurrency: number;
             encoders: string[];
             ffmpeg_version?: string | null;
+            /**
+             * @description The name of the GPU the worker encodes on, when it could learn it (D-705). Optional: an older worker
+             *     sends none. Untrusted text from the worker: the server cleans it ([`clean_gpu_name`]).
+             */
+            gpu?: string | null;
             hwaccels: string[];
             /** @description ffmpeg was built with libplacebo (needed for Dolby Vision profile 5). */
             libplacebo: boolean;
@@ -31280,11 +31309,27 @@ export interface components {
             capabilities: components["schemas"]["WorkerCapabilities"];
             drain: boolean;
             id: string;
+            /**
+             * Format: int32
+             * @description Jobs the worker finished in the last 24 hours.
+             */
+            jobs_done_24h: number;
+            /**
+             * Format: int32
+             * @description Jobs the worker failed in the last 24 hours.
+             */
+            jobs_failed_24h: number;
             /** Format: int64 */
             last_seen_ms: number;
             name: string;
             /** @description Heard from within the last minute. */
             online: boolean;
+            /**
+             * Format: float
+             * @description Sum of the `speed` (times real time) of the jobs the worker runs now whose lease has not run out; none
+             *     when it runs nothing or no running job has reported a speed yet (D-705).
+             */
+            speed_now?: number | null;
             token_id: string;
             token_name: string;
             token_revoked: boolean;
@@ -43431,7 +43476,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubmissionPage"];
+                    "application/json": components["schemas"]["ReviewQueuePage"];
                 };
             };
             400: {
@@ -43531,7 +43576,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubmissionDetail"];
+                    "application/json": components["schemas"]["ReviewSubmissionDetail"];
                 };
             };
             401: {
