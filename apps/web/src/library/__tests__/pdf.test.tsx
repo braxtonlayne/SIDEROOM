@@ -88,7 +88,7 @@ describe('G-59 pdf.js integration', () => {
     );
     const saved = vi.spyOn(localProgress, 'save').mockImplementation((p) => {
       saves.push(p);
-      return Promise.resolve();
+      return Promise.resolve({ applied: true, progress: null });
     });
     renderAt('/library/r/c1');
     expect(await screen.findByText('Page 1 of 5')).toBeInTheDocument();

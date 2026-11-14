@@ -129,7 +129,10 @@ describe('EPUB reader', () => {
     setProgressApi({
       ...localProgress,
       get: async () => null,
-      save: async (p) => void saved.push({ ...p }),
+      save: (p) => {
+        saved.push({ ...p });
+        return Promise.resolve({ applied: true, progress: null });
+      },
     });
     renderAt('/library/r/c9');
     await waitFor(() => expect(made.length).toBe(1));

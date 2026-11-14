@@ -2,7 +2,7 @@ import { EmptyState, Icon, Spinner } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
-import { progressApi } from '../progress';
+import { useProgressSync } from '../useProgressSync';
 import { percentAt } from '../reader/model';
 import { openPdf, PdfNotInstalledError, renderPdfPage, type PdfDocumentLike } from './pdfjs';
 
@@ -26,12 +26,15 @@ export function PdfReader({
   title,
   seriesId,
   initialPage = 1,
+  baseMs = 0,
   chapter,
 }: {
   url: string;
   title: string;
   seriesId: string;
   initialPage?: number;
+  /** The `updated_at_ms` of the saved position this reader opened from (0: none). */
+  baseMs?: number;
   /** The chapter and series, for saving progress. Without it nothing is saved. */
   chapter?: {
     id: string;
@@ -83,6 +86,18 @@ export function PdfReader({
   const latest = useRef({ page: current, count, dirty: false });
   latest.current.page = current;
   latest.current.count = count;
+  const sync = useProgressSync({
+    chapterId: chapter?.id ?? '',
+    baseMs,
+    kind: 'pages',
+    pageCount: count,
+    current: () => {
+      const i = Math.min(Math.max(latest.current.page, 1), Math.max(1, latest.current.count)) - 1;
+      return { pageIndex: i, percent: percentAt(i, latest.current.count) };
+    },
+    jump: (p) => setPage(Math.max(1, p.page_index + 1)),
+  });
+  const syncSave = sync.save;
   const first = useRef(true);
   useEffect(() => {
     if (!chapter || !count) return;
@@ -91,19 +106,19 @@ export function PdfReader({
       if (!l.dirty || !l.count) return;
       l.dirty = false;
       const index = Math.min(Math.max(l.page, 1), l.count) - 1;
-      void progressApi
-        .save({
-          chapterId: chapter.id,
-          seriesId,
-          seriesTitle: chapter.seriesTitle,
-          coverUrl: chapter.coverUrl ?? null,
-          chapterNumber: chapter.number,
-          pageCount: l.count,
-          pageIndex: index,
-          percent: percentAt(index, l.count),
-          completed: index >= l.count - 1,
-        })
-        .catch(() => undefined);
+      void syncSave({
+        chapterId: chapter.id,
+        seriesId,
+        seriesTitle: chapter.seriesTitle,
+        coverUrl: chapter.coverUrl ?? null,
+        chapterNumber: chapter.number,
+        pageCount: l.count,
+        pageIndex: index,
+        percent: percentAt(index, l.count),
+        completed: index >= l.count - 1,
+      }).then((ok) => {
+        if (!ok) l.dirty = true;
+      });
     };
     if (first.current) {
       first.current = false;
@@ -116,7 +131,7 @@ export function PdfReader({
       clearTimeout(timer);
       window.removeEventListener('pagehide', flush);
     };
-  }, [chapter, count, current, seriesId]);
+  }, [chapter, count, current, seriesId, syncSave]);
 
   const back = (
     <Link to="/library/s/$seriesId" params={{ seriesId }} className="lib-btn">
@@ -147,6 +162,7 @@ export function PdfReader({
     );
   return (
     <div className="lib-reader lib-pdf" data-bg="black">
+      {sync.ui}
       <header className="lib-pdf-bar">
         {back}
         <h1 className="lib-pdf-title">{title}</h1>
