@@ -94,6 +94,7 @@ import { VOICE_FLAG, voiceMimeType } from './msg/voice';
 import { createDm } from './shell/api';
 import { rememberDm } from './shell/dm';
 import { useSaved } from './shell/savedMessages';
+import { useComposerClearance } from './composerClearance';
 import { useLoungeUi } from './store';
 import './msg/msg.css';
 
@@ -859,6 +860,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         findBridgedMember(id)?.display_name ??
         t('lounge.composer.someone'),
     );
+  const clearRef = useComposerClearance();
   const typing = typingLabel(typingNames);
   const remaining = MAX_MESSAGE_LENGTH - text.length;
   const showCounter = remaining <= 200;
@@ -866,7 +868,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
 
   if (!canSend || timedOutUntil) {
     return (
-      <div className="lng-composer-wrap">
+      <div className="lng-composer-wrap" ref={clearRef}>
         <div className="lng-composer lng-composer-locked" role="note">
           <Icon name={timedOutUntil ? 'clock' : 'lock'} size={20} />
           {timedOutUntil
@@ -885,6 +887,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   return (
     <div
       className="lng-composer-wrap"
+      ref={clearRef}
       data-drop-target
       data-sr-private={guildId === undefined ? '' : undefined}
     >
