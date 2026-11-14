@@ -601,7 +601,7 @@ impl PackageUploads {
                     // Another `complete` may have assembled it since the look above: the store no longer knows the
                     // upload, and the object is there.
                     Err(_) if self.assembled(&r).await? => break 'assemble,
-                    Err(e) => return Err(storage_err(e)),
+                    Err(e) => return Err(storage_err(e).into()),
                 };
                 let missing = missing_parts(&stored, size, part_size, count);
                 if !missing.is_empty() {
