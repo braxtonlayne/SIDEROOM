@@ -33,3 +33,7 @@
   margin-block: 12px 0;
   text-align: center;
 }
+/* A long account name wraps so the Open button stays inside the table on a desktop. */
+.adm-bug-table td:nth-child(4) {
+  overflow-wrap: anywhere;
+}

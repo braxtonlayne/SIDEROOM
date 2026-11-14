@@ -172,10 +172,13 @@ test('Admin > Bug reports: the list pages, and a report with parts missing opens
       const more = page.getByRole('button', { name: 'Load more' });
       await expect(more).toBeVisible();
       await shot('list-first-page', true);
+      await more.scrollIntoViewIfNeeded();
+      await shot('list-first-page-end', true);
       const total = Number(sql(`SELECT count(*) FROM bug_reports WHERE status = 'open'`));
       await more.click();
       await expect(rowsOf()).toHaveCount(total);
       await expect(more).toHaveCount(0);
+      await rowsOf().last().scrollIntoViewIfNeeded();
       await shot('list-after-load-more', true);
       await page.getByRole('combobox', { name: 'Show reports that are' }).click();
       await page.getByRole('option', { name: 'Closed' }).click();
@@ -202,6 +205,10 @@ test('Admin > Bug reports: the list pages, and a report with parts missing opens
         await expect(page.getByRole('button', { name: 'Close report' })).toBeVisible();
         await expect(page.locator('#adm-bug-debug')).toBeVisible();
         await shot(name, true);
+        if (name !== 'detail-dialog') {
+          await page.locator('#adm-bug-shot').scrollIntoViewIfNeeded();
+          await shot(`${name}-lower`, true);
+        }
       }
       await c.close();
     }
