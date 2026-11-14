@@ -8,10 +8,12 @@ publish.workspace = true
 async-trait.workspace = true
 jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-bundle-always"] }
 serde.workspace = true
+bytes = "1"
 serde_json.workspace = true
 sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "json"] }
 sr-core = { path = "../sr-core", default-features = false }
 sr-media = { path = "../sr-media" }
+sr-storage = { path = "../sr-storage" }
 sr-watchparty = { path = "../sr-watchparty" }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync"] }
@@ -19,6 +21,7 @@ tracing = "0.1"
 utoipa = "5"
 
 [dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 sr-db = { path = "../sr-db" }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 

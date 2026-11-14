@@ -241,6 +241,9 @@ pub const OPS_STORAGE_MEASURE_MAX_OBJECTS: &str = "ops.storage_measure_max_objec
 /// (D-266, D-269). `sr-cli tv slate` makes the asset and writes this; the server reads it before the
 /// `SR_TV_SLATE_ASSET` environment fallback and follows a change without a restart.
 pub const TV_SLATE_ASSET: &str = "tv.slate_asset";
+/// Live TV: a line for the foot of the guide in place of the built-in text (D-687). Plain text, at most 200
+/// characters; empty keeps the built-in text. The server reads it (`PgFooterNote`) and follows a change without a restart.
+pub const TV_FOOTER_NOTE: &str = "tv.footer_note";
 
 /// The utility drawer's currency tool (UTL-CALC-001). `tools.currency_rates` switches the daily fetch of the
 /// European Central Bank reference rates, and with it the conversion in the drawer, on or off.
@@ -849,6 +852,15 @@ pub const CATALOG: &[SettingDef] = &[
         description: "Asset id of the Live TV slate loop played while a channel is off air (made by sr-cli tv slate; empty: none). To remove it, prefer `sr-cli tv slate --remove`, which also retires the asset.",
     },
     SettingDef {
+        key: TV_FOOTER_NOTE,
+        group: "tv",
+        kind: SettingKind::Text,
+        min: 0.0,
+        max: 200.0,
+        default_int: 0,
+        description: "A line shown at the foot of the Live TV guide in place of the built-in text. Plain text, no links. Empty: the built-in text.",
+    },
+    SettingDef {
         key: TOOLS_CURRENCY_RATES,
         group: "tools",
         kind: SettingKind::Boolean,
@@ -1228,6 +1240,11 @@ pub const READERS: &[(&str, &str, &str)] = &[
         "TV_SLATE_ASSET",
     ),
     (
+        "tv.footer_note",
+        "crates/sr-server/src/tv_catalog.rs",
+        "TV_FOOTER_NOTE",
+    ),
+    (
         "tools.currency_rates",
         "crates/sr-server/src/fx_jobs.rs",
         "tools.currency_rates",
@@ -1326,6 +1343,21 @@ mod tests {
         );
         assert!(d.validate(&json!("")).is_ok());
         assert!(d.validate(&json!("12ab")).is_err());
+        assert!(d.validate(&json!(12)).is_err());
+    }
+
+    #[test]
+    fn the_tv_footer_note_is_plain_text_of_at_most_200_characters() {
+        let d = find(TV_FOOTER_NOTE).unwrap();
+        assert_eq!(d.group, "tv");
+        assert_eq!(d.default_value(), json!(""));
+        assert!(d.validate(&json!("")).is_ok());
+        assert_eq!(
+            d.validate(&json!("Times are local.")).unwrap(),
+            json!("Times are local.")
+        );
+        assert!(d.validate(&json!("é".repeat(200))).is_ok());
+        assert!(d.validate(&json!("é".repeat(201))).is_err());
         assert!(d.validate(&json!(12)).is_err());
     }
 

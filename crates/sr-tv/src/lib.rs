@@ -31,7 +31,8 @@ pub use error::{TvError, TvResult};
 pub use presence::{MemoryPresence, Presence};
 pub use repo::{MemoryTvRepo, TvRepository};
 pub use service::{
-    Actor, LiveDeps, ReminderNotice, ReminderSink, ReminderView, SlateSource, TvService, Viewer,
+    Actor, FooterNoteSource, LiveDeps, ReminderNotice, ReminderSink, ReminderView, SlateSource,
+    TvService, Viewer,
 };
 
 #[cfg(test)]

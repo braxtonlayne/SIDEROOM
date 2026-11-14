@@ -29,6 +29,7 @@ impl UrlSigner for Sig {
 }
 
 struct Env {
+    store: Arc<sr_storage::ObjectStoreStorage>,
     svc: TvService,
     clock: Arc<ManualClock>,
     repo: Arc<MemoryTvRepo>,
@@ -57,6 +58,7 @@ fn env() -> Env {
         catalog.add(e);
     }
     let next = Arc::new(AtomicI64::new(1000));
+    let store = Arc::new(sr_storage::ObjectStoreStorage::in_memory());
     let svc = TvService::new(
         repo.clone(),
         Arc::new(catalog.clone()),
@@ -66,8 +68,10 @@ fn env() -> Env {
     .with_live(LiveDeps {
         source: Arc::new(source),
         signer: Arc::new(Sig),
-    });
+    })
+    .with_logo_store(store.clone());
     Env {
+        store,
         svc,
         clock,
         repo,
@@ -98,7 +102,7 @@ fn input(number: i32, rules: ChannelRules) -> ChannelInput {
         call_sign: Some("[adult swim]".into()),
         era_label: None,
         theme: None,
-        logo_key: Some("tv/logo.png".into()),
+        logo_key: None,
         enabled: true,
         kind: ChannelKind::RuleBased,
         timezone: "UTC".into(),
@@ -150,10 +154,7 @@ async fn staff_need_manage_tv_and_numbers_are_unique() {
     let c = e.svc.admin_channel(e.staff, id).await.unwrap();
     assert_eq!(c.rules.as_ref().unwrap().grid_minutes, 30);
     assert!(c.seed.is_some());
-    assert!(
-        c.logo_url.unwrap().starts_with("/cdn/tv/logo.png?ex="),
-        "a signed logo link"
-    );
+    assert_eq!(c.logo_url, None, "a new channel has no logo");
     let mut upd = input(102, marathon());
     upd.name = "Renamed".into();
     assert_eq!(
@@ -1417,5 +1418,304 @@ async fn favorites_are_per_member_and_only_for_enabled_channels() {
     assert!(matches!(
         e.svc.set_favorite(MEMBER, 999, true).await,
         Err(TvError::NotFound(_))
+    ));
+}
+
+struct SettingFooter(std::sync::Mutex<Option<String>>);
+
+#[async_trait::async_trait]
+impl crate::service::FooterNoteSource for SettingFooter {
+    async fn footer_note(&self) -> Option<String> {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+fn svc_with_footer(e: &Env, setting: Arc<SettingFooter>) -> TvService {
+    let next = Arc::new(AtomicI64::new(7000));
+    TvService::new(
+        e.repo.clone(),
+        Arc::new(e.catalog.clone()),
+        e.clock.clone(),
+        Arc::new(move || next.fetch_add(1, Ordering::SeqCst)),
+    )
+    .with_footer_source(setting)
+}
+
+#[tokio::test]
+async fn the_guide_carries_the_operators_footer_note() {
+    let e = env();
+    let setting = Arc::new(SettingFooter(std::sync::Mutex::new(None)));
+    let svc = svc_with_footer(&e, setting.clone());
+    assert_eq!(svc.guide(None, None, &[]).await.unwrap().footer_note, None);
+    // Set: the old answer is reused until the refresh interval has passed, then the new text shows.
+    *setting.0.lock().unwrap() = Some("  Times are your local time.  ".into());
+    assert_eq!(svc.guide(None, None, &[]).await.unwrap().footer_note, None);
+    e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
+    assert_eq!(
+        svc.guide(None, None, &[])
+            .await
+            .unwrap()
+            .footer_note
+            .as_deref(),
+        Some("Times are your local time.")
+    );
+    // Changed without a restart.
+    *setting.0.lock().unwrap() = Some("Reruns on Sundays".into());
+    e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
+    assert_eq!(
+        svc.guide(None, None, &[])
+            .await
+            .unwrap()
+            .footer_note
+            .as_deref(),
+        Some("Reruns on Sundays")
+    );
+    // Emptied: null again.
+    *setting.0.lock().unwrap() = Some("   ".into());
+    e.clock.advance_ms(crate::service::SLATE_REFRESH_MS + 1);
+    assert_eq!(svc.guide(None, None, &[]).await.unwrap().footer_note, None);
+    // A service with no source has none.
+    assert_eq!(
+        e.svc.guide(None, None, &[]).await.unwrap().footer_note,
+        None
+    );
+}
+
+#[tokio::test]
+async fn a_footer_note_with_control_characters_is_cleaned() {
+    use crate::service::{FOOTER_NOTE_MAX_CHARS, clean_footer_note};
+    assert_eq!(
+        clean_footer_note("a\r\nb\tc\u{0}d").as_deref(),
+        Some("a  b c d")
+    );
+    assert_eq!(clean_footer_note("\n\t \r"), None);
+    // A row written by hand, longer than the limit, is cut at a character boundary (not a byte).
+    let long = "é".repeat(FOOTER_NOTE_MAX_CHARS + 50);
+    let cut = clean_footer_note(&long).unwrap();
+    assert_eq!(cut.chars().count(), FOOTER_NOTE_MAX_CHARS);
+    // Through the service too.
+    let e = env();
+    let setting = Arc::new(SettingFooter(std::sync::Mutex::new(Some(
+        "Line one\nLine two\u{7}".into(),
+    ))));
+    let svc = svc_with_footer(&e, setting);
+    assert_eq!(
+        svc.guide(None, None, &[])
+            .await
+            .unwrap()
+            .footer_note
+            .as_deref(),
+        Some("Line one Line two")
+    );
+}
+
+// ---- channel logos (D-686) ----
+
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc = 0xFFFF_FFFFu32;
+    for b in data {
+        crc ^= u32::from(*b);
+        for _ in 0..8 {
+            crc = if crc & 1 == 1 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
+        }
+    }
+    !crc
+}
+
+/// A w by h RGBA PNG with a half-transparent corner and a `tEXt` chunk (metadata that must not survive).
+fn png_with_text(w: u32, h: u32) -> Vec<u8> {
+    let img = image::RgbaImage::from_fn(w, h, |x, y| {
+        if x < 4 && y < 4 {
+            image::Rgba([200, 30, 30, 0])
+        } else {
+            image::Rgba([200, 30, 30, 255])
+        }
+    });
+    let mut plain = Vec::new();
+    img.write_to(
+        &mut std::io::Cursor::new(&mut plain),
+        image::ImageFormat::Png,
+    )
+    .unwrap();
+    // Insert the chunk right after IHDR (8 byte signature + 25 byte IHDR chunk).
+    let mut chunk = Vec::new();
+    let data = b"Comment\0secret-metadata";
+    chunk.extend((data.len() as u32).to_be_bytes());
+    let mut body = b"tEXt".to_vec();
+    body.extend(data);
+    chunk.extend(&body);
+    chunk.extend(crc32(&body).to_be_bytes());
+    let mut out = plain[..33].to_vec();
+    out.extend(chunk);
+    out.extend(&plain[33..]);
+    out
+}
+
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+async fn stored(e: &Env, key: &str) -> Option<bytes::Bytes> {
+    use sr_storage::ObjectStorage;
+    e.store.get(key).await.ok()
+}
+
+fn key_of(c: &Channel) -> String {
+    let url = c.logo_url.as_ref().expect("a logo url");
+    url.trim_start_matches("/cdn/")
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned()
+}
+
+#[tokio::test]
+async fn a_logo_is_reencoded_and_bounded() {
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let src = png_with_text(2000, 1000);
+    assert!(contains(&src, b"tEXt"));
+    let c = e.svc.set_logo(e.staff, id, &src).await.unwrap();
+    let key = key_of(&c);
+    assert!(
+        key.starts_with(&format!("tv/{id}/logo-")) && key.ends_with(".png"),
+        "{key}"
+    );
+    let body = stored(&e, &key).await.expect("the object is stored");
+    assert!(!contains(&body, b"tEXt"), "metadata is stripped");
+    assert!(!contains(&body, b"secret-metadata"));
+    let decoded = image::load_from_memory(&body).unwrap();
+    assert!(decoded.width() <= 512 && decoded.height() <= 512);
+    assert_eq!((decoded.width(), decoded.height()), (512, 256));
+    // Transparency is kept.
+    assert_eq!(decoded.to_rgba8().get_pixel(0, 0).0[3], 0);
+    // A small logo is never scaled up.
+    let c = e
+        .svc
+        .set_logo(e.staff, id, &png_with_text(64, 32))
+        .await
+        .unwrap();
+    let small = image::load_from_memory(&stored(&e, &key_of(&c)).await.unwrap()).unwrap();
+    assert_eq!((small.width(), small.height()), (64, 32));
+}
+
+#[tokio::test]
+async fn an_svg_or_a_renamed_script_is_refused() {
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    for bad in [
+        &b"<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"[..],
+        &b"<script>alert(1)</script>"[..],
+        &b"GIF89a\x01\x00\x01\x00"[..],
+        &b""[..],
+        &b"\x89PNG\r\n\x1a\nnot really a png"[..],
+    ] {
+        let r = e.svc.set_logo(e.staff, id, bad).await;
+        assert!(matches!(r, Err(TvError::Invalid(_))), "{bad:?}: {r:?}");
+    }
+    let huge = vec![0x89; crate::service::LOGO_MAX_BYTES + 1];
+    assert!(matches!(
+        e.svc.set_logo(e.staff, id, &huge).await,
+        Err(TvError::Invalid(_))
+    ));
+    assert_eq!(
+        e.svc.admin_channel(e.staff, id).await.unwrap().logo_url,
+        None
+    );
+}
+
+#[tokio::test]
+async fn replacing_a_logo_deletes_the_old_object() {
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let first = key_of(
+        &e.svc
+            .set_logo(e.staff, id, &png_with_text(80, 80))
+            .await
+            .unwrap(),
+    );
+    assert!(stored(&e, &first).await.is_some());
+    let second = key_of(
+        &e.svc
+            .set_logo(e.staff, id, &png_with_text(90, 90))
+            .await
+            .unwrap(),
+    );
+    assert_ne!(first, second);
+    assert!(
+        stored(&e, &first).await.is_none(),
+        "the old object is deleted"
+    );
+    assert!(stored(&e, &second).await.is_some());
+    // Removing deletes the current one and clears the key.
+    let c = e.svc.clear_logo(e.staff, id).await.unwrap();
+    assert_eq!(c.logo_url, None);
+    assert!(stored(&e, &second).await.is_none());
+    // Deleting a channel deletes its logo object.
+    let third = key_of(
+        &e.svc
+            .set_logo(e.staff, id, &png_with_text(80, 80))
+            .await
+            .unwrap(),
+    );
+    e.svc.delete_channel(e.staff, id).await.unwrap();
+    assert!(stored(&e, &third).await.is_none());
+}
+
+#[tokio::test]
+async fn an_update_cannot_point_the_logo_at_another_key() {
+    let e = env();
+    let id = channel(&e, 101, marathon()).await;
+    let other = channel(&e, 102, marathon()).await;
+    let other_key = key_of(
+        &e.svc
+            .set_logo(e.staff, other, &png_with_text(50, 50))
+            .await
+            .unwrap(),
+    );
+    let own_key = key_of(
+        &e.svc
+            .set_logo(e.staff, id, &png_with_text(50, 50))
+            .await
+            .unwrap(),
+    );
+    // Another channel's object, an invented key, a key under tv/ that names nothing.
+    for bad in [
+        other_key.as_str(),
+        "tv/9999/logo-1.png",
+        "tv/x.png",
+        "cinema/1/poster.webp",
+    ] {
+        let mut upd = input(101, marathon());
+        upd.logo_key = Some(bad.to_owned());
+        let r = e.svc.update_channel(e.staff, id, upd).await;
+        assert!(matches!(r, Err(TvError::Invalid(_))), "{bad}: {r:?}");
+    }
+    // The editor echoes the current key back: the logo stays.
+    let mut upd = input(101, marathon());
+    upd.logo_key = Some(own_key.clone());
+    let kept = e.svc.update_channel(e.staff, id, upd).await.unwrap();
+    assert_eq!(key_of(&kept), own_key);
+    assert!(stored(&e, &own_key).await.is_some());
+    // The other channel's object was never touched.
+    assert!(stored(&e, &other_key).await.is_some());
+    // Null clears it and deletes the object.
+    let cleared = e
+        .svc
+        .update_channel(e.staff, id, input(101, marathon()))
+        .await
+        .unwrap();
+    assert_eq!(cleared.logo_url, None);
+    assert!(stored(&e, &own_key).await.is_none());
+    // On create the key must be absent.
+    let mut new = input(103, marathon());
+    new.logo_key = Some("tv/1/logo-1.png".into());
+    assert!(matches!(
+        e.svc.create_channel(e.staff, new).await,
+        Err(TvError::Invalid(_))
     ));
 }

@@ -36,6 +36,33 @@ pub trait SlateSource: Send + Sync {
 /// How long a [`SlateSource`] answer is reused (ms).
 pub const SLATE_REFRESH_MS: i64 = 10_000;
 
+/// Where the guide's footer note comes from while the server runs (D-687): the platform setting
+/// `tv.footer_note`. `None` means the built-in text. The service cleans whatever the source returns.
+#[async_trait::async_trait]
+pub trait FooterNoteSource: Send + Sync {
+    async fn footer_note(&self) -> Option<String>;
+}
+
+/// The largest logo upload, in bytes (D-686).
+pub const LOGO_MAX_BYTES: usize = 2 * 1024 * 1024;
+/// A logo is fitted inside this many pixels on each side, never upscaled.
+pub const LOGO_BOUND: u32 = 512;
+
+/// The most characters a footer note keeps (the setting's own limit).
+pub const FOOTER_NOTE_MAX_CHARS: usize = 200;
+
+/// A footer note as the guide shows it: control characters and line breaks become spaces, trimmed, cut at
+/// [`FOOTER_NOTE_MAX_CHARS`] characters (a row written by hand can be longer); empty gives `None`.
+pub fn clean_footer_note(raw: &str) -> Option<String> {
+    let cleaned: String = raw
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    let cut: String = cleaned.trim().chars().take(FOOTER_NOTE_MAX_CHARS).collect();
+    let cut = cut.trim();
+    (!cut.is_empty()).then(|| cut.to_owned())
+}
+
 const HOUR_MS: i64 = 3_600_000;
 const DAY_MS: i64 = 86_400_000;
 /// Rule-based channels are extended at least this far ahead of a read.
@@ -109,6 +136,9 @@ pub struct Guide {
     pub to_ms: i64,
     pub now_ms: i64,
     pub channels: Vec<GuideChannel>,
+    /// The operator's line for the foot of the guide (setting `tv.footer_note`, D-687), plain text; null
+    /// when none is set (the built-in text shows).
+    pub footer_note: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ToSchema)]
@@ -245,6 +275,11 @@ pub struct TvService {
     /// Where the slate comes from when it is a setting that can change while the server runs (D-269).
     slate_source: Option<Arc<dyn SlateSource>>,
     slate_cache: std::sync::Mutex<Option<(i64, Option<i64>)>>,
+    /// Where the guide's footer note comes from (D-687), and the last answer with its time.
+    footer_source: Option<Arc<dyn FooterNoteSource>>,
+    footer_cache: std::sync::Mutex<Option<(i64, Option<String>)>>,
+    /// Where channel logos are stored (D-686). Unset: logo uploads answer a storage error.
+    logo_store: Option<Arc<dyn sr_storage::ObjectStorage>>,
     /// The off-air master was logged once for lacking a standard rung (D-267).
     slate_rung_logged: std::sync::atomic::AtomicBool,
     /// Who may watch a server's channel (BYOS-TV-001). Unset: server channels are watched by nobody.
@@ -307,11 +342,20 @@ impl TvService {
             live: None,
             slate: None,
             slate_source: None,
+            footer_source: None,
+            footer_cache: std::sync::Mutex::new(None),
+            logo_store: None,
             slate_cache: std::sync::Mutex::new(None),
             slate_rung_logged: std::sync::atomic::AtomicBool::new(false),
             access: None,
             extend: tokio::sync::Mutex::new(()),
         }
+    }
+
+    /// Channel logos are stored in `store` under `tv/{channel}/` (D-686).
+    pub fn with_logo_store(mut self, store: Arc<dyn sr_storage::ObjectStorage>) -> Self {
+        self.logo_store = Some(store);
+        self
     }
 
     /// Who may watch a server's channel: the composition root answers from the server's storage grants.
@@ -344,6 +388,32 @@ impl TvService {
     pub fn with_slate_source(mut self, source: Arc<dyn SlateSource>) -> Self {
         self.slate_source = Some(source);
         self
+    }
+
+    /// The guide's footer note comes from `source` (a platform setting), asked at most every
+    /// [`SLATE_REFRESH_MS`], so a change applies without a restart (D-687).
+    pub fn with_footer_source(mut self, source: Arc<dyn FooterNoteSource>) -> Self {
+        self.footer_source = Some(source);
+        self
+    }
+
+    /// The operator's footer note, cleaned; `None` when unset or empty.
+    pub async fn footer_note(&self) -> Option<String> {
+        let source = self.footer_source.as_ref()?;
+        let now = self.clock_ms();
+        if let Some((at, note)) = self.footer_cache.lock().ok()?.clone()
+            && (0..SLATE_REFRESH_MS).contains(&(now - at))
+        {
+            return note;
+        }
+        let note = source
+            .footer_note()
+            .await
+            .and_then(|n| clean_footer_note(&n));
+        if let Ok(mut c) = self.footer_cache.lock() {
+            *c = Some((now, note.clone()));
+        }
+        note
     }
 
     /// The configured slate asset id (not checked for playability).
@@ -794,10 +864,12 @@ impl TvService {
         for b in self.repo.blocks_overlapping(&ids, from, to).await? {
             by_channel.entry(b.channel_id).or_default().push(b.wire());
         }
+        let footer_note = self.footer_note().await;
         Ok(Guide {
             from_ms: from,
             to_ms: to,
             now_ms: now,
+            footer_note,
             channels: chosen
                 .iter()
                 .map(|c| GuideChannel {
@@ -1129,6 +1201,12 @@ impl TvService {
         a.need()?;
         let input = input.checked().map_err(TvError::Invalid)?;
         Self::own_pool(a, &input)?;
+        if input.logo_key.is_some() {
+            return Err(TvError::Invalid(
+                "A logo is uploaded after the channel is saved (PUT /admin/tv/channels/{id}/logo)"
+                    .into(),
+            ));
+        }
         let seed = self.id().max(1);
         let rec = self
             .repo
@@ -1146,12 +1224,123 @@ impl TvService {
         a.need()?;
         let input = input.checked().map_err(TvError::Invalid)?;
         Self::own_pool(a, &input)?;
+        // The editor echoes the current key back so a save keeps the logo; null clears it; any other key
+        // (one the caller made up, or another object's) is refused (D-686).
+        let before = self.channel_record(id).await?;
+        let old_key = before.input.logo_key.clone();
+        if input.logo_key.is_some() && input.logo_key != old_key {
+            return Err(TvError::Invalid(
+                "logo_key can only keep the channel's own logo or be null; upload a logo with PUT /admin/tv/channels/{id}/logo".into(),
+            ));
+        }
         let rec = self
             .repo
             .update_channel(id, &input, self.clock_ms())
             .await?
             .ok_or(TvError::NotFound("channel"))?;
+        if input.logo_key.is_none()
+            && let Some(old) = old_key
+        {
+            self.drop_logo_object(&old).await;
+        }
         Ok(self.view(&rec, None, true))
+    }
+
+    /// Delete a logo object; a failure is logged, never an error (the object is only orphaned).
+    async fn drop_logo_object(&self, key: &str) {
+        let Some(store) = &self.logo_store else {
+            return;
+        };
+        // Only ever an object of a channel's own prefix.
+        if !key.starts_with("tv/") || key.contains("..") {
+            return;
+        }
+        if let Err(e) = store.delete(key).await {
+            tracing::warn!(error = %e, key, "could not delete a replaced Live TV channel logo");
+        }
+    }
+
+    /// Store a channel's logo (D-686): one PNG, JPEG or WebP of at most [`LOGO_MAX_BYTES`], sniffed from its
+    /// content, decoded and re-encoded (metadata stripped, transparency kept), fitted inside
+    /// [`LOGO_BOUND`] by [`LOGO_BOUND`] without upscaling. The previous logo object is deleted.
+    pub async fn set_logo(&self, a: Actor, id: i64, image: &[u8]) -> TvResult<Channel> {
+        use sr_storage::img::{self, Fit, ImgFormat, Limits};
+        a.need()?;
+        let rec = self.channel_record(id).await?;
+        if image.is_empty() || image.len() > LOGO_MAX_BYTES {
+            return Err(TvError::Invalid(
+                "the logo must be a PNG, JPEG or WebP image of at most 2 MiB".into(),
+            ));
+        }
+        if !matches!(
+            ImgFormat::sniff(image),
+            Some(ImgFormat::Png | ImgFormat::Jpeg | ImgFormat::Webp)
+        ) {
+            return Err(TvError::Invalid(
+                "the logo must be a PNG, JPEG or WebP image".into(),
+            ));
+        }
+        let limits = Limits {
+            max_bytes: LOGO_MAX_BYTES as u64,
+            ..Limits::default()
+        };
+        let out = img::normalize(
+            image,
+            Fit::Bound {
+                w: LOGO_BOUND,
+                h: LOGO_BOUND,
+            },
+            &limits,
+        )
+        .map_err(|e| TvError::Invalid(format!("the image could not be read: {e}")))?;
+        if out.animated {
+            return Err(TvError::Invalid("a logo must be a still image".into()));
+        }
+        let store = self
+            .logo_store
+            .as_ref()
+            .ok_or_else(|| TvError::Storage("logo uploads are not configured".into()))?;
+        let key = format!("tv/{id}/logo-{}.{}", self.id(), out.format.ext());
+        store
+            .put(&key, bytes::Bytes::from(out.bytes))
+            .await
+            .map_err(|e| TvError::Storage(e.to_string()))?;
+        let old_key = rec.input.logo_key.clone();
+        let mut input = rec.input;
+        input.logo_key = Some(key.clone());
+        let saved = match self.repo.update_channel(id, &input, self.clock_ms()).await {
+            Ok(Some(r)) => r,
+            Ok(None) => {
+                self.drop_logo_object(&key).await;
+                return Err(TvError::NotFound("channel"));
+            }
+            Err(e) => {
+                self.drop_logo_object(&key).await;
+                return Err(e);
+            }
+        };
+        if let Some(old) = old_key {
+            self.drop_logo_object(&old).await;
+        }
+        Ok(self.view(&saved, None, true))
+    }
+
+    /// Clear a channel's logo and delete its object.
+    pub async fn clear_logo(&self, a: Actor, id: i64) -> TvResult<Channel> {
+        a.need()?;
+        let rec = self.channel_record(id).await?;
+        let old_key = rec.input.logo_key.clone();
+        let mut input = rec.input;
+        input.logo_key = None;
+        let saved = self
+            .repo
+            .update_channel(id, &input, self.clock_ms())
+            .await?
+            .ok_or(TvError::NotFound("channel"))?;
+        if let Some(old) = old_key {
+            self.drop_logo_object(&old).await;
+        }
+        Ok(self.view(&saved, None, true))
     }
 
     /// Returns the channel's number and name for the access log.
@@ -1159,6 +1348,10 @@ impl TvService {
         a.need()?;
         let rec = self.channel_record(id).await?;
         self.repo.delete_channel(id).await?;
+        // The row is gone for good (no soft delete), so its logo object goes with it.
+        if let Some(key) = &rec.input.logo_key {
+            self.drop_logo_object(key).await;
+        }
         Ok((rec.input.number, rec.input.name))
     }
 

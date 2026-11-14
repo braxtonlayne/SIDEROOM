@@ -817,6 +817,8 @@ pub async fn run(cfg: Config, shutdown: impl Future<Output = ()>) -> anyhow::Res
         signer: Arc::new(cdn_signer.clone()),
     })
     .with_slate_source(tv_slate.clone())
+    .with_footer_source(Arc::new(crate::tv_catalog::PgFooterNote::new(pool.clone())))
+    .with_logo_store(storage.clone())
     .with_access(Arc::new(crate::tv_catalog::GuildChannelAccess::new(
         scope_facts.clone(),
     )));
