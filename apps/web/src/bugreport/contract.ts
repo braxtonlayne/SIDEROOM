@@ -70,7 +70,8 @@ export interface StoredBundle {
   caps?: Partial<Record<CapName, boolean>> & { engine?: BugEngine };
   locale?: string;
   theme?: BugTheme;
-  online?: boolean;
+  /** `null`: the browser said nothing (SEC-AUD-277, D-758); a row stored before that may also lack the key. */
+  online?: boolean | null;
   gateway?: { status: StoredGatewayStatus; reconnects?: number; heartbeat_ms?: number };
   sw?: BugSwState;
   voice?: { connected: boolean };

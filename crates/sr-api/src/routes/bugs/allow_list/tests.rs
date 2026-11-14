@@ -425,7 +425,7 @@ fn a_report_with_only_a_description_is_stored_with_every_key() {
     assert_eq!(c.bundle["gateway"], json!({ "status": "unknown" }));
     assert_eq!(c.bundle["voice"], json!({ "connected": false }));
     assert_eq!(c.bundle["sw"], "none");
-    assert_eq!(c.bundle["online"], true);
+    assert!(c.bundle["online"].is_null());
     assert!(c.bundle["caps"]["engine"].is_string());
     assert_eq!(c.bundle["failed_requests"], json!([]));
     assert_eq!(c.bundle["crashes"], json!([]));
@@ -444,7 +444,7 @@ fn an_invalid_part_is_stored_as_the_neutral_value_not_dropped() {
     assert_eq!(c.bundle["gateway"], json!({ "status": "unknown" }));
     assert_eq!(c.bundle["voice"], json!({ "connected": false }));
     assert_eq!(c.bundle["sw"], "none");
-    assert_eq!(c.bundle["online"], true);
+    assert!(c.bundle["online"].is_null());
 }
 
 // ---- SEC-AUD-268: a name or a code never reaches the stored path ------------------------------------------------------
@@ -549,4 +549,20 @@ fn every_path_of_the_matrix_survives_as_its_own_template() {
             "the matrix path {row} did not survive as {sent}"
         );
     }
+}
+
+/// SEC-AUD-277 (D-758): `online` is what the browser said, or `null`; never a `true` nobody sent.
+#[test]
+fn online_is_null_when_missing_or_not_a_boolean_and_as_sent_otherwise() {
+    let mut v = good();
+    v["bundle"].as_object_mut().unwrap().remove("online");
+    assert!(sanitize(&v, NOW).unwrap().bundle["online"].is_null());
+    v["bundle"]["online"] = json!("true");
+    assert!(sanitize(&v, NOW).unwrap().bundle["online"].is_null());
+    v["bundle"]["online"] = json!(1);
+    assert!(sanitize(&v, NOW).unwrap().bundle["online"].is_null());
+    v["bundle"]["online"] = json!(true);
+    assert_eq!(sanitize(&v, NOW).unwrap().bundle["online"], true);
+    v["bundle"]["online"] = json!(false);
+    assert_eq!(sanitize(&v, NOW).unwrap().bundle["online"], false);
 }

@@ -154,6 +154,10 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 - With no mail server configured (the log-only mail transport), the server never writes a message body to its log (CHANGELOG, Phase 60).
 - An Activity's old files are kept for a day after an update so people mid-session are not cut off (migration `2670_activity_bundle_superseded_at.sql`).
 
+## Release notes: wave 72 (SEC-AUD-274..282)
+
+No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. A bug report that arrives without an `online` value is stored with `online: null` and shown as "Unknown"; reports stored before are not rewritten. If a first run of `deploy/install.sh` stopped after the Owner was made, running it again asks for the Owner's password (INSTALL.md, "Running it again").
+
 ## Release notes: the installer can be run again; the web build first (wave 71, SEC-AUD-266..272, D-745, D-747)
 
 - **Migration 3050** rewrites every stored language of the Library's editions and of the Cinema (titles, audio and subtitle tracks, trailers) to one form: `eng` becomes `en`, a script is written `zh-Hant`, a region `pt-BR`. Nothing is merged and no chapter moves. If a series would have had two editions with the same language and label, the rewritten edition's label ends in the old code in brackets, for example `Official (eng)`: staff can find those labels in the Library admin and merge or rename them by hand. It is safe to run again and does not change `updated_at`.
