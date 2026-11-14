@@ -551,9 +551,18 @@ async fn an_unreadable_setting_gives_the_default() {
     let (guild, code) = f.server(owner).await;
     f.svc.create_guild(me, "Mine").await.unwrap();
     f.svc.create_guild(me, "Mine too").await.unwrap();
-    for stored in ["\"many\"", "0", "-1", "null", "1.5", "1001"] {
+    // Unreadable for both settings, or out of range for one of them (1001 is a fine member limit).
+    for (stored, stored_members) in [
+        ("\"many\"", "\"many\""),
+        ("0", "0"),
+        ("-1", "-1"),
+        ("null", "null"),
+        ("1.5", "1.5"),
+        ("1001", "1000001"),
+        ("1000000", "1"),
+    ] {
         f.set("guilds.max_per_user", stored).await;
-        f.set("guilds.max_members", stored).await;
+        f.set("guilds.max_members", stored_members).await;
         let mut tx = f.pool().begin().await.unwrap();
         assert_eq!(
             sr_db::guild_caps::guilds_per_user_limit(&mut tx)
@@ -592,10 +601,10 @@ async fn an_account_already_a_member_gets_already_member_not_a_limit_error() {
     let (guild, code) = f.server(owner).await;
     let me = f.account(false).await;
     f.join.join_via_invite(&code, me, NOW).await.unwrap();
+    f.join_one(guild).await;
     // Both limits are now below what is in use; a repeat join, and the owner's own, answer "already a member".
     f.set("guilds.max_per_user", "1").await;
     f.set("guilds.max_members", "2").await;
-    f.join_one(guild).await;
     assert!(matches!(
         f.join.join_via_invite(&code, me, NOW).await.unwrap(),
         InviteJoin::AlreadyMember { .. }

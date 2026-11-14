@@ -1112,11 +1112,13 @@ async fn the_memory_joins_enforce_both_limits_and_skip_the_staff_server() {
     let dyn_clock: Arc<dyn Clock> = clock;
     let ids = SnowflakeGenerator::new(dyn_clock.clone(), 2, 2).unwrap();
     let mk = |owner: u64, staff: bool| {
-        let mut bp =
-            crate::guild_rules::plan_new_guild(UserId::new(owner), "G", 1_800_000_000_000, || {
-                ids.generate()
-            })
-            .unwrap();
+        let mut bp = crate::guild_rules::plan_new_guild(
+            UserId::new(owner),
+            "Guild",
+            1_800_000_000_000,
+            || ids.generate(),
+        )
+        .unwrap();
         bp.guild.is_staff_guild = staff;
         bp
     };

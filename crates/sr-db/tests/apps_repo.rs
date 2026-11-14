@@ -1628,12 +1628,19 @@ async fn a_bot_install_into_a_full_server_is_30019() {
     let c = f.app().await;
     let pool = f.db.pool();
     sqlx::query(
-        "INSERT INTO platform_settings (key, value) VALUES ('guilds.max_members', '1'::jsonb) \
+        "INSERT INTO platform_settings (key, value) VALUES ('guilds.max_members', '2'::jsonb) \
          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
     )
     .execute(pool)
     .await
     .unwrap();
+    // The owner and one more member: the server (limit 2) is full.
+    sqlx::query("INSERT INTO guild_members (guild_id, user_id) VALUES ($1, $2)")
+        .bind(f.guild)
+        .bind(f.other)
+        .execute(pool)
+        .await
+        .unwrap();
     let r = f
         .svc
         .install(f.install(&c, f.owner, f.guild, Permissions::empty(), 0))
@@ -1644,11 +1651,11 @@ async fn a_bot_install_into_a_full_server_is_30019() {
         .fetch_one(pool)
         .await
         .unwrap();
-    assert_eq!(members, 1, "only the owner");
+    assert_eq!(members, 2, "the owner and the other member, no bot");
     assert!(!f.svc.is_installed(c.application.id, f.guild).await.unwrap());
 
-    // Room for one more: the install works; the server is full again; the same install is not a join.
-    for (limit, expect_ok) in [("2", true), ("2", true)] {
+    // Room for one more: the install works; the server is full again (3 of 3); the same install is not a join.
+    for (limit, expect_ok) in [("3", true), ("3", true)] {
         sqlx::query(
             "UPDATE platform_settings SET value = $1::jsonb WHERE key = 'guilds.max_members'",
         )
