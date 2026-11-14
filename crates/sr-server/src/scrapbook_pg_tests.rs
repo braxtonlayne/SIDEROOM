@@ -445,6 +445,7 @@ async fn the_module_trigger_leaves_a_request_only_at_the_threshold() {
         message_id: 77,
         user: UserId::new(user),
         emoji: json!({"id": null, "name": TRIGGER}),
+        message_author: None,
     };
     actions.react(77, TRIGGER, 1);
     Scrapbook.on_event(&ev(1), &ctx).await.unwrap();

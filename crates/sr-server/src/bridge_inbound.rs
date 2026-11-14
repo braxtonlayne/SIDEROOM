@@ -361,6 +361,7 @@ impl ChatSink for ChatInbound {
                     message_id: msg.id.get(),
                     user,
                     emoji: key.json(),
+                    message_author: Some(msg.author_id),
                 }
             } else {
                 DomainEvent::ReactionRemoved {

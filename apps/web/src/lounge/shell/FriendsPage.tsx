@@ -14,6 +14,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import { FriendShelfShare } from '../../settings/user/storage/FriendShelfShare';
 import { useT } from '../../i18n';
+import { statusProps } from '../phoneStatus';
 import { usePresenceMap, type Presence } from '../data';
 import { useLoungeUi } from '../store';
 import {
@@ -54,7 +55,7 @@ function FriendRow({
   const [ask, setAsk] = useState<ConfirmKind | null>(null);
   return (
     <li className="lng-friend-row">
-      <Avatar name={name} size={32} status={p?.status ?? 'offline'} />
+      <Avatar name={name} size={32} {...statusProps(p)} />
       <span className="lng-friend-text">
         <span className="lng-friend-name">{name}</span>
         <span className="lng-friend-sub">{p?.activity?.text ?? r.user.username}</span>

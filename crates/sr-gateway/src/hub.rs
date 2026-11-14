@@ -403,12 +403,20 @@ fn to_dispatch(ev: &DomainEvent) -> Option<Dispatch> {
             message_id,
             user,
             emoji,
+            message_author,
         } => Dispatch {
             name: "MESSAGE_REACTION_ADD",
-            data: json!({
-                "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
-                "guild_id": guild, "emoji": emoji, "burst": false,
-            }),
+            data: {
+                let mut d = json!({
+                    "user_id": user, "channel_id": channel, "message_id": message_id.to_string(),
+                    "guild_id": guild, "emoji": emoji, "burst": false,
+                });
+                // Discord's field: the author of the reacted-to message, when the sender knew it.
+                if let Some(a) = message_author {
+                    d["message_author_id"] = json!(a);
+                }
+                d
+            },
             channel: Some(*channel),
             audience: None,
             age_channel: None,

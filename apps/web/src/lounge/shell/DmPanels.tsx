@@ -5,6 +5,7 @@ import { formatDate, useT } from '../../i18n';
 import { readAsDataUri } from '../../settings/user/imageCrop';
 import { rest, useStore } from '../../store';
 import { dmTitle } from '../channels';
+import { statusProps } from '../phoneStatus';
 import { useCurrentUser, useDms, usePresence, useUsers, type DmChannel } from '../data';
 import { inviteUrl } from '../inviteFlow';
 import { snowflakeTime } from '../liveMap';
@@ -266,7 +267,7 @@ function MemberRow({ dm, userId, isOwner }: { dm: DmChannel; userId: string; isO
           name={name}
           src={users[userId]?.avatarUrl ?? null}
           size={32}
-          status={presence.status}
+          {...statusProps(presence)}
         />
         <span className="prf-member-name">{name}</span>
         {isOwner && (

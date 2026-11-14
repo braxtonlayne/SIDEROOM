@@ -116,6 +116,7 @@ pub async fn add_own(
             message_id: t.message.id.get(),
             user: t.user,
             emoji: emoji.json(),
+            message_author: Some(t.message.author_id),
         })
         .await;
     }

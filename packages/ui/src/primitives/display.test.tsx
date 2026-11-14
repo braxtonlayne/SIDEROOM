@@ -90,6 +90,13 @@ describe("Avatar", () => {
     expect(screen.getByRole("img", { name: "Do not disturb" })).toBeInTheDocument();
     expect(screen.getByTestId("a")).toHaveAttribute("data-speaking", "true");
   });
+
+  it("draws a status icon in the dot's place under the given name", () => {
+    render(<Avatar name="Bo" status="online" statusIcon={<svg data-testid="glyph" />} statusLabel="Away from the desk" />);
+    const status = screen.getByRole("img", { name: "Away from the desk" });
+    expect(status).toContainElement(screen.getByTestId("glyph"));
+    expect(screen.queryByRole("img", { name: "Online" })).toBeNull();
+  });
 });
 
 describe("Badge", () => {
