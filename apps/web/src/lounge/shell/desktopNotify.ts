@@ -16,6 +16,7 @@ import { HOME } from '../channels';
 import { useLoungeRoute } from '../nav';
 import { isMuted, useNotifSettings, type GuildNotif } from './notifSettings';
 import { hiddenAuthorsNow } from './hiddenAuthors';
+import { useNotifDefaults } from './notifDefaults';
 import { notificationText, reactionBody, storeResolvers } from './notifyText';
 import type { HiddenAuthors } from '../messageRows';
 
@@ -229,6 +230,8 @@ export function useDesktopNotify(): void {
             ? (st.guilds[msg.guild_id] as { default_message_notifications?: number } | undefined)
                 ?.default_message_notifications
             : undefined,
+          // The person's own default (D-732): undefined until it has been read, as before.
+          userDefault: useNotifDefaults.getState().level,
         });
         if (!kind) return;
         if (kind === 'mention' ? prefs.soundMention : prefs.soundMessage) playBlip(kind);
