@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { argumentNames, parseIcu } from './icu';
 import { en } from './messages/en';
 import './messages/en.rest';
+import './messages/en.staff';
 import { mergeFragments } from './messages/merge';
 
 const SRC = resolve(__dirname, '..');
@@ -67,14 +68,15 @@ describe('English catalog', () => {
     }
   });
 
-  it('every fragment value is valid ICU and fragments live in messages/en/', () => {
-    const dir = join(SRC, 'i18n', 'messages', 'en');
-    const files = readdirSync(dir).filter((f) => f.endsWith('.ts'));
+  it('every fragment value is valid ICU and fragments live in messages/en/ or messages/en-staff/', () => {
+    const files = ['en', 'en-staff'].flatMap((d) =>
+      readdirSync(join(SRC, 'i18n', 'messages', d)).filter((f) => f.endsWith('.ts')),
+    );
     expect(files.length).toBeGreaterThan(0);
-    const fragments = import.meta.glob<Record<string, string>>('./messages/en/*.ts', {
-      eager: true,
-      import: 'default',
-    });
+    const fragments = import.meta.glob<Record<string, string>>(
+      ['./messages/en/*.ts', './messages/en-staff/*.ts'],
+      { eager: true, import: 'default' },
+    );
     expect(Object.keys(fragments).length).toBe(files.length);
     for (const [file, messages] of Object.entries(fragments)) {
       for (const [k, v] of Object.entries(messages)) {

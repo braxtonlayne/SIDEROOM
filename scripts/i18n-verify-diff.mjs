@@ -3,15 +3,23 @@
 // in the catalog (verbatim, or with ICU {vars} as wildcards). Prints what is not found. Always exits 0.
 // Usage: node scripts/i18n-verify-diff.mjs [git diff args...]
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const FRAGMENTS = 'apps/web/src/i18n/messages/en';
+// SEC-AUD-187: both catalogs (the staff fragments live in en-staff).
+const FRAGMENT_DIRS = [
+  'apps/web/src/i18n/messages/en',
+  'apps/web/src/i18n/messages/en-staff',
+].filter((d) => existsSync(d));
 const extra = process.argv.slice(2);
 
 const values = [];
-for (const f of readdirSync(FRAGMENTS).filter((n) => n.endsWith('.ts'))) {
-  const src = readFileSync(join(FRAGMENTS, f), 'utf8');
+for (const [dir, f] of FRAGMENT_DIRS.flatMap((d) =>
+  readdirSync(d)
+    .filter((n) => n.endsWith('.ts'))
+    .map((n) => [d, n]),
+)) {
+  const src = readFileSync(join(dir, f), 'utf8');
   const body = src
     .replace(/^\s*export\s+default\s*/m, 'return ')
     .replace(/\}\s*satisfies[^;]*;?\s*$/m, '}');

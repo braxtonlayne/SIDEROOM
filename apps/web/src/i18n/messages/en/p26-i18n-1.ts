@@ -9,5 +9,4 @@ export default {
   'developers.activities.targetPlaceholder': 'https://api.example.com',
   'developers.endpoint.urlPlaceholder': 'https://example.com/interactions',
   'admin.schemaForm.colorPlaceholder': '#rrggbb',
-  'admin.auditLog.actionPlaceholder': 'accounts.suspend',
 } satisfies Record<string, string>;
