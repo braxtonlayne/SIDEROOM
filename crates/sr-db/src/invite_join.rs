@@ -97,16 +97,12 @@ async fn check_caps(
     guild: i64,
     user: i64,
 ) -> SettingsResult<()> {
-    for r in [
-        check_user_cap(tx, user).await,
-        check_guild_cap(tx, guild).await,
-    ] {
-        match r {
-            Ok(()) => {}
-            Err(CapError::Hit(h)) => return Err(h.into()),
-            Err(CapError::Db(e)) => return Err(db(e).into()),
-        }
-    }
+    let cap_err = |e: CapError| match e {
+        CapError::Hit(h) => SettingsError::from(h),
+        CapError::Db(e) => SettingsError::from(db(e)),
+    };
+    check_user_cap(tx, user).await.map_err(cap_err)?;
+    check_guild_cap(tx, guild).await.map_err(cap_err)?;
     Ok(())
 }
 
