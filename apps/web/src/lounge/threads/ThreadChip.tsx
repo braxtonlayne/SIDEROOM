@@ -4,7 +4,7 @@ import { useT } from '../../i18n';
 import type { Message } from '../data';
 import { SingleLine } from '../msg/SingleLine';
 import { useHiddenAuthors } from '../shell/hiddenAuthors';
-import { formatFullTime, formatMessageTime } from '../time';
+import { formatFullTime, formatRelativeTime, useMinuteTick } from '../time';
 
 /**
  * The thread row under a message (LNG-THR-006, D-689): the first line is the thread's name and message count;
@@ -23,6 +23,7 @@ export function ThreadChip({
 }) {
   const t = useT();
   const hidden = useHiddenAuthors();
+  const now = useMinuteTick();
   const last = thread.last;
   const name = last ? last.author.displayName || t('lounge.messageRequests.unknown') : '';
   const kind = last
@@ -73,7 +74,7 @@ export function ThreadChip({
             dateTime={last.createdAt}
             title={formatFullTime(last.createdAt)}
           >
-            {formatMessageTime(last.createdAt)}
+            {formatRelativeTime(last.createdAt, now)}
           </time>
         </span>
       )}

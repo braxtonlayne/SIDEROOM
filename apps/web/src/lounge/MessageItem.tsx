@@ -433,6 +433,7 @@ function MessageItemImpl(props: MessageItemProps) {
         {...(onJumpTo ? { onJumpTo } : {})}
         {...(onOpenThread ? { onOpenThread: (id: Snowflake) => onOpenThread(m, id) } : {})}
         onJumpToChannelMessage={onJumpToChannelMessage}
+        resolvers={props.resolvers}
       />
     );
   }

@@ -196,6 +196,8 @@ pub struct DmChannelObject {
 /// how many files it carries. Nothing else of the message (no embeds, file names or links, no author).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct RequestPreviewObject {
+    /// The id of the message shown, so a client can drop the preview when that message is deleted (D-699).
+    pub message_id: String,
     /// Raw text, cut to 140 characters with an ellipsis; may be empty when the message holds only files.
     pub content: String,
     /// The number of files on the message.
@@ -206,6 +208,7 @@ pub struct RequestPreviewObject {
 impl RequestPreviewObject {
     pub fn new(g: &sr_chat::preview::MessageGist) -> Self {
         Self {
+            message_id: g.id.to_string(),
             content: sr_chat::preview::excerpt(&g.content, sr_chat::preview::EXCERPT_CHARS)
                 .unwrap_or_default(),
             attachments: g.attachments,

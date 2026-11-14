@@ -1,8 +1,10 @@
 import { Icon, type IconName } from '@sideroom/ui';
+import type { Resolvers } from '@sideroom/markdown-react';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { t, useT } from '../../i18n';
 import type { Message, Snowflake } from '../data';
+import { ThreadChip } from '../threads/ThreadChip';
 import { formatMessageTime } from '../time';
 
 /** Discord message types that are not authored chat (LNG-MSGUI-030). */
@@ -84,6 +86,8 @@ export interface SystemMessageProps {
   onOpenThread?: ((threadId: Snowflake) => void) | undefined;
   /** Jump to a message in another channel (the original of a thread's first row). */
   onJumpToChannelMessage?: ((channelId: Snowflake, messageId: Snowflake) => void) | undefined;
+  /** Mention, channel and emoji lookups for the thread chip's latest message (D-701). */
+  resolvers?: Resolvers | undefined;
 }
 
 /** Preview of the message a thread grew from, fetched once. */
@@ -161,6 +165,7 @@ export function SystemMessage({
   onJumpTo,
   onOpenThread,
   onJumpToChannelMessage,
+  resolvers,
 }: SystemMessageProps) {
   const t = useT();
   const name = <strong className="lng-sys-name">{m.author.displayName}</strong>;
@@ -252,6 +257,15 @@ export function SystemMessage({
           <time className="lng-msg-time" dateTime={m.createdAt}>
             {formatMessageTime(m.createdAt)}
           </time>
+          {m.type === SYSTEM_THREAD_CREATED && m.thread && onOpenThread && (
+            <div className="lng-sys-thread">
+              <ThreadChip
+                thread={m.thread}
+                resolvers={resolvers}
+                onOpen={() => onOpenThread(m.thread!.id)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </article>

@@ -48,6 +48,8 @@ export const ignoreUser = (userId: string) =>
 
 /** What a Message Requests row shows of the sender's latest message (D-688): words and a count, nothing else. */
 export interface RequestPreview {
+  /** The message shown (D-699): deleting it drops the preview. Absent in an older server's answer. */
+  message_id?: string;
   /** Raw text cut to 140 characters (mentions as written); empty when the message holds only files. */
   content: string;
   attachments: number;

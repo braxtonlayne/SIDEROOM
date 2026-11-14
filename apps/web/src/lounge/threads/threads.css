@@ -215,3 +215,9 @@
     flex: 1 1 100%;
   }
 }
+
+/* D-701: the chip under the "started a thread" sentence; the row is muted text, the chip keeps its own colours. */
+.lng-sys-thread {
+  display: block;
+  margin-top: 2px;
+}

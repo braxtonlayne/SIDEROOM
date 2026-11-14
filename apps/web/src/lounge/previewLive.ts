@@ -7,8 +7,13 @@
  *   sends a channel's messages to everyone who can view it), so the row follows live; what the server sent at
  *   load time stands until then. A delete drops the preview when it was that message; the next load brings the
  *   one before back.
+ * - The "started a thread" row (type 18, D-701) carries the same preview when the server embedded the thread. Its
+ *   key is the thread's id, which is the row's `message_reference.message_id`. When the page also holds the
+ *   starter message of that thread (same id) the chip sits under the starter only, and the row has none.
  * - A Message Request: the sender's next message replaces its preview, built here with the same excerpt rule
- *   the server uses. A conversation that already holds a preview from the list keeps showing it until then.
+ *   the server uses. The preview names its message (D-699): deleting that message (or a bulk delete naming it)
+ *   removes the preview at once, and an edit of it rebuilds the text. A preview without an id (an older server's
+ *   answer in a cached state) is left alone.
  */
 import { onDispatch } from '../store/events';
 import { useStore } from '../store';
@@ -21,6 +26,9 @@ type Obj = Record<string, unknown>;
 
 /** Default, reply, slash command and context menu: what a person wrote (the server's rule for the preview). */
 const WRITTEN = new Set([0, 19, 20, 23]);
+
+/** A system row: a thread was started in this channel (its reference is the thread). */
+const THREAD_CREATED = 18;
 
 const cmp = (a: string, b: string) =>
   a.length !== b.length ? a.length - b.length : a < b ? -1 : 1;
@@ -61,16 +69,33 @@ export function applyThreadPreview(
   const d = (data ?? {}) as Obj;
   const channel = typeof d.channel_id === 'string' ? d.channel_id : '';
   const starter = channel ? messages[channel] : undefined;
-  if (!starter?.thread || starter.thread.id !== channel) return messages;
-  const thread = starter.thread;
+  // The row that holds the thread: the starter message, else the "started a thread" rows that name it.
+  const keys: string[] =
+    starter?.thread && starter.thread.id === channel
+      ? [channel]
+      : channel
+        ? Object.keys(messages).filter((k) => {
+            const m = messages[k]!;
+            return (
+              m.type === THREAD_CREATED &&
+              m.message_reference?.message_id === channel &&
+              m.thread?.id === channel
+            );
+          })
+        : [];
+  const first = keys[0];
+  const holder = first ? messages[first] : undefined;
+  if (!first || !holder?.thread) return messages;
+  const thread = holder.thread;
   const current = thread.sr_last_message ?? null;
   const put = (next: ThreadLastMessage | null): Record<string, Message> => {
     const { sr_last_message: _drop, ...rest } = thread;
     void _drop;
-    return {
-      ...messages,
-      [channel]: { ...starter, thread: next ? { ...rest, sr_last_message: next } : rest },
-    };
+    const out = { ...messages };
+    for (const k of keys) {
+      out[k] = { ...messages[k]!, thread: next ? { ...rest, sr_last_message: next } : rest };
+    }
+    return out;
   };
   switch (event) {
     case 'MESSAGE_CREATE': {
@@ -104,24 +129,58 @@ export function applyRequestPreview(
   data: unknown,
   selfId: string | null,
 ): DmObject[] {
-  if (event !== 'MESSAGE_CREATE') return requests;
   const d = (data ?? {}) as Obj;
-  const author = d.author as Obj | undefined;
-  if (!written(d) || !author || author.id === selfId) return requests;
-  const i = requests.findIndex((r) => r.id === d.channel_id);
-  if (i < 0) return requests;
-  const text = typeof d.content === 'string' ? (excerpt(d.content) ?? '') : '';
-  const files = Array.isArray(d.attachments) ? d.attachments.length : 0;
-  const next = [...requests];
-  next[i] = {
-    ...requests[i]!,
-    sr_request_preview: {
-      content: text,
-      attachments: files,
-      timestamp: typeof d.timestamp === 'string' ? d.timestamp : new Date().toISOString(),
-    },
-  };
-  return next;
+  switch (event) {
+    case 'MESSAGE_CREATE': {
+      const author = d.author as Obj | undefined;
+      if (!written(d) || !author || author.id === selfId) return requests;
+      const i = requests.findIndex((r) => r.id === d.channel_id);
+      if (i < 0) return requests;
+      const text = typeof d.content === 'string' ? (excerpt(d.content) ?? '') : '';
+      const files = Array.isArray(d.attachments) ? d.attachments.length : 0;
+      const next = [...requests];
+      next[i] = {
+        ...requests[i]!,
+        sr_request_preview: {
+          message_id: d.id as string,
+          content: text,
+          attachments: files,
+          timestamp: typeof d.timestamp === 'string' ? d.timestamp : new Date().toISOString(),
+        },
+      };
+      return next;
+    }
+    case 'MESSAGE_UPDATE': {
+      const i = requests.findIndex((r) => r.id === d.channel_id);
+      const p = i < 0 ? null : requests[i]!.sr_request_preview;
+      if (!p?.message_id || p.message_id !== d.id || !('content' in d)) return requests;
+      const next = [...requests];
+      next[i] = {
+        ...requests[i]!,
+        sr_request_preview: {
+          ...p,
+          content: typeof d.content === 'string' ? (excerpt(d.content) ?? '') : p.content,
+          attachments: Array.isArray(d.attachments) ? d.attachments.length : p.attachments,
+        },
+      };
+      return next;
+    }
+    case 'MESSAGE_DELETE':
+    case 'MESSAGE_DELETE_BULK': {
+      const i = requests.findIndex((r) => r.id === d.channel_id);
+      const p = i < 0 ? null : requests[i]!.sr_request_preview;
+      if (!p?.message_id) return requests;
+      const gone = event === 'MESSAGE_DELETE' ? [d.id] : ((d.ids as unknown[] | undefined) ?? []);
+      if (!gone.includes(p.message_id)) return requests;
+      const next = [...requests];
+      const { sr_request_preview: _drop, ...rest } = requests[i]!;
+      void _drop;
+      next[i] = rest;
+      return next;
+    }
+    default:
+      return requests;
+  }
 }
 
 /** Mounts the dispatch subscription (the shell calls this once). */
