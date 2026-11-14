@@ -40,6 +40,10 @@ function Mentions({ onGo }: { onGo: () => void }) {
       live = false;
     };
   }, [roles, everyone, thisServer, guildId]);
+  // A blocked or ignored author's mention is not listed (D-730): the web's guard beside the server's.
+  const shown = list?.filter(
+    (m) => !hidden.blocked.has(m.author.id) && !hidden.ignored.has(m.author.id),
+  );
   return (
     <div className="lng-inbox-body">
       <div className="lng-inbox-filters">
@@ -68,11 +72,9 @@ function Mentions({ onGo }: { onGo: () => void }) {
       </div>
       {failed && <p className="lng-muted">{t('lounge.inbox.loadFailed')}</p>}
       {!failed && list === null && <p className="lng-muted">{t('lounge.inbox.loading')}</p>}
-      {list?.length === 0 && <p className="lng-muted">{t('lounge.inbox.noMentions')}</p>}
+      {shown?.length === 0 && <p className="lng-muted">{t('lounge.inbox.noMentions')}</p>}
       <ul className="lng-inbox-list">
-        {list?.map((m) => {
-          // A blocked or ignored author's mention is not listed (D-730): the web's guard beside the server's.
-          if (hidden.blocked.has(m.author.id) || hidden.ignored.has(m.author.id)) return null;
+        {shown?.map((m) => {
           const ch = channels[m.channel_id];
           const where = ch?.name ? `#${ch.name}` : t('lounge.inbox.directMessage');
           return (

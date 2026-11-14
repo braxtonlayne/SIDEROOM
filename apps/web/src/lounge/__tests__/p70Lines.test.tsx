@@ -196,6 +196,16 @@ describe('the Inbox mention list (D-729, D-730)', () => {
   });
 });
 
+describe('the Inbox when every mention is hidden (D-730)', () => {
+  it('says there is nothing, not an empty list', async () => {
+    block('2');
+    await openInbox([mention(bob)]);
+    expect(
+      await screen.findByText('No one has mentioned you in the last 7 days.'),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('the DM toast (D-729)', () => {
   it('shows plain text in the description', async () => {
     useNotifSettings.setState({ load: async () => true, byGuild: {} });
