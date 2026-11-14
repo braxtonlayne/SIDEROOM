@@ -104,6 +104,7 @@ Guest links let friends without an account play a voice-channel game from a phon
 
 ## Release notes: a mistyped embed host is named; the process reports its CPU time (wave 68, SEC-AUD-223, D-696..D-698, D-706)
 
+- **Migration 2930** adds one partial index on `transcode_jobs`; nothing to do. A transcoding worker built before this release keeps working and shows no GPU name until it is updated; the GPU name needs `nvidia-smi` on the worker's `PATH` (the NVIDIA container runtime provides it).
 - **No migration, nothing to configure.** Workers older than this release keep working: they register as before and Admin > Transcoding shows no GPU name for them (it shows the hardware encoders they found). Nothing to do for the phone glyph: the web app tells the gateway its platform by itself.
 - **A new warning at start.** An entry of `SR_PEERTUBE_HOSTS` or `SR_MEDIA_HOSTS` that is not a plain host name (`http://tube.example.org`, `tube.example.org/videos`, `*.example.org`, `localhost`, a name with a space) was always ignored; the server now says so once at start, in a `warn` line that names the variable and each entry, and `sr-cli preflight` shows the same in its `web` row (a warning, never a failure). The start is not stopped. Write the host alone: `tube.example.org`.
 - **`SR_CSP_*` is unchanged and stays strict:** `http` and `ws` entries are for a loopback host only (a LAN address over `http` is refused, and the message now says loopback). The voice origin of the app policy comes from `voice.endpoints`; there is no separate voice URL setting.
