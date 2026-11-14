@@ -15,7 +15,9 @@
 //!   and a segment that is not a fixed word of a known API path (`path_words`, from the route matrix) is stored as `{}`
 //!   (SEC-AUD-268: a name or a code is never kept).
 //! * Every key of the stored bundle is always present (SEC-AUD-266): a part the body lacked, or sent invalid, is stored
-//!   with a neutral value (`viewport` 0 by 0, `gateway` `unknown`, `voice` not connected, `online` true, `sw` `none`).
+//!   with a neutral value (`viewport` 0 by 0, `gateway` `unknown`, `voice` not connected, `online` null, `sw` `none`).
+//!   `online` is `true`, `false` or `null`: a browser that said nothing (or not a boolean) is stored as `null`, which
+//!   the staff page reads as "Unknown" (SEC-AUD-277, D-758).
 //! * `bundle.crashes`: at most [`MAX_CRASHES`] fingerprints of 64 lowercase hex characters.
 //! * `screenshot`: `image/jpeg` only, base64, at most [`MAX_PICTURE_BYTES`] decoded, with the JPEG start and end
 //!   markers. A picture that does not pass is REFUSED (the member must know it did not go), never silently dropped.
@@ -144,7 +146,8 @@ pub fn sanitize(raw: &Value, now_ms: i64) -> Result<Clean, Reason> {
     out.insert("theme".into(), json!(clean_theme(b.get("theme"))));
     out.insert(
         "online".into(),
-        json!(b.get("online").and_then(Value::as_bool).unwrap_or(true)),
+        // SEC-AUD-277 (D-758): nothing said, or not a boolean, is `null` (unknown), never a made-up `true`.
+        b.get("online").and_then(Value::as_bool).map_or(Value::Null, Value::Bool),
     );
     out.insert(
         "gateway".into(),

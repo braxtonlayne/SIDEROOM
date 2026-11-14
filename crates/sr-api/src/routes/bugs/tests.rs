@@ -925,6 +925,8 @@ async fn a_report_with_only_a_description_is_stored_with_every_key() {
     assert_eq!(b["viewport"]["w"], 0);
     assert_eq!(b["gateway"]["status"], "unknown");
     assert_eq!(b["voice"]["connected"], false);
+    // SEC-AUD-277: nothing said about `online` is stored as null (unknown), not as a made-up true.
+    assert!(b["online"].is_null(), "online: {b}");
     // And staff read it back whole.
     let (s, d) = f
         .call(Some(STAFF), Method::GET, "/admin/bug-reports/101", None)

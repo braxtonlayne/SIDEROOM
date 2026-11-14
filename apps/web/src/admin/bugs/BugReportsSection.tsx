@@ -373,7 +373,10 @@ function BugDetailBody({
             [t('admin.bugs.engine'), b.caps?.engine ?? unknown],
             [t('admin.bugs.locale'), b.locale ?? unknown],
             [t('admin.bugs.theme'), b.theme ?? unknown],
-            [t('admin.bugs.online'), b.online === undefined ? unknown : yesNo(t, b.online)],
+            [
+              t('admin.bugs.online'),
+              b.online === undefined || b.online === null ? unknown : yesNo(t, b.online),
+            ],
             [
               t('admin.bugs.gateway'),
               b.gateway === undefined || b.gateway.status === 'unknown'
