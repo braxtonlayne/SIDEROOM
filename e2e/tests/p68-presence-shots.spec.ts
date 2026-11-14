@@ -121,7 +121,8 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
     // Friends of the Owner (the friends list) with a DM each (the DM list).
     await apiPut(o, `/users/@me/relationships/${u.user.id}`, { type: 1 });
     await apiPut(u.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 });
-    await apiPost(o, '/users/@me/channels', { recipient_id: u.user.id });
+    const dm = await apiPost<{ id: string }>(o, '/users/@me/channels', { recipient_id: u.user.id });
+    await apiPost(o, `/channels/${dm.id}/messages`, { content: 'Hello there' });
   }
 
   // The Owner's own page (desktop user agent): the observer.
@@ -139,45 +140,46 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
 
   const { c: ownerCtx, page } = await watch('lounge-light', VIEWPORTS.desktop);
   await page.goto(`/channels/${guild.id}/${channel}`);
-  const list = page.getByRole('list', { name: 'Members' });
-  const row = (re: RegExp) => list.getByRole('button', { name: re });
+  const rowOn = (pg: Page) => (re: RegExp) =>
+    pg.getByRole('list', { name: 'Members' }).getByRole('button', { name: re });
+  const row = rowOn(page);
   // The real stack proves the whole path: phone user agent -> IDENTIFY properties -> client_status -> glyph.
-  await expect(row(/phoner/).getByRole('img', { name: 'Online on a phone' })).toBeVisible();
-  await expect(row(/deskman/).getByRole('img', { name: 'Online', exact: true })).toBeVisible();
-  await expect(row(/napper/).getByRole('img', { name: 'Idle' })).toBeVisible();
+  await expect(row(/phoner/).locator('[role="img"][aria-label="Online on a phone"]')).toBeVisible();
+  await expect(row(/deskman/).locator('[role="img"][aria-label="Online"]')).toBeVisible();
+  await expect(row(/napper/).locator('[role="img"][aria-label="Idle"]')).toBeVisible();
 
   // A desktop-user-agent tab of the phone person turns the glyph back into the dot.
   const phonerDesk = await signInDesktop(browser, people.phoner!);
-  await expect(row(/phoner/).getByRole('img', { name: 'Online', exact: true })).toBeVisible();
+  await expect(row(/phoner/).locator('[role="img"][aria-label="Online"]')).toBeVisible();
   await phonerDesk.close();
-  await expect(row(/phoner/).getByRole('img', { name: 'Online on a phone' })).toBeVisible();
+  await expect(row(/phoner/).locator('[role="img"][aria-label="Online on a phone"]')).toBeVisible();
   await ownerCtx.close();
 
   for (const theme of THEMES) {
     for (const [vp, size] of Object.entries(VIEWPORTS)) {
       const tag = `${vp}-${theme}`;
       const { c, page } = await watch(theme, size);
+      const row = rowOn(page);
       // Member list.
       await page.goto(`/channels/${guild.id}/${channel}`);
       if (vp === 'phone') {
-        await page.getByRole('button', { name: /Show Member List/ }).click();
+        await swipeToMembers(page);
       }
-      await expect(row(/phoner/).getByRole('img', { name: 'Online on a phone' })).toBeVisible();
+      await expect(row(/phoner/).locator('[role="img"][aria-label="Online on a phone"]')).toBeVisible();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `memberlist-${tag}.png`) });
       await row(/phoner/).evaluate((el) => (el as HTMLElement).scrollIntoView());
       await page.locator('.lng-member').first().focus().catch(() => undefined);
-      await row(/phoner/).locator('.lng-avatar, span').first().screenshot({
-        path: resolve(OUT, `glyph-closeup-${tag}.png`),
-      });
+      await row(/phoner/).screenshot({ path: resolve(OUT, `glyph-closeup-${tag}.png`) });
       // Profile popout.
-      await row(/phoner/).click();
+      await row(/phoner/).dispatchEvent('click');
       await expect(page.getByRole('dialog').first()).toBeVisible();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `popout-${tag}.png`) });
       await page.keyboard.press('Escape');
       // Friends list and DM list.
       await page.goto('/channels/@me');
+      await expect(page.getByRole('link', { name: /phoner/ }).first()).toBeVisible();
       await page.waitForTimeout(600);
       await page.screenshot({ path: resolve(OUT, `friends-dmlist-${tag}.png`) });
       if (vp === 'phone') {
@@ -201,13 +203,17 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
       await apiPatch(people.phoner!.ctx.request, '/users/@me/settings', {
         settings: { user_prefs: { theme, zoom: 100 } },
       });
-      const c = await context(browser, people.phoner!.ctx, size, theme, {}, { userAgent: PHONE_UA });
+      const c = await context(browser, people.phoner!.ctx, size, theme, {}, {
+        userAgent: PHONE_UA,
+        isMobile: true,
+        hasTouch: true,
+      });
       const p = await c.newPage();
       await p.goto('/channels/@me');
       await p.waitForTimeout(1200);
       if (vp === 'desktop') {
         await expect(
-          p.getByRole('button', { name: /Currently Online on a phone/ }),
+          p.getByRole('button', { name: /currently Online on a phone/ }),
         ).toBeVisible();
       }
       await p.screenshot({ path: resolve(OUT, `self-${vp}-${theme}.png`) });
@@ -219,6 +225,19 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
   await napper.ctx.close();
   await octx.close();
 });
+
+/** On a phone the member list is the pane right of the chat: swipe left, as a finger does. */
+async function swipeToMembers(page: Page) {
+  await page.evaluate(() => {
+    const el = (document.querySelector('[data-pane="chat"]') ?? document.body) as HTMLElement;
+    const touch = (x: number) =>
+      new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
+    el.dispatchEvent(
+      new TouchEvent('touchstart', { bubbles: true, touches: [touch(320)], changedTouches: [touch(320)] }),
+    );
+    el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(60)] }));
+  });
+}
 
 async function signInDesktop(browser: Browser, who: { ctx: BrowserContext }): Promise<BrowserContext> {
   const ctx = await context(browser, who.ctx, VIEWPORTS.desktop, 'lounge-light');
@@ -251,6 +270,17 @@ test('a reaction on my message raises one notification, and Settings has no dige
     content: 'a message by somebody else',
   });
 
+  // The synced preferences win over the page's own copy: the earlier test left a theme-only blob on the account.
+  await apiPatch(o, '/users/@me/settings', {
+    settings: {
+      user_prefs: {
+        theme: 'lounge-light',
+        zoom: 100,
+        desktopNotifications: true,
+        reactionNotifications: true,
+      },
+    },
+  });
   const c = await context(browser, octx, VIEWPORTS.desktop, 'lounge-light', {
     desktopNotifications: true,
     reactionNotifications: true,
@@ -291,7 +321,8 @@ test('a reaction on my message raises one notification, and Settings has no dige
   const [n] = await notes();
   expect(n!.title).toMatch(/^fan_\w+ reacted .* to your message$/);
   expect(n!.tag).toBe(`react-${mine.id}`);
-  expect(n!.body).toBe('my own message that gets a reaction');
+  // The channel is not open, so the message is not loaded and the body stays empty (D-703).
+  expect(n!.body ?? '').toBe('');
 
   // Settings > Notifications: the reactions switch with its description, no digest switch.
   for (const theme of THEMES) {
@@ -300,13 +331,18 @@ test('a reaction on my message raises one notification, and Settings has no dige
       const sc = await context(browser, octx, size, theme);
       const sp = await sc.newPage();
       await sp.goto('/settings/user/notifications');
-      await expect(sp.getByText('Reaction notifications').first()).toBeVisible();
+      await expect(sp.getByText('Notify me about reactions to my messages').first()).toBeVisible();
       await expect(
         sp.getByText('When someone reacts to a message you wrote. Shown while the app is open.'),
       ).toBeVisible();
       await expect(sp.getByText(/digest/i)).toHaveCount(0);
+      await sp.getByText('Notify me about reactions to my messages').scrollIntoViewIfNeeded();
       await sp.waitForTimeout(500);
-      await sp.screenshot({ path: resolve(OUT, `settings-notifications-${vp}-${theme}.png`), fullPage: true });
+      await sp.screenshot({ path: resolve(OUT, `settings-notifications-${vp}-${theme}.png`) });
+      // The card after the removal: the push select and its note, with no digest switch.
+      await sp.getByText(/doesn't deliver Web Push yet/).scrollIntoViewIfNeeded();
+      await sp.waitForTimeout(300);
+      await sp.screenshot({ path: resolve(OUT, `settings-push-card-${vp}-${theme}.png`) });
       await sc.close();
     }
   }

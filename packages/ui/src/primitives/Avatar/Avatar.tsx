@@ -47,6 +47,9 @@ export function initials(name: string): string {
 export function Avatar({ name, src, animatedSrc, size = 40, status, statusIcon, statusLabel, speaking, ring, decoration, className, style, ...rest }: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
+  // An icon needs a little more room than a dot to read at all.
+  const dotSize = statusIcon ? Math.max(12, size * 0.4) : Math.max(8, size * 0.28);
+  const dot = { width: dotSize, height: dotSize };
   return (
     <span
       {...rest}
@@ -79,7 +82,7 @@ export function Avatar({ name, src, animatedSrc, size = 40, status, statusIcon, 
           className={cx(styles.status, styles[status], !!statusIcon && styles.statusIcon)}
           role="img"
           aria-label={statusLabel ?? STATUS_LABEL[status]}
-          style={{ width: Math.max(8, size * 0.28), height: Math.max(8, size * 0.28) }}
+          style={dot}
         >
           {statusIcon}
         </span>
