@@ -64,6 +64,7 @@ Sign in as the Owner (the one-time link printed by `bootstrap` is single use and
 After the brief has been answered ([lawyer-brief.md](../docs/legal/lawyer-brief.md)); if it has not, leave the defaults and write down that you did.
 
 - **Where.** Admin > Features > Compliance (the reason field is optional, D-632): `accounts.minimum_age`, `compliance.operator_country`, `compliance.operator_contact`; the other compliance values keep their defaults unless the lawyer says otherwise.
+- **The beta bug reporter (`platform.beta_reports`, D-684).** Before you invite anyone: the beta bug reporter is off, or the platform has fewer than 100 accounts, or the lawyer has answered Q27 and the privacy notice follows the answer.
 - **Done when.** Signed out, the house notes (`/house-notes`) and the help section of the sign-in page (`/login`) show the copyright notice address, the privacy page names the operator's country and contact, and the invite landing shows the minimum age. (`/help`, the handbook, is for signed-in members only and sends a visitor to the sign-in page, D-385.)
 
 ## 9. The first invites
