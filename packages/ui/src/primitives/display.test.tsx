@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { Icon } from "../icons/Icon";
 import { ArrowButton, ArrowLink, DisplayHeading, Eyebrow, GoldButton, OutlineButton } from "../sideroom/Editorial";
 import { Avatar, initials } from "./Avatar/Avatar";
 import { Badge, CounterBadge } from "./Badge/Badge";
@@ -96,6 +97,16 @@ describe("Avatar", () => {
     const status = screen.getByRole("img", { name: "Away from the desk" });
     expect(status).toContainElement(screen.getByTestId("glyph"));
     expect(screen.queryByRole("img", { name: "Online" })).toBeNull();
+  });
+
+  it("the phone glyph is a filled shape with a screen cut out, under the name it was given (D-756)", () => {
+    render(<Avatar name="Bo" status="online" statusIcon={<Icon name="smartphone" size={16} />} statusLabel="Online on a phone" />);
+    const status = screen.getByRole("img", { name: "Online on a phone" });
+    const svg = status.querySelector("svg[data-icon='smartphone']");
+    expect(svg).not.toBeNull();
+    // Body, home line and the screen as a closed shape of its own: three sub-paths for the even-odd fill.
+    expect(svg!.querySelector("path")!.getAttribute("d")!.match(/M/g)).toHaveLength(3);
+    expect(svg!.getAttribute("aria-hidden")).toBe("true");
   });
 });
 
