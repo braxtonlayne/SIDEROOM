@@ -99011,6 +99011,15 @@
             "type": "boolean",
             "description": "Present (true) on the platform's Staff Server only (ADM-STF-010); clients frame it\nin the rail and show the staff badge."
           },
+          "max_members": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The most members the server may have (D-660; the operator's `guilds.max_members`), `null` for the Staff\nServer, which has no limit. Only on `GET /guilds/{id}`.",
+            "minimum": 0
+          },
           "mfa_level": {
             "type": "integer",
             "format": "int32",

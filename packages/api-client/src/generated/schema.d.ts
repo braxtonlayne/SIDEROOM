@@ -22488,6 +22488,12 @@ export interface components {
              */
             is_staff_guild?: boolean;
             /**
+             * Format: int64
+             * @description The most members the server may have (D-660; the operator's `guilds.max_members`), `null` for the Staff
+             *     Server, which has no limit. Only on `GET /guilds/{id}`.
+             */
+            max_members?: number | null;
+            /**
              * Format: int32
              * @description 0 none, 1 elevated: moderator actions need a recent second factor
              *     (`POST /guilds/{id}/mfa`).
