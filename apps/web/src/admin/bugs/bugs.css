@@ -29,3 +29,7 @@
   overflow-wrap: normal;
   white-space: nowrap;
 }
+.adm-bug-more {
+  margin-block: 12px 0;
+  text-align: center;
+}

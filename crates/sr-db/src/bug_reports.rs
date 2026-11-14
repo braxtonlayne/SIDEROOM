@@ -129,15 +129,25 @@ impl PgBugReports {
         Ok(id)
     }
 
-    /// Newest first, without description or bundle, and the number of open reports in all.
-    pub async fn list(&self, status: Option<&str>, limit: i64) -> DbResult<(Vec<BugRow>, i64)> {
+    /// Newest first (by id, which grows with time), without description or bundle, and the number of open reports in
+    /// all. `before` is the id of the last report the caller already has: the page starts after it (SEC-AUD-267), so
+    /// every report can be reached however many there are. A `limit` of up to 201 is allowed so the route can ask for
+    /// one more than it shows and know whether more exist.
+    pub async fn list(
+        &self,
+        status: Option<&str>,
+        before: Option<i64>,
+        limit: i64,
+    ) -> DbResult<(Vec<BugRow>, i64)> {
         let sql = format!(
-            "{SELECT} WHERE ($2::text IS NULL OR b.status = $2) ORDER BY b.created_at DESC, b.id DESC LIMIT $3"
+            "{SELECT} WHERE ($2::text IS NULL OR b.status = $2) AND ($3::bigint IS NULL OR b.id < $3)
+              ORDER BY b.id DESC LIMIT $4"
         );
         let rows: Vec<Tuple> = sqlx::query_as(sqlx::AssertSqlSafe(sql))
             .bind(false)
             .bind(status)
-            .bind(limit.clamp(1, 200))
+            .bind(before)
+            .bind(limit.clamp(1, 201))
             .fetch_all(&self.pool)
             .await?;
         let open: i64 =
@@ -165,6 +175,16 @@ impl PgBugReports {
             .fetch_optional(&self.pool)
             .await?;
         Ok(r.map(row))
+    }
+
+    /// Whether a report with this id exists (nothing of it is read).
+    pub async fn exists(&self, id: i64) -> DbResult<bool> {
+        Ok(
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM bug_reports WHERE id = $1)")
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await?,
+        )
     }
 
     /// The picture's bytes; `None` when there is none (never sent, closed, or past its 30 days).

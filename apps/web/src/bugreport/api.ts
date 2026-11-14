@@ -10,8 +10,17 @@ import type {
 export const sendBugReport = (body: BugReportBody): Promise<BugReportCreated> =>
   apiFetch<BugReportCreated>('/bug-reports', { method: 'POST', json: body, retries: 0 });
 
-export const listBugReports = (status: BugStatus = 'open', limit = 50): Promise<BugReportList> =>
-  apiFetch<BugReportList>(`/admin/bug-reports?status=${status}&limit=${limit}`);
+/** `before` is the id of the last report already shown: the page that follows it (SEC-AUD-267). */
+export const listBugReports = (
+  status: BugStatus = 'open',
+  limit = 50,
+  before?: string,
+): Promise<BugReportList> =>
+  apiFetch<BugReportList>(
+    `/admin/bug-reports?status=${status}&limit=${limit}${
+      before ? `&before=${encodeURIComponent(before)}` : ''
+    }`,
+  );
 
 export const getBugReport = (id: string): Promise<BugReportDetail> =>
   apiFetch<BugReportDetail>(`/admin/bug-reports/${encodeURIComponent(id)}`);

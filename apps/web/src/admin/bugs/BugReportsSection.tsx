@@ -1,6 +1,6 @@
 import { Badge, Button, ConfirmDialog, EmptyState, Notice, Select } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import {
   closeBugReport,
@@ -8,7 +8,7 @@ import {
   getBugScreenshot,
   listBugReports,
 } from '../../bugreport/api';
-import type { BugReportDetail, BugStatus } from '../../bugreport/contract';
+import type { BugReportDetail, BugReportRow, BugStatus } from '../../bugreport/contract';
 import { setBugOpenCount } from '../../bugreport/openState';
 import { formatNumber, useT } from '../../i18n';
 import { Async, Loading, SectionHeader, fmtMs, useAdminViewer, useResource } from '../ui';
@@ -19,6 +19,10 @@ import './bugs.css';
  * `GET /admin/bug-reports/{id}` (an audited read), the picture only when a person presses Show screenshot (a second
  * audited read), and Close report, which deletes the picture. Any appointed staff member, like crash reports; the
  * server decides, the section list only hides the entry from everyone else.
+ *
+ * The list pages (SEC-AUD-267: "Load more" under it asks for the reports after the last one shown), and a report is
+ * read defensively (SEC-AUD-266: every part of the debug bundle can be missing from a row stored before the server
+ * wrote them all, and a report that cannot be opened would also hide the Close button that lives on its page).
  */
 export function BugReportsSection() {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -37,6 +41,37 @@ function BugList({ onOpen }: { onOpen: (id: string) => void }) {
   useEffect(() => {
     if (res.data) setBugOpenCount(res.data.open_count);
   }, [res.data]);
+  // The pages after the first, appended under it. A new first page (another status, Refresh) starts the list again.
+  const [more, setMore] = useState<{ rows: BugReportRow[]; hasMore: boolean }>({
+    rows: [],
+    hasMore: false,
+  });
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [moreError, setMoreError] = useState(false);
+  const generation = useRef(0);
+  useEffect(() => {
+    generation.current += 1;
+    setMore({ rows: [], hasMore: false });
+    setMoreBusy(false);
+    setMoreError(false);
+  }, [res.data, status]);
+  const loadMore = useCallback(
+    async (lastId: string) => {
+      const mine = generation.current;
+      setMoreBusy(true);
+      setMoreError(false);
+      try {
+        const page = await listBugReports(status, 50, lastId);
+        if (mine !== generation.current) return;
+        setMore((m) => ({ rows: [...m.rows, ...page.reports], hasMore: page.has_more === true }));
+      } catch {
+        if (mine === generation.current) setMoreError(true);
+      } finally {
+        if (mine === generation.current) setMoreBusy(false);
+      }
+    },
+    [status],
+  );
   return (
     <>
       <SectionHeader
@@ -73,63 +108,84 @@ function BugList({ onOpen }: { onOpen: (id: string) => void }) {
         />
       </div>
       <Async res={res} label={t('admin.bugs.loading')}>
-        {(list) =>
-          list.reports.length === 0 ? (
+        {(list) => {
+          const rows = [...list.reports, ...more.rows];
+          const hasMore = more.rows.length > 0 ? more.hasMore : list.has_more === true;
+          const lastId = rows[rows.length - 1]?.id;
+          return rows.length === 0 ? (
             <EmptyState
               title={t('admin.bugs.emptyTitle')}
               description={t('admin.bugs.emptyDescription')}
             />
           ) : (
-            <div className="adm-table-wrap">
-              <table className="adm-table adm-bug-table" aria-label={t('admin.bugs.tableLabel')}>
-                <thead>
-                  <tr>
-                    <th scope="col">{t('admin.bugs.colWhen')}</th>
-                    <th scope="col">{t('admin.bugs.colRoute')}</th>
-                    <th scope="col">{t('admin.bugs.colBuild')}</th>
-                    <th scope="col">{t('admin.bugs.colReporter')}</th>
-                    <th scope="col">{t('admin.bugs.colPicture')}</th>
-                    <th scope="col">{t('admin.bugs.colStatus')}</th>
-                    <th scope="col">
-                      <span className="adm-vh">{t('admin.bugs.colActions')}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {list.reports.map((r) => (
-                    <tr key={r.id}>
-                      <td>{fmtMs(r.created_ms)}</td>
-                      <td className="adm-mono">{r.route}</td>
-                      <td className="adm-mono">{r.commit.slice(0, 12)}</td>
-                      <td>{r.reporter.username}</td>
-                      <td>{r.has_screenshot ? t('admin.bugs.yes') : t('admin.bugs.no')}</td>
-                      <td>
-                        <Badge variant={r.status === 'open' ? 'warning' : 'neutral'}>
-                          {r.status === 'open'
-                            ? t('admin.bugs.statusOpen')
-                            : t('admin.bugs.statusClosed')}
-                        </Badge>
-                      </td>
-                      <td>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          aria-label={t('admin.bugs.openLabel', {
-                            who: r.reporter.username,
-                            when: fmtMs(r.created_ms),
-                          })}
-                          onClick={() => onOpen(r.id)}
-                        >
-                          {t('admin.bugs.open')}
-                        </Button>
-                      </td>
+            <>
+              <div className="adm-table-wrap">
+                <table className="adm-table adm-bug-table" aria-label={t('admin.bugs.tableLabel')}>
+                  <thead>
+                    <tr>
+                      <th scope="col">{t('admin.bugs.colWhen')}</th>
+                      <th scope="col">{t('admin.bugs.colRoute')}</th>
+                      <th scope="col">{t('admin.bugs.colBuild')}</th>
+                      <th scope="col">{t('admin.bugs.colReporter')}</th>
+                      <th scope="col">{t('admin.bugs.colPicture')}</th>
+                      <th scope="col">{t('admin.bugs.colStatus')}</th>
+                      <th scope="col">
+                        <span className="adm-vh">{t('admin.bugs.colActions')}</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-        }
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id}>
+                        <td>{fmtMs(r.created_ms)}</td>
+                        <td className="adm-mono">{r.route}</td>
+                        <td className="adm-mono">{r.commit.slice(0, 12)}</td>
+                        <td>{r.reporter.username}</td>
+                        <td>{r.has_screenshot ? t('admin.bugs.yes') : t('admin.bugs.no')}</td>
+                        <td>
+                          <Badge variant={r.status === 'open' ? 'warning' : 'neutral'}>
+                            {r.status === 'open'
+                              ? t('admin.bugs.statusOpen')
+                              : t('admin.bugs.statusClosed')}
+                          </Badge>
+                        </td>
+                        <td>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={t('admin.bugs.openLabel', {
+                              who: r.reporter.username,
+                              when: fmtMs(r.created_ms),
+                            })}
+                            onClick={() => onOpen(r.id)}
+                          >
+                            {t('admin.bugs.open')}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {moreError && (
+                <Notice variant="danger" role="alert">
+                  {t('admin.bugs.loadMoreFailed')}
+                </Notice>
+              )}
+              {hasMore && lastId && (
+                <p className="adm-bug-more">
+                  <Button
+                    variant="secondary"
+                    loading={moreBusy}
+                    onClick={() => void loadMore(lastId)}
+                  >
+                    {t('admin.bugs.loadMore')}
+                  </Button>
+                </p>
+              )}
+            </>
+          );
+        }}
       </Async>
     </>
   );
@@ -185,7 +241,11 @@ function BugDetailBody({
 }) {
   const t = useT();
   const b = report.bundle;
-  const caps = Object.entries(b.caps)
+  // Every part of the bundle can be missing from a row stored before SEC-AUD-266: read each one with a guard.
+  const unknown = t('admin.bugs.unknown');
+  const crashes = b.crashes ?? [];
+  const failed = b.failed_requests ?? [];
+  const caps = Object.entries(b.caps ?? {})
     .filter(([k, v]) => k !== 'engine' && typeof v === 'boolean')
     .sort(([a], [c]) => a.localeCompare(c));
   const [shot, setShot] = useState<string | null>(null);
@@ -286,7 +346,7 @@ function BugDetailBody({
             [t('admin.bugs.colReporter'), report.reporter.username],
             [t('admin.bugs.colRoute'), <span className="adm-mono">{report.route}</span>],
             [t('admin.bugs.colBuild'), <span className="adm-mono">{report.commit}</span>],
-            [t('admin.bugs.sentAt'), fmtMs(b.at)],
+            [t('admin.bugs.sentAt'), typeof b.at === 'number' ? fmtMs(b.at) : unknown],
             ...(report.closed_ms
               ? ([
                   [
@@ -303,31 +363,39 @@ function BugDetailBody({
         <h2 id="adm-bug-debug">{t('admin.bugs.debugTitle')}</h2>
         <Facts
           rows={[
-            [t('admin.bugs.viewport'), `${b.viewport.w} × ${b.viewport.h} @${b.viewport.dpr}`],
-            [t('admin.bugs.engine'), b.caps.engine],
-            [t('admin.bugs.locale'), b.locale],
-            [t('admin.bugs.theme'), b.theme],
-            [t('admin.bugs.online'), yesNo(t, b.online)],
+            [
+              t('admin.bugs.viewport'),
+              // The server writes 0 by 0 for a viewport the body did not carry.
+              b.viewport && b.viewport.w > 0 && b.viewport.h > 0
+                ? `${b.viewport.w} × ${b.viewport.h} @${b.viewport.dpr}`
+                : unknown,
+            ],
+            [t('admin.bugs.engine'), b.caps?.engine ?? unknown],
+            [t('admin.bugs.locale'), b.locale ?? unknown],
+            [t('admin.bugs.theme'), b.theme ?? unknown],
+            [t('admin.bugs.online'), b.online === undefined ? unknown : yesNo(t, b.online)],
             [
               t('admin.bugs.gateway'),
-              [
-                b.gateway.status,
-                b.gateway.reconnects !== undefined
-                  ? t('admin.bugs.reconnects', { n: b.gateway.reconnects })
-                  : '',
-                b.gateway.heartbeat_ms !== undefined ? `${b.gateway.heartbeat_ms} ms` : '',
-              ]
-                .filter(Boolean)
-                .join(', '),
+              b.gateway === undefined || b.gateway.status === 'unknown'
+                ? unknown
+                : [
+                    b.gateway.status,
+                    b.gateway.reconnects !== undefined
+                      ? t('admin.bugs.reconnects', { n: b.gateway.reconnects })
+                      : '',
+                    b.gateway.heartbeat_ms !== undefined ? `${b.gateway.heartbeat_ms} ms` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
             ],
-            [t('admin.bugs.sw'), b.sw],
-            [t('admin.bugs.voice'), yesNo(t, b.voice.connected)],
+            [t('admin.bugs.sw'), b.sw ?? unknown],
+            [t('admin.bugs.voice'), b.voice === undefined ? unknown : yesNo(t, b.voice.connected)],
             [
               t('admin.bugs.crashes'),
-              b.crashes.length === 0 ? (
+              crashes.length === 0 ? (
                 t('admin.bugs.none')
               ) : (
-                <span className="adm-mono">{b.crashes.map((c) => c.slice(0, 10)).join(', ')}</span>
+                <span className="adm-mono">{crashes.map((c) => c.slice(0, 10)).join(', ')}</span>
               ),
             ],
           ]}
@@ -349,7 +417,7 @@ function BugDetailBody({
           </ul>
         )}
         <h3>{t('admin.bugs.failedTitle')}</h3>
-        {b.failed_requests.length === 0 ? (
+        {failed.length === 0 ? (
           <p className="ss-meta">{t('admin.bugs.none')}</p>
         ) : (
           <div className="adm-table-wrap">
@@ -364,7 +432,7 @@ function BugDetailBody({
                 </tr>
               </thead>
               <tbody>
-                {b.failed_requests.map((f, i) => (
+                {failed.map((f, i) => (
                   <tr key={i}>
                     <td>{f.method}</td>
                     <td className="adm-mono">{f.path}</td>

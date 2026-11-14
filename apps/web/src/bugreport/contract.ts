@@ -53,6 +53,32 @@ export interface BugBundle {
   crashes: string[];
 }
 
+/** What the server writes for a `gateway` the body did not carry (SEC-AUD-266); a sent report never has it. */
+export type StoredGatewayStatus = BugGatewayStatus | 'unknown';
+
+/**
+ * A report as staff read it back. The server (since SEC-AUD-266) always writes every key, with a neutral value for a
+ * part the body lacked, but rows stored before that can be missing `viewport`, `gateway`, `voice`, `online` and
+ * `sw`, and a row is read defensively whatever its age, so every key but the three the server never leaves out
+ * (`commit`, `route`, `at`) is optional here and the staff page guards each read.
+ */
+export interface StoredBundle {
+  commit: string;
+  route: string;
+  at: number;
+  viewport?: { w: number; h: number; dpr: number };
+  caps?: Partial<Record<CapName, boolean>> & { engine?: BugEngine };
+  locale?: string;
+  theme?: BugTheme;
+  online?: boolean;
+  gateway?: { status: StoredGatewayStatus; reconnects?: number; heartbeat_ms?: number };
+  sw?: BugSwState;
+  voice?: { connected: boolean };
+  failed_requests?: FailedRequest[];
+  crashes?: string[];
+  masked?: number;
+}
+
 export interface BugScreenshot {
   type: 'image/jpeg';
   data: string;
@@ -89,13 +115,15 @@ export interface BugReportRow {
 export interface BugReportList {
   reports: BugReportRow[];
   open_count: number;
+  /** SEC-AUD-267: more reports exist after the last one: ask again with `before` set to its id. Absent from older servers. */
+  has_more?: boolean;
   /** D-647: the beta reporter is on and the platform has 100 or more active accounts (no number is given). */
   beta_over_100?: boolean;
 }
 
 export interface BugReportDetail extends BugReportRow {
   description: string;
-  bundle: BugBundle;
+  bundle: StoredBundle;
   closed_ms: number | null;
   closed_by: BugReporter | null;
 }
