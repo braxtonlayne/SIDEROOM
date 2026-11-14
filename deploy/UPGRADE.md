@@ -154,6 +154,13 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 - With no mail server configured (the log-only mail transport), the server never writes a message body to its log (CHANGELOG, Phase 60).
 - An Activity's old files are kept for a day after an update so people mid-session are not cut off (migration `2670_activity_bundle_superseded_at.sql`).
 
+## Release notes: wave 73 (SEC-AUD-283..290)
+
+No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. Two behaviours an operator may be asked about:
+
+- **A package-upload start that had to wait** for another start of the same application (it waits up to 20 seconds for its turn) now answers 429 with "Another upload for this application is starting. Try again in a moment." and a retry-after of a few seconds. "Too many package uploads. Try again in an hour." is only for the hourly limit.
+- **The Library ends a resumable upload with an oversized part.** A stored part larger than that part may be, or numbered beyond the count, ends the upload the first time the server sees it, as a package upload does since wave 72; the client starts a new upload. A part that is too small can still be sent again.
+
 ## Release notes: wave 72 (SEC-AUD-274..282)
 
 No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. A bug report that arrives without an `online` value is stored with `online: null` and shown as "Unknown"; reports stored before are not rewritten. If a first run of `deploy/install.sh` stopped after the Owner was made, running it again asks for the Owner's password (INSTALL.md, "Running it again").

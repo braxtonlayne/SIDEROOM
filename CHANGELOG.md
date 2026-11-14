@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 73 - 2026-11-14
+
+- **Members.** Headings in messages are sized as Discord's, smaller than before, and subtext sits on its own line in a muted colour. The "Thread started from" line shows a plain one-line version of the original message: a spoiler stays hidden, code and mentions are written as names, and a blocked or ignored author's text is not shown. A spoiler that the "On hover for mine" preference shows is readable. In Editorial an idle dot is an amber instead of a pale tan and a do-not-disturb dot is easier to see on a hovered row; in Lounge Light the online dot is a deeper green and easier to see; Lounge Ash's do-not-disturb dot is brighter on a hovered row.
+- **Developers.** A package-upload start that had to wait for another start of the same application says "Another upload for this application is starting. Try again in a moment." instead of telling you to come back in an hour.
+- **Library.** A resumable upload with a part larger than announced ends at once.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 72 - 2026-11-14
 
 - **Members.** The message list and the pinned messages panel now draw mentions as chips, code with a backdrop and highlight colours, quotes with a bar and emoji at the right size. Editorial's online dot is a clear green instead of an olive, and someone online on a phone shows a solid phone shape instead of a thin outline.
