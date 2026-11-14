@@ -102,7 +102,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
         await page.screenshot({ path: resolve(OUT, `${name}-${tag}.png`) });
       };
       const addServer = async () => {
-        await page.goto(`/channels/${guild.id}/${channelId}`);
+        await page.goto("/channels/@me");
         const open = page.getByRole('button', { name: 'Add a Server' });
         await open.click();
       };
@@ -115,7 +115,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
       await page.getByRole('button', { name: 'Create My Own' }).click();
       await page.getByRole('button', { name: 'skip this question' }).click();
       await page.getByLabel('Server name').fill('One more');
-      await page.getByRole('button', { name: 'Create' }).click();
+      await page.getByRole('button', { name: 'Create', exact: true }).click();
       await expect(page.getByText(MAX_SERVERS)).toBeVisible();
       await shot('create-at-limit');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -139,7 +139,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
       // 3. The invite page.
       await page.goto(`/invite/${invite.code}`);
       await page.getByRole('button', { name: 'Accept invite' }).click();
-      await expect(page.getByRole('alert')).toContainText(/most servers|full/);
+      await expect(page.getByText(MAX_SERVERS)).toBeVisible();
       await shot('invite-page');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
 
@@ -163,7 +163,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
       );
       await page.route(/\/api\/v1\/directory\/categories$/, (r) => json(r, ['gaming']));
       await page.route(/\/api\/v1\/directory\/4242\/join$/, full);
-      await page.goto(`/channels/${guild.id}/${channelId}`);
+      await page.goto("/channels/@me");
       await page.getByRole('button', { name: 'Discover' }).click();
       const dir = page.getByRole('dialog', { name: 'Server Directory' });
       await dir
@@ -174,26 +174,46 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
       await shot('directory-full');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
 
-      // 5. Server Settings > applications: approving meets the applicant's limit.
+      // 5. Server Settings > applications: approving meets the applicant's limit, then the server is full.
+      //    The server is not a Community on the live stack, so the community settings are faked as on.
+      let decision = (r: Route) =>
+        json(
+          r,
+          { code: 30001, message: 'This member is in the most servers one account can be in.' },
+          400,
+        );
+      await page.route(new RegExp(`/api/v1/guilds/${guild.id}/sr/community$`), (r) =>
+        r.request().method() === 'GET'
+          ? json(r, {
+              guild_id: guild.id,
+              community_enabled: true,
+              rules_channel_id: null,
+              public_updates_channel_id: null,
+              safety_alerts_channel_id: null,
+              description: null,
+              preferred_locale: 'en-US',
+              onboarding_enabled: false,
+              welcome_screen_enabled: false,
+              guide_enabled: true,
+              invites_paused: false,
+              raid_alert_joins_per_minute: 0,
+              age_restricted: false,
+              screening_enabled: false,
+              screening_description: null,
+              screening_rules: [],
+            })
+          : r.fallback(),
+      );
       await page.route(
-        new RegExp(`/api/v1/guilds/${guild.id}/sr/applications/\\d+/decision$`),
-        (r) =>
-          json(
-            r,
-            { code: 30001, message: 'This member is in the most servers one account can be in.' },
-            400,
-          ),
+        new RegExp(`/api/v1/guilds/${guild.id}/sr/applications/[0-9]+/decision$`),
+        (r) => decision(r),
       );
       await page.goto(`/settings/server/${guild.id}/community`);
       await page.getByRole('tab', { name: 'Access' }).click();
       await page.getByRole('button', { name: /^Approve / }).click();
       await expect(page.getByText(/application stays pending/)).toBeVisible();
       await shot('application-approve-at-limit');
-      await page.unrouteAll({ behavior: 'ignoreErrors' });
-      await page.route(
-        new RegExp(`/api/v1/guilds/${guild.id}/sr/applications/\\d+/decision$`),
-        full,
-      );
+      decision = full;
       await page.getByRole('button', { name: /^Approve / }).click();
       await expect(page.getByText('This server is full.')).toBeVisible();
       await shot('application-approve-full');
