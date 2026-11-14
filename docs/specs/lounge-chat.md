@@ -138,22 +138,22 @@ Each is a separate feature module with a settings schema. Server-scope modules r
 
 | Limit | Default |
 |---|---|
-| Message length | 2,000 (configurable up to 4,000) |
+| Message length | 2,000, fixed (D-662; the composer and the markdown engine know the number; a setting for it is later) |
 | Attachments per message | 10 |
-| File size | 30 MB (Patron 500 MB; server levels per doc 08) |
-| Servers per user | 200 (see note) |
+| File size | 30 MB by default: the operator's `uploads.standard_limit_bytes` (1 MiB to 500 MiB, applies to the next upload; Patron 500 MB; server levels per doc 08). Above it a file is "large" and expires after `retention.large_file_days` (default 7, 1 to 365; D-662) |
+| Servers per user | 200 by default, **enforced**: the operator's `guilds.max_per_user` (Admin > Settings, 1 to 1,000; D-659). Created and joined servers count together, the Staff Server does not; bots are not limited |
 | Channels per server | 500 |
 | Roles per server | 250 |
 | Emoji per server | 250 static + 250 animated |
 | Stickers / soundboard sounds | 60 / 48 |
-| Members per server | 25,000 (above the account cap, effectively unlimited; see note) |
+| Members per server | 25,000 by default, **enforced**: the operator's `guilds.max_members` (Admin > Settings, 2 to 1,000,000; D-660). Counts every membership of the server, pending members and bots included; the Staff Server has no limit |
 | Pins per channel | 250 |
 | Friends | 1,000 |
 | Group DM size | 10 |
 | Embeds per message | 10 |
 | Reactions distinct per message | 20 |
 
-The defaults live in `crates/sr-chat/src/limits.rs` (messages, attachments, channels, roles, pins, reactions, embeds), `social/mod.rs` (friends 1,000, group DM 10 members) and `settings/expressions.rs` (emoji, stickers, soundboard); the 4,000-character message ceiling is `EXTENDED_MAX_CHARS` in `sr-markdown`. The error code `MaxGuilds` exists, but as of Phase 65 no code raises it, and no member cap is enforced; the "Servers per user" and "Members per server" rows are targets, not checks.
+The defaults live in `crates/sr-chat/src/limits.rs` (messages, attachments, channels, roles, pins, reactions, embeds), `social/mod.rs` (friends 1,000, group DM 10 members) and `settings/expressions.rs` (emoji, stickers, soundboard); the 4,000-character message ceiling is `EXTENDED_MAX_CHARS` in `sr-markdown`. The two server limits are checks, not targets (wave 66, D-659 to D-661): creating a server (plain or from a template) and joining one (invite, vanity code, Server Directory, an approved membership application, adding a bot) are refused at the limit with `400` and Discord's codes, `30001` "Maximum number of guilds reached (N)" (N is the number in force) and `30019` "Maximum number of server members reached"; an application stays pending and an invite use is not consumed. The count and the insert are one transaction under a per-account (or per-server) lock, so parallel requests cannot pass a limit (`crates/sr-db/src/guild_caps.rs`). Nobody is exempt, staff and the Owner included; only the Staff Server is (never counted, never full, so appointments never fail on a limit). Lowering a setting removes nobody: an account over the limit keeps its servers and cannot create or join another until it is under, and a server over the limit keeps its members and admits nobody until it is under. A change applies to the next request, an unreadable stored value reads as the default, and the guild object carries `max_members`. The client answers each refusal with its own sentence (`lounge.limits.*`).
 
 ## 15. Acceptance criteria (selected; full checklist in inventory)
 - [ ] A user who knows Discord can create a server, invite a friend, set roles with channel overwrites, and chat, without help. _(a usability check; no record of one found)_

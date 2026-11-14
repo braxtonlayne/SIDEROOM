@@ -81,6 +81,9 @@ pub struct AdminDeps {
     pub storage: Option<Arc<dyn sr_storage::ObjectStorage>>,
     /// Where a saved rate-limit setting goes so the limiter sees it on the next request (H-39).
     pub rate_config: Option<tokio::sync::watch::Sender<crate::rate_limit::RateConfig>>,
+    /// Where a saved `uploads.standard_limit_bytes` or `retention.large_file_days` goes so the upload policy sees
+    /// it on the next upload (D-662).
+    pub upload_policy: Option<tokio::sync::watch::Sender<sr_storage::upload::SizePolicy>>,
     /// Backup times and disk space for the System page (K-10).
     pub system_probe: Option<Arc<dyn SystemProbe>>,
     /// The preflight checks for `POST /admin/system/preflight` (RDY-OPS-005).
@@ -98,6 +101,7 @@ impl AdminDeps {
             require_reauth: false,
             storage: None,
             rate_config: None,
+            upload_policy: None,
             system_probe: None,
             preflight: None,
         }
@@ -121,6 +125,15 @@ impl AdminDeps {
         tx: tokio::sync::watch::Sender<crate::rate_limit::RateConfig>,
     ) -> Self {
         self.rate_config = Some(tx);
+        self
+    }
+
+    /// The sender behind the live upload size policy: `PATCH /admin/settings` updates it (D-662).
+    pub fn with_upload_policy(
+        mut self,
+        tx: tokio::sync::watch::Sender<sr_storage::upload::SizePolicy>,
+    ) -> Self {
+        self.upload_policy = Some(tx);
         self
     }
 

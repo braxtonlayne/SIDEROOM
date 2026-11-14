@@ -136,6 +136,14 @@ const fn int(
 
 /// Account-cap setting key (read by registration).
 pub const ACCOUNT_CAP: &str = "accounts.cap";
+/// The two server limits (D-659, D-660); the numbers live in `sr-core` so the repositories share them.
+pub use sr_core::guild_caps::{
+    DEFAULT_GUILD_MEMBERS, DEFAULT_GUILDS_PER_USER, GUILD_MEMBERS_SETTING, GUILDS_PER_USER_SETTING,
+};
+/// Standard attachment size limit in bytes (D-662): read by the upload policy; a larger attachment is "large".
+pub const UPLOADS_STANDARD_LIMIT: &str = "uploads.standard_limit_bytes";
+/// Days a large attachment is kept from its upload (D-662): read by the upload policy.
+pub const RETENTION_LARGE_FILE_DAYS: &str = "retention.large_file_days";
 /// OPS-INV-001: "Lock the Doors" (registration refused while on), the credit seed of a new account, the most
 /// unused codes one account may hold and the age at which the prune job revokes an unused code.
 pub const INVITES_LOCKED: &str = "invites.locked";
@@ -248,6 +256,22 @@ pub const CATALOG: &[SettingDef] = &[
         1_000_000,
         20_000,
         "Maximum number of active accounts (D-013).",
+    ),
+    int(
+        GUILDS_PER_USER_SETTING,
+        "limits",
+        1,
+        1_000,
+        DEFAULT_GUILDS_PER_USER,
+        "Most servers one account may be in (created or joined). The Staff Server does not count. Lowering it removes nobody: an account over the limit keeps its servers and cannot create or join another.",
+    ),
+    int(
+        GUILD_MEMBERS_SETTING,
+        "limits",
+        2,
+        1_000_000,
+        DEFAULT_GUILD_MEMBERS,
+        "Most members one server may have, bots included. The Staff Server has no limit. Lowering it removes nobody: a server over the limit admits no one until it is under.",
     ),
     int(
         RATE_IP,
@@ -584,15 +608,6 @@ pub const CATALOG: &[SettingDef] = &[
         30,
         "Days after an invite card (Cinema ticket, Live TV, game night) finishes or is canceled that the list of who claimed a seat is deleted. The card and how many went stay. 0 keeps the lists for ever.",
     ),
-    SettingDef {
-        key: "invites.credit_price_usd",
-        group: "invites",
-        kind: SettingKind::Number,
-        min: 0.0,
-        max: 100_000.0,
-        default_int: 20,
-        description: "Price of one purchased invite credit, in USD.",
-    },
     int(
         "invites.min_account_age_days",
         "invites",
@@ -618,12 +633,12 @@ pub const CATALOG: &[SettingDef] = &[
         "Suspicion level that escalates the alert to senior staff.",
     ),
     int(
-        "uploads.standard_limit_bytes",
+        UPLOADS_STANDARD_LIMIT,
         "limits",
-        1_024,
-        107_374_182_400,
+        1_048_576,
+        524_288_000,
         31_457_280,
-        "Standard attachment size limit in bytes.",
+        "Standard attachment size limit in bytes (1 MiB to 500 MiB). Anything larger is a large attachment and expires after retention.large_file_days. Applies to the next upload.",
     ),
     int(
         "submissions.daily_upload_bytes",
@@ -640,14 +655,6 @@ pub const CATALOG: &[SettingDef] = &[
         100,
         5,
         "Open submissions a member may have at once (staff are exempt, D-082).",
-    ),
-    int(
-        "messages.max_length",
-        "limits",
-        1,
-        100_000,
-        4_000,
-        "Maximum message length in characters.",
     ),
     int(
         "moderation.audit_retention_days",
@@ -774,12 +781,12 @@ pub const CATALOG: &[SettingDef] = &[
         "Largest Cinema original a publisher may upload, in GiB.",
     ),
     int(
-        "retention.large_file_days",
+        RETENTION_LARGE_FILE_DAYS,
         "retention",
         1,
         365,
         7,
-        "Days large attachments are kept.",
+        "Days a large attachment (above the standard attachment limit) is kept after it is uploaded. Applies to uploads from now on; attachments already stored keep the expiry they were given.",
     ),
     SettingDef {
         key: ALERTS_EMAIL_OWNER,
@@ -860,6 +867,388 @@ pub const CATALOG: &[SettingDef] = &[
     ),
 ];
 
+/// Where each listed setting is read (D-662: every setting in Admin > Settings does what its text says or is not
+/// listed). One row per catalog key: the key, the file that reads it (from the repository root) and the text that
+/// names it there. `every_listed_setting_names_its_reader` fails when a catalog key has no row, when a row names no
+/// listed key, or when the file does not contain the text. Add the row in the same change as the setting.
+pub const READERS: &[(&str, &str, &str)] = &[
+    (
+        "accounts.cap",
+        "crates/sr-db/src/member_invites.rs",
+        "accounts.cap",
+    ),
+    (
+        "limits.rate.ip",
+        "crates/sr-api/src/rate_limit.rs",
+        "RATE_IP",
+    ),
+    (
+        "limits.rate.session",
+        "crates/sr-api/src/rate_limit.rs",
+        "RATE_SESSION",
+    ),
+    (
+        "limits.rate.bot",
+        "crates/sr-api/src/rate_limit.rs",
+        "RATE_BOT",
+    ),
+    (
+        "limits.rate.messages",
+        "crates/sr-api/src/rate_limit.rs",
+        "RATE_MESSAGES",
+    ),
+    (
+        "limits.rate.uploads",
+        "crates/sr-api/src/rate_limit.rs",
+        "RATE_UPLOADS",
+    ),
+    (
+        "abuse.friend_requests_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_FRIEND_REQUESTS",
+    ),
+    (
+        "abuse.dm_opens_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_DM_OPENS",
+    ),
+    (
+        "abuse.webhook_execute_per_minute",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_WEBHOOK_EXECUTE",
+    ),
+    (
+        "abuse.oauth_authorize_per_minute",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_OAUTH_AUTHORIZE",
+    ),
+    (
+        "abuse.interaction_callbacks_per_minute",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_INTERACTION_CALLBACKS",
+    ),
+    (
+        "abuse.watch_party_joins_per_minute",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_WATCH_PARTY_JOINS",
+    ),
+    (
+        "abuse.emoji_uploads_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_EMOJI_UPLOADS",
+    ),
+    (
+        "abuse.sticker_uploads_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_STICKER_UPLOADS",
+    ),
+    (
+        "abuse.appeal_attempts_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_APPEAL_ATTEMPTS",
+    ),
+    (
+        "abuse.storage_tests_per_hour",
+        "crates/sr-api/src/rate_limit.rs",
+        "ABUSE_STORAGE_TESTS",
+    ),
+    (
+        "abuse.counter_notices_per_day",
+        "crates/sr-moderation/src/service.rs",
+        "keys::COUNTER_NOTICES_PER_DAY",
+    ),
+    (
+        "abuse.data_export_cooldown_hours",
+        "crates/sr-db/src/data_export.rs",
+        "abuse.data_export_cooldown_hours",
+    ),
+    (
+        "abuse.bridge_messages_per_minute",
+        "crates/sr-server/src/bridge_inbound.rs",
+        "ABUSE_BRIDGE_MESSAGES",
+    ),
+    (
+        "bridge.max_bridges",
+        "crates/sr-server/src/bridge_inbound.rs",
+        "BRIDGE_MAX_BRIDGES",
+    ),
+    (
+        "bridge.delete_hold_hours",
+        "crates/sr-server/src/bridge_sync_wiring.rs",
+        "BRIDGE_DELETE_HOLD_HOURS",
+    ),
+    (
+        "bridge.reconcile_minutes",
+        "crates/sr-server/src/bridge_sync_wiring.rs",
+        "BRIDGE_RECONCILE_MINUTES",
+    ),
+    (
+        "bridge.struct_writes_per_sec",
+        "crates/sr-server/src/bridge_sync_wiring.rs",
+        "BRIDGE_STRUCT_WRITES_PER_SEC",
+    ),
+    (
+        "byos.presign_ttl_secs",
+        "crates/sr-api/src/routes/storage/objects.rs",
+        "BYOS_PRESIGN_TTL",
+    ),
+    (
+        "byos.presign_ttl_cap_secs",
+        "crates/sr-api/src/routes/storage/objects.rs",
+        "BYOS_PRESIGN_TTL_CAP",
+    ),
+    (
+        "byos.endpoint_allow",
+        "crates/sr-api/src/routes/storage/flags.rs",
+        "BYOS_ENDPOINT_ALLOW",
+    ),
+    (
+        "byos.worker_for_members",
+        "crates/sr-api/src/routes/storage/transcode.rs",
+        "BYOS_WORKER_FOR_MEMBERS",
+    ),
+    (
+        "byos.require_client_remux",
+        "crates/sr-api/src/routes/storage/scopes.rs",
+        "BYOS_REQUIRE_CLIENT_REMUX",
+    ),
+    (
+        "byos.client_convert_max_mib",
+        "crates/sr-api/src/routes/storage/scopes.rs",
+        "BYOS_CLIENT_CONVERT_MAX_MIB",
+    ),
+    (
+        "byos.who_may_mount",
+        "crates/sr-api/src/routes/storage/flags.rs",
+        "BYOS_WHO_MAY_MOUNT",
+    ),
+    (
+        "profiles.access",
+        "crates/sr-api/src/routes/packages/profiles.rs",
+        "PROFILES_ACCESS",
+    ),
+    (
+        "byos.max_mounts_per_user",
+        "crates/sr-api/src/routes/storage/mounts.rs",
+        "BYOS_MAX_MOUNTS_PER_USER",
+    ),
+    (
+        "byos.max_mounts_per_guild",
+        "crates/sr-api/src/routes/storage/mounts.rs",
+        "BYOS_MAX_MOUNTS_PER_GUILD",
+    ),
+    (
+        "music.max_playlists",
+        "crates/sr-api/src/routes/music/mod.rs",
+        "MUSIC_MAX_PLAYLISTS",
+    ),
+    (
+        "music.max_items",
+        "crates/sr-api/src/routes/music/mod.rs",
+        "MUSIC_MAX_ITEMS",
+    ),
+    (
+        "jukebox.vote_skip_percent",
+        "crates/sr-api/src/routes/voice/jukebox.rs",
+        "JUKEBOX_VOTE_SKIP_PERCENT",
+    ),
+    (
+        "byos.upload_parts_per_hour",
+        "crates/sr-api/src/routes/storage/uploads.rs",
+        "BYOS_UPLOAD_PARTS_PER_HOUR",
+    ),
+    (
+        "invites.locked",
+        "crates/sr-db/src/auth_store.rs",
+        "invites.locked",
+    ),
+    (
+        "invites.default_credits",
+        "crates/sr-admin/src/invite_controls.rs",
+        "INVITES_DEFAULT_CREDITS",
+    ),
+    (
+        "invites.max_outstanding",
+        "crates/sr-db/src/member_invites.rs",
+        "invites.max_outstanding",
+    ),
+    (
+        "invites.unused_code_days",
+        "crates/sr-admin/src/invite_controls.rs",
+        "INVITES_UNUSED_CODE_DAYS",
+    ),
+    (
+        "invites.card_claimants_retention_days",
+        "crates/sr-server/src/cards_jobs.rs",
+        "invites.card_claimants_retention_days",
+    ),
+    (
+        "invites.min_account_age_days",
+        "crates/sr-db/src/member_invites.rs",
+        "invites.min_account_age_days",
+    ),
+    (
+        "invites.suspicion_freeze_threshold",
+        "crates/sr-db/src/member_invites.rs",
+        "invites.suspicion_freeze_threshold",
+    ),
+    (
+        "invites.suspicion_escalate_threshold",
+        "crates/sr-admin/src/service.rs",
+        "SUSPICION_ESCALATE",
+    ),
+    (
+        "uploads.standard_limit_bytes",
+        "crates/sr-api/src/routes/messages/deps.rs",
+        "UPLOADS_STANDARD_LIMIT",
+    ),
+    (
+        "submissions.daily_upload_bytes",
+        "crates/sr-server/src/review_jobs.rs",
+        "submissions.daily_upload_bytes",
+    ),
+    (
+        "submissions.max_open_per_member",
+        "crates/sr-server/src/review_jobs.rs",
+        "submissions.max_open_per_member",
+    ),
+    (
+        "moderation.audit_retention_days",
+        "crates/sr-chat/src/settings/audit.rs",
+        "moderation.audit_retention_days",
+    ),
+    (
+        "moderation.reports_per_day",
+        "crates/sr-moderation/src/service.rs",
+        "keys::REPORTS_PER_DAY",
+    ),
+    (
+        "moderation.hold_review_days",
+        "crates/sr-moderation/src/service.rs",
+        "keys::HOLD_REVIEW_DAYS",
+    ),
+    (
+        "moderation.shared_ip_max_persons",
+        "crates/sr-moderation/src/service.rs",
+        "keys::SHARED_IP_MAX_PERSONS",
+    ),
+    (
+        "moderation.new_account_after_ban_days",
+        "crates/sr-moderation/src/service.rs",
+        "keys::NEW_ACCOUNT_AFTER_BAN_DAYS",
+    ),
+    (
+        "moderation.case_reopen_days",
+        "crates/sr-moderation/src/service.rs",
+        "keys::CASE_REOPEN_DAYS",
+    ),
+    (
+        "retention.deleted_message_days",
+        "crates/sr-moderation/src/service.rs",
+        "keys::DELETED_MESSAGE_DAYS",
+    ),
+    (
+        "library.ingest.rar_enabled",
+        "crates/sr-server/src/library_jobs.rs",
+        "library.ingest.rar_enabled",
+    ),
+    (
+        "library.ingest.max_upload_mb",
+        "crates/sr-server/src/library_jobs.rs",
+        "library.ingest.max_upload_mb",
+    ),
+    (
+        "activities.package.max_mb",
+        "crates/sr-activities/src/package.rs",
+        "activities.package.max_mb",
+    ),
+    (
+        "activities.package.reviewed_max_mb",
+        "crates/sr-activities/src/package.rs",
+        "activities.package.reviewed_max_mb",
+    ),
+    (
+        "activities.package.platform_max_mb",
+        "crates/sr-activities/src/package.rs",
+        "activities.package.platform_max_mb",
+    ),
+    (
+        "activities.package.max_files",
+        "crates/sr-activities/src/package.rs",
+        "activities.package.max_files",
+    ),
+    (
+        "review.lookup.enabled",
+        "crates/sr-server/src/lookup_wiring.rs",
+        "review.lookup.enabled",
+    ),
+    (
+        "cinema.upload.max_gb",
+        "crates/sr-server/src/media_jobs.rs",
+        "cinema.upload.max_gb",
+    ),
+    (
+        "retention.large_file_days",
+        "crates/sr-api/src/routes/messages/deps.rs",
+        "RETENTION_LARGE_FILE_DAYS",
+    ),
+    (
+        "alerts.email_to_owner",
+        "crates/sr-admin/src/service_ext.rs",
+        "ALERTS_EMAIL_OWNER",
+    ),
+    (
+        "alerts.disk_percent",
+        "crates/sr-admin/src/service_ext.rs",
+        "ALERTS_DISK_PERCENT",
+    ),
+    (
+        "alerts.backup_max_age_hours",
+        "crates/sr-admin/src/service_ext.rs",
+        "ALERTS_BACKUP_MAX_AGE_HOURS",
+    ),
+    (
+        "ops.storage_measure_max_objects",
+        "crates/sr-server/src/storage_jobs.rs",
+        "ops.storage_measure_max_objects",
+    ),
+    (
+        "ops.disk_path",
+        "crates/sr-admin/src/service_ext.rs",
+        "OPS_DISK_PATH",
+    ),
+    (
+        "ops.backup_dir",
+        "crates/sr-admin/src/service_ext.rs",
+        "OPS_BACKUP_DIR",
+    ),
+    (
+        "tv.slate_asset",
+        "crates/sr-cli/src/commands.rs",
+        "TV_SLATE_ASSET",
+    ),
+    (
+        "tools.currency_rates",
+        "crates/sr-server/src/fx_jobs.rs",
+        "tools.currency_rates",
+    ),
+    (
+        "tools.currency_stale_hours",
+        "crates/sr-server/src/fx_jobs.rs",
+        "tools.currency_stale_hours",
+    ),
+    (
+        "guilds.max_per_user",
+        "crates/sr-db/src/guild_caps.rs",
+        "GUILDS_PER_USER_SETTING",
+    ),
+    (
+        "guilds.max_members",
+        "crates/sr-db/src/guild_caps.rs",
+        "GUILD_MEMBERS_SETTING",
+    ),
+];
+
 /// Definition of `key`, if it is an editable setting.
 pub fn find(key: &str) -> Option<&'static SettingDef> {
     CATALOG.iter().find(|d| d.key == key)
@@ -876,9 +1265,6 @@ mod tests {
         assert!(cap.validate(&json!(0)).is_err());
         assert!(cap.validate(&json!("100")).is_err());
         assert!(cap.validate(&json!(1.5)).is_err());
-        let price = find("invites.credit_price_usd").unwrap();
-        assert_eq!(price.validate(&json!(12.5)).unwrap(), json!(12.5));
-        assert!(price.validate(&json!(-1)).is_err());
     }
 
     #[test]
@@ -1052,6 +1438,82 @@ mod tests {
         assert!(stale.validate(&json!(23)).is_err());
         assert!(stale.validate(&json!(721)).is_err());
         assert!(stale.validate(&json!(48)).is_ok());
+    }
+
+    /// D-662: a setting nobody reads is a lie on the Admin page. Every catalog key has a row in [`READERS`]; the row
+    /// names a file that exists and mentions the key (or its constant); no row names a key that is not listed.
+    #[test]
+    fn every_listed_setting_names_its_reader() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for d in CATALOG {
+            assert!(
+                READERS.iter().any(|(k, _, _)| *k == d.key),
+                "{} is listed in the catalog but has no reader in READERS",
+                d.key
+            );
+        }
+        for (key, file, text) in READERS {
+            assert!(
+                find(key).is_some(),
+                "READERS names {key}, which is not listed"
+            );
+            let src = std::fs::read_to_string(root.join(file))
+                .unwrap_or_else(|e| panic!("reader of {key}: {file}: {e}"));
+            assert!(
+                src.contains(text),
+                "{file} does not mention {text} (reader of {key})"
+            );
+        }
+        let mut seen = std::collections::HashSet::new();
+        for (key, _, _) in READERS {
+            assert!(seen.insert(*key), "{key} appears twice in READERS");
+        }
+    }
+
+    /// D-662: the two settings that did nothing are wired, the two that could not be are gone.
+    #[test]
+    fn the_removed_settings_are_not_listed_and_the_wired_ones_have_their_new_range() {
+        assert!(find("messages.max_length").is_none());
+        assert!(find("invites.credit_price_usd").is_none());
+        let d = find(UPLOADS_STANDARD_LIMIT).unwrap();
+        assert_eq!((d.min as u64, d.max as u64), (1_048_576, 524_288_000));
+        assert_eq!(d.default_int, 31_457_280);
+        assert!(d.validate(&json!(524_288_001)).is_err());
+        assert!(d.validate(&json!(1_048_575)).is_err());
+        assert!(
+            d.validate(&json!(107_374_182_400_i64)).is_err(),
+            "the old maximum is out of range"
+        );
+        let days = find(RETENTION_LARGE_FILE_DAYS).unwrap();
+        assert_eq!((days.min, days.max, days.default_int), (1.0, 365.0, 7));
+    }
+
+    /// D-659, D-660: the two server limits are catalog rows in the limits group, built from the `sr-core`
+    /// constants, with Discord-sized defaults and ranges.
+    #[test]
+    fn the_two_server_limits_are_catalog_rows_with_the_core_numbers() {
+        for (key, min, max, default) in [
+            (GUILDS_PER_USER_SETTING, 1, 1_000, 200),
+            (GUILD_MEMBERS_SETTING, 2, 1_000_000, 25_000),
+        ] {
+            let d = find(key).unwrap();
+            assert_eq!(d.group, "limits", "{key}");
+            assert_eq!(d.default_value(), json!(default), "{key}");
+            assert!(d.validate(&json!(min)).is_ok(), "{key}");
+            assert!(d.validate(&json!(max)).is_ok(), "{key}");
+            assert!(d.validate(&json!(min - 1)).is_err(), "{key}");
+            assert!(d.validate(&json!(max + 1)).is_err(), "{key}");
+            assert!(d.description.contains("removes nobody"), "{key}");
+        }
+        use sr_core::guild_caps as c;
+        assert_eq!(
+            (c::GUILDS_PER_USER_RANGE, c::GUILD_MEMBERS_RANGE),
+            (1..=1_000, 2..=1_000_000)
+        );
+        assert_eq!(
+            (c::DEFAULT_GUILDS_PER_USER, c::DEFAULT_GUILD_MEMBERS),
+            (200, 25_000)
+        );
     }
 
     #[test]

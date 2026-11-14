@@ -43,6 +43,9 @@ pub enum AppsError {
     /// The current state does not allow the action (maps to 900010).
     #[error("{0}")]
     Conflict(String),
+    /// The server has the most members it may have, so the bot cannot be added (30019; D-660).
+    #[error("server is full")]
+    GuildFull,
     /// A development-state application outside its test servers (900120).
     #[error("app not released")]
     NotReleased,

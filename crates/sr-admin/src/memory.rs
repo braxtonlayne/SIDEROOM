@@ -322,6 +322,19 @@ impl MemoryAdminRepo {
         s.member_roles.insert(id, roles.to_vec());
     }
 
+    /// A stored setting row as an older version left it (a key that is no longer listed, or a value out of range).
+    pub fn seed_setting(&self, key: &str, value: Value) {
+        let now = self.now();
+        self.s().settings.insert(
+            key.to_owned(),
+            StoredSetting {
+                value,
+                updated_by: None,
+                updated_at_ms: now,
+            },
+        );
+    }
+
     /// Remove an account from the Staff Server only (leave/kick), keeping the appointment row.
     pub fn kick_from_staff_guild(&self, id: i64) {
         let mut s = self.s();

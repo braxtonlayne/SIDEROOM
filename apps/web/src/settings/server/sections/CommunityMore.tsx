@@ -1,6 +1,7 @@
 import { Badge, Button, Switch, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { useT } from '../../../i18n';
+import { limitErrorText } from '../../../lounge/limitErrors';
 import { useChannels } from '../../../store';
 import * as api from '../api';
 import * as more from '../apiMore';
@@ -590,7 +591,8 @@ function ApplicationRow({
   onChanged: (a: more.ApplicationObject) => void;
 }) {
   const t = useT();
-  const action = useAction();
+  // An approval that meets a server limit says which one (D-659, D-660); the application stays pending.
+  const action = useAction((e) => limitErrorText(e, t, 'approve'));
   const [reason, setReason] = useState('');
   const name = app.user.global_name || app.user.username;
   const decide = async (approve: boolean) => {

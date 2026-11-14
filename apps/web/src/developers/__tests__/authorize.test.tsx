@@ -124,6 +124,25 @@ describe('OAuth2 consent screen', () => {
     });
   });
 
+  it('says the server is full when adding the bot meets the member limit (D-660)', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('*/api/v1/oauth2/authorize', () =>
+        HttpResponse.json(
+          { code: 30019, message: 'Maximum number of server members reached' },
+          { status: 400 },
+        ),
+      ),
+    );
+    openAt(URL_);
+    await user.selectOptions(await screen.findByLabelText('Add to server'), '7');
+    await user.click(screen.getByRole('button', { name: 'Authorize' }));
+    expect(
+      await screen.findByText('This server is full, so the app cannot be added.'),
+    ).toBeInTheDocument();
+    expect(go).not.toHaveBeenCalled();
+  });
+
   it('lands on the in-app page when there is no redirect URI', async () => {
     const user = userEvent.setup();
     preview({ redirect_uri: null, state: null });

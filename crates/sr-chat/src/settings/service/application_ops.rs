@@ -152,6 +152,16 @@ impl<R: SettingsRepository> SettingsService<R> {
             .map_err(|e| {
                 if e.0 == crate::settings::repo::APPLICANT_BANNED {
                     SettingsError::Banned
+                } else if let Some(hit) = crate::error::cap_hit_from_repo(&e) {
+                    // D-659, D-660: the application stays pending; the approver is told which limit.
+                    match hit {
+                        sr_core::guild_caps::CapHit::UserServers(_) => {
+                            SettingsError::ApplicantAtLimit
+                        }
+                        sr_core::guild_caps::CapHit::GuildMembers(_) => {
+                            SettingsError::MaxGuildMembers
+                        }
+                    }
                 } else {
                     SettingsError::Repo(e)
                 }

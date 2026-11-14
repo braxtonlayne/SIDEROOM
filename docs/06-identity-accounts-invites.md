@@ -82,7 +82,7 @@ An issuer can revoke any `open` code. Revocation is instant. A redemption in fli
 - Initial grant: 5 (setting `invites.default_credits`, 0 to 1000, read at each registration; it was `invites.initial_credits` before phase 39, P39-INV-3).
 - At most `invites.max_outstanding` unused codes per account (default 20; the credit balance still caps first). An unused code older than `invites.unused_code_days` (default 30) is revoked by the `invites.prune` job (every six hours); emergency codes are kept.
 - Consumed only on redemption.
-- **Purchase:** "Buy an invite": USD 20 (config `invites.credit_price_usd`) → BTC invoice (doc 08) → on confirmation, ledger `+1 purchase`.
+- **Purchase:** "Buy an invite": USD 20 (config `[payments] invite_credit_price_cents`, 2000) → BTC invoice (doc 08) → on confirmation, ledger `+1 purchase`.
 - Staff can grant or revoke credits (logged).
 
 ### 5.3a Lock the Doors (phase 39)

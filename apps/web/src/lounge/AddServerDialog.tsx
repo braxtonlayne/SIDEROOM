@@ -10,6 +10,7 @@ import type { Channel as StoreChannel } from '../store';
 import { listBuiltinTemplates, type BuiltinTemplate } from '../store/rest';
 import { useCurrentUser } from './data';
 import { inviteErrorMessage, parseInviteCode } from './inviteFlow';
+import { limitErrorText } from './limitErrors';
 
 /** Navigate to a guild (and a channel in it when known). */
 export function useGotoGuild() {
@@ -83,7 +84,10 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
       onClose();
       goto(guild.id, firstText(guild.channels));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('lounge.addServerDialog.createFailed'));
+      setError(
+        limitErrorText(err, t) ??
+          (err instanceof ApiError ? err.message : t('lounge.addServerDialog.createFailed')),
+      );
       setBusy(false);
     }
   };
@@ -99,7 +103,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
       onClose();
       goto(invite.type !== 1 ? (invite.guild?.id ?? '@me') : '@me', invite.channel.id);
     } catch (err) {
-      setError(inviteErrorMessage(err));
+      setError(limitErrorText(err, t) ?? inviteErrorMessage(err));
       setBusy(false);
     }
   };

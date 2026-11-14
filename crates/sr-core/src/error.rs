@@ -53,6 +53,7 @@ error_codes! {
     BotsCannotUseThisEndpoint = 20001, 403, "Bots cannot use this endpoint";
     OnlyBotsCanUseThisEndpoint = 20002, 403, "Only bots can use this endpoint";
     MaxGuilds = 30001, 400, "Maximum number of guilds reached";
+    MaxGuildMembers = 30019, 400, "Maximum number of server members reached";
     MaxRoles = 30005, 400, "Maximum number of guild roles reached";
     MaxReactions = 30010, 400, "Maximum number of reactions reached";
     MaxChannels = 30013, 400, "Maximum number of guild channels reached";

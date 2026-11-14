@@ -189,6 +189,39 @@ describe('Community: access and applications (LNG-SSET-039, LNG-SSET-042)', () =
     expect(within(row).getByText('Approved')).toBeVisible();
   });
 
+  it('an approval that meets a server limit says which one and leaves the application pending (D-659, D-660)', async () => {
+    seed({ perms: [MANAGE.guild] });
+    let answer = {
+      code: 30019,
+      message: 'Maximum number of server members reached',
+    };
+    server.use(
+      http.get('*/api/v1/guilds/g1/sr/applications/form', () => HttpResponse.json(form)),
+      http.get('*/api/v1/guilds/g1/sr/applications', () => HttpResponse.json([app('79')])),
+      http.get('*/api/v1/guilds/g1/directory', () =>
+        HttpResponse.json({ message: 'Unknown', code: 10004 }, { status: 404 }),
+      ),
+      http.post('*/api/v1/guilds/g1/sr/applications/79/decision', () =>
+        HttpResponse.json(answer, { status: 400 }),
+      ),
+    );
+    await openTab('Access');
+    const row = await screen.findByRole('listitem', { name: 'bob' });
+    await userEvent.click(within(row).getByRole('button', { name: 'Approve bob' }));
+    expect(await within(row).findByText('This server is full.')).toBeVisible();
+    answer = {
+      code: 30001,
+      message: 'This member is in the most servers one account can be in.',
+    };
+    await userEvent.click(within(row).getByRole('button', { name: 'Approve bob' }));
+    expect(
+      await within(row).findByText(
+        'This member is in the most servers one account can be in, so the application stays pending. Try again when they have left one.',
+      ),
+    ).toBeVisible();
+    expect(within(row).getByRole('button', { name: 'Approve bob' })).toBeVisible();
+  });
+
   it('rejects with a reason and saves the application form', async () => {
     seed({ perms: [MANAGE.guild] });
     const decision = capture();
