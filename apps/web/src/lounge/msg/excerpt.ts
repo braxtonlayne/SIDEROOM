@@ -10,7 +10,7 @@
  * the start of the whole's wins, and the result is cut text, closer, ellipsis). Only if none does, the cut moves
  * back (to before the last markup opener, then to the previous white space, alternately, at most 16 times);
  * none left is `null`. A text of `max` characters or fewer is never
- * parsed. When a cut is needed and the parser is not loaded the result is `null` (no text), never the raw cut.
+ * parsed. Heading and subtext markers at line starts are dropped first (D-782). When a cut is needed and the parser is not loaded the result is `null` (no text), never the raw cut.
  */
 import { currentMarkdownEngine, parseMarkdown } from '../markdown';
 import { singleLineText } from './SingleLine';
@@ -104,9 +104,48 @@ const opener = (s: readonly string[], i: number): boolean => {
 const lineOf = (chars: readonly string[]): string =>
   singleLineText(parseMarkdown(chars.join('')), undefined, SPOILER);
 
+/**
+ * The line without a heading or subtext marker, when the parser would read the line as one (D-782): one to
+ * three `#` and a space, or `-# `, at the very start of the line, with something other than white space after
+ * it (the server's `strip_marker`; the condition is `sr_markdown`'s). A heading that holds a fence opener stays.
+ */
+function stripMarker(line: string): string {
+  const hashes = /^#*/.exec(line)![0].length;
+  let rest: string;
+  if (hashes >= 1 && hashes <= 3 && line[hashes] === ' ') rest = line.slice(hashes + 1);
+  else if (line.startsWith('-# ')) rest = line.slice(3);
+  else return line;
+  rest = rest.trim();
+  return rest === '' || rest.includes('```') ? line : rest;
+}
+
+/** `content` with the markers taken off every line outside a code fence (D-782); an unclosed fence is no fence. */
+function withoutMarkers(content: string): string {
+  const lines = content.split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.includes('```')) {
+      let close = -1;
+      for (let k = i + 1; k < lines.length; k++) {
+        if (lines[k]!.includes('```')) {
+          close = k;
+          break;
+        }
+      }
+      if (close >= 0) {
+        out.push(...lines.slice(i, close + 1));
+        i = close;
+        continue;
+      }
+    }
+    out.push(stripMarker(lines[i]!));
+  }
+  return out.join('\n');
+}
+
 /** The preview text of a message: see the file comment. */
 export function excerpt(content: string, max: number = EXCERPT_CHARS): string | null {
-  const folded = fold(content);
+  const folded = fold(withoutMarkers(content));
   if (folded.length === 0) return null;
   if (folded.length <= max) return folded.join('');
   if (!currentMarkdownEngine()) return null;
