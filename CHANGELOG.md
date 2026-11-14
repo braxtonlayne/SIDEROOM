@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 66 - 2026-11-13
+
+- **Server limits are real.** One account can be in at most 200 servers (created or joined) and one server can hold at most 25,000 members, bots included; the operator can change both in Admin > Settings. At a limit, creating or joining a server says so in plain words ("You're in the most servers one account can be in here", "This server is full."); nobody is removed when a limit is lowered, and the Staff Server is never counted.
+- **Settings that did nothing now work.** The operator's standard attachment size and how long large attachments are kept take effect on the next upload. Two settings that could not work (message length, the invite credit price) are gone from the list.
+
 ## Phase 65 - 2026-11-13
 
 - **Big games.** Activities and arcade games are no longer capped at 32 MB. Packages are checked as they arrive and never loaded into memory, so the limits are settings the operator controls: 512 MB for everyone, 4 GB for reviewed apps and 32 GB for official ones by default. Big uploads go up in resumable parts, and large files play in pieces as the game asks for them.

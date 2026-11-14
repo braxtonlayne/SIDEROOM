@@ -6,21 +6,28 @@ use async_trait::async_trait;
 use sr_api::routes::messages::UploadEntitlements;
 use sr_core::{GuildId, UserId};
 use sr_payments::Entitlements;
+use sr_storage::upload::SizePolicy;
 use std::sync::Arc;
+use tokio::sync::watch;
 
 /// [`UploadEntitlements`] over the payments entitlement service.
 pub struct PaymentsUploadLimits {
     entitlements: Arc<dyn Entitlements>,
-    /// Used when the lookup fails, so uploads keep working at the free size.
-    fallback: u64,
+    /// The operator's size policy (D-662): its standard limit is the free size, and follows edits live.
+    policy: watch::Receiver<SizePolicy>,
 }
 
 impl PaymentsUploadLimits {
-    pub fn new(entitlements: Arc<dyn Entitlements>, fallback: u64) -> Self {
+    pub fn new(entitlements: Arc<dyn Entitlements>, policy: watch::Receiver<SizePolicy>) -> Self {
         Self {
             entitlements,
-            fallback,
+            policy,
         }
+    }
+
+    /// The free size now: used when nobody's perk lifts the limit, and when the lookup fails.
+    fn free(&self) -> u64 {
+        self.policy.borrow().standard_limit
     }
 }
 
@@ -31,13 +38,16 @@ impl UploadEntitlements for PaymentsUploadLimits {
             i64::try_from(user.get()),
             guild.and_then(|g| i64::try_from(g.get()).ok()),
         ) else {
-            return self.fallback;
+            return self.free();
         };
         match self.entitlements.limits(user, guild).await {
-            Ok(l) => l.upload_bytes,
+            // A perk above the free tier keeps its own number; with none, the free size is the operator's
+            // standard limit (the payments free tier is only the default of that setting).
+            Ok(l) if l.upload_bytes > l.standard_upload_bytes => l.upload_bytes.max(self.free()),
+            Ok(_) => self.free(),
             Err(e) => {
                 tracing::warn!(error = %e, "upload entitlement lookup failed; using the free size");
-                self.fallback
+                self.free()
             }
         }
     }
@@ -87,7 +97,8 @@ mod tests {
 
     #[tokio::test]
     async fn the_server_level_and_the_patron_perk_combine_by_maximum() {
-        let lim = PaymentsUploadLimits::new(Arc::new(Fake), 30 * MIB);
+        let (_tx, rx) = watch::channel(SizePolicy::default());
+        let lim = PaymentsUploadLimits::new(Arc::new(Fake), rx);
         let (free, patron) = (UserId::new(2), UserId::new(1));
         let (level2, plain) = (Some(GuildId::new(10)), Some(GuildId::new(11)));
         let free_size = lim.max_upload_bytes(free, plain).await;
@@ -98,5 +109,24 @@ mod tests {
         let patron_dm = lim.max_upload_bytes(patron, None).await;
         assert!(patron_dm > level_size);
         assert_eq!(lim.max_upload_bytes(patron, level2).await, patron_dm);
+    }
+
+    /// D-662: the free size is the operator's standard limit and follows an edit without a restart; a perk above
+    /// the free tier keeps its own number.
+    #[tokio::test]
+    async fn the_standard_limit_follows_the_setting_without_a_restart() {
+        let (tx, rx) = watch::channel(SizePolicy::default());
+        let lim = PaymentsUploadLimits::new(Arc::new(Fake), rx);
+        let (free, patron) = (UserId::new(2), UserId::new(1));
+        let plain = Some(GuildId::new(11));
+        assert_eq!(lim.max_upload_bytes(free, plain).await, 30 * MIB);
+        // Lowered to 10 MiB: the free size drops; the Patron perk does not.
+        tx.send_replace(SizePolicy::from_settings(Some(10 * 1024 * 1024), None));
+        assert_eq!(lim.max_upload_bytes(free, plain).await, 10 * MIB);
+        assert_eq!(lim.max_upload_bytes(free, None).await, 10 * MIB);
+        assert_eq!(lim.max_upload_bytes(patron, None).await, 500 * MIB);
+        // Raised to 50 MiB: the free size follows.
+        tx.send_replace(SizePolicy::from_settings(Some(50 * 1024 * 1024), None));
+        assert_eq!(lim.max_upload_bytes(free, plain).await, 50 * MIB);
     }
 }

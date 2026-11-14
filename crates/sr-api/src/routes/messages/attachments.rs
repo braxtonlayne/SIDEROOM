@@ -112,13 +112,14 @@ pub async fn request_slots(
     }
 
     let entitled = deps.upload_limit(user, acc.channel.guild_id).await;
-    let max_size = deps.size_policy.effective_limit(entitled);
+    let policy = deps.policy();
+    let max_size = policy.effective_limit(entitled);
     let now = deps.now_ms();
     // Validate everything before issuing any slot.
     let mut decisions = Vec::with_capacity(body.files.len());
     for (i, f) in body.files.iter().enumerate() {
         check_image_meta(i, f)?;
-        match deps.size_policy.check(f.file_size, entitled) {
+        match policy.check(f.file_size, entitled) {
             Ok(d) => decisions.push(d),
             Err(SizeError::Empty) => {
                 return Err(invalid(
@@ -333,9 +334,8 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
         Err(e) => return Err(e.into()),
     };
     let guild = deps.channel_guild(att.channel_id).await;
-    let limit = deps
-        .size_policy
-        .effective_limit(deps.upload_limit(att.uploader, guild).await);
+    let policy = deps.policy();
+    let limit = policy.effective_limit(deps.upload_limit(att.uploader, guild).await);
     if info.size != att.size || info.size > limit {
         let _ = deps.storage.delete(&att.key).await;
         return Err(bad("The uploaded file does not match the declared size."));
@@ -377,7 +377,7 @@ pub async fn finalize(deps: &MessagesDeps, att: &mut Attachment) -> MsgResult<()
     };
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_owned());
     // Privacy: drop EXIF/XMP/text chunks (GPS etc.) from JPEG and PNG before anyone can fetch them.
-    if is_strippable_image(&content_type) && info.size <= deps.size_policy.multipart_threshold {
+    if is_strippable_image(&content_type) && info.size <= policy.multipart_threshold {
         let whole = deps.storage.get(&att.key).await?;
         match strip_metadata(&whole) {
             Ok(clean) => {

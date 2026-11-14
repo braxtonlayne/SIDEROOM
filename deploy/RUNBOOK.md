@@ -161,7 +161,7 @@ _Raised by:_ the "Storage used" figure on the Admin Dashboard, the Disk space ca
 
 1. Two different things fill up: the disk of the host (Disk space card, `df -h`) and the bucket (Dashboard "Storage used"; Garage: `garage stats`). For the disk, follow Disk pressure.
 2. Where the bytes are: Admin > Cinema transcoding (HLS renditions are rebuilt from originals and are the cheapest to give up) and Admin > Ingest sources (a source that keeps re-importing).
-3. Retention that frees space by itself: `retention.deleted_message_days` (Admin > Limits & settings). Lowering it deletes real data after the next purge job; read the setting's description first and do not lower it on an incident whim. `retention.large_file_days` is listed there too but nothing reads it today (large attachments expire after a fixed 7 days, docs/09).
+3. Retention that frees space by itself: `retention.deleted_message_days` (Admin > Limits & settings). Lowering it deletes real data after the next purge job; read the setting's description first and do not lower it on an incident whim. `retention.large_file_days` (default 7) is listed there too: it sets how long a large attachment is kept, for uploads from then on (docs/09).
 4. More room: add capacity to Garage ([GARAGE.md](GARAGE.md), "Several nodes") or move the bucket; do not delete files inside Garage's data directory by hand.
 5. The alert threshold is `alerts.disk_percent` (default 80) on the path in `ops.disk_path`. Over when usage is back below it and uploads succeed.
 
