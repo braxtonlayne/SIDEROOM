@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
-import { checkStaffDelivery } from './check-staff-delivery.mjs';
+import { checkStaffDelivery, staffCatalogNeedles } from './check-staff-delivery.mjs';
 
 const MARK = ['m-one', 'm-two'];
 const roots = [];
@@ -89,5 +89,70 @@ describe('check-staff-delivery', () => {
       f['app/staff/sub/Qq1WwEe2.js'] = 'x';
     });
     assert.deepEqual(rules(r), ['e', 'e']);
+  });
+});
+
+/** Fragments: a staff text (long, with an apostrophe), a short one, one a member fragment also holds. */
+function messages() {
+  const root = mkdtempSync(join(tmpdir(), 'sr-staffmsg-'));
+  roots.push(root);
+  const frag = (o) =>
+    `export default {\n${Object.entries(o)
+      .map(([k, v]) => `  '${k}': ${JSON.stringify(v)},\n`)
+      .join('')}} satisfies Record<string, string>;\n`;
+  mkdirSync(join(root, 'en'), { recursive: true });
+  mkdirSync(join(root, 'en-staff'), { recursive: true });
+  writeFileSync(join(root, 'en', 'a.ts'), frag({ 'member.shared': 'Save your changes now' }));
+  writeFileSync(
+    join(root, 'en-staff', 'b.ts'),
+    frag({
+      'admin.queue.title': "Review the reporter's queue before closing",
+      'admin.queue.short': 'Close it',
+      'admin.queue.shared': 'Save your changes now',
+    }),
+  );
+  return root;
+}
+const catalogRun = (edit) => {
+  const dir = messages();
+  const dst = dist((f) => {
+    f['app/staff/Zk3_-9aB.js'] =
+      'export const a = "m-one"; export const q = "Review the reporter\\"s queue before closing";';
+    edit?.(f);
+  });
+  return checkStaffDelivery(dst, MARK, staffCatalogNeedles(dir));
+};
+
+describe('check-staff-delivery: the staff message catalog (SEC-AUD-187, D-663)', () => {
+  it('needles: long staff texts only, and not a text a member fragment also holds', () => {
+    const { needles } = staffCatalogNeedles(messages());
+    assert.deepEqual(
+      needles.map(([k]) => k),
+      ['admin.queue.title'],
+    );
+  });
+  it('passes when the staff text is only inside staff/', () => {
+    assert.deepEqual(catalogRun().failures, []);
+  });
+  it('f: fails when a member chunk holds a staff message, naming the key and not the text', () => {
+    const r = catalogRun((f) => {
+      f['app/vendor-BBBB2222.js'] =
+        'export const v = "Review the reporter\'s queue before closing";';
+    });
+    assert.deepEqual(rules(r), ['f']);
+    assert.match(r.failures[0], /admin\.queue\.title/);
+    assert.doesNotMatch(r.failures[0], /Review the reporter/);
+  });
+  it('f: fails when app.html holds it', () => {
+    const r = catalogRun((f) => {
+      f['app.html'] += "<!-- Review the reporter's queue before closing -->";
+    });
+    assert.deepEqual(rules(r), ['f']);
+  });
+  it('g: fails when staff/ holds no catalog (the staff messages are missing from it)', () => {
+    const r = catalogRun((f) => {
+      f['app/staff/Zk3_-9aB.js'] = 'export const a = "m-one";';
+    });
+    assert.deepEqual(rules(r), ['g']);
   });
 });

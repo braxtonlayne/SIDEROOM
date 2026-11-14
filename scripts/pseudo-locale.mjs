@@ -150,11 +150,11 @@ export function pseudoMessage(src) {
 }
 
 /** Reads every fragment of apps/web/src/i18n/messages/en (and en-staff beside it) into one key to English text object. */
-export function readEnglishCatalog(dir) {
+export function readEnglishCatalog(dir, includeStaff = true) {
   const catalog = {};
   const owner = {};
   // SEC-AUD-187: the staff fragments (messages/en-staff) are part of the English catalog too.
-  const dirs = [dir, `${dir}-staff`].filter((d) => existsSync(d));
+  const dirs = [dir, ...(includeStaff ? [`${dir}-staff`] : [])].filter((d) => existsSync(d));
   const files = dirs.flatMap((d) =>
     readdirSync(d)
       .filter((f) => f.endsWith('.ts'))
