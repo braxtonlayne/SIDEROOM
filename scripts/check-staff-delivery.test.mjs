@@ -131,6 +131,28 @@ describe('check-staff-delivery: the staff message catalog (SEC-AUD-187, D-663)',
       ['admin.queue.title'],
     );
   });
+  it('needles skip a text that member code or the changelog also holds as prose', () => {
+    const dir = messages();
+    const prose = mkdtempSync(join(tmpdir(), 'sr-staffprose-'));
+    roots.push(prose);
+    mkdirSync(join(prose, 'src', 'admin'), { recursive: true });
+    mkdirSync(join(prose, 'src', 'docs'), { recursive: true });
+    // admin/ is staff code: its literals do not count as member prose
+    writeFileSync(join(prose, 'src', 'admin', 'A.tsx'), 'const a = "Review the reporter";');
+    const withAdmin = staffCatalogNeedles(dir, {
+      src: join(prose, 'src'),
+      changelog: join(prose, 'CHANGELOG.md'),
+    });
+    assert.equal(withAdmin.needles.length, 1);
+    writeFileSync(join(prose, 'CHANGELOG.md'), "- The reporter's queue before closing is clearer.");
+    writeFileSync(join(prose, 'src', 'docs', 'D.ts'), 'export const d = "Review the reporter";');
+    const changelog = join(prose, 'CHANGELOG.md');
+    // the needle is the longest plain run: "s queue before closing", found in the changelog line
+    assert.equal(
+      staffCatalogNeedles(dir, { src: join(prose, 'src'), changelog }).needles.length,
+      0,
+    );
+  });
   it('passes when the staff text is only inside staff/', () => {
     assert.deepEqual(catalogRun().failures, []);
   });
