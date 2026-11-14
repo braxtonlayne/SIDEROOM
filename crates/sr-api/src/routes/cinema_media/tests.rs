@@ -68,6 +68,9 @@ pub(crate) struct Stub {
     tokens: Mutex<Vec<(WorkerToken, String)>>,
     /// What `list_assets` returns.
     assets: Mutex<Vec<Asset>>,
+    /// The one asset `get_asset` knows (subtitle tests), and the subtitle rows of any asset.
+    one_asset: Mutex<Option<Asset>>,
+    subs: Mutex<Vec<(i64, StoredSubtitle)>>,
 }
 
 #[async_trait]
@@ -154,8 +157,96 @@ impl MediaRepository for Stub {
     async fn create_asset(&self, _: &NewAsset) -> MediaResult<Asset> {
         unsupported()
     }
-    async fn get_asset(&self, _: i64) -> MediaResult<Option<Asset>> {
-        Ok(None)
+    async fn get_asset(&self, id: i64) -> MediaResult<Option<Asset>> {
+        Ok(self
+            .one_asset
+            .lock()
+            .unwrap()
+            .clone()
+            .filter(|a| a.id == id))
+    }
+    async fn subtitle_tracks(&self, asset: i64) -> MediaResult<Vec<StoredSubtitle>> {
+        Ok(self
+            .subs
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(a, _)| *a == asset)
+            .map(|(_, s)| s.clone())
+            .collect())
+    }
+    async fn add_uploaded_subtitle(
+        &self,
+        asset: i64,
+        new: &NewUploadedSubtitle,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        let s = StoredSubtitle {
+            track: SubtitleTrack {
+                id: new.id,
+                label: new.label.clone(),
+                language: new.language.clone(),
+                forced: new.forced,
+                hearing_impaired: new.hearing_impaired,
+                is_default: false,
+                hidden: false,
+                source: SubtitleSource::Uploaded,
+                styled: new.ass_path.is_some(),
+            },
+            vtt_path: new.vtt_path.clone(),
+            ass_path: new.ass_path.clone(),
+        };
+        self.subs.lock().unwrap().push((asset, s.clone()));
+        Ok(Some(s))
+    }
+    async fn update_subtitle(
+        &self,
+        asset: i64,
+        track: i64,
+        p: &SubtitlePatch,
+    ) -> MediaResult<Option<StoredSubtitle>> {
+        let mut subs = self.subs.lock().unwrap();
+        let Some(i) = subs
+            .iter()
+            .position(|(a, s)| *a == asset && s.track.id == track)
+        else {
+            return Ok(None);
+        };
+        if p.is_default == Some(true) {
+            for (a, s) in subs.iter_mut() {
+                if *a == asset {
+                    s.track.is_default = false;
+                }
+            }
+        }
+        let t = &mut subs[i].1.track;
+        if let Some(v) = &p.label {
+            t.label = v.clone();
+        }
+        if let Some(v) = &p.language {
+            t.language = Some(v.clone());
+        }
+        t.forced = p.forced.unwrap_or(t.forced);
+        t.hearing_impaired = p.hearing_impaired.unwrap_or(t.hearing_impaired);
+        t.is_default = p.is_default.unwrap_or(t.is_default);
+        t.hidden = p.hidden.unwrap_or(t.hidden);
+        Ok(Some(subs[i].1.clone()))
+    }
+    async fn delete_uploaded_subtitle(
+        &self,
+        asset: i64,
+        track: i64,
+    ) -> MediaResult<SubtitleDelete> {
+        let mut subs = self.subs.lock().unwrap();
+        let Some(i) = subs
+            .iter()
+            .position(|(a, s)| *a == asset && s.track.id == track)
+        else {
+            return Ok(SubtitleDelete::Missing);
+        };
+        if subs[i].1.track.source != SubtitleSource::Uploaded {
+            return Ok(SubtitleDelete::Embedded);
+        }
+        Ok(SubtitleDelete::Deleted(subs.remove(i).1))
     }
     async fn list_assets(&self, _: &AssetQuery) -> MediaResult<Vec<Asset>> {
         Ok(self.assets.lock().unwrap().clone())
@@ -380,6 +471,7 @@ impl DownloadEntitlements for OnlyPatron {
 struct Env {
     app: Router,
     admin: Arc<MemoryAdminRepo>,
+    storage: Arc<ObjectStoreStorage>,
     stub: Arc<Stub>,
     tokens: HashMap<i64, String>,
 }
@@ -507,6 +599,7 @@ async fn env_build(media: bool, slate: Option<i64>) -> Env {
     Env {
         app: build_router(b.build(), router()),
         admin,
+        storage,
         stub,
         tokens,
     }
@@ -571,6 +664,14 @@ fn asset_routes() -> Vec<Route> {
         ),
         (Method::POST, "/admin/cinema/assets/7/probe", None),
         (Method::POST, "/admin/cinema/assets/7/transcode", None),
+        (Method::GET, "/admin/cinema/assets/7/subtitles", None),
+        (Method::POST, "/admin/cinema/assets/7/subtitles", None),
+        (
+            Method::PATCH,
+            "/admin/cinema/assets/7/subtitles/5",
+            Some(json!({ "label": "x" })),
+        ),
+        (Method::DELETE, "/admin/cinema/assets/7/subtitles/5", None),
         (
             Method::PUT,
             "/admin/cinema/assets/7/link",
@@ -873,6 +974,7 @@ fn regex_free_template(path: &str) -> String {
         "jobs" if path.starts_with("/admin/") => "{job_id}",
         "titles" => "{title_id}",
         "downloads" => "{job_id}",
+        "subtitles" => "{track_id}",
         _ => "",
     };
     let mut out = Vec::new();
@@ -965,4 +1067,314 @@ async fn the_live_tv_slate_is_hidden_from_the_asset_list_and_stays_out_of_the_ca
         )
         .await;
     assert_ne!(s, StatusCode::CONFLICT);
+}
+
+// ---- subtitles (D-685) ----
+
+impl Env {
+    /// A request with a raw body (the subtitle upload sends the file's bytes).
+    async fn call_bytes(
+        &self,
+        who: i64,
+        method: Method,
+        path: &str,
+        body: Vec<u8>,
+    ) -> (StatusCode, Value) {
+        let raw = &self.tokens[&who];
+        let req = Request::builder()
+            .method(method)
+            .uri(format!("/api/v1{path}"))
+            .header("origin", "http://localhost:8080")
+            .header("cookie", format!("sr_session={raw}"))
+            .header("x-sr-csrf", csrf::token_for(raw))
+            .header("content-type", "application/octet-stream")
+            .body(Body::from(body))
+            .unwrap();
+        let resp = self.app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
+    fn logged(&self, action: &str) -> usize {
+        self.admin
+            .log_rows()
+            .iter()
+            .filter(|l| l.action == action)
+            .count()
+    }
+}
+
+const SRT: &str = "1\n00:00:01,000 --> 00:00:02,000\nHello <i>there</i>\n";
+
+fn ass_file() -> String {
+    "[Script Info]\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\n\
+     Format: Name, Fontname, Fontsize, PrimaryColour, Bold, Italic, Underline, Alignment\n\
+     Style: Default,Arial,48,&H00FFFFFF,0,0,0,2\n\n[Events]\n\
+     Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\
+     Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Styled\n"
+        .to_owned()
+}
+
+async fn list_tracks(e: &Env) -> (StatusCode, Value) {
+    e.call(
+        Some(PUBLISHER),
+        Method::GET,
+        "/admin/cinema/assets/7/subtitles",
+        None,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn subtitle_changes_are_validated_logged_and_scoped_to_their_asset() {
+    use sr_storage::ObjectStorage;
+    let e = env_with(true).await;
+    *e.stub.one_asset.lock().unwrap() = Some(listed_asset(7));
+    let (s, b) = list_tracks(&e).await;
+    assert_eq!((s, &b["tracks"]), (StatusCode::OK, &json!([])), "{b}");
+    // An unknown asset is 404.
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::GET,
+            "/admin/cinema/assets/8/subtitles",
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+
+    // Upload: the language is normalised, the file is stored again as WebVTT, never as sent.
+    let (s, a) = e
+        .call_bytes(
+            PUBLISHER,
+            Method::POST,
+            "/admin/cinema/assets/7/subtitles?language=pt-br&label=Portugues&hearing_impaired=true",
+            SRT.as_bytes().to_vec(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{a}");
+    assert_eq!(a["language"], "pt-BR");
+    assert_eq!(a["label"], "Portugues");
+    assert_eq!(
+        (
+            &a["source"],
+            &a["hearing_impaired"],
+            &a["styled"],
+            &a["hidden"]
+        ),
+        (
+            &json!("uploaded"),
+            &json!(true),
+            &json!(false),
+            &json!(false)
+        )
+    );
+    let a_id = a["id"].as_str().unwrap().to_owned();
+    let stored = e
+        .storage
+        .get(&format!("subtitles/7/{a_id}.vtt"))
+        .await
+        .unwrap();
+    let stored = String::from_utf8(stored.to_vec()).unwrap();
+    assert!(stored.starts_with("WEBVTT\n\n"), "{stored}");
+    assert!(stored.contains("Hello <i>there</i>") && !stored.contains(",000 -->"));
+    assert_eq!(e.logged("cinema.subtitle.upload"), 1);
+
+    // ASS content under any name: styled, both files stored.
+    let (s, b) = e
+        .call_bytes(
+            PUBLISHER,
+            Method::POST,
+            "/admin/cinema/assets/7/subtitles?language=en&label=Styled",
+            ass_file().into_bytes(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CREATED, "{b}");
+    assert_eq!(b["styled"], true);
+    let b_id = b["id"].as_str().unwrap().to_owned();
+    assert!(
+        e.storage
+            .get(&format!("subtitles/7/{b_id}.ass"))
+            .await
+            .is_ok()
+    );
+    assert!(
+        e.storage
+            .get(&format!("subtitles/7/{b_id}.vtt"))
+            .await
+            .is_ok()
+    );
+
+    // Refusals: no cue, over the limit, a bad language, an empty label. Nothing is stored or logged.
+    let logged_before = e.logged("cinema.subtitle.upload");
+    for (path, body, needle) in [
+        (
+            "/admin/cinema/assets/7/subtitles".to_owned(),
+            b"just some words".to_vec(),
+            "no readable cues",
+        ),
+        (
+            "/admin/cinema/assets/7/subtitles".to_owned(),
+            vec![b'a'; sr_media::subtitles::MAX_SUBTITLE_BYTES + 1],
+            "larger than",
+        ),
+        (
+            "/admin/cinema/assets/7/subtitles?language=not_a_tag".to_owned(),
+            SRT.as_bytes().to_vec(),
+            "BCP 47",
+        ),
+        (
+            format!("/admin/cinema/assets/7/subtitles?label={}", "x".repeat(81)),
+            SRT.as_bytes().to_vec(),
+            "1 to 80",
+        ),
+    ] {
+        let (s, b) = e.call_bytes(PUBLISHER, Method::POST, &path, body).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{path}: {b}");
+        assert!(
+            b["message"].as_str().unwrap_or("").contains(needle),
+            "{path}: {b}"
+        );
+    }
+    assert_eq!(e.logged("cinema.subtitle.upload"), logged_before);
+    assert_eq!(
+        e.storage.list("subtitles/7/").await.unwrap().len(),
+        3,
+        "only the two accepted files (.vtt twice, .ass once) are stored"
+    );
+
+    // Edits: one default at a time, the label is validated, a hidden flag is kept.
+    let url = |id: &str| format!("/admin/cinema/assets/7/subtitles/{id}");
+    let (s, t) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PATCH,
+            &url(&a_id),
+            Some(json!({ "is_default": true, "forced": true })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{t}");
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PATCH,
+            &url(&b_id),
+            Some(json!({ "is_default": true, "hidden": true, "language": "EN-gb" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK);
+    let (_, b) = list_tracks(&e).await;
+    let tracks = b["tracks"].as_array().unwrap();
+    let find = |id: &str| tracks.iter().find(|t| t["id"] == id).unwrap();
+    assert_eq!(
+        find(&a_id)["is_default"],
+        false,
+        "the other default is cleared"
+    );
+    assert_eq!(find(&a_id)["forced"], true);
+    assert_eq!(find(&b_id)["is_default"], true);
+    assert_eq!(find(&b_id)["hidden"], true);
+    assert_eq!(find(&b_id)["language"], "en-GB");
+    for bad in [json!({ "label": "   " }), json!({ "language": "x" })] {
+        let (s, _) = e
+            .call(Some(PUBLISHER), Method::PATCH, &url(&a_id), Some(bad))
+            .await;
+        assert_eq!(s, StatusCode::BAD_REQUEST);
+    }
+    assert_eq!(e.logged("cinema.subtitle.update"), 2);
+
+    // A track of another asset is 404 under this asset's path, for an edit and for a delete.
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::PATCH,
+            &format!("/admin/cinema/assets/8/subtitles/{a_id}"),
+            Some(json!({ "label": "x" })),
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    let (s, _) = e
+        .call(
+            Some(PUBLISHER),
+            Method::DELETE,
+            &format!("/admin/cinema/assets/8/subtitles/{a_id}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    assert_eq!(e.logged("cinema.subtitle.update"), 2);
+    assert_eq!(e.logged("cinema.subtitle.delete"), 0);
+
+    // An embedded track is hidden, never deleted.
+    let embedded = StoredSubtitle {
+        track: SubtitleTrack {
+            id: 555,
+            label: "English".into(),
+            language: Some("en".into()),
+            forced: false,
+            hearing_impaired: false,
+            is_default: false,
+            hidden: false,
+            source: SubtitleSource::Embedded,
+            styled: false,
+        },
+        vtt_path: "subs/00-eng.vtt".into(),
+        ass_path: None,
+    };
+    e.stub.subs.lock().unwrap().push((7, embedded));
+    let (s, b) = e
+        .call(Some(PUBLISHER), Method::DELETE, &url("555"), None)
+        .await;
+    assert_eq!(s, StatusCode::BAD_REQUEST, "{b}");
+    assert!(b["message"].as_str().unwrap().contains("hide it instead"));
+    assert_eq!(e.logged("cinema.subtitle.delete"), 0);
+
+    // Deleting an uploaded track removes its row and its objects.
+    let (s, _) = e
+        .call(Some(PUBLISHER), Method::DELETE, &url(&b_id), None)
+        .await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert!(
+        e.storage
+            .get(&format!("subtitles/7/{b_id}.vtt"))
+            .await
+            .is_err()
+    );
+    assert!(
+        e.storage
+            .get(&format!("subtitles/7/{b_id}.ass"))
+            .await
+            .is_err()
+    );
+    assert!(
+        e.storage
+            .get(&format!("subtitles/7/{a_id}.vtt"))
+            .await
+            .is_ok()
+    );
+    assert_eq!(e.logged("cinema.subtitle.delete"), 1);
+
+    // A video whose storage is not the instance bucket does not take uploads (409 with the reason).
+    let mut other = listed_asset(7);
+    other.mount_id = 4;
+    *e.stub.one_asset.lock().unwrap() = Some(other);
+    let (s, b) = e
+        .call_bytes(
+            PUBLISHER,
+            Method::POST,
+            "/admin/cinema/assets/7/subtitles",
+            SRT.as_bytes().to_vec(),
+        )
+        .await;
+    assert_eq!(s, StatusCode::CONFLICT, "{b}");
+    assert!(
+        b["message"]
+            .as_str()
+            .unwrap()
+            .contains("does not take subtitle uploads")
+    );
 }

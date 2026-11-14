@@ -21,6 +21,7 @@ use axum::{Json, extract::Path};
 use serde::Serialize;
 use sr_cinema::model::Marker;
 use sr_core::{Clock, ErrorCode};
+use sr_media::assets::{UPLOAD_REL_PREFIX, upload_object_key};
 use sr_media::playback::{PlaybackAsset, PlaybackSource};
 use sr_media::playlist::{self, PlaylistConfig, UrlSigner};
 use std::sync::Arc;
@@ -316,6 +317,21 @@ impl PlaylistRenderer for PlaybackDeps {
 
     async fn storage_key(&self, asset_id: i64, rel: &str) -> Option<String> {
         let asset = self.source.asset(asset_id).await.ok().flatten()?;
+        // The files of a staff-uploaded subtitle (D-685) are not under the transcode output prefix, which a
+        // re-transcode replaces: they live under `subtitles/{asset}/`. Only the files of a track the playback
+        // answer lists (a hidden track is not) are mapped; any other `u/...` path names nothing.
+        if rel.starts_with(UPLOAD_REL_PREFIX) {
+            let listed = asset.media.subtitles.iter().any(|s| s.vtt_path == rel)
+                || asset
+                    .subtitle_extras
+                    .iter()
+                    .any(|e| e.ass_path.as_deref() == Some(rel));
+            return Some(
+                upload_object_key(asset_id, rel)
+                    .filter(|_| listed)
+                    .unwrap_or_else(|| "subtitles/.none".to_owned()),
+            );
+        }
         Some(format!("{}/{}", asset.storage_prefix, rel))
     }
 }

@@ -11,6 +11,7 @@
 
 mod downloads;
 mod staff;
+mod subtitles;
 mod transcode;
 
 #[cfg(test)]
@@ -184,6 +185,17 @@ pub fn router() -> Router<AppState> {
             "/admin/cinema/assets/{asset_id}/original-downloads",
             put(staff::original_downloads),
         )
+        // Staff: subtitles (D-685).
+        .route(
+            "/admin/cinema/assets/{asset_id}/subtitles",
+            get(subtitles::list).post(subtitles::upload).layer(
+                axum::extract::DefaultBodyLimit::max(subtitles::UPLOAD_BODY_LIMIT),
+            ),
+        )
+        .route(
+            "/admin/cinema/assets/{asset_id}/subtitles/{track_id}",
+            axum::routing::patch(subtitles::update).delete(subtitles::delete),
+        )
         // Staff: transcoding.
         .route(
             "/admin/transcode/tokens",
@@ -232,6 +244,10 @@ pub fn router() -> Router<AppState> {
         staff::transcode,
         staff::link,
         staff::original_downloads,
+        subtitles::list,
+        subtitles::upload,
+        subtitles::update,
+        subtitles::delete,
         transcode::tokens,
         transcode::create_token,
         transcode::revoke_token,
@@ -254,6 +270,10 @@ pub fn router() -> Router<AppState> {
         staff::AssetList,
         staff::LinkBody,
         staff::OriginalDownloadsBody,
+        subtitles::SubtitleList,
+        subtitles::PatchBody,
+        sr_media::assets::SubtitleTrack,
+        sr_media::assets::SubtitleSource,
         transcode::CreateTokenBody,
         transcode::DrainBody,
         transcode::RetranscodeBody,

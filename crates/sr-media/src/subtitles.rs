@@ -323,6 +323,235 @@ fn srt_line(
     }
 }
 
+// ---- WebVTT ---------------------------------------------------------------------------------
+
+/// The container formats a staff upload may be in (read from the content, never from the name).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubtitleFormat {
+    SubRip,
+    WebVtt,
+    Ass,
+}
+
+/// Which format `input` is, from its content: a `WEBVTT` header line is WebVTT, a `[Script Info]` or
+/// `[Events]` section is ASS/SSA, a line with `-->` is SubRip. `None` for anything else.
+pub fn sniff_format(input: &[u8]) -> Option<SubtitleFormat> {
+    let text = decode(input).ok()?;
+    let text = text.trim_start_matches('\u{feff}');
+    let first = text.lines().next().unwrap_or("");
+    if let Some(rest) = first.strip_prefix("WEBVTT")
+        && (rest.is_empty() || rest.starts_with([' ', '\t']))
+    {
+        return Some(SubtitleFormat::WebVtt);
+    }
+    let head: String = text
+        .chars()
+        .take(64 * 1024)
+        .collect::<String>()
+        .to_lowercase();
+    if head.lines().any(|l| {
+        let l = l.trim();
+        l == "[script info]" || l == "[events]" || l == "[v4+ styles]" || l == "[v4 styles]"
+    }) {
+        return Some(SubtitleFormat::Ass);
+    }
+    text.lines()
+        .take(200)
+        .any(|l| l.contains("-->"))
+        .then_some(SubtitleFormat::SubRip)
+}
+
+/// A staff upload turned into what the player gets: the plain WebVTT (always written by this module, never
+/// the uploaded bytes) and, for ASS/SSA, the file kept as sent for styled rendering.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConvertedUpload {
+    pub format: SubtitleFormat,
+    pub vtt: String,
+    pub ass: Option<Vec<u8>>,
+}
+
+/// Convert an uploaded subtitle file of any supported format. Errors are the converters': `TooLarge`,
+/// `TooManyCues`, and `NoCues` for a file with no readable cue (an unknown format included).
+pub fn convert_upload(input: &[u8]) -> Result<ConvertedUpload, SubtitleError> {
+    if input.len() > MAX_SUBTITLE_BYTES {
+        return Err(SubtitleError::TooLarge);
+    }
+    let format = sniff_format(input).ok_or(SubtitleError::NoCues)?;
+    let (vtt, ass) = match format {
+        SubtitleFormat::SubRip => (srt_to_webvtt(input)?, None),
+        SubtitleFormat::WebVtt => (vtt_to_webvtt(input)?, None),
+        SubtitleFormat::Ass => (ass_to_webvtt(input)?, Some(input.to_vec())),
+    };
+    Ok(ConvertedUpload { format, vtt, ass })
+}
+
+/// Normalise a WebVTT file: the header, `STYLE`, `REGION` and `NOTE` blocks are dropped, cue identifiers are
+/// dropped, the cue settings that name a position are kept when they are well formed, and the text is written
+/// again with the escaping of the SubRip path (`<b>`, `<i>`, `<u>` kept, every other tag dropped with its text
+/// kept, `&`, `<` and `>` escaped, so `-->` can never appear inside a cue). The result is never the uploaded
+/// text. Malformed blocks are skipped; at least one cue must survive.
+pub fn vtt_to_webvtt(input: &[u8]) -> Result<String, SubtitleError> {
+    let text = decode(input)?;
+    let text = text.trim_start_matches('\u{feff}');
+    let mut cues = Vec::new();
+    let mut block: Vec<&str> = Vec::new();
+    let mut first = true;
+    let flush = |block: &mut Vec<&str>, cues: &mut Vec<Cue>, first: &mut bool| {
+        if *first {
+            *first = false;
+            // The header block: `WEBVTT` and its metadata lines. A file that runs a cue straight on
+            // after the header line (no blank line) is read anyway.
+            if block.first().is_some_and(|l| l.starts_with("WEBVTT")) {
+                block.remove(0);
+            }
+        }
+        if let Some(cue) = parse_vtt_block(block) {
+            cues.push(cue);
+        }
+        block.clear();
+    };
+    for line in text.split('\n') {
+        if line.trim().is_empty() {
+            flush(&mut block, &mut cues, &mut first);
+        } else {
+            block.push(line);
+        }
+        if cues.len() > MAX_CUES {
+            return Err(SubtitleError::TooManyCues);
+        }
+    }
+    flush(&mut block, &mut cues, &mut first);
+    finish(cues)
+}
+
+/// A block whose first word is `word` (alone or followed by a space or tab).
+fn block_starts_with(lines: &[&str], word: &str) -> bool {
+    lines
+        .first()
+        .and_then(|l| l.strip_prefix(word))
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with([' ', '\t']))
+}
+
+fn parse_vtt_block(lines: &[&str]) -> Option<Cue> {
+    if lines.is_empty()
+        || block_starts_with(lines, "NOTE")
+        || block_starts_with(lines, "STYLE")
+        || block_starts_with(lines, "REGION")
+    {
+        return None;
+    }
+    let idx = lines.iter().take(2).position(|l| l.contains("-->"))?;
+    let (a, rest) = lines[idx].split_once("-->")?;
+    let start_ms = parse_timestamp(a)?;
+    let mut tokens = rest.split_whitespace();
+    let end_ms = parse_timestamp(tokens.next()?)?;
+    let settings: Vec<&str> = tokens.filter(|t| vtt_setting_ok(t)).collect();
+    let mut em = StyleEmitter::default();
+    let mut style = (false, false, false);
+    for (n, line) in lines[idx + 1..].iter().enumerate() {
+        if n > 0 {
+            em.text('\n');
+        }
+        vtt_line(line, &mut em, &mut style);
+    }
+    Some(Cue {
+        start_ms,
+        end_ms,
+        settings: settings.join(" "),
+        text: em.finish(),
+    })
+}
+
+/// A cue setting kept as written: `vertical`, `line`, `position`, `size` and `align` with a well formed value.
+/// `region` is dropped with the `REGION` blocks it names.
+fn vtt_setting_ok(token: &str) -> bool {
+    let Some((key, value)) = token.split_once(':') else {
+        return false;
+    };
+    let percent = |v: &str| {
+        v.strip_suffix('%')
+            .and_then(|n| n.parse::<f32>().ok())
+            .is_some_and(|n| (0.0..=100.0).contains(&n))
+    };
+    let (main, align) = match value.split_once(',') {
+        Some((m, a)) => (m, Some(a)),
+        None => (value, None),
+    };
+    match key {
+        "vertical" => align.is_none() && matches!(value, "rl" | "lr"),
+        "line" => {
+            let number_ok = main.parse::<i32>().is_ok_and(|n| n.unsigned_abs() <= 1000);
+            (percent(main) || number_ok)
+                && align.is_none_or(|a| matches!(a, "start" | "center" | "end"))
+        }
+        "position" => {
+            percent(main)
+                && align.is_none_or(|a| matches!(a, "line-left" | "center" | "line-right"))
+        }
+        "size" => align.is_none() && percent(main),
+        "align" => {
+            align.is_none()
+                && matches!(
+                    value,
+                    "start" | "center" | "middle" | "end" | "left" | "right"
+                )
+        }
+        _ => false,
+    }
+}
+
+fn vtt_line(line: &str, em: &mut StyleEmitter, style: &mut (bool, bool, bool)) {
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '<'
+            && let Some(len) = chars[i + 1..].iter().take(64).position(|&x| x == '>')
+        {
+            let inner: String = chars[i + 1..i + 1 + len].iter().collect();
+            let closing = inner.starts_with('/');
+            let name = inner
+                .trim_start_matches('/')
+                .split(|c: char| c.is_whitespace() || c == '.')
+                .next()
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            // A tag has a name (`b`, `c`, `v`, `lang`, `ruby`...) or is a timestamp tag (`<00:01.000>`).
+            let timestamp = !inner.is_empty()
+                && inner
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == ':' || c == '.');
+            if timestamp || name.chars().next().is_some_and(|f| f.is_ascii_alphabetic()) {
+                match name.as_str() {
+                    "b" => style.0 = !closing,
+                    "i" => style.1 = !closing,
+                    "u" => style.2 = !closing,
+                    _ => {}
+                }
+                em.set(*style);
+                i += len + 2;
+                continue;
+            }
+        }
+        if c == '&' {
+            let rest: String = chars[i..].iter().take(8).collect();
+            if let Some(end) = rest.find(';')
+                && matches!(
+                    &rest[..=end],
+                    "&amp;" | "&lt;" | "&gt;" | "&nbsp;" | "&lrm;" | "&rlm;"
+                )
+            {
+                em.out.push_str(&rest[..=end]);
+                i += end + 1;
+                continue;
+            }
+        }
+        em.set(*style);
+        em.text(c);
+        i += 1;
+    }
+}
+
 // ---- ASS / SSA ----------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy)]
@@ -895,5 +1124,140 @@ mod tests {
             vtt.ends_with("00:00:10.000 --> 00:00:20.021\nsheet-001.jpg#xywh=160,0,160,90\n\n")
         );
         assert_eq!(vtt.matches("-->").count(), 2);
+    }
+
+    // ---- WebVTT and the upload path ----
+
+    #[test]
+    fn vtt_basic_drops_header_style_region_note_and_identifiers() {
+        let vtt = "\u{feff}WEBVTT - a title\nKind: captions\n\nSTYLE\n::cue { color: red }\n\n\
+                   REGION\nid:fred\nwidth:40%\n\nNOTE this is a comment\nover two lines\n\n\
+                   intro\n00:00:01.000 --> 00:00:02.500 line:0 position:10%,line-left align:start region:fred\n\
+                   Hello <c.yellow><v Bob>world</v></c> <00:00:02.000>again\n\n\
+                   00:00:03.000 --> 00:00:04.000 size:200% line:abc vertical:xx\n<i>Slanted</i> &amp; <b>bold</b>\n\n\
+                   garbage block\n";
+        let out = vtt_to_webvtt(vtt.as_bytes()).unwrap();
+        assert!(out.starts_with("WEBVTT\n\n"));
+        assert!(out.contains(
+            "00:00:01.000 --> 00:00:02.500 line:0 position:10%,line-left align:start\nHello world again\n"
+        ));
+        assert!(out.contains("00:00:03.000 --> 00:00:04.000\n<i>Slanted</i> &amp; <b>bold</b>\n"));
+        for gone in [
+            "STYLE", "REGION", "NOTE", "comment", "Kind:", "a title", "intro", "region:", "<c",
+            "<v", "color",
+        ] {
+            assert!(!out.contains(gone), "{gone} survived in {out}");
+        }
+        assert_eq!(out.matches("-->").count(), 2);
+    }
+
+    #[test]
+    fn vtt_text_is_escaped_whatever_the_file_says() {
+        let vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n\
+                   <script>alert(1)</script> a --> b <img src=x onerror=y> 1 < 2 > 0 <3 &copy; &#60;\n";
+        let out = vtt_to_webvtt(vtt.as_bytes()).unwrap();
+        assert!(!out.contains("<script"), "{out}");
+        assert!(!out.contains("<img"), "{out}");
+        assert!(!out.contains("onerror=y>"), "{out}");
+        // The arrow in the text cannot end the cue, and every angle bracket of text is an entity.
+        assert_eq!(out.matches("-->").count(), 1, "{out}");
+        let text = out.split_once("\n\n").unwrap().1;
+        let body = text.lines().nth(1).unwrap();
+        assert!(body.contains("a --&gt; b"), "{body}");
+        assert!(
+            body.contains("1 &lt; 2 &gt; 0 &lt;3 &amp;copy; &amp;#60;"),
+            "{body}"
+        );
+        assert!(!body.contains('<'), "{body}");
+    }
+
+    #[test]
+    fn vtt_bad_bytes_bom_utf16_and_crlf() {
+        // A 0xFF byte inside UTF-8 text is replaced, not an error, and never reaches the output raw.
+        let mut bad = b"WEBVTT\r\n\r\n00:00:01.000 --> 00:00:02.000\r\nA".to_vec();
+        bad.push(0xFF);
+        bad.extend_from_slice(b"B\r\n");
+        let out = vtt_to_webvtt(&bad).unwrap();
+        assert!(out.contains("A\u{fffd}B"), "{out:?}");
+        assert!(!out.contains('\r'));
+        // UTF-16 with a BOM.
+        let s = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n";
+        let mut bytes = vec![0xFF, 0xFE];
+        for u in s.encode_utf16() {
+            bytes.extend_from_slice(&u.to_le_bytes());
+        }
+        assert!(vtt_to_webvtt(&bytes).unwrap().contains("\nHi\n"));
+        // A cue run straight on after the header line is read.
+        let tight = "WEBVTT\n00:00:01.000 --> 00:00:02.000\nTight\n";
+        assert!(vtt_to_webvtt(tight.as_bytes()).unwrap().contains("Tight"));
+        // Short timestamps (no hours), backwards and empty cues, sorted output.
+        let odd = "WEBVTT\n\n00:05.000 --> 00:06.000\nB\n\n00:01.000 --> 00:02.000\nA\n\n\
+                   00:03.000 --> 00:03.000\nzero\n\n00:07.000 --> 00:08.000\n \n";
+        let out = vtt_to_webvtt(odd.as_bytes()).unwrap();
+        assert!(out.find("\nA\n").unwrap() < out.find("\nB\n").unwrap());
+        assert_eq!(out.matches("-->").count(), 2);
+    }
+
+    #[test]
+    fn vtt_errors_and_the_cue_cap() {
+        assert_eq!(
+            vtt_to_webvtt(b"WEBVTT\n\nNOTE only a note\n"),
+            Err(SubtitleError::NoCues)
+        );
+        assert_eq!(vtt_to_webvtt(b""), Err(SubtitleError::NoCues));
+        assert_eq!(
+            vtt_to_webvtt(&vec![b'a'; MAX_SUBTITLE_BYTES + 1]),
+            Err(SubtitleError::TooLarge)
+        );
+        let mut many = String::from("WEBVTT\n\n");
+        for _ in 0..=MAX_CUES {
+            many.push_str("00:00:01.000 --> 00:00:02.000\nx\n\n");
+        }
+        assert_eq!(
+            vtt_to_webvtt(many.as_bytes()),
+            Err(SubtitleError::TooManyCues)
+        );
+    }
+
+    #[test]
+    fn the_format_is_read_from_the_content() {
+        let srt = "1\n00:00:01,000 --> 00:00:02,000\nHi\n";
+        let vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHi\n";
+        let ass_file = ass("Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Hi");
+        assert_eq!(sniff_format(srt.as_bytes()), Some(SubtitleFormat::SubRip));
+        assert_eq!(sniff_format(vtt.as_bytes()), Some(SubtitleFormat::WebVtt));
+        assert_eq!(
+            sniff_format(format!("\u{feff}{vtt}").as_bytes()),
+            Some(SubtitleFormat::WebVtt)
+        );
+        assert_eq!(sniff_format(ass_file.as_bytes()), Some(SubtitleFormat::Ass));
+        assert_eq!(sniff_format(b"just words"), None);
+        assert_eq!(sniff_format(b"WEBVTTX\n\nnope"), None);
+        // Each converts, whatever the file was called; only ASS keeps the file.
+        let a = convert_upload(srt.as_bytes()).unwrap();
+        assert_eq!((a.format, a.ass), (SubtitleFormat::SubRip, None));
+        let b = convert_upload(vtt.as_bytes()).unwrap();
+        assert_eq!((b.format, b.ass), (SubtitleFormat::WebVtt, None));
+        let c = convert_upload(ass_file.as_bytes()).unwrap();
+        assert_eq!(c.format, SubtitleFormat::Ass);
+        assert_eq!(c.ass.as_deref(), Some(ass_file.as_bytes()));
+        assert!(c.vtt.contains("Hi"));
+    }
+
+    #[test]
+    fn a_file_with_no_cue_or_over_the_limit_is_refused() {
+        assert_eq!(
+            convert_upload(b"nothing to see"),
+            Err(SubtitleError::NoCues)
+        );
+        assert_eq!(convert_upload(b"WEBVTT\n\n"), Err(SubtitleError::NoCues));
+        assert_eq!(
+            convert_upload(b"1\n00:00:01,000 --> 00:00:01,000\nzero\n"),
+            Err(SubtitleError::NoCues)
+        );
+        assert_eq!(
+            convert_upload(&vec![b'a'; MAX_SUBTITLE_BYTES + 1]),
+            Err(SubtitleError::TooLarge)
+        );
     }
 }

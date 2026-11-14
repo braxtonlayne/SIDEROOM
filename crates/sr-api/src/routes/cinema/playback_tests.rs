@@ -296,3 +296,77 @@ async fn the_cdn_renders_playlists_and_serves_segments_from_storage() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+/// D-685: a staff-uploaded subtitle is not under the transcode output prefix (a re-transcode replaces that
+/// one); the CDN maps its `u/...` path to `subtitles/{asset}/...`. Only a track the playback answer lists is
+/// served that way, so a hidden one (which the source leaves out) names nothing.
+#[tokio::test]
+async fn an_uploaded_subtitle_is_served_from_its_own_prefix_and_an_unlisted_one_is_not() {
+    use sr_media::playback::SubtitleExtra;
+    use sr_media::playlist::SubtitleVariant;
+    let e = env().await;
+    let mut a = sr_media::playback::sample_asset(777);
+    a.storage_prefix = "transcode/9/1".into();
+    a.media.subtitles.push(SubtitleVariant {
+        name: "Deutsch".into(),
+        language_tag: Some("de".into()),
+        forced: false,
+        is_default: false,
+        vtt_path: "u/55.vtt".into(),
+        playlist_path: "u/55.m3u8".into(),
+        duration_secs: 18.0,
+    });
+    a.subtitle_extras.push(SubtitleExtra {
+        vtt_path: "u/55.vtt".into(),
+        id: "55".into(),
+        ass_path: Some("u/55.ass".into()),
+    });
+    e.source.insert(a);
+
+    // The playback answer lists the uploaded track with its own stable id and signed urls.
+    let (s, b) = playback(&e, MEMBER, "777").await;
+    assert_eq!(s, StatusCode::OK, "{b}");
+    let track = b["subtitles"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == "55")
+        .expect("the uploaded track is listed");
+    assert_eq!(track["language"], "de");
+    assert!(
+        track["vtt_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("/cdn/hls/777/u/55.vtt?ex=")
+    );
+    assert_signed(track["vtt_url"].as_str().unwrap());
+    assert!(track["ass_url"].as_str().unwrap().contains("/u/55.ass?"));
+
+    let storage = Arc::new(ObjectStoreStorage::in_memory());
+    for (key, body) in [
+        ("subtitles/777/55.vtt", "WEBVTT\n\nuploaded"),
+        ("subtitles/777/55.ass", "[Script Info]\n"),
+        // A hidden track's file still sits in storage, and so does something under the transcode prefix.
+        ("subtitles/777/56.vtt", "WEBVTT\n\nhidden"),
+        ("transcode/9/1/u/55.vtt", "WEBVTT\n\nwrong place"),
+    ] {
+        storage.put(key, Bytes::from(body)).await.unwrap();
+    }
+    let deps = cdn::CdnDeps::new(storage, signer()).with_playlists(e.playback.clone());
+    let app = cdn::layered(AppState::builder().extension(Arc::new(deps)).build());
+
+    let (s, ct, body) = cdn_get(&app, "/cdn/hls/777/u/55.vtt").await;
+    assert_eq!(
+        (s, ct.as_str(), body.as_str()),
+        (StatusCode::OK, "text/vtt", "WEBVTT\n\nuploaded")
+    );
+    let (s, _, body) = cdn_get(&app, "/cdn/hls/777/u/55.ass").await;
+    assert_eq!((s, body.as_str()), (StatusCode::OK, "[Script Info]\n"));
+    // Not listed (hidden, deleted, never existed): 404, even though an object is there.
+    let (s, _, _) = cdn_get(&app, "/cdn/hls/777/u/56.vtt").await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
+    // The subtitle playlist of the uploaded track is rendered with a signed url to the same path.
+    let (s, _, playlist) = cdn_get(&app, "/cdn/hls/777/u/55.m3u8").await;
+    assert_eq!(s, StatusCode::OK, "{playlist}");
+    assert!(playlist.contains("/cdn/hls/777/u/55.vtt?ex="), "{playlist}");
+}

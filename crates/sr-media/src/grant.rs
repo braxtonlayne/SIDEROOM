@@ -207,6 +207,7 @@ mod tests {
             },
             sprite: None,
             ass_paths: vec![("subs/00-eng.vtt".into(), "subs/00-eng.ass".into())],
+            subtitle_ids: vec![],
         }
     }
 
