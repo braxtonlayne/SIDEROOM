@@ -1,8 +1,9 @@
 name: Voice soak
 
 # RDY-VOX-002: N Chromium contexts in one E2EE voice channel for D minutes, each muting, unmuting, turning the
-# camera on and off and reconnecting once (e2e/tests/voice-soak.spec.ts). Dispatch only: it competes for CPU and
-# its pass criterion is "no failure", not latency. The defaults are the wave-22 gate (ten members, ten minutes);
+# camera on and off and reconnecting once (e2e/tests/voice-soak.spec.ts); with the music input one member also plays
+# a stereo tone. Dispatch only: it competes for CPU and its pass criterion is "no failure", not latency. The
+# defaults are the wave-22 gate (ten members, ten minutes);
 # the phase 2 gate (ten people, two hours) is this workflow with minutes=120. Nothing here pushes or commits.
 on:
   workflow_dispatch:
@@ -22,6 +23,10 @@ on:
       camera:
         description: Turn each member's camera on and off once (the first thing to drop if the runner struggles)
         default: true
+        type: boolean
+      music:
+        description: One member plays a generated stereo tone as its music track; the others must receive it as stereo Opus (MUS-JB-001)
+        default: false
         type: boolean
 
 concurrency:
@@ -53,6 +58,7 @@ jobs:
       SOAK_MINUTES: ${{ inputs.minutes }}
       SOAK_MAX_DROP_RATIO: ${{ inputs.max_drop_ratio }}
       SOAK_CAMERA: ${{ inputs.camera && '1' || '0' }}
+      SOAK_MUSIC: ${{ inputs.music && '1' || '0' }}
       # The target is right (the embedded SFU logs as sr_voice::server / sr_voice::core). Run 40226525398 showed
       # no sr_voice lines only because the SFU logged nothing on joins, resumes or drops; it now does (debug), and
       # a participant whose drop clears its voice state is logged at info ("voice participant lost"). The
@@ -111,7 +117,7 @@ jobs:
       # to 45 s late while the server never blocked a write, i.e. ten pages of the Vite dev server (React's
       # development build, unbundled modules) starved the runner's CPU. The soak runs the production build, served by
       # sr-server itself (it replaced `vite preview`, which has no session gate), with the production CSP.
-      - name: Soak (${{ inputs.count }} members, ${{ inputs.minutes }} minutes)
+      - name: Soak (${{ inputs.count }} members, ${{ inputs.minutes }} minutes${{ inputs.music && ', with music' || '' }})
         run: pnpm --filter @sideroom/e2e exec playwright test --project=chromium tests/voice-soak.spec.ts --retries=0 --reporter=list,html
         env:
           CI: "true"

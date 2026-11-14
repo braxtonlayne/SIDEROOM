@@ -2,8 +2,10 @@ import type { Page } from '@playwright/test';
 import { expect, registerUser, test, type SeededUser } from '../support/fixtures';
 import {
   inbound,
+  inboundAudioStreams,
   joinVoice,
   mediaContext,
+  playTone,
   trackPeerConnections,
   voiceServer,
 } from '../support/voice';
@@ -21,10 +23,16 @@ import {
  *   - no SFU restart: peers that did NOT reconnect never reopened their voice socket (a restarted SFU would drop
  *     every member), and a reconnecting member opens at most two extra sockets. The workflow additionally checks
  *     that the sr-server process is the one it started and has not logged a panic;
- *   - a tone is heard at the end: inbound audio bytes and decrypted frames both grow over a closing window.
+ *   - a tone is heard at the end: inbound audio bytes and decrypted frames both grow over a closing window;
+ *   - with SOAK_MUSIC=1 (MUS-JB-001, D-720): the first member plays the generated stereo tone of voice-live.spec.ts
+ *     as its music track from before the churn starts, and at the end every other member holds an inbound audio
+ *     stream that was not there before the music, negotiated as Opus with two channels, whose bytes grew over the
+ *     closing window. The music member takes part in the churn like everyone (the engine keeps its peer connection
+ *     and its music sender across a socket resume, so the track is expected to survive the reconnect).
  *
  * Inputs (environment; voice-soak.yml maps its dispatch inputs to them): SOAK_COUNT, SOAK_MINUTES (may be
- * fractional), SOAK_MAX_DROP_RATIO, SOAK_CAMERA ("0" skips the camera on/off step). Owner (2026-10-24): the soak
+ * fractional), SOAK_MAX_DROP_RATIO, SOAK_CAMERA ("0" skips the camera on/off step), SOAK_MUSIC ("1" adds the music step; off by default: with it off no
+ * music step and no music assertion run). Owner (2026-10-24): the soak
  * stays on the standard runner, and the camera step is the first thing to drop if the runner struggles. Needs the voice stack with E2EE: SR_E2E_VOICE=1 SR_E2E_SOAK=1 against an
  * sr-server with SR_VOICE__ENABLED=true. A summary is attached to the report and printed.
  */
@@ -34,6 +42,8 @@ const MINUTES = Math.max(0.25, Number(process.env.SOAK_MINUTES ?? 10));
 const MAX_DROP = Number(process.env.SOAK_MAX_DROP_RATIO ?? 0.02);
 /** The first thing to drop on a struggling runner (owner, 2026-10-24): SOAK_CAMERA=0. */
 const CAMERA = process.env.SOAK_CAMERA !== '0';
+/** MUS-JB-001 (D-720): "1" has the first member play the generated stereo tone for the whole soak. Off by default. */
+const MUSIC = process.env.SOAK_MUSIC === '1';
 const DURATION_MS = MINUTES * 60_000;
 const TAIL_MS = Math.min(20_000, DURATION_MS * 0.25); // quiet steady state at the end
 
@@ -311,7 +321,7 @@ test.describe('Voice soak', () => {
   );
   test.setTimeout(DURATION_MS + COUNT * 120_000 + 10 * 60_000);
 
-  test(`${COUNT} members, ${MINUTES} min: mute, ${CAMERA ? 'camera, ' : ''}one reconnect each, E2EE on`, async ({
+  test(`${COUNT} members, ${MINUTES} min: mute, ${CAMERA ? 'camera, ' : ''}one reconnect each${MUSIC ? ', one plays music' : ''}, E2EE on`, async ({
     browser,
     browserName,
     playwright,
@@ -380,6 +390,42 @@ test.describe('Voice soak', () => {
         await expect
           .poll(async () => (await snapshot(m.page)).status, { timeout: 60_000 })
           .toBe('secure');
+      }
+
+      // ---- Music (SOAK_MUSIC=1): member 0 (the server's owner, so it may speak and the channel allows music by
+      // default) plays the tone before the churn starts. The other members' audio streams are listed first (their
+      // microphones), so the music stream is the one that appears afterwards.
+      const audioBefore = new Map<number, Set<string>>();
+      if (MUSIC) {
+        for (const [i, m] of members.entries()) {
+          if (i === 0) continue;
+          await expect
+            .poll(
+              async () => {
+                const streams = await inboundAudioStreams(m.page);
+                return streams.length === COUNT - 1 && streams.every((s) => s.bytes > 0);
+              },
+              {
+                message: `member ${i} hears every microphone before the music starts`,
+                timeout: 60_000,
+              },
+            )
+            .toBe(true);
+          audioBefore.set(i, new Set((await inboundAudioStreams(m.page)).map((s) => s.id)));
+        }
+        await playTone(members[0]!.page);
+        for (const [i, m] of members.entries()) {
+          if (i === 0) continue;
+          await expect
+            .poll(
+              async () => {
+                const streams = await inboundAudioStreams(m.page);
+                return streams.length === COUNT && streams.every((s) => s.bytes > 0);
+              },
+              { message: `member ${i} receives the music stream`, timeout: 60_000 },
+            )
+            .toBe(true);
+        }
       }
 
       // ---- The soak. Everything is scheduled as fractions of the duration so a short run exercises the same code.
@@ -452,6 +498,9 @@ test.describe('Voice soak', () => {
       const before = await Promise.all(
         members.map(async (m) => ({ snap: await snapshot(m.page), inb: await inbound(m.page) })),
       );
+      const streamsBefore = MUSIC
+        ? await Promise.all(members.map((m) => inboundAudioStreams(m.page)))
+        : [];
       await at(1);
       watching = false;
       await watcher;
@@ -462,6 +511,31 @@ test.describe('Voice soak', () => {
         const now = await snapshot(m.page);
         const inb = await inbound(m.page);
         const b = before[i]!;
+        let music: unknown = null;
+        if (MUSIC && i !== 0) {
+          const first = audioBefore.get(i)!;
+          const was = new Map(streamsBefore[i]!.map((s) => [s.id, s.bytes]));
+          const after = await inboundAudioStreams(m.page);
+          const added = after.filter((s) => !first.has(s.id));
+          music = {
+            audioStreams: after.length,
+            newStreams: added.map((s) => ({
+              mimeType: s.mimeType,
+              channels: s.channels,
+              bytesInTail: s.bytes - (was.get(s.id) ?? 0),
+            })),
+          };
+          expect(after.length, `member ${i} still has the music stream`).toBeGreaterThanOrEqual(
+            COUNT,
+          );
+          expect(
+            added.some(
+              (s) =>
+                /opus/i.test(s.mimeType) && s.channels === 2 && s.bytes - (was.get(s.id) ?? 0) > 0,
+            ),
+            `member ${i} gets stereo Opus music that is still arriving at the end`,
+          ).toBe(true);
+        }
         const f = now.frames;
         const bf = b.snap.frames;
         const recvRatio =
@@ -477,6 +551,7 @@ test.describe('Voice soak', () => {
           sendDropRatio: Number(sendRatio.toFixed(4)),
           voiceSockets: now.voiceSockets,
           reconnected: reconnected.has(i),
+          ...(MUSIC ? { musicPlayer: i === 0, music } : {}),
           audioBytesInTail: inb.audioBytes - b.inb.audioBytes,
           decryptedInTail: f && bf ? f.decrypted - bf.decrypted : null,
           droppedInTail:
@@ -510,7 +585,7 @@ test.describe('Voice soak', () => {
         ).toBeGreaterThan(0);
       }
       const text = JSON.stringify(
-        { count: COUNT, minutes: MINUTES, maxDropRatio: MAX_DROP, failures, summary },
+        { count: COUNT, minutes: MINUTES, maxDropRatio: MAX_DROP, music: MUSIC, failures, summary },
         null,
         2,
       );

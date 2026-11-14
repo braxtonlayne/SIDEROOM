@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { STATE_FILE, type BootstrapState } from '../global-setup';
 import { createInvite } from '../support/cli';
 import { openTheDoor, tickConfirmations } from '../support/register';
+import { inboundAudioStreams, playTone } from '../support/voice';
 
 /**
  * Voice live test: two Chromium contexts join one server voice channel with Chromium's fake audio device and
@@ -71,33 +72,6 @@ async function trackPeerConnections(page: Page) {
         version: 1,
       }),
     );
-  });
-}
-
-/** The inbound audio streams of all of the page's peer connections: bytes, and the codec they negotiated. */
-async function inboundAudioStreams(
-  page: Page,
-): Promise<{ bytes: number; mimeType: string; channels: number }[]> {
-  return page.evaluate(async () => {
-    const w = window as unknown as { __pcs?: RTCPeerConnection[] };
-    const out: { bytes: number; mimeType: string; channels: number }[] = [];
-    for (const pc of w.__pcs ?? []) {
-      const report = await pc.getStats();
-      const codecs = new Map<string, Record<string, unknown>>();
-      report.forEach((s: Record<string, unknown>) => {
-        if (s.type === 'codec') codecs.set(String(s.id), s);
-      });
-      report.forEach((s: Record<string, unknown>) => {
-        if (s.type !== 'inbound-rtp' || s.kind !== 'audio') return;
-        const codec = codecs.get(String(s.codecId));
-        out.push({
-          bytes: Number(s.bytesReceived ?? 0),
-          mimeType: String(codec?.mimeType ?? ''),
-          channels: Number(codec?.channels ?? 0),
-        });
-      });
-    }
-    return out;
   });
 }
 
@@ -217,31 +191,7 @@ test.describe('Voice live', () => {
     // asserts on Chromium (the only engine this spec runs on) and records the others.
     await test.step('member A plays a stereo tone as music and B receives a stereo Opus track', async () => {
       const before = (await inboundAudioStreams(b)).length;
-      await a.evaluate(() => {
-        const engine = (
-          globalThis as unknown as {
-            __srVoiceEngine?: { publishMusic(stream: MediaStream, kbps?: number): void };
-          }
-        ).__srVoiceEngine;
-        if (!engine)
-          throw new Error('no voice engine handle: run the web build with VITE_SR_E2E=1');
-        const ctx = new AudioContext();
-        const left = ctx.createOscillator();
-        const right = ctx.createOscillator();
-        left.frequency.value = 440;
-        right.frequency.value = 660;
-        const merger = ctx.createChannelMerger(2);
-        left.connect(merger, 0, 0);
-        right.connect(merger, 0, 1);
-        const dest = ctx.createMediaStreamDestination();
-        dest.channelCount = 2;
-        dest.channelCountMode = 'explicit';
-        merger.connect(dest);
-        left.start();
-        right.start();
-        void ctx.resume();
-        engine.publishMusic(dest.stream, 256);
-      });
+      await playTone(a);
       // B gets one more audio stream (A's microphone was already there), carrying bytes, as stereo Opus.
       await expect
         .poll(
