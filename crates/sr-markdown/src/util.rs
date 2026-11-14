@@ -176,8 +176,57 @@ pub fn to_plain_text_with(nodes: &[Node], r: &dyn Resolver) -> String {
     s
 }
 
+/// A block (list, quote, heading, subtext, code block) stands on its own line (D-722).
+fn is_block(n: &Node) -> bool {
+    matches!(
+        n,
+        Node::List { .. }
+            | Node::Quote { .. }
+            | Node::Heading { .. }
+            | Node::Subtext { .. }
+            | Node::CodeBlock { .. }
+    )
+}
+
+/// Starts a new line unless the text is empty or already ends one.
+fn line_start(out: &mut String) {
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+}
+
+/// `YYYY-MM-DD HH:MM UTC` of a Unix time in seconds; `None` outside years 1970 to 9999 (D-731).
+fn utc_date(unix: i64) -> Option<String> {
+    if !(0..=253_402_300_799).contains(&unix) {
+        return None;
+    }
+    let days = unix.div_euclid(86_400);
+    let rem = unix.rem_euclid(86_400);
+    // Days since 1970-01-01 to a civil date (Howard Hinnant's algorithm).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    Some(format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02} UTC",
+        rem / 3600,
+        rem % 3600 / 60
+    ))
+}
+
 fn plain(nodes: &[Node], r: &dyn Resolver, out: &mut String) {
+    let mut after_block = false;
     for n in nodes {
+        // A block starts a new line, and so does whatever follows one (a line break is its own).
+        if is_block(n) || (after_block && !matches!(n, Node::LineBreak)) {
+            line_start(out);
+        }
+        after_block = is_block(n);
         match n {
             Node::Text { text } => out.push_str(text),
             Node::LineBreak => out.push('\n'),
@@ -226,7 +275,10 @@ fn plain(nodes: &[Node], r: &dyn Resolver, out: &mut String) {
                 out.push_str(name);
                 out.push(':');
             }
-            Node::Timestamp { unix, .. } => out.push_str(&unix.to_string()),
+            Node::Timestamp { unix, .. } => match utc_date(*unix) {
+                Some(date) => out.push_str(&date),
+                None => out.push_str(&unix.to_string()),
+            },
             Node::SlashCommand { name, .. } => {
                 out.push('/');
                 out.push_str(name);

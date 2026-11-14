@@ -71,7 +71,7 @@
           "type": "text"
         }
       ],
-      "plain": "a x b",
+      "plain": "a \nx\n b",
       "jumbo": false
     },
     {
@@ -494,7 +494,7 @@
           "type": "text"
         }
       ],
-      "plain": "before code after",
+      "plain": "before \ncode\n after",
       "jumbo": false
     },
     {
@@ -511,7 +511,7 @@
           "type": "text"
         }
       ],
-      "plain": "code trailing",
+      "plain": "code\n trailing",
       "jumbo": false
     },
     {
@@ -566,7 +566,7 @@
           "type": "code_block"
         }
       ],
-      "plain": "-   code\n  ",
+      "plain": "- \n  code\n  ",
       "jumbo": false
     },
     {
@@ -583,7 +583,7 @@
           "type": "code_block"
         }
       ],
-      "plain": "# x",
+      "plain": "# \nx",
       "jumbo": false
     },
     {
@@ -604,7 +604,7 @@
           "type": "text"
         }
       ],
-      "plain": "**x**",
+      "plain": "**\nx\n**",
       "jumbo": false
     },
     {
@@ -625,7 +625,7 @@
           "type": "text"
         }
       ],
-      "plain": "||x||",
+      "plain": "||\nx\n||",
       "jumbo": false
     },
     {
@@ -647,7 +647,7 @@
           "type": "code_block"
         }
       ],
-      "plain": "x y",
+      "plain": "x\n \ny",
       "jumbo": false
     },
     {

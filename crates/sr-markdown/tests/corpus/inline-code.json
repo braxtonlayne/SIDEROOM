@@ -533,7 +533,7 @@
           "type": "text"
         }
       ],
-      "plain": "`x`",
+      "plain": "`x\n`",
       "jumbo": false
     },
     {

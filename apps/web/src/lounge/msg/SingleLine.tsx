@@ -1,21 +1,48 @@
-import { type MdNode, type Resolvers } from '@sideroom/markdown-react';
+import {
+  formatTimestamp,
+  type MdNode,
+  type Resolvers,
+  type TimestampFormatOptions,
+} from '@sideroom/markdown-react';
 import { useT } from '../../i18n';
 import { parseMarkdown, useMarkdownReady } from '../markdown';
+
+const BLOCKS: ReadonlySet<string> = new Set(['list', 'quote', 'heading', 'subtext', 'code_block']);
+
+/** What the message renderer shows for a timestamp node (`Invalid Date` when it cannot). */
+function timeText(
+  unix: number,
+  style: Extract<MdNode, { type: 'timestamp' }>['style'],
+  time: TimestampFormatOptions | undefined,
+): string {
+  try {
+    return formatTimestamp(unix, style, time);
+  } catch {
+    return 'Invalid Date';
+  }
+}
 
 /**
  * One line of plain text for a message that is not shown whole: the Message Requests row (D-688) and the thread
  * row under a message (D-689). Mentions and emoji become text (`@name`, `:name:`), a link is its label, code is
- * its text, a spoiler is hidden, line breaks are spaces. It never renders markup, a link or an image: whatever
+ * its text, a spoiler is hidden, a timestamp is the date and time the message renderer shows, line breaks are spaces and a
+ * block (list, quote, heading, subtext, code block) stands apart from the text around it (D-722). It never renders markup, a link or an image: whatever
  * the text says, the result is a string React draws as text.
  */
 export function singleLineText(
   nodes: readonly MdNode[],
   resolvers: Resolvers | undefined,
   spoiler: string,
+  time?: TimestampFormatOptions,
 ): string {
   const out: string[] = [];
   const walk = (list: readonly MdNode[]) => {
+    let after = false;
     for (const n of list) {
+      // A block starts apart from what stands before it, and what follows a block starts apart from it.
+      const block = BLOCKS.has(n.type);
+      if (block || after) out.push(' ');
+      after = block;
       switch (n.type) {
         case 'text':
           out.push(n.text);
@@ -53,6 +80,9 @@ export function singleLineText(
           break;
         case 'spoiler':
           out.push(spoiler);
+          break;
+        case 'timestamp':
+          out.push(timeText(n.unix, n.style, time));
           break;
         case 'bold':
         case 'italic':
