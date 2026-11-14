@@ -107,11 +107,11 @@ impl MediaService {
             .put(&vtt_key, bytes::Bytes::from(converted.vtt.into_bytes()))
             .await
             .map_err(storage_err)?;
-        if let (Some(key), Some(ass)) = (&ass_key, converted.ass) {
-            if let Err(e) = self.storage.put(key, bytes::Bytes::from(ass)).await {
-                self.drop_objects(&[vtt_key]).await;
-                return Err(storage_err(e));
-            }
+        if let (Some(key), Some(ass)) = (&ass_key, converted.ass)
+            && let Err(e) = self.storage.put(key, bytes::Bytes::from(ass)).await
+        {
+            self.drop_objects(&[vtt_key]).await;
+            return Err(storage_err(e));
         }
         let added = self
             .repo

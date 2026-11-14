@@ -1529,7 +1529,7 @@ fn crc32(data: &[u8]) -> u32 {
 /// A w by h RGBA PNG with a half-transparent corner and a `tEXt` chunk (metadata that must not survive).
 fn png_with_text(w: u32, h: u32) -> Vec<u8> {
     let img = image::RgbaImage::from_fn(w, h, |x, y| {
-        if x < 4 && y < 4 {
+        if x < 200 && y < 200 {
             image::Rgba([200, 30, 30, 0])
         } else {
             image::Rgba([200, 30, 30, 255])
