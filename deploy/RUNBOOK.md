@@ -92,7 +92,7 @@ The full playbook is [Lost owner second factor](#lost-owner-second-factor). In s
 
 ## Staff alerts and the second-factor window
 
-The Staff Server's `#alerts`, `#new-members` and `#donations` channels are fed by the system user. A 15-minute health job raises an alert for a disk that is too full, a missing or stale backup, and each failed transcode job; the same problem is not raised again within a day. Tune it in Admin, Limits (group `alerts`), or `PATCH /admin/settings`:
+The Staff Server's `#alerts`, `#new-members` and `#donations` channels are fed by the system user. A 15-minute health job raises an alert for a disk that is too full, a missing or stale backup, and each failed transcode job; the same problem is not raised again within a day. Tune it in Admin > Limits & settings (group `alerts`), or `PATCH /admin/settings`:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -110,11 +110,11 @@ Sensitive admin actions (reading private content, changing an account's email, f
 
 ## Preflight and the alert-path test
 
-`sr-cli preflight` answers "is this box ready for the first invite?" (RDY-OPS-004). It checks the database and migrations, an object storage round trip (put, get, presign, multipart create and abort), the mail relay (connect only), the public URL and its headers (HSTS, CSP, `frame-ancestors`), TURN (credentials derive and an allocation succeeds over UDP), the Web Push key, free disk space, clock skew against the database, secret file modes (0600 or 0400) and, when on, Esplora and the voice node. It prints a table of PASS, WARN and FAIL rows with a sentence each and exits 1 when any row fails; warnings do not fail it. `--json` prints the report as JSON, `--insecure-tls` accepts a private CA when fetching the public URL (the smoke stack), `--send-to you@example.org` also sends a test mail through the relay.
+`sr-cli preflight` answers "is this box ready for the first invite?" (RDY-OPS-004). It checks the database and migrations, an object storage round trip (put, get, presign, multipart create and abort), the mail relay (connect only; a release build with no `[smtp]` host sends no mail and writes no mail body to the log, so notices such as the one after `sr-cli user reset-2fa` are not delivered, D-613), the public URL and its headers (HSTS, CSP, `frame-ancestors`), TURN (credentials derive and an allocation succeeds over UDP), the Web Push key, free disk space, clock skew against the database, secret file modes (0600 or 0400) and, when on, Esplora and the voice node. It prints a table of PASS, WARN and FAIL rows with a sentence each and exits 1 when any row fails; warnings do not fail it. `--json` prints the report as JSON, `--insecure-tls` accepts a private CA when fetching the public URL (the smoke stack), `--send-to you@example.org` also sends a test mail through the relay.
 
 The same checks run from Admin > System ("Preflight" card, `POST /admin/system/preflight`, `OPERATOR`) and as the last step of the Setup checklist on the Admin dashboard; each run is written to the access log (`system.preflight`). Set `SR_PREFLIGHT_INSECURE_TLS=1` on the server to let that card accept a private CA; it is honoured only when `server.public_url` is a localhost address (`localhost`, `127.*`, `[::1]` or a `*.localhost` name), and on any other host `sr-server` refuses to start until it is unset (D-357). A run with `--insecure-tls` or that variable reports the public-URL row as WARN ("certificate not verified"), never PASS, because it did not check the certificate. The Esplora row fails on a private, loopback or link-local address (the self-hosted `http://electrs:3000`) until `SR_PAYMENTS_ALLOW_PRIVATE_HOSTS=1` is set, the same rule `sr-payments` applies; with the opt-in the row passes and says "(private host, opted in)" (D-358).
 
-`sr-cli preflight --alert-test` (RDY-OPS-006) posts a test alert through the real staff feed path: the alert is stored, a card that names the host, the instance and the UTC time is posted to `#alerts` of the Staff Server, and, when Admin > Settings has the Owner email for alerts on, the Owner is mailed. The table gets an "Alert card" and an "Alert mail" row. The command is a separate process, so connected clients see the card the next time they open the channel, not instantly. Without a Staff Server (no `bootstrap` yet) the card row fails.
+`sr-cli preflight --alert-test` (RDY-OPS-006) posts a test alert through the real staff feed path: the alert is stored, a card that names the host, the instance and the UTC time is posted to `#alerts` of the Staff Server, and, when Admin > Limits & settings has the Owner email for alerts on, the Owner is mailed. The table gets an "Alert card" and an "Alert mail" row. The command is a separate process, so connected clients see the card the next time they open the channel, not instantly. Without a Staff Server (no `bootstrap` yet) the card row fails.
 
 ## How to read the playbooks below
 
@@ -141,7 +141,7 @@ _Raised by:_ the `VoiceEgress` rule (`sr_voice_egress_bits_per_second` above the
 1. Dashboard: "Voice rooms" and "Voice egress". Sample the egress twice a minute apart: the difference over 60 s, times 8, over one million, is the current Mbit/s.
 2. Compare it with the governor budget `voice.egress_budget_mbps` (environment `SR_VOICE__EGRESS_BUDGET_MBPS`). Above the budget the SFU caps simulcast layers on its own, Level 0 first and Patrons last (doc 08 section 3), so a full uplink degrades quality instead of failing. `0` turns the governor off; a good value is about 70 percent of the measured uplink.
 3. If members are being capped too early, raise the budget only up to what the uplink really carries. The node-wide limits are `voice.max_participants` and `voice.max_room_size`.
-4. Check the host's network graph or the provider's traffic counter before deciding it is a SIDE ROOM problem: a metered plan runs out before the budget matters.
+4. Check the host's network graph or the provider's traffic counter before deciding it is a SIDE ROOM problem: a metered plan runs out before the budget matters. The SFU also caps what each member may send per track (music, microphone and screen audio, each video source); frames over a cap are dropped, nobody is disconnected, and the caps are fixed in code with no setting (D-631, D-639). `sr_voice_ingress_dropped_frames_total{kind}` (`audio` or `video`) counts the drops: a steady rate from one room points at a flooding or modified client.
 5. A restart of the server resets the counter. Over when the egress rate stays under the budget for an evening.
 
 ## Invoice stuck
@@ -161,7 +161,7 @@ _Raised by:_ the "Storage used" figure on the Admin Dashboard, the Disk space ca
 
 1. Two different things fill up: the disk of the host (Disk space card, `df -h`) and the bucket (Dashboard "Storage used"; Garage: `garage stats`). For the disk, follow Disk pressure.
 2. Where the bytes are: Admin > Cinema transcoding (HLS renditions are rebuilt from originals and are the cheapest to give up) and Admin > Ingest sources (a source that keeps re-importing).
-3. Retention that frees space by itself: `retention.deleted_message_days` and `retention.large_file_days` (Admin > Limits & settings). Lowering them deletes real data after the next purge job; read the setting's description first and do not lower them on an incident whim.
+3. Retention that frees space by itself: `retention.deleted_message_days` (Admin > Limits & settings). Lowering it deletes real data after the next purge job; read the setting's description first and do not lower it on an incident whim. `retention.large_file_days` is listed there too but nothing reads it today (large attachments expire after a fixed 7 days, docs/09).
 4. More room: add capacity to Garage ([GARAGE.md](GARAGE.md), "Several nodes") or move the bucket; do not delete files inside Garage's data directory by hand.
 5. The alert threshold is `alerts.disk_percent` (default 80) on the path in `ops.disk_path`. Over when usage is back below it and uploads succeed.
 

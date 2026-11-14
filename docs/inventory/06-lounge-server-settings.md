@@ -3,7 +3,7 @@
 Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.md) §11. The sidebar order follows the reference screenshot.
 
 ## Shell
-- [x] **LNG-SSET-001** [FE] Settings sidebar with group headers (`<SERVER NAME>`, EXPRESSION, PEOPLE, APPS, SIDE ROOM, MODERATION), permission-filtered items, Delete Server at bottom with trash icon
+- [x] **LNG-SSET-001** [FE] Settings sidebar with group headers (SERVER, EXPRESSION, PEOPLE, APPS, MODERATION, COMMUNITY, DANGER; `settings/server/ServerSettings.tsx:62-76`), permission-filtered items, Delete Server at bottom with trash icon
 - [x] **LNG-SSET-002** [FE] ESC close button, unsaved-changes bar ("Careful — you have unsaved changes!" Reset / Save Changes), shake on navigation attempt
 
 ## Server Profile
@@ -86,7 +86,7 @@ Phase 1 (Server Support UI: Phase 3). Spec: [lounge-chat](../specs/lounge-chat.m
 ## Safety Setup
 - [x] **LNG-SSET-052** [FE] DM & spam protection (filter DMs from members, hide suspicious links, warn on new accounts) *(p12 lounge-ch-be: Moderation → DM and spam protection stores the settings. p13 mfa-protect (G-95, D-224): `SocialService::open_dm` routes to Message Requests via `dm_access_protected` (`sr_request_reason`), `hide_suspicious_links` is on the guild object and rendered by `lounge/suspiciousLinks.ts`; tests `sr-chat` social, `suspiciousLinks` in `p13protect.test.tsx`)*
 - [x] **LNG-SSET-053** [FE] Raid protection (join rate alerts, auto-lockdown, CAPTCHA **omitted**: invite-only platform) *(p14 partial: the join-rate alert threshold (Community > Overview) and Security Actions > Pause invites are built; auto-lockdown needs a backend job)* *(P15 rest-b: auto-lockdown is built as the join-rate alert plus `raid_auto_pause_invites` (pauses invites for 24 hours, J-02, switch in `lounge/shell/SecurityActionsDialog.tsx`; doc 05 section on incident actions); CAPTCHA stays omitted)*
-- [x] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off) *(spoiler-only; scanner hook not built (D-224): upload slots in a pending Message Request get the spoiler flag when a shared server has `explicit_media_filter_dms` on, `SocialService::spoiler_attachments`)*
+- [ ] **LNG-SSET-054** [FE] Explicit media content filter (operator-configurable scanner hook; default off) *(spoiler-only; scanner hook not built (D-224): upload slots in a pending Message Request get the spoiler flag when a shared server has `explicit_media_filter_dms` on, `SocialService::spoiler_attachments`)* _(built: the spoiler flag on upload slots in a pending Message Request when `explicit_media_filter_dms` is on (`crates/sr-api/src/routes/messages/attachments.rs:139-144`); left: the operator-configurable scanner hook, unbuilt until an operator asks, D-224)_
 - [x] **LNG-SSET-055** [FE] Require 2FA for moderator actions *(p12 lounge-ch-be: Moderation → Two-factor authentication for moderation, `POST /guilds/{id}/mfa`, enforced by `MfaGate`. Scope per D-223: p13 mfa-protect puts the gate on every elevated route, `900123` for accounts and bot owners without a second factor; tests `elevated_routes_need_a_second_factor_on_a_2fa_server` (`sr-api --test lounge`) and `developer::mfa_tests`)*
 
 ## Audit Log

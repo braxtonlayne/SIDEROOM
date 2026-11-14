@@ -3,7 +3,7 @@
 All phases.
 
 ## XC-PWA — Progressive Web App
-- [x] **XC-PWA-001** [FE] Web app manifest (name, icons, theme colors per section, shortcuts: Lounge, Cinema, Library, Live TV) _(Live TV shortcut waits for its route.)_
+- [ ] **XC-PWA-001** [FE] Web app manifest (name, icons, theme colors per section, shortcuts: Lounge, Cinema, Library, Live TV) _(Live TV shortcut waits for its route.)_ _(built: the manifest with Lounge, Cinema and Library shortcuts (`apps/web/public/app-manifest.webmanifest:51-77`); left: the Live TV shortcut, although the `/cinema/tv` page exists, `apps/web/src/cinema/Shell.tsx:74`)_
 - [x] **XC-PWA-002** [FE] Service worker (Workbox): app-shell precache, versioned updates with "Update available" prompt, runtime caches (avatars, emoji, library pages), never cache API mutations _(Own small worker, no Workbox. /cdn avatars, emoji and pages are deliberately not cached: they are signed and access-controlled. See apps/web/public/sw.js.)_
 - [x] **XC-PWA-003** [FE] Install prompt UX (desktop + Android) and iOS "Add to Home Screen" instructions
 - [x] **XC-PWA-004** [FE] Web Push subscription UI + permission flow + per-device toggle _(Frontend only: per-device switch in Settings, Notifications (pwa/WebPushCard.tsx), typed client pwa/push.ts, `push` and `notificationclick` handlers in sw.js. The server has no push routes yet, so it shows "This server has not turned on push notifications yet" until `GET /push/vapid-key` and `POST/DELETE /users/@me/push-subscriptions` exist.)_

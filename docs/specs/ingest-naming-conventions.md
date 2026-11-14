@@ -57,7 +57,7 @@ Video: MKV, MP4, M4V, MOV, AVI, WebM, TS, MPEG, WMV (anything FFmpeg can decode)
 `<Series> v<NN> c<NNN>[ - <Title>] [<Group>].cbz` (also `.zip`, `.cbr`, `.rar`, `.cb7`, `.7z`). The format is detected from the file contents, not the extension. ZIP/CBZ and 7z/CB7 are always read; RAR/CBR is read unless the operator turns off the platform setting `library.ingest.rar_enabled` (default on, D-170), in which case a RAR upload is rejected as an unsupported format. Every format is held to the same limits (entry count, per-file size, total uncompressed size, compression ratio, no nested archives, no `..` or absolute names, no encrypted or multi-volume archives; symlinks are skipped). Pages inside follow §2.1. `ComicInfo.xml` inside the archive is read when present (title, number, writer, summary, language, manga direction `Manga=YesAndRightToLeft`).
 
 ### 2.3 Documents
-`.pdf` (the original is kept for download; rasterizing pages for image-mode reading waits for an approved pdfium build, see open-questions), `.epub` (validated, title/authors/language/cover read from the package document, kept as-is for the reflowable reader). Encrypted PDFs and EPUBs are refused.
+`.pdf` (the original is kept for download; the server does not rasterize pages, `crates/sr-library/src/ingest/pdf.rs`, which waits for an approved pdfium build, see open-questions; the browser reads a PDF and renders its cover with pdf.js, `apps/web/src/library/pdf/pdfjs.ts`), `.epub` (validated, title/authors/language/cover read from the package document, kept as-is for the reflowable reader). Encrypted PDFs and EPUBs are refused.
 
 ### 2.4 Series metadata file (optional)
 `series.json` at the series root:
@@ -66,7 +66,7 @@ Video: MKV, MP4, M4V, MOV, AVI, WebM, TS, MPEG, WMV (anything FFmpeg can decode)
   "edition": "Official English", "direction": "rtl", "authors": ["…"],
   "status": "ongoing", "year": 2020, "genres": ["Fantasy"], "age_restricted": false }
 ```
-Cinema equivalent: `title.json` with the matching fields.
+A Cinema `title.json` is not read by any importer on `integration/phase65` (searched `crates/` and `apps/web/src` for `title.json`); Cinema titles take their details from the folder names and the submission form.
 
 ## 3. Parser
 `sr-media::naming` and `sr-reader::naming` (pure Rust, with a fixture test suite ≥ 300 real-world names). There's a **tester** in Admin → Ingest Sources and in the upload dialog: paste names and see the parsed result.
@@ -76,15 +76,15 @@ The `storage.index` job reads a member's or a server's bucket (a "mount") and bu
 
 | Folder | Section | Layout it reads |
 |---|---|---|
-| `Movies/` (`Films/`) | Cinema, films | `Movies/Alien (1979)/Alien.mp4` or `Movies/Alien (1979).mp4`; `Director's Cut` and the other cuts of section 1 apply |
-| `Series/` (`Shows/`, `TV/`) | Cinema, series | `Series/<show>/Season 01/<show> S01E02.mkv`; a file without an episode number is left out |
+| `Movies/` (`Movie/`, `Films/`, `Film/`) | Cinema, films | `Movies/Alien (1979)/Alien.mp4` or `Movies/Alien (1979).mp4`; `Director's Cut` and the other cuts of section 1 apply |
+| `Series/` (`Shows/`, `TV/`, `TV Shows/`, `TV Series/`) | Cinema, series | `Series/<show>/Season 01/<show> S01E02.mkv`; a file without an episode number is left out |
 | `Anime/` | Cinema, anime | as series, absolute numbering (`Show - 05`) allowed; a file without an episode number is a film; titles carry the tag `anime` |
-| `Books/` | Library, books | `Books/Dune.epub`, `Books/<author>/<title>.pdf` (EPUB, PDF) |
+| `Books/` (`Ebooks/`) | Library, books | `Books/Dune.epub`, `Books/<author>/<title>.pdf` (EPUB, PDF) |
 | `Comics/` | Library, comics | `Comics/<series>/<series> #012.cbz` (CBZ; CBR only when `library.ingest.rar_enabled`) |
 | `Manga/` | Library, manga | `Manga/<series>/<series> v03.cbz` or `c112.cbz` (a chapter number beats a volume number) |
-| `Music/` | Music | `Music/<artist>/<album> (year)/03 - Title.flac`; `Disc 2/` and `CD2/` folders, `1-07 Title`, and flat `Artist - Title.mp3` are read |
+| `Music/` (`Audio/`) | Music | `Music/<artist>/<album> (year)/03 - Title.flac`; `Disc 2/` and `CD2/` folders, `1-07 Title`, and flat `Artist - Title.mp3` are read |
 
-Video names go through `sr-media::naming` (S01E02, year, group and quality tags), so a title is spelled the same way here as in a submission. A `cover.jpg`, `folder.jpg` or `poster.jpg` in a title, series or album folder becomes its artwork (`backdrop.jpg` and `fanart.jpg` its backdrop). Loose chapters without a number follow the numbered ones of their series, in key order.
+Video names go through `sr-media::naming` (S01E02, year, group and quality tags), so a title is spelled the same way here as in a submission. A `cover.jpg`, `folder.jpg` or `poster.jpg` in a title, series or album folder becomes its artwork (`backdrop.jpg` and `fanart.jpg` its backdrop). Loose chapters without a number follow the numbered ones of their series, in key order. Game ROMs are read only under `emu/roms/` (wave 37); everything else under `emu/` (saves, BIOS) is never cataloged (`classify.rs:611`).
 
 ### 4.1 Folder sidecar (optional)
 `.sideroom.json` in any folder overrides what the names say for everything below it (the nearest folder wins per field):
@@ -92,10 +92,10 @@ Video names go through `sr-media::naming` (S01E02, year, group and quality tags)
 { "title": "Cowboy Bebop", "year": 1998, "kind": "anime", "tags": ["classic"],
   "artist": "…", "album": "…", "ignore": false }
 ```
-`kind` is one of `movie`, `series`, `anime`, `book`, `comic`, `manga`, `music` and forces the section; `ignore` skips the folder. A malformed file changes nothing.
+`kind` forces the section and is read with the same names as the folders above (`movie`, `series`, `anime`, `books`, `comics`, `manga`, `music`; the singular `book` and `comic` are not recognised, `section_from_kind`, `crates/sr-storage/src/index/classify.rs:328`); `ignore` skips the folder. A malformed file changes nothing.
 
 ### 4.2 Edits survive a re-index
 Anything a member changes in the metadata editor (title, year, kind, tags, genres, synopsis, artwork, an episode's number or title) becomes an override recorded on the row; a re-index rewrites only the fields that were not edited. A row whose files disappear from the bucket is hidden, and returns, with its edits, when the files come back. Two files for one episode number keep the first indexed; a chapter number already taken moves to the next free one (the editor fixes it).
 
 ### 4.3 Playing from a mount
-MP4 (H.264 or AV1 and AAC), WebM, MP3, FLAC, Ogg and the other web-native containers play from a presigned URL with range requests; MKV, HEVC and the like show "Convert to play" until the converter ships (wave 29). Fetched details carry the metadata provider's attribution text on the row and wherever it is shown.
+MP4 (H.264 or AV1 and AAC), WebM, MP3, FLAC, Ogg and the other web-native containers play from a presigned URL with range requests; MKV, HEVC and the like are converted in the member's browser at upload time (`apps/web/src/convert/`, the Convert step of the storage upload panel and of Cinema > Submit, BYOS-CNV-001). A file already in the bucket that a browser cannot play shows a greyed "Convert to play" (`apps/web/src/storage/shelves/ShelfItemPage.tsx`) whose hint says conversion arrives in a later update. Fetched details carry the metadata provider's attribution text on the row and wherever it is shown.

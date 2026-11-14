@@ -6,8 +6,8 @@ SIDE ROOM talks to any S3-compatible store; Garage is the reference because it i
 
 1. `cp deploy/compose/garage/garage.prod.toml.example deploy/compose/garage/garage.prod.toml` and replace every `CHANGE_ME` (`openssl rand -hex 32` for `rpc_secret`, `openssl rand -base64 32` for the two tokens).
 2. `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d garage`
-3. Create the layout, key and bucket once. `deploy/compose/garage/bootstrap.sh` does this for the dev stack; for production run the same `garage` commands with your own key (`garage key create sideroom-prod`, `garage bucket create sideroom`, `garage bucket allow --read --write --owner sideroom --key sideroom-prod`) and put the printed key id and secret into `.env.prod` as `GARAGE_ACCESS_KEY` and `GARAGE_SECRET_KEY`.
-4. Give the bucket its browser CORS rule: `sr-cli storage ensure-cors --origin https://<your-domain>` (uploads are presigned `PUT`s from the browser, and the music player and the tag reader fetch audio by byte range). The rule allows `PUT`, `GET` and `HEAD` from that origin with the request headers `content-type` and `range`, and exposes `ETag`, `Content-Range`, `Accept-Ranges` and `Content-Length`. A bucket set up before wave 30 lacks `range`; it keeps passing the daily check, and running the command again (or Apply CORS on a member's mount) adds it.
+3. Create the layout, key and bucket once. `deploy/install.sh` does this for you: it generates the key pair (`GARAGE_ACCESS_KEY`, `GARAGE_SECRET_KEY`) into `.env.prod` and runs `deploy/compose/garage/bootstrap.sh` against `prod.yml` with `SR_COMPOSE_FILE`, `SR_ENV_FILE`, `SR_GARAGE_CAPACITY` and `SR_SKIP_CORS=1` (the capacity is the layout size, default `100G` in the installer). For a hand install run the same script with those variables, or the `garage` commands yourself (`garage key create sideroom-prod`, `garage bucket create sideroom`, `garage bucket allow --read --write --owner sideroom --key sideroom-prod`) and put the printed key id and secret into `.env.prod` as `GARAGE_ACCESS_KEY` and `GARAGE_SECRET_KEY`.
+4. Give the bucket its browser CORS rule (the installer does this too): `sr-cli storage ensure-cors --origin https://<your-domain>` (uploads are presigned `PUT`s from the browser, and the music player and the tag reader fetch audio by byte range). The rule allows `PUT`, `GET` and `HEAD` from that origin with the request headers `content-type` and `range`, and exposes `ETag`, `Content-Range`, `Accept-Ranges` and `Content-Length`. A bucket set up before wave 30 lacks `range`; it keeps passing the daily check, and running the command again (or Apply CORS on a member's mount) adds it.
 
 `replication_factor = 1` means one copy of every block: a dead disk loses data. The nightly rustic snapshot (BACKUP.md) is the safety net on a single node.
 
@@ -26,5 +26,5 @@ Back up at least one node's data with rustic as in BACKUP.md; replication protec
 ## Checks
 
 - `garage status` shows every node as up; `garage stats` shows free space.
-- `GET /readyz` on sr-server reports `storage: ok` when the bucket is reachable.
+- `GET /readyz` on sr-server (from the box, or the container's own `sr-server healthcheck`; Caddy answers 404 to it for visitors) reports `storage: ok` when the bucket is reachable.
 - Garage exposes Prometheus metrics on the admin port (`/metrics`, with `metrics_token`); add it to `deploy/monitoring/prometheus.yml` if you want storage graphs.

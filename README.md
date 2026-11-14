@@ -18,11 +18,11 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 
 ## Status
 
-**Built, not yet installed for real.** The application exists: the Rust workspace under `crates/`, the web app under `apps/web`, the shipped deployment files under `deploy/`. Every component in the [inventory](docs/inventory/README.md) files 01 to 19 is ticked except three that are closed or wait on a run (`DON-PAY-009`, `XC-CI-005`, `DEV-SDK-003`); files 20 (launch readiness) and 21 (the feature phase, waves 27 to 47) are ticked where their proof ran, and what is open there waits on a run, a later wave or the owner. Moderation (Phase 7) is built through the dashboards, suspicion review and age tools. Beyond the four sections above the app has The Arcade (`/games`, an editorial games front page for the built-in Activities, Sketch & Slander among them) and The Study (`/study`, the shelves), and the signed-out surfaces carry none of the app's code (D-385).
+**Built, not yet installed for real.** The application exists: the Rust workspace under `crates/`, the web app under `apps/web`, the shipped deployment files under `deploy/`. Every component in the [inventory](docs/inventory/README.md) files 01 to 19 is ticked except 32 rows: 30 whose built and left note records a gap found when the checklist was checked against the code on 2026-11-13 (a missing control, link or option, for example the Live TV shortcut, the account switcher, the theme validator's restricted CSS subset), and 2 that are closed or wait on a run (`DON-PAY-009`, `XC-CI-005`); files 20 (launch readiness) and 21 (the feature phase and the audit and hardening waves, waves 27 to 65) are ticked where their proof ran, and what is open there waits on a run, a later wave or the owner. Moderation (Phase 7) is built through the dashboards, suspicion review and age tools. Beyond the four sections above the app has The Arcade (`/games`, an editorial games front page for the built-in Activities, Sketch & Slander among them) and The Study (`/study`, the shelves), and the signed-out surfaces carry none of the app's code (D-385); the Admin app's code is sent only to staff (D-651 to D-653). Waves 53 to 65 were audit and hardening waves (sign-in and step-up rules, blocks, storage response types, takedowns, resumable large Activity packages, the beta bug reporter, gateway resync): [CHANGELOG.md](CHANGELOG.md) lists what changed for members and operators.
 
 **Proven.** At the phase 19 integration (2026-10-22) the merged tree passed 2,824 Rust tests, 516 Postgres-backed tests, 2,489 web unit tests and the Chromium Playwright suite on a development machine ([handoff](docs/dev/handoff/feat-p19-integration.md)). At the phase 46 integration (2026-11-02) the web suite was 446 files and 4,062 tests, with the Rust, authorization-matrix and IMMUTABLE RULE gates run as listed in [its handoff](docs/dev/handoff/integration-phase46.md). That is proof of the code, not of an installation.
 
-**Not yet proven.** The phase exit gates in [docs/13-roadmap-and-phases.md](docs/13-roadmap-and-phases.md) are mostly unrun: the production Compose stack, `deploy/install.sh`, the systemd units and the production Caddyfile have never booted on a real host; ffmpeg has never run in this project (transcoding is tested on canned output); `release.yml`, `openapi.yml`, `storage.yml` and `e2e.yml` have never run on GitHub; the full load target and the manual screen-reader pass are open. The plan that closes these is [docs/dev/roadmap-p20.md](docs/dev/roadmap-p20.md) (waves 20 to 24, decision D-352), with its items in [docs/inventory/20-launch-readiness.md](docs/inventory/20-launch-readiness.md).
+**Not yet proven.** The phase exit gates in [docs/13-roadmap-and-phases.md](docs/13-roadmap-and-phases.md) say, row by row, which have a recorded CI run and which do not. Several now do: the production Compose stack boots, bootstraps and signs in through Caddy in `prod-smoke.yml`; real ffmpeg transcoding, the HLS ladder and Live TV airing run in `media.yml`; `e2e.yml`, `storage.yml` (live S3 against Garage) and `openapi.yml` have run on GitHub; the load target passed on CI (2,000 sessions, 200 msg/s). Still open: the stack, `deploy/install.sh`, the systemd units and the production Caddyfile have never run on a real host; no run of `release.yml` (it runs on a `v*` tag; its pull-request twin is `release-dry-run.yml`) is recorded; a GPU transcode worker and Safari playback have not been run; the ten-member, two-hour voice session, two weeks of real chat, a signet payment, a real Discord server and the manual screen-reader pass are the owner's. The plan that closes these is [docs/dev/roadmap-p20.md](docs/dev/roadmap-p20.md) (waves 20 to 24, decision D-352), with its items in [docs/inventory/20-launch-readiness.md](docs/inventory/20-launch-readiness.md).
 
 **Going live.** What only the owner can do is in [docs/dev/owner-checklist.md](docs/dev/owner-checklist.md), the ordered install and launch steps are in [deploy/GO-LIVE.md](deploy/GO-LIVE.md), and the questions for a lawyer are in [docs/legal/lawyer-brief.md](docs/legal/lawyer-brief.md). Everything you need to work on the code is in [`docs/`](docs/README.md).
 
@@ -37,14 +37,21 @@ SIDE ROOM is a private, invitation-only platform for a group of friends and a fe
 ## Repository layout
 
 ```
-apps/web/            React + TypeScript + Vite PWA (all user-facing UI)
+apps/web/            React + TypeScript + Vite PWA (all user-facing UI; the public entrance pages are
+                     separate small builds, see docs/dev/entrance-isolation.md)
 crates/              Rust workspace (servers, workers, shared libraries, WASM modules)
 packages/            Shared TypeScript packages (generated API client, UI kit, WASM bindings, bot and
-                     Embedded App SDKs, starter packs and built-in Activities)
-e2e/                 Playwright suites, the page sweep and the SDK compatibility run
-scripts/             Repo checks and generators (bundle budget, doc links, entrance isolation, secret scan)
-deploy/              Docker Compose, systemd units, provisioning scripts
-docs/                Specifications, ADRs, component inventory
+                     Embedded App SDKs, Markdown renderer, profile blocks, starter packs and the
+                     built-in Activities under starter-packs/activities)
+e2e/                 Playwright suites, the page sweep, the static-page and 3D starter suites and the
+                     SDK compatibility run
+scripts/             Repo checks and generators (bundle budget, doc links, ops files, entrance isolation,
+                     staff delivery, secret scan, licences, i18n audit)
+deploy/              Docker Compose, Dockerfiles, systemd units, monitoring (alerts, Grafana),
+                     install, backup and restore scripts, and the operator documents (OPERATOR.md,
+                     GO-LIVE.md, RUNBOOK.md and others)
+docs/                Specifications, decisions log, threat model, ADRs, component inventory, owner
+                     checklist and developer notes
 ```
 
 ## License

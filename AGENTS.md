@@ -29,6 +29,12 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 | Bots, apps, extensions, activities | `11-extensibility-and-developer-platform.md`, `specs/developer-platform.md` (as built) |
 | Reports, cases, takedowns, data requests | `specs/moderation-compliance.md`, `09-retention-and-privacy.md` |
 | Servers, deployment, backups | `12-deployment-and-operations.md` |
+| Security review, a new attack surface, authentication or storage changes | `15-threat-model.md` (one row per threat; add or update a row for a new surface) |
+| Storage mounts and bring-your-own-storage (BYOS), shelves, takedown of stored files | `inventory/21-feature-phase.md` (`BYOS-*`), `09-retention-and-privacy.md`, `../deploy/GARAGE.md`, `dev/storage-live-test.md` |
+| The Arcade, Activities, guest play, the emulator | `11-extensibility-and-developer-platform.md` §3, `specs/developer-platform.md`, `inventory/21-feature-phase.md` (`ACT-*`, `ARC-*`), `../deploy/EMULATOR.md` |
+| The Discord bridge | `05-api-and-gateway.md` (the bridge routes), `inventory/21-feature-phase.md` (`BRG-*`), `02-architecture.md` (`sr-bridge`) |
+| What a signed-out visitor, or an account that is not staff, may be served (entrance isolation, staff-only app code) | `dev/entrance-isolation.md` (D-385, D-651 to D-653) |
+| The beta bug reporter | `inventory/21-feature-phase.md` (`SEC-AUD-165` to `SEC-AUD-168`), `../deploy/OPERATOR.md`, decisions D-647 to D-650 |
 
 ## 3. Ground rules
 
@@ -45,7 +51,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 - **Claiming work:** pick inventory items (or a GitHub issue that references them). Put the item IDs in your branch name and PR title, e.g. `feat/LNG-MSG-014-message-edit`.
 - **Branches:** `feat/…`, `fix/…`, `docs/…`, `chore/…`. One logical change per PR.
 - **PRs must:**
-  - pass CI (`cargo fmt --check`, `cargo clippy -D warnings`, `cargo test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and the Playwright suites in `e2e/`);
+  - pass CI (`cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` (and `cargo deny check`), `pnpm lint`, `pnpm typecheck`, `pnpm test`, the repo checks (`.github/workflows/repo-checks.yml`: PR title, doc links, ops files, secret scan, script tests), the web build checks (bundle budget, entrance isolation, staff delivery) and the Playwright suites in `e2e/`; `just lint` and `just test` run the local equivalents);
   - include tests for new behavior (unit tests in Rust, component tests in Vitest, an e2e test for user-visible flows);
   - update docs when behavior or an API changes (the API reference is generated from code; prose specs are edited by hand);
   - tick the inventory checkboxes they complete;

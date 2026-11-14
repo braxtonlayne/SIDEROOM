@@ -40,17 +40,19 @@ export default {
 
   'help.handbook.activities.title': 'Activities',
   'help.handbook.activities.body1':
-    'Start an Activity from the Activities button in a voice channel. The built-in ones share what you do over the call’s encrypted channel: a whiteboard, a card table, a tabletop with dice and tokens, and Land.io, a small arena game. Nothing is stored, and when the person who started one leaves, it ends.',
+    'Start an Activity from the Activities button in a voice or text channel, or press Play on a game in the Arcade. The built-in ones are Land.io, Arena 3D, Hold’em (a card table), Whiteboard, Tabletop (dice, tokens and maps) and Sketch & Slander. They share what you do over the call’s encrypted channel and keep nothing on the server. When the person running a game leaves, some games pass it to the member who has been there longest and the others end for everybody. An Activity also ends when the last player leaves.',
+  'help.handbook.activities.body3':
+    'A game that allows guests can be shared with a link (and a QR code for a phone) from the Activity panel. Anyone with the link can join in a browser without an account and sees only the game, never this server’s chat, members or call. You can revoke the link at any time.',
   'help.handbook.activities.body2':
     'The card table plays Texas Hold’em with play money only: a friends’ table, not a casino, and it cannot stop a determined cheater.',
   'help.handbook.activities.link': 'Open the Lounge',
 
   'help.handbook.emulator.title': 'Retro games in your browser',
   'help.handbook.emulator.body1':
-    'The Games page plays NES, Game Boy, Game Boy Color, Game Boy Advance and PlayStation games in your browser. This server ships no games: you bring your own ROMs, in the emu/roms folder of your own bucket (or of a server that shares one with a games role). Only play games you own or that are free to share, such as homebrew.',
+    'The emulator (in the Arcade) plays NES, Game Boy, Game Boy Color, Game Boy Advance and PlayStation games in your browser. This server ships no games: you bring your own ROMs, in the emu/roms folder of your own bucket (or of a server that shares one with a games role). Only play games you own or that are free to share, such as homebrew.',
   'help.handbook.emulator.body2':
     'PlayStation games also need the BIOS from your own console, in emu/bios of your bucket; it is checked, used for that visit only and never stored. Save states and in-game saves go to your own bucket. In a voice call the person running a game can let others join as players: they see the picture and send their buttons, and the game files never leave the host. SNES and Genesis say “core not installed” for now.',
-  'help.handbook.emulator.link': 'Open Games',
+  'help.handbook.emulator.link': 'Open the emulator',
 
   'help.handbook.operators.title': 'If you run this server',
   'help.handbook.operators.body':
@@ -59,7 +61,7 @@ export default {
 
   'help.operators.title': 'Module switches',
   'help.operators.intro':
-    'For the people who run this instance (Admin > Features). Every module of SIDE ROOM has a switch for the whole instance, and some also have one for each server under Server Settings > Modules. A module that is switched off stops answering: the buttons disappear and its requests are refused. Nothing can switch off call encryption, authorization or the audit and access logs.',
+    'For the people who run this instance (Admin > Features, which lists every switch with a one-line description; the ones below are the main ones). Every module of SIDE ROOM has a switch for the whole instance, and some also have one for each server under Server Settings > Modules. A module that is switched off stops answering: the buttons disappear and its requests are refused. Nothing can switch off call encryption, authorization or the audit and access logs.',
   'help.operators.listTitle': 'The switches',
   'help.operators.byos':
     'Your own storage: connecting buckets, Friend Shelves, server shelves and the shelves they feed.',

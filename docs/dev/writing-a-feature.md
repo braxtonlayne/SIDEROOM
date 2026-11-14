@@ -26,6 +26,9 @@ The template compiles and its two tests pass before you change anything, so you 
 | `scopes()` | Where it can be configured: `Platform`, `Guild`, `Channel`, `User`. Most modules use `[Platform, Guild]`; the platform scope is a kill switch. |
 | `on_event()` | Called for every guild event while the module is enabled in that guild. One event at a time per module, in order. |
 | `on_tick()` | Called every 30 s for time-based work (expiries, schedules). Not gated by the guild flag: use `ctx.settings.enabled_guilds(ID)` to walk the guilds that use you. |
+| `routes()` | Optional. A router served under `/api/v1/sr/features/{id}/`. The router has no `AppState`: the feature owns its state. |
+
+Four more optional methods default to `false` or `None`: `client_visible()` (expose the platform flag to signed-in clients through `GET /sr/features/flags`, D-216), `operator_gated()` (hidden and off everywhere until the operator switches it on at platform scope), `owner_only()` (only the server owner may toggle it, with the same second-factor step as the owner-only server actions, D-381) and `gated_by()` (the id of a platform feature whose kill switch also kills this module).
 
 ## 3. Reading settings
 
@@ -33,7 +36,7 @@ The template compiles and its two tests pass before you change anything, so you 
 let cfg: Config = ctx.guild_config(MY_ID, guild).await?;
 ```
 
-`Config` is a `#[derive(Deserialize)] #[serde(default)]` struct. The schema defaults are merged in first, so only list a default once, in the schema. Pickers store ids as decimal strings; parse them with `modules::snowflake`. Reading is cheap enough to do per event, and always reflects the admin's latest change.
+`Config` is a `#[derive(Deserialize)] #[serde(default)]` struct. The schema defaults are merged in first, so only list a default once, in the schema. Pickers store ids as decimal strings; parse them with `modules::snowflake`. Reading is cheap enough to do per event, and always reflects the admin's latest change. `ctx.channel_config` and `ctx.user_config` read the channel and personal scopes the same way (a channel's own values over the server's over the defaults), and `ctx.channel_enabled` tells whether the module is on in one channel.
 
 ## 4. Acting on the platform
 
@@ -42,6 +45,7 @@ A module never calls the chat or API crates. It uses `ctx.actions` (`FeatureActi
 * `post_message`, `edit_message`, `delete_message`, `send_dm`: posted as the system user. Only users named in `mention_users` are pinged; `@everyone` and role mentions can never be set. Put user-controlled text through `template::defuse`.
 * `add_role`, `remove_role`, `has_role`, `set_slowmode`, `set_channel_name`, `create_thread`: go through the guild services as the server owner, so they are validated, audited and broadcast like manual changes.
 * `get_message`, `get_channel` (with `everyone_can_view`), `get_user`, `get_guild`, `reaction_count`, `remove_reaction`.
+* `voice_occupants`, `move_member`, `create_voice_channel`, `delete_channel`: the voice-channel actions (`voice_occupants` can answer "unknown" on a multi-node deployment).
 
 Ignore events authored by `ctx.actions.self_user()` so a module cannot trigger itself. If you need a capability that is not on the port, add the method to the trait, to `FakeActions` in `testing.rs`, and to `PgFeatureActions` in `crates/sr-server/src/feature_actions.rs`.
 

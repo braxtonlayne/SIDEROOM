@@ -3,7 +3,7 @@
 Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discover.jpg`, `cinema-movies.jpg`.
 
 ## CIN-DATA — Catalog backend
-- [x] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, watch_progress, transcode_jobs, collections (catalog side done in migration 0370: titles, seasons, episodes, variants, trailers, markers, collections, collection items; the asset/rendition/track/job tables belong to CIN-ING and `watch_progress` to CIN-PLY-007, they reference `asset_id` / `title_id` / `episode_id` without foreign keys)
+- [x] **CIN-DATA-001** [DB] video_titles, seasons, episodes, video_assets, renditions, audio_tracks, subtitle_tracks, trailers, markers, cinema_progress, transcode_jobs, collections (catalog side done in migration 0370: titles, seasons, episodes, variants, trailers, markers, collections, collection items; the asset/rendition/track/job tables belong to CIN-ING and `cinema_progress` to CIN-PLY-007, they reference `asset_id` / `title_id` / `episode_id` without foreign keys)
 - [x] **CIN-DATA-002** [BE] Title/season/episode CRUD (publishers), publish/unpublish, merge duplicates, variants (`/admin/cinema/*`, merge duplicates, variants, markers, trailers, artwork upload reservation, access log)
 - [x] **CIN-DATA-003** [BE] Catalog API (discover rows, browse by kind with filters/sort, title detail, episodes, search) (`/cinema/*`: discover, rows, browse with keyset paging, facets, title detail, episodes, play target, search; spec section 8)
 - [x] **CIN-DATA-004** [BE] Tantivy index for titles (title, original title, cast/crew text, tags) (tantivy `TitleIndex`, rebuilt from Postgres at boot, `/cinema/search`)
@@ -20,7 +20,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-ING-007** [BE] Master/media playlist generation with signed segment URLs (6h), refresh endpoint · *pure functions and tests; phase 7 added `GET /cinema/assets/{id}/playback` and `POST .../refresh` (catalog play check and age gate first) and the `/cdn/hls` delivery of rendered playlists; the Postgres `PlaybackSource` over the ingest tables is hooked up at merge time (spec section 10)*
 - [x] **CIN-ING-008** [BE] ASS subtitle retention + WebVTT conversion · *converter tested on hand-written ASS/SRT, not on real ffmpeg-extracted files*
 - [x] **CIN-ING-009** [BE] Originals retention (cold bucket / Storage Box), proxy cleanup after publish · *decisions plus the hourly `cinema.media.sweep` job (originals, proxies, slots, prefixes); cold-tier moves are only counted (no second bucket)*
-- [x] **CIN-ING-010** [BE] Cinema `SubmissionKind` impls (title, episodes batch) with publish actions · *`cinema.title` and `cinema.episodes` registered with sr-review and Postgres-tested; the member draft-edit and upload routes are not built, so only staff-uploaded assets can be referenced*
+- [x] **CIN-ING-010** [BE] Cinema `SubmissionKind` impls (title, episodes batch) with publish actions · *`cinema.title` and `cinema.episodes` registered with sr-review and Postgres-tested; the member draft-edit and upload routes are not built, so only staff-uploaded assets can be referenced* _(p66 check 2026-11-13: the member Cinema draft-edit and upload routes exist, `crates/sr-api/src/routes/submissions/cinema.rs:351-447`)_
 - [x] **CIN-ING-011** [BE] Re-transcode action (single asset / whole title / all — admin) · *planner plus `POST /admin/transcode/retranscode` that enqueues; not run against real ffmpeg*
 
 ## CIN-UI — Section chrome
@@ -50,7 +50,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-BRW-006** [FE] Anime page ✦ accent styling
 
 ## CIN-TTL — Title detail
-- [x] **CIN-TTL-001** [FE] Header: backdrop, logo/title, meta row, synopsis, Play/Resume, + My list, Rate, Watch together, Share to Lounge, Download (Patron), Trailer (Watch together, Share to Lounge copy-link and Download are stubs: watch parties, Lounge share card and patron downloads are not built)
+- [x] **CIN-TTL-001** [FE] Header: backdrop, logo/title, meta row, synopsis, Play/Resume, + My list, Rate, Watch together, Share to Lounge, Download (Patron), Trailer (Watch together, Share to Lounge copy-link and Download are stubs: watch parties, Lounge share card and patron downloads are not built) _(p66 check 2026-11-13: Watch together, Share to Lounge and Download are wired, `apps/web/src/cinema/TitlePage.tsx:186-252`)_
 - [x] **CIN-TTL-002** [FE] Season selector + episode list (still, number, title, runtime, synopsis, progress, watched toggle, mark season watched)
 - [x] **CIN-TTL-003** [FE] Tabs: Episodes, Details (cast/crew text, studios, languages, variants), Reviews, Comments, More like this, Contributors (Contributors tab stays disabled until contribution credits exist, CIN-SOC-003)
 - [x] **CIN-TTL-004** [FE] Variant picker (e.g. Director's Cut)
@@ -69,7 +69,7 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-PLY-011** [FE] Mini player (continue while navigating, also used by watch parties) (mounted at the app root; watch parties reuse `playerSession()` and `MiniPlayerView`)
 ## CIN-MY — My list & history
 - [x] **CIN-MY-001** [FE] My list page (saved, continue watching, custom lists, history with pause/clear)
-- [x] **CIN-MY-002** [BE] Lists API (shared with Library lists implementation where possible) *(phase 6: My list and custom lists in `sr-cinema-social`; the Library has no lists yet, so nothing was shared)*
+- [x] **CIN-MY-002** [BE] Lists API (shared with Library lists implementation where possible) *(phase 6: My list and custom lists in `sr-cinema-social`; the Library has no lists yet, so nothing was shared)* _(p66 check 2026-11-13: Library lists exist, LIB-SOC-006)_
 
 ## CIN-SOC — Social
 - [x] **CIN-SOC-001** [BE] Ratings, reviews, episode comments (reuse LIB-SOC services generically) *(phase 6: ratings 1-10, reviews with spoiler flag and helpful votes, threaded comments with likes, reports and a moderation hook; phase 7: staff report queue, hide/restore and resolve under `/admin/cinema/*` with access-log entries, `RepoCatalog` wiring, merge and delete cascade)*
@@ -77,9 +77,9 @@ Phase 5. Spec: [cinema-media](../specs/cinema-media.md). Mockups: `cinema-discov
 - [x] **CIN-SOC-003** [BE] Contribution credits for movies/episodes *(not built in phase 6: needs the cinema submissions pipeline, see cinema-media section 8.8)* _(p15 rest-a: credits were already granted by `cinema.title`/`cinema.episodes` (`credit_refs`); new `GET /cinema/titles/{id}/contributors` and the Contributors tab on the title page)_
 
 ## CIN-DL — Patron downloads
-- [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from `cinema_download_grants`; the perk source (donations) does not exist yet*
-- [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`, now mounted by the title page header for films and per episode; the download routes it calls are not in the backend yet, so it shows the error copy)
+- [x] **CIN-DL-001** [BE] On-demand MP4 remux job of chosen rendition (cached 7 days), original download when allowed, signed single-user link, daily limit · *remux job kind (worker side faked, not run with real ffmpeg), cache, owner-only link redirecting to a short signed URL, daily limit from the Patron entitlement (sr-payments; the legacy `cinema_download_grants` table was dropped by migration 0871)*
+- [x] **CIN-DL-002** [FE] Download modal (rendition picker with sizes, progress of prep job) (the modal is `cinema/player/DownloadModal.tsx`, now mounted by the title page header for films and per episode; the download routes it calls are not in the backend yet, so it shows the error copy) _(p66 check 2026-11-13: the download routes exist, `crates/sr-api/src/routes/cinema_media/mod.rs:216-218`)_
 
 ## CIN-ADM — Admin
-- [x] **CIN-ADM-001** [FE] Catalog editor (title form, seasons/episodes tables, assets & renditions view, subtitles manager, artwork, markers editor with video scrubber, publish toggle, merge) (`admin/cinema/`; the assets & renditions view is the asset link plus transcode status per asset; there is no subtitles manager because no subtitle catalog route exists; the marker preview needs the ingest playback route)
-- [x] **CIN-ADM-002** [FE] Transcode status per asset + re-run (screens and data layer done against an assumed `/admin/transcode/*` contract; they show "not available yet" until the ingest-db backend ships, see `transcodeApi.ts`)
+- [ ] **CIN-ADM-001** [FE] Catalog editor (title form, seasons/episodes tables, assets & renditions view, subtitles manager, artwork, markers editor with video scrubber, publish toggle, merge) (`admin/cinema/`; the assets & renditions view is the asset link plus transcode status per asset; there is no subtitles manager because no subtitle catalog route exists; the marker preview needs the ingest playback route) _(built: title form, seasons and episodes tables, asset link with transcode status, artwork, markers editor, publish toggle, merge (`admin/cinema/CatalogSection.tsx`, `TitleEditor.tsx`, `MarkersPanel.tsx`); left: the subtitles manager, no subtitle catalog route exists)_
+- [x] **CIN-ADM-002** [FE] Transcode status per asset + re-run (screens and data layer done against an assumed `/admin/transcode/*` contract; they show "not available yet" until the ingest-db backend ships, see `transcodeApi.ts`) _(p66 check 2026-11-13: the `/admin/transcode/*` routes exist, `crates/sr-api/src/routes/cinema_media/mod.rs:189-216`)_

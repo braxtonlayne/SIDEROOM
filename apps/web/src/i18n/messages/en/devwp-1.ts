@@ -102,7 +102,7 @@ export default {
   'developers.overview.cardStartBody': 'Make a bot and send your first request in minutes.',
   'developers.overview.cardDocsTitle': 'Documentation',
   'developers.overview.cardDocsBody':
-    'Authentication, gateway, REST, rate limits and interactions.',
+    'Authentication, gateway, REST, rate limits, interactions, SDKs and packages.',
 
   // Developer portal: docs hub
   'developers.docs.heading': 'Documentation',

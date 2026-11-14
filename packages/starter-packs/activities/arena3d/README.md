@@ -229,8 +229,8 @@ reports. A log from tick 0 plus the seed replays through `replay/run.js` to the 
 ## Known limits
 
 - The renderer and the page have no Node-side pixel tests. They are covered by recording fakes, `replay.html`
-  and playing the demo. A Playwright spec for `replay.html` in all three engines is a follow-up outside this
-  folder.
+  and playing the demo. `e2e/arena3d/replay.spec.ts` runs `replay.html` in Chromium, Firefox and WebKit
+  (`e2e/playwright.arena3d.config.ts`) and compares each hash with the Node result.
 - Touch has no pause, no gamepad and no haptics; the stick reads 8 directions (the simulation takes a button set,
   not an analogue vector).
 - The local player is drawn at its latest predicted tick, with no render interpolation between ticks. At

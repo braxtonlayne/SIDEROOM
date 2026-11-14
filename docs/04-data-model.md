@@ -1,11 +1,11 @@
 # 04 — Data Model
 
-PostgreSQL is the system of record. This is the **logical** model. Exact DDL lives in `crates/sr-db/migrations/` (forward-only, numbered; the newest at wave 47 is 2320). Where the built table has another name than the logical one below, an "As built" note or section 14 says so. All IDs are Snowflakes (`BIGINT`) unless noted. Every table has `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Mutable tables also have `updated_at`.
+PostgreSQL is the system of record. This is the **logical** model. Exact DDL lives in `crates/sr-db/migrations/` (forward-only, numbered; the newest, at wave 65, is 2830). Where the built table has another name than the logical one below, an "As built" note or section 14 says so. All IDs are Snowflakes (`BIGINT`) unless noted. Every table has `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`. Mutable tables also have `updated_at`.
 
 Conventions:
 - Soft states use enums, not deletion (accounts, messages).
 - "Hold" columns support future moderation (D-126).
-- Large or binary data goes to object storage. Postgres stores keys.
+- Large or binary data goes to object storage. Postgres stores keys. One exception: a bug report's optional screenshot (at most 2 MiB) is a `bytea` column of `bug_reports`, so it is deleted with its row (section 14, D-650).
 
 ## 1. Identity
 
@@ -68,7 +68,7 @@ Nullable boolean beside `age_confirmed_at`. `true`/`false` records the age-gate 
 | note | text | issuer's private label |
 
 ### `invite_credits_ledger`
-Append-only. `(account_id, delta, reason enum{initial_grant, redemption, purchase, staff_grant, staff_revoke}, ref_id)`. Balance = SUM(delta). Initial grant = +5 (configurable).
+Append-only. `(account_id, delta, reason enum{initial_grant, redemption, purchase, staff_grant, staff_revoke, account_deleted}, ref_id)`. Balance = SUM(delta). Initial grant = +5 (configurable).
 
 ### `invite_graph` (view)
 `platform_invites` joined to accounts gives edges `issuer → redeemer`. A materialized view is used for staff graph rendering.
@@ -165,7 +165,7 @@ id, message_id, uploader_id, filename, content_type, size_bytes, width, height, 
 
 ## 7. Staff
 
-`staff_appointments` (account_id, appointed_by, appointed_at, revoked_at, revoked_by, reason, revoked_reason `left`|`kicked`|`revoked`, migration 0790). Staff status = active appointment **AND** current member of the staff guild (D-130/D-132). `appointment_delegations` (who may appoint). `staff_access_log` (append-only: id, staff_account_id, action, target_type, target_id, reason, created_at, prev_hash, hash). `audit_log_entries` (guild-scoped, Discord-compatible) + `platform_audit_log` (platform-scoped).
+`staff_appointments` (account_id, appointed_by, appointed_at, revoked_at, revoked_by, reason, revoke_reason, revoked_reason `left`|`kicked`|`revoked`, migration 0790). Staff status = active appointment **AND** current member of the staff guild (D-130/D-132). `appointment_delegations` (who may appoint). `staff_access_log` (append-only and hash-chained, migration 0130: seq (contiguous from 1), at_us, actor_id, kind `admin_action`|`read`|`private_read`|`denied`, action, target_kind, target_id, reason (required for `private_read`), ip, detail, prev_hash, hash). `audit_log_entries` (guild-scoped, Discord-compatible) + `platform_audit_log` (platform-scoped).
 
 `moderation_holds` (id, reason, created_by, case_ref). Phase 7 expands these into cases and reports.
 
@@ -210,7 +210,7 @@ As built (migrations 0540 and 0541, `sr-payments`): `payment_wallets` (watch-onl
 
 ## 13. Indexing notes
 
-- Migration-level additions beyond the tables above (the many later ones are listed in section 14): `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use reserved ids below 1024), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
+- Migration-level additions beyond the tables above (the many later ones are listed in section 14): `login_events` and `accounts.age_confirmed` (section 1), the `jobs` queue (migration 0004; recurring singleton jobs use ids below 2^40, `SINGLETON_ID_LIMIT` in `sr-db::jobs`; the sequence `jobs_sql_id_seq` of migration 2560 starts at that limit for jobs enqueued from SQL, D-597), and `feature_enablements` with channel scope and nullable `enabled` for inherit (migration 0050).
 - `messages`: (channel_id, id DESC), partial index `WHERE visibility='visible'`, and (purge_after) WHERE purge_after IS NOT NULL.
 - `attachments`: (expires_at) WHERE is_large AND state='ready'.
 - `guild_members`: (user_id) for "my guilds".
@@ -264,3 +264,32 @@ The sections above are the original logical model plus "as built" notes up to ab
 | Invite controls | `invite_inactive_roots`, `invite_prune_runs` | 1890 | OPS-INV-001 |
 | Moderation and compliance | `moderation_cases`, `moderation_reports`, `moderation_case_evidence`, `moderation_case_notes`, `moderation_case_events`, `moderation_appeals`, `takedown_notices`, `takedown_items`, `takedown_events`, `takedown_strike_reviews`, `blocked_objects`, `data_requests`; wave 44-A: `account_activity`, `moderation_subtree_cases`, `moderation_subtree_nodes`, `member_restrictions`, `moderation_requests`, `moderation_notices` | 1090, 1100, 1120, 2120 | moderation-compliance, D-395, D-420 to D-424 |
 | Operations | `crash_reports` (deduplicated by fingerprint) | 2160 | OPS-CRASH-001 |
+| Beta bug reports | `bug_reports` | 2790 | D-647 to D-650 |
+| Activity package uploads | `activity_package_uploads` | 2830 | D-654 to D-657 |
+
+### 14.1 Later changes to tables above
+
+Waves 47 to 65 added two tables (`bug_reports`, `activity_package_uploads`, in the table above) and changed these existing ones. The DDL is the authority.
+
+| Change | Migration | Read |
+|---|---|---|
+| `invite_cards.claimants_purged_at` and `going_final`: the list of who claimed a seat is deleted after the event (`invites.card_claimants_retention_days`, job `cards.purge_claimants`); the number that went is kept | 2320 | FU-8 |
+| `moderation_cases.target_kind` and `moderation_reports.target_kind` accept `guestbook_note` | 2340 | D-506, D-507 |
+| `watch_parties.media_page_url` and `media_format` (`file` or `hls`, only for `direct` media): parties started from a PeerTube link | 2360 | D-515, D-516 |
+| `soundboard_sounds.format_type` 1 to 4 (4 = WebM/Opus) | 2380 | D-534 |
+| Triggers `messages_held_delete` and `attachments_held_delete`: a message or attachment under a moderation hold cannot be deleted, directly or by cascade (`restrict_violation`); release the hold first | 2390 | D-122, D-212, D-213 |
+| `arcade_guild_cartridges.manifest_checked_at`, `delisted_at`, `delist_reason`, then `manifest_defer_*` (a shelf that cannot be asked defers the re-check instead of delisting) | 2440, 2500 | D-568, D-579, D-582 |
+| `storage_objects.content_tag`, `content_sha256`; `takedown_items.object_hash`, `object_size`, `object_sha256`, `derived_from`, `notified_at`: a storage-object takedown follows the bytes to other keys and mounts | 2450, 2510 | D-571, D-583, D-584 |
+| `cinema_comments` and `reading_comments`: `deleted_at`, nullable `user_id`, no cascade on `parent_id`; a deleted comment with replies stays as a tombstone | 2451 | D-572 |
+| Sequence `jobs_sql_id_seq`: the one id source for jobs enqueued from SQL, starting at 2^40 | 2560 | D-592, D-597 |
+| `moderation_requests.state` accepts `executing`; statement triggers refuse `TRUNCATE` on every append-only audit table and `DELETE` on `application_audit` and `payment_audit` | 2590 | D-606 |
+| Index `bridge_channel_maps_discord_channel_idx` | 2610 | D-609 |
+| `application_activity_bundles.superseded_at` (set by trigger when a bundle becomes `superseded`), for the grace period before its files are removed | 2670 | D-630 |
+
+`bug_reports` (D-647 to D-650) is personal data: `reporter_id` (cascade on account delete), `status` (`open` or `closed`), `closed_at`, `closed_by`, `commit_sha`, `route` (a route name, not a URL), `description` (1 to 2000 characters), `bundle` jsonb (an allow-listed debug bundle the server rebuilt) and an optional `screenshot` bytea of at most 2 MiB. The screenshot is deleted when the report is closed or after 30 days and the row after 90 days (job `bugs.retention`, daily); account deletion removes the member's reports (D-617). Opening a report, its picture, and closing one each write a platform audit entry. The reporter itself is the platform switch `platform.beta_reports`, a platform feature switch (off by default) kept with the other switches, not in a table of its own.
+
+`activity_package_uploads` (D-654) is one row per upload of an Activity package in parts: `application_id`, `created_by`, `expires_at`, `size`, `part_size`, `part_count`, `object_key` (`activities/{application}/uploads/{id}.zip`), `multipart_id`, `state` (`uploading`, `checking`, `ready`, `refused`, `expired`, `aborted`), `checked_bytes` (progress of the check), `bundle_id` (the bundle the check made, cleared if that bundle is deleted) and `error`. The daily sweep (`activities.package_sweep`) aborts unfinished rows past `expires_at` and deletes every row after seven days. The size tiers of D-655 are operator settings (`activities.package.max_mb`, `reviewed_max_mb`, `platform_max_mb`, `max_files`), not columns.
+
+Account deletion (D-617) adds no table. `crates/sr-db/src/account_deletion.rs` runs in one transaction: the account row stays as the tombstone and `accounts.state` becomes `deleted`; what the member contributed for others (messages, reactions, poll votes, Cinema and Library reviews, ratings and comments, public lists) stays under "Deleted User"; personal state that served only the member is deleted (Cinema progress, reading progress and bookmarks, scratch notes, personal loot tables, saved, private and friends-only Cinema lists, unstarted invite card claims, bug reports); ready data exports expire and unbuilt ones fail.
+
+The storage response-type rules (D-629, D-637, D-641 to D-645) add no column. The `response_type` row of a mount's connection test lives in `storage_mounts.last_test` (jsonb), and a mount whose stored test failed it hands out no presigned GET.
