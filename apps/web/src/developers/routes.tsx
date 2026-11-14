@@ -17,7 +17,8 @@ const AuthorizedPage = lazyNamed(() => import('./Authorize'), 'AuthorizedPage');
  * Developer portal routes:
  *   /developers                           overview
  *   /developers/applications              list + New application
- *   /developers/applications/:appId?tab=  General | OAuth2 | Bot | Installation | Commands | Review
+ *   /developers/applications/:appId?tab=  the application's tabs (General, OAuth2, Bot, Installation, Commands, Emojis,
+ *                                         Rich Presence, Activities, Review: nine)
  *   /developers/docs[/:page]              documentation hub
  *   /oauth2/authorize                     consent screen (outside the portal chrome)
  *   /oauth2/authorized                    landing after an approval that has no redirect URI

@@ -365,31 +365,3 @@ export function HistoryPage() {
     </div>
   );
 }
-
-const SOON: Record<string, { title: MessageKey; text: MessageKey }> = {
-  requests: {
-    title: 'library.pages.soon.requests.title',
-    text: 'library.pages.soon.requests.text',
-  },
-  lists: {
-    title: 'library.pages.soon.lists.title',
-    text: 'library.pages.soon.lists.text',
-  },
-  upload: {
-    title: 'library.pages.soon.upload.title',
-    text: 'library.pages.soon.upload.text',
-  },
-};
-
-export function SoonPage({ page }: { page: keyof typeof SOON }) {
-  const t = useT();
-  const s = SOON[page]!;
-  return (
-    <div>
-      <div className="lib-page-head">
-        <h1 className="lib-h1">{t(s.title)}</h1>
-      </div>
-      <EmptyState title={t('library.pages.soon.title')} description={t(s.text)} />
-    </div>
-  );
-}

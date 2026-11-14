@@ -221,7 +221,10 @@ describe('build plugin helpers', () => {
       'Lounge',
       'Cinema',
       'Library',
+      'Live TV',
     ]);
+    // XC-PWA-001: the Live TV shortcut opens the channel guide.
+    expect(app.shortcuts.at(-1).url).toBe('/cinema/tv');
   });
 
   it('names no section in the worker, the public manifest or the plain pages', () => {

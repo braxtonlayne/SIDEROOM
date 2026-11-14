@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import {
   Avatar,
-  ComingSoon,
   ContextMenu,
   CounterBadge,
   DropdownMenu,
@@ -160,6 +159,23 @@ function VoiceMembers({ channel, onError }: { channel: Channel; onError: (m: str
   );
 }
 
+/** The channel icon; an age-restricted channel (LNG-CHN-009) carries a small warning mark, built from two existing icons. */
+function ChannelGlyph({ icon, nsfw }: { icon: IconName; nsfw: boolean }) {
+  const t = useT();
+  if (!nsfw) return <Icon name={icon} size={20} />;
+  return (
+    <span className="lng-channel-glyph">
+      <Icon name={icon} size={20} />
+      <Icon
+        name="alert"
+        size={16}
+        className="lng-channel-glyph-mark"
+        label={t('lounge.channelSidebar.ageRestricted')}
+      />
+    </span>
+  );
+}
+
 interface Dnd {
   props: (id: string) => Record<string, unknown>;
   mark: ChannelDropMark;
@@ -197,7 +213,7 @@ function ChannelRow({
     'data-muted': channel.muted || undefined,
     'data-selected': selected || undefined,
   };
-  const label = `${channel.name}${channel.unread ? t('lounge.channelSidebar.unreadSuffix') : ''}${channel.mentionCount ? t('lounge.channelSidebar.mentionsSuffix', { count: channel.mentionCount }) : ''}${channel.muted ? t('lounge.channelSidebar.mutedSuffix') : ''}`;
+  const label = `${channel.name}${channel.unread ? t('lounge.channelSidebar.unreadSuffix') : ''}${channel.mentionCount ? t('lounge.channelSidebar.mentionsSuffix', { count: channel.mentionCount }) : ''}${channel.muted ? t('lounge.channelSidebar.mutedSuffix') : ''}${channel.nsfw ? t('lounge.channelSidebar.ageRestrictedSuffix') : ''}`;
   return (
     <li
       className="lng-channel-item"
@@ -250,7 +266,7 @@ function ChannelRow({
                 );
               }}
             >
-              <Icon name={icon} size={20} />
+              <ChannelGlyph icon={icon} nsfw={!!channel.nsfw} />
               <span className="lng-channel-name" id={nameId}>
                 {channel.name}
               </span>
@@ -276,7 +292,7 @@ function ChannelRow({
               draggable={false}
               {...attrs}
             >
-              <Icon name={icon} size={20} />
+              <ChannelGlyph icon={icon} nsfw={!!channel.nsfw} />
               <span className="lng-channel-name" id={nameId}>
                 {channel.name}
               </span>
@@ -387,14 +403,8 @@ function GuildHeader({ guild }: { guild: Guild }) {
   const guideOn = useGuideFlags((s) => !!s.enabled[guild.id]);
   const browseOn = useGuideFlags((s) => !!s.onboarding[guild.id]);
   const openDialog = useLoungeUi((s) => s.openDialog);
-  const [coming, setComing] = useState<string | null>(null);
-  const soon = (title: string) => () => setComing(title);
   const p = guild.permissions;
   const items: MenuEntry[] = [
-    {
-      label: t('lounge.channelSidebar.serverSupport'),
-      onSelect: soon(t('lounge.channelSidebar.serverSupport')),
-    },
     ...(p.createInvite && !guild.isStaff
       ? [
           {
@@ -414,10 +424,6 @@ function GuildHeader({ guild }: { guild: Guild }) {
           } as MenuEntry,
         ]
       : []),
-    {
-      label: t('lounge.channelSidebar.appDirectory'),
-      onSelect: soon(t('lounge.channelSidebar.appDirectory')),
-    },
     ...(hasMemberModule(modules)
       ? [
           {
@@ -490,9 +496,6 @@ function GuildHeader({ guild }: { guild: Guild }) {
           </button>
         }
       />
-      <ComingSoon open={coming !== null} onClose={() => setComing(null)} title={coming ?? ''}>
-        <p>{t('lounge.channelSidebar.serverActionSoon')}</p>
-      </ComingSoon>
     </>
   );
 }

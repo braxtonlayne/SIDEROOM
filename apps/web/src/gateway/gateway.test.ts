@@ -66,6 +66,33 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('GatewayClient', () => {
+  it('counts reconnects and keeps the last heartbeat round trip for the debug bundle (D-665)', async () => {
+    const { client } = setup();
+    expect(client.reconnects).toBe(0);
+    expect(client.heartbeatMs).toBeNull();
+    client.connect();
+    let ws = await handshake(1000);
+    ws.recv({ op: 0, t: 'READY', s: 1, d: { session_id: 'abc', resume_gateway_url: 'ws://r/g' } });
+    expect(client.reconnects).toBe(0);
+    // The first heartbeat goes out at interval * 0.5; the ACK comes 40 ms later.
+    await vi.advanceTimersByTimeAsync(500);
+    expect(ws.sent.some((m) => m.op === Op.HEARTBEAT)).toBe(true);
+    expect(client.heartbeatMs).toBeNull();
+    await vi.advanceTimersByTimeAsync(40);
+    ws.recv({ op: Op.HEARTBEAT_ACK });
+    expect(client.heartbeatMs).toBe(40);
+    // A drop and a RESUME is one reconnect, a second drop is the second.
+    ws.serverClose(1006);
+    await vi.advanceTimersByTimeAsync(30_000);
+    ws = last();
+    expect(client.reconnects).toBe(1);
+    await handshake(1000);
+    ws.serverClose(1006);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(client.reconnects).toBe(2);
+    expect(client.heartbeatMs).toBe(40);
+  });
+
   it('keeps the static backoff cap', () => {
     expect(GatewayClient.backoffMs(0)).toBe(1000);
     expect(GatewayClient.backoffMs(20)).toBe(30_000);

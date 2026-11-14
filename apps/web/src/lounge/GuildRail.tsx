@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { Avatar, ContextMenu, CounterBadge, Icon, Tooltip, type MenuEntry } from '@sideroom/ui';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { RailPill, type RailPillState } from '@sideroom/ui';
 import { openPlayerLibrary } from '../player/presence';
 import { RovingNav } from '../a11y/RovingNav';
@@ -19,6 +19,7 @@ import {
 import { useLoungeRoute } from './nav';
 import { useVoiceSession } from '../voice/session';
 import { useLoungeUi } from './store';
+import { markServerOpened, useIsNewServer } from './newServer';
 import { ShowroomRailSlot } from '../showroom/ShowroomRailSlot';
 import { InstallButton } from './shell/InstallButton';
 import { useGuildMenuCore, useLoadNotifSettings } from './shell/useGuildMenu';
@@ -101,6 +102,11 @@ function GuildIcon({
   const t = useT();
   const inVoice = useVoiceSession((s) => s.guildId === guild.id && s.status !== 'idle');
   const voice = inVoice || guild.voiceConnected;
+  const newByJoin = useIsNewServer(guild.id);
+  const isNew = guild.isNew || newByJoin;
+  useEffect(() => {
+    if (selected) markServerOpened(guild.id);
+  }, [selected, guild.id]);
   const pill: RailPillState = selected ? 'selected' : guild.unread ? 'unread' : 'none';
   const setLayout = useLoungeUi((s) => s.setRailLayout);
   const openDialog = useLoungeUi((s) => s.openDialog);
@@ -210,7 +216,7 @@ function GuildIcon({
                 data-text={t('lounge.platformAdmin.badge')}
               />
             )}
-            {guild.isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
+            {isNew && <span className="lng-new-badge">{t('lounge.guildRail.newBadge')}</span>}
           </GuildLink>
         </Tooltip>
         <CounterBadge

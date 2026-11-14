@@ -108,4 +108,4 @@ WCAG 2.2 AA. Full keyboard navigation (Discord keyboard shortcuts plus `Ctrl+/` 
 - Lounge on mobile follows Discord mobile patterns: swipe between server/channel list, chat, and member list. Bottom tab bar: Home, Notifications, You.
 - The primary rail is The Lounge, The Arcade and The Study (D-400, `apps/web/src/study/RoomsNav.tsx`); on phones the Lounge bar drops the brand (D-539).
 - Cinema and Library collapse to single-column rows with horizontal scrollers. The reader is full-screen with tap zones.
-- Installable PWA with app shortcuts (Lounge, Cinema, Library; `apps/web/public/app-manifest.webmanifest`), Web Push notifications, and the Badging API for unread counts.
+- Installable PWA with app shortcuts (Lounge, Cinema, Library, Live TV; `apps/web/public/app-manifest.webmanifest`), Web Push notifications, and the Badging API for unread counts.

@@ -12,6 +12,8 @@ export type SelfStatus = 'online' | 'idle' | 'dnd' | 'invisible';
 export interface SelfPresenceState {
   status: SelfStatus;
   customText: string | null;
+  /** The custom status's Unicode emoji, if any (LNG-HOME-011). */
+  customEmoji: string | null;
   loaded: boolean;
   load(): Promise<void>;
   update(body: PresenceBody): Promise<void>;
@@ -24,28 +26,50 @@ function mirrorIntoStore(userId: string | null, p: PresenceObject) {
   if (!userId) return;
   const status = p.status === 'invisible' ? 'offline' : p.status;
   const text = p.custom_status?.text;
+  const emoji = p.custom_status?.emoji_name;
   useStore.getState().applyDispatch('PRESENCE_UPDATE', {
     user: { id: userId },
     status,
-    activities: text ? [{ type: 4, name: 'Custom Status', state: text }] : [],
+    activities:
+      text || emoji
+        ? [
+            {
+              type: 4,
+              name: 'Custom Status',
+              state: text ?? null,
+              ...(emoji ? { emoji: { name: emoji } } : {}),
+            },
+          ]
+        : [],
   });
 }
 
 export const useSelfPresence = create<SelfPresenceState>()((set) => ({
   status: 'online',
   customText: null,
+  customEmoji: null,
   loaded: false,
   async load() {
     try {
       const p = await getPresence();
-      set({ status: asStatus(p.status), customText: p.custom_status?.text ?? null, loaded: true });
+      set({
+        status: asStatus(p.status),
+        customText: p.custom_status?.text ?? null,
+        customEmoji: p.custom_status?.emoji_name ?? null,
+        loaded: true,
+      });
     } catch {
       set({ loaded: true });
     }
   },
   async update(body) {
     const p = await patchPresence(body);
-    set({ status: asStatus(p.status), customText: p.custom_status?.text ?? null, loaded: true });
+    set({
+      status: asStatus(p.status),
+      customText: p.custom_status?.text ?? null,
+      customEmoji: p.custom_status?.emoji_name ?? null,
+      loaded: true,
+    });
     mirrorIntoStore(useStore.getState().currentUserId, p);
   },
 }));

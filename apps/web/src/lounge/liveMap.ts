@@ -326,6 +326,7 @@ interface WireActivity {
   type?: number;
   name?: string;
   state?: string | null;
+  emoji?: { name?: string | null; id?: string | null } | null;
   details?: string | null;
   timestamps?: { start?: number | null } | null;
   /** Game platform (Discord's `platform` field). */
@@ -341,9 +342,13 @@ function toActivity(a: WireActivity): Activity | null {
   if (!kind) return null;
   // Watching/reading carry the application in `name` ("SIDE ROOM Cinema") and the title in `details`.
   const titled = (a.type === 3 || a.type === 6) && !!a.details;
-  const text = (a.type === 4 ? (a.state ?? a.name) : titled ? a.details : a.name) ?? '';
-  if (!text) return null;
+  // A custom status may be an emoji alone (state null); the others always have a text.
+  const emoji = a.type === 4 && !a.emoji?.id ? (a.emoji?.name ?? '') : '';
+  const text =
+    (a.type === 4 ? (a.state ?? (emoji ? '' : a.name)) : titled ? a.details : a.name) ?? '';
+  if (!text && !emoji) return null;
   const out: Activity = { kind, text };
+  if (emoji) out.emoji = emoji;
   const sub = titled ? a.state : (a.details ?? a.state);
   if (a.type !== 4 && sub) out.details = sub;
   if (a.timestamps?.start) out.startedAt = a.timestamps.start;

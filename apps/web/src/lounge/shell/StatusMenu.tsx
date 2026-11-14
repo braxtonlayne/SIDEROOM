@@ -33,6 +33,7 @@ export function StatusMenu({ name }: { name: string }) {
   const t = useT();
   const status = useSelfPresence((s) => s.status);
   const customText = useSelfPresence((s) => s.customText);
+  const customEmoji = useSelfPresence((s) => s.customEmoji);
   const load = useSelfPresence((s) => s.load);
   const update = useSelfPresence((s) => s.update);
   const openDialog = useLoungeUi((s) => s.openDialog);
@@ -55,7 +56,10 @@ export function StatusMenu({ name }: { name: string }) {
 
   const items: MenuEntry[] = [
     {
-      label: customText ? t('lounge.statusMenu.editCustom') : t('lounge.statusMenu.setCustom'),
+      label:
+        customText || customEmoji
+          ? t('lounge.statusMenu.editCustom')
+          : t('lounge.statusMenu.setCustom'),
       onSelect: () => openDialog({ kind: 'customStatus' }),
     },
     { type: 'separator' },
