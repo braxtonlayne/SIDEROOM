@@ -95,7 +95,10 @@ fn a_bug_report_keeps_only_allow_listed_bundle_fields() {
     assert_eq!(c.bundle["commit"], "0000000");
     assert_eq!(c.bundle["locale"], "und");
     assert_eq!(c.bundle["theme"], "other");
-    assert_eq!(c.bundle["sw"], "none", "an invalid state is the neutral one");
+    assert_eq!(
+        c.bundle["sw"], "none",
+        "an invalid state is the neutral one"
+    );
     assert_eq!(c.bundle["crashes"], json!(["b".repeat(64)]));
     // The entry with a query is gone; the other keeps only its named fields.
     assert_eq!(
