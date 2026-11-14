@@ -1921,6 +1921,24 @@ impl ApplicationRepository for PgSettingsRepo {
             if banned {
                 return Err(RepoError(APPLICANT_BANNED.to_owned()));
             }
+            // D-659, D-660: only a membership that does not exist yet counts against a limit. At a limit nothing
+            // changes (the early return rolls the decision back) and the application stays pending.
+            let member: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(i(guild.get()))
+            .bind(i(app.user_id.get()))
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+            if !member {
+                crate::guild_caps::check_user_cap(&mut tx, i(app.user_id.get()))
+                    .await
+                    .map_err(crate::guild_caps::repo_err)?;
+                crate::guild_caps::check_guild_cap(&mut tx, i(guild.get()))
+                    .await
+                    .map_err(crate::guild_caps::repo_err)?;
+            }
             // The applicant may have joined another way meanwhile; the join is idempotent.
             sqlx::query(
                 "INSERT INTO guild_members (guild_id, user_id, join_source, join_ref) VALUES ($1, $2, 'application', $3) \

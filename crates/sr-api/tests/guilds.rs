@@ -1824,3 +1824,50 @@ async fn creating_a_server_takes_its_icon_in_the_same_request() {
     assert_eq!(s, StatusCode::CREATED, "{g}");
     assert!(g["icon"].is_string());
 }
+
+/// D-659: a plain create and a create from a template both answer 400 `30001` with the number in force once
+/// the account is in the most servers it may be in; no server is created.
+#[tokio::test]
+async fn creating_a_server_at_the_limit_is_30001_with_the_number() {
+    let f = fixture();
+    f.repo.store.lock().unwrap().caps.per_user = Some(2);
+    for name in ["One", "Two"] {
+        let (s, g) = post(&f, "/guilds", "owner", json!({ "name": name })).await;
+        assert_eq!(s, StatusCode::CREATED, "{g}");
+    }
+    let before = f.repo.store.lock().unwrap().guilds.len();
+    for body in [
+        json!({ "name": "Three" }),
+        json!({ "name": "Three", "template": "gaming" }),
+    ] {
+        let (s, e) = post(&f, "/guilds", "owner", body).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{e}");
+        assert_eq!(e["code"], 30001);
+        assert_eq!(e["message"], "Maximum number of guilds reached (2)");
+    }
+    assert_eq!(f.repo.store.lock().unwrap().guilds.len(), before);
+    // Somebody else is not affected.
+    let (s, _) = post(&f, "/guilds", "bob", json!({ "name": "Bob's" })).await;
+    assert_eq!(s, StatusCode::CREATED);
+}
+
+/// D-660: the guild object carries `max_members` (the number in force; `null` for the Staff Server).
+#[tokio::test]
+async fn the_guild_object_carries_max_members() {
+    let f = fixture();
+    let (gid, _) = guild(&f).await;
+    let (s, g) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert_eq!(s, StatusCode::OK, "{g}");
+    assert_eq!(g["max_members"], 25_000);
+    f.repo
+        .store
+        .lock()
+        .unwrap()
+        .guilds
+        .get_mut(&GuildId::new(gid.parse().unwrap()))
+        .unwrap()
+        .is_staff_guild = true;
+    let (_, g) = get(&f, &format!("/guilds/{gid}"), "owner").await;
+    assert!(g["max_members"].is_null(), "{g}");
+    assert!(g.as_object().unwrap().contains_key("max_members"), "{g}");
+}

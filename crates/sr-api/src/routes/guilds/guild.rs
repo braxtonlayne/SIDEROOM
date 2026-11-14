@@ -245,6 +245,7 @@ pub async fn get_guild(
     Api(api): Api,
     MaybeExt(settings): MaybeExt<SettingsDeps>,
     MaybeExt(messages): MaybeExt<crate::routes::messages::MessagesDeps>,
+    MaybeExt(limit): MaybeExt<super::member_limit::MemberLimitSource>,
     Path(guild_id): Path<String>,
     Query(q): Query<GetGuildQuery>,
 ) -> ApiResult<Json<GuildObject>> {
@@ -255,6 +256,14 @@ pub async fn get_guild(
     if let Some(m) = messages {
         out.sr_max_upload_bytes = Some(m.effective_upload_limit(user, Some(gid)).await);
     }
+    out.max_members = Some(if g.is_staff_guild {
+        None
+    } else {
+        Some(match limit {
+            Some(l) => l.0.members_limit().await,
+            None => super::member_limit::default_limit(),
+        })
+    });
     if q.with_counts == Some(true)
         && let Some(s) = settings
     {

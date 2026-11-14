@@ -1051,3 +1051,133 @@ async fn a_ban_rejects_the_pending_application_and_refuses_its_approval() {
         Err(SettingsError::UnknownApplication)
     ));
 }
+
+/// D-659, D-660: an approval that meets a limit changes nothing, stays pending, and the approver is told
+/// which limit (the applicant's own limit says so). A repeat after the limit is lifted goes through.
+#[tokio::test]
+async fn approving_at_a_limit_leaves_the_application_pending_and_says_which_limit() {
+    use super::applications::{Application, ApplicationStatus};
+    use super::repo::ApplicationRepository;
+    use sr_core::guild_caps::CapHit;
+    let (svc, _) = setup();
+    let app = Application {
+        id: 1,
+        guild_id: G,
+        user_id: UserId::new(50),
+        answers: vec![],
+        status: ApplicationStatus::Pending,
+        created_at_ms: 1,
+        reviewed_by: None,
+        reviewed_at_ms: None,
+        rejection_reason: None,
+    };
+    assert!(svc.repo().insert_application(&app).await.unwrap());
+    let approve = || svc.decide_application(Permissions::MANAGE_GUILD, G, 1, true, ADMIN, None);
+
+    svc.repo()
+        .with(|s| s.approval_cap = Some(CapHit::GuildMembers(25_000)));
+    let e = approve().await.unwrap_err();
+    assert!(matches!(e, SettingsError::MaxGuildMembers), "{e:?}");
+    let a = e.to_api_error();
+    assert_eq!((a.status(), a.code.code()), (400, 30019));
+
+    svc.repo()
+        .with(|s| s.approval_cap = Some(CapHit::UserServers(200)));
+    let e = approve().await.unwrap_err();
+    assert!(matches!(e, SettingsError::ApplicantAtLimit), "{e:?}");
+    let a = e.to_api_error();
+    assert_eq!((a.status(), a.code.code()), (400, 30001));
+    assert_eq!(
+        a.body()["message"],
+        "This member is in the most servers one account can be in."
+    );
+    let still = svc.repo().get_application(G, 1).await.unwrap().unwrap();
+    assert_eq!(still.status, ApplicationStatus::Pending);
+
+    svc.repo().with(|s| s.approval_cap = None);
+    let done = approve().await.unwrap();
+    assert_eq!(done.status, ApplicationStatus::Approved);
+}
+
+/// D-659, D-660 on the in-memory repositories: the same rules as Postgres, with limits a test sets.
+#[tokio::test]
+async fn the_memory_joins_enforce_both_limits_and_skip_the_staff_server() {
+    use super::join::InviteJoinRepository;
+    use super::memory::MemoryInviteJoin;
+    use crate::memory::MemoryBackend;
+    use crate::repo::GuildRepository;
+    let backend = MemoryBackend::new();
+    let settings = Arc::new(MemorySettingsRepo::default());
+    let clock = Arc::new(ManualClock::new(1_800_000_000_000));
+    let dyn_clock: Arc<dyn Clock> = clock;
+    let ids = SnowflakeGenerator::new(dyn_clock.clone(), 2, 2).unwrap();
+    let mk = |owner: u64, staff: bool| {
+        let mut bp =
+            crate::guild_rules::plan_new_guild(UserId::new(owner), "G", 1_800_000_000_000, || {
+                ids.generate()
+            })
+            .unwrap();
+        bp.guild.is_staff_guild = staff;
+        bp
+    };
+    backend.data().caps.per_user = Some(2);
+    settings.with(|s| {
+        s.caps.per_user = Some(2);
+        s.caps.members = Some(2);
+    });
+    let (a, b, c) = (mk(1, false), mk(2, false), mk(3, false));
+    for bp in [&a, &b, &c] {
+        backend.insert_guild(bp).await.unwrap();
+    }
+    let staff = mk(9, true);
+    backend.insert_guild(&staff).await.unwrap();
+    // The owner's create counts, the staff server does not.
+    let again = backend.insert_guild(&mk(1, false)).await;
+    assert!(
+        again.is_ok(),
+        "one server, one staff seat: room for a second"
+    );
+    let e = backend.insert_guild(&mk(1, false)).await.unwrap_err();
+    assert!(
+        matches!(
+            crate::error::ChatError::from_repo(e),
+            crate::error::ChatError::MaxGuilds(2)
+        ),
+        "a third create is refused"
+    );
+    backend.insert_guild(&mk(9, true)).await.unwrap();
+
+    let join = MemoryInviteJoin {
+        chat: backend.clone(),
+        settings: settings.clone(),
+    };
+    let user = UserId::new(7);
+    assert!(matches!(
+        join.join_listed(a.guild.id, user, 5).await,
+        Ok(Some(_))
+    ));
+    // Server `a` now has its owner and the joiner: full. The account is in one server.
+    let e = join
+        .join_listed(a.guild.id, UserId::new(8), 5)
+        .await
+        .unwrap_err();
+    assert!(matches!(e, SettingsError::MaxGuildMembers), "{e:?}");
+    assert!(matches!(
+        join.join_listed(b.guild.id, user, 5).await,
+        Ok(Some(_))
+    ));
+    // The joiner is in two servers: the limit; a repeat is "already a member", not an error.
+    let e = join.join_listed(c.guild.id, user, 5).await.unwrap_err();
+    assert!(matches!(e, SettingsError::MaxGuilds(2)), "{e:?}");
+    assert!(matches!(
+        join.join_listed(a.guild.id, user, 5).await,
+        Ok(None)
+    ));
+    // The Staff Server takes anyone: it is never full, and a seat in it is not counted.
+    for n in 100..105 {
+        assert!(matches!(
+            join.join_listed(staff.guild.id, UserId::new(n), 5).await,
+            Ok(Some(_))
+        ));
+    }
+}

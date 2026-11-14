@@ -25,6 +25,7 @@ pub mod bridge_sync;
 pub mod channels;
 pub mod dto;
 pub mod guild;
+pub mod member_limit;
 pub mod members;
 pub mod prune;
 pub mod roles;

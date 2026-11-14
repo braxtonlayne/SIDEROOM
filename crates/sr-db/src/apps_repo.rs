@@ -1952,6 +1952,22 @@ impl AppsRepository for PgAppsRepo {
         let mut role_created = false;
         let mut role_id = prior_role;
         if req.with_bot {
+            // D-660: the server may take one more member. Only a bot that is not a member yet counts.
+            let already: bool = sqlx::query_scalar(
+                "SELECT EXISTS (SELECT 1 FROM guild_members WHERE guild_id = $1 AND user_id = $2)",
+            )
+            .bind(req.guild_id)
+            .bind(req.bot_user_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(db)?;
+            if !already {
+                match crate::guild_caps::check_guild_cap(&mut tx, req.guild_id).await {
+                    Ok(()) => {}
+                    Err(crate::guild_caps::CapError::Hit(_)) => return Err(AppsError::GuildFull),
+                    Err(crate::guild_caps::CapError::Db(e)) => return Err(db(e)),
+                }
+            }
             member_added = sqlx::query(
                 "INSERT INTO guild_members (guild_id, user_id, joined_at, join_source, join_ref) \
                  VALUES ($1, $2, to_timestamp($3::double precision / 1000.0), 'bot', $4) \

@@ -385,6 +385,7 @@ pub(crate) fn app_err(e: AppsError) -> MsgError {
         AppsError::MissingPermissions => ApiError::new(C::MissingPermissions),
         AppsError::Invalid(p) => field_error(p),
         AppsError::Conflict(m) => ApiError::with_message(C::SrConflict, m),
+        AppsError::GuildFull => ApiError::new(C::MaxGuildMembers),
         AppsError::NotReleased => ApiError::new(C::SrAppNotReleased),
         AppsError::Suspended => ApiError::new(C::SrAppSuspended),
         AppsError::TesterRecentlyDeclined => ApiError::new(C::SrTesterRecentlyDeclined),

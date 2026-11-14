@@ -19,6 +19,16 @@ pub enum SettingsError {
     Banned,
     #[error("maximum number of invites reached")]
     MaxInvites,
+    /// The account is in the most servers it may be in (D-659); carries the limit in force.
+    #[error("maximum number of guilds reached ({0})")]
+    MaxGuilds(i64),
+    /// The server has the most members it may have (D-660).
+    #[error("maximum number of server members reached")]
+    MaxGuildMembers,
+    /// Approving an application: the applicant is in the most servers an account may be in. The application
+    /// stays pending.
+    #[error("the applicant is in the most servers an account may be in")]
+    ApplicantAtLimit,
     #[error("unknown emoji")]
     UnknownEmoji,
     #[error("unknown sticker")]
@@ -73,6 +83,15 @@ impl SettingsError {
             ),
             Self::Banned => ApiError::new(ErrorCode::UserBanned),
             Self::MaxInvites => ApiError::new(ErrorCode::MaxInvites),
+            Self::MaxGuilds(n) => ApiError::with_message(
+                ErrorCode::MaxGuilds,
+                format!("Maximum number of guilds reached ({n})"),
+            ),
+            Self::MaxGuildMembers => ApiError::new(ErrorCode::MaxGuildMembers),
+            Self::ApplicantAtLimit => ApiError::with_message(
+                ErrorCode::MaxGuilds,
+                "This member is in the most servers one account can be in.",
+            ),
             Self::UnknownEmoji | Self::UnknownSticker => ApiError::new(ErrorCode::UnknownEmoji),
             Self::UnknownSound => ApiError::new(ErrorCode::UnknownSound),
             Self::UnknownWebhook => ApiError::new(ErrorCode::UnknownWebhook),
@@ -100,6 +119,15 @@ impl SettingsError {
 }
 
 pub type SettingsResult<T> = Result<T, SettingsError>;
+
+impl From<sr_core::guild_caps::CapHit> for SettingsError {
+    fn from(h: sr_core::guild_caps::CapHit) -> Self {
+        match h {
+            sr_core::guild_caps::CapHit::UserServers(n) => Self::MaxGuilds(n),
+            sr_core::guild_caps::CapHit::GuildMembers(_) => Self::MaxGuildMembers,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
