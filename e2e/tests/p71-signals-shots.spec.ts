@@ -99,9 +99,17 @@ test('the open app follows the default level set in another tab', async ({ brows
   const say = (content: string) =>
     apiPost(bobCtx.request, `/channels/${talk}/messages`, { content });
 
-  // Baseline: the default is "All messages", a message notifies.
-  await say('baseline: you should hear this');
-  await expect.poll(async () => (await notes()).length).toBe(1);
+  // Baseline: the default is "All messages", a message notifies. The gateway of a fresh page may still be
+  // connecting: write until the first one is recorded (the count after it is the baseline).
+  let said = 0;
+  for (let i = 0; i < 8 && (await notes()).length === 0; i++) {
+    await say(`baseline ${i}: you should hear this`);
+    said++;
+    await app.waitForTimeout(2500);
+  }
+  const base = (await notes()).length;
+  console.log(`baseline: ${base} recorded after ${said} message(s)`);
+  expect(base).toBeGreaterThan(0);
 
   // Tab B: Settings > Notifications, "Nothing".
   const settings = await c.newPage();
@@ -112,12 +120,10 @@ test('the open app follows the default level set in another tab', async ({ brows
   await app.waitForTimeout(1500);
   await pause();
   await say('after nothing: silence');
-  await app.waitForTimeout(2000);
+  await app.waitForTimeout(2500);
   const afterNothing = await notes();
-  console.log(
-    `recorded after "Nothing": ${afterNothing.length - 1} (notes ${JSON.stringify(afterNothing)})`,
-  );
-  expect(afterNothing).toHaveLength(1);
+  console.log(`recorded after "Nothing": ${afterNothing.length - base}`);
+  expect(afterNothing).toHaveLength(base);
 
   // And back: "All messages".
   await settings.getByRole('radio', { name: 'All messages' }).click();
@@ -125,12 +131,12 @@ test('the open app follows the default level set in another tab', async ({ brows
   await app.waitForTimeout(1500);
   await pause();
   await say('after all: heard again');
-  await expect.poll(async () => (await notes()).length).toBe(2);
+  await expect.poll(async () => (await notes()).length).toBe(base + 1);
   const final = await notes();
   console.log(
-    `recorded after "All messages": ${final.length - 1} (last ${JSON.stringify(final[1])})`,
+    `recorded after "All messages": ${final.length - base} (${JSON.stringify(final[base])})`,
   );
-  expect(final[1]?.body).toContain('heard again');
+  expect(final[base]?.body).toContain('heard again');
   await c.close();
   await bobCtx.close();
   await octx.close();
