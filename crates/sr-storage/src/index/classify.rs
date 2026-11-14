@@ -325,9 +325,15 @@ fn section_of(folder: &str) -> Option<Section> {
     })
 }
 
+/// The `kind` of a `.sideroom.json`: the folder names of [`section_of`] and the singular forms a person writes
+/// (`movie`, `book`, `ebook`, `comic`, `show`; the folder names already take `film`, `tv`, `shows`, `audio`).
 fn section_from_kind(kind: &str) -> Option<Section> {
-    section_of(match kind {
+    let kind = kind.trim().to_ascii_lowercase();
+    section_of(match kind.as_str() {
         "movie" => "movies",
+        "book" | "ebook" => "books",
+        "comic" => "comics",
+        "show" => "series",
         other => other,
     })
 }
@@ -882,6 +888,29 @@ pub fn classify_all(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A `.sideroom.json` `kind` is read in the singular and the plural (finding A11).
+    #[test]
+    fn sidecar_kinds_take_the_singular_forms() {
+        for (kind, want) in [
+            ("movie", Section::Movies),
+            ("movies", Section::Movies),
+            ("series", Section::Series),
+            ("show", Section::Series),
+            ("anime", Section::Anime),
+            ("book", Section::Books),
+            ("books", Section::Books),
+            ("ebook", Section::Books),
+            ("comic", Section::Comics),
+            ("comics", Section::Comics),
+            ("manga", Section::Manga),
+            ("music", Section::Music),
+            ("Comic", Section::Comics),
+        ] {
+            assert!(section_from_kind(kind) == Some(want), "{kind}");
+        }
+        assert!(section_from_kind("podcast").is_none());
+    }
 
     /// A stand-in for the real parser: `Show S01E02 ...` style only.
     struct Fake;

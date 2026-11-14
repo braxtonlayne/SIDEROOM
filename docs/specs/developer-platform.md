@@ -124,7 +124,7 @@ Code and refresh handling: a used code presented again revokes every token minte
 
 ### 3.4 Gateway for bots
 
-* `GET /gateway` (no credentials): `{url}`. `GET /gateway/bot` (B): `{url:"wss://<host>/gateway", shards, session_start_limit:{total:1000, remaining:1000, reset_after:86400000, max_concurrency:1}}`; `shards` is one per 1000 servers the application is installed in, at least 1 (`remaining` is a constant, it does not count sessions).
+* `GET /gateway` (no credentials): `{url}`. `GET /gateway/bot` (B): `{url:"wss://<host>/gateway", shards, session_start_limit:{total:1000, remaining:1000, reset_after:0, max_concurrency:1}}`; `shards` is one per 1000 servers the application is installed in. SIDE ROOM has no session start limit (D-666), so `session_start_limit` is fixed at those four numbers and never counts down (`remaining` is a constant, it does not count sessions; the gateway's own connection rate limits bound IDENTIFY abuse); `shards` is at least 1.
 * IDENTIFY with a bot token: `intents` is required; unknown bits close `4013`; privileged bits not allowed close `4014`; a `shard` `[id, count]` with `id` at or above `count` closes `4010` (sharding is supported, section 2). READY carries `user` (with `bot:true`), `application:{id, flags}`, `guilds` (unavailable stubs) as usual.
 * Message events: without `MESSAGE_CONTENT` the bot receives `content`, `embeds`, `attachments`, `components` and `poll` blanked, except for DMs, messages that mention it and its own messages (doc 05 section 6.2).
 * `INTERACTION_CREATE` is delivered to the bot user's sessions (no intent needed). `GUILD_CREATE` follows an install.
