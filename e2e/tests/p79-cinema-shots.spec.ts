@@ -317,21 +317,31 @@ test('SEC-AUD-313/314: no sideways scroll; gold fills and dark surfaces', async 
         );
         expect(home.scrollY, 'the page did not move').toBe(0);
       }
+      // Desktop: the kit's arrows. A phone hides them (cinema.css, max-width 30rem) and swipes: scrollBy stands in.
+      const arrows = sizeName === 'desktop';
       const before = await rail.evaluate((e) => e.scrollLeft);
-      await page
-        .locator('[data-row="trending"]')
-        .getByRole('button', { name: 'Scroll forward' })
-        .click();
+      if (arrows) {
+        await page
+          .locator('[data-row="trending"]')
+          .getByRole('button', { name: 'Scroll forward' })
+          .click();
+      } else {
+        await rail.evaluate((e) => e.scrollBy({ left: e.clientWidth * 0.9 }));
+      }
       await page.waitForTimeout(900);
       const after = await rail.evaluate((e) => e.scrollLeft);
       report(`${tag} rail next: ${before} -> ${after}; document ${(await measure(page)).sw}`);
       if (!BASE) expect(after, `${tag}: next moves the rail`).toBeGreaterThan(before);
       await page.screenshot({ path: resolve(OUT, `home-rail-next-${tag}.png`) });
       shots++;
-      await page
-        .locator('[data-row="trending"]')
-        .getByRole('button', { name: 'Scroll back' })
-        .click();
+      if (arrows) {
+        await page
+          .locator('[data-row="trending"]')
+          .getByRole('button', { name: 'Scroll back' })
+          .click();
+      } else {
+        await rail.evaluate((e) => e.scrollBy({ left: -e.clientWidth * 0.9 }));
+      }
       await page.waitForTimeout(700);
       if (!BASE)
         expect(
@@ -446,7 +456,7 @@ test('SEC-AUD-313/314: no sideways scroll; gold fills and dark surfaces', async 
         shots++;
         if (variant === 'light') {
           await page.locator('.cin-sectionbar a', { hasText: 'Shelves' }).click();
-          await expect(page).toHaveURL(/shelves/);
+          await expect(page).toHaveURL(/[/]study/);
           await page.waitForTimeout(600);
           report(`${tag} on Shelves ${JSON.stringify(await measure(page))}`);
           await page.goBack();

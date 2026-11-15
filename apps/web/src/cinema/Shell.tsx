@@ -30,12 +30,21 @@ export function SectionBar() {
   const t = useT();
   const bar = useRef<HTMLElement>(null);
   const path = useRouterState({ select: (s) => s.location.pathname });
-  // D-817: on a phone the bar scrolls inside itself; bring the area you are in into view (on mount and per route).
+  // D-817: on a phone the bar scrolls inside itself; bring the area you are in into view (on mount, per route, and
+  // once the web fonts have set the bar's final width).
   useEffect(() => {
-    const link = bar.current?.querySelector<HTMLElement>(
-      ".cin-sectionbar-nav + .cin-sectionbar-nav [aria-current='page']",
-    );
-    link?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    const show = () =>
+      bar.current
+        ?.querySelector<HTMLElement>(
+          ".cin-sectionbar-nav + .cin-sectionbar-nav [aria-current='page']",
+        )
+        ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    show();
+    let live = true;
+    void document.fonts?.ready.then(() => live && show());
+    return () => {
+      live = false;
+    };
   }, [path]);
   return (
     <header className="cin-sectionbar" ref={bar}>

@@ -255,6 +255,7 @@
 .cin-frame[data-mobile] .cin-sectionbar {
   overflow-x: auto;
   scrollbar-width: none;
+  scroll-padding-inline: 16px;
 }
 .cin-frame[data-mobile] .cin-sectionbar > * {
   flex: none;
