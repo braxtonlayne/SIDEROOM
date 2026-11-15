@@ -446,6 +446,18 @@
   inset-inline-end: 8px;
   background: rgb(0 0 0 / 0.7);
 }
+/* Text over a cover keeps its dark scrim, so it states light values itself under a light theme: the kit's corner tag
+   (PosterCard's `tag`, a CSS-module class) reads --sr-text, and the age badge on a card reads --ui-danger. */
+.lib-root:not([data-theme^='sideroom']) [class*='_tag_'] {
+  color: #ece6d6;
+}
+.lib-root:not([data-theme^='sideroom']) .lib-age-badge-card {
+  color: #ff9a85;
+  border-color: #ff9a85;
+}
+.lib-root:not([data-theme^='sideroom']) .lib-search-list {
+  box-shadow: var(--ui-shadow-overlay);
+}
 
 /* ---------- spotlight ---------- */
 .lib-spotlight {
@@ -973,6 +985,23 @@
 }
 .lib-reader .lib-icon-btn {
   color: #ece6d6;
+}
+/* The reader's bars are dark under every theme; under a Lounge theme the kit parts on them (page label, slider) read
+   the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. */
+.lib-root:not([data-theme^='sideroom']) :is(.lib-reader-top, .lib-reader-bottom, .lib-sync-notice) {
+  --ui-text: #ece6d6;
+  --ui-text-muted: #a9a493;
+  --ui-text-faint: #918d7e;
+  --ui-border: #2a2b24;
+  --ui-bg-raised: #1c1d18;
+  --ui-bg-hover: #23251d;
+  --sr-text: #ece6d6;
+  --sr-text-2: #a9a493;
+  --sr-text-3: #918d7e;
+  --sr-line: #2a2b24;
+  --sr-bg-2: #1c1d18;
+  --sr-bg-olive: #23251d;
+  color-scheme: dark;
 }
 .lib-reader-title {
   flex: 1;
