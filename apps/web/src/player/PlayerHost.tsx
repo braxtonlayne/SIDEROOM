@@ -10,7 +10,9 @@ import { usePrefsStore } from '../settings/user/prefs';
 import { ThemedOverlayRoot } from '../settings/user/ThemedOverlayRoot';
 import { createPlayerEngine, restoreResume } from './engine';
 import { wireMusicLibrary } from './musicWiring';
+import { usePlayerPageEnd } from './pageEnd';
 import { isPlayerLibraryOpen, usePlayerLibraryNonce, usePlayerLibraryOpen } from './presence';
+import './pageEnd.css';
 import './player.css';
 import './skins.css';
 import { LibrarySkin } from './skins/LibrarySkin';
@@ -62,6 +64,7 @@ export default function PlayerHost() {
   const queued = usePlayerStore((s) => s.queue.length > 0);
   const libraryOpen = usePlayerLibraryOpen();
   const nonce = usePlayerLibraryNonce();
+  const dockRef = usePlayerPageEnd(); // D-805: --sr-player-clear for the rooms' page ends
   // MUS-PLY-002: the rail's music button shows the Library tab, which only the library skin has.
   useEffect(() => {
     if (nonce > 0 && isPlayerLibraryOpen()) actions.setSkin('library');
@@ -104,7 +107,7 @@ export default function PlayerHost() {
       {(queued || libraryOpen) && (
         // The member's Lounge theme in every section (shared with the drawer, D-538).
         <ThemedOverlayRoot className="sr-ply-theme">
-          <div className="sr-ply-dock" data-dock={dock} data-skin={skin}>
+          <div ref={dockRef} className="sr-ply-dock" data-dock={dock} data-skin={skin}>
             {/* While a skin's chunk loads, the default skin stands in so the controls never vanish. */}
             <Suspense fallback={<RetroSkin />}>
               <Skin />

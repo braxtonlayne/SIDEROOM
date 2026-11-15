@@ -1,6 +1,7 @@
 /* Emoji picker category sidebar (RDY-PAR-002). */
 .lng-emoji.lng-emoji {
   inline-size: 320px;
+  max-inline-size: 100%; /* never wider than the panel it sits in (a narrow phone) */
 }
 .lng-emoji-body {
   display: flex;
@@ -56,4 +57,19 @@
 }
 .vc-sb-section[data-greyed] {
   opacity: 0.55;
+}
+
+/* SEC-AUD-306 (D-806): every column of the grid is whole. A bare 1fr is minmax(auto, 1fr): a column
+   never shrinks below its button's content (a 22px glyph plus the browser's button padding), so seven of them were wider than the
+   scroll area and the last was cut. Seven columns stay; each may shrink, and the button has no padding of its own. */
+.lng-emoji .lng-emoji-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.lng-emoji .lng-emoji-btn {
+  min-inline-size: 0;
+  padding: 0;
+}
+.lng-emoji .lng-emoji-btn img {
+  max-inline-size: 100%;
+  object-fit: contain;
 }

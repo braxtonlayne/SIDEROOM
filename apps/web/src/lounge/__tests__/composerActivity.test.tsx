@@ -41,7 +41,11 @@ describe('Composer + menu with a running Activity (G5)', () => {
       }),
     );
     at('/channels/g1/c1');
-    await userEvent.click(await screen.findByRole('button', { name: 'Add to message' }));
+    // The Lounge is a lazy chunk: on a cold transform cache its first render outlasted the 5 s
+    // asyncUtilTimeout (src/test/setup.ts) and the page was still the loading status. testTimeout is 30 s.
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add to message' }, { timeout: 20000 }),
+    );
     expect(screen.queryByRole('menuitem', { name: 'Start an Activity' })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Join Chess' }));
     await waitFor(() =>

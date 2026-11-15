@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 78 - 2026-11-15
+
+- **Members.** The Library and the Cinema, Live TV included, now look right in any theme you choose for them under Per-section themes, light ones too; the video player, the TV screen, the watch party and text over posters stay dark. "Choose file" buttons look like the app's other buttons, in every theme. Every column of the emoji picker is whole: the last emoji of each row is no longer cut off, on a phone or a desktop, and the pinned messages box fits a phone. On a phone the last links of a Cinema, Library or Arcade page can now be scrolled out from under the music player.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 77 - 2026-11-15
 
 - **Members.** The emoji, GIF and sticker pickers now open above the whole message box, so they no longer cover what you are writing (on a phone, or with a long draft). On a phone, the music player no longer lies on the bottom navigation bar of the Lounge's Friends page or of the Library's pages.

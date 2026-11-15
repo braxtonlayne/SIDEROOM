@@ -24,3 +24,35 @@ body {
 a {
   color: var(--text-link, var(--sr-gold));
 }
+/*
+ * A visible native file input wears the kit's secondary button (Button.module.css) on its picker button (D-804,
+ * SEC-AUD-307). The rule names no section, theme or class: --ui-* tokens where a theme root sets them, --sr-* above.
+ */
+input[type='file'] {
+  font: inherit;
+  color: inherit;
+  max-inline-size: 100%;
+}
+input[type='file']::file-selector-button {
+  margin-inline-end: 12px;
+  padding-block: 8px;
+  padding-inline: 14px;
+  background: var(--ui-bg-hover, var(--sr-bg-2));
+  color: var(--ui-text, var(--sr-text));
+  border: 1px solid var(--ui-border, var(--sr-line));
+  border-radius: var(--ui-radius, var(--sr-radius));
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+input[type='file']:hover::file-selector-button {
+  border-color: var(--ui-text-muted, var(--sr-text-2));
+}
+input[type='file']:disabled::file-selector-button {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+input[type='file']:focus-visible {
+  outline: 2px solid var(--ui-focus, currentColor);
+  outline-offset: 2px;
+}
