@@ -274,6 +274,15 @@ test('the eight file inputs, the Developers corners, the Entrance label', async 
   log(`world title=${titleId} channels=${JSON.stringify(channels)} app=${appId} guild=${guild.id}`);
 
   const fakeCommands = async (c: BrowserContext) => {
+    // The title's video asset is a placeholder id: an empty track list lets the subtitles form show.
+    await c.route(/\/api\/v1\/admin\/cinema\/assets\/[^/]+\/subtitles$/, (r) =>
+      r.request().method() === 'GET'
+        ? r.fulfill({ status: 200, contentType: 'application/json', json: { tracks: [] } })
+        : r.continue(),
+    );
+    await c.route(/\/api\/v1\/rings(\?.*)?$/, (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', json: [] }),
+    );
     await c.route(/\/api\/v1\/channels\/[^/]+\/application-commands/, (r) =>
       r.fulfill({
         status: 200,
@@ -311,7 +320,9 @@ test('the eight file inputs, the Developers corners, the Entrance label', async 
       await reach(`admin-title-${tag}`, async () => {
         await page.goto('/admin/cinema-catalog');
         await page.getByRole('button', { name: `Edit ${titleName}` }).click();
+        await page.getByRole('tab', { name: 'Artwork' }).click();
         await check(page, page.locator('input.adm-file').first(), `admin-artwork-${tag}`);
+        await page.getByRole('tab', { name: 'Video and transcoding' }).click();
         await page
           .getByRole('button', { name: /Show the subtitles of/ })
           .first()
