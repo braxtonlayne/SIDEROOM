@@ -197,8 +197,7 @@ async function lowContrast(page: Page) {
 
 const report = (line: string) => {
   console.log(`REPORT ${line}`);
-  appendFileSync(resolve(OUT, `report-${MODE}.txt`), `${line}
-`);
+  appendFileSync(resolve(OUT, `report-${MODE}.txt`), `${line}\n`);
 };
 
 test('the Cinema is whole in the shipped theme and in a light one; pictures stay dark', async ({
