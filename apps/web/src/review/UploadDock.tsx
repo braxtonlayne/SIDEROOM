@@ -2,7 +2,7 @@
 // (pause, resume, cancel, one overall bar) and the folder import: drop or pick a folder, see how the
 // names were read, accept, and the chapters are created and uploaded.
 import { Button, Checkbox, TextInput } from '@sideroom/ui';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { useT } from '../i18n';
 import * as p13 from './apiP13';
 import * as rv from './api';
@@ -57,6 +57,7 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
   const t = useT();
   const m = manager ?? getUploadManager();
   const { tasks, total } = useUploads(m);
+  const totalId = useId();
   // Pick up what a closed page left behind.
   useEffect(() => {
     void m.resumeAll();
@@ -75,26 +76,33 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
   return (
     <section className="rv-panel" aria-label={t('review.upload.dock')}>
       <h3>{t('review.upload.dock')}</h3>
-      <progress
-        value={pct(total)}
-        max={100}
-        aria-label={t('review.upload.total', { percent: pct(total) })}
-      />
-      <ul className="rv-changes">
+      {tasks.length >= 2 && (
+        <div className="rv-upl-total">
+          <span id={totalId} className="rv-upl-total-line">
+            {t('review.upload.total', { percent: pct(total) })}
+          </span>
+          <progress value={pct(total)} max={100} aria-labelledby={totalId} />
+        </div>
+      )}
+      <ul className="rv-upl-list">
         {tasks.map((x) => (
-          <li key={x.id}>
-            <strong>{x.filename}</strong>
-            <progress
-              value={pct(x.progress)}
-              max={100}
-              aria-label={t('review.upload.row', { name: x.filename, percent: pct(x.progress) })}
-            />
-            <span>
-              {stateText(x)}
-              {x.error ? `: ${x.error}` : ''}
-            </span>
-            {x.ended && !x.hasFile && <span>{t('review.upload.chooseAgain')}</span>}
-            <span className="rv-row">
+          <li key={x.id} className="rv-upl-row">
+            <div className="rv-upl-text">
+              <strong>{x.filename}</strong>
+              <span>
+                {stateText(x)}
+                {x.error ? `: ${x.error}` : ''}
+              </span>
+              {x.ended && !x.hasFile && <span>{t('review.upload.chooseAgain')}</span>}
+            </div>
+            <div className="rv-upl-line">
+              <progress
+                className="rv-upl-bar"
+                value={pct(x.progress)}
+                max={100}
+                aria-label={t('review.upload.row', { name: x.filename, percent: pct(x.progress) })}
+              />
+              <span className="rv-upl-buttons">
               {x.state === 'running' && (
                 <Button
                   size="sm"
@@ -134,7 +142,8 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
                   ✕
                 </Button>
               )}
-            </span>
+              </span>
+            </div>
           </li>
         ))}
       </ul>
