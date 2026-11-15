@@ -1,0 +1,19 @@
+/*
+ * D-805 (SEC-AUD-305): on a phone the end of a page scrolls clear of the floating player docked at the bottom.
+ * `pageEnd.ts` publishes --sr-player-clear (viewport px; the rooms are not zoomed) on the document root while a
+ * bottom dock is shown; without it every rule below adds 0px, so a page is untouched. The room's last block gains
+ * the room as a margin after it (so a room's own padding, such as the Library's room for its bottom navigation,
+ * stays where it is). Phone only, by each room's own mark. The Lounge is not touched (D-792).
+ */
+.cin-frame[data-mobile] .cin-footer {
+  margin-block-end: var(--sr-player-clear, 0px);
+}
+.lib-frame[data-mobile] .lib-content {
+  margin-block-end: var(--sr-player-clear, 0px);
+}
+/* The Arcade has no phone mark: its own rule changes at 40rem (arcade.css). */
+@media (max-width: 40rem) {
+  .arc-page {
+    margin-block-end: var(--sr-player-clear, 0px);
+  }
+}
