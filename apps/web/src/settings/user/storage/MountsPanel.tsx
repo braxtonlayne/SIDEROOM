@@ -297,6 +297,18 @@ function MountRow({
     }
   };
   const corsReady = mount.cors_ok_at !== null || cors?.state === 'ok';
+  // D-795: a CORS check or Apply that answered after the test is the newer word on CORS, so the
+  // test table leaves out its own `cors` row. Both times are read: after the list reloads the
+  // local `cors` state is gone and only `mount.cors_ok_at` carries the answer.
+  const corsAnsweredAt = Math.max(
+    Date.parse(cors?.checked_at ?? '') || 0,
+    Date.parse(mount.cors_ok_at ?? '') || 0,
+  );
+  const testRows = test
+    ? corsAnsweredAt > Date.parse(test.at)
+      ? test.rows.filter((r) => r.id !== 'cors')
+      : test.rows
+    : [];
 
   return (
     <div className="sto-mount" data-status={mount.status}>
@@ -393,7 +405,7 @@ function MountRow({
             {t('settings.storage.testedAt', { at: fmtDate(test.at) })}
           </caption>
           <tbody>
-            {test.rows.map((r) => (
+            {testRows.map((r) => (
               <tr key={r.id} data-status={r.status}>
                 <th scope="row">{t(`settings.storage.probeStatus.${r.status}`)}</th>
                 <td>{r.message}</td>

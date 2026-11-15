@@ -176,7 +176,9 @@ export function StorageBrowser({
       )}
       {page?.can_upload && (
         <div className="sto-write">
-          <NewFolder mountId={mountId} prefix={prefix} onChanged={refresh} />
+          <div className="sto-newfolder">
+            <NewFolder mountId={mountId} prefix={prefix} onChanged={refresh} />
+          </div>
           <UploadPanel mountId={mountId} prefix={prefix} onUploaded={refresh} />
         </div>
       )}
