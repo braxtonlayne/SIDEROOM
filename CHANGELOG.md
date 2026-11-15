@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 77 - 2026-11-15
+
+- **Members.** The emoji, GIF and sticker pickers now open above the whole message box, so they no longer cover what you are writing (on a phone, or with a long draft). On a phone, the music player no longer lies on the bottom navigation bar of the Lounge's Friends page or of the Library's pages.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 76 - 2026-11-15
 
 - **Members.** The upload list shows one progress bar per file, under its name, with its buttons at the end; an "All uploads" bar with its percentage appears only when more than one file is uploading. After Apply CORS or a CORS check, a bucket's connection test no longer shows the old "no CORS rules yet" warning; the "Browser access (CORS)" line is the word on CORS until you test again. In the bucket browser, "New folder" is an ordinary small button instead of a page-wide bar.

@@ -1,11 +1,13 @@
 import { useCallback, useRef } from 'react';
 
 /**
- * D-789 (SEC-AUD-295): the floating music player never covers a message composer. Each mounted composer wrapper
- * reports how far its top edge is from the viewport's bottom edge; the document root carries the largest value as
- * `--sr-composer-clear` (CSS pixels), which `player/player.css` adds to a bottom dock's offset. Several composers
- * (a channel and a thread pane): the largest wins. The last one to unmount removes the property. No store, no
- * context; only the Lounge's composer imports this, so it ships in the Lounge chunk, not first paint.
+ * D-789 (SEC-AUD-295), D-800 (SEC-AUD-302): the floating music player never covers a message composer or a phone's
+ * bottom navigation bar. Each mounted composer wrapper or bottom bar reports how far its top edge is from the
+ * viewport's bottom edge (0 while it has no box, e.g. `display: none` under the keyboard); the document root carries
+ * the largest value as `--sr-composer-clear` (CSS pixels), which `player/player.css` adds to a bottom dock's offset.
+ * Several reporters (a composer, a thread pane, a bar): the largest wins. The last one to unmount removes the
+ * property. No store, no context; the Lounge's composer and the two bars import this (it imports only react), so it
+ * ships in the Lounge and Library chunks, not first paint.
  */
 export const COMPOSER_CLEAR_VAR = '--sr-composer-clear';
 
@@ -23,7 +25,9 @@ function publish(): void {
 }
 
 function measure(el: HTMLElement): number {
-  return Math.max(0, window.innerHeight - el.getBoundingClientRect().top);
+  const rect = el.getBoundingClientRect();
+  if (rect.height === 0) return 0; // no box (display: none): not the whole viewport height
+  return Math.max(0, window.innerHeight - rect.top);
 }
 
 /** Start reporting one composer wrapper. Returns the function that stops it. */
@@ -52,3 +56,6 @@ export function useComposerClearance(): (el: HTMLElement | null) => void {
     stop.current = el ? trackComposer(el) : null;
   }, []);
 }
+
+/** The same hook for a bottom navigation bar (D-800), so a bar does not read as a composer. */
+export const useBottomClearance = useComposerClearance;

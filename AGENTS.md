@@ -63,7 +63,8 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
   3. **The builder clicks through its flows** the way a person would (create, edit, save, delete, navigate back) and fixes what breaks.
   4. **The handoff lists the routes it shot** and where the screenshots are, with before/after for anything it fixed.
   5. **The integrator re-shoots every route the wave touched on the merged tree** (both viewports, both themes), looks at them, and fixes or sends back anything wrong before the PR is opened. A PR that changes visible UI without this does not merge.
-  6. **Specs the sweep or a flow uses must load in CI without local files:** call `test.skip(...)` first, read `e2e/.state/*` only inside tests, and never commit scratch probes.
+  6. **Section themes (D-797).** The Library, Cinema and Arcade keep their own theme, set under Settings > Appearance > Per-section themes, not the main theme. Shoot their pages in the section's shipped theme and once with a light section theme; changing the main theme does not change them.
+  7. **Specs the sweep or a flow uses must load in CI without local files:** call `test.skip(...)` first, read `e2e/.state/*` only inside tests, and never commit scratch probes.
 - **Migrations** are forward-only SQL files in `crates/sr-db/migrations/`. Never edit a merged migration.
 - **The API contract** is generated from Rust (`utoipa` → OpenAPI → TypeScript client). Never hand-edit `packages/api-client/src/generated`.
 - **Review:** the repository owner reviews and merges. Agents never merge their own PRs.
