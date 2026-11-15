@@ -468,6 +468,11 @@
   border-color: #e0735c;
   color: #f0907c;
 }
+/* The play and rate quick actions are anchors, and `.cin-root a { color: inherit }` outranks the rule below: they took the
+   page's text colour (dark on the scrim under a light theme). Same specificity as the hover rule, which comes later. */
+.cin-root .cin-qa {
+  color: var(--sr-text);
+}
 .cin-qa {
   display: grid;
   place-items: center;
