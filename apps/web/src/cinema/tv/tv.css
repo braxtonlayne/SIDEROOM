@@ -4,6 +4,16 @@
   color: var(--sr-text);
   font-family: var(--sr-font-body);
 }
+/* SEC-AUD-304 (D-803): the guide follows the Cinema's theme. Under a Lounge theme (Guide.tsx hands the page that
+   theme instead of the broadcast one) nothing sets --sr-guide-*, so they are drawn from the theme's own tokens, and
+   the teletext font is the broadcast theme's. The --sr-* colours come from .cin-root (cinema.css). */
+.tv-root:not([data-theme^='sideroom']) {
+  --sr-guide-cell: var(--ui-bg-raised);
+  --sr-guide-cell-now: var(--ui-bg-hover);
+  --sr-guide-channel: var(--ui-bg-raised);
+  --sr-guide-marker: var(--sr-gold);
+  --sr-teletext-font: 'IBM Plex Mono', ui-monospace, monospace;
+}
 .tv-mono {
   font-family: var(--sr-teletext-font);
 }
@@ -153,6 +163,26 @@
   padding: clamp(16px, 2.4vw, 24px);
   border: 1px solid var(--sr-line);
   background: var(--sr-guide-channel);
+}
+/* The screen stays a dark CRT under every theme: its frame, scanlines and the green text state the broadcast theme's
+   values themselves (the same as sideroom-broadcast's, so nothing moves there). */
+.tv-crt {
+  --sr-crt-frame: #0a0a09;
+  --sr-crt-radius: 14px;
+  --sr-scanline: repeating-linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.18) 0,
+    rgb(0 0 0 / 0.18) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  --sr-scanline-opacity: 1;
+  --sr-teletext-font: 'IBM Plex Mono', ui-monospace, monospace;
+  --sr-text: #ece6d6;
+  --sr-text-2: #a9a493;
+  --sr-text-3: #918d7e;
+  --sr-gold: #c2b08f;
+  color-scheme: dark;
 }
 .tv-crt {
   align-self: start;

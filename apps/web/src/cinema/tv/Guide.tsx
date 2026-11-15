@@ -55,12 +55,16 @@ function useCanManageTv() {
 
 export function TvGuidePage() {
   const theme = useAppliedTheme(undefined, 'cinema');
+  // SEC-AUD-304 (D-803): a Cinema wearing a Lounge theme (a light one, say) gets its guide in the same theme. The
+  // broadcast theme is dark and its cream text would sit on the room's white page. The Side Room themes keep it.
+  const room = theme.perSection.cinema;
+  const follow = room && !room.startsWith('sideroom') ? { 'live-tv': room } : undefined;
   return (
     // Broadcast theme for this page only. `perSection` keeps a viewer's own per-section choice; the global
     // theme choice does not apply here (the teletext layer needs its tokens).
     <ThemeProvider
       section="live-tv"
-      perSection={theme.perSection}
+      perSection={follow ? { ...follow, ...theme.perSection } : theme.perSection}
       appearance={theme.appearance}
       style={{ background: 'transparent' }}
       className="tv-root"

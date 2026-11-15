@@ -23,6 +23,31 @@
 }
 
 /* ---------- player ---------- */
+/* SEC-AUD-304 (D-803): the player, its controls and the Live TV screen are graded for a dark surround under every
+   theme. They state the Side Room values themselves (the same as the shipped theme's, so nothing moves there), and
+   the kit's parts inside (--ui-*) follow. A Lounge theme chosen for the Cinema sets none of these. */
+.cpl-player {
+  --sr-bg-0: #111110;
+  --sr-bg-1: #161613;
+  --sr-bg-2: #1c1d18;
+  --sr-bg-olive: #23251d;
+  --sr-line: #2a2b24;
+  --sr-text: #ece6d6;
+  --sr-text-2: #a9a493;
+  --sr-text-3: #918d7e;
+  --sr-gold: #c2b08f;
+  --sr-gold-ink: #1b1a15;
+  --ui-bg: #111110;
+  --ui-bg-raised: #1c1d18;
+  --ui-bg-overlay: #1c1d18;
+  --ui-bg-hover: #23251d;
+  --ui-border: #2a2b24;
+  --ui-text: #ece6d6;
+  --ui-text-muted: #a9a493;
+  --ui-text-faint: #918d7e;
+  --ui-focus: #d9c9a4;
+  color-scheme: dark;
+}
 .cpl-player {
   position: fixed;
   inset: 0;

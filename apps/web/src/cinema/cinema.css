@@ -9,6 +9,62 @@
 .cin-root a {
   color: inherit;
 }
+/* SEC-AUD-304 (D-803, like D-802 for the Library). This sheet is written with --sr-* tokens, and only the Side Room
+   themes set them. Under any other theme (a Lounge one chosen for the Cinema) they fell through to the dark palette of
+   styles/tokens.css while the kit's parts turned light: half a dark room. Here they are set from the theme's own
+   --ui-* tokens. Fonts, radius and sizes stay the room's. Gold is the theme's link colour (readable as text on the
+   page), and the ink on a gold fill is the page background, which reads on the link colour as well as the link colour
+   reads on the page (a white ink on Lounge Dark's blue link would be 2.7:1). --sr-guide-* (the Live TV guide) are set
+   in tv/tv.css, the surfaces that stay dark below and in player/player.css, tv/tv.css and watchparty/watchparty.css. */
+.cin-root:not([data-theme^='sideroom']) {
+  --sr-bg-0: var(--ui-bg);
+  --sr-bg-1: var(--ui-bg-raised);
+  --sr-bg-2: var(--ui-bg-hover);
+  --sr-bg-olive: var(--ui-bg-hover);
+  --sr-line: var(--ui-border);
+  --sr-text: var(--ui-text);
+  --sr-text-2: var(--ui-text-muted);
+  --sr-text-3: var(--ui-text-faint);
+  --sr-gold: var(--text-link, var(--ui-accent));
+  --sr-gold-ink: var(--ui-bg);
+  --sr-olive-accent: var(--ui-success);
+}
+/* What stays dark under every theme: a picture or a film is graded for a dark surround, and text over an image must
+   contrast with the image, not with the page. The hero and the title page's backdrop (with their text and buttons)
+   and the quick actions laid over a poster state the Side Room values themselves (the same as the shipped theme's,
+   so nothing moves there). The kit's parts inside read --ui-*, so those are set as well. */
+.cin-hero,
+.cin-title-head,
+.cin-qa {
+  --sr-bg-0: #111110;
+  --sr-bg-1: #161613;
+  --sr-bg-2: #1c1d18;
+  --sr-bg-olive: #23251d;
+  --sr-line: #2a2b24;
+  --sr-text: #ece6d6;
+  --sr-text-2: #a9a493;
+  --sr-text-3: #918d7e;
+  --sr-gold: #c2b08f;
+  --sr-gold-ink: #1b1a15;
+  --ui-bg: #111110;
+  --ui-bg-raised: #1c1d18;
+  --ui-bg-overlay: #1c1d18;
+  --ui-bg-hover: #23251d;
+  --ui-border: #2a2b24;
+  --ui-text: #ece6d6;
+  --ui-text-muted: #a9a493;
+  --ui-text-faint: #918d7e;
+  --ui-focus: #d9c9a4;
+  color-scheme: dark;
+}
+.cin-hero,
+.cin-title-head {
+  color: var(--sr-text);
+}
+/* The corner tag the kit draws on a poster (black scrim, --sr-text) */
+.cin-card [data-poster-link] {
+  --sr-text: #ece6d6;
+}
 .cin-sr-only {
   position: absolute;
   width: 1px;
@@ -406,6 +462,11 @@
   top: 8px;
   inset-inline-end: 8px;
   background: rgb(0 0 0 / 0.7);
+}
+/* On the poster's black scrim the theme's danger colour for text on white (Lounge Light) is too dark to read. */
+.cin-root:not([data-theme^='sideroom']) .cin-age-badge-card {
+  border-color: #e0735c;
+  color: #f0907c;
 }
 .cin-qa {
   display: grid;
