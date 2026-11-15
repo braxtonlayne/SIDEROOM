@@ -103,45 +103,45 @@ export function UploadDock({ manager }: { manager?: UploadManager }) {
                 aria-label={t('review.upload.row', { name: x.filename, percent: pct(x.progress) })}
               />
               <span className="rv-upl-buttons">
-              {x.state === 'running' && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  aria-label={t('review.upload.pause', { name: x.filename })}
-                  onClick={() => void m.pause(x.id)}
-                >
-                  ❚❚
-                </Button>
-              )}
-              {(x.state === 'paused' || x.state === 'failed') && !(x.ended && !x.hasFile) && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  aria-label={t(
-                    x.ended
-                      ? 'review.upload.again'
-                      : x.state === 'failed'
-                        ? 'review.upload.retry'
-                        : 'review.upload.resume',
-                    {
-                      name: x.filename,
-                    },
-                  )}
-                  onClick={() => void m.resume(x.id)}
-                >
-                  ▶
-                </Button>
-              )}
-              {x.state !== 'done' && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={t('review.upload.cancel', { name: x.filename })}
-                  onClick={() => void m.cancel(x.id)}
-                >
-                  ✕
-                </Button>
-              )}
+                {x.state === 'running' && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={t('review.upload.pause', { name: x.filename })}
+                    onClick={() => void m.pause(x.id)}
+                  >
+                    ❚❚
+                  </Button>
+                )}
+                {(x.state === 'paused' || x.state === 'failed') && !(x.ended && !x.hasFile) && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-label={t(
+                      x.ended
+                        ? 'review.upload.again'
+                        : x.state === 'failed'
+                          ? 'review.upload.retry'
+                          : 'review.upload.resume',
+                      {
+                        name: x.filename,
+                      },
+                    )}
+                    onClick={() => void m.resume(x.id)}
+                  >
+                    ▶
+                  </Button>
+                )}
+                {x.state !== 'done' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label={t('review.upload.cancel', { name: x.filename })}
+                    onClick={() => void m.cancel(x.id)}
+                  >
+                    ✕
+                  </Button>
+                )}
               </span>
             </div>
           </li>
