@@ -12,9 +12,9 @@
 /* SEC-AUD-304 (D-803, like D-802 for the Library). This sheet is written with --sr-* tokens, and only the Side Room
    themes set them. Under any other theme (a Lounge one chosen for the Cinema) they fell through to the dark palette of
    styles/tokens.css while the kit's parts turned light: half a dark room. Here they are set from the theme's own
-   --ui-* tokens. Fonts, radius and sizes stay the room's. Gold is the theme's link colour (readable as text on the
-   page), and the ink on a gold fill is the page background, which reads on the link colour as well as the link colour
-   reads on the page (a white ink on Lounge Dark's blue link would be 2.7:1). --sr-guide-* (the Live TV guide) are set
+   --ui-* tokens. Fonts, radius and sizes stay the room's. Gold as text or as a line is the theme's link colour
+   (readable on the page); gold as a filled surface is the theme's accent with the theme's accent ink on it (D-815, the
+   Library's answer), carried in --cin-fill / --cin-fill-ink. --sr-guide-* (the Live TV guide) are set
    in tv/tv.css, the surfaces that stay dark below and in player/player.css, tv/tv.css and watchparty/watchparty.css. */
 .cin-root:not([data-theme^='sideroom']) {
   --sr-bg-0: var(--ui-bg);
@@ -26,7 +26,9 @@
   --sr-text-2: var(--ui-text-muted);
   --sr-text-3: var(--ui-text-faint);
   --sr-gold: var(--text-link, var(--ui-accent));
-  --sr-gold-ink: var(--ui-bg);
+  --sr-gold-ink: var(--ui-accent-ink);
+  --cin-fill: var(--ui-accent);
+  --cin-fill-ink: var(--ui-accent-ink);
   --sr-olive-accent: var(--ui-success);
 }
 /* What stays dark under every theme: a picture or a film is graded for a dark surround, and text over an image must
@@ -46,6 +48,11 @@
   --sr-text-3: #918d7e;
   --sr-gold: #c2b08f;
   --sr-gold-ink: #1b1a15;
+  --ui-accent: #c2b08f;
+  --ui-accent-hover: #d1c1a2;
+  --ui-accent-ink: #1b1a15;
+  --cin-fill: #c2b08f;
+  --cin-fill-ink: #1b1a15;
   --ui-bg: #111110;
   --ui-bg-raised: #1c1d18;
   --ui-bg-overlay: #1c1d18;
@@ -243,6 +250,23 @@
 .cin-frame[data-mobile] .cin-sectionbar-nav {
   gap: 14px;
 }
+/* D-817: on a phone the bar is the areas only (the brand and the slash would push the area you are in past the edge);
+   it scrolls inside itself (see max-width 768) and Shell.tsx scrolls the current area into view. */
+.cin-frame[data-mobile] .cin-sectionbar {
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-padding-inline: 16px;
+}
+.cin-frame[data-mobile] .cin-sectionbar > * {
+  flex: none;
+}
+.cin-frame[data-mobile] .cin-sectionbar-brand,
+.cin-frame[data-mobile] .cin-sectionbar-slash {
+  display: none;
+}
+.cin-frame[data-mobile] .cin-sectionbar-nav:first-of-type {
+  margin-inline-start: 0;
+}
 
 /* Drawer nav (mobile) */
 .cin-frame .cin-nav-list {
@@ -415,8 +439,10 @@
 }
 
 /* ---------- rows ---------- */
+/* D-817: the one track cannot grow with a rail (a poster row is wider than the page and scrolls inside itself). */
 .cin-rows {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 48px;
   padding-top: 40px;
 }
@@ -573,9 +599,9 @@
   border-radius: var(--sr-radius, 2px);
 }
 .cin-chip-all[aria-pressed='true'] {
-  background: var(--sr-gold);
-  border-color: var(--sr-gold);
-  color: var(--sr-gold-ink);
+  background: var(--cin-fill, var(--sr-gold));
+  border-color: var(--cin-fill, var(--sr-gold));
+  color: var(--cin-fill-ink, var(--sr-gold-ink));
 }
 .cin-chip-more:hover,
 .cin-filters-btn:hover,
@@ -913,6 +939,10 @@
   .cin-sectionbar-brand {
     letter-spacing: 0.12em;
   }
+}
+.cin-block,
+.cin-row-wrap {
+  min-inline-size: 0;
 }
 .cin-block .cin-banner {
   margin-bottom: 0;
