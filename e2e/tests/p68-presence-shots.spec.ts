@@ -70,11 +70,18 @@ async function onPhone(
   who: { ctx: BrowserContext },
   afk = false,
 ): Promise<{ ctx: BrowserContext; page: Page }> {
-  const ctx = await context(browser, who.ctx, VIEWPORTS.phone, 'lounge-light', {}, {
-    userAgent: PHONE_UA,
-    isMobile: true,
-    hasTouch: true,
-  });
+  const ctx = await context(
+    browser,
+    who.ctx,
+    VIEWPORTS.phone,
+    'lounge-light',
+    {},
+    {
+      userAgent: PHONE_UA,
+      isMobile: true,
+      hasTouch: true,
+    },
+  );
   const page = await ctx.newPage();
   if (afk) {
     // The idle reporter fires after ten minutes of no input: send the same report now, over the page's own socket.
@@ -165,11 +172,17 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
       if (vp === 'phone') {
         await swipeToMembers(page);
       }
-      await expect(row(/phoner/).locator('[role="img"][aria-label="Online on a phone"]')).toBeVisible();
+      await expect(
+        row(/phoner/).locator('[role="img"][aria-label="Online on a phone"]'),
+      ).toBeVisible();
       await page.waitForTimeout(400);
       await page.screenshot({ path: resolve(OUT, `memberlist-${tag}.png`) });
       await row(/phoner/).evaluate((el) => (el as HTMLElement).scrollIntoView());
-      await page.locator('.lng-member').first().focus().catch(() => undefined);
+      await page
+        .locator('.lng-member')
+        .first()
+        .focus()
+        .catch(() => undefined);
       await row(/phoner/).screenshot({ path: resolve(OUT, `glyph-closeup-${tag}.png`) });
       // Profile popout.
       await row(/phoner/).dispatchEvent('click');
@@ -183,7 +196,11 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
       await page.waitForTimeout(600);
       await page.screenshot({ path: resolve(OUT, `friends-dmlist-${tag}.png`) });
       if (vp === 'phone') {
-        await page.getByRole('button', { name: /Friends/ }).first().click().catch(() => undefined);
+        await page
+          .getByRole('button', { name: /Friends/ })
+          .first()
+          .click()
+          .catch(() => undefined);
       }
       await page.waitForTimeout(300);
       await page.screenshot({ path: resolve(OUT, `friends-${tag}.png`) });
@@ -203,18 +220,23 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
       await apiPatch(people.phoner!.ctx.request, '/users/@me/settings', {
         settings: { user_prefs: { theme, zoom: 100 } },
       });
-      const c = await context(browser, people.phoner!.ctx, size, theme, {}, {
-        userAgent: PHONE_UA,
-        isMobile: true,
-        hasTouch: true,
-      });
+      const c = await context(
+        browser,
+        people.phoner!.ctx,
+        size,
+        theme,
+        {},
+        {
+          userAgent: PHONE_UA,
+          isMobile: true,
+          hasTouch: true,
+        },
+      );
       const p = await c.newPage();
       await p.goto('/channels/@me');
       await p.waitForTimeout(1200);
       if (vp === 'desktop') {
-        await expect(
-          p.getByRole('button', { name: /currently Online on a phone/ }),
-        ).toBeVisible();
+        await expect(p.getByRole('button', { name: /currently Online on a phone/ })).toBeVisible();
       }
       await p.screenshot({ path: resolve(OUT, `self-${vp}-${theme}.png`) });
       await c.close();
@@ -230,16 +252,24 @@ test('the phone glyph appears for a phone-only person and goes back to the dot',
 async function swipeToMembers(page: Page) {
   await page.evaluate(() => {
     const el = (document.querySelector('[data-pane="chat"]') ?? document.body) as HTMLElement;
-    const touch = (x: number) =>
-      new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
+    const touch = (x: number) => new Touch({ identifier: 1, target: el, clientX: x, clientY: 400 });
     el.dispatchEvent(
-      new TouchEvent('touchstart', { bubbles: true, touches: [touch(320)], changedTouches: [touch(320)] }),
+      new TouchEvent('touchstart', {
+        bubbles: true,
+        touches: [touch(320)],
+        changedTouches: [touch(320)],
+      }),
     );
-    el.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(60)] }));
+    el.dispatchEvent(
+      new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(60)] }),
+    );
   });
 }
 
-async function signInDesktop(browser: Browser, who: { ctx: BrowserContext }): Promise<BrowserContext> {
+async function signInDesktop(
+  browser: Browser,
+  who: { ctx: BrowserContext },
+): Promise<BrowserContext> {
   const ctx = await context(browser, who.ctx, VIEWPORTS.desktop, 'lounge-light');
   const page = await ctx.newPage();
   await page.goto('/channels/@me');
@@ -312,11 +342,19 @@ test('a reaction on my message raises one notification, and Settings has no dige
     >;
 
   // Somebody else's message: no notification. Mine: exactly one, titled and tagged as D-703 says.
-  await apiPut(fan.ctx.request, `/channels/${channel}/messages/${theirs.id}/reactions/%F0%9F%91%8D/@me`, {});
+  await apiPut(
+    fan.ctx.request,
+    `/channels/${channel}/messages/${theirs.id}/reactions/%F0%9F%91%8D/@me`,
+    {},
+  );
   await apiPut(o, `/channels/${channel}/messages/${mine.id}/reactions/%F0%9F%8E%89/@me`, {});
   await page.waitForTimeout(1000);
   expect(await notes()).toHaveLength(0);
-  await apiPut(fan.ctx.request, `/channels/${channel}/messages/${mine.id}/reactions/%F0%9F%91%8D/@me`, {});
+  await apiPut(
+    fan.ctx.request,
+    `/channels/${channel}/messages/${mine.id}/reactions/%F0%9F%91%8D/@me`,
+    {},
+  );
   await expect.poll(async () => (await notes()).length).toBe(1);
   const [n] = await notes();
   expect(n!.title).toMatch(/^fan_\w+ reacted .* to your message$/);

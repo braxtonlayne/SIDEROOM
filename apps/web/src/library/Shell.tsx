@@ -18,6 +18,7 @@ import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-route
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { RoomsNav } from '../study/RoomsNav';
+import { scrollBarTo } from '../study/scrollBarTo';
 import { useStudyFlag, type StudyFlag } from '../study/flags';
 import { StudyAreas } from '../study/StudyAreas';
 import { useT, type MessageKey } from '../i18n';
@@ -40,10 +41,12 @@ export function SectionBar() {
   useEffect(() => {
     let live = true;
     const bring = () => {
-      const link = ref.current?.querySelector<HTMLElement>(
+      const el = ref.current;
+      const link = el?.querySelector<HTMLElement>(
         '[data-testid="study-areas"] [aria-current="page"]',
       );
-      link?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      // Scroll the bar itself, never the page (D-821).
+      if (el && link) scrollBarTo(el, link);
     };
     bring();
     // A web font that arrives later widens the links: bring the area into view again once the fonts are in.

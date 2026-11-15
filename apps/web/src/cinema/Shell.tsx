@@ -19,6 +19,7 @@ import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { useStudyFlag, type StudyFlag } from '../study/flags';
 import { RoomsNav } from '../study/RoomsNav';
+import { scrollBarTo } from '../study/scrollBarTo';
 import { StudyAreas } from '../study/StudyAreas';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
@@ -33,12 +34,14 @@ export function SectionBar() {
   // D-817: on a phone the bar scrolls inside itself; bring the area you are in into view (on mount, per route, and
   // once the web fonts have set the bar's final width).
   useEffect(() => {
-    const show = () =>
-      bar.current
-        ?.querySelector<HTMLElement>(
-          ".cin-sectionbar-nav + .cin-sectionbar-nav [aria-current='page']",
-        )
-        ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    // Scroll the bar itself, never the page (D-821): `scrollIntoView` would move every scrolling ancestor.
+    const show = () => {
+      const el = bar.current;
+      const link = el?.querySelector<HTMLElement>(
+        ".cin-sectionbar-nav + .cin-sectionbar-nav [aria-current='page']",
+      );
+      if (el && link) scrollBarTo(el, link);
+    };
     show();
     let live = true;
     void document.fonts?.ready.then(() => live && show());
