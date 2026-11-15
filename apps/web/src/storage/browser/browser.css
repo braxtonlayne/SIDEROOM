@@ -4,6 +4,11 @@
   gap: 12px;
   margin-block: 12px;
 }
+/* D-796: the wrapper is the grid item (it stretches); the button inside keeps its text's width. */
+.sto-newfolder {
+  display: flex;
+  justify-content: flex-start;
+}
 .sto-upload {
   display: grid;
   gap: 12px;
