@@ -88,11 +88,14 @@ async function play(page: Page, dock = 'bottom-end') {
 /** Open a page with the player queued from scratch (a reload clears the queue). */
 async function open(page: Page, url: string, ready: string, dock = 'bottom-end') {
   await page.goto(url);
-  await expect(page.locator(ready).first()).toBeVisible();
+  await expect(page.locator(ready).first()).toBeVisible({ timeout: 60_000 });
   await play(page, dock);
 }
 
-const report: string[] = [];
+const report = {
+  push: (line: string) => console.log(`REPORT ${line}`),
+  join: (_sep: string) => '',
+};
 
 test('the bottom player clears the phone bottom navigation', async ({ browser }) => {
   mkdirSync(OUT, { recursive: true });
@@ -135,11 +138,14 @@ test('the bottom player clears the phone bottom navigation', async ({ browser })
 
     // Click through: every tab of the bar with the player open.
     const bar = page.locator('.lng-tabbar');
-    for (const b of await bar.getByRole('button').all()) {
-      await b.click({ timeout: 5000 });
-      await page.waitForTimeout(250);
+    if (!MEASURE) {
+      for (const b of await bar.getByRole('button').all()) {
+        await b.click({ timeout: 5000 });
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(250);
+      }
+      await bar.getByRole('button').first().click();
     }
-    await bar.getByRole('button').first().click();
 
     if (theme === 'lounge-dark' && !MEASURE) {
       // The keyboard hides the bar by CSS (--sr-vvh on the root): the clearance must follow, and come back.
@@ -209,7 +215,7 @@ test('the bottom player clears the phone bottom navigation', async ({ browser })
 
   // ---- Library, phone: D-797: the shipped theme, and a light theme chosen for the section.
   const variants: Array<[string, Prefs]> = [
-    ['shipped', { theme: 'lounge-dark', zoom: 100 }],
+    ['shipped', { theme: 'lounge-dark', zoom: 100, sectionThemes: { library: 'sideroom' } }],
     ['light', { theme: 'lounge-dark', zoom: 100, sectionThemes: { library: 'lounge-light' } }],
   ];
   for (const [name, prefs] of variants) {
@@ -243,7 +249,7 @@ test('the bottom player clears the phone bottom navigation', async ({ browser })
     }
     await lc.close();
   }
-  await setPrefs({ theme: 'lounge-dark', zoom: 100 });
+  await setPrefs({ theme: 'lounge-dark', zoom: 100, sectionThemes: { library: 'sideroom' } });
 
   // ---- The Cinema on a phone: what does the player lie over? (nothing changed there)
   const cc = await context(browser, octx, PHONE, { theme: 'lounge-dark', zoom: 100 });
@@ -261,5 +267,173 @@ test('the bottom player clears the phone bottom navigation', async ({ browser })
 
   await setStudySurfacesWith(octx.request, false);
   console.log(report.join('\n'));
+  await octx.close();
+});
+
+const SENTENCE =
+  'A part of this upload was larger than announced. The upload has ended; start a new one.';
+const NAME = 'Very Long Series Name - Volume 12 - Chapter 104 (Digital) [Group].cbz';
+type Seed = {
+  id: string;
+  filename: string;
+  state: 'running' | 'paused' | 'failed';
+  done: number[];
+  ended?: boolean;
+  error?: string;
+  noFile?: boolean;
+};
+
+// ---- Tail (D-797): wave 76's upload dock page, in the Library's shipped theme and with a light theme chosen for the
+// section. Shots only: the finding is the list of colours that only work on a dark page.
+async function fake(page: Page, sub: string) {
+  const base = `**/api/v1/submissions/${sub}/library`;
+  await page.route(`${base}/uploads/*/parts`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      json: {
+        part_size: 100,
+        part_count: 4,
+        received: [
+          { part_number: 1, size: 100 },
+          { part_number: 2, size: 100 },
+        ],
+        missing: [
+          { part_number: 3, url: 'https://s.test/hang/3' },
+          { part_number: 4, url: 'https://s.test/hang/4' },
+        ],
+        expires_in_secs: 600,
+      },
+    });
+  });
+  await page.route(`${base}/chapters/*/uploads`, async (route) => {
+    await route.fulfill({
+      status: 201,
+      json: {
+        upload: { id: '9100' },
+        multipart: {
+          part_size: 4,
+          part_count: 1,
+          parts: [{ part_number: 1, url: 'https://s.test/p1' }],
+        },
+      },
+    });
+  });
+  await page.route('https://s.test/**', async (route) => {
+    if (route.request().url().includes('/hang/')) return; // never answers: the upload stays running
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.fulfill({ status: 200, body: '' });
+  });
+  await page.route(`${base}/uploads/*/complete`, async (route) => {
+    await route.fulfill({ status: 200, json: {} });
+  });
+  await page.route(`${base}/uploads/*`, async (route) => {
+    await route.fulfill({ status: 200, json: {} });
+  });
+}
+
+/** Replace the page's ledger with these entries (what a closed tab leaves behind). */
+async function seed(page: Page, sub: string, entries: Seed[]) {
+  await page.evaluate(
+    ([sid, list]) =>
+      new Promise<void>((ok, bad) => {
+        const req = indexedDB.open('sideroom-uploads');
+        req.onerror = () => bad(new Error('open'));
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction('uploads', 'readwrite');
+          const store = tx.objectStore('uploads');
+          store.clear();
+          for (const e of list as Seed[]) {
+            store.put({
+              id: e.id,
+              submissionId: sid,
+              chapterId: '1',
+              uploadId: e.id,
+              filename: e.filename,
+              size: 400,
+              partSize: 100,
+              partCount: 4,
+              done: e.done,
+              state: e.state,
+              ...(e.ended ? { ended: true } : {}),
+              ...(e.error ? { error: e.error } : {}),
+              ...(e.noFile ? {} : { file: new Blob(['abcd']) }),
+            });
+          }
+          tx.oncomplete = () => {
+            db.close();
+            ok();
+          };
+          tx.onerror = () => bad(new Error('put'));
+        };
+      }),
+    [sub, entries] as const,
+  );
+}
+
+test('the Library submission page, shipped and with a light section theme', async ({ browser }) => {
+  mkdirSync(OUT, { recursive: true });
+  const owner = bootstrapState().owner;
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, owner);
+  await setStudySurfacesWith(octx.request, true);
+  const d = await apiPost<{ submission: { id: string } }>(octx.request, '/submissions', {
+    kind: 'library.series',
+    payload: { kind: 'manga', title: 'Dock Bars 77', authors: ['E2E'], genres: [], synopsis: '' },
+  });
+  const sub = d.submission.id;
+  const variants: Array<[string, Prefs]> = [
+    ['shipped', { theme: 'lounge-dark', zoom: 100, sectionThemes: { library: 'sideroom' } }],
+    ['light', { theme: 'lounge-dark', zoom: 100, sectionThemes: { library: 'lounge-light' } }],
+  ];
+  for (const [name, prefs] of variants) {
+    await apiPatch(octx.request, '/users/@me/settings', { settings: { user_prefs: prefs } });
+    for (const [vp, size] of [
+      ['desktop', DESKTOP],
+      ['phone', PHONE],
+    ] as const) {
+      const c = await context(browser, octx, size, prefs);
+      const page = await c.newPage();
+      page.setDefaultTimeout(30_000);
+      const dock = page.getByRole('region', { name: 'Uploads' });
+      await fake(page, sub);
+      await page.goto(`/library/submissions/${sub}`);
+      await expect(page.getByRole('heading', { name: 'Dock Bars 77' })).toBeVisible({
+        timeout: 60_000,
+      });
+      const reload = async (entries: Seed[]) => {
+        await seed(page, sub, entries);
+        await page.reload();
+        await expect(dock).toBeVisible();
+        await dock.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(400);
+      };
+      await reload([{ id: '9000', filename: NAME, state: 'running', done: [1, 2] }]);
+      const themes = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-theme]')).map(
+          (e) =>
+            `${e.tagName}.${e.className.toString().slice(0, 24)}=${e.getAttribute('data-theme')}/${e.getAttribute('data-section')}`,
+        ),
+      );
+      console.log(`REPORT themes ${vp}-${name} ${JSON.stringify(themes)}`);
+      await page.screenshot({ path: resolve(OUT, `library-light-one-running-${vp}-${name}.png`) });
+      await reload([
+        { id: '9000', filename: NAME, state: 'running', done: [1, 2] },
+        { id: '9001', filename: 'Second Chapter.cbz', state: 'paused', done: [1] },
+        {
+          id: '9002',
+          filename: 'Third.cbz',
+          state: 'failed',
+          done: [],
+          ended: true,
+          error: SENTENCE,
+        },
+      ]);
+      await page.screenshot({ path: resolve(OUT, `library-light-three-${vp}-${name}.png`) });
+      await seed(page, sub, []);
+      await c.close();
+    }
+  }
+  await setStudySurfacesWith(octx.request, false);
   await octx.close();
 });

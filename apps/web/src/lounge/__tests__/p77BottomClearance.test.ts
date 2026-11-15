@@ -16,7 +16,7 @@ class FakeRO {
 }
 
 function box(top: number, height = 40): HTMLElement & { rect: { top: number; height: number } } {
-  const e = document.createElement('div') as HTMLElement & {
+  const e = document.createElement('div') as unknown as HTMLElement & {
     rect: { top: number; height: number };
   };
   e.rect = { top, height };
