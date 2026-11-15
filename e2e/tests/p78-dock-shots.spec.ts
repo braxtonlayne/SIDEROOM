@@ -84,7 +84,7 @@ async function fill(page: Page, container: string) {
     if (!el) return false;
     if (document.documentElement.scrollHeight > window.innerHeight * 1.5) return false;
     const f = document.createElement('div');
-    f.style.cssText = 'block-size: 1400px';
+    f.style.cssText = 'block-size: 1400px; display: flex; align-items: flex-end';
     const r = document.createElement('p');
     r.id = 'p78-last-row';
     r.textContent = 'Last row of a long page';
@@ -187,16 +187,20 @@ test('the end of a phone page scrolls clear of the bottom player', async ({ brow
       // Click through: the footer's last link with the player open; dock to the top and back; close the player.
       await p.locator('.cin-footer-link').last().click({ trial: true, timeout: 5000 });
       report('click through: the footer link receives a press with the player open');
-      await p.locator('.cin-footer-link').last().click({ timeout: 5000 });
-      await expect(p).toHaveURL(/house-notes/);
-      await p.goBack();
-      await expect(p.locator('.cin-footer')).toBeVisible();
       const first = await readClear(p);
       await act(p, 'setDock', 'top-end');
       await expect.poll(() => readClear(p)).toBe('');
       await act(p, 'setDock', 'bottom-end');
       await expect.poll(() => readClear(p)).toBe(first);
+      expect(first).not.toBe('');
       report(`dock top-end: absent; back to bottom-end: '${first}'`);
+      // The real press (it leaves the Cinema for a public page, which ends the music: PlayerGate).
+      await p.locator('.cin-footer-link').last().click({ timeout: 5000 });
+      await expect(p).toHaveURL(/house-notes/);
+      report('click through: the last footer link opened its page with the player open');
+      // Close the player: the property goes with the dock.
+      await open(p, '/cinema', '.cin-footer');
+      expect(await readClear(p)).not.toBe('');
       await act(p, 'clear');
       await expect(p.locator('.sr-ply-dock')).toHaveCount(0);
       await expect.poll(() => readClear(p)).toBe('');
@@ -239,7 +243,7 @@ test('the end of a phone page scrolls clear of the bottom player', async ({ brow
   // ---- Arcade, phone (the member's own theme: the Arcade follows the main theme).
   {
     const { c, p } = await phone(shipped());
-    await open(p, '/arcade', '.arc-page');
+    await open(p, '/games', '.arc-page');
     const filled = await fill(p, '.arc-page');
     const m = await atEnd(p, filled ? '#p78-last-row' : '.arc-page > *:last-child');
     report(
