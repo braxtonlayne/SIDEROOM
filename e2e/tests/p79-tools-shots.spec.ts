@@ -62,10 +62,10 @@ async function look(page: Page) {
   return page.evaluate(() => {
     const root = document.querySelector('.ud-root, .ud-timer') as HTMLElement;
     const field = root.querySelector(
-      'input:not([type=file]):not([type=range]), textarea, select',
+      'input:not([type=file]):not([type=range]):not([type=checkbox]):not([type=radio]), textarea, select',
     ) as HTMLElement | null;
     const out = root.querySelector('.ud-out, .ud-history') as HTMLElement | null;
-    const btn = root.querySelector('.ud-btn') as HTMLElement | null;
+    const btn = root.querySelector('.ud-btn:not([aria-pressed="true"])') as HTMLElement | null;
     const probe = document.createElement('span');
     probe.style.cssText =
       'position:absolute;visibility:hidden;background:var(--ui-bg-raised);color:var(--ui-text);border:1px solid var(--ui-border);border-radius:var(--ui-radius)';
