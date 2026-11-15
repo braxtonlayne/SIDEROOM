@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import { apiPatch, apiPost, bootstrapState, expect, loginApi, test } from '../support/fixtures';
 import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
@@ -178,6 +178,9 @@ test('the upload dock: one bar per upload', async ({ browser }) => {
   const sub = d.submission.id;
 
   for (const theme of THEMES) {
+    await apiPatch(octx.request, '/users/@me/settings', {
+      settings: { user_prefs: { theme, zoom: 100 } },
+    });
     for (const [vp, size] of Object.entries(VIEWPORTS)) {
       const tag = `${vp}-${theme}`;
       const c = await context(browser, octx, size, theme);
