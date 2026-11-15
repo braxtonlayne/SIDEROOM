@@ -13,8 +13,8 @@
 .sr-ply-dock[data-dock='bottom-end'],
 .sr-ply-dock[data-dock='bottom-start'] {
   /* D-789, D-800: above a mounted composer or a phone's bottom navigation bar (--sr-composer-clear, set by
-     lounge/composerClearance.ts in viewport px; the overlay root is zoomed, so divide by its zoom like the widths here). Capped so a tall skin on a short screen
-     stays whole: it scrolls inside its own box. */
+     lounge/composerClearance.ts in viewport px; the overlay root is zoomed, so divide by its zoom like the widths
+     here). Capped so a tall skin on a short screen stays whole: it scrolls inside its own box. */
   --sr-ply-lift: calc(0.5rem + var(--sr-composer-clear, 0px) / var(--sr-overlay-zoom, 1));
   inset-block-end: var(--sr-ply-lift);
   max-block-size: calc(100vh / var(--sr-overlay-zoom, 1) - var(--sr-ply-lift) - 0.5rem);

@@ -416,7 +416,11 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
         </div>
       </div>
       {mobile && (
-        <nav ref={bottomNavRef} className="lib-bottomnav" aria-label={t('library.shell.quickLinks')}>
+        <nav
+          ref={bottomNavRef}
+          className="lib-bottomnav"
+          aria-label={t('library.shell.quickLinks')}
+        >
           {BOTTOM.map((i) => (
             <Link
               key={i.to}

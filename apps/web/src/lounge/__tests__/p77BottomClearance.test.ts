@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COMPOSER_CLEAR_VAR, trackComposer, useBottomClearance, useComposerClearance } from '../composerClearance';
+import {
+  COMPOSER_CLEAR_VAR,
+  trackComposer,
+  useBottomClearance,
+  useComposerClearance,
+} from '../composerClearance';
 
 const observers: Array<() => void> = [];
 class FakeRO {
@@ -11,7 +16,9 @@ class FakeRO {
 }
 
 function box(top: number, height = 40): HTMLElement & { rect: { top: number; height: number } } {
-  const e = document.createElement('div') as HTMLElement & { rect: { top: number; height: number } };
+  const e = document.createElement('div') as HTMLElement & {
+    rect: { top: number; height: number };
+  };
   e.rect = { top, height };
   e.getBoundingClientRect = () => e.rect as DOMRect;
   return e;
