@@ -21,6 +21,7 @@ import { RoomsNav } from '../study/RoomsNav';
 import { useStudyFlag, type StudyFlag } from '../study/flags';
 import { StudyAreas } from '../study/StudyAreas';
 import { useT, type MessageKey } from '../i18n';
+import { useBottomClearance } from '../lounge/composerClearance';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
 import { getFollows, getUpdates, keys } from './api';
@@ -360,6 +361,7 @@ const BOTTOM: NavItem[] = [DISCOVER[0]!, DISCOVER[1]!, DISCOVER[2]!, YOUR_SPACE[
 export function LibraryShell({ children }: { children?: ReactNode }) {
   const t = useT();
   const mobile = useMediaQuery(MOBILE_QUERY);
+  const bottomNavRef = useBottomClearance(); // D-800: the floating player sits above the bottom navigation
   const [drawer, setDrawer] = useState(false);
   const [help, setHelp] = useState(false);
   const searchWrap = useRef<HTMLDivElement>(null);
@@ -414,7 +416,7 @@ export function LibraryShell({ children }: { children?: ReactNode }) {
         </div>
       </div>
       {mobile && (
-        <nav className="lib-bottomnav" aria-label={t('library.shell.quickLinks')}>
+        <nav ref={bottomNavRef} className="lib-bottomnav" aria-label={t('library.shell.quickLinks')}>
           {BOTTOM.map((i) => (
             <Link
               key={i.to}

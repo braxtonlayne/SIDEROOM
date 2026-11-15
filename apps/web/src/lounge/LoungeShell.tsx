@@ -15,6 +15,7 @@ import { JoinGate } from './shell/JoinGate';
 import { Welcome } from './shell/Welcome';
 import { useDesktopAlerts } from '../pwa/useDesktopAlerts';
 import { useVisualViewport } from './useVisualViewport';
+import { useBottomClearance } from './composerClearance';
 import { ChannelSidebar } from './ChannelSidebar';
 import { ActivityDock } from '../activities/ActivityDock';
 import { ChannelView } from './ChannelView';
@@ -241,6 +242,7 @@ function Shell() {
   const dms = useDms();
   const users = useUsers();
   const isMobile = useMediaQuery(MOBILE_QUERY);
+  const tabbarRef = useBottomClearance(); // D-800: the floating player sits above the phone's tab bar
   const setLocation = useLoungeUi((s) => s.setLocation);
   const membersOpen = useLoungeUi((s) => s.memberListOpen);
   const width = useLoungeUi((s) => s.rightPanelWidth);
@@ -388,7 +390,7 @@ function Shell() {
           )}
         </div>
         {isMobile && (
-          <nav className="lng-tabbar" aria-label={t('lounge.loungeShell.primary')}>
+          <nav ref={tabbarRef} className="lng-tabbar" aria-label={t('lounge.loungeShell.primary')}>
             <button
               type="button"
               aria-current={tab === 'home' ? 'page' : undefined}
