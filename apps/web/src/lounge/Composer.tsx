@@ -287,6 +287,8 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
   const [cooldownEnd, setCooldownEnd] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [recording, setRecording] = useState(false);
+  // The live composer box: the three pickers are placed against it, not their button (D-799).
+  const [box, setBox] = useState<HTMLDivElement | null>(null);
   const voiceStop = useRef<(() => void) | null>(null);
   const openDialog = useLoungeUi((s) => s.openDialog);
   const canVoice = voiceMimeType() !== null;
@@ -946,7 +948,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
           ))}
         </div>
       )}
-      <div className="lng-composer">
+      <div className="lng-composer" ref={setBox}>
         {acOpen && (
           <AutocompletePopup
             id={acId}
@@ -1087,6 +1089,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <Popover
               label={t('lounge.composer.gifPicker')}
               placement="top-end"
+              anchor={box}
               trigger={
                 <button
                   type="button"
@@ -1121,6 +1124,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
             <Popover
               label={t('lounge.composer.stickerPicker')}
               placement="top-end"
+              anchor={box}
               trigger={
                 <button
                   type="button"
@@ -1166,6 +1170,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(function Compo
         <Popover
           label={t('lounge.composer.emojiPicker')}
           placement="top-end"
+          anchor={box}
           trigger={
             <button
               type="button"

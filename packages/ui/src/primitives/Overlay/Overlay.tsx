@@ -120,6 +120,8 @@ export interface PopoverProps {
   label: string;
   children: ReactNode;
   placement?: Placement;
+  /** The element the panel is placed against; the trigger when absent. */
+  anchor?: HTMLElement | null;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -131,6 +133,7 @@ export function Popover({
   label,
   children,
   placement = "bottom",
+  anchor: anchorProp,
   open: controlled,
   defaultOpen = false,
   onOpenChange,
@@ -143,7 +146,7 @@ export function Popover({
   const panel = useRef<HTMLDivElement | null>(null);
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
   const portalTarget = usePortalTarget();
-  const floating = useFloating({ open, anchor, placement });
+  const floating = useFloating({ open, anchor: anchorProp ?? anchor, placement });
   const setPanel = useCallback(
     (el: HTMLDivElement | null) => {
       panel.current = el;
