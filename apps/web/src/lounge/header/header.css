@@ -1,7 +1,8 @@
 /* Channel header popouts, jump pills, welcome actions (LNG-CHN-012/018/019/020) */
 .lng-pins-pop {
+  box-sizing: border-box;
   width: 360px;
-  max-width: 90vw;
+  max-inline-size: 100%;
   max-height: 460px;
   overflow: auto;
   padding: 8px;
