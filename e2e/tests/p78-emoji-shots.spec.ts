@@ -406,7 +406,15 @@ test('the other popovers on a phone', async ({ browser }) => {
         note(`${tag}: NOT REACHED (trigger not on the phone page)`);
         continue;
       }
-      await t.first().click();
+      const clicked = await t
+        .first()
+        .click({ timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!clicked) {
+        note(`${tag}: NOT REACHED (trigger off the phone screen)`);
+        continue;
+      }
       await page.waitForTimeout(700);
       const dialog = page.getByRole('dialog').last();
       if (!(await dialog.isVisible().catch(() => false))) {

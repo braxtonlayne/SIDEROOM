@@ -2284,3 +2284,11 @@
     display: none;
   }
 }
+
+/* D-806 look-over: the pins and saved-items popovers are 360px / 400px wide plus 16px of padding, wider than the
+   panel on a phone (100vw - 16px); the rules are in header.css and features.css, so this raises their specificity. */
+.lng-pins-pop.lng-pins-pop,
+.lng-saved-pop.lng-saved-pop {
+  box-sizing: border-box;
+  max-inline-size: 100%;
+}
