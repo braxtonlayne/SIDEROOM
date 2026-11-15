@@ -6,6 +6,25 @@
   color: var(--sr-text);
   font-family: var(--sr-font-body);
 }
+/* A theme that is not a Side Room theme (the five Lounge themes) sets --ui-* only; --sr-* then fall to the dark
+   Side Room palette of styles/tokens.css and the room draws half dark (SEC-AUD-303, D-802). Under such a theme the
+   room's own colour tokens are the theme's. Fonts, radius and sizes stay the room's. --lib-fill is gold as a filled
+   surface (button, badge): the theme's accent with its ink, which reach 4.5:1 where the link colour with white does
+   not. Under a sideroom theme none of this applies and nothing changes. */
+.lib-root:not([data-theme^='sideroom']) {
+  --sr-bg-0: var(--ui-bg);
+  --sr-bg-1: var(--ui-bg-raised);
+  --sr-bg-2: var(--ui-bg-hover);
+  --sr-bg-olive: var(--ui-bg-hover);
+  --sr-line: var(--ui-border);
+  --sr-text: var(--ui-text);
+  --sr-text-2: var(--ui-text-muted);
+  --sr-text-3: var(--ui-text-faint);
+  --sr-gold: var(--text-link, var(--ui-accent));
+  --sr-gold-ink: var(--ui-accent-ink);
+  --lib-fill: var(--ui-accent);
+  --lib-fill-ink: var(--ui-accent-ink);
+}
 .lib-root a {
   color: inherit;
 }
@@ -345,17 +364,17 @@
   background: var(--sr-bg-2);
 }
 .lib-btn-gold {
-  background: var(--sr-gold);
-  border-color: var(--sr-gold);
-  color: var(--sr-gold-ink, #1a160e);
+  background: var(--lib-fill, var(--sr-gold));
+  border-color: var(--lib-fill, var(--sr-gold));
+  color: var(--lib-fill-ink, var(--sr-gold-ink, #1a160e));
   font-weight: 600;
 }
 .lib-btn-gold:hover {
-  background: var(--sr-gold);
+  background: var(--lib-fill, var(--sr-gold));
   filter: brightness(1.08);
 }
 .lib-root .lib-btn-gold {
-  color: var(--sr-gold-ink, #1a160e);
+  color: var(--lib-fill-ink, var(--sr-gold-ink, #1a160e));
 }
 .lib-actions {
   display: flex;
@@ -1502,8 +1521,8 @@
   min-inline-size: 16px;
   padding-inline: 4px;
   border-radius: 8px;
-  background: var(--sr-gold, #d4af37);
-  color: #1a1a1a;
+  background: var(--lib-fill, var(--sr-gold, #d4af37));
+  color: var(--lib-fill-ink, #1a1a1a);
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
