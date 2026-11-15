@@ -659,3 +659,19 @@ label.adm-check-row {
 .adm-gpu {
   color: var(--ui-text);
 }
+
+/* SEC-AUD-311 (D-813): a file field's label text touched the picker button (Entrance, Subtitles, Guide import):
+   label and input sit on one row with a gap, and wrap on a narrow page. */
+label.ss-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+label.ss-field {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.adm-sub-add > label.ss-field {
+  flex: 1 1 100%;
+}
