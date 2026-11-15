@@ -45,21 +45,21 @@ Their grids were built the same way (`.lng-sticker-grid` `repeat(4, 1fr)` with s
 
 ## Tail: the Lounge's other popovers on a phone
 
-Second lock round (13:23 to 13:26), fresh stack, phone 375x812, Lounge Dark and Lounge Light, spec . Measured: panel inside 0..375, no descendant past the panel's sides, scroll area .
+Second lock round (13:23 to 13:26), fresh stack, phone 375x812, Lounge Dark and Lounge Light, spec run with `SR_P78_EMOJI_POPOVERS=1`. Measured: panel inside 0..375, no descendant past the panel's sides, scroll area `scrollWidth <= clientWidth`.
 
 | popover | reached | before | after |
 |---|---|---|---|
 | Threads (header list icon) | yes | whole | whole |
-| Pins | yes | CUT:  360px + 16px padding (content-box) = 376 in a 359px panel (content 21..375, scroll 366/357) | **fixed**: whole |
-| Saved items | yes | CUT:  400px + 16px, content to 382 | **fixed for the box**; the kit's tab strip (Bookmarks, Reminders, Scheduled) still runs past the end: it is the kit's own  list ( Tabs, fenced), the third tab ("Scheduled") is half drawn and reached by scrolling the strip. Listed, not fixed |
+| Pins | yes | CUT: `.lng-pins-pop` 360px + 16px padding (content-box) = 376 in a 359px panel (scroll 366/357) | **fixed**: whole |
+| Saved items | yes | CUT: `.lng-saved-pop` 400px + 16px, content to 382 | **fixed for the box**; the kit's tab strip (Bookmarks, Reminders, Scheduled) still runs past the end: it is the kit's own `overflow-x: auto` list (`packages/ui` Tabs, fenced), "Scheduled" is half drawn and reached by scrolling the strip. Listed, not fixed |
 | Inbox | yes | whole | whole |
-| Custom emoji popout (a message's custom emoji) | yes (a 1px PNG emoji added by API) | whole | whole |
-| Thread members (thread pane header) | yes | whole | whole |
-| Input/output device menus | NOT reached: the user panel is not on the phone's Home page (it lives under You), the trigger was off screen | | read only:  has no fixed width problem found by reading; not measured |
-| Soundboard, privacy codes, per-user volume | NOT reached: need a live voice call (not set up) | | listed for a wave with a voice stack:  (voice-p13.css),  (voice-p14-e2ee.css),  (lounge.css:1986) |
+| Custom emoji popout | yes (a 1px PNG emoji added by API) | whole | whole |
+| Thread members (thread pane) | yes | whole | whole |
+| Input/output device menus | NOT reached: the user panel is not on the phone's Home page, the trigger was off screen | | not measured |
+| Soundboard, privacy codes, per-user volume | NOT reached: they need a live voice call | | listed for a wave with a voice stack: `.vc-sb-popover` (voice/voice-p13.css), `.vc-e2ee-popover` (voice/voice-p14-e2ee.css), `.vc-volume` (lounge.css:1986) |
 | Reaction picker | yes (item above) | cut (same grid) | whole |
 
-Fix: one rule at the end of :  (the rules live in  and , not mine, so the specificity is raised instead). Shots:  (12, Dark and Light, all 12 opened; Pins and Saved are the fixed ones, both themes).  holds the pre-fix run (the cut numbers above come from its measurements; its PNGs were not opened). Next plan: give  and   themselves, and the kit's Tabs a visible overflow cue.
+Fix: one rule at the end of `lounge.css`: `.lng-pins-pop.lng-pins-pop, .lng-saved-pop.lng-saved-pop { box-sizing: border-box; max-inline-size: 100% }` (the originals live in `header/header.css` and `features/features.css`, not mine, so the specificity is raised instead). Shots: `visual-sweep-shots/p78-emoji-pop-fixed` (12, Dark and Light; Pins and Saved are the fixed ones; all 12 opened). `visual-sweep-shots/p78-emoji-pop` is the pre-fix run (the "before" numbers come from its measurements; its PNGs were not opened). Next plan: give `header.css` and `features.css` `max-inline-size: 100%` themselves, and the kit's Tabs a visible overflow cue.
 
 ## Docs
 
@@ -79,4 +79,4 @@ None. (Chosen default: seven columns kept; cells are 39.8px, large enough for th
 
 ## Cleanup
 
-Done: stack stopped by PID, scratch database `sr_p78_emoji_ui` dropped, `p78-emoji-bin` deleted, lock released. No stash touched.
+Done: stack stopped by PID, scratch database sr_p78_emoji_ui dropped, p78-emoji-bin deleted, lock released. No stash touched.
