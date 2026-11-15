@@ -529,3 +529,56 @@ test('the Cinema in Lounge Dark: one palette', async ({ browser }) => {
   await c.close();
   await octx.close();
 });
+
+// ---- Overflow check (commander's question): does /cinema scroll sideways at 1280x800? SR_P78_OVERFLOW=1.
+test('page-level overflow of the Cinema home at 1280x800', async ({ browser }) => {
+  test.skip(process.env.SR_P78_OVERFLOW !== '1', 'overflow check');
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, bootstrapState().owner);
+  const o = octx.request;
+  await setStudySurfacesWith(o, true);
+  const items = (
+    (await (await o.get('/api/v1/cinema/titles?limit=20')).json()) as {
+      items: Record<string, unknown>[];
+    }
+  ).items;
+  for (const n of [3, 9]) {
+    const take = Array.from({ length: n }, (_, i) => items[i % items.length]!);
+    const discover = {
+      hero: { key: 'hero', kind: 'curated', display: 'hero', title: 'F', items: take.slice(0, 2) },
+      rows: [
+        { key: 'trending', kind: 'generated', display: 'row', title: 'Trending', items: take },
+      ],
+    };
+    for (const sec of ['sideroom', 'lounge-light']) {
+      const prefs: Prefs = { theme: 'lounge-dark', zoom: 100, sectionThemes: { cinema: sec } };
+      await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: prefs } });
+      const c = await context(browser, octx, SIZES.desktop, prefs, discover);
+      const page = await c.newPage();
+      await page.goto('/cinema');
+      await expect(page.locator('.cin-hero')).toBeVisible({ timeout: 60_000 });
+      await page.waitForTimeout(800);
+      const m = await page.evaluate(() => {
+        const wide = Array.from(document.querySelectorAll<HTMLElement>('body *'))
+          .filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1)
+          .slice(0, 4)
+          .map((e) => `${e.tagName}.${String(e.className).slice(0, 30)}`);
+        return {
+          sw: document.documentElement.scrollWidth,
+          iw: window.innerWidth,
+          root: document.querySelector('.cin-root')?.scrollWidth,
+          wide,
+        };
+      });
+      report(`OVERFLOW titles=${n} ${sec} ${JSON.stringify(m)}`);
+      await c.close();
+    }
+  }
+  await apiPatch(o, '/users/@me/settings', {
+    settings: {
+      user_prefs: { theme: 'lounge-dark', zoom: 100, sectionThemes: { cinema: 'sideroom' } },
+    },
+  });
+  await setStudySurfacesWith(o, false);
+  await octx.close();
+});

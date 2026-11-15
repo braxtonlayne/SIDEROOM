@@ -56,3 +56,6 @@ Changelog sentence: The Cinema, Live TV included, now looks right in any theme y
 
 ## Housekeeping
 Scratch DB `sr_p78_cinema_ui` dropped; `p78-cinema-bin` deleted; stack stopped by PID; lock released. No stash touched. Base shots kept at `visual-sweep-shots/p78-cinema-base`.
+
+## Follow-up: width of the desktop home shots (commander's question)
+The final-run home shots were 1633px wide because the Discover rail had 9 cards (the DB had accumulated titles over three runs; the base run had 3). Measured with `SR_P78_OVERFLOW=1` (spec test "page-level overflow", 1280x800, `/cinema`): 3 titles, `scrollWidth` 1280 in shipped and light, base and after. 9 titles: `scrollWidth` 1632 in shipped and light, on the base (my CSS and Guide.tsx put back to `8694067e`) AND after, identical. Cause: `.cin-block`, `.cin-row-wrap` and `.cin-row` grow past the viewport when a rail holds more than about 5 cards (the page, not the rail, scrolls sideways). So it is pre-existing and data-driven, not from this change; not fixed (not in my brief). The dark strip at the right of those shots is the page background beyond the 1280px wrapper. Candidate for a next plan: a rail with 6+ titles widens the Cinema home page on desktop and phone.
