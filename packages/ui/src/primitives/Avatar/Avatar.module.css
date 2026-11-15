@@ -33,14 +33,14 @@
   bottom: -2px;
   box-sizing: border-box;
   border-radius: 50%;
-  border: 2px solid var(--ui-bg);
+  border: 2px solid var(--ui-status-ring, var(--ui-bg));
 }
 .online { background: var(--ui-status-online); }
 .idle { background: var(--ui-status-idle); }
 .dnd { background: var(--ui-status-dnd); }
 .offline { background: var(--ui-status-offline); }
 /* An icon in the dot's place: the page-colour ring stays, the status colour is the glyph's. */
-.statusIcon { display: grid; place-items: center; background: var(--ui-bg); border: 0; padding: 1px; }
+.statusIcon { display: grid; place-items: center; background: var(--ui-status-ring, var(--ui-bg)); border: 0; padding: 1px; }
 .statusIcon.online { color: var(--ui-status-online); }
 /* A glyph is a solid shape of the status colour (D-756): filled, no outline, the even-odd rule cuts the screen out. */
 .statusIcon > svg { width: 100%; height: 100%; fill: currentColor; fill-rule: evenodd; stroke: none; }

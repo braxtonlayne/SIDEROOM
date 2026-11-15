@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 75 - 2026-11-14
+
+- **Members.** The music player now sits above the message box instead of covering it, on desktop and on a phone; a tall player skin on a small screen scrolls inside its own box. The ring round a person's status dot matches the row it sits on, so it no longer shows as a white or dark disc when you hover or select a member or a direct message. On Server Settings > Discord bridge, the box that says what the bridge shares lines up with the cards below it.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 74 - 2026-11-14
 
 - **Members.** A thread's last message and a Message Requests line no longer show `#`, `##`, `###` or `-#` in front of the words: a message of three headings reads as the three words instead of `# One ## Two ### Three`. `C#`, `issue #3` and text inside a code block stay as typed.
