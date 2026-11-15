@@ -300,3 +300,162 @@ test('every column of the emoji picker is whole', async ({ browser }) => {
   }
   await octx.close();
 });
+
+// ---- Tail (D-806): the Lounge's other popovers on a phone -----------------------------------------------------
+
+const PNG_1PX =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const POP_THEMES = (process.env.SR_P78_EMOJI_THEMES ?? 'lounge-dark').split(',');
+
+interface PopMeasure {
+  panelLeft: number;
+  panelRight: number;
+  panelTop: number;
+  panelBottom: number;
+  scrollW: number;
+  clientW: number;
+  cut: string[];
+}
+
+/** The open popover's box against the screen and anything inside it that sticks out past its sides. */
+async function measurePopover(dialog: Locator): Promise<PopMeasure> {
+  return dialog.evaluate((root) => {
+    const r = root.getBoundingClientRect();
+    const cut: string[] = [];
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+      const b = el.getBoundingClientRect();
+      if (b.width === 0 || b.height === 0) continue;
+      if (b.right > r.right + 0.5 || b.left < r.left - 0.5) {
+        const cls = typeof el.className === 'string' ? el.className.split(' ')[0] : '';
+        cut.push(`${el.tagName.toLowerCase()}.${cls} ${b.left.toFixed(0)}..${b.right.toFixed(0)}`);
+      }
+    }
+    // The widest scroll area inside the panel (or the panel itself).
+    let scrollW = root.scrollWidth;
+    let clientW = root.clientWidth;
+    for (const el of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollWidth > el.clientWidth + 0.5) {
+        scrollW = el.scrollWidth;
+        clientW = el.clientWidth;
+      }
+    }
+    return {
+      panelLeft: r.left,
+      panelRight: r.right,
+      panelTop: r.top,
+      panelBottom: r.bottom,
+      scrollW,
+      clientW,
+      cut: cut.slice(0, 6),
+    };
+  });
+}
+
+test('the other popovers on a phone', async ({ browser }) => {
+  test.skip(!POPOVERS, 'popover look-over only (SR_P78_EMOJI_POPOVERS=1)');
+  const { octx, a, guild, channel } = await world(browser);
+  // A pinned message, a custom emoji in a message.
+  const pinned = await apiPost<{ id: string }>(a, `/channels/${channel}/messages`, {
+    content:
+      'A pinned message with a fairly long line of text so that it has to wrap inside the narrow panel',
+  });
+  await apiPut(a, `/channels/${channel}/pins/${pinned.id}`).catch(() => undefined);
+  const emoji = await apiPost<{ id: string }>(a, `/guilds/${guild.id}/emojis`, {
+    name: 'tinydot',
+    image: PNG_1PX,
+  });
+  await apiPost(a, `/channels/${channel}/messages`, {
+    content: `custom emoji <:tinydot:${emoji.id}> in a message`,
+  });
+  const size = VIEWPORTS.phone;
+  for (const theme of POP_THEMES) {
+    await apiPatch(a, '/users/@me/settings', { settings: { user_prefs: { theme, zoom: 100 } } });
+    const c = await context(browser, octx, size, theme);
+    const page = await c.newPage();
+    page.setDefaultTimeout(15_000);
+    await page.goto(`/channels/${guild.id}/${channel}`);
+    await expect(wrap(page).locator('textarea')).toBeVisible();
+    await page.waitForTimeout(800);
+
+    const cases: [string, () => Promise<Locator | null>][] = [
+      ['threads', async () => page.getByRole('button', { name: 'Threads', exact: true })],
+      ['pins', async () => page.getByRole('button', { name: 'Pinned Messages', exact: true })],
+      ['saved', async () => page.getByRole('button', { name: 'Saved items', exact: true })],
+      ['inbox', async () => page.getByRole('button', { name: 'Inbox', exact: true })],
+      ['custom-emoji', async () => page.getByRole('button', { name: /Emoji :tinydot:/ }).first()],
+      [
+        'device-input',
+        async () => page.getByRole('button', { name: 'Input device and volume', exact: true }),
+      ],
+      [
+        'device-output',
+        async () => page.getByRole('button', { name: 'Output device and volume', exact: true }),
+      ],
+    ];
+    for (const [name, trigger] of cases) {
+      const tag = `popover-${name}-${theme}`;
+      const t = await trigger();
+      if (
+        !t ||
+        !(await t
+          .first()
+          .isVisible()
+          .catch(() => false))
+      ) {
+        note(`${tag}: NOT REACHED (trigger not on the phone page)`);
+        continue;
+      }
+      await t.first().click();
+      await page.waitForTimeout(700);
+      const dialog = page.getByRole('dialog').last();
+      if (!(await dialog.isVisible().catch(() => false))) {
+        note(`${tag}: NOT REACHED (no panel opened)`);
+        continue;
+      }
+      const m = await measurePopover(dialog);
+      const bad =
+        m.panelLeft < -0.5 ||
+        m.panelRight > size.width + 0.5 ||
+        m.scrollW > m.clientW + 0.5 ||
+        m.cut.length > 0;
+      note(
+        `${tag}: panel ${m.panelLeft.toFixed(1)}..${m.panelRight.toFixed(1)} x ${m.panelTop.toFixed(1)}..${m.panelBottom.toFixed(1)} ` +
+          `scroll ${m.scrollW}/${m.clientW} cut [${m.cut.join('; ')}] => ${bad ? 'CUT' : 'whole'}`,
+      );
+      await page.screenshot({ path: resolve(OUT, `${tag}-phone.png`) });
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+    }
+
+    // Thread members: in the thread pane.
+    {
+      const tag = `popover-thread-members-${theme}`;
+      await page.locator('.lng-thread-chip', { hasText: 'Emoji thread' }).first().click();
+      await page.waitForTimeout(900);
+      const t = page.getByRole('button', { name: /Thread members/ }).first();
+      if (await t.isVisible().catch(() => false)) {
+        await t.click();
+        await page.waitForTimeout(700);
+        const dialog = page.getByRole('dialog').last();
+        const m = await measurePopover(dialog);
+        const bad =
+          m.panelLeft < -0.5 ||
+          m.panelRight > size.width + 0.5 ||
+          m.scrollW > m.clientW + 0.5 ||
+          m.cut.length > 0;
+        note(
+          `${tag}: panel ${m.panelLeft.toFixed(1)}..${m.panelRight.toFixed(1)} scroll ${m.scrollW}/${m.clientW} cut [${m.cut.join('; ')}] => ${bad ? 'CUT' : 'whole'}`,
+        );
+        await page.screenshot({ path: resolve(OUT, `${tag}-phone.png`) });
+      } else {
+        note(`${tag}: NOT REACHED (trigger not visible)`);
+      }
+    }
+    note(
+      `popover-soundboard/privacy-codes/volume-${theme}: NOT REACHED (they need a live voice call)`,
+    );
+    await c.close();
+  }
+  await octx.close();
+});
