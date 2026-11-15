@@ -150,7 +150,7 @@ async function shot(page: Page, name: string) {
   );
   expect(over).toBeLessThanOrEqual(0);
   const geo = await dock.evaluate((el) =>
-    [...el.querySelectorAll('li')].map((li) => {
+    Array.from(el.querySelectorAll('li')).map((li) => {
       const r = li.getBoundingClientRect();
       const b = li.querySelector('progress')!.getBoundingClientRect();
       const t = li.querySelector('strong')!.getBoundingClientRect();
