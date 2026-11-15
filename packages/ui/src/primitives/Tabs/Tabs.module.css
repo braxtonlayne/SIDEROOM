@@ -7,6 +7,35 @@
   display: flex;
   gap: 4px;
   overflow-x: auto;
+  scrollbar-width: none;
+}
+.list::-webkit-scrollbar {
+  display: none;
+}
+/* Fade at an edge that hides tabs (D-812): left-to-right below, swapped under :dir(rtl). */
+.list[data-overflow='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+.list[data-overflow='start'] {
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.list[data-overflow='both'] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent
+  );
+}
+.list:dir(rtl)[data-overflow='end'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent);
+}
+.list:dir(rtl)[data-overflow='start'] {
+  mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.list:dir(rtl)[data-overflow='both'] {
+  mask-image: linear-gradient(to left, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 .tab {
   position: relative;
