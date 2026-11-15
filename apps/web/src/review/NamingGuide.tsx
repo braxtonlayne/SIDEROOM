@@ -96,29 +96,33 @@ export function NamingGuide({ section = 'library' }: { section?: 'library' | 'ci
         </div>
         {parse.isError && <p role="alert">{t('review.naming.error')}</p>}
         {parse.data && (
-          <table className="rv-table" aria-label={t('review.naming.results')}>
-            <thead>
-              <tr>
-                <th scope="col">{t('review.naming.colName')}</th>
-                <th scope="col">{t('review.naming.colParsed')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parse.data.items.map((it, i) => (
-                <tr key={`${i}-${it.name}`}>
-                  <td>{it.name}</td>
-                  <td>
-                    {describe(it, t)}
-                    {[...(it.cinema?.warnings ?? []), ...(it.library?.warnings ?? [])].map((w) => (
-                      <div key={w} className="rv-muted">
-                        {w}
-                      </div>
-                    ))}
-                  </td>
+          <div className="rv-table-wrap">
+            <table className="rv-table" aria-label={t('review.naming.results')}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('review.naming.colName')}</th>
+                  <th scope="col">{t('review.naming.colParsed')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {parse.data.items.map((it, i) => (
+                  <tr key={`${i}-${it.name}`}>
+                    <td>{it.name}</td>
+                    <td>
+                      {describe(it, t)}
+                      {[...(it.cinema?.warnings ?? []), ...(it.library?.warnings ?? [])].map(
+                        (w) => (
+                          <div key={w} className="rv-muted">
+                            {w}
+                          </div>
+                        ),
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </Collapsible>
