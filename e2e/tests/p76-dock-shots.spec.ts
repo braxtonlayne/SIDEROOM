@@ -154,13 +154,18 @@ async function shot(page: Page, name: string) {
       const r = li.getBoundingClientRect();
       const b = li.querySelector('progress')!.getBoundingClientRect();
       const t = li.querySelector('strong')!.getBoundingClientRect();
-      return { li: [r.left, r.width], bar: [b.left, b.width], bTop: b.top, nameBottom: t.bottom };
+      return {
+        li: { x: r.left, w: r.width },
+        bar: { x: b.left, w: b.width },
+        bTop: b.top,
+        nameBottom: t.bottom,
+      };
     }),
   );
   for (const g of geo) {
-    expect(Math.abs(g.bar[0] - g.li[0])).toBeLessThan(1);
+    expect(Math.abs(g.bar.x - g.li.x)).toBeLessThan(1);
     expect(g.bTop).toBeGreaterThanOrEqual(g.nameBottom - 1);
-    expect(g.bar[1]).toBeGreaterThan(g.li[1] * 0.4);
+    expect(g.bar.w).toBeGreaterThan(g.li.w * 0.4);
   }
   console.log(`geo ${name} ${JSON.stringify(geo)}`);
 }
