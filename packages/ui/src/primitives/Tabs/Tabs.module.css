@@ -82,7 +82,7 @@
 .pill .tab {
   border-radius: var(--ui-radius);
 }
-.pill .tab:hover:not(:disabled) {
+.pill .tab:hover:not(:disabled):not([aria-selected='true']) {
   background: var(--ui-bg-hover);
 }
 .pill .tab[aria-selected='true'] {
