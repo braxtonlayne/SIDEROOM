@@ -123,8 +123,10 @@ async function world(browser: Browser) {
     { name: 'Picker thread' },
   );
   await apiPost(a, `/channels/${th.id}/messages`, { content: 'In the thread' });
-  for (let i = 0; i < 6; i++)
+  for (let i = 0; i < 2; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
     await apiPost(a, `/channels/${channel}/messages`, { content: `A message to scroll past ${i}` });
+  }
   return { octx, a, guild, channel };
 }
 
