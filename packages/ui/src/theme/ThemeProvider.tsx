@@ -1,6 +1,14 @@
-import { createContext, useContext, useEffect, useMemo, useState, type CSSProperties, type HTMLAttributes } from "react";
-import { THEMES } from "../tokens/themes";
-import type { Section, ThemeId } from "../tokens/types";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type HTMLAttributes,
+} from 'react';
+import { THEMES } from '../tokens/themes';
+import type { Section, ThemeId } from '../tokens/types';
 import {
   DEFAULT_APPEARANCE,
   appearanceVars,
@@ -9,7 +17,7 @@ import {
   saturatedTokens,
   serverAccentTokens,
   type AppearanceSettings,
-} from "./runtime";
+} from './runtime';
 
 export interface ThemeContextValue {
   theme: ThemeId;
@@ -26,16 +34,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function usePortalTarget(): HTMLElement | null {
   const ctx = useContext(ThemeContext);
   if (ctx?.portalRoot) return ctx.portalRoot;
-  return typeof document === "undefined" ? null : document.body;
+  return typeof document === 'undefined' ? null : document.body;
 }
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used inside <ThemeProvider>");
+  if (!ctx) throw new Error('useTheme must be used inside <ThemeProvider>');
   return ctx;
 }
 
-export interface ThemeProviderProps extends Omit<HTMLAttributes<HTMLDivElement>, "style"> {
+export interface ThemeProviderProps extends Omit<HTMLAttributes<HTMLDivElement>, 'style'> {
   section: Section;
   userGlobal?: ThemeId | null;
   perSection?: Partial<Record<Section, ThemeId>>;
@@ -50,11 +58,11 @@ export interface ThemeProviderProps extends Omit<HTMLAttributes<HTMLDivElement>,
 function useSystemReducedMotion(): boolean {
   const [value, setValue] = useState(prefersReducedMotion);
   useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     const onChange = () => setValue(mq.matches);
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
   }, []);
   return value;
 }
@@ -74,8 +82,12 @@ export function ThemeProvider({
   const systemReduced = useSystemReducedMotion();
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
   const theme = resolveTheme({ section, userGlobal, perSection, platformDefault });
-  const merged = useMemo<AppearanceSettings>(() => ({ ...DEFAULT_APPEARANCE, ...appearance }), [appearance]);
-  const reducedMotion = merged.reducedMotion === "on" || (merged.reducedMotion === "system" && systemReduced);
+  const merged = useMemo<AppearanceSettings>(
+    () => ({ ...DEFAULT_APPEARANCE, ...appearance }),
+    [appearance],
+  );
+  const reducedMotion =
+    merged.reducedMotion === 'on' || (merged.reducedMotion === 'system' && systemReduced);
 
   const vars = useMemo(
     () => ({
@@ -99,10 +111,10 @@ export function ThemeProvider({
   const rootStyle = {
     ...vars,
     colorScheme: THEMES[theme].scheme,
-    background: "var(--ui-bg)",
-    color: "var(--ui-text)",
-    fontFamily: "var(--ui-font-body)",
-    fontSize: "var(--ui-font-size-base)",
+    background: 'var(--ui-bg)',
+    color: 'var(--ui-text)',
+    fontFamily: 'var(--ui-font-body)',
+    fontSize: 'var(--ui-font-size-base)',
     ...style,
   } as CSSProperties;
 
@@ -113,7 +125,7 @@ export function ThemeProvider({
         ref={setPortalRoot}
         data-theme={theme}
         data-section={section}
-        data-reduced-motion={reducedMotion ? "true" : "false"}
+        data-reduced-motion={reducedMotion ? 'true' : 'false'}
         data-contrast={merged.contrast}
         style={rootStyle}
       >

@@ -1,8 +1,8 @@
-import type { HTMLAttributes, ReactNode, SVGAttributes } from "react";
-import { cx } from "../util/cx";
-import styles from "./Chrome.module.css";
+import type { HTMLAttributes, ReactNode, SVGAttributes } from 'react';
+import { cx } from '../util/cx';
+import styles from './Chrome.module.css';
 
-export interface DoorLogoProps extends Omit<SVGAttributes<SVGSVGElement>, "children"> {
+export interface DoorLogoProps extends Omit<SVGAttributes<SVGSVGElement>, 'children'> {
   size?: number;
   /** Accessible name. Omit when the mark sits beside the wordmark (decorative). */
   label?: string;
@@ -24,7 +24,7 @@ export function DoorLogo({ size = 28, label, className, ...rest }: DoorLogoProps
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="square"
-      role={label ? "img" : undefined}
+      role={label ? 'img' : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
       focusable="false"
@@ -35,7 +35,7 @@ export function DoorLogo({ size = 28, label, className, ...rest }: DoorLogoProps
   );
 }
 
-export interface SrHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+export interface SrHeaderProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
   /** Where the logo/wordmark links to. */
   homeHref?: string;
   tagline?: ReactNode;
@@ -44,7 +44,7 @@ export interface SrHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "childr
 }
 
 /** DS-SR-002: banner with door logo, wordmark, tagline and a right-aligned action. */
-export function SrHeader({ homeHref = "/", tagline, action, className, ...rest }: SrHeaderProps) {
+export function SrHeader({ homeHref = '/', tagline, action, className, ...rest }: SrHeaderProps) {
   return (
     <header {...rest} className={cx(styles.header, className)}>
       <a href={homeHref} className={styles.brand}>
@@ -62,7 +62,7 @@ export interface SrFooterLink {
   href: string;
 }
 
-export interface SrFooterProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+export interface SrFooterProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
   /** Lead of the sign-off; the default is the brand line. */
   lead?: ReactNode;
   accent?: ReactNode;
@@ -70,7 +70,13 @@ export interface SrFooterProps extends Omit<HTMLAttributes<HTMLElement>, "childr
 }
 
 /** DS-SR-002: footer sign-off ("Not everywhere. *Just here.*") with optional links. */
-export function SrFooter({ lead = "Not everywhere.", accent = "Just here.", links, className, ...rest }: SrFooterProps) {
+export function SrFooter({
+  lead = 'Not everywhere.',
+  accent = 'Just here.',
+  links,
+  className,
+  ...rest
+}: SrFooterProps) {
   return (
     <footer {...rest} className={cx(styles.footer, className)}>
       <p className={styles.signoff}>
@@ -95,7 +101,7 @@ export interface SectionTopBarItem {
   href: string;
 }
 
-export interface SectionTopBarProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+export interface SectionTopBarProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
   items: SectionTopBarItem[];
   activeId?: string;
   homeHref?: string;
@@ -104,7 +110,14 @@ export interface SectionTopBarProps extends Omit<HTMLAttributes<HTMLElement>, "c
 }
 
 /** DS-SR-003: `SIDE ROOM / The lounge  The cinema  The library` bar with an active underline. */
-export function SectionTopBar({ items, activeId, homeHref = "/", voiceSlot, className, ...rest }: SectionTopBarProps) {
+export function SectionTopBar({
+  items,
+  activeId,
+  homeHref = '/',
+  voiceSlot,
+  className,
+  ...rest
+}: SectionTopBarProps) {
   return (
     <div {...rest} className={cx(styles.topBar, className)}>
       <a href={homeHref} className={styles.topBrand}>
@@ -115,7 +128,12 @@ export function SectionTopBar({ items, activeId, homeHref = "/", voiceSlot, clas
       </span>
       <nav aria-label="Sections" className={styles.topNav}>
         {items.map((it) => (
-          <a key={it.id} href={it.href} className={styles.topLink} aria-current={it.id === activeId ? "page" : undefined}>
+          <a
+            key={it.id}
+            href={it.href}
+            className={styles.topLink}
+            aria-current={it.id === activeId ? 'page' : undefined}
+          >
             {it.label}
           </a>
         ))}

@@ -1,17 +1,17 @@
-import { useId, useRef, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { usePortalTarget } from "../../theme/ThemeProvider";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
-import styles from "./Drawer.module.css";
+import { useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { usePortalTarget } from '../../theme/ThemeProvider';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import { useFocusTrap, useOverlayStack } from '../Overlay/overlayStack';
+import styles from './Drawer.module.css';
 
 export interface DrawerProps {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
   /** Edge the drawer slides from. */
-  side?: "left" | "right" | "bottom";
+  side?: 'left' | 'right' | 'bottom';
   closeOnBackdrop?: boolean;
   footer?: ReactNode;
   className?: string;
@@ -23,7 +23,7 @@ export function Drawer({
   open,
   onClose,
   title,
-  side = "right",
+  side = 'right',
   closeOnBackdrop = true,
   footer,
   className,
@@ -36,13 +36,20 @@ export function Drawer({
   onCloseRef.current = onClose;
 
   const ui = useUiStrings();
-  const { isTopmost } = useOverlayStack({ open, lockScroll: true, onEscape: () => onCloseRef.current() });
+  const { isTopmost } = useOverlayStack({
+    open,
+    lockScroll: true,
+    onEscape: () => onCloseRef.current(),
+  });
   useFocusTrap({ open, containerRef: ref, isTopmost });
 
   if (!open || !target) return null;
   return createPortal(
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop click is a pointer convenience; Escape and the Close button are the accessible paths
-    <div className={styles.backdrop} onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}>
+    <div
+      className={styles.backdrop}
+      onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}
+    >
       <div
         ref={ref}
         role="dialog"

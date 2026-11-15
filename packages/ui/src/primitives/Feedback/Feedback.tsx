@@ -8,24 +8,24 @@ import {
   useState,
   type HTMLAttributes,
   type ReactNode,
-} from "react";
-import { createPortal } from "react-dom";
-import { usePortalTarget } from "../../theme/ThemeProvider";
-import { cx } from "../../util/cx";
-import { useUiStrings, type UiStrings } from "../../util/uiStrings";
-import styles from "./Feedback.module.css";
+} from 'react';
+import { createPortal } from 'react-dom';
+import { usePortalTarget } from '../../theme/ThemeProvider';
+import { cx } from '../../util/cx';
+import { useUiStrings, type UiStrings } from '../../util/uiStrings';
+import styles from './Feedback.module.css';
 
-export type NoticeVariant = "info" | "success" | "warning" | "danger";
+export type NoticeVariant = 'info' | 'success' | 'warning' | 'danger';
 
-const ICONS: Record<NoticeVariant, string> = { info: "i", success: "✓", warning: "!", danger: "!" };
+const ICONS: Record<NoticeVariant, string> = { info: 'i', success: '✓', warning: '!', danger: '!' };
 const VARIANT_LABEL: Record<NoticeVariant, Extract<keyof UiStrings, `notice${string}`>> = {
-  info: "noticeInfo",
-  success: "noticeSuccess",
-  warning: "noticeWarning",
-  danger: "noticeError",
+  info: 'noticeInfo',
+  success: 'noticeSuccess',
+  warning: 'noticeWarning',
+  danger: 'noticeError',
 };
 
-export interface NoticeProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+export interface NoticeProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   variant?: NoticeVariant;
   title?: ReactNode;
   onDismiss?: () => void;
@@ -38,7 +38,7 @@ export interface NoticeProps extends Omit<HTMLAttributes<HTMLDivElement>, "title
 
 /** Inline banner. Warnings and errors are announced assertively (role=alert). */
 export function Notice({
-  variant = "info",
+  variant = 'info',
   title,
   onDismiss,
   variantLabel,
@@ -48,9 +48,13 @@ export function Notice({
   ...rest
 }: NoticeProps) {
   const words = useUiStrings();
-  const urgent = variant === "danger" || variant === "warning";
+  const urgent = variant === 'danger' || variant === 'warning';
   return (
-    <div role={urgent ? "alert" : "status"} {...rest} className={cx(styles.notice, styles[variant], className)}>
+    <div
+      role={urgent ? 'alert' : 'status'}
+      {...rest}
+      className={cx(styles.notice, styles[variant], className)}
+    >
       <span className={styles.icon} aria-hidden="true">
         {ICONS[variant]}
       </span>
@@ -60,7 +64,12 @@ export function Notice({
         {children && <div className={styles.text}>{children}</div>}
       </div>
       {onDismiss && (
-        <button type="button" className={styles.dismiss} aria-label={dismissLabel ?? words.dismiss} onClick={onDismiss}>
+        <button
+          type="button"
+          className={styles.dismiss}
+          aria-label={dismissLabel ?? words.dismiss}
+          onClick={onDismiss}
+        >
           <span aria-hidden="true">×</span>
         </button>
       )}
@@ -89,7 +98,7 @@ const ToastContext = createContext<ToastApi | null>(null);
 
 export function useToast(): ToastApi {
   const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
+  if (!ctx) throw new Error('useToast must be used inside <ToastProvider>');
   return ctx;
 }
 
@@ -139,7 +148,7 @@ export function ToastProvider({ children, max = 5 }: { children: ReactNode; max?
     [max],
   );
   const api = useMemo(() => ({ show, dismiss }), [show, dismiss]);
-  const urgent = toasts.some((t) => t.variant === "danger");
+  const urgent = toasts.some((t) => t.variant === 'danger');
   const words = useUiStrings();
 
   return (
@@ -147,7 +156,11 @@ export function ToastProvider({ children, max = 5 }: { children: ReactNode; max?
       {children}
       {target &&
         createPortal(
-          <div role={urgent ? "alert" : "status"} aria-live={urgent ? "assertive" : "polite"} aria-label={words.notifications}>
+          <div
+            role={urgent ? 'alert' : 'status'}
+            aria-live={urgent ? 'assertive' : 'polite'}
+            aria-label={words.notifications}
+          >
             <ol className={styles.region}>
               {toasts.map((t) => (
                 <ToastView key={t.id} toast={t} onDismiss={dismiss} />

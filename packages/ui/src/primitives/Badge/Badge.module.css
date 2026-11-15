@@ -11,12 +11,32 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-.pill { border-radius: 999px; }
-.neutral { background: var(--ui-bg-hover); color: var(--ui-text); border-color: var(--ui-border); }
-.accent { background: var(--ui-accent); color: var(--ui-accent-ink); }
-.success { background: transparent; color: var(--ui-text); border-color: var(--ui-success); }
-.warning { background: transparent; color: var(--ui-text); border-color: var(--ui-warning); }
-.danger { background: var(--ui-danger); color: var(--ui-danger-ink); }
+.pill {
+  border-radius: 999px;
+}
+.neutral {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+}
+.accent {
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.success {
+  background: transparent;
+  color: var(--ui-text);
+  border-color: var(--ui-success);
+}
+.warning {
+  background: transparent;
+  color: var(--ui-text);
+  border-color: var(--ui-warning);
+}
+.danger {
+  background: var(--ui-danger);
+  color: var(--ui-danger-ink);
+}
 
 .counter {
   display: inline-grid;

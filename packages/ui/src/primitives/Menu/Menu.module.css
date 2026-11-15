@@ -1,5 +1,10 @@
-.anchor { position: relative; display: inline-flex; }
-.contextRegion { display: contents; }
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
+.contextRegion {
+  display: contents;
+}
 
 .menu {
   z-index: 1050; /* above dialogs and drawers (1000), below toasts (1100), like the Select list */
@@ -17,7 +22,9 @@
   font-family: var(--ui-font-body);
   font-size: 0.875rem;
 }
-.menu:focus { outline: none; }
+.menu:focus {
+  outline: none;
+}
 
 .item {
   display: flex;
@@ -29,19 +36,61 @@
   cursor: pointer;
   user-select: none;
 }
-.item:focus { outline: none; background: var(--ui-accent); color: var(--ui-accent-ink); }
-.item:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: -2px; }
-.item[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
-.item[data-danger]:not(:focus) { color: var(--ui-danger); }
-.item[data-danger]:focus { background: var(--ui-danger); color: var(--ui-danger-ink); }
+.item:focus {
+  outline: none;
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.item:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: -2px;
+}
+.item[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.item[data-danger]:not(:focus) {
+  color: var(--ui-danger);
+}
+.item[data-danger]:focus {
+  background: var(--ui-danger);
+  color: var(--ui-danger-ink);
+}
 
-.indicator { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 18px; }
-.icon { display: inline-flex; flex: none; }
-.text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shortcut { margin-inline-start: 16px; font: inherit; font-size: 0.75rem; opacity: 0.7; }
-.chevron { margin-inline-start: 8px; opacity: 0.7; }
+.indicator {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+.icon {
+  display: inline-flex;
+  flex: none;
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcut {
+  margin-inline-start: 16px;
+  font: inherit;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.chevron {
+  margin-inline-start: 8px;
+  opacity: 0.7;
+}
 
-.separator { height: 1px; margin: 6px -6px; background: var(--ui-border); }
+.separator {
+  height: 1px;
+  margin: 6px -6px;
+  background: var(--ui-border);
+}
 .label {
   padding: 6px 8px 2px;
   font-size: 0.6875rem;

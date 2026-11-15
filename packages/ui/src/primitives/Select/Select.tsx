@@ -7,15 +7,15 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-} from "react";
-import { createPortal } from "react-dom";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { usePortalTarget } from "../../theme/ThemeProvider";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import { observeRectWithFallback } from "../../util/virtual";
-import { useFloating } from "../Overlay/useFloating";
-import styles from "./Select.module.css";
+} from 'react';
+import { createPortal } from 'react-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { usePortalTarget } from '../../theme/ThemeProvider';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import { observeRectWithFallback } from '../../util/virtual';
+import { useFloating } from '../Overlay/useFloating';
+import styles from './Select.module.css';
 
 export interface SelectOption {
   value: string;
@@ -28,8 +28,8 @@ export interface SelectOption {
 interface BaseProps {
   options: SelectOption[];
   /** Accessible name (or use `aria-labelledby` / an external <label htmlFor={id}>). */
-  "aria-label"?: string;
-  "aria-labelledby"?: string;
+  'aria-label'?: string;
+  'aria-labelledby'?: string;
   id?: string;
   name?: string;
   placeholder?: string;
@@ -58,7 +58,8 @@ export interface MultiSelectProps extends BaseProps {
   onValuesChange?: (values: string[]) => void;
 }
 
-const defaultFilter = (o: SelectOption, q: string) => o.label.toLowerCase().includes(q.trim().toLowerCase());
+const defaultFilter = (o: SelectOption, q: string) =>
+  o.label.toLowerCase().includes(q.trim().toLowerCase());
 
 /* ------------------------------------------------------------ option list */
 
@@ -100,7 +101,7 @@ function OptionList({
     observeElementRect: observeRectWithFallback({ width: 0, height }),
   });
   useEffect(() => {
-    if (active >= 0) v.scrollToIndex(active, { align: "auto" });
+    if (active >= 0) v.scrollToIndex(active, { align: 'auto' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -116,7 +117,7 @@ function OptionList({
       className={styles.list}
       style={{ height }}
     >
-      <div style={{ height: v.getTotalSize(), position: "relative", width: "100%" }}>
+      <div style={{ height: v.getTotalSize(), position: 'relative', width: '100%' }}>
         {v.getVirtualItems().map((row) => {
           const o = options[row.index] as SelectOption;
           return (
@@ -136,7 +137,7 @@ function OptionList({
               onClick={() => !o.disabled && onPick(o)}
             >
               <span className={styles.check} aria-hidden="true">
-                {isSelected(o) ? "✓" : ""}
+                {isSelected(o) ? '✓' : ''}
               </span>
               <span className={styles.optionText}>
                 <span className={styles.optionLabel}>{o.label}</span>
@@ -185,13 +186,16 @@ function Core({
   const portalTarget = usePortalTarget();
 
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [typing, setTyping] = useState(false);
   const [active, setActive] = useState(-1);
   const [wrap, setWrap] = useState<HTMLDivElement | null>(null);
   const ctrl = useRef<HTMLInputElement | HTMLButtonElement | null>(null);
-  const typeahead = useRef({ buffer: "", timer: undefined as ReturnType<typeof setTimeout> | undefined });
-  const floating = useFloating({ open, anchor: wrap, placement: "bottom-start", offset: 4 });
+  const typeahead = useRef({
+    buffer: '',
+    timer: undefined as ReturnType<typeof setTimeout> | undefined,
+  });
+  const floating = useFloating({ open, anchor: wrap, placement: 'bottom-start', offset: 4 });
 
   const byValue = useMemo(() => new Map(options.map((o) => [o.value, o])), [options]);
   const visible = useMemo(
@@ -199,20 +203,18 @@ function Core({
     [options, searchable, typing, query, filter],
   );
   const selectedSet = useMemo(() => new Set(selected), [selected]);
-  const selectedLabel = !multiple && selected[0] !== undefined ? (byValue.get(selected[0])?.label ?? "") : "";
+  const selectedLabel =
+    !multiple && selected[0] !== undefined ? (byValue.get(selected[0])?.label ?? '') : '';
 
   useEffect(() => () => clearTimeout(typeahead.current.timer), []);
 
-  const firstEnabled = useCallback(
-    (list: SelectOption[], from: number, dir: 1 | -1) => {
-      for (let n = 0; n < list.length; n++) {
-        const i = (((from + dir * n) % list.length) + list.length) % list.length;
-        if (!list[i]?.disabled) return i;
-      }
-      return -1;
-    },
-    [],
-  );
+  const firstEnabled = useCallback((list: SelectOption[], from: number, dir: 1 | -1) => {
+    for (let n = 0; n < list.length; n++) {
+      const i = (((from + dir * n) % list.length) + list.length) % list.length;
+      if (!list[i]?.disabled) return i;
+    }
+    return -1;
+  }, []);
 
   const doOpen = () => {
     if (open || disabled) return;
@@ -223,13 +225,13 @@ function Core({
   const doClose = useCallback(() => {
     setOpen(false);
     setTyping(false);
-    setQuery("");
+    setQuery('');
   }, []);
 
   const pick = (o: SelectOption) => {
     onToggle(o.value);
     if (multiple) {
-      setQuery("");
+      setQuery('');
       setTyping(false);
       setActive(visible.findIndex((x) => x.value === o.value));
     } else {
@@ -240,26 +242,34 @@ function Core({
 
   const step = (dir: 1 | -1) => {
     if (!visible.length) return;
-    setActive((cur) => firstEnabled(visible, cur < 0 ? (dir === 1 ? 0 : visible.length - 1) : cur + dir, dir));
+    setActive((cur) =>
+      firstEnabled(visible, cur < 0 ? (dir === 1 ? 0 : visible.length - 1) : cur + dir, dir),
+    );
   };
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
     switch (e.key) {
-      case "ArrowDown":
-      case "ArrowUp": {
+      case 'ArrowDown':
+      case 'ArrowUp': {
         e.preventDefault();
         if (!open) doOpen();
-        else step(e.key === "ArrowDown" ? 1 : -1);
+        else step(e.key === 'ArrowDown' ? 1 : -1);
         return;
       }
-      case "Home":
-      case "End":
+      case 'Home':
+      case 'End':
         if (open && !searchable) {
           e.preventDefault();
-          setActive(firstEnabled(visible, e.key === "Home" ? 0 : visible.length - 1, e.key === "Home" ? 1 : -1));
+          setActive(
+            firstEnabled(
+              visible,
+              e.key === 'Home' ? 0 : visible.length - 1,
+              e.key === 'Home' ? 1 : -1,
+            ),
+          );
         }
         return;
-      case "Enter":
+      case 'Enter':
         if (open) {
           e.preventDefault();
           const o = visible[active];
@@ -268,25 +278,32 @@ function Core({
           // button: native click toggles
         }
         return;
-      case "Escape":
+      case 'Escape':
         if (open) {
           e.preventDefault();
           e.stopPropagation();
           doClose();
         }
         return;
-      case "Tab":
+      case 'Tab':
         if (open) doClose();
         return;
-      case "Backspace":
+      case 'Backspace':
         if (multiple && searchable && !query) onRemoveLast?.();
         return;
       default:
-        if (!searchable && e.key.length === 1 && e.key !== " " && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (
+          !searchable &&
+          e.key.length === 1 &&
+          e.key !== ' ' &&
+          !e.ctrlKey &&
+          !e.metaKey &&
+          !e.altKey
+        ) {
           const t = typeahead.current;
           clearTimeout(t.timer);
           t.buffer += e.key.toLowerCase();
-          t.timer = setTimeout(() => (t.buffer = ""), 600);
+          t.timer = setTimeout(() => (t.buffer = ''), 600);
           const start = Math.max(0, active) + (t.buffer.length === 1 ? 1 : 0);
           const order = [...visible.slice(start), ...visible.slice(0, start)];
           const hit = order.find((o) => !o.disabled && o.label.toLowerCase().startsWith(t.buffer));
@@ -301,14 +318,14 @@ function Core({
   const activeId = open && active >= 0 && visible[active] ? `${listId}-o-${active}` : undefined;
   const common = {
     id,
-    role: "combobox" as const,
-    "aria-haspopup": "listbox" as const,
-    "aria-expanded": open,
-    "aria-controls": open ? listId : undefined,
-    "aria-activedescendant": activeId,
-    "aria-label": aria["aria-label"],
-    "aria-labelledby": aria["aria-labelledby"],
-    "aria-invalid": invalid || undefined,
+    role: 'combobox' as const,
+    'aria-haspopup': 'listbox' as const,
+    'aria-expanded': open,
+    'aria-controls': open ? listId : undefined,
+    'aria-activedescendant': activeId,
+    'aria-label': aria['aria-label'],
+    'aria-labelledby': aria['aria-labelledby'],
+    'aria-invalid': invalid || undefined,
     disabled,
     onKeyDown,
   };
@@ -335,7 +352,7 @@ function Core({
   const summary = multiple
     ? selected.length
       ? ui.selectedCount(selected.length)
-      : ""
+      : ''
     : selectedLabel;
 
   // Keep the popup the same width as the control.
@@ -357,12 +374,15 @@ function Core({
     >
       {searchable ? (
         // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- mousedown only keeps focus in the input
-        <div className={styles.inputRow} onMouseDown={(e) => {
-          if (e.target !== ctrl.current) {
-            e.preventDefault();
-            ctrl.current?.focus();
-          }
-        }}>
+        <div
+          className={styles.inputRow}
+          onMouseDown={(e) => {
+            if (e.target !== ctrl.current) {
+              e.preventDefault();
+              ctrl.current?.focus();
+            }
+          }}
+        >
           {chips}
           <input
             {...common}
@@ -380,7 +400,9 @@ function Core({
             onChange={(e) => {
               setQuery(e.target.value);
               setTyping(true);
-              const next = e.target.value ? options.filter((o) => filter(o, e.target.value)) : options;
+              const next = e.target.value
+                ? options.filter((o) => filter(o, e.target.value))
+                : options;
               setActive(firstEnabled(next, 0, 1));
               setOpen(true);
             }}
@@ -399,7 +421,7 @@ function Core({
           {summary ? (
             <span className={styles.value}>{summary}</span>
           ) : (
-            <span className={cx(styles.value, styles.placeholder)}>{placeholder ?? ""}</span>
+            <span className={cx(styles.value, styles.placeholder)}>{placeholder ?? ''}</span>
           )}
         </button>
       )}
@@ -437,8 +459,8 @@ function Core({
               multiple={multiple}
               rowHeight={rowHeight}
               maxHeight={maxListHeight}
-              label={aria["aria-label"]}
-              labelledBy={aria["aria-labelledby"]}
+              label={aria['aria-label']}
+              labelledBy={aria['aria-labelledby']}
               onPick={pick}
               onHover={setActive}
             />
@@ -483,7 +505,13 @@ export function Combobox(props: SelectProps) {
 }
 
 /** Searchable multi-select with removable chips. */
-export function MultiSelect({ values, defaultValues = [], onValuesChange, searchable = true, ...rest }: MultiSelectProps) {
+export function MultiSelect({
+  values,
+  defaultValues = [],
+  onValuesChange,
+  searchable = true,
+  ...rest
+}: MultiSelectProps) {
   const [current, setCurrent] = useControllable<string[]>(values, defaultValues);
   const commit = (next: string[]) => {
     setCurrent(next);
@@ -495,7 +523,9 @@ export function MultiSelect({ values, defaultValues = [], onValuesChange, search
       searchable={searchable}
       multiple
       selected={current}
-      onToggle={(v) => commit(current.includes(v) ? current.filter((x) => x !== v) : [...current, v])}
+      onToggle={(v) =>
+        commit(current.includes(v) ? current.filter((x) => x !== v) : [...current, v])
+      }
       onRemoveLast={() => current.length && commit(current.slice(0, -1))}
     />
   );

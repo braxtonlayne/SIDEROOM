@@ -1,16 +1,16 @@
-import { useState, type HTMLAttributes, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import styles from "./Avatar.module.css";
+import { useState, type HTMLAttributes, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import styles from './Avatar.module.css';
 
-export type AvatarStatus = "online" | "idle" | "dnd" | "offline";
+export type AvatarStatus = 'online' | 'idle' | 'dnd' | 'offline';
 const STATUS_LABEL: Record<AvatarStatus, string> = {
-  online: "Online",
-  idle: "Idle",
-  dnd: "Do not disturb",
-  offline: "Offline",
+  online: 'Online',
+  idle: 'Idle',
+  dnd: 'Do not disturb',
+  offline: 'Offline',
 };
 
-export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
+export interface AvatarProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   /** Display name; used for the alt text and the initials fallback. */
   name: string;
   src?: string | null;
@@ -35,16 +35,30 @@ const leadLetter = (word: string) => Array.from(word).find((ch) => LETTER.test(c
 
 export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
+  if (words.length === 0) return '?';
   const letters = words.map(leadLetter).filter((c): c is string => !!c);
   // A name of symbols or emoji only keeps its first character.
-  if (letters.length === 0) return Array.from(words[0]!)[0] ?? "?";
+  if (letters.length === 0) return Array.from(words[0]!)[0] ?? '?';
   const first = letters[0]!;
-  const last = letters.length > 1 ? letters[letters.length - 1]! : "";
+  const last = letters.length > 1 ? letters[letters.length - 1]! : '';
   return (first + last).toUpperCase();
 }
 
-export function Avatar({ name, src, animatedSrc, size = 40, status, statusIcon, statusLabel, speaking, ring, decoration, className, style, ...rest }: AvatarProps) {
+export function Avatar({
+  name,
+  src,
+  animatedSrc,
+  size = 40,
+  status,
+  statusIcon,
+  statusLabel,
+  speaking,
+  ring,
+  decoration,
+  className,
+  style,
+  ...rest
+}: AvatarProps) {
   const [failed, setFailed] = useState<string | null>(null);
   const showImage = !!src && failed !== src;
   // An icon needs a little more room than a dot to read at all.
@@ -60,9 +74,21 @@ export function Avatar({ name, src, animatedSrc, size = 40, status, statusIcon, 
     >
       {showImage ? (
         <>
-          <img className={styles.image} src={src} alt={name} onError={() => setFailed(src)} draggable={false} />
+          <img
+            className={styles.image}
+            src={src}
+            alt={name}
+            onError={() => setFailed(src)}
+            draggable={false}
+          />
           {animatedSrc && (
-            <img className={styles.animated} src={animatedSrc} alt="" aria-hidden="true" draggable={false} />
+            <img
+              className={styles.animated}
+              src={animatedSrc}
+              alt=""
+              aria-hidden="true"
+              draggable={false}
+            />
           )}
         </>
       ) : (

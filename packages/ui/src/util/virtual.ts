@@ -1,4 +1,4 @@
-import { observeElementRect, type Rect, type Virtualizer } from "@tanstack/react-virtual";
+import { observeElementRect, type Rect, type Virtualizer } from '@tanstack/react-virtual';
 
 /**
  * Like TanStack's default rect observer, but reports `fallback` while the scroll element has no layout

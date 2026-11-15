@@ -1,7 +1,7 @@
-import type { HTMLAttributes } from "react";
-import { cx } from "../../util/cx";
-import { Avatar } from "./Avatar";
-import styles from "./AvatarStack.module.css";
+import type { HTMLAttributes } from 'react';
+import { cx } from '../../util/cx';
+import { Avatar } from './Avatar';
+import styles from './AvatarStack.module.css';
 
 export interface AvatarStackItem {
   id?: string;
@@ -9,7 +9,7 @@ export interface AvatarStackItem {
   src?: string | null;
 }
 
-export interface AvatarStackProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+export interface AvatarStackProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   items: AvatarStackItem[];
   /** Max avatars shown before the "+N" overflow chip. Default 4. */
   max?: number;
@@ -19,17 +19,24 @@ export interface AvatarStackProps extends Omit<HTMLAttributes<HTMLDivElement>, "
 }
 
 /** DS-PRIM-009: overlapping avatars with a +N overflow chip. */
-export function AvatarStack({ items, max = 4, size = 32, label, className, ...rest }: AvatarStackProps) {
+export function AvatarStack({
+  items,
+  max = 4,
+  size = 32,
+  label,
+  className,
+  ...rest
+}: AvatarStackProps) {
   const shown = items.slice(0, max);
   const extra = items.length - shown.length;
-  const names = items.map((i) => i.name).join(", ");
+  const names = items.map((i) => i.name).join(', ');
   return (
     <div
       role="group"
-      aria-label={label ?? (names || "No members")}
+      aria-label={label ?? (names || 'No members')}
       {...rest}
       className={cx(styles.stack, className)}
-      style={{ "--stack-size": `${size}px` } as React.CSSProperties}
+      style={{ '--stack-size': `${size}px` } as React.CSSProperties}
     >
       {shown.map((it, i) => (
         <span key={it.id ?? `${it.name}-${i}`} className={styles.item} title={it.name}>

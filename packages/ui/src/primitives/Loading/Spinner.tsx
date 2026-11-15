@@ -1,18 +1,23 @@
-import type { HTMLAttributes } from "react";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import styles from "./Loading.module.css";
+import type { HTMLAttributes } from 'react';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import styles from './Loading.module.css';
 
-export interface SpinnerProps extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
-  size?: "sm" | "md" | "lg";
+export interface SpinnerProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  size?: 'sm' | 'md' | 'lg';
   /** Accessible name announced to screen readers. */
   label?: string;
 }
 
-export function Spinner({ size = "md", label, className, ...rest }: SpinnerProps) {
+export function Spinner({ size = 'md', label, className, ...rest }: SpinnerProps) {
   const ui = useUiStrings();
   return (
-    <span role="status" aria-label={label ?? ui.loading} {...rest} className={cx(styles.spinner, styles[`spin-${size}`], className)}>
+    <span
+      role="status"
+      aria-label={label ?? ui.loading}
+      {...rest}
+      className={cx(styles.spinner, styles[`spin-${size}`], className)}
+    >
       <span className={styles.ring} aria-hidden="true" />
     </span>
   );
@@ -25,7 +30,14 @@ export interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /** Decorative placeholder; hidden from assistive tech. Pair with a labelled busy region. */
-export function Skeleton({ width, height = "1em", circle, className, style, ...rest }: SkeletonProps) {
+export function Skeleton({
+  width,
+  height = '1em',
+  circle,
+  className,
+  style,
+  ...rest
+}: SkeletonProps) {
   return (
     <div
       aria-hidden="true"

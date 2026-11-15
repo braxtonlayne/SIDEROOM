@@ -1,7 +1,7 @@
-import { DEFAULT_THEME_BY_SECTION, THEMES } from "../tokens/themes";
-import type { Section, ThemeId } from "../tokens/types";
-import { THEME_IDS } from "../tokens/types";
-import { isHexColor, readableInk } from "../util/contrast";
+import { DEFAULT_THEME_BY_SECTION, THEMES } from '../tokens/themes';
+import type { Section, ThemeId } from '../tokens/types';
+import { THEME_IDS } from '../tokens/types';
+import { isHexColor, readableInk } from '../util/contrast';
 
 export interface ThemeSelection {
   section: Section;
@@ -14,7 +14,7 @@ export interface ThemeSelection {
 }
 
 export function isThemeId(value: unknown): value is ThemeId {
-  return typeof value === "string" && (THEME_IDS as readonly string[]).includes(value);
+  return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value);
 }
 
 /**
@@ -34,18 +34,18 @@ export function resolveTheme(sel: ThemeSelection): ThemeId {
 export function serverAccentTokens(accent: string | null | undefined): Record<string, string> {
   if (!accent || !isHexColor(accent)) return {};
   return {
-    "--ui-accent": accent,
-    "--ui-accent-hover": `color-mix(in srgb, ${accent} 85%, black)`,
-    "--ui-accent-ink": readableInk(accent),
-    "--brand": accent,
-    "--server-accent": accent,
+    '--ui-accent': accent,
+    '--ui-accent-hover': `color-mix(in srgb, ${accent} 85%, black)`,
+    '--ui-accent-ink': readableInk(accent),
+    '--brand': accent,
+    '--server-accent': accent,
   };
 }
 
 export interface AppearanceSettings {
   /** `system` follows prefers-reduced-motion. */
-  reducedMotion: "system" | "on" | "off";
-  contrast: "normal" | "high";
+  reducedMotion: 'system' | 'on' | 'off';
+  contrast: 'normal' | 'high';
   /** 0..100, Discord parity. */
   saturation: number;
   /** Base font size in px, 12..24. */
@@ -53,8 +53,8 @@ export interface AppearanceSettings {
 }
 
 export const DEFAULT_APPEARANCE: AppearanceSettings = {
-  reducedMotion: "system",
-  contrast: "normal",
+  reducedMotion: 'system',
+  contrast: 'normal',
   saturation: 100,
   fontSize: 16,
 };
@@ -62,11 +62,12 @@ export const DEFAULT_APPEARANCE: AppearanceSettings = {
 export const FONT_SIZE_MIN = 12;
 export const FONT_SIZE_MAX = 24;
 
-const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : lo));
+const clamp = (n: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, Number.isFinite(n) ? n : lo));
 
 export function prefersReducedMotion(): boolean {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
     : false;
 }
 
@@ -79,11 +80,14 @@ const SIMPLE_COLOR = /^(#[0-9a-f]{3,8}|rgba?\([^()]*\)|hsla?\([^()]*\))$/i;
  * Each simple colour token keeps its authored value in a `--sat-base-*` twin and is re-derived
  * with relative colour syntax, so no containing block is created. At 100 the tokens pass through.
  */
-export function saturatedTokens(tokens: Record<string, string>, saturation: number): Record<string, string> {
+export function saturatedTokens(
+  tokens: Record<string, string>,
+  saturation: number,
+): Record<string, string> {
   if (clamp(saturation, 0, 100) >= 100) return tokens;
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(tokens)) {
-    if (name.startsWith("--") && SIMPLE_COLOR.test(value.trim())) {
+    if (name.startsWith('--') && SIMPLE_COLOR.test(value.trim())) {
       const base = `--sat-base-${name.slice(2)}`;
       out[base] = value.trim();
       out[name] = `oklch(from var(${base}) l calc(c * var(--ui-saturation)) h / alpha)`;
@@ -100,7 +104,7 @@ export function saturatedTokens(tokens: Record<string, string>, saturation: numb
  * applies `zoom` to a box sets the token on the same box. It is not part of `appearanceVars`: a nested provider must
  * inherit its ancestor's value, not reset it.
  */
-export const UI_ZOOM_TOKEN = "--ui-zoom";
+export const UI_ZOOM_TOKEN = '--ui-zoom';
 
 /** The style entry for a zoom factor (anything unusable reads as 1). */
 export function zoomVars(factor: number): Record<string, string> {
@@ -109,36 +113,40 @@ export function zoomVars(factor: number): Record<string, string> {
 }
 
 /** DS-TOK-006: runtime variables, applied on the provider root. */
-export function appearanceVars(settings: AppearanceSettings, systemReducedMotion: boolean): Record<string, string> {
-  const reduced = settings.reducedMotion === "on" || (settings.reducedMotion === "system" && systemReducedMotion);
+export function appearanceVars(
+  settings: AppearanceSettings,
+  systemReducedMotion: boolean,
+): Record<string, string> {
+  const reduced =
+    settings.reducedMotion === 'on' || (settings.reducedMotion === 'system' && systemReducedMotion);
   const fontSize = clamp(settings.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX);
   const vars: Record<string, string> = {
-    "--ui-reduced-motion": reduced ? "1" : "0",
-    "--ui-motion-duration": reduced ? "0.001ms" : "160ms",
-    "--ui-saturation": String(clamp(settings.saturation, 0, 100) / 100),
-    "--ui-font-size-base": `${fontSize}px`,
-    "--ui-font-scale": String(fontSize / 16),
-    "--sr-scanline-opacity": reduced ? "0" : "1",
+    '--ui-reduced-motion': reduced ? '1' : '0',
+    '--ui-motion-duration': reduced ? '0.001ms' : '160ms',
+    '--ui-saturation': String(clamp(settings.saturation, 0, 100) / 100),
+    '--ui-font-size-base': `${fontSize}px`,
+    '--ui-font-scale': String(fontSize / 16),
+    '--sr-scanline-opacity': reduced ? '0' : '1',
   };
-  if (settings.contrast === "high") {
-    vars["--ui-contrast-boost"] = "1";
-    vars["--ui-text-muted"] = "var(--ui-text)";
-    vars["--ui-text-faint"] = "var(--ui-text)";
-    vars["--ui-border"] = "var(--ui-text-muted)";
+  if (settings.contrast === 'high') {
+    vars['--ui-contrast-boost'] = '1';
+    vars['--ui-text-muted'] = 'var(--ui-text)';
+    vars['--ui-text-faint'] = 'var(--ui-text)';
+    vars['--ui-border'] = 'var(--ui-text-muted)';
     // The legacy and Side Room tokens that most of the Lounge, Cinema and Library CSS reads directly: without
     // these the setting would only reach the primitives (RDY-A11Y-004). The fallbacks keep a theme that lacks
     // a token (the Lounge has no --sr-*) from turning the property invalid.
-    vars["--text-muted"] = "var(--text-normal, var(--ui-text))";
-    vars["--interactive-normal"] = "var(--text-normal, var(--ui-text))";
-    vars["--sr-text-2"] = "var(--sr-text, var(--ui-text))";
-    vars["--sr-text-3"] = "var(--sr-text, var(--ui-text))";
-    vars["--sr-line"] = "var(--sr-text, var(--ui-text))";
+    vars['--text-muted'] = 'var(--text-normal, var(--ui-text))';
+    vars['--interactive-normal'] = 'var(--text-normal, var(--ui-text))';
+    vars['--sr-text-2'] = 'var(--sr-text, var(--ui-text))';
+    vars['--sr-text-3'] = 'var(--sr-text, var(--ui-text))';
+    vars['--sr-line'] = 'var(--sr-text, var(--ui-text))';
   } else {
-    vars["--ui-contrast-boost"] = "0";
+    vars['--ui-contrast-boost'] = '0';
   }
   return vars;
 }
 
-export function themeScheme(id: ThemeId): "light" | "dark" {
+export function themeScheme(id: ThemeId): 'light' | 'dark' {
   return THEMES[id].scheme;
 }

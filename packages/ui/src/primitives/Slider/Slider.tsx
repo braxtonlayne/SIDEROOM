@@ -1,6 +1,6 @@
-import { useId, useState, type CSSProperties, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import styles from "./Slider.module.css";
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import styles from './Slider.module.css';
 
 export interface SliderMark {
   value: number;
@@ -68,7 +68,7 @@ export function Slider({
         step={step}
         value={current}
         disabled={disabled}
-        style={{ "--slider-pct": `${pct}%` } as CSSProperties}
+        style={{ '--slider-pct': `${pct}%` } as CSSProperties}
         onChange={(e) => {
           const n = Number(e.target.value);
           if (value === undefined) setInternal(n);
@@ -78,7 +78,11 @@ export function Slider({
       {marks && marks.length > 0 && (
         <div className={styles.marks} aria-hidden="true">
           {marks.map((m) => (
-            <span key={m.value} className={styles.mark} style={{ left: `${((m.value - min) / span) * 100}%` }}>
+            <span
+              key={m.value}
+              className={styles.mark}
+              style={{ left: `${((m.value - min) / span) * 100}%` }}
+            >
               <span className={styles.tick} />
               {m.label !== undefined && <span className={styles.markLabel}>{m.label}</span>}
             </span>
@@ -103,7 +107,7 @@ export interface SegmentedControlProps {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   name?: string;
-  size?: "sm" | "md";
+  size?: 'sm' | 'md';
   disabled?: boolean;
   className?: string;
 }
@@ -116,7 +120,7 @@ export function SegmentedControl({
   defaultValue,
   onValueChange,
   name,
-  size = "md",
+  size = 'md',
   disabled,
   className,
 }: SegmentedControlProps) {
@@ -124,7 +128,11 @@ export function SegmentedControl({
   const [internal, setInternal] = useState(defaultValue ?? options[0]?.value);
   const current = value ?? internal;
   return (
-    <div role="radiogroup" aria-label={label} className={cx(styles.segmented, styles[`seg-${size}`], className)}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cx(styles.segmented, styles[`seg-${size}`], className)}
+    >
       {options.map((o) => (
         <label
           key={o.value}
