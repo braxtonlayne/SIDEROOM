@@ -1,4 +1,4 @@
-import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page, Route } from '@playwright/test';
 import {
@@ -195,7 +195,11 @@ async function lowContrast(page: Page) {
   });
 }
 
-const report = (line: string) => console.log(`REPORT ${line}`);
+const report = (line: string) => {
+  console.log(`REPORT ${line}`);
+  appendFileSync(resolve(OUT, `report-${MODE}.txt`), `${line}
+`);
+};
 
 test('the Cinema is whole in the shipped theme and in a light one; pictures stay dark', async ({
   browser,
