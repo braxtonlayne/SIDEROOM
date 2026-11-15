@@ -141,7 +141,10 @@
   color: var(--ui-text-muted);
   font-weight: 600;
 }
+/* The wrapper is the containing block of the visually hidden labels inside its cells: without it they sit at their
+   static position past the wrapper and widen the page (D-817). */
 .rv-table-wrap {
+  position: relative;
   overflow-x: auto;
 }
 .rv-actions {

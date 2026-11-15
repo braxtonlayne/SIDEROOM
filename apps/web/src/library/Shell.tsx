@@ -35,13 +35,25 @@ export function SectionBar() {
   const t = useT();
   const ref = useRef<HTMLElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mobile = useMediaQuery(MOBILE_QUERY);
   // On a phone the bar scrolls inside itself: bring the area you are in into view (D-817).
   useEffect(() => {
-    const link = ref.current?.querySelector<HTMLElement>(
-      '[data-testid="study-areas"] [aria-current="page"]',
-    );
-    link?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [pathname]);
+    let live = true;
+    const bring = () => {
+      const link = ref.current?.querySelector<HTMLElement>(
+        '[data-testid="study-areas"] [aria-current="page"]',
+      );
+      link?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    };
+    bring();
+    // A web font that arrives later widens the links: bring the area into view again once the fonts are in.
+    void document.fonts?.ready.then(() => {
+      if (live) bring();
+    });
+    return () => {
+      live = false;
+    };
+  }, [pathname, mobile]);
   return (
     <header className="lib-sectionbar" ref={ref}>
       <span className="lib-sectionbar-brand">{t('library.shell.brand')}</span>

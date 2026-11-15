@@ -1176,6 +1176,7 @@
    as one; two navs scrolling on their own squeezed each other (XC-VIS-001). */
 .lib-frame[data-mobile] .lib-sectionbar {
   padding: 0 16px;
+  scroll-padding-inline: 16px;
   gap: 8px;
   white-space: nowrap;
   overflow-x: auto;
