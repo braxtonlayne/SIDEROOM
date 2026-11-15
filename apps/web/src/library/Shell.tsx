@@ -33,8 +33,17 @@ import { updateLine } from './ui';
 /** `SIDE ROOM / The lounge · The cinema · The library` with the library active (LIB-UI-001). */
 export function SectionBar() {
   const t = useT();
+  const ref = useRef<HTMLElement>(null);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // On a phone the bar scrolls inside itself: bring the area you are in into view (D-817).
+  useEffect(() => {
+    const link = ref.current?.querySelector<HTMLElement>(
+      '[data-testid="study-areas"] [aria-current="page"]',
+    );
+    link?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [pathname]);
   return (
-    <header className="lib-sectionbar">
+    <header className="lib-sectionbar" ref={ref}>
       <span className="lib-sectionbar-brand">{t('library.shell.brand')}</span>
       <span aria-hidden="true" className="lib-sectionbar-slash">
         /
