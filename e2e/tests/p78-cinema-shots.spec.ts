@@ -478,3 +478,54 @@ test('the Cinema is whole in the shipped theme and in a light one; pictures stay
   await setStudySurfacesWith(o, false);
   await octx.close();
 });
+
+// ---- Tail: Lounge Dark chosen for the Cinema (one palette, not two): home and Browse, desktop. SR_P78_TAIL=1.
+test('the Cinema in Lounge Dark: one palette', async ({ browser }) => {
+  test.skip(process.env.SR_P78_TAIL !== '1', 'tail: second round');
+  mkdirSync(OUT, { recursive: true });
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, bootstrapState().owner);
+  const o = octx.request;
+  await setStudySurfacesWith(o, true);
+  const list = await o.get('/api/v1/cinema/titles?limit=20');
+  const items = ((await list.json()) as { items: Record<string, unknown>[] }).items;
+  const discover = {
+    hero: {
+      key: 'hero',
+      kind: 'curated',
+      display: 'hero',
+      title: 'Featured',
+      items: items.slice(0, 2),
+    },
+    rows: [{ key: 'trending', kind: 'generated', display: 'row', title: 'Trending now', items }],
+  };
+  const prefs: Prefs = {
+    theme: 'lounge-light',
+    zoom: 100,
+    sectionThemes: { cinema: 'lounge-dark' },
+  };
+  await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: prefs } });
+  const c = await context(browser, octx, SIZES.desktop, prefs, discover);
+  const page = await c.newPage();
+  for (const [url, ready, name] of [
+    ['/cinema', '.cin-hero', 'home'],
+    ['/cinema/movies', '.cin-chips', 'browse'],
+  ] as const) {
+    await page.goto(url);
+    await expect(page.locator(ready).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator('.cin-root')).toHaveAttribute('data-theme', 'lounge-dark');
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: resolve(OUT, `${name}-dark-desktop.png`), fullPage: true });
+    const low = await lowContrast(page);
+    report(`lounge-dark ${name} contrast: ${low.length} ${JSON.stringify(low)}`);
+    expect(low, `${name}: readable text`).toEqual([]);
+  }
+  await apiPatch(o, '/users/@me/settings', {
+    settings: {
+      user_prefs: { theme: 'lounge-dark', zoom: 100, sectionThemes: { cinema: 'sideroom' } },
+    },
+  });
+  await setStudySurfacesWith(o, false);
+  await c.close();
+  await octx.close();
+});
