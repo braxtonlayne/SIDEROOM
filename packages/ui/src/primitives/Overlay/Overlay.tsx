@@ -9,13 +9,13 @@ import {
   type MouseEvent,
   type ReactElement,
   type ReactNode,
-} from "react";
-import { createPortal } from "react-dom";
-import { usePortalTarget } from "../../theme/ThemeProvider";
-import type { FloatingPlacement } from "../../util/position";
-import { cx } from "../../util/cx";
-import styles from "./Overlay.module.css";
-import { useFloating } from "./useFloating";
+} from 'react';
+import { createPortal } from 'react-dom';
+import { usePortalTarget } from '../../theme/ThemeProvider';
+import type { FloatingPlacement } from '../../util/position';
+import { cx } from '../../util/cx';
+import styles from './Overlay.module.css';
+import { useFloating } from './useFloating';
 
 /** Preferred placement; flips and shifts automatically at viewport edges. */
 export type Placement = FloatingPlacement;
@@ -26,10 +26,10 @@ type TriggerProps = {
   onFocus?: (e: FocusEvent) => void;
   onBlur?: (e: FocusEvent) => void;
   onClick?: (e: MouseEvent) => void;
-  "aria-describedby"?: string;
-  "aria-expanded"?: boolean;
-  "aria-haspopup"?: "dialog";
-  "aria-controls"?: string;
+  'aria-describedby'?: string;
+  'aria-expanded'?: boolean;
+  'aria-haspopup'?: 'dialog';
+  'aria-controls'?: string;
 };
 
 export interface TooltipProps {
@@ -42,7 +42,13 @@ export interface TooltipProps {
   className?: string;
 }
 
-export function Tooltip({ content, children, placement = "top", delay = 400, className }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  placement = 'top',
+  delay = 400,
+  className,
+}: TooltipProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLSpanElement | null>(null);
@@ -65,14 +71,14 @@ export function Tooltip({ content, children, placement = "top", delay = 400, cla
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") hide();
+      if (e.key === 'Escape') hide();
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [open, hide]);
 
   const child = cloneElement(children, {
-    "aria-describedby": open ? id : children.props["aria-describedby"],
+    'aria-describedby': open ? id : children.props['aria-describedby'],
     onMouseEnter: (e: MouseEvent) => {
       children.props.onMouseEnter?.(e);
       show(false);
@@ -132,7 +138,7 @@ export function Popover({
   trigger,
   label,
   children,
-  placement = "bottom",
+  placement = 'bottom',
   anchor: anchorProp,
   open: controlled,
   defaultOpen = false,
@@ -173,25 +179,25 @@ export function Popover({
       if (root.current && !root.current.contains(t) && !panel.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         e.stopPropagation();
         setOpen(false);
-        (root.current?.querySelector("[aria-haspopup]") as HTMLElement | null)?.focus();
+        (root.current?.querySelector('[aria-haspopup]') as HTMLElement | null)?.focus();
       }
     };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
       if (returnFocusTo && document.activeElement === document.body) returnFocusTo.focus?.();
     };
   }, [open, setOpen]);
 
   const t = cloneElement(trigger, {
-    "aria-haspopup": "dialog",
-    "aria-expanded": open,
-    "aria-controls": open ? id : undefined,
+    'aria-haspopup': 'dialog',
+    'aria-expanded': open,
+    'aria-controls': open ? id : undefined,
     onClick: (e: MouseEvent) => {
       trigger.props.onClick?.(e);
       setOpen(!open);

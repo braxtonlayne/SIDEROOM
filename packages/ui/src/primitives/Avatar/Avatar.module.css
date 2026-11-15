@@ -6,16 +6,28 @@
   vertical-align: middle;
   transition: box-shadow var(--ui-motion-duration, 160ms);
 }
-.speaking { box-shadow: 0 0 0 2px var(--ui-status-online); }
-.ring { box-shadow: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-accent); }
-.ring.speaking { box-shadow: 0 0 0 2px var(--ui-bg), 0 0 0 4px var(--ui-status-online); }
+.speaking {
+  box-shadow: 0 0 0 2px var(--ui-status-online);
+}
+.ring {
+  box-shadow:
+    0 0 0 2px var(--ui-bg),
+    0 0 0 4px var(--ui-accent);
+}
+.ring.speaking {
+  box-shadow:
+    0 0 0 2px var(--ui-bg),
+    0 0 0 4px var(--ui-status-online);
+}
 .image,
 .fallback {
   width: 100%;
   height: 100%;
   border-radius: 50%;
 }
-.image { object-fit: cover; }
+.image {
+  object-fit: cover;
+}
 .fallback {
   display: grid;
   place-items: center;
@@ -26,7 +38,9 @@
 }
 /* The initials are generated content: they are not text of the control, so a button that holds an avatar can
    still carry a name that contains its visible text (WCAG 2.5.3, axe label-content-name-mismatch). */
-.fallback::before { content: attr(data-initials); }
+.fallback::before {
+  content: attr(data-initials);
+}
 .status {
   position: absolute;
   inset-inline-end: -2px;
@@ -35,17 +49,48 @@
   border-radius: 50%;
   border: 2px solid var(--ui-status-ring, var(--ui-bg));
 }
-.online { background: var(--ui-status-online); }
-.idle { background: var(--ui-status-idle); }
-.dnd { background: var(--ui-status-dnd); }
-.offline { background: var(--ui-status-offline); }
+.online {
+  background: var(--ui-status-online);
+}
+.idle {
+  background: var(--ui-status-idle);
+}
+.dnd {
+  background: var(--ui-status-dnd);
+}
+.offline {
+  background: var(--ui-status-offline);
+}
 /* An icon in the dot's place: the page-colour ring stays, the status colour is the glyph's. */
-.statusIcon { display: grid; place-items: center; background: var(--ui-status-ring, var(--ui-bg)); border: 0; padding: 1px; }
-.statusIcon.online { color: var(--ui-status-online); }
+.statusIcon {
+  display: grid;
+  place-items: center;
+  background: var(--ui-status-ring, var(--ui-bg));
+  border: 0;
+  padding: 1px;
+}
+.statusIcon.online {
+  color: var(--ui-status-online);
+}
 /* A glyph is a solid shape of the status colour (D-756): filled, no outline, the even-odd rule cuts the screen out. */
-.statusIcon > svg { width: 100%; height: 100%; fill: currentColor; fill-rule: evenodd; stroke: none; }
-.decoration { position: absolute; inset: -12%; display: grid; place-items: center; pointer-events: none; }
-.decoration > * { max-width: 100%; max-height: 100%; }
+.statusIcon > svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  fill-rule: evenodd;
+  stroke: none;
+}
+.decoration {
+  position: absolute;
+  inset: -12%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.decoration > * {
+  max-width: 100%;
+  max-height: 100%;
+}
 
 /* Q70: animated avatar. The animated frame sits over the static one and shows on hover or
    focus of the avatar, or while its row (any ancestor with data-animate-avatars) is hovered.
@@ -65,9 +110,9 @@
 :global([data-animate-avatars]:hover) .avatar .animated {
   opacity: 1;
 }
-:global([data-reduced-motion="true"]) .animated,
-:global([data-reduced-motion="true"]) .avatar:hover .animated,
-:global([data-reduced-motion="true"]) .avatar:focus-visible .animated {
+:global([data-reduced-motion='true']) .animated,
+:global([data-reduced-motion='true']) .avatar:hover .animated,
+:global([data-reduced-motion='true']) .avatar:focus-visible .animated {
   display: none;
 }
 @media (prefers-reduced-motion: reduce) {

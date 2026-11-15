@@ -1,10 +1,28 @@
-.slider { display: flex; flex-direction: column; gap: 6px; font-family: var(--ui-font-body); color: var(--ui-text); }
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--ui-font-body);
+  color: var(--ui-text);
+}
 /* Dim the track and the marks, not the text: half-transparent text fails 4.5:1 (axe color-contrast). */
 .slider[data-disabled] .input,
-.slider[data-disabled] .marks { opacity: 0.5; }
-.slider[data-disabled] .label { color: var(--ui-text-muted); }
-.head { display: flex; justify-content: space-between; gap: 12px; font-size: 0.875rem; }
-.value { color: var(--ui-text-muted); font-variant-numeric: tabular-nums; }
+.slider[data-disabled] .marks {
+  opacity: 0.5;
+}
+.slider[data-disabled] .label {
+  color: var(--ui-text-muted);
+}
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.875rem;
+}
+.value {
+  color: var(--ui-text-muted);
+  font-variant-numeric: tabular-nums;
+}
 .input {
   width: 100%;
   height: 20px;
@@ -16,10 +34,22 @@
 .input::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
-  background: linear-gradient(to right, var(--ui-accent) var(--slider-pct), var(--ui-border) var(--slider-pct));
+  background: linear-gradient(
+    to right,
+    var(--ui-accent) var(--slider-pct),
+    var(--ui-border) var(--slider-pct)
+  );
 }
-.input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--ui-border); }
-.input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--ui-accent); }
+.input::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-border);
+}
+.input::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-accent);
+}
 .input::-webkit-slider-thumb {
   appearance: none;
   width: 16px;
@@ -29,13 +59,45 @@
   border: 2px solid var(--ui-accent);
   background: var(--ui-text);
 }
-.input::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ui-accent); background: var(--ui-text); }
-.input:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 4px; border-radius: 4px; }
-.input:disabled { cursor: not-allowed; }
-.marks { position: relative; height: 28px; margin: 0 8px; }
-.mark { position: absolute; top: 0; display: flex; flex-direction: column; align-items: center; transform: translateX(-50%); }
-.tick { width: 1px; height: 6px; background: var(--ui-text-faint); }
-.markLabel { margin-top: 2px; font-size: 0.6875rem; color: var(--ui-text-muted); white-space: nowrap; }
+.input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ui-accent);
+  background: var(--ui-text);
+}
+.input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.input:disabled {
+  cursor: not-allowed;
+}
+.marks {
+  position: relative;
+  height: 28px;
+  margin: 0 8px;
+}
+.mark {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateX(-50%);
+}
+.tick {
+  width: 1px;
+  height: 6px;
+  background: var(--ui-text-faint);
+}
+.markLabel {
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+}
 
 .segmented {
   display: inline-flex;
@@ -57,10 +119,34 @@
   cursor: pointer;
   user-select: none;
 }
-.seg-md .segment { min-height: 32px; font-size: 0.875rem; }
-.seg-sm .segment { min-height: 24px; font-size: 0.8125rem; padding: 0 10px; }
-.segment:hover { color: var(--ui-text); }
-.segment[data-checked] { background: var(--ui-accent); color: var(--ui-accent-ink); }
-.segment[data-disabled] { opacity: 0.5; cursor: not-allowed; }
-.segInput { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: inherit; }
-.segment:has(.segInput:focus-visible) { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.seg-md .segment {
+  min-height: 32px;
+  font-size: 0.875rem;
+}
+.seg-sm .segment {
+  min-height: 24px;
+  font-size: 0.8125rem;
+  padding: 0 10px;
+}
+.segment:hover {
+  color: var(--ui-text);
+}
+.segment[data-checked] {
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.segment[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.segInput {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+.segment:has(.segInput:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}

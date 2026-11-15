@@ -1,22 +1,22 @@
-import { useEffect, useId, useState } from "react";
-import { cx } from "../../util/cx";
-import { isHexColor } from "../../util/contrast";
-import { useUiStrings } from "../../util/uiStrings";
-import styles from "./ColorPicker.module.css";
+import { useEffect, useId, useState } from 'react';
+import { cx } from '../../util/cx';
+import { isHexColor } from '../../util/contrast';
+import { useUiStrings } from '../../util/uiStrings';
+import styles from './ColorPicker.module.css';
 
 export const DEFAULT_SWATCHES = [
-  "#c2b08f",
-  "#8c9a6a",
-  "#5865f2",
-  "#3ba55d",
-  "#faa61a",
-  "#ed4245",
-  "#eb459e",
-  "#9b59b6",
-  "#1abc9c",
-  "#e67e22",
-  "#95a5a6",
-  "#ece6d6",
+  '#c2b08f',
+  '#8c9a6a',
+  '#5865f2',
+  '#3ba55d',
+  '#faa61a',
+  '#ed4245',
+  '#eb459e',
+  '#9b59b6',
+  '#1abc9c',
+  '#e67e22',
+  '#95a5a6',
+  '#ece6d6',
 ];
 
 interface EyeDropperLike {
@@ -35,7 +35,7 @@ export interface ColorPickerProps {
 
 function normalize(hex: string): string {
   const h = hex.trim().toLowerCase();
-  const withHash = h.startsWith("#") ? h : `#${h}`;
+  const withHash = h.startsWith('#') ? h : `#${h}`;
   if (/^#[0-9a-f]{3}$/.test(withHash)) {
     return `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`;
   }
@@ -43,7 +43,14 @@ function normalize(hex: string): string {
 }
 
 /** DS-PRIM-013: swatches + hex field + eyedropper (where the browser supports `EyeDropper`). */
-export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueChange, swatches = DEFAULT_SWATCHES, className }: ColorPickerProps) {
+export function ColorPicker({
+  label,
+  value,
+  defaultValue = '#c2b08f',
+  onValueChange,
+  swatches = DEFAULT_SWATCHES,
+  className,
+}: ColorPickerProps) {
   const id = useId();
   const words = useUiStrings();
   const [internal, setInternal] = useState(defaultValue);
@@ -51,7 +58,7 @@ export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueCha
   const [text, setText] = useState(current);
   useEffect(() => setText(current), [current]);
   const invalid = text !== current && !isHexColor(normalize(text));
-  const canEyedrop = typeof window !== "undefined" && "EyeDropper" in window;
+  const canEyedrop = typeof window !== 'undefined' && 'EyeDropper' in window;
 
   const commit = (hex: string) => {
     const n = normalize(hex);
@@ -76,7 +83,11 @@ export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueCha
         ))}
       </div>
       <div className={styles.row}>
-        <span className={styles.preview} style={{ background: isHexColor(current) ? current : "transparent" }} aria-hidden="true" />
+        <span
+          className={styles.preview}
+          style={{ background: isHexColor(current) ? current : 'transparent' }}
+          aria-hidden="true"
+        />
         <label htmlFor={`${id}-hex`} className={styles.hexLabel}>
           {words.colorHex}
         </label>
@@ -99,7 +110,8 @@ export function ColorPicker({ label, value, defaultValue = "#c2b08f", onValueCha
             className={styles.dropper}
             onClick={async () => {
               try {
-                const ctor = (window as unknown as { EyeDropper: new () => EyeDropperLike }).EyeDropper;
+                const ctor = (window as unknown as { EyeDropper: new () => EyeDropperLike })
+                  .EyeDropper;
                 const res = await new ctor().open();
                 commit(res.sRGBHex);
               } catch {

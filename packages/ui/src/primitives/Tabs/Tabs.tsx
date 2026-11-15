@@ -1,6 +1,6 @@
-import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import styles from "./Tabs.module.css";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import styles from './Tabs.module.css';
 
 export interface TabItem {
   id: string;
@@ -16,12 +16,20 @@ export interface TabsProps {
   value?: string;
   defaultValue?: string;
   onValueChange?: (id: string) => void;
-  variant?: "underline" | "pill";
+  variant?: 'underline' | 'pill';
   className?: string;
 }
 
 /** WAI-ARIA tabs with automatic activation, roving tabindex, Arrow/Home/End keys. */
-export function Tabs({ items, label, value, defaultValue, onValueChange, variant = "underline", className }: TabsProps) {
+export function Tabs({
+  items,
+  label,
+  value,
+  defaultValue,
+  onValueChange,
+  variant = 'underline',
+  className,
+}: TabsProps) {
   const base = useId();
   const firstEnabled = items.find((i) => !i.disabled)?.id;
   const [internal, setInternal] = useState(defaultValue ?? firstEnabled);
@@ -39,16 +47,16 @@ export function Tabs({ items, label, value, defaultValue, onValueChange, variant
     const idx = enabled.findIndex((i) => i.id === selected);
     let next: TabItem | undefined;
     switch (e.key) {
-      case "ArrowRight":
+      case 'ArrowRight':
         next = enabled[(idx + 1) % enabled.length];
         break;
-      case "ArrowLeft":
+      case 'ArrowLeft':
         next = enabled[(idx - 1 + enabled.length) % enabled.length];
         break;
-      case "Home":
+      case 'Home':
         next = enabled[0];
         break;
-      case "End":
+      case 'End':
         next = enabled[enabled.length - 1];
         break;
       default:
@@ -63,7 +71,13 @@ export function Tabs({ items, label, value, defaultValue, onValueChange, variant
   return (
     <div className={cx(styles.tabs, className)}>
       {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- focus is managed by the child tabs (roving tabindex) */}
-      <div role="tablist" aria-label={label} aria-orientation="horizontal" className={cx(styles.list, styles[variant])} onKeyDown={onKeyDown}>
+      <div
+        role="tablist"
+        aria-label={label}
+        aria-orientation="horizontal"
+        className={cx(styles.list, styles[variant])}
+        onKeyDown={onKeyDown}
+      >
         {items.map((item) => (
           <button
             key={item.id}

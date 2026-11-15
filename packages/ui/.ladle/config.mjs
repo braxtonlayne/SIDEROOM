@@ -1,3 +1,3 @@
 export default {
-  stories: "src/**/*.stories.{ts,tsx}",
+  stories: 'src/**/*.stories.{ts,tsx}',
 };

@@ -6,13 +6,14 @@ import {
   useState,
   type InputHTMLAttributes,
   type TextareaHTMLAttributes,
-} from "react";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import { Field, type FieldProps } from "./Field";
-import styles from "./Input.module.css";
+} from 'react';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import { Field, type FieldProps } from './Field';
+import styles from './Input.module.css';
 
-export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id">, FieldProps {}
+export interface TextInputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'>, FieldProps {}
 
 export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function TextInput(
   { label, hint, error, id, className, ...rest },
@@ -30,7 +31,8 @@ export const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function T
   );
 });
 
-export interface TextAreaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id">, FieldProps {
+export interface TextAreaProps
+  extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'>, FieldProps {
   /** Grow with content up to `maxRows`. */
   autoGrow?: boolean;
   maxRows?: number;
@@ -44,7 +46,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
   const setRefs = useCallback(
     (node: HTMLTextAreaElement | null) => {
       inner.current = node;
-      if (typeof ref === "function") ref(node);
+      if (typeof ref === 'function') ref(node);
       else if (ref) ref.current = node;
     },
     [ref],
@@ -52,11 +54,11 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
   const resize = useCallback(() => {
     const el = inner.current;
     if (!el || !autoGrow) return;
-    el.style.height = "auto";
+    el.style.height = 'auto';
     const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
     const max = line * maxRows + 16;
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
-    el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden";
+    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
   }, [autoGrow, maxRows]);
   useLayoutEffect(resize, [resize, rest.value]);
 
@@ -97,61 +99,69 @@ export function passwordStrength(pw: string): PasswordStrength {
   return Math.min(score, 4) as PasswordStrength;
 }
 
-export interface PasswordInputProps extends Omit<TextInputProps, "type"> {
+export interface PasswordInputProps extends Omit<TextInputProps, 'type'> {
   showStrength?: boolean;
 }
 
-export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(function PasswordInput(
-  { showStrength, label, hint, error, id, className, value, defaultValue, onChange, ...rest },
-  ref,
-) {
-  const ui = useUiStrings();
-  const [visible, setVisible] = useState(false);
-  const [internal, setInternal] = useState(String(defaultValue ?? ""));
-  const current = value !== undefined ? String(value) : internal;
-  const strength = passwordStrength(current);
-  return (
-    <Field
-      label={label}
-      hint={hint}
-      error={error}
-      id={id}
-      className={className}
-      render={(p) => (
-        <div className={styles.passwordWrap}>
-          <input
-            {...rest}
-            {...p}
-            ref={ref}
-            value={value}
-            defaultValue={value === undefined ? defaultValue : undefined}
-            onChange={(e) => {
-              setInternal(e.target.value);
-              onChange?.(e);
-            }}
-            type={visible ? "text" : "password"}
-            className={cx(styles.control, styles.hasToggle)}
-          />
-          <button
-            type="button"
-            className={styles.toggle}
-            aria-pressed={visible}
-            aria-label={visible ? ui.hidePassword : ui.showPassword}
-            onClick={() => setVisible((v) => !v)}
-          >
-            {visible ? ui.hide : ui.show}
-          </button>
-        </div>
-      )}
-    >
-      {showStrength && (
-        <div className={styles.strength}>
-          <meter min={0} max={4} value={strength} aria-label={ui.passwordStrength} className={styles.meter} />
-          <span className={styles.hint} data-testid="strength-label">
-            {ui.strengthLevels[strength]}
-          </span>
-        </div>
-      )}
-    </Field>
-  );
-});
+export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
+  function PasswordInput(
+    { showStrength, label, hint, error, id, className, value, defaultValue, onChange, ...rest },
+    ref,
+  ) {
+    const ui = useUiStrings();
+    const [visible, setVisible] = useState(false);
+    const [internal, setInternal] = useState(String(defaultValue ?? ''));
+    const current = value !== undefined ? String(value) : internal;
+    const strength = passwordStrength(current);
+    return (
+      <Field
+        label={label}
+        hint={hint}
+        error={error}
+        id={id}
+        className={className}
+        render={(p) => (
+          <div className={styles.passwordWrap}>
+            <input
+              {...rest}
+              {...p}
+              ref={ref}
+              value={value}
+              defaultValue={value === undefined ? defaultValue : undefined}
+              onChange={(e) => {
+                setInternal(e.target.value);
+                onChange?.(e);
+              }}
+              type={visible ? 'text' : 'password'}
+              className={cx(styles.control, styles.hasToggle)}
+            />
+            <button
+              type="button"
+              className={styles.toggle}
+              aria-pressed={visible}
+              aria-label={visible ? ui.hidePassword : ui.showPassword}
+              onClick={() => setVisible((v) => !v)}
+            >
+              {visible ? ui.hide : ui.show}
+            </button>
+          </div>
+        )}
+      >
+        {showStrength && (
+          <div className={styles.strength}>
+            <meter
+              min={0}
+              max={4}
+              value={strength}
+              aria-label={ui.passwordStrength}
+              className={styles.meter}
+            />
+            <span className={styles.hint} data-testid="strength-label">
+              {ui.strengthLevels[strength]}
+            </span>
+          </div>
+        )}
+      </Field>
+    );
+  },
+);

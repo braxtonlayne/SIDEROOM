@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 /** Q77: one stack for Modal, Drawer and Menu. Only the topmost overlay handles Escape, Tab and scroll lock. */
 export const FOCUSABLE =
@@ -17,7 +17,7 @@ function push(entry: StackEntry): void {
   stack.push(entry);
   if (entry.lock && !wasLocked) {
     savedOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
   }
 }
 
@@ -26,7 +26,7 @@ function pop(id: symbol): void {
   if (i < 0) return;
   const [removed] = stack.splice(i, 1);
   if (removed?.lock && !stack.some((e) => e.lock)) {
-    document.body.style.overflow = savedOverflow ?? "";
+    document.body.style.overflow = savedOverflow ?? '';
     savedOverflow = null;
   }
 }
@@ -45,8 +45,12 @@ export interface OverlayStackHandle {
 }
 
 /** Registers an open overlay on the shared stack and routes Escape to the topmost one only. */
-export function useOverlayStack({ open, lockScroll = false, onEscape }: OverlayStackOptions): OverlayStackHandle {
-  const id = useRef<symbol>(Symbol("overlay"));
+export function useOverlayStack({
+  open,
+  lockScroll = false,
+  onEscape,
+}: OverlayStackOptions): OverlayStackHandle {
+  const id = useRef<symbol>(Symbol('overlay'));
   const escRef = useRef(onEscape);
   escRef.current = onEscape;
   const isTopmost = useCallback(() => stack[stack.length - 1]?.id === id.current, []);
@@ -56,13 +60,13 @@ export function useOverlayStack({ open, lockScroll = false, onEscape }: OverlayS
     const entryId = id.current;
     push({ id: entryId, lock: lockScroll });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !escRef.current || !isTopmost()) return;
+      if (e.key !== 'Escape' || !escRef.current || !isTopmost()) return;
       e.stopPropagation();
       escRef.current();
     };
-    document.addEventListener("keydown", onKey, true);
+    document.addEventListener('keydown', onKey, true);
     return () => {
-      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener('keydown', onKey, true);
       pop(entryId);
     };
   }, [open, lockScroll, isTopmost]);
@@ -79,7 +83,12 @@ export interface FocusTrapOptions {
 }
 
 /** Moves focus into an overlay on open, wraps Tab inside it, and restores focus on close. */
-export function useFocusTrap({ open, containerRef, isTopmost, initialFocusRef }: FocusTrapOptions): void {
+export function useFocusTrap({
+  open,
+  containerRef,
+  isTopmost,
+  initialFocusRef,
+}: FocusTrapOptions): void {
   useEffect(() => {
     if (!open) return;
     const container = containerRef.current;
@@ -88,14 +97,14 @@ export function useFocusTrap({ open, containerRef, isTopmost, initialFocusRef }:
       initialFocusRef?.current ??
       // One query per priority: a selector list returns the first match in document order, so the header's close
       // button would beat a later `[data-autofocus]` field.
-      container?.querySelector<HTMLElement>("[data-autofocus]") ??
+      container?.querySelector<HTMLElement>('[data-autofocus]') ??
       container?.querySelector<HTMLElement>(FOCUSABLE) ??
       container;
     target?.focus();
 
     const onKey = (e: KeyboardEvent) => {
       const el = containerRef.current;
-      if (e.key !== "Tab" || !el || !isTopmost()) return;
+      if (e.key !== 'Tab' || !el || !isTopmost()) return;
       const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
       if (items.length === 0) {
         e.preventDefault();
@@ -116,9 +125,9 @@ export function useFocusTrap({ open, containerRef, isTopmost, initialFocusRef }:
         first.focus();
       }
     };
-    document.addEventListener("keydown", onKey, true);
+    document.addEventListener('keydown', onKey, true);
     return () => {
-      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener('keydown', onKey, true);
       previouslyFocused?.focus?.();
     };
     // initialFocusRef is read once on open.

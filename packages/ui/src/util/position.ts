@@ -1,5 +1,5 @@
-export type Side = "top" | "bottom" | "left" | "right";
-export type Align = "start" | "center" | "end";
+export type Side = 'top' | 'bottom' | 'left' | 'right';
+export type Align = 'start' | 'center' | 'end';
 /** "top", "bottom-start", "right-end", ... */
 export type FloatingPlacement = Side | `${Side}-${Align}`;
 
@@ -34,30 +34,30 @@ export interface PositionResult {
   side: Side;
 }
 
-const OPPOSITE: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+const OPPOSITE: Record<Side, Side> = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
 
 export function parsePlacement(p: FloatingPlacement): { side: Side; align: Align } {
-  const [side, align] = p.split("-") as [Side, Align | undefined];
-  return { side, align: align ?? "center" };
+  const [side, align] = p.split('-') as [Side, Align | undefined];
+  return { side, align: align ?? 'center' };
 }
 
 function coords(anchor: Box, float: Size, side: Side, align: Align, offset: number) {
   let x: number;
   let y: number;
-  if (side === "top" || side === "bottom") {
-    y = side === "top" ? anchor.y - float.height - offset : anchor.y + anchor.height + offset;
+  if (side === 'top' || side === 'bottom') {
+    y = side === 'top' ? anchor.y - float.height - offset : anchor.y + anchor.height + offset;
     x =
-      align === "start"
+      align === 'start'
         ? anchor.x
-        : align === "end"
+        : align === 'end'
           ? anchor.x + anchor.width - float.width
           : anchor.x + (anchor.width - float.width) / 2;
   } else {
-    x = side === "left" ? anchor.x - float.width - offset : anchor.x + anchor.width + offset;
+    x = side === 'left' ? anchor.x - float.width - offset : anchor.x + anchor.width + offset;
     y =
-      align === "start"
+      align === 'start'
         ? anchor.y
-        : align === "end"
+        : align === 'end'
           ? anchor.y + anchor.height - float.height
           : anchor.y + (anchor.height - float.height) / 2;
   }
@@ -65,15 +65,21 @@ function coords(anchor: Box, float: Size, side: Side, align: Align, offset: numb
 }
 
 /** How many pixels the box sticks out of the viewport along the main axis of `side`. */
-function mainOverflow(side: Side, c: { x: number; y: number }, float: Size, vp: Size, pad: number): number {
+function mainOverflow(
+  side: Side,
+  c: { x: number; y: number },
+  float: Size,
+  vp: Size,
+  pad: number,
+): number {
   switch (side) {
-    case "top":
+    case 'top':
       return Math.max(0, pad - c.y);
-    case "bottom":
+    case 'bottom':
       return Math.max(0, c.y + float.height - (vp.height - pad));
-    case "left":
+    case 'left':
       return Math.max(0, pad - c.x);
-    case "right":
+    case 'right':
       return Math.max(0, c.x + float.width - (vp.width - pad));
   }
 }
@@ -87,7 +93,13 @@ export function computePosition(
   anchor: Box,
   float: Size,
   viewport: Size,
-  { placement = "bottom", offset = 8, padding = 8, flip = true, shift = true }: PositionOptions = {},
+  {
+    placement = 'bottom',
+    offset = 8,
+    padding = 8,
+    flip = true,
+    shift = true,
+  }: PositionOptions = {},
 ): PositionResult {
   const { side: preferred, align } = parsePlacement(placement);
   let side = preferred;
@@ -107,14 +119,19 @@ export function computePosition(
   if (shift) {
     const clamp = (v: number, size: number, vpSize: number) =>
       Math.max(padding, Math.min(v, vpSize - size - padding));
-    if (side === "top" || side === "bottom") x = clamp(x, float.width, viewport.width);
+    if (side === 'top' || side === 'bottom') x = clamp(x, float.width, viewport.width);
     else y = clamp(y, float.height, viewport.height);
     // Neither side has room (a tall menu opened mid-screen): pin it inside the viewport rather than
     // letting part of it hang off the edge, even though it then overlaps the anchor.
     if (flip && mainOverflow(side, { x, y }, float, viewport, padding) > 0) {
-      if (side === "top" || side === "bottom") y = clamp(y, float.height, viewport.height);
+      if (side === 'top' || side === 'bottom') y = clamp(y, float.height, viewport.height);
       else x = clamp(x, float.width, viewport.width);
     }
   }
-  return { x, y, side, placement: align === "center" ? side : (`${side}-${align}` as FloatingPlacement) };
+  return {
+    x,
+    y,
+    side,
+    placement: align === 'center' ? side : (`${side}-${align}` as FloatingPlacement),
+  };
 }

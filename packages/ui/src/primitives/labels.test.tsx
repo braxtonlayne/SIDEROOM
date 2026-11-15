@@ -1,19 +1,19 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { PosterRow } from "../sideroom/Poster";
-import { UiStringsProvider } from "../util/uiStrings";
-import { Notice } from "./Feedback/Feedback";
-import { PasswordInput } from "./Input/TextInput";
-import { Spinner } from "./Loading/Spinner";
-import { ConfirmDialog } from "./Modal/Modal";
-import { ErrorPage } from "./State/State";
-import { SettingsLayout } from "./Settings/SettingsLayout";
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { PosterRow } from '../sideroom/Poster';
+import { UiStringsProvider } from '../util/uiStrings';
+import { Notice } from './Feedback/Feedback';
+import { PasswordInput } from './Input/TextInput';
+import { Spinner } from './Loading/Spinner';
+import { ConfirmDialog } from './Modal/Modal';
+import { ErrorPage } from './State/State';
+import { SettingsLayout } from './Settings/SettingsLayout';
 
 // The words the primitives speak on their own can be translated by the app (XC-VIS-002); English stays the default.
-describe("translated built-in words", () => {
-  it("Notice takes its screen-reader prefix and Dismiss from UiStringsProvider, props win", () => {
+describe('translated built-in words', () => {
+  it('Notice takes its screen-reader prefix and Dismiss from UiStringsProvider, props win', () => {
     render(
-      <UiStringsProvider value={{ noticeWarning: "Achtung", dismiss: "Schließen" }}>
+      <UiStringsProvider value={{ noticeWarning: 'Achtung', dismiss: 'Schließen' }}>
         <Notice variant="warning" onDismiss={() => {}}>
           Low disk
         </Notice>
@@ -23,63 +23,69 @@ describe("translated built-in words", () => {
         <Notice variant="info">Plain</Notice>
       </UiStringsProvider>,
     );
-    expect(screen.getByText("Achtung:", { exact: false })).toBeInTheDocument();
-    expect(screen.getByText("Erfolg:", { exact: false })).toBeInTheDocument();
-    expect(screen.getByText("Information:", { exact: false })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Schließen" })).toBeInTheDocument();
+    expect(screen.getByText('Achtung:', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('Erfolg:', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText('Information:', { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Schließen' })).toBeInTheDocument();
   });
 
-  it("PosterRow arrows take labels, English by default", () => {
+  it('PosterRow arrows take labels, English by default', () => {
     const { rerender } = render(
       <PosterRow title="Row">
         <span>x</span>
       </PosterRow>,
     );
-    expect(screen.getByRole("button", { name: "Scroll back" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Scroll back' })).toBeInTheDocument();
     rerender(
       <PosterRow title="Row" prevLabel="Zurück" nextLabel="Weiter">
         <span>x</span>
       </PosterRow>,
     );
-    expect(screen.getByRole("button", { name: "Zurück" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Zurück' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Weiter' })).toBeInTheDocument();
   });
 
-  it("SettingsLayout close button and unsaved bar take labels", () => {
+  it('SettingsLayout close button and unsaved bar take labels', () => {
     render(
       <SettingsLayout
         inline
         title="Einstellungen"
-        sections={[{ id: "a", label: "A" }]}
+        sections={[{ id: 'a', label: 'A' }]}
         activeId="a"
         onSelect={() => {}}
         onClose={() => {}}
         dirty
-        labels={{ close: "Schließen", closeTarget: "Einstellungen", unsaved: "Ungespeichert!", reset: "Zurücksetzen", save: "Speichern" }}
+        labels={{
+          close: 'Schließen',
+          closeTarget: 'Einstellungen',
+          unsaved: 'Ungespeichert!',
+          reset: 'Zurücksetzen',
+          save: 'Speichern',
+        }}
       >
         <p>Body</p>
       </SettingsLayout>,
     );
-    expect(screen.getByRole("button", { name: /Schließen.*Einstellungen/ })).toBeInTheDocument();
-    expect(screen.getByText("Ungespeichert!")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Schließen.*Einstellungen/ })).toBeInTheDocument();
+    expect(screen.getByText('Ungespeichert!')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Zurücksetzen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument();
   });
 
-  it("SEC-AUD-040: the dialog, password, error and spinner words come from UiStringsProvider", () => {
+  it('SEC-AUD-040: the dialog, password, error and spinner words come from UiStringsProvider', () => {
     render(
       <UiStringsProvider
         value={{
-          close: "Schließen",
-          confirm: "Bestätigen",
-          cancel: "Abbrechen",
-          typeToConfirm: (x) => "Tippe " + x,
-          showPassword: "Passwort zeigen",
-          show: "Zeigen",
-          passwordStrength: "Stärke",
-          strengthLevels: ["Sehr schwach", "Schwach", "Mittel", "Gut", "Stark"],
-          errorTitle: "Fehler",
-          loading: "Lädt",
+          close: 'Schließen',
+          confirm: 'Bestätigen',
+          cancel: 'Abbrechen',
+          typeToConfirm: (x) => 'Tippe ' + x,
+          showPassword: 'Passwort zeigen',
+          show: 'Zeigen',
+          passwordStrength: 'Stärke',
+          strengthLevels: ['Sehr schwach', 'Schwach', 'Mittel', 'Gut', 'Stark'],
+          errorTitle: 'Fehler',
+          loading: 'Lädt',
         }}
       >
         <ConfirmDialog open title="T" requireText="weg" onConfirm={() => {}} onCancel={() => {}} />
@@ -88,13 +94,13 @@ describe("translated built-in words", () => {
         <Spinner />
       </UiStringsProvider>,
     );
-    expect(screen.getByRole("button", { name: "Schließen" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Tippe weg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Passwort zeigen" })).toHaveTextContent("Zeigen");
-    expect(screen.getByText("Sehr schwach")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Fehler" })).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Lädt" })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Schließen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Bestätigen' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abbrechen' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Tippe weg')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Passwort zeigen' })).toHaveTextContent('Zeigen');
+    expect(screen.getByText('Sehr schwach')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Fehler' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Lädt' })).toBeInTheDocument();
   });
 });

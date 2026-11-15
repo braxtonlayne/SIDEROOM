@@ -1,11 +1,11 @@
 /** WCAG relative luminance and contrast ratio for `#rrggbb` / `#rgb` colors. */
 function parseHex(hex: string): [number, number, number] {
-  let h = hex.trim().replace(/^#/, "");
+  let h = hex.trim().replace(/^#/, '');
   if (h.length === 3) {
     h = h
-      .split("")
+      .split('')
       .map((c) => c + c)
-      .join("");
+      .join('');
   }
   if (!/^[0-9a-fA-F]{6}$/.test(h)) throw new Error(`Invalid hex color: ${hex}`);
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
@@ -30,6 +30,6 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 /** Pick white or near-black text for a background, whichever contrasts more. */
-export function readableInk(bg: string): "#ffffff" | "#111110" {
-  return contrastRatio(bg, "#ffffff") >= contrastRatio(bg, "#111110") ? "#ffffff" : "#111110";
+export function readableInk(bg: string): '#ffffff' | '#111110' {
+  return contrastRatio(bg, '#ffffff') >= contrastRatio(bg, '#111110') ? '#ffffff' : '#111110';
 }

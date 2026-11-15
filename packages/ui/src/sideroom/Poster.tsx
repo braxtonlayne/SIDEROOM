@@ -1,11 +1,11 @@
-import { useRef, type HTMLAttributes, type ReactNode } from "react";
-import { cx } from "../util/cx";
-import { prefersReducedMotion } from "../theme/runtime";
-import { ProgressBar } from "../primitives/Progress/ProgressBar";
-import { ArrowLink } from "./Editorial";
-import styles from "./Poster.module.css";
+import { useRef, type HTMLAttributes, type ReactNode } from 'react';
+import { cx } from '../util/cx';
+import { prefersReducedMotion } from '../theme/runtime';
+import { ProgressBar } from '../primitives/Progress/ProgressBar';
+import { ArrowLink } from './Editorial';
+import styles from './Poster.module.css';
 
-export interface PosterCardProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+export interface PosterCardProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   title: string;
   /** Second line, e.g. "Manga · Ch. 86". */
   subtitle?: ReactNode;
@@ -24,13 +24,34 @@ export interface PosterCardProps extends Omit<HTMLAttributes<HTMLElement>, "titl
 }
 
 /** DS-SR-005: 2:3 poster with title block, optional corner tag, progress and hover/focus actions. */
-export function PosterCard({ title, subtitle, meta, src, href, tag, progress, rating, actions, className, ...rest }: PosterCardProps) {
+export function PosterCard({
+  title,
+  subtitle,
+  meta,
+  src,
+  href,
+  tag,
+  progress,
+  rating,
+  actions,
+  className,
+  ...rest
+}: PosterCardProps) {
   const art = (
     <span className={styles.art}>
-      {src ? <img src={src} alt="" loading="lazy" draggable={false} /> : <span className={styles.fallback}>{title.slice(0, 1)}</span>}
+      {src ? (
+        <img src={src} alt="" loading="lazy" draggable={false} />
+      ) : (
+        <span className={styles.fallback}>{title.slice(0, 1)}</span>
+      )}
       {tag && <span className={styles.tag}>{tag}</span>}
       {progress !== undefined && (
-        <ProgressBar className={styles.progress} value={progress} label={`${title} progress`} size={3} />
+        <ProgressBar
+          className={styles.progress}
+          value={progress}
+          label={`${title} progress`}
+          size={3}
+        />
       )}
     </span>
   );
@@ -58,7 +79,7 @@ export function PosterCard({ title, subtitle, meta, src, href, tag, progress, ra
   );
 }
 
-export interface PosterRowProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+export interface PosterRowProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   title: ReactNode;
   /** "Explore all ↗" style link in the heading row. */
   exploreHref?: string;
@@ -73,9 +94,9 @@ export interface PosterRowProps extends Omit<HTMLAttributes<HTMLElement>, "title
 export function PosterRow({
   title,
   exploreHref,
-  exploreLabel = "Explore all",
-  prevLabel = "Scroll back",
-  nextLabel = "Scroll forward",
+  exploreLabel = 'Explore all',
+  prevLabel = 'Scroll back',
+  nextLabel = 'Scroll forward',
   className,
   children,
   ...rest
@@ -84,9 +105,11 @@ export function PosterRow({
   const page = (dir: 1 | -1) => {
     const el = scroller.current;
     // Smooth scrolling is motion: honour the OS setting and the in-app one (data-reduced-motion on the themed root).
-    const reduced =
-      prefersReducedMotion() || el?.closest("[data-reduced-motion='true']") != null;
-    el?.scrollBy?.({ left: dir * (el?.clientWidth ?? 0) * 0.9, behavior: reduced ? "auto" : "smooth" });
+    const reduced = prefersReducedMotion() || el?.closest("[data-reduced-motion='true']") != null;
+    el?.scrollBy?.({
+      left: dir * (el?.clientWidth ?? 0) * 0.9,
+      behavior: reduced ? 'auto' : 'smooth',
+    });
   };
   return (
     <section {...rest} className={cx(styles.row, className)}>
@@ -94,10 +117,20 @@ export function PosterRow({
         <h2 className={styles.rowTitle}>{title}</h2>
         <div className={styles.rowTools}>
           {exploreHref && <ArrowLink href={exploreHref}>{exploreLabel}</ArrowLink>}
-          <button type="button" className={styles.arrowBtn} aria-label={prevLabel} onClick={() => page(-1)}>
+          <button
+            type="button"
+            className={styles.arrowBtn}
+            aria-label={prevLabel}
+            onClick={() => page(-1)}
+          >
             <span aria-hidden="true">←</span>
           </button>
-          <button type="button" className={styles.arrowBtn} aria-label={nextLabel} onClick={() => page(1)}>
+          <button
+            type="button"
+            className={styles.arrowBtn}
+            aria-label={nextLabel}
+            onClick={() => page(1)}
+          >
             <span aria-hidden="true">→</span>
           </button>
         </div>

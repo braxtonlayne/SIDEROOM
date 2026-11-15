@@ -24,31 +24,75 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
-.button[aria-busy="true"] {
+.button[aria-busy='true'] {
   cursor: progress;
 }
 
-.sm { min-height: 28px; padding: 0 12px; font-size: 0.8125rem; }
-.md { min-height: 36px; padding: 0 16px; font-size: 0.875rem; }
-.lg { min-height: 44px; padding: 0 24px; font-size: 1rem; }
+.sm {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+}
+.md {
+  min-height: 36px;
+  padding: 0 16px;
+  font-size: 0.875rem;
+}
+.lg {
+  min-height: 44px;
+  padding: 0 24px;
+  font-size: 1rem;
+}
 
-.iconOnly.sm { width: 28px; padding: 0; }
-.iconOnly.md { width: 36px; padding: 0; }
-.iconOnly.lg { width: 44px; padding: 0; }
+.iconOnly.sm {
+  width: 28px;
+  padding: 0;
+}
+.iconOnly.md {
+  width: 36px;
+  padding: 0;
+}
+.iconOnly.lg {
+  width: 44px;
+  padding: 0;
+}
 
-.full { width: 100%; }
+.full {
+  width: 100%;
+}
 
-.primary { background: var(--ui-accent); color: var(--ui-accent-ink); }
-.primary:hover:not(:disabled):not([aria-busy="true"]) { background: var(--ui-accent-hover); }
+.primary {
+  background: var(--ui-accent);
+  color: var(--ui-accent-ink);
+}
+.primary:hover:not(:disabled):not([aria-busy='true']) {
+  background: var(--ui-accent-hover);
+}
 
-.secondary { background: var(--ui-bg-hover); color: var(--ui-text); border-color: var(--ui-border); }
-.secondary:hover:not(:disabled):not([aria-busy="true"]) { border-color: var(--ui-text-muted); }
+.secondary {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  border-color: var(--ui-border);
+}
+.secondary:hover:not(:disabled):not([aria-busy='true']) {
+  border-color: var(--ui-text-muted);
+}
 
-.danger { background: var(--ui-danger); color: var(--ui-danger-ink); }
-.danger:hover:not(:disabled):not([aria-busy="true"]) { filter: brightness(0.92); }
+.danger {
+  background: var(--ui-danger);
+  color: var(--ui-danger-ink);
+}
+.danger:hover:not(:disabled):not([aria-busy='true']) {
+  filter: brightness(0.92);
+}
 
-.ghost { background: transparent; color: var(--ui-text); }
-.ghost:hover:not(:disabled):not([aria-busy="true"]) { background: var(--ui-bg-hover); }
+.ghost {
+  background: transparent;
+  color: var(--ui-text);
+}
+.ghost:hover:not(:disabled):not([aria-busy='true']) {
+  background: var(--ui-bg-hover);
+}
 
 .link {
   background: transparent;
@@ -60,10 +104,18 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.link:hover:not(:disabled) { color: color-mix(in srgb, var(--ui-accent-hover) 60%, var(--ui-text)); }
+.link:hover:not(:disabled) {
+  color: color-mix(in srgb, var(--ui-accent-hover) 60%, var(--ui-text));
+}
 
-.label { display: inline-flex; align-items: center; gap: 8px; }
-.hidden { visibility: hidden; }
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hidden {
+  visibility: hidden;
+}
 .spinner {
   position: absolute;
   inset: 0;

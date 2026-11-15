@@ -1,9 +1,9 @@
-import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import { Switch } from "../Controls/Controls";
-import styles from "./Permissions.module.css";
+import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import { Switch } from '../Controls/Controls';
+import styles from './Permissions.module.css';
 
-export type TriState = "allow" | "neutral" | "deny";
+export type TriState = 'allow' | 'neutral' | 'deny';
 
 export interface TriStateToggleProps {
   /** Accessible name, e.g. "Send Messages". */
@@ -14,15 +14,25 @@ export interface TriStateToggleProps {
   className?: string;
 }
 
-const ORDER: TriState[] = ["deny", "neutral", "allow"];
-const TEXT: Record<TriState, string> = { deny: "Deny", neutral: "Neutral (inherit)", allow: "Allow" };
-const GLYPH: Record<TriState, string> = { deny: "✕", neutral: "/", allow: "✓" };
+const ORDER: TriState[] = ['deny', 'neutral', 'allow'];
+const TEXT: Record<TriState, string> = {
+  deny: 'Deny',
+  neutral: 'Neutral (inherit)',
+  allow: 'Allow',
+};
+const GLYPH: Record<TriState, string> = { deny: '✕', neutral: '/', allow: '✓' };
 
 /**
  * Allow / neutral / deny selector used by channel permission overwrites. A radio group with a roving tabindex:
  * the arrow keys move and select, Home and End jump to deny and allow.
  */
-export function TriStateToggle({ label, value, onChange, disabled, className }: TriStateToggleProps) {
+export function TriStateToggle({
+  label,
+  value,
+  onChange,
+  disabled,
+  className,
+}: TriStateToggleProps) {
   const refs = useRef(new Map<TriState, HTMLButtonElement>());
   const move = (to: TriState) => {
     onChange(to);
@@ -32,10 +42,11 @@ export function TriStateToggle({ label, value, onChange, disabled, className }: 
     if (disabled) return;
     const i = ORDER.indexOf(value);
     let next: TriState | undefined;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = ORDER[Math.min(ORDER.length - 1, i + 1)];
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = ORDER[Math.max(0, i - 1)];
-    else if (e.key === "Home") next = ORDER[0];
-    else if (e.key === "End") next = ORDER[ORDER.length - 1];
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown')
+      next = ORDER[Math.min(ORDER.length - 1, i + 1)];
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = ORDER[Math.max(0, i - 1)];
+    else if (e.key === 'Home') next = ORDER[0];
+    else if (e.key === 'End') next = ORDER[ORDER.length - 1];
     if (!next) return;
     e.preventDefault();
     move(next);
@@ -43,7 +54,13 @@ export function TriStateToggle({ label, value, onChange, disabled, className }: 
   return (
     // The radiogroup is a composite widget; its keys are handled here.
     // eslint-disable-next-line jsx-a11y/interactive-supports-focus
-    <div role="radiogroup" aria-label={label} className={cx(styles.tri, className)} onKeyDown={onKeyDown} data-disabled={disabled || undefined}>
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={cx(styles.tri, className)}
+      onKeyDown={onKeyDown}
+      data-disabled={disabled || undefined}
+    >
       {ORDER.map((s) => (
         <button
           key={s}
@@ -89,7 +106,7 @@ export interface PermissionMatrixProps {
   values: Record<string, TriState>;
   onChange: (id: string, value: TriState) => void;
   /** "binary" shows a switch (allow / neutral); "tristate" shows allow / neutral / deny. */
-  mode?: "binary" | "tristate";
+  mode?: 'binary' | 'tristate';
   /** Returns a reason string to lock a row (shown under it), or undefined when it is editable. */
   lockedReason?: (id: string) => string | undefined;
   /** Hide permissions that are not relevant (e.g. voice bits on a text channel). */
@@ -107,16 +124,16 @@ export function PermissionMatrix({
   groups,
   values,
   onChange,
-  mode = "binary",
+  mode = 'binary',
   lockedReason,
   hidden,
   searchable = true,
-  searchLabel = "Search permissions",
-  emptyText = "No permissions match your search.",
+  searchLabel = 'Search permissions',
+  emptyText = 'No permissions match your search.',
   className,
   toolbar,
 }: PermissionMatrixProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const searchId = useId();
   const q = query.trim().toLowerCase();
   const visible = useMemo(
@@ -127,7 +144,9 @@ export function PermissionMatrix({
           items: g.items.filter(
             (p) =>
               !hidden?.(p.id) &&
-              (!q || p.label.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)),
+              (!q ||
+                p.label.toLowerCase().includes(q) ||
+                (p.description ?? '').toLowerCase().includes(q)),
           ),
         }))
         .filter((g) => g.items.length > 0),
@@ -164,17 +183,22 @@ export function PermissionMatrix({
           <ul className={styles.list}>
             {g.items.map((p) => {
               const lock = lockedReason?.(p.id);
-              const state = values[p.id] ?? "neutral";
+              const state = values[p.id] ?? 'neutral';
               return (
-                <li key={p.id} className={styles.row} data-danger={p.danger || undefined} data-locked={lock ? true : undefined}>
+                <li
+                  key={p.id}
+                  className={styles.row}
+                  data-danger={p.danger || undefined}
+                  data-locked={lock ? true : undefined}
+                >
                   <div className={styles.text}>
-                    {mode === "binary" ? (
+                    {mode === 'binary' ? (
                       <Switch
                         label={p.label}
-                        description={[p.description, lock].filter(Boolean).join(" ") || undefined}
-                        checked={state === "allow"}
+                        description={[p.description, lock].filter(Boolean).join(' ') || undefined}
+                        checked={state === 'allow'}
                         disabled={!!lock}
-                        onChange={(e) => onChange(p.id, e.target.checked ? "allow" : "neutral")}
+                        onChange={(e) => onChange(p.id, e.target.checked ? 'allow' : 'neutral')}
                       />
                     ) : (
                       <>
@@ -184,8 +208,13 @@ export function PermissionMatrix({
                       </>
                     )}
                   </div>
-                  {mode === "tristate" && (
-                    <TriStateToggle label={p.label} value={state} disabled={!!lock} onChange={(v) => onChange(p.id, v)} />
+                  {mode === 'tristate' && (
+                    <TriStateToggle
+                      label={p.label}
+                      value={state}
+                      disabled={!!lock}
+                      onChange={(v) => onChange(p.id, v)}
+                    />
                   )}
                 </li>
               );
