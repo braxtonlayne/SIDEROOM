@@ -165,6 +165,31 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* A button in a form row is a button's height, never the row's (D-838, SEC-AUD-335). The row's items stretch by default, and a
+   field with a hint line makes the row about 80px tall. `end` puts the button level with the last control of its line
+   (bottom edge): right wherever no hint stands under the control, and for a button on a line of its own. In a form the 2px
+   under it centre the 36px button on a 40px control beside it. */
+.dev-actions > button,
+.dev-actions > a {
+  align-self: end;
+}
+form.dev-actions > button,
+form.dev-actions > a {
+  margin-block-end: 2px;
+}
+/* A form row wide enough to keep its fields and the button on one line: the hint under a field would pull the button down to
+   the hint's line, so the button starts under the field's label instead, centred on the controls: the kit label (15px) + the
+   field's gap (6px) + 2px (a 36px button on a 40px control). 860px is what the widest form (Rich Presence: file, name, type,
+   button) needs on one line; below it the button may wrap onto a line of its own, where `end` above applies (no extra gap). */
+form.dev-actions {
+  container-type: inline-size;
+}
+@container (min-width: 860px) {
+  .dev-actions > :is(label, div) ~ :is(button, a) {
+    align-self: start;
+    margin-block-start: 23px;
+  }
+}
 .dev-select {
   max-width: 100%;
 }
