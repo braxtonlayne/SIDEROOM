@@ -649,6 +649,10 @@
   .ss-table-stack td {
     display: block;
   }
+  /* The caption is a block line above the rows (as a table caption it shrank to a narrow column in the block table). */
+  .ss-table-stack caption {
+    display: block;
+  }
   .ss-table-stack thead {
     position: absolute;
     inline-size: 1px;
