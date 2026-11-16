@@ -248,7 +248,11 @@ export function ChannelHeader({
                   : t('lounge.channelHeader.memberList')
               }
               aria-pressed={membersOpen}
-              onClick={onToggleMembers}
+              onClick={() => {
+                onToggleMembers();
+                // SEC-AUD-380 (D-892): on a phone the strip closes once the members pane is chosen.
+                setMoreOpen(false);
+              }}
             >
               <Icon name="users" size={20} />
             </button>
