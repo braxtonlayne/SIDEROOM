@@ -263,6 +263,15 @@ function PopoutFrame({ target, anchor }: { target: ProfileTarget; anchor: HTMLEl
       tabIndex={-1}
       style={floating.style}
     >
+      {/* SEC-AUD-356 (D-859): a phone has no Escape key; profile.css shows this button in its phone block only. */}
+      <button
+        type="button"
+        className="lng-icon-btn lng-pop-close"
+        aria-label={t('lounge.profilePopout.close')}
+        onClick={() => close()}
+      >
+        <Icon name="close" size={20} />
+      </button>
       {bridgedMember ? <BridgedCard member={bridgedMember} /> : <ProfileCard target={target} />}
     </div>,
     portal,

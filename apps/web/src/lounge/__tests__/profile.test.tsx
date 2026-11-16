@@ -83,6 +83,15 @@ describe('profile popout host', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'User profile' })).toBeNull());
   });
 
+  it('has a Close button in the pop-up that closes it (SEC-AUD-356)', async () => {
+    at('/channels/g1/c1');
+    const log = await screen.findByRole('log');
+    await userEvent.click(await within(log).findByRole('button', { name: 'Open profile of Bob' }));
+    const pop = await screen.findByRole('dialog', { name: 'User profile' });
+    await userEvent.click(within(pop).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'User profile' })).toBeNull());
+  });
+
   it('lets a manager add and remove roles', async () => {
     server.use(
       http.delete('*/api/v1/guilds/g1/members/2/roles/r1', async (ctx) => {
