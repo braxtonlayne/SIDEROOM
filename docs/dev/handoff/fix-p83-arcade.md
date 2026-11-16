@@ -58,7 +58,7 @@ The Showroom's Arcade preview renders `ArcadeHero flags={[]}`, and `heroSlots` f
 - Seen: the hero is a dark painted card with the kicker, title and a gold Play button in all three themes; the rest of the page keeps the member's theme (blue Play buttons in Light and Dark); the title font follows the theme (D-831); at 1280 nothing differs from wave 82.
 
 ## Showroom
-Second round 12:43 (the first acquire attempts waited 12:17 to 12:42 behind others). The Showroom preview (mocked platform.showroom flag, localStorage choice, Lounge Light Arcade) at 375: 2 hero cards in the DOM, 1 visible, 178 px tall, scrollWidth 375/375. Shot  (opened): one compact Land.io card with its meta line and no Play button (the preview has none); the grey bubble over the first row is the Showroom's own preview toggle popover, not this change. Total shots: 11, all opened.
+Second round 12:43 (the first acquire attempts waited 12:17 to 12:42 behind others). The Showroom preview (mocked platform.showroom flag, localStorage choice, Lounge Light Arcade) at 375: 2 hero cards in the DOM, 1 visible, 178 px tall, scrollWidth 375/375. Shot `after-showroom-phone-top.png` (opened): one compact Land.io card with its meta line and no Play button (the preview has none); the grey bubble over the first row is the Showroom's own preview toggle popover, not this change. Total shots: 11, all opened.
 
 ## Docs
 - `docs/10-design-system-and-theming.md` line 23, proposed (outside my files): "An Arcade hero card is one too, with Editorial's colours (D-844)." becomes "An Arcade hero card is one too, with Editorial's colours (D-844); on a phone only the first is shown, compact (D-851)."
