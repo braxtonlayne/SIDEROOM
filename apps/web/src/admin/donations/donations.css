@@ -117,3 +117,14 @@
     min-width: 0;
   }
 }
+@media (max-width: 720px) {
+  /* The caption repeats the h3 above the table: hidden to the eye, kept for a screen reader. */
+  .adm-perk-table caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

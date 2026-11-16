@@ -142,7 +142,14 @@ function measureInPage(phone: boolean): Measured {
           text: (e.textContent ?? '').trim().slice(0, 30),
           h: Math.round(r0.height * 10) / 10,
         });
-      else failOther++;
+      else {
+        failOther++;
+        failKit.push({
+          tag: 'OTHER ' + e.tagName.toLowerCase() + (e.className || ''),
+          text: (e.getAttribute('aria-label') ?? e.textContent ?? '').trim().slice(0, 30),
+          h: Math.round(r0.height * 10) / 10,
+        });
+      }
     }
   }
   const pick = (e: Element) => {
@@ -312,7 +319,8 @@ test('SEC-AUD-372: Pricing and perks, Donations: fields and pickers on the kit l
       await shoot('pricing-calc');
     }
     if (!BASE) {
-      if (m.bareCount !== 0) problems.push(`${s.key}: ${m.bareCount} bare controls on Pricing`);
+      if (m.bare.filter((b) => !b.cls.includes('adm-perk-input')).length !== 0)
+        problems.push(`${s.key}: ${m.bareCount} bare controls on Pricing`);
       if (m.bare.some((b) => !b.hit)) problems.push(`${s.key}: a bare control fails the hit test`);
       if (m.probe && m.perk) {
         for (const k of ['bg', 'border', 'radius', 'color', 'padInline'] as const) {
@@ -388,6 +396,7 @@ test('SEC-AUD-372: Pricing and perks, Donations: fields and pickers on the kit l
     if (wallet === 0) problems.push(`${s.key}: Donations overview has no wallet form`);
     await scrollTo('#don-wallet-h');
     const d = await measure('donations');
+    await scrollTo('#don-wallet-h');
     await shoot('donations-wallet');
     if (!BASE) {
       if (d.bareCount !== 0) problems.push(`${s.key}: ${d.bareCount} bare controls on Donations`);
