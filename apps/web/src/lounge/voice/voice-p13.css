@@ -246,8 +246,15 @@
 
 /* SEC-AUD-331 (D-830): on a phone the call bar's microphone and camera chevrons are the device menus (D-828): a
    touch target of 44 x 44 px, as the buttons beside them (they were 28 wide). The bar scrolls inside itself. The
-   two-class selector wins over the phone rule `.vc-ctl-arrow` of voice-p10.css whatever the file order. */
+   two-class selector wins over the phone rule `.vc-ctl-arrow` of voice-p10.css whatever the file order. With the
+   chevrons at 44 the seven controls (about 390 px at a 12 px gap) no longer fit 375 px: the gap between them is 6 px
+   (not the targets), so every control is inside the screen at load at 375 and at 360. `div.vc-controls` outranks the
+   one-class `.vc-controls` of lounge.css whatever the file order. */
 @media (max-width: 768px) {
+  div.vc-controls {
+    gap: 6px;
+  }
+
   .vc-split .vc-ctl-arrow {
     inline-size: 44px;
     block-size: 44px;

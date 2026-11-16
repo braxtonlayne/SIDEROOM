@@ -55,11 +55,15 @@ async function context(
     viewport: size,
     storageState: await base.storageState(),
     permissions: ['microphone', 'camera'],
-    ...(phone ? { hasTouch: true, isMobile: true } : {}),
+    ...(phone ? { hasTouch: true } : {}),
   });
   await c.addInitScript(
     (p) => {
-      localStorage.setItem('sr.user.prefs', JSON.stringify({ state: { prefs: p }, version: 2 }));
+      const t = sessionStorage.getItem('__theme') ?? p.theme;
+      localStorage.setItem(
+        'sr.user.prefs',
+        JSON.stringify({ state: { prefs: { theme: t, zoom: p.zoom } }, version: 2 }),
+      );
     },
     { theme, zoom: 100 },
   );
@@ -283,33 +287,44 @@ test('the phone call bar chevrons and the privacy codes button', async ({ browse
       JSON.stringify({ state: { prefs: { theme: 'lounge-dark', zoom: 100 } }, version: 2 }),
     );
   });
-  await bobPage.goto(`/channels/${guild.id}/${voice}`);
   const faults: string[] = [];
-  note(`bob joining (one try)`);
-  const bobIn = await join(bobPage, 'bob');
-  if (!bobIn)
-    note('Bob did not connect: the privacy codes are shot with one member if they list the owner');
+  let bobIn = false;
+  // Bob joins after the owner is connected, each time (a second join of the owner beside a Bob who stayed did not get
+  // its keys: the popover kept saying 'Securing the call').
+  const bobJoins = async (tag: string) => {
+    await hangUp(bobPage);
+    await bobPage.goto(`/channels/${guild.id}/${voice}`);
+    await bobPage.waitForTimeout(1000);
+    bobIn = await join(bobPage, `bob (${tag})`);
+  };
 
+  // One owner context for the whole run (a fresh context is a new device key: Bob pinned the old one and the call
+  // stayed at 'Securing the call'); the theme is changed by a reload, the size by the viewport.
+  const c = await context(browser, octx, PHONE, THEMES[0]!, true);
+  const page = await c.newPage();
+  page.setDefaultTimeout(20_000);
   for (const theme of THEMES) {
     await apiPatch(a, '/users/@me/settings', { settings: { user_prefs: { theme, zoom: 100 } } });
     const tShort = theme.replace('lounge-', '');
+    await page.setViewportSize(PHONE);
+    await page.goto(`/channels/${guild.id}/${voice}`);
+    await page.evaluate((t) => sessionStorage.setItem('__theme', t), theme);
+    await page.reload();
+    await page.waitForTimeout(1500);
+    note(`== ${theme}: room wears data-theme=${await themeOf(page)}`);
+    if (!(await join(page, theme))) {
+      await page.screenshot({ path: resolve(OUT, `not-connected-${tShort}.png`) });
+      faults.push(`${theme} not connected`);
+      continue;
+    }
+    await bobJoins(theme);
+    await page.waitForTimeout(2500);
     for (const phone of [true, false]) {
       const size = phone ? PHONE : DESKTOP;
       const vp = phone ? 'phone' : 'desktop';
       const tag = `${theme} ${vp}`;
-      const c = await context(browser, octx, size, theme, phone);
-      const page = await c.newPage();
-      page.setDefaultTimeout(20_000);
-      await page.goto(`/channels/${guild.id}/${voice}`);
-      await page.waitForTimeout(1500);
-      note(`== ${tag}: room wears data-theme=${await themeOf(page)}`);
-      if (!(await join(page, tag))) {
-        await page.screenshot({ path: resolve(OUT, `not-connected-${tShort}-${vp}.png`) });
-        faults.push(`${tag} not connected`);
-        await c.close();
-        continue;
-      }
-      await page.waitForTimeout(2500);
+      await page.setViewportSize(size);
+      await page.waitForTimeout(800);
 
       // ---- 331: the bar --------------------------------------------------------------------------
       const cut = await barBoxes(page, `${tag} bar`, size.width);
@@ -330,9 +345,7 @@ test('the phone call bar chevrons and the privacy codes button', async ({ browse
         }
         if (cut.length) note(`${tag}: CUT AT LOAD ${cut.join(', ')}`);
         if (cut.length && !BASE) faults.push(`${tag} cut at load ${cut.join(', ')}`);
-        if (theme !== 'lounge-editorial' || BASE) {
-          await page.screenshot({ path: resolve(OUT, `bar-${tShort}-phone.png`) });
-        }
+        await page.screenshot({ path: resolve(OUT, `bar-${tShort}-phone.png`) });
         await page.setViewportSize(SMALL);
         await page.waitForTimeout(500);
         await barBoxes(page, `${tag} bar at 360x800 (logged only)`, SMALL.width);
@@ -422,17 +435,31 @@ test('the phone call bar chevrons and the privacy codes button', async ({ browse
       }
 
       // ---- 332: the privacy codes ---------------------------------------------------------------
-      const shield = page.locator('.vc-e2ee-shield:visible').first();
-      if (phone) await shield.tap().catch(() => shield.click());
+      // On a phone the shield sits in the sheet that 'More call controls' opens.
+      if (phone) {
+        await page.getByRole('button', { name: 'More call controls', exact: true }).first().tap();
+        await page.waitForTimeout(500);
+      }
+      const shield = phone
+        ? page.locator('#vc-ctl-sheet .vc-e2ee-shield').first()
+        : page.locator('.vc-e2ee-shield:visible').first();
+      if (phone) await shield.tap();
       else await shield.click();
       await page.waitForTimeout(800);
       const dialog = page.getByRole('dialog').last();
       const verify = dialog.locator('.vc-e2ee-verify').first();
+      await verify.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => undefined);
       if (!(await verify.isVisible().catch(() => false))) {
         note(`${tag}: NO verify button in the popover (second member in: ${bobIn})`);
         await page.screenshot({ path: resolve(OUT, `privacy-none-${tShort}-${vp}.png`) });
         faults.push(`${tag} no verify button`);
       } else {
+        if ((await verify.getAttribute('aria-pressed')) === 'true') {
+          if (phone) await verify.tap();
+          else await verify.click();
+          await page.mouse.move(2, 2);
+          await page.waitForTimeout(400);
+        }
         const before = await verifyFigures(page, `${tag} privacy unpressed`);
         if (!phone) {
           await verify.hover();
@@ -468,10 +495,12 @@ test('the phone call bar chevrons and the privacy codes button', async ({ browse
           await page.screenshot({ path: resolve(OUT, `privacy-again-${tShort}-${vp}.png`) });
         }
       }
-      await hangUp(page);
-      await c.close();
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
     }
+    await hangUp(page);
   }
+  await c.close();
   await hangUp(bobPage);
   await bobCtx.close();
   await octx.close();
