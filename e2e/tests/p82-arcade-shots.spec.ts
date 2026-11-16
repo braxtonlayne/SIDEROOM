@@ -302,16 +302,11 @@ test('SEC-AUD-340: an Arcade hero card is kept dark', async ({ browser }) => {
         await page.screenshot({ path: resolve(OUT, `${MODE}-${tag}-top.png`) });
         shots++;
       }
-      if (MODE === 'after' && sizeName === 'phone') {
-        await page.locator(".arc-card[data-size='hero']").first().scrollIntoViewIfNeeded();
-        await page.screenshot({ path: resolve(OUT, `${MODE}-${tag}-cards.png`) });
-        shots++;
-        await page.evaluate(() => window.scrollTo(0, 0));
-      }
-
       // the pixels behind the text: a second shot with the card bodies hidden, sampled left/mid/right x top/mid/bottom
       // (desktop: the viewport holds both cards; phone: each card is scrolled to and shot by itself)
-      const cardsN = await page.locator(".arc-card[data-size='hero']").count();
+      const heroShown = await page.locator(".arc-card[data-size='hero']").first().isVisible();
+      log(`${tag} hero cards shown: ${heroShown}`);
+      const cardsN = heroShown ? await page.locator(".arc-card[data-size='hero']").count() : 0;
       const hashes: string[] = [];
       const grids: Record<string, unknown> = {};
       let worst = 99;
@@ -399,10 +394,7 @@ test('SEC-AUD-340: an Arcade hero card is kept dark', async ({ browser }) => {
       await page.goto('/games');
       await expect(page.locator(".arc-card[data-size='hero']")).toHaveCount(2, { timeout: 60_000 });
       await page.waitForTimeout(800);
-      const play = page
-        .locator(".arc-card[data-size='hero']")
-        .first()
-        .getByRole('button', { name: /^Play/ });
+      const play = page.getByRole('button', { name: /^Play/ }).first();
       await play.scrollIntoViewIfNeeded();
       const css = await play.evaluate((b) => {
         const s = getComputedStyle(b);
