@@ -58,7 +58,7 @@ interface PageDef {
 const PAGES: PageDef[] = [
   { id: 'accounts', path: '/admin/accounts' },
   { id: 'servers', path: '/admin/servers' },
-  { id: 'applications', path: '/admin/review', tab: /^Applications$/ },
+  { id: 'applications', path: '/admin/review', tab: /^All applications$/ },
   { id: 'audit-log', path: '/admin/audit-log' },
   { id: 'library-catalog', path: '/admin/library-catalog' },
   { id: 'access-log', path: '/admin/access-log' },
@@ -234,8 +234,8 @@ function measureInPage(phone: boolean): Measured {
           if (c < 4.5) out.lowContrast.push(`${tag}=${rnd(c)}`);
         }
       }
-      if (isAct) {
-        for (const e of ctls) {
+      {
+        for (const e of ctls.filter((x) => isAct || x.tagName === 'BUTTON')) {
           const b = e.getBoundingClientRect();
           if (b.width === 0) continue;
           out.actions++;
@@ -304,11 +304,14 @@ async function newPage(browser: Browser, size: Size, theme: string, base: Browse
   return { ctx, page };
 }
 
+/** Only the tables that carry the class when the page loads (DataTable's own) are switched; plain tables are left alone. */
 const setStack = (page: Page, on: boolean) =>
   page.evaluate((v) => {
-    document
-      .querySelectorAll('table.adm-table[aria-label]')
-      .forEach((t) => t.classList.toggle('adm-table-stack', v));
+    document.querySelectorAll('table.adm-table[aria-label]').forEach((t) => {
+      if (!t.hasAttribute('data-dt'))
+        t.setAttribute('data-dt', t.classList.contains('adm-table-stack') ? '1' : '0');
+      if (t.getAttribute('data-dt') === '1') t.classList.toggle('adm-table-stack', v);
+    });
   }, on);
 
 test('SEC-AUD-371: the shared Admin table, stacked rows on a phone', async ({ browser }) => {
@@ -370,6 +373,19 @@ test('SEC-AUD-371: the shared Admin table, stacked rows on a phone', async ({ br
             (phone && s.theme === 'lounge-dark' && BEFORE_SHOTS.includes(p.id)) ||
             (!phone && p.id === 'accounts');
           if (wanted) await shoot(mode);
+          if (phone && mode === 'after' && m.rows > 3 && p.id === 'accounts') {
+            await page.evaluate(() =>
+              document
+                .querySelector('table.adm-table tbody tr:nth-child(4)')
+                ?.scrollIntoView({ block: 'start' }),
+            );
+            await page.waitForTimeout(250);
+            await page.screenshot({
+              path: resolve(OUT, `${stem}-after-rows.png`),
+              timeout: 10_000,
+            });
+            totals.shots++;
+          }
           appendFileSync(jsonl, `${JSON.stringify({ id: p.id, key: s.key, mode, ...m })}\n`);
           totals.lines++;
           const mc = m.minContrast === null ? '-' : String(Math.round(m.minContrast * 100) / 100);

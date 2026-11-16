@@ -795,7 +795,11 @@ label.ss-field {
   .adm-table-stack td:empty {
     display: none;
   }
-  /* The actions cell is last, on a line of its own, each control 44 px tall. */
+  /* A button in any cell (Applications puts Suspend under the name) and every control of the actions cell: 44 px tall. */
+  .adm-table-stack td button {
+    min-block-size: 44px;
+  }
+  /* The actions cell is last, on a line of its own. */
   .adm-table-stack td[data-actions] {
     display: flex;
     flex-wrap: wrap;
