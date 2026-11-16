@@ -50,3 +50,10 @@
 .native {
   display: none;
 }
+
+/* D-879: a 44 px button on a phone (same query as the Select and Input sheets). */
+@media (max-width: 720px) {
+  .button {
+    min-height: 44px;
+  }
+}
