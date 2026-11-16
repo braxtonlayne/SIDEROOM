@@ -178,9 +178,15 @@
   .control {
     min-height: 44px;
   }
-  .trigger,
-  .input,
-  .chevron {
+  .control > .trigger,
+  .control > .chevron {
+    margin-block: -1px;
+  }
+  .inputRow {
+    padding-block: 0;
+  }
+  .inputRow .input {
+    min-height: 44px;
     margin-block: -1px;
   }
 }
