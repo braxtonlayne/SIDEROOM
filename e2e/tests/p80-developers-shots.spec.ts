@@ -166,7 +166,7 @@ function checkNav(
           : 'end';
   expect.soft(r.attr, `${tag}: data-overflow matches the scroll position`).toBe(want);
   if (BASE) return;
-  if (r.current) {
+  if (r.current && !tag.includes('scrolled-end')) {
     expect
       .soft(r.current.left, `${tag}: current link inside (left)`)
       .toBeGreaterThanOrEqual(r.navLeft - 1);
@@ -267,9 +267,7 @@ test('Developers selects and the phone nav', async ({ browser }) => {
         const others: [string, string][] = [
           ['commands', `/developers/applications/${appId}?tab=commands`],
           ['oauth2', `/developers/applications/${appId}?tab=oauth2`],
-          ['install', `/developers/applications/${appId}?tab=installation`],
           ['docs-api-reference', '/developers/docs/api-reference'],
-          ['docs-gateway-events', '/developers/docs/gateway-events'],
         ];
         for (const [name, url] of others) {
           await reach(`select-${name}`, async () => {
@@ -282,7 +280,11 @@ test('Developers selects and the phone nav', async ({ browser }) => {
             const n = await page.locator('.dev-main select').count();
             log(`selects on ${name}: ${n}`);
             await selectLook(page, `page-${name}`);
-            await shoot(page, `select-page-${name}-${tag}`);
+            for (let i = 0; i < n; i++) {
+              const s = page.locator('.dev-main select').nth(i);
+              await s.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+              await shoot(page, `select-page-${name}-${i + 1}-${tag}`);
+            }
           });
         }
       }

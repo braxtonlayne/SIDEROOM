@@ -562,6 +562,7 @@
 }
 .dev-file {
   display: grid;
+  align-content: start;
   gap: 0.25rem;
   font-size: 0.875rem;
 }
