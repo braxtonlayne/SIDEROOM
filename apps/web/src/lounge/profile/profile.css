@@ -132,3 +132,12 @@
 .lng-name-btn:hover {
   text-decoration: underline;
 }
+
+/* SEC-AUD-348 (D-853): on a phone the profile popout was as tall as the screen (8px from the top, 6px from the
+   bottom) and has no close control, so the only way out was an outside tap on a strip a few pixels wide. It leaves
+   72px above and below now and scrolls inside itself. */
+@media (max-width: 640px) {
+  .lng-pop {
+    max-block-size: calc(100dvh - 144px);
+  }
+}
