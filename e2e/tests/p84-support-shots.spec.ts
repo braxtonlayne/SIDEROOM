@@ -236,7 +236,7 @@ function measurePanel(arg: { phone: boolean }): PanelMeasure {
 
   const custom: PanelMeasure['custom'] = [];
   for (const row of Array.from(root.querySelectorAll<HTMLElement>('.sup-custom'))) {
-    const btn = row.querySelector<HTMLElement>('button');
+    const btn = row.querySelector<HTMLElement>('button:not([role=combobox])');
     const field =
       row.querySelector<HTMLElement>('input') ??
       row.querySelector<HTMLElement>('[role=combobox]')?.closest<HTMLElement>('[class*="control"]');
@@ -534,7 +534,7 @@ test('SEC-AUD-358: Support / Patron, /support and Server Support: controls, grid
       );
       const grid = m.choices.map((c) => `${c.label}:${c.rows.join('+')}`).join(' ');
       console.log(
-        `REPORT ${s.key} ${id}: theme ${m.theme}${m.theme === s.theme ? '' : ' MISMATCH'} doc ${m.doc} scroller ${m.scrollerOver} controls ${m.controls.length} bare ${m.bare} rows [${grid}] custom ${JSON.stringify(m.custom.map((c) => c.diff))} hit-fail ${m.hit.filter((h) => !h.up || !h.down).length}/${m.hit.length} outside ${m.outside.length}`,
+        `REPORT ${s.key} ${id}: theme ${m.theme}${m.theme === s.theme ? '' : ' MISMATCH'} doc ${m.doc} scroller ${m.scrollerOver} controls ${m.controls.length} bare ${m.bare} rows [${grid}] custom ${JSON.stringify(m.custom.map((c) => c.diff))} hit-fail ${m.hit.filter((h) => !h.up || !h.down).length}/${m.hit.length} ${JSON.stringify(m.hit.filter((h) => !h.up || !h.down).map((h) => `${h.text}:${h.h}`))} outside ${m.outside.length}`,
       );
       if (!BASE) {
         expect.soft(m.theme, `${s.key} ${id} data-theme`).toBe(s.theme);
@@ -561,9 +561,25 @@ test('SEC-AUD-358: Support / Patron, /support and Server Support: controls, grid
     );
 
     // Settings > Support / Patron.
-    await page.goto('/settings/user/support', { waitUntil: 'domcontentloaded', timeout: 20_000 });
+    // Opened from the Lounge by the app's own router (a popstate), so the member's servers are in the store: a
+    // direct load of the settings address does not fetch them and the server picker would not show.
+    await page.goto(`/channels/${world.guildId}/${world.channelId}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20_000,
+    });
+    await settle(page);
+    await page.evaluate(() => {
+      history.pushState({}, '', '/settings/user/support');
+      dispatchEvent(new PopStateEvent('popstate'));
+    });
     await page.locator('#sup-patron, .sup-choices').first().waitFor({ timeout: 15_000 });
     await settle(page);
+    // The server picker shows once the member's servers have loaded.
+    await page
+      .locator('#sup-server select, #sup-server [role=combobox]')
+      .first()
+      .waitFor({ timeout: 8000 })
+      .catch(() => console.log(`REPORT ${s.key}: no server picker (no servers loaded)`));
     const m = await page.evaluate(measurePanel, { phone: s.phone });
     const files: string[] = [];
     files.push((await shoot('01-member-support-top')).file);
@@ -641,7 +657,7 @@ test('SEC-AUD-358: Support / Patron, /support and Server Support: controls, grid
       expect.soft(ok, 'a valid amount is not invalid').toBeNull();
 
       for (const [id, pick] of [
-        ['sup-guild', 0],
+        ['sup-guild', 1],
         ['sup-credit-n', 2],
       ] as const) {
         const combo = page.locator(`#${id}`).first();
