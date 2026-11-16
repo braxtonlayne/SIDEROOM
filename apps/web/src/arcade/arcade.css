@@ -347,9 +347,15 @@
   gap: 2px;
   min-inline-size: 0;
 }
+/* SEC-AUD-336 (D-839): the title steps down with its column (never under 1.125rem) so a name that fits is not cut
+   inside a word; the hero's own size and the phone's 1.25rem below are unchanged. A word too long even at the floor
+   still breaks (overflow-wrap). */
+.arc-card:not([data-size='hero']) .arc-card-heading {
+  container-type: inline-size;
+}
 .arc-page .arc-card-title {
   font-family: var(--ui-font-display, inherit);
-  font-size: 1.5rem;
+  font-size: clamp(1.125rem, 16cqi, 1.5rem);
   font-weight: 400;
   line-height: 1.1;
   overflow-wrap: anywhere;
