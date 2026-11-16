@@ -360,7 +360,7 @@
   text-decoration: none;
   cursor: pointer;
 }
-.lib-btn:hover {
+.lib-btn:hover:not(:disabled) {
   background: var(--sr-bg-2);
 }
 .lib-btn-gold {
@@ -988,7 +988,8 @@
 }
 /* The reader's bars are dark under every theme; under a Lounge theme the kit parts on them (page label, slider) read
    the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. */
-.lib-root:not([data-theme^='sideroom']) :is(.lib-reader-top, .lib-reader-bottom, .lib-sync-notice) {
+.lib-root:not([data-theme^='sideroom'])
+  :is(.lib-reader-top, .lib-reader-bottom, .lib-sync-notice, .lib-pdf .lib-pdf-bar) {
   --ui-text: #ece6d6;
   --ui-text-muted: #a9a493;
   --ui-text-faint: #918d7e;
@@ -1011,6 +1012,11 @@
   --ui-warning: #c2b08f;
   --ui-info: #9aa8a0;
   --ui-focus: #d9c9a4;
+  --ui-status-online: #34c25f;
+  --ui-status-idle: #d9a441;
+  --ui-status-dnd: #cc5c47;
+  --ui-status-offline: #6f6c60;
+  --text-link: #c2b08f;
   --lib-fill: #c2b08f;
   --lib-fill-ink: #1b1a15;
   color-scheme: dark;
@@ -1023,6 +1029,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.lib-reader-slider output {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .lib-reader-slider {
   flex: 1;

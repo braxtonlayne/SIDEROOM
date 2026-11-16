@@ -326,7 +326,7 @@ function SeriesList({ items, view }: { items: import('./types').Series[]; view: 
                 </Link>
                 {s.age_restricted && <AgeBadge />}
                 <span className="lib-muted">
-                  {t('library.browse.listMeta', {
+                  {t('library.browse.listMetaPlural', {
                     kind: KIND_LABEL[s.kind],
                     status: STATUS_LABEL[s.status],
                     n: s.chapter_count,

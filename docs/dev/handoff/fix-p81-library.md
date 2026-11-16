@@ -1,0 +1,61 @@
+# Wave 81 handoff: library (SEC-AUD-327, 328; D-831, D-834, D-835, D-836)
+
+T = 09:35 on 2026-11-16 (no new item from 11:35, checkpoint 11:55, finished 12:20, hard limit 12:35). Clock times (`date`): started 09:34; lock requested 09:40 (arcade, then tools held it); lock held 09:51 to 09:56 (one round: base check, after run, stack stopped); handoff committed about 10:00. One round only.
+
+Branch `fix/p81-library`, base `12d480b8`. Web only: no Rust, no cargo, no build, no migration, no generated file. Commits: `a0fdcd2a` (all code, vitest case, spec) and the handoff commit.
+
+## Imports (no web build)
+`library/library.css` is imported by `LibraryRoot.tsx` (Library lazy chunk). `SeriesPage`, `Browse` and `reader/Reader` are `lazyNamed` imports in `library/routes.tsx` (lines 7, 15, 16; the cinema's own `Browse` is another file). The new fragment loads in `i18n/messages/en.rest.ts`'s own chunk through its glob. Nothing first paint or a public page loads changed: no build, bundle, entrance or staff check.
+
+## Item 1, SEC-AUD-327: done
+### What I saw on the base (run: yes; `SR_P81_BASE=1`, `library.css`, `SeriesPage.tsx`, `Browse.tsx` held back with `git show HEAD~1`, light Library only; base shots in `visual-sweep-shots/p81-library-base`, 10)
+- (a) The counter: a right-to-left series (`reading_direction: 'rtl'`), three-page images chapter, page 1: the output's text is "1 / 3" but the digit boxes (a `Range` over each character): "1" at x 82, "3" at x 60 on both phone and desktop, i.e. the "3" is to the left of the "1" ("3 / 1" drawn). Same on pages 2 and 3. Present.
+- (b) PDF reader, last page, light Library, pointer on the disabled "Next": computed background `rgb(232, 234, 237)` (a light value on the black bar). An enabled "Previous" hovered: the same `rgb(232, 234, 237)`. Button text `rgb(236, 230, 214)` on border `rgb(201, 204, 209)` (the light theme's line, on black). Present.
+- (c) A probe in the top and bottom bar and the PDF bar, light Library: `--ui-status-online/idle/dnd/offline` = `rgb(22, 138, 73)`, `rgb(176, 120, 0)`, `rgb(229, 56, 59)`, `rgb(128, 132, 142)` (the Lounge Light set), `--text-link` = `rgb(71, 82, 196)`. Present. **The plan's expectation text "not `rgb(35, 165, 90)`" and its contract values are the Lounge Dark defaults, not what `sideroom` computes** (see "Tokens").
+
+### What I built (`library.css`)
+- (a) `.lib-reader-slider output { direction: ltr; unicode-bidi: isolate; }`. **The CSS isolate was enough**; the fallback key `library.reader.pageOfTotalLtr` and the `Reader.tsx` edit were not needed (`Reader.tsx` untouched). After: digit boxes "1" x 60, "3" x 81/82 (left to right) on page 1, "2 / 3", "3 / 3" as ArrowLeft turns the pages forward in the right-to-left reader (both sizes, both themes); the slider element keeps `dir="rtl"` and its input's computed direction is `rtl`; read in the shots: the thumb starts at the right on page 1 and sits at the left on page 3. Left-to-right reader: "1 / 3", "2 / 3" unchanged (asserted).
+- (b) `.lib-btn:hover:not(:disabled)`. After: disabled "Next" on the last page, `rgba(0, 0, 0, 0)` under the pointer, shipped and light, both sizes; enabled "Previous": `rgb(28, 29, 24)` (the block's `--sr-bg-2`), shipped and light. **The PDF bar was not inside the reader's dark block** (its selector list names `.lib-reader-top, .lib-reader-bottom, .lib-sync-notice` only; before this the PDF bar's buttons took the light theme's text and line colours on black). What I did: added `.lib-pdf .lib-pdf-bar` to the block's selector list (scoped under `.lib-pdf`, because the EPUB reader reuses the `lib-pdf-bar` class for its header on the book's own colours: a bare `.lib-pdf-bar` would have given the EPUB header the dark block's tokens on a white book). Side effect, intended: under a light Library the PDF bar's text and border are now the dark block's (`rgb(236, 230, 214)` on `rgb(42, 43, 36)`, the same as shipped), where the base had `rgb(201, 204, 209)` borders. Under `sideroom` the block does not apply: button colours unchanged (`rgb(236, 230, 214) | rgb(42, 43, 36)` before and after). The images reader's bar buttons are `.lib-icon-btn` (already guarded) and their hover is `rgb(28, 29, 24)` in both themes.
+- (c) Tokens: see the next section.
+
+### Tokens added (reader's-bars dark block, now also the PDF bar)
+`--ui-status-online: #34c25f; --ui-status-idle: #d9a441; --ui-status-dnd: #cc5c47; --ui-status-offline: #6f6c60; --text-link: #c2b08f;`. **These are not the values in the plan's contract** (`#23a55a`, `#f0b232`, `#f23f42`, `#80848e`, which are the Lounge Dark defaults in `themes.ts:27-30`): the contract says to check each value against what `sideroom` computes, and `packages/ui/src/tokens/themes.ts` (`sideroom`, lines 270-285) gives `#34c25f`, `#d9a441`, `#cc5c47`, `#6f6c60`, with `--text-link: #c2b08f`. The probe confirms it: under `sideroom` the bars compute `rgb(52, 194, 95) | rgb(217, 164, 65) | rgb(204, 92, 71) | rgb(111, 108, 96) | rgb(194, 176, 143)`; under the light Library after the change the same five values. **The cinema builder's four blocks use the same contract line: it should check `sideroom` the same way (the plan's `--sr-olive-accent: #8c9a6a` does match `sideroom`).** Under `sideroom` no computed colour changed (probe, button colours, PDF bar).
+
+## Item 2, SEC-AUD-328: done
+- Base: vitest case `writes the chapter count with plural forms (1 chapter, 2 chapters)` in `library/__tests__/library.test.tsx` ("series page"): watched it fail on the base (no heading "1 chapter"); on the base the spec read the heading "1 chapters" (phone and desktop, light). The browse line on the base was not shot (the base run only did the series page); after it reads "Manga · Ongoing · 1 chapter".
+- Built: `apps/web/src/i18n/messages/en/p81-library-1.ts` with `library.series.chapterCountPlural` and `library.browse.listMetaPlural` (the contract's strings); `SeriesPage.tsx` (the heading, now wrapped on three lines by prettier) and `Browse.tsx` read them. Nothing else changed in either file.
+- Old keys `library.series.chapterCount` (`library-4.ts:30`) and `library.browse.listMeta` (`library-3.ts:80`) **stayed**: `i18n-audit --max 0` (TOTAL 0), web typecheck and the single vitest files do not fail on unused keys; no `en-staff/` file touched. Nothing is reading them now: the commander may delete both lines at integration if it wants (then check `en-staff/`).
+- After: "1 chapter" in the heading and in the browse line, "2 chapters" in the vitest case; the card's short form `library.ui.chapterCountShort` untouched.
+
+## Tail: the EPUB reader in Dark: done
+In the settings dialog the Theme control is a kit segmented radio group: `ed.getByRole('radio', { name: 'Dark' })` clicked it in all four runs. The book turned dark (`bg rgb(22, 22, 26)`), the bar buttons are `rgb(216, 216, 220)` on that with a 35% border, contrast min 12.7:1 (`contrast epub-dark-*`, 3 text nodes, none below 4.5). **A finding, not mine to fix this wave:** in Dark the book's pane is dark but a white margin of the foliate host shows around it (a white band between the bar and the book and a white frame at the sides), seen in all four shots. It reads as a book on a white sheet; probably the host or foliate's container background (`library.css` `.lib-epub-host` / `.lib-epub-view` or the EPUB reader's inline style) not taking the reader theme's background. Left, listed for a later wave.
+
+## Shots (all opened by me, every one)
+`C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p81-library`: 31 PNG and `measure-after.json`: right-to-left reader bar page 1 and page 3 (shipped and light, 1280 and 375: 8), the slider click shot (light phone: 1), the left-to-right bar (light, 1280 and 375: 2), the PDF last page with the pointer on "Next" and on "Previous" (shipped and light, both sizes: 8, more than the planned 4), the one-chapter series page and the browse list (shipped and light, both sizes: 8), the EPUB in Dark (shipped and light, both sizes: 4). `visual-sweep-shots/p81-library-base`: 10 base shots (light only), all opened too: page 1 reads "3 / 1" in the right-to-left bar (phone and desktop), page 3 "3 / 3"; the PDF last page shows a light grey patch under the disabled "Next" and under an enabled "Previous" on the black bar, with light-grey outlines on the bar's buttons; the phone series page shot does not scroll to the heading (the heading "1 chapters" is from the run log; the desktop one shows it). Total: 41 PNG, all opened. `data-theme` was read back from `.lib-root` and asserted before every shot, the sideways-scroll measurement (`scrollWidth <= clientWidth`) run and asserted before each: all pass at 375 and 1280 (the series page at 375 lists two tab buttons past the viewport, inside the tab strip that scrolls on its own, as in wave 80; the document does not scroll).
+Click-through (light, phone): ArrowLeft turned the right-to-left chapter "1 / 3" to "2 / 3" to "3 / 3"; the slider with Home and End showed "1 / 3" and "3 / 3"; the left-to-right chapter turned "1 / 3" to "2 / 3" with ArrowRight; the PDF's Next went to the last page; the EPUB theme was set to Dark.
+Notes on the shots: in the right-to-left bar the "Page" label sits at the right and the counter at the left (unchanged layout; `dir="rtl"` on the slider box, only the digits are isolated). The PDF "Back to the series" link is a `.lib-btn` too and hovers dark with the rest.
+
+## Tests run
+- vitest: `library/__tests__/library.test.tsx` (18 passed, the new case failed on the base), `library/__tests__/p13.test.tsx` (10 passed; it reads "12 chapters" from another string).
+- Web `tsc --noEmit` clean; eslint (the package's own) clean on the three `.tsx`/`.ts` files; prettier clean on all changed files; `node scripts/i18n-audit.mjs --max 0` TOTAL 0; `node scripts/check-css-tokens.mjs` clean; `node scripts/check-doc-links.mjs` ok; e2e `tsc` clean.
+- The shots spec `e2e/tests/p81-library-shots.spec.ts` (local only, `SR_P81_LIBRARY=1`): base run (1 passed, 34 s), the after run `1 passed (2.0m)`; the first after run failed on my own thumb assertion (it measured the input's box, not the thumb; replaced by the input's computed direction plus the shot), nothing else.
+
+## Docs
+Searched `docs/`, README, deploy for "1 chapters"/the counter/the reader's dark block: only historical handoffs. Nothing to update. One sentence for `docs/10-design-system-and-theming.md` (D-831): the Library's reader bars (the images reader's top and bottom bars and the PDF reader's bar) state the status and link colours with the rest of their colours.
+
+## Proposed inventory rows
+- SEC-AUD-327: "The Library reader's page counter always reads left to right ("1 / 3") in a right-to-left reader (`direction: ltr; unicode-bidi: isolate` on the slider's output, D-834); a disabled bar button shows no hover and an enabled one hovers in the dark block's colours (D-836), the PDF reader's bar now inside the reader's dark block; the block states the Side Room status colours and link colour (D-831)." Closed.
+- SEC-AUD-328: "The series page's chapter count and the browse list's line are written with plural forms ("1 chapter"), new keys in `p81-library-1` (D-835)." Closed.
+- Threat-model rows: none.
+
+## Changelog sentences
+- SEC-AUD-327: The Library reader's page counter reads "1 / 3" in right-to-left chapters, a disabled button on the reader's bars shows no hover patch, and the bars keep the Side Room status and link colours in a light Library.
+- SEC-AUD-328: The Library says "1 chapter" where it said "1 chapters".
+
+## Not done / owner questions
+- Not done: a real PDF/EPUB upload test (left by the plan). The EPUB's white margin around a dark book (above).
+- Owner question: the EPUB reader in Dark shows a white frame around the book; set the host's background to the reader theme's? (Default: yes, a later wave.)
+- Commander: the status-colour values in the plan's contract do not match `sideroom` (above); cinema's four blocks should use `sideroom`'s too. The two old keys may now be deleted.
+
+## Housekeeping
+Stack stopped by PID (sr-server 6488, vite 9708 and its wrappers), lock released, `sr_p81_library_ui` dropped, `p81-library-bin` deleted, `p80-base-bin` untouched. No stash touched. Untracked scratch `p81-library/.scratch` removed. `git status` before the commits showed only my files.

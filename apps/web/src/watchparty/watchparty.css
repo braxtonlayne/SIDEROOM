@@ -35,6 +35,12 @@
   --ui-success: #8c9a6a;
   --ui-warning: #c2b08f;
   --ui-info: #9aa8a0;
+  --ui-status-online: #34c25f;
+  --ui-status-idle: #d9a441;
+  --ui-status-dnd: #cc5c47;
+  --ui-status-offline: #6f6c60;
+  --text-link: #c2b08f;
+  --sr-olive-accent: #8c9a6a;
   color-scheme: dark;
 }
 .wp-root {
