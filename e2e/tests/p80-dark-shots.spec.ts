@@ -130,7 +130,7 @@ async function context(
           master_url: `${ORIGIN}/__p80/hls/${play === 'good' ? 'master.m3u8' : 'missing.m3u8'}`,
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_at: null,
-          duration_secs: 20,
+          duration_secs: 240,
           subtitles: [],
           audio_tracks: [],
           markers: [],
@@ -595,13 +595,12 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
     );
     // the control bar's Play is a real click (user activation)
     await step('play clicked', async () => {
-      const big = page.locator('.cpl-bigplay');
-      if (await big.isVisible().catch(() => false)) await big.click();
-      else
+      const paused = await page.locator('video').evaluate((v: HTMLVideoElement) => v.paused);
+      if (paused)
         await page
           .getByRole('button', { name: /^play$/i })
           .first()
-          .click();
+          .click({ timeout: 5000 });
     });
     await step('playing', () =>
       expect
