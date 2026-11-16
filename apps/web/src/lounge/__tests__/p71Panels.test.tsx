@@ -249,6 +249,20 @@ describe('search on a phone (D-740)', () => {
     expect(screen.getByRole('button', { name: 'Search this conversation' })).toBeInTheDocument();
   });
 
+  it('gives a channel header on a phone a More button that opens the strip (D-872)', async () => {
+    const view = header();
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull();
+    expect(view.container.querySelector('header')).not.toHaveAttribute('data-compact');
+    view.unmount();
+    const phone = header(vi.fn());
+    const more = screen.getByRole('button', { name: 'More actions' });
+    expect(phone.container.querySelector('header')).toHaveAttribute('data-compact');
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    expect(phone.container.querySelector('.lng-dm-extra')).toHaveAttribute('data-open');
+  });
+
   it('opens the box focused, finds a hit, closes on the jump and goes to the message', async () => {
     header(vi.fn());
     const button = screen.getByRole('button', { name: 'Search this conversation' });
