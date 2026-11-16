@@ -255,7 +255,9 @@ describe('Donations overview', () => {
 
     await userEvent.clear(box);
     await userEvent.type(box, 'wpkh(xpubOK/0/*)');
-    await userEvent.selectOptions(screen.getByLabelText('Network'), 'signet');
+    // The Network picker is the kit's Select (a combobox named by its label), not a native select.
+    await userEvent.click(screen.getByRole('combobox', { name: 'Network' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'signet' }));
     await userEvent.click(screen.getByRole('button', { name: 'Test derivation' }));
     expect(await screen.findByText('tb1qfirst')).toBeInTheDocument();
     await userEvent.click(useBtn);

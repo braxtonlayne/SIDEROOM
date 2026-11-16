@@ -1,6 +1,6 @@
 // Admin > Donations (DON-ADM-001): wallet configuration and health. The page never shows the descriptor
 // back: only its short fingerprint. Pasting a seed or a private key is refused by the server.
-import { Badge, Button, Notice, TextArea, TextInput } from '@sideroom/ui';
+import { Badge, Button, Notice, Select, TextArea, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { usd } from '../../support/api';
 import { useT } from '../../i18n';
@@ -183,15 +183,20 @@ function WalletForm({ onSaved }: { onSaved: () => void }) {
           autoComplete="off"
           onChange={(e) => setDescriptor(e.target.value)}
         />
-        <label>
-          {t('admin.donations.overview.network')}{' '}
-          <select value={network} onChange={(e) => setNetwork(e.target.value)}>
-            <option value="mainnet">mainnet</option>
-            <option value="testnet">testnet</option>
-            <option value="signet">signet</option>
-            <option value="regtest">regtest</option>
-          </select>
-        </label>
+        <div className="adm-pick">
+          <label className="adm-pick-label" htmlFor="don-wallet-network">
+            {t('admin.donations.overview.network')}
+          </label>
+          <Select
+            id="don-wallet-network"
+            options={['mainnet', 'testnet', 'signet', 'regtest'].map((n) => ({
+              value: n,
+              label: n,
+            }))}
+            value={network}
+            onValueChange={setNetwork}
+          />
+        </div>
         <TextInput
           label={t('admin.donations.overview.gapLimit')}
           hint={t('admin.donations.overview.gapLimitHint')}
