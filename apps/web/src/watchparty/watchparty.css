@@ -29,6 +29,12 @@
   --ui-text-muted: #a9a493;
   --ui-text-faint: #918d7e;
   --ui-focus: #d9c9a4;
+  --ui-danger: #b4503f;
+  --ui-danger-ink: #fff6f2;
+  --ui-danger-text: #d97a68;
+  --ui-success: #8c9a6a;
+  --ui-warning: #c2b08f;
+  --ui-info: #9aa8a0;
   color-scheme: dark;
 }
 .wp-root {

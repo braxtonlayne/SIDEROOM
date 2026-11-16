@@ -1,14 +1,39 @@
 import { ThemeProvider, ToastProvider } from '@sideroom/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Link, Outlet } from '@tanstack/react-router';
-import { useState } from 'react';
+import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { useAppliedTheme } from '../settings/user/useAppliedTheme';
+import { useCurrentLinkInView } from '../study/useCurrentLinkInView';
 import './developers.css';
 
 /** The section chrome: brand bar and section navigation. Mobile wraps the nav under the brand. */
 function Shell() {
   const t = useT();
+  const navRef = useRef<HTMLElement>(null);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useCurrentLinkInView(navRef, "[aria-current='page']", pathname);
+  // `data-overflow` names the edge(s) of the phone nav that hide links (the fade in developers.css, D-825).
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const sync = () => {
+      const max = nav.scrollWidth - nav.clientWidth;
+      const pos = Math.abs(nav.scrollLeft);
+      if (max <= 1) nav.removeAttribute('data-overflow');
+      else if (pos > 1 && pos < max - 1) nav.setAttribute('data-overflow', 'both');
+      else if (pos > 1) nav.setAttribute('data-overflow', 'start');
+      else nav.setAttribute('data-overflow', 'end');
+    };
+    sync();
+    nav.addEventListener('scroll', sync, { passive: true });
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(sync);
+    ro?.observe(nav);
+    return () => {
+      nav.removeEventListener('scroll', sync);
+      ro?.disconnect();
+    };
+  }, [pathname]);
   return (
     <div className="dev-frame">
       <a className="dev-skip" href="#dev-main">
@@ -20,7 +45,7 @@ function Shell() {
           /
         </span>
         <span className="dev-brand-sub">{t('developers.shell.brandSub')}</span>
-        <nav aria-label={t('developers.shell.navLabel')} className="dev-nav">
+        <nav ref={navRef} aria-label={t('developers.shell.navLabel')} className="dev-nav">
           <Link to="/developers" activeOptions={{ exact: true }} className="dev-nav-link">
             {t('developers.shell.navOverview')}
           </Link>

@@ -5,6 +5,7 @@
   height: 100vh;
   height: var(--sr-vvh, 100dvh);
   overflow: hidden;
+  overflow: clip;
   background: var(--bg-base-lowest);
   color: var(--text-normal);
   font-size: 16px;
@@ -1543,6 +1544,9 @@
 .lng-root[data-mobile] .lng-body {
   position: relative;
   overflow: hidden;
+  /* SEC-AUD-325 (D-827): the three panes slide inside this box. `hidden` can still be scrolled by script, focus or
+     scrollIntoView on an off-screen pane (measured: scrollLeft 225 shifted every pane); a clipped box cannot. */
+  overflow: clip;
 }
 .lng-root[data-mobile] .lng-left,
 .lng-root[data-mobile] .lng-main,

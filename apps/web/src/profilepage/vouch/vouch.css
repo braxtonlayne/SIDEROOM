@@ -27,7 +27,7 @@
   color: var(--ui-warning);
 }
 .vouch-badge[data-tier='elder'] {
-  color: var(--sr-gold, #c9a24d);
+  color: var(--text-link, var(--ui-accent, var(--sr-gold, #c9a24d)));
 }
 .vouch-tip {
   display: flex;
