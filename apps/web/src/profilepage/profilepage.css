@@ -1,9 +1,4 @@
 /* The page chrome and the editor (the block renderer and its styles live in @sideroom/profile-blocks). */
-/* SEC-AUD-364 (D-886): a block heading takes the profile's own text colour (the one its body text uses), not the
-   member's accent: the default accent read 2.99:1 on the default panel. Borders, marks and links keep the accent. */
-.pp-root .pp-title {
-  color: var(--pp-text);
-}
 .pp-page {
   display: flex;
   flex-direction: column;

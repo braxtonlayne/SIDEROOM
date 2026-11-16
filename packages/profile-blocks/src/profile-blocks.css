@@ -127,7 +127,8 @@
   font-size: 0.8125rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--pp-accent);
+  /* SEC-AUD-364, D-891: a heading takes the profile's own text colour; borders, marks and links keep the accent. */
+  color: var(--pp-text);
 }
 .pp-text,
 .pp-muted {
