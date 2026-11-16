@@ -1,4 +1,4 @@
-import { Button, ThemeProvider } from '@sideroom/ui';
+import { Button } from '@sideroom/ui';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { ApiError } from '../api/client';
@@ -8,6 +8,7 @@ import { useStore } from '../store';
 import { formatNumber } from '../i18n';
 import { t as tr } from '../i18n/runtime';
 import { useT } from '../i18n/react';
+import { LoungeThemeProvider } from '../settings/user/LoungeThemeProvider';
 import '../components/entrance.css';
 
 type State =
@@ -107,7 +108,7 @@ export function AppServerInvite() {
       : null;
 
   return (
-    <ThemeProvider section="lounge" className="ent-invite-page">
+    <LoungeThemeProvider className="ent-invite-page">
       <main className="ent-invite-card" aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && <p role="status">{t('entrance.serverInvite.loading')}</p>}
         {state.kind === 'invalid' && <p role="alert">{t('entrance.serverInvite.invalid')}</p>}
@@ -143,6 +144,6 @@ export function AppServerInvite() {
           </>
         )}
       </main>
-    </ThemeProvider>
+    </LoungeThemeProvider>
   );
 }

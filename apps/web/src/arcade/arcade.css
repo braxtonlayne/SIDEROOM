@@ -986,9 +986,28 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  /* The house picks are in the Playable now list just below; on a phone the headline is enough. */
-  .arc-hero-cards {
+  /* One compact hero on a phone (D-851, SEC-AUD-344): the first house pick, its painting, kicker, title and Play, no
+     description or flags; the second house pick stays in the Playable now list below. Kept dark by the block above
+     (D-844): colour is not set here. */
+  .arc-hero-cards > .arc-card[data-size='hero']:not(:first-child) {
     display: none;
+  }
+  .arc-card[data-size='hero'] {
+    min-block-size: 11rem;
+  }
+  .arc-card[data-size='hero'] .arc-card-body {
+    min-block-size: 11rem;
+    max-inline-size: 100%;
+    padding: 16px;
+  }
+  .arc-card[data-size='hero'] :is(.arc-desc, .arc-flags) {
+    display: none;
+  }
+  .arc-card[data-size='hero'] .arc-card-title {
+    font-size: 1.5rem;
+  }
+  .arc-card[data-size='hero'] .arc-actions :is(button, a) {
+    min-block-size: 44px;
   }
   .arc-tabs-action {
     flex: none;

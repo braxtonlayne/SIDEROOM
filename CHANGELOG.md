@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 83 - 2026-11-16
+
+- **Members.** On a phone the Arcade now opens on one compact flagship card with its painting and a Play button, and an application's image list shows each name whole with its kind underneath. Support, the Leaderboards and an invite or template opened inside the app now use the theme you chose. On a phone the buttons in a thread's header and many Settings buttons are easier to hit, a member's profile pop-up leaves room above it to tap outside and close it, and stacked switches in Settings no longer touch. In a server's settings on a phone the voice sliders, the banner colours and the server-tag badges are easier to hit.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 82 - 2026-11-16
 
 - **Members.** The Developers pages no longer slide sideways on a phone (the Activities tab and two documentation pages did), and their image and emoji lists keep their labels and buttons in place on a phone. Switching an EPUB book to Dark or Sepia while reading no longer leaves a white frame around the page. The Arcade's featured cards keep their dark look and readable text in a light theme. The Poll builder's checkbox takes your theme's accent colour and shows a focus ring.

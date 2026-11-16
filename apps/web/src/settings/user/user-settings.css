@@ -566,3 +566,28 @@
   align-items: stretch;
   gap: 6px;
 }
+
+/* SEC-AUD-349 (D-854): the look pass over the member's Settings. */
+/* Two switches one under the other with nothing between them (Voice & Video Sounds, Support's badge options) touched. */
+.us-card > div:has(> input[role='switch']) + div:has(> input[role='switch']) {
+  margin-block-start: 10px;
+}
+/* The Add button of the keyword form stretched up to the label above its field; it now sits on the field's bottom edge. */
+.us-stack > .us-actions {
+  align-items: flex-end;
+}
+/* Create invite sat against the hint under its field. */
+#us-invite-create > button {
+  margin-block-start: 12px;
+}
+@media (max-width: 480px) {
+  /* D-846: on a phone the Record, Change and Unbind buttons of a keybind row, the Connect button of a provider row and
+     the buttons that sit in a card's action row or straight in a card were 28 or 36 px tall. */
+  .us-key-row button,
+  .us-keybind button,
+  .us-providers li button,
+  .us-actions > button,
+  .us-card > button {
+    min-block-size: 44px;
+  }
+}

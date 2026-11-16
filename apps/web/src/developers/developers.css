@@ -602,6 +602,36 @@ form.dev-actions {
   .dev-media-row .dev-muted {
     white-space: nowrap;
   }
+  /* An asset row (it holds a kind label) stacks on a phone: the picture at the start spanning two rows, the name in the first row and
+     the kind under it in the second; the name keeps the room beside the picture and the action stays at the row's end (D-849,
+     SEC-AUD-343). The emoji row has no kind, so `:has(> .dev-muted)` leaves it as it was. */
+  .dev-uri-list li > .dev-media-row:has(> .dev-muted) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 2px 8px;
+    align-items: center;
+  }
+  .dev-media-row:has(> .dev-muted) > :is(img, .dev-asset) {
+    grid-row: 1 / span 2;
+  }
+  .dev-media-row:has(> .dev-muted) > code {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .dev-media-row:has(> .dev-muted) > .dev-muted {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  /* The asset row keeps one line: the media block shrinks (the name column takes what is left of 309 px: 179 px for a 176 px name)
+     and the action stays beside it; the two gaps are 8 px, because at 12 px the dashed name (picture 48 + name 176 + button 66 +
+     two gaps = 314) was 5 px too wide and the action dropped to its own line. A name wider than the column breaks inside its word. */
+  .dev-uri-list li:has(> .dev-media-row > .dev-muted) {
+    flex-wrap: nowrap;
+    column-gap: 8px;
+  }
+  .dev-uri-list li:has(> .dev-media-row > .dev-muted) > :is(button, .dev-actions) {
+    flex: none;
+  }
   .dev-uri-list li > .dev-media-row ~ :is(button, .dev-actions) {
     margin-inline-start: auto;
   }

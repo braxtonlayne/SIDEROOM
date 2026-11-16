@@ -27,7 +27,6 @@ export default {
   'library.series.followError': 'We could not update your follow. Try again.',
   'library.series.chaptersError': 'We could not load the chapters',
   'library.series.checkBack': 'Check back soon.',
-  'library.series.chapterCount': '{n} chapters',
   'library.series.newestFirst': 'Newest first',
   'library.series.oldestFirst': 'Oldest first',
   'library.series.volume': 'Volume {n}',

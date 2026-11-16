@@ -221,3 +221,20 @@
   display: block;
   margin-top: 2px;
 }
+
+/* SEC-AUD-347 (D-853): the thread's own header controls (Follow, the members, the menu and close buttons) were 28px
+   tall on a phone. They are 44px tall now (the header is 48px), and each reaches 4px into the gap on either side, so
+   the finger target is 44px wide too without moving the title (the same way the phone's search button does it). */
+.lng-root[data-mobile] .lng-thread-head button {
+  min-block-size: 44px;
+}
+.lng-root[data-mobile] .lng-thread-head .lng-icon-btn {
+  position: relative;
+  block-size: 44px;
+}
+.lng-root[data-mobile] .lng-thread-head .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline: -4px;
+}
