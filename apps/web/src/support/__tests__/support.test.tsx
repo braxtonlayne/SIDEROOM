@@ -262,8 +262,14 @@ describe('Support / Patron settings', () => {
       }),
     );
     openSupport();
-    const select = await screen.findByLabelText('Server');
-    expect(within(select).getByRole('option', { name: 'Book Club' })).toBeInTheDocument();
+    // The server picker is the kit's Select (a combobox button named by its label), not a native select.
+    const select = await screen.findByRole('combobox', { name: 'Server' });
+    expect(select).toHaveTextContent('Book Club');
+    await userEvent.click(select);
+    expect(
+      within(await screen.findByRole('listbox')).getByRole('option', { name: /Book Club/ }),
+    ).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('switch', { name: /Contribute anonymously/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Support $10.00' }));
     await screen.findByRole('dialog', { name: 'Pay with Bitcoin' });
@@ -273,6 +279,27 @@ describe('Support / Patron settings', () => {
       usd_cents: 1000,
       anonymous: true,
     });
+  });
+
+  it('buys the invite credits picked in the Select', async () => {
+    supportApi();
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/donations/invoices', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(invoice({ purpose: 'invite_credit', months: null, credits: 3 }), {
+          status: 201,
+        });
+      }),
+    );
+    openSupport();
+    const pick = await screen.findByRole('combobox', { name: 'Credits' });
+    expect(pick).toHaveTextContent('1');
+    await userEvent.click(pick);
+    await userEvent.click(await screen.findByRole('option', { name: '3' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Buy for $60.00' }));
+    await screen.findByRole('dialog', { name: 'Pay with Bitcoin' });
+    expect(body).toEqual({ purpose: 'invite_credit', credits: 3 });
   });
 
   it('shows Patron status with the end date, and the grace period', async () => {

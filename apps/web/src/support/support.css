@@ -94,18 +94,66 @@
 .sup-receipt dd {
   margin: 0;
 }
+/* Plan and amount buttons: equal columns, one row where they fit, two per row on a phone (D-862). */
 .sup-choices {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(var(--sup-n, 4), minmax(0, 1fr));
   gap: 8px;
   margin: 8px 0;
 }
+.sup-choices > * {
+  min-width: 0;
+}
+/* A field row: label over the control, the button on the control's bottom edge. The kit's TextInput wraps its
+   own label, control and error in `.sup-field`, which dissolves into the grid so all three line up. */
 .sup-custom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 8px;
+  row-gap: 6px;
   margin: 8px 0;
+}
+.sup-custom > .sup-field {
+  display: contents;
+}
+.sup-custom > :not(.sup-go, .sup-field),
+.sup-custom > .sup-field > * {
+  grid-column: 1;
+  min-width: 0;
+}
+.sup-custom > .sup-go {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
+}
+.sup-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+@media (max-width: 720px) {
+  .sup-choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  /* An odd last button takes the whole row rather than standing alone at half width. */
+  .sup-choices > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .sup-choices > button,
+  .sup-go {
+    min-height: 44px;
+  }
+  .sup-custom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sup-custom > .sup-go {
+    grid-column: 1;
+    grid-row: auto;
+    align-self: stretch;
+  }
 }
 .sup-perks {
   margin: 8px 0;
