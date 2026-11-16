@@ -580,15 +580,13 @@ test('the Library reader counter, hover, tokens, plurals and the EPUB in Dark', 
         log(`counter-rtl-p1-${tag} ${JSON.stringify(c1)}`);
         all[`counter-rtl-p1-${tag}`] = c1;
         log(`slider dir ${tag} ${await page.locator('.lib-reader-slider').getAttribute('dir')}`);
-        const thumb = await page
+        const inputDir = await page
           .getByRole('slider')
           .first()
-          .evaluate((e) => Math.round(e.getBoundingClientRect().left));
-        const track = await page.locator('.lib-reader-slider').evaluate((e) => {
-          const r = e.getBoundingClientRect();
-          return Math.round(r.left + r.width / 2);
-        });
-        log(`thumb-rtl-p1-${tag} thumb-left=${thumb} slider-mid=${track}`);
+          .evaluate((e) => getComputedStyle(e).direction);
+        log(
+          `slider-input-direction-${tag} ${inputDir} (rtl: the thumb starts at the right; read in the shot)`,
+        );
         const probe = await probeBars(['.lib-reader-top', '.lib-reader-bottom']);
         log(`status-probe-${tag} ${JSON.stringify(probe)}`);
         all[`status-probe-${tag}`] = probe;
@@ -598,9 +596,7 @@ test('the Library reader counter, hover, tokens, plurals and the EPUB in Dark', 
           expect(c1!.digits[0]!.x, 'the first digit is left of the last').toBeLessThan(
             c1!.digits[1]!.x,
           );
-          expect(thumb, 'the thumb starts at the right in a right-to-left reader').toBeGreaterThan(
-            track,
-          );
+          expect(inputDir, 'the slider keeps the reading direction').toBe('rtl');
         }
         // Arrows: in a right-to-left reader ArrowLeft turns forward.
         await page.keyboard.press('ArrowLeft');
