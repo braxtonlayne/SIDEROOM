@@ -76,6 +76,10 @@
   flex: 1 1 140px;
   min-inline-size: 0;
 }
+.ud-root > .ud-field,
+.ud-timer > .ud-field {
+  flex: none;
+}
 .ud-field-narrow {
   flex: 0 1 80px;
 }
