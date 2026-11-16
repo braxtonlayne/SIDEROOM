@@ -108,6 +108,14 @@
   align-items: center;
   gap: 0.25rem;
 }
+/* SEC-AUD-341 (D-845): the box takes the theme's accent and a stated focus ring, as the Audio tool's does. */
+.sr-room-check input {
+  accent-color: var(--ui-accent);
+}
+.sr-room-check input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
 .sr-room-h {
   margin-block: 0.25rem 0;
   margin-inline: 0;
