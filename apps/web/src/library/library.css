@@ -1004,6 +1004,13 @@
   --ui-accent: #c2b08f;
   --ui-accent-hover: #d1c1a2;
   --ui-accent-ink: #1b1a15;
+  --ui-danger: #b4503f;
+  --ui-danger-ink: #fff6f2;
+  --ui-danger-text: #d97a68;
+  --ui-success: #8c9a6a;
+  --ui-warning: #c2b08f;
+  --ui-info: #9aa8a0;
+  --ui-focus: #d9c9a4;
   --lib-fill: #c2b08f;
   --lib-fill-ink: #1b1a15;
   color-scheme: dark;
