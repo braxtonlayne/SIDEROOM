@@ -2149,7 +2149,8 @@
 .lng-dm-extra {
   display: contents;
 }
-.lng-header[data-dm] .lng-dm-more {
+.lng-header[data-dm] .lng-dm-more,
+.lng-header[data-compact] .lng-dm-more {
   display: none;
 }
 @media (max-width: 720px) {
@@ -2180,6 +2181,38 @@
     inset-block-start: 100%;
     z-index: 5;
     padding: 6px 12px;
+    background: var(--bg-base-low);
+    border-block-end: 1px solid var(--ui-border);
+  }
+  /* SEC-AUD-368 (D-872): a channel's header on a phone, the same strip. The strip's block padding (the 8px reach of a
+     button's 44px target + 4px) keeps every target inside the strip, clear of the header row above. */
+  .lng-header[data-compact] {
+    position: relative;
+  }
+  .lng-header[data-compact] .lng-header-title {
+    flex: 1 1 0;
+    min-inline-size: 0;
+  }
+  .lng-header[data-compact] .lng-header-tools {
+    margin-inline-start: 0;
+    gap: 0;
+  }
+  .lng-header[data-compact] .lng-dm-more {
+    display: inline-flex;
+  }
+  .lng-header[data-compact] .lng-dm-extra {
+    display: none;
+  }
+  .lng-header[data-compact] .lng-dm-extra[data-open] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 100%;
+    z-index: 5;
+    padding: 12px;
     background: var(--bg-base-low);
     border-block-end: 1px solid var(--ui-border);
   }

@@ -91,6 +91,8 @@ export function ChannelHeader({
   // from a "More" button, as the same buttons (nothing is removed, popovers keep their own state).
   const [moreOpen, setMoreOpen] = useState(false);
   const dmHeader = !!(isDm && dm);
+  // SEC-AUD-368 (D-872): onBack is only given at phone width; a channel's header there is compact too.
+  const compact = !!(onBack && !dmHeader);
   useEffect(() => {
     if (!moreOpen) return;
     const onKey = (e: KeyboardEvent) => {
@@ -100,7 +102,11 @@ export function ChannelHeader({
     return () => document.removeEventListener('keydown', onKey);
   }, [moreOpen]);
   return (
-    <header className="lng-header" data-dm={dmHeader || undefined}>
+    <header
+      className="lng-header"
+      data-dm={dmHeader || undefined}
+      data-compact={compact || undefined}
+    >
       {onBack && (
         <button
           type="button"
@@ -182,7 +188,7 @@ export function ChannelHeader({
         {onBack && channelId && (
           <PhoneSearch guildId={guildId} channelId={channelId} label={searchLabel} />
         )}
-        {dmHeader && (
+        {(dmHeader || compact) && (
           <button
             type="button"
             className="lng-icon-btn lng-dm-more"
