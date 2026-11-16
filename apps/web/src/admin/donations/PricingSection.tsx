@@ -102,7 +102,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
   return (
     <section className="ss-card" aria-labelledby="don-prices-h">
       <h2 id="don-prices-h">{t('admin.donations.pricing.pricesAndRules')}</h2>
-      <label className="adm-check-row">
+      <label className="adm-check-row don-check-row">
         <input
           type="checkbox"
           checked={draft.enabled}
