@@ -2,10 +2,11 @@
 // hosting cost against what was donated, the Patron card, what Server Levels are, invite credits and a
 // link to the leaderboards, then the help answers that used to be the whole page. It only reads the
 // donation APIs; paying is done in Settings > Support / Patron, where the invoice dialog lives.
-import { Badge, Notice, ThemeProvider, ToastProvider } from '@sideroom/ui';
+import { Badge, Notice, ToastProvider } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { formatDate, useT } from '../i18n';
 import { useResource } from '../settings/user/api';
+import { LoungeThemeProvider } from '../settings/user/LoungeThemeProvider';
 import { Card, Loaded } from '../settings/user/parts';
 import * as api from './api';
 import { usd, type DonationConfig } from './api';
@@ -126,7 +127,7 @@ function Body() {
 export function SupportPage() {
   const t = useT();
   return (
-    <ThemeProvider section="lounge" className="ss-root">
+    <LoungeThemeProvider className="ss-root">
       <ToastProvider>
         <main className="sup-page">
           <h1 className="us-title">{t('support.page.title')}</h1>
@@ -146,6 +147,6 @@ export function SupportPage() {
           </p>
         </main>
       </ToastProvider>
-    </ThemeProvider>
+    </LoungeThemeProvider>
   );
 }

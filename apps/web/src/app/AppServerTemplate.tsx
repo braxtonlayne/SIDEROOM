@@ -1,9 +1,10 @@
-import { Button, TextInput, ThemeProvider } from '@sideroom/ui';
+import { Button, TextInput } from '@sideroom/ui';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch, apiPost } from '../api/client';
 import { getMe } from '../api/entrance';
 import { useT } from '../i18n/react';
+import { LoungeThemeProvider } from '../settings/user/LoungeThemeProvider';
 import '../components/entrance.css';
 
 interface SnapChannel {
@@ -98,7 +99,7 @@ export function AppServerTemplate() {
   const nameOk = name.trim().length >= 2 && name.trim().length <= 100;
 
   return (
-    <ThemeProvider section="lounge" className="ent-invite-page">
+    <LoungeThemeProvider className="ent-invite-page">
       <main className="ent-invite-card" aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' && <p role="status">{t('entrance.template.loading')}</p>}
         {state.kind === 'invalid' && <p role="alert">{t('entrance.template.invalid')}</p>}
@@ -117,7 +118,7 @@ export function AppServerTemplate() {
           <Preview state={state} {...{ name, setName, nameOk, creating, error, create }} />
         )}
       </main>
-    </ThemeProvider>
+    </LoungeThemeProvider>
   );
 }
 

@@ -1,20 +1,12 @@
 // /support/leaderboards (DON-LB-002): top donors and top supporting servers, last 30 days or lifetime.
 // Names and amounts follow each donor's privacy choices; the server already left out what must not be shown.
-import {
-  Avatar,
-  Badge,
-  Button,
-  EmptyState,
-  Notice,
-  Tabs,
-  ThemeProvider,
-  ToastProvider,
-} from '@sideroom/ui';
+import { Avatar, Badge, Button, EmptyState, Notice, Tabs, ToastProvider } from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useT, type MessageKey } from '../i18n';
 import { cdnUrl } from '../store/cdn';
 import { useResource } from '../settings/server/hooks';
+import { LoungeThemeProvider } from '../settings/user/LoungeThemeProvider';
 import { Async } from '../settings/server/ui';
 import * as api from './api';
 import { usd, type Board, type ContributorBoard, type ContributorKind } from './api';
@@ -171,7 +163,7 @@ export function LeaderboardsPage() {
   const [tab, setTab] = useState(initialTab);
   const money = tab === 'donors' || tab === 'servers';
   return (
-    <ThemeProvider section="lounge" className="ss-root">
+    <LoungeThemeProvider className="ss-root">
       <ToastProvider>
         <main className="sup-page">
           <h1 className="us-title">{t('support.leaderboards.title')}</h1>
@@ -224,6 +216,6 @@ export function LeaderboardsPage() {
           <Notice variant="info">{t('support.leaderboards.contributorsOptOut')}</Notice>
         </main>
       </ToastProvider>
-    </ThemeProvider>
+    </LoungeThemeProvider>
   );
 }
