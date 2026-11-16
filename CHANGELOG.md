@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 84 - 2026-11-16
+
+- **Members.** On a phone every button, switch, checkbox, field and tab is now at least 44 px tall to tap, a dialog's close button is bigger, and a switched-off setting keeps its text readable. On a phone the channel header's buttons are easier to tap, a member's profile pop-up has a close button, a server's Members and Invites lists show their actions without scrolling sideways, and Save and Discard on a Modules tab are whole. The donation form uses the same fields as the rest of Settings, and its amount buttons sit in an even grid. A voice channel's settings no longer show "#" in its title, and the "Verified" badge is easier to read in Lounge Light. Admin pages got a look pass with five small fixes.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 83 - 2026-11-16
 
 - **Members.** On a phone the Arcade now opens on one compact flagship card with its painting and a Play button, and an application's image list shows each name whole with its kind underneath. Support, the Leaderboards and an invite or template opened inside the app now use the theme you chose. On a phone the buttons in a thread's header and many Settings buttons are easier to hit, a member's profile pop-up leaves room above it to tap outside and close it, and stacked switches in Settings no longer touch. In a server's settings on a phone the voice sliders, the banner colours and the server-tag badges are easier to hit.
