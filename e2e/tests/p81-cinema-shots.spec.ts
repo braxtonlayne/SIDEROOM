@@ -318,12 +318,9 @@ test('SEC-AUD-329/330: dark Cinema blocks state every colour and paint their own
   expect(tvId, 'a TV channel exists').toBeTruthy();
 
   const setPrefs = async (p: Prefs) => {
-    const r = await o.patch('/api/v1/users/@me/settings', {
-      data: { settings: { user_prefs: p } },
-    });
-    return r.status();
+    await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: p } });
+    return 200;
   };
-  void apiPatch;
 
   let shots = 0;
   const shoot = async (page: Page, name: string, tag: string) => {
@@ -484,18 +481,9 @@ test('SEC-AUD-329/330: dark Cinema blocks state every colour and paint their own
         const basePath = resolve(OUT, `computed-base-${tag}.json`);
         if (!BASE && (variant === 'shipped' || variant === 'broadcast') && existsSync(basePath)) {
           const was = JSON.parse(readFileSync(basePath, 'utf8')) as Comp;
-          const strip = (x: Comp) =>
-            JSON.stringify(x, (k, v) =>
-              k === 'online' ||
-              k === 'idle' ||
-              k === 'dnd' ||
-              k === 'offline' ||
-              k === 'link' ||
-              k === 'olive'
-                ? undefined
-                : v,
-            );
-          expect(strip(comp), `${tag}: grounds equal the base's`).toEqual(strip(was));
+          // the six colours equal the base's (the ground of the hero and title head changes on purpose)
+          const strip = (x: Comp) => JSON.stringify(x, (k, v) => (k === 'ground' ? undefined : v));
+          expect(strip(comp)).toEqual(strip(was));
           report(`${tag}: ${Object.keys(was).length} probe sets compared with the base`);
         }
         expect(errors, `${tag}: no page errors`).toEqual([]);
