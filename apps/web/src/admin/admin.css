@@ -104,7 +104,9 @@
 .adm-gauge {
   margin-top: 8px;
 }
-.adm-vh {
+/* .us-sr is the member settings' sheet's class; Admin's donations tables use it for their captions and that sheet is not loaded there. */
+.adm-vh,
+.us-sr {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -737,5 +739,79 @@ label.ss-field {
   .ss-root .ss-toolbar select:not([class]),
   .ss-root .ss-toolbar > label:has(> input[type='checkbox']) {
     min-height: 44px;
+  }
+}
+
+/* SEC-AUD-371 (D-874): on a phone the shared Admin table (DataTable) is stacked rows, not a table scrolled sideways. The
+   first shown cell is the row's title, each other cell sits under it with its column's name before it (data-label, the
+   header's own string) in a fixed label column, the row's actions on a line of their own. The head stays for a screen
+   reader. Only tables with .adm-table-stack are touched (admin.css is also loaded by member pages through SchemaForm). */
+@media (max-width: 720px) {
+  .adm-table-stack,
+  .adm-table-stack tbody,
+  .adm-table-stack tr,
+  .adm-table-stack td {
+    display: block;
+  }
+  .adm-table-stack thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .adm-table-stack tr {
+    padding-block: 10px;
+    border-block-start: 1px solid var(--ui-border);
+  }
+  .adm-table-stack tbody tr:first-child {
+    border-block-start: 0;
+  }
+  .adm-table-stack td {
+    position: relative;
+    padding: 2px 0;
+    padding-inline-start: 7rem;
+    border-bottom: 0;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+  .adm-table-stack td[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    inset-inline-start: 0;
+    inline-size: 6.5rem;
+    font-size: 0.8125rem;
+    color: var(--ui-text-muted);
+    overflow-wrap: anywhere;
+  }
+  /* The first shown cell is the row's title: no label, the name's weight. */
+  .adm-table-stack td:first-child {
+    padding-inline-start: 0;
+    font-weight: 700;
+    color: var(--ui-text);
+  }
+  .adm-table-stack td:first-child::before {
+    content: none;
+  }
+  /* A cell with nothing in it takes no line. */
+  .adm-table-stack td:empty {
+    display: none;
+  }
+  /* A button in any cell (Applications puts Suspend under the name) and every control of the actions cell: 44 px tall. */
+  .adm-table-stack td button {
+    min-block-size: 44px;
+  }
+  /* The actions cell is last, on a line of its own. */
+  .adm-table-stack td[data-actions] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 0 0;
+  }
+  .adm-table-stack td[data-actions] button,
+  .adm-table-stack td[data-actions] a,
+  .adm-table-stack td[data-actions] select,
+  .adm-table-stack td[data-actions] input:not([type='checkbox']):not([type='radio']) {
+    min-block-size: 44px;
   }
 }
