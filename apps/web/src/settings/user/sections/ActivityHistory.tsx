@@ -182,7 +182,7 @@ export function CinemaDefaultsCard() {
           checked={d.dataSaver}
           onChange={(e) => set({ dataSaver: e.target.checked })}
         />
-        <label className="us-muted" id="us-sub-lang-label">
+        <label className="us-seg-label" id="us-sub-lang-label">
           {t('settings.activityHistory.subtitleLang')}
         </label>
         <Select
@@ -194,7 +194,7 @@ export function CinemaDefaultsCard() {
           ]}
           onValueChange={(v) => set({ subtitleLang: v === 'default' ? null : v })}
         />
-        <label className="us-muted" id="us-audio-lang-label">
+        <label className="us-seg-label" id="us-audio-lang-label">
           {t('settings.activityHistory.audioLang')}
         </label>
         <Select
@@ -206,7 +206,7 @@ export function CinemaDefaultsCard() {
           ]}
           onValueChange={(v) => set({ audioLang: v === 'default' ? null : v })}
         />
-        <label className="us-muted" id="us-quality-cap-label">
+        <label className="us-seg-label" id="us-quality-cap-label">
           {t('settings.activityHistory.qualityCap')}
         </label>
         <Select
