@@ -367,6 +367,7 @@ test('SEC-AUD-372: Pricing and perks, Donations: fields and pickers on the kit l
       const opened = await dlg.isVisible().catch(() => false);
       console.log(`REPORT click: reason dialog open ${opened}`);
       if (!opened) problems.push('click: reason dialog did not open');
+      await page.waitForTimeout(600);
       await shoot('click-dialog');
       await page.keyboard.press('Escape');
       await page.waitForTimeout(300);
