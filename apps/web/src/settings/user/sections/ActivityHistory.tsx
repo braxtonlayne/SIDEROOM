@@ -297,36 +297,51 @@ export function LibraryDefaultsCard() {
       description={t('settings.activityHistory.libraryDesc')}
     >
       <div className="us-stack">
-        <SegmentedControl
-          label={t('settings.activityHistory.readingMode')}
-          value={p.mode}
-          onValueChange={(v) => set({ mode: v as ReaderPrefs['mode'] })}
-          options={[
-            { value: 'paged', label: t('settings.activityHistory.modePaged') },
-            { value: 'double', label: t('settings.activityHistory.modeDouble') },
-            { value: 'strip', label: t('settings.activityHistory.modeStrip') },
-          ]}
-        />
-        <SegmentedControl
-          label={t('settings.activityHistory.readingDirection')}
-          value={p.direction}
-          onValueChange={(v) => set({ direction: v as ReaderPrefs['direction'] })}
-          options={[
-            { value: 'rtl', label: t('settings.activityHistory.dirRtl') },
-            { value: 'ltr', label: t('settings.activityHistory.dirLtr') },
-          ]}
-        />
-        <SegmentedControl
-          label={t('settings.activityHistory.readerBackground')}
-          value={p.background}
-          onValueChange={(v) => set({ background: v as ReaderPrefs['background'] })}
-          options={[
-            { value: 'black', label: t('settings.activityHistory.bgBlack') },
-            { value: 'grey', label: t('settings.activityHistory.bgGrey') },
-            { value: 'white', label: t('settings.activityHistory.bgWhite') },
-            { value: 'sepia', label: t('settings.activityHistory.bgSepia') },
-          ]}
-        />
+        <div>
+          <span className="us-seg-label" aria-hidden="true">
+            {t('settings.activityHistory.readingMode')}
+          </span>
+          <SegmentedControl
+            label={t('settings.activityHistory.readingMode')}
+            value={p.mode}
+            onValueChange={(v) => set({ mode: v as ReaderPrefs['mode'] })}
+            options={[
+              { value: 'paged', label: t('settings.activityHistory.modePaged') },
+              { value: 'double', label: t('settings.activityHistory.modeDouble') },
+              { value: 'strip', label: t('settings.activityHistory.modeStrip') },
+            ]}
+          />
+        </div>
+        <div>
+          <span className="us-seg-label" aria-hidden="true">
+            {t('settings.activityHistory.readingDirection')}
+          </span>
+          <SegmentedControl
+            label={t('settings.activityHistory.readingDirection')}
+            value={p.direction}
+            onValueChange={(v) => set({ direction: v as ReaderPrefs['direction'] })}
+            options={[
+              { value: 'rtl', label: t('settings.activityHistory.dirRtl') },
+              { value: 'ltr', label: t('settings.activityHistory.dirLtr') },
+            ]}
+          />
+        </div>
+        <div>
+          <span className="us-seg-label" aria-hidden="true">
+            {t('settings.activityHistory.readerBackground')}
+          </span>
+          <SegmentedControl
+            label={t('settings.activityHistory.readerBackground')}
+            value={p.background}
+            onValueChange={(v) => set({ background: v as ReaderPrefs['background'] })}
+            options={[
+              { value: 'black', label: t('settings.activityHistory.bgBlack') },
+              { value: 'grey', label: t('settings.activityHistory.bgGrey') },
+              { value: 'white', label: t('settings.activityHistory.bgWhite') },
+              { value: 'sepia', label: t('settings.activityHistory.bgSepia') },
+            ]}
+          />
+        </div>
         <Slider
           label={t('settings.activityHistory.preloadCount')}
           min={PRELOAD_RANGE[0]}
