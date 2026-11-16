@@ -371,6 +371,33 @@ test('SEC-AUD-369 and 370: Compare levels on a phone, a toolbar text field', asy
           await shoot(page, `form-${id}`, size, theme);
         });
     }
+    if (PARTS.has('fields') && size === 'phone') {
+      for (const [id, re] of [
+        ['members', /^Members$/i],
+        ['bans', /^Bans$/i],
+        ['roles', /^Roles$/i],
+      ] as const)
+        await guard(`${size} ${theme} server-${id}`, async () => {
+          await openNav(page, `/settings/server/${world.guildId}`, re);
+          const m = await page.evaluate(() => {
+            const sel =
+              ".ss-toolbar > :has(> input:not(.ss-select, [type='checkbox'], [type='radio'], [type='file'], [type='range']))";
+            const search = document.querySelector<HTMLElement>('.ss-toolbar .ss-search');
+            const r = search?.getBoundingClientRect();
+            const inp = search?.querySelector('input')?.getBoundingClientRect();
+            return {
+              matches: document.querySelectorAll(sel).length,
+              searchBox: r ? [Math.round(r.left), Math.round(r.width), Math.round(r.height)] : null,
+              inputBox: inp
+                ? [Math.round(inp.left), Math.round(inp.width), Math.round(inp.height)]
+                : null,
+              doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            };
+          });
+          log(`server-${id}`, size, m);
+          await shoot(page, `server-${id}`, size, theme);
+        });
+    }
     await ctx.close().catch(() => undefined);
   }
   await ownerCtx.close();
