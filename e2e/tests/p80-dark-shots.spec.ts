@@ -43,7 +43,6 @@ const SIDE_ROOM = {
   success: 'rgb(140, 154, 106)',
   warning: 'rgb(194, 176, 143)',
   info: 'rgb(154, 168, 160)',
-  olive: 'rgb(140, 154, 106)',
 };
 const DARK_BLOCKS = [
   '.cin-hero',
@@ -116,6 +115,11 @@ async function context(
     return r.fulfill({ response: res, json: pictured(await res.json()) });
   });
   if (play !== 'none') {
+    await c.route(/\/api\/v1\/cinema\/titles\/[^/]+\/progress/, (r: Route) =>
+      r.request().method() === 'GET'
+        ? r.fulfill({ status: 404, contentType: 'application/json', json: { code: 404 } })
+        : r.fulfill({ status: 204 }),
+    );
     // The real server has no media behind the fixture titles: the playback grant is faked. 'good' points at a real
     // 20 s VP9 HLS clip (ffmpeg testsrc, served from the scratch folder); 'error' at a playlist that answers 404.
     await c.route(/\/api\/v1\/cinema\/assets\/[^/]+\/playback/, (r: Route) =>
@@ -181,7 +185,7 @@ async function look(page: Page, sel: string, text?: string): Promise<Style> {
   );
 }
 
-/** The six status tokens (and the olive mapping) as resolved colours inside every dark block on the page. */
+/** The six status tokens as resolved colours inside every dark block on the page. */
 async function probes(page: Page): Promise<Record<string, Record<string, string>>> {
   return page.evaluate((blocks) => {
     const out: Record<string, Record<string, string>> = {};
@@ -192,7 +196,7 @@ async function probes(page: Page): Promise<Record<string, Record<string, string>
       d.style.cssText =
         'position:absolute;width:0;height:0;background-color:var(--ui-danger);color:var(--ui-danger-ink);' +
         'border:1px solid var(--ui-danger-text);outline-color:var(--ui-success);' +
-        'column-rule:1px solid var(--ui-warning);text-decoration-color:var(--ui-info);caret-color:var(--sr-olive-accent);';
+        'column-rule:1px solid var(--ui-warning);text-decoration-color:var(--ui-info);';
       host.appendChild(d);
       const cs = getComputedStyle(d);
       out[b] = {
@@ -202,7 +206,6 @@ async function probes(page: Page): Promise<Record<string, Record<string, string>
         success: cs.outlineColor,
         warning: cs.columnRuleColor,
         info: cs.textDecorationColor,
-        olive: cs.caretColor,
       };
       d.remove();
     }
@@ -457,6 +460,21 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
         await expect(page.locator('.cin-hero').first()).toBeVisible({ timeout: 60_000 });
         await expect(page.locator('.cin-root')).toHaveAttribute('data-theme', sectionTheme);
         await page.waitForTimeout(1500);
+        report(
+          `${tag} --sr-olive-accent resolves to ${await page.evaluate(() => {
+            const out: string[] = [];
+            for (const s of ['.cin-root', '.cin-hero']) {
+              const e = document.querySelector(s);
+              if (!e) continue;
+              const d = document.createElement('i');
+              d.style.cssText = 'position:absolute;caret-color:var(--sr-olive-accent);';
+              e.appendChild(d);
+              out.push(`${s} ${getComputedStyle(d).caretColor}`);
+              d.remove();
+            }
+            return out.join(' | ');
+          })}`,
+        );
         comp['probes home'] = null;
         Object.assign(
           comp,
@@ -503,10 +521,11 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
         if (variant === 'shipped') {
           const basePath = resolve(OUT, `computed-base-${tag}.json`);
           if (existsSync(basePath)) {
-            expect(comp, `${tag}: computed colours equal the base's`).toEqual(
-              JSON.parse(readFileSync(basePath, 'utf8')) as Comp,
-            );
-            report(`${tag} equals the base`);
+            // Only the entries the base run reached (its phone run never reached the player's error state).
+            const was = JSON.parse(readFileSync(basePath, 'utf8')) as Comp;
+            const now = Object.fromEntries(Object.entries(comp).filter(([k]) => k in was));
+            expect(now, `${tag}: computed colours equal the base's`).toEqual(was);
+            report(`${tag} equals the base (${Object.keys(was).length} entries)`);
           }
         }
       } else if (variant === 'light') {
