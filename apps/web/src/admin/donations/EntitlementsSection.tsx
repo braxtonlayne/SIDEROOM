@@ -196,7 +196,7 @@ export function EntitlementsSection() {
         />
         {gKind === 'patron' ? (
           <>
-            <label>
+            <label className="don-check-row">
               <input
                 type="checkbox"
                 checked={forever}

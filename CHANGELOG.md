@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 87 - 2026-11-16
+
+- **Members.** On a phone "Member List" in a channel's header now opens the members pane. A profile page's block headings use the profile's text colour, so they stay readable whatever accent a member picks.
+- **Staff.** On a phone "No end date" in the grant dialog is easier to tap, and on a desktop the Crash reports list no longer scrolls sideways.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 86 - 2026-11-16
 
 - **Members.** On a phone the file upload button and the remove button on a chosen item in a multi-choice list are easier to tap, and the Library defaults settings show their labels.
