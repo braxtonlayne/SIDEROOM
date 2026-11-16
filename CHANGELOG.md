@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 86 - 2026-11-16
+
+- **Members.** On a phone the file upload button and the remove button on a chosen item in a multi-choice list are easier to tap, and the Library defaults settings show their labels.
+- **Staff.** On a phone the Access log, Crash reports and Cinema catalog read as stacked lists, the price fields no longer make an iPhone zoom in, and "Donations are on" is easier to tap.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 85 - 2026-11-16
 
 - **Members.** A message's "More" menu now opens next to its button instead of in the corner of the screen. On a phone a channel's name is readable in its header, with the header's other buttons under "More"; Server Support's level table keeps its first column in view and shows that it scrolls; a server template's name field fills its card.
