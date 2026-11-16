@@ -378,6 +378,15 @@
   justify-content: center;
   margin-block: 6px;
 }
+/* SEC-AUD-382, D-895: the form sits on the profile's own ground, so its label and its disabled button take the profile's colours, not the app theme's. */
+.pp-sign :not(label) label {
+  color: color-mix(in srgb, var(--pp-text) 75%, transparent);
+}
+.pp-sign > button:not(.pp-link):disabled {
+  opacity: 1;
+  color: var(--pp-text);
+  background: color-mix(in srgb, var(--pp-accent) 45%, transparent);
+}
 /* The public page's own note form (plain elements; the app's form uses the UI kit). */
 .pp-sign > label {
   display: flex;
