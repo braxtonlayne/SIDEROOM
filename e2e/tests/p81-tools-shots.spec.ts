@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { apiPatch, bootstrapState, expect, loginApi, test } from '../support/fixtures';
+import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
  * SEC-AUD-333 (D-837) and SEC-AUD-334 (D-840), on the real stack.
@@ -61,7 +62,7 @@ const themeOf = (page: Page) =>
       '?',
   );
 
-async function openTool(page: Page, query: string, ready: string) {
+async function openTool(page: Page, query: string, ready: string, pick?: RegExp) {
   await expect(async () => {
     await page.keyboard.press('ControlOrMeta+k');
     await expect(page.getByRole('dialog', { name: 'Drawer', exact: true })).toBeVisible({
@@ -70,7 +71,8 @@ async function openTool(page: Page, query: string, ready: string) {
   }).toPass({ timeout: 20_000 });
   await page.keyboard.type(`>${query}`);
   await page.waitForTimeout(600);
-  await page.keyboard.press('Enter');
+  if (pick) await page.getByRole('option', { name: pick }).first().click();
+  else await page.keyboard.press('Enter');
   await expect(page.locator(ready).first()).toBeVisible({ timeout: 15_000 });
 }
 
@@ -175,15 +177,24 @@ const fields = (page: Page): Promise<FieldRow[]> =>
     }),
   );
 
-type Tool = { slug: string; query: string; ready?: string; act?: (page: Page) => Promise<void> };
+type Tool = {
+  slug: string;
+  query: string;
+  pick?: RegExp;
+  ready?: string;
+  act?: (page: Page) => Promise<void>;
+};
 const fillFirst = (text: string) => async (page: Page) => {
   const ta = page
     .locator('.ud-root textarea, .ud-root input[type=text], .ud-root input:not([type])')
     .first();
-  if (await ta.count()) await ta.fill(text);
+  if (await ta.count()) {
+    await ta.fill(text);
+    await expect(ta).toHaveValue(text);
+  }
 };
 const TOOLS: Tool[] = [
-  { slug: 'json', query: 'json', act: fillFirst('{"b":1,"a":[1,2,3]}') },
+  { slug: 'json', query: 'json', pick: /^JSON(\s|$)/, act: fillFirst('{"b":1,"a":[1,2,3]}') },
   {
     slug: 'regex',
     query: 'regex tester',
@@ -195,7 +206,7 @@ const TOOLS: Tool[] = [
   { slug: 'base64', query: 'base64', act: fillFirst('hello world?>>') },
   { slug: 'url', query: 'url encode', act: fillFirst('a b&c=d/é') },
   { slug: 'jwt', query: 'jwt decoder', act: fillFirst('eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig') },
-  { slug: 'mdtable', query: 'markdown table', act: fillFirst('a,b\n1,2') },
+  { slug: 'mdtable', query: 'markdown table', act: fillFirst('name,value\nalpha,1\nb,22') },
   { slug: 'counter', query: 'word counter', act: fillFirst('one two three four') },
   {
     slug: 'hash',
@@ -250,6 +261,7 @@ test('a checkbox in a tool is checkbox-sized and beside its label', async ({ bro
     ['lounge-dark', 'phone', PHONE],
   ];
   for (const [theme, vp, size] of variants) {
+    if (!new RegExp(process.env.SR_P81_ONLY ?? '.').test(`${theme}-${vp}`)) continue;
     const prefs = prefsFor(theme);
     await setPrefs(octx.request, prefs);
     const c = await context(browser, octx, size, prefs);
@@ -265,7 +277,14 @@ test('a checkbox in a tool is checkbox-sized and beside its label', async ({ bro
         await page.goto('/channels/@me');
         await expect(page.locator('.lng-root').first()).toBeVisible({ timeout: 60_000 });
         expect(await themeOf(page), 'the room wears the chosen theme').toBe(theme);
-        await openTool(page, tool.query, tool.ready ?? '.ud-root, .ud-timer, [role=dialog] input');
+        await openTool(
+          page,
+          tool.query,
+          tool.ready ?? '.ud-root, .ud-timer, [role=dialog] input',
+          tool.pick,
+        );
+        // The drawer re-renders the tool once after it opens and empties a field filled at once: settle, then fill.
+        await page.waitForTimeout(900);
         if (tool.act) await tool.act(page);
         await page.waitForTimeout(300);
         const over = await page.evaluate(
@@ -284,19 +303,29 @@ test('a checkbox in a tool is checkbox-sized and beside its label', async ({ bro
         // Click-through: tick the checkbox of the two named tools and see the output change.
         if (main && ['base64', 'mdtable', 'json'].includes(tool.slug)) {
           const box = page.locator('.ud-root input[type=checkbox]').first();
-          const out = page.locator('.ud-out').first();
+          const out = page.locator('.ud-root').first();
+          if (tool.act) await tool.act(page);
           const before = await out.innerText();
           const was = await box.isChecked();
           await box.click();
           await page.waitForTimeout(250);
           const now = await out.innerText();
           note(
-            `click-through ${tool.slug}: checked ${was} -> ${await box.isChecked()}; output changed ${before !== now}`,
+            `click-through ${tool.slug}: checked ${was} -> ${await box.isChecked()}; output changed ${before !== now} (${before.length} -> ${now.length} chars)`,
           );
           await box.click();
         }
-        await page.screenshot({ path: resolve(OUT, `${tag}-after.png`) });
-        shots++;
+        // Only a tool that holds a checkbox or radio is shot (the others are measured for their field heights only);
+        // the checkbox is scrolled into view first, so a phone shot shows it.
+        if (after.length > 0) {
+          await page
+            .locator('input[type=checkbox], input[type=radio]')
+            .first()
+            .scrollIntoViewIfNeeded();
+          await page.waitForTimeout(150);
+          await page.screenshot({ path: resolve(OUT, `${tag}-after.png`) });
+          shots++;
+        }
         if (main) {
           const n = await holdBack(page, '\\.ud-(root|timer) input\\[type=.(checkbox|radio)');
           await page.waitForTimeout(300);
@@ -415,10 +444,7 @@ async function typeAndParse(page: Page) {
   if ((await guide.getAttribute('aria-expanded')) === 'false') await guide.click();
   const ta = page.locator('textarea').first();
   await ta.fill(NAMES);
-  await page
-    .getByRole('button', { name: /test|parse/i })
-    .first()
-    .click();
+  await page.getByRole('button', { name: 'Test names' }).click();
   await expect(page.locator('.rv-table-wrap .rv-table tbody tr').first()).toBeVisible({
     timeout: 20_000,
   });
@@ -431,6 +457,18 @@ test('the naming table reads in phrases on a phone', async ({ browser }) => {
   mkdirSync(OUT, { recursive: true });
   const octx = await browser.newContext({ baseURL: ORIGIN });
   await loginApi(octx.request, bootstrapState().owner);
+  // The submit page and Admin's ingest sources are hidden while the Study switch is off (STU-NAV-001): on, then off.
+  await setStudySurfacesWith(octx.request, true);
+  test.info().annotations.push({ type: 'study', description: 'ingest queues on' });
+  try {
+    await namingBody(browser, octx);
+  } finally {
+    await setStudySurfacesWith(octx.request, false);
+    await octx.close();
+  }
+});
+
+async function namingBody(browser: Browser, octx: BrowserContext) {
   let shots = 0;
   for (const [variant, section] of [
     ['light', 'lounge-light'],
@@ -514,6 +552,5 @@ test('the naming table reads in phrases on a phone', async ({ browser }) => {
     await page.screenshot({ path: resolve(OUT, 'naming-admin-phone-unreached.png') });
   }
   await c.close();
-  await octx.close();
   note(`naming: ${shots} shots`);
-});
+}

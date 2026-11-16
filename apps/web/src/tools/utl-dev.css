@@ -111,6 +111,18 @@
   padding: 0;
   border: 0;
 }
+/* A label that holds a checkbox is a row with the box first (JSON's "Sort keys" is a column .ud-field). */
+.ud-root label:has(> input[type='checkbox']),
+.ud-timer label:has(> input[type='checkbox']) {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.ud-root label:has(> input[type='checkbox']) > input[type='checkbox'],
+.ud-timer label:has(> input[type='checkbox']) > input[type='checkbox'] {
+  order: -1;
+}
 .ud-root textarea {
   min-block-size: 120px;
   resize: vertical;
