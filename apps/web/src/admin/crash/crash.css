@@ -18,6 +18,11 @@
   overflow-wrap: normal;
   white-space: nowrap;
 }
+/* SEC-AUD-379 (D-889): the route cell (second to last of a crash row) may wrap, so the list has no sideways scroll on a desktop; ids, times and the actions cell stay on one line. */
+.adm-crash-table td.adm-mono:nth-last-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 /* FU-13: the top frames sit in a row of their own under the crash, so a long path never pushes the table wide. */
 .adm-crash-table tr.adm-crash-frames-row td {
   padding-block-start: 0;
