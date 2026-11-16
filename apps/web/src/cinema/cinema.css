@@ -34,7 +34,9 @@
 /* What stays dark under every theme: a picture or a film is graded for a dark surround, and text over an image must
    contrast with the image, not with the page. The hero and the title page's backdrop (with their text and buttons)
    and the quick actions laid over a poster state the Side Room values themselves (the same as the shipped theme's,
-   so nothing moves there). The kit's parts inside read --ui-*, so those are set as well. */
+   so nothing moves there). The kit's parts inside read --ui-*, so those are set as well, the status colours
+   (--ui-danger*, --ui-success, --ui-warning, --ui-info) too (SEC-AUD-319, D-820: a dark block states every colour
+   token). */
 .cin-hero,
 .cin-title-head,
 .cin-qa {
@@ -62,6 +64,12 @@
   --ui-text-muted: #a9a493;
   --ui-text-faint: #918d7e;
   --ui-focus: #d9c9a4;
+  --ui-danger: #b4503f;
+  --ui-danger-ink: #fff6f2;
+  --ui-danger-text: #d97a68;
+  --ui-success: #8c9a6a;
+  --ui-warning: #c2b08f;
+  --ui-info: #9aa8a0;
   color-scheme: dark;
 }
 .cin-hero,
