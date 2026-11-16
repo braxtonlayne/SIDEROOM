@@ -46,7 +46,7 @@ Actual: CSS and spec ready 12:09; waited for the lock 12:09 to 12:14 (developers
   1280 minimum is 4.6 (Arena 3D's title over the lit floor, Light and Dark; 4.97 Editorial), as wave 82 logged. `FAILURES(<4.5) none`.
 - Click-through (light, 375): Tab reaches the hero's Play (outline `rgb(217,201,164) solid 2px`, Editorial's focus colour; shot shows the ring); pressing Play opens the "Start Land.io in..." dialog (1 dialog); Escape closes it (0).
 - The flagship's painting reads at 11rem: the red block, its trail and the node are whole on the right, text on the left. `object-position` was not needed.
-- Vitest `arcade/__tests__/arcade.test.tsx`: see the end of this file. `node scripts/check-css-tokens.mjs`: 73 files clean. prettier clean, `node scripts/i18n-audit.mjs --max 0`: TOTAL 0. e2e `tsc --noEmit` clean.
+- Vitest `arcade/__tests__/arcade.test.tsx` single file: 40 passed. `node scripts/check-css-tokens.mjs`: 73 files clean. prettier clean, `node scripts/i18n-audit.mjs --max 0`: TOTAL 0. e2e `tsc --noEmit` clean.
 
 ## Imports
 `git grep -n "arcade.css" -- apps/web/src`: `admin/AdminApp.tsx`, `arcade/ArcadePage.tsx`, `arcade/ArcadeShell.tsx`, `showroom/PreviewArcade.tsx` (plus a comment in `player/pageEnd.css`). All lazy chunks (wave 82 confirmed); no web build.
@@ -54,11 +54,11 @@ The Showroom's Arcade preview renders `ArcadeHero flags={[]}`, and `heroSlots` f
 
 ## Shots (folder `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p83-arcade`)
 - 10 from the first round, I opened all 10: base 375 Editorial and Light (2); after 375 Editorial, Light, Dark (3); after 1280 Editorial, Light, Dark (3); Light 375 Tab focus on the hero's Play (1) and pressed Play with the start dialog (1).
-- Plus the Showroom shot (below). Reports `report-base.txt`, `report-after.txt`, `data-*.json` in the same folder.
+- Plus the Showroom shot (below); 11 in all. Reports `report-base.txt`, `report-after.txt`, `data-*.json` in the same folder.
 - Seen: the hero is a dark painted card with the kicker, title and a gold Play button in all three themes; the rest of the page keeps the member's theme (blue Play buttons in Light and Dark); the title font follows the theme (D-831); at 1280 nothing differs from wave 82.
 
 ## Showroom
-(filled in after the second round, below)
+Second round 12:43 (the first acquire attempts waited 12:17 to 12:42 behind others). The Showroom preview (mocked platform.showroom flag, localStorage choice, Lounge Light Arcade) at 375: 2 hero cards in the DOM, 1 visible, 178 px tall, scrollWidth 375/375. Shot  (opened): one compact Land.io card with its meta line and no Play button (the preview has none); the grey bubble over the first row is the Showroom's own preview toggle popover, not this change. Total shots: 11, all opened.
 
 ## Docs
 - `docs/10-design-system-and-theming.md` line 23, proposed (outside my files): "An Arcade hero card is one too, with Editorial's colours (D-844)." becomes "An Arcade hero card is one too, with Editorial's colours (D-844); on a phone only the first is shown, compact (D-851)."
@@ -75,4 +75,4 @@ None. (Default kept: when only one live house pick exists the card shown is the 
 
 ## Not done / cleanup
 - Nothing left undone. A stash was not used and none touched.
-- Cleanup: see the end of this file.
+- Cleanup done: stack stopped by PID (server and Vite node), `sr_p83_arcade_ui` dropped, `p83-arcade-bin` deleted (`p80-base-bin` untouched), lock released. The scratch folder `C:/Users/braxt/Desktop/SIDEROOM_wt/p83-arcade-scratch` (css copies, start script, logs; outside the repo) can be deleted by the commander. `git status` clean; no `data/` folder in the worktree.
