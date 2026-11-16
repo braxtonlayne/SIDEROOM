@@ -230,6 +230,19 @@ const popups = (page: Page) =>
       }));
   });
 
+const memberState = async (page: Page, id: string) =>
+  log(`${id}-tap-Member List`, {
+    pressed: await page
+      .getByRole('button', { name: 'Member List', exact: true })
+      .getAttribute('aria-pressed'),
+    pane: await page.evaluate(() => document.querySelector('.lng-root')?.getAttribute('data-pane')),
+    membersPane: await page.evaluate(() => {
+      const e = document.querySelector<HTMLElement>('[data-pane="members"]');
+      const r = e?.getBoundingClientRect();
+      return r ? [Math.round(r.left), Math.round(r.top), Math.round(r.width)] : null;
+    }),
+  });
+
 async function gotoHeader(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 15_000 });
   await idle(page, 4000);
@@ -248,6 +261,23 @@ async function run(browser: Browser, ownerCtx: BrowserContext) {
     ).json()) as { id: string; name: string }[];
     return l.find((c) => c.name === LONG_NAME) ?? { id: w.channelId };
   });
+  // The world's dmId opens Message Requests, not a conversation: make a real 1:1 DM with a member.
+  let dmPath: string | null = null;
+  try {
+    const me = (await (await ownerCtx.request.get('/api/v1/users/@me')).json()) as { id: string };
+    const ms = (await (
+      await ownerCtx.request.get(`/api/v1/guilds/${w.guildId}/members?limit=20`)
+    ).json()) as { user?: { id: string } }[];
+    const other = ms.find((m) => m.user && m.user.id !== me.id)?.user;
+    if (other) {
+      const dm = await apiPost<{ id: string }>(ownerCtx.request, '/users/@me/channels', {
+        recipient_id: other.id,
+      });
+      dmPath = `/channels/@me/${dm.id}`;
+    }
+  } catch (e) {
+    log('dm-setup', { ok: false, error: String(e).slice(0, 200) });
+  }
   for (const theme of THEMES) {
     await setTheme(ownerCtx, theme);
     for (const size of ['phone', 'desktop'] as Size[]) {
@@ -289,18 +319,14 @@ async function run(browser: Browser, ownerCtx: BrowserContext) {
           }
           await hit(more, size);
           await hit(page.getByRole('button', { name: 'Member List', exact: true }), size);
-          log(`${id}-tap-Member List`, {
-            pane: await page.evaluate(() =>
-              document.querySelector('.lng-root')?.getAttribute('data-pane'),
-            ),
-            members: await page
-              .locator('.lng-members')
-              .first()
-              .isVisible()
-              .catch(() => false),
-          });
+          await memberState(page, id);
           await shot(page, `header-${id}-memberlist`);
         } else if (size === 'phone') {
+          await hit(page.getByRole('button', { name: 'Member List', exact: true }), size);
+          await memberState(page, id);
+          await shot(page, `header-${id}-memberlist`);
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await idle(page, 3000);
           for (const name of ['Pinned Messages', 'Inbox']) {
             const b = page.getByRole('button', { name, exact: true });
             await hit(b, size).catch(() => undefined);
@@ -314,8 +340,14 @@ async function run(browser: Browser, ownerCtx: BrowserContext) {
           log(`${id}-long`, await page.evaluate(headerInPage));
           if (theme === 'lounge-dark') await shot(page, `header-${id}-long`);
         }
-        if (w.dmId) {
-          await gotoHeader(page, `/channels/@me/${w.dmId}`);
+        if (dmPath) {
+          await gotoHeader(page, dmPath);
+          // The first account's DM may wait as a message request: accept it so the conversation header shows.
+          const accept = page.getByRole('button', { name: 'Accept', exact: true });
+          if (await accept.isVisible().catch(() => false)) {
+            await accept.click();
+            await page.waitForTimeout(1500);
+          }
           log(`${id}-dm`, await page.evaluate(headerInPage));
           if (theme === 'lounge-dark') await shot(page, `header-${id}-dm`);
           if (size === 'phone') {
