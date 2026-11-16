@@ -9,6 +9,8 @@ node_modules
 dist
 server.log
 /data/
+# A server started from another folder writes its search index there (wave 80).
+**/data/search/
 packages/wasm/pkg/
 coverage/
 

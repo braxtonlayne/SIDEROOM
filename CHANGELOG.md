@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 80 - 2026-11-16
+
+- **Members.** In a light Cinema, the watch party's buttons and the other dark Cinema surfaces keep the Side Room's colours, and the Library reader's bars do too. The 18+ badge is easier to read, and the EPUB reader's buttons are visible on the page. The Regex and Diff tools no longer leave a tall empty gap under their fields, and the verified call shield, the Authorized Apps list and the elder badge are readable in a light theme. On the Developers pages every dropdown matches the app's fields, and on a phone the menu fades at its edge and shows the page you are on. On a phone the Lounge's panels can no longer slide out of place.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 79 - 2026-11-15
 
 - **Members.** On a phone, Cinema and Library pages no longer slide sideways, and the bar at the top shows the area you are in. The Cinema's rows scroll inside themselves however many titles they hold. Buttons and chips in a themed Cinema or Library match the app's buttons, the watch-party theatre's badges are gold in every theme, and the Library reader's bars keep the gold accent. Tab strips that do not fit fade at the edge and bring the chosen tab into view. The hash, notes, timer, dice and developer tools in the drawer, and the wheel, now match the theme you chose. The Admin's file pickers sit apart from their labels, and the Developers pages use the app's corner radius.
