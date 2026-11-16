@@ -509,7 +509,7 @@
 .us-scope-list {
   margin: 4px 0 0;
   padding-inline-start: 18px;
-  color: var(--sr-text-2);
+  color: var(--ui-text-muted, var(--sr-text-2, #a9a493));
   font-size: 13px;
 }
 

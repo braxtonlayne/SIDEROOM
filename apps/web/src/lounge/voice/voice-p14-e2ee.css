@@ -5,7 +5,7 @@
 }
 
 .vc-e2ee-shield[data-verified] {
-  color: var(--sr-gold);
+  color: var(--text-link, var(--ui-accent, var(--sr-gold, #c2b08f)));
 }
 
 .vc-e2ee-intro {
