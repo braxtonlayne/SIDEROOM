@@ -108,7 +108,7 @@ function measureInPage(phone: boolean): Measured {
   if (sc) sc.scrollTop = 0;
   const scEl: HTMLElement = sc ?? (document.scrollingElement as HTMLElement);
   const themed = document.querySelector('[data-theme]');
-  const root: ParentNode = sc ?? document.body;
+  const root: ParentNode = document.body;
 
   const tables = Array.from(root.querySelectorAll<HTMLElement>('table.ss-table')).map((t) => {
     const r = t.getBoundingClientRect();
@@ -131,9 +131,10 @@ function measureInPage(phone: boolean): Measured {
       el.closest('label') ?? (el.id ? document.querySelector(`label[for="${el.id}"]`) : null);
     return !!lab && (h === lab || lab.contains(h));
   };
-  const rows = Array.from(
-    root.querySelectorAll<HTMLElement>('table.ss-table-stack tbody tr'),
-  ).slice(0, 4);
+  const rows = Array.from(root.querySelectorAll<HTMLElement>('table.ss-table tbody tr')).slice(
+    0,
+    4,
+  );
   for (const row of rows) {
     for (const e of Array.from(
       row.querySelectorAll<HTMLElement>('button, input, a[href], select'),
@@ -173,7 +174,7 @@ function measureInPage(phone: boolean): Measured {
   if (sc) sc.scrollTop = 0;
   const ctlsFailing = phone ? ctls.filter((c) => !c.inView || !c.hitTop || !c.hitBottom).length : 0;
 
-  const selects = Array.from(root.querySelectorAll<HTMLElement>('select.ss-select'))
+  const selects = Array.from(root.querySelectorAll<HTMLElement>('select'))
     .filter(visible)
     .map((e) => {
       const r = e.getBoundingClientRect();
@@ -444,7 +445,7 @@ test('SEC-AUD-360 and 361: Members and Invites as stacked rows, five small items
                 r.bottom <= de.clientHeight,
             };
           });
-        const row = page.locator('table.ss-table-stack tbody tr').first();
+        const row = page.locator('table.ss-table tbody tr').first();
         const actions = row.locator('.ss-actions button');
         await actions.first().scrollIntoViewIfNeeded();
         // Roles
@@ -485,7 +486,7 @@ test('SEC-AUD-360 and 361: Members and Invites as stacked rows, five small items
         // Invites: copy a link
         await openNav(page, settingsPath, /^Invites$/i);
         const copy = page
-          .locator('table.ss-table-stack tbody tr')
+          .locator('table.ss-table tbody tr')
           .first()
           .locator('.ss-actions button')
           .first();
