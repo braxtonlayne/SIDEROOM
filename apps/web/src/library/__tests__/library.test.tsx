@@ -222,6 +222,16 @@ describe('series page', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('writes the chapter count with plural forms (1 chapter, 2 chapters)', async () => {
+    useLibraryApi({ chapters: [chapter(1)] });
+    const one = renderAt('/library/s/2');
+    expect(await screen.findByRole('heading', { name: '1 chapter' })).toBeInTheDocument();
+    one.unmount();
+    useLibraryApi({ chapters: [chapter(1), chapter(2)] });
+    renderAt('/library/s/2');
+    expect(await screen.findByRole('heading', { name: '2 chapters' })).toBeInTheDocument();
+  });
+
   it('follows and unfollows', async () => {
     useLibraryApi();
     const calls: string[] = [];

@@ -339,7 +339,9 @@ function ChapterList({ series, editionId }: { series: Series; editionId: string 
   return (
     <section aria-label={t('library.series.tab.chapters')}>
       <div className="lib-chapters-head">
-        <h2 className="lib-h2">{t('library.series.chapterCount', { n: data!.chapters.length })}</h2>
+        <h2 className="lib-h2">
+          {t('library.series.chapterCountPlural', { n: data!.chapters.length })}
+        </h2>
         <button type="button" className="lib-linklike" onClick={() => setDesc((v) => !v)}>
           {desc ? t('library.series.newestFirst') : t('library.series.oldestFirst')}
         </button>
