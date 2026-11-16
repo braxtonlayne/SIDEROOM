@@ -172,14 +172,17 @@ async function rowCheck(page: Page, key: string) {
   for (const row of rs) {
     for (const k of row.kids) {
       if (k.tag !== 'button' && k.tag !== 'a') continue;
-      const mate = row.kids.find(
-        (m) =>
-          m !== k &&
-          m.ctrl &&
-          m.ctrl.dy < k.box.dy + k.box.h - 2 &&
-          m.ctrl.dy + m.ctrl.h > k.box.dy + 2 &&
-          m.ctrl.w > 0,
-      );
+      const mate = row.kids
+        .filter(
+          (m) =>
+            m !== k &&
+            m.ctrl &&
+            m.ctrl.dy < k.box.dy + k.box.h - 2 &&
+            m.ctrl.dy + m.ctrl.h > k.box.dy + 2 &&
+            m.ctrl.w > 0,
+        )
+        // the kit field's control (40px), not the browser's file input
+        .sort((x, y) => y.ctrl!.h - x.ctrl!.h)[0];
       log(
         `row ${key}#${row.i} <${row.tag}> h=${row.h} ${k.tag} "${k.text}" top=${k.box.dy} h=${k.box.h}` +
           (mate
@@ -210,7 +213,7 @@ async function rowCheck(page: Page, key: string) {
 
 const VARIANT_A = `.dev-actions > button, .dev-actions > a { align-self: end; }`;
 const VARIANT_D = `.dev-actions > button, .dev-actions > a { align-self: end; }
-.dev-actions > :is(label, div) ~ :is(button, a) { align-self: start; margin-block-start: 24px; }`;
+.dev-actions > :is(label, div) ~ :is(button, a) { align-self: start; margin-block-start: 23px; }`;
 
 const APP_TABS = [
   'general',
@@ -280,7 +283,6 @@ test('Developers rows, the authorize picker and the plan tabs', async ({ browser
     const short = prefs.theme.replace('lounge-', '');
     await setPrefs(prefs);
     for (const [sname, size] of Object.entries(SIZES)) {
-      if (BASE && sname !== 'desktop') continue;
       const phone = sname === 'phone';
       const tag = `${short}-${sname}`;
       const c = await context(browser, octx, size, prefs);
