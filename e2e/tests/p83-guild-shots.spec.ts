@@ -2,7 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { repoRoot } from '../support/cli';
-import { apiPatch, test } from '../support/fixtures';
+import { apiPatch, apiPost, test } from '../support/fixtures';
 
 /**
  * SEC-AUD-350 (wave 83; D-854): a look pass over every tab of a server's settings, plus a text channel's and a voice
@@ -436,12 +436,55 @@ test("SEC-AUD-350: every tab of a server's settings, looked at", async ({ browse
     }
   };
 
+  /** A role with a long name, once; its editor's tabs (Display, Permissions, ...) are shot like the others. */
+  const LONG_ROLE = 'A very long role name that keeps going past the end of one line on a phone';
+  {
+    const have = await o.get(`/api/v1/guilds/${world.guildId}/roles`);
+    if (!have.ok() || !(await have.text()).includes(LONG_ROLE))
+      await apiPost(o, `/guilds/${world.guildId}/roles`, {
+        name: LONG_ROLE,
+        color: 0x2ecc71,
+      }).catch((e) => console.log(`REPORT long role not made: ${String(e).slice(0, 120)}`));
+  }
+  const walkRole = async (page: Page, size: Size) => {
+    const path = `/settings/server/${world.guildId}/roles`;
+    await page.goto(path, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    await idle(page, 4000);
+    await page
+      .locator('button.ss-name', { hasText: 'A very long role' })
+      .first()
+      .click({ timeout: 6000 });
+    await idle(page, 2000);
+    const tabs = page.locator('[role="tab"]');
+    const labels = await tabs.evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()));
+    console.log(`REPORT ${size} roles-long: ${labels.length} tabs: ${labels.join(' | ')}`);
+    for (let i = 0; i < labels.length; i++) {
+      const id = `roles-long-${String(i + 1).padStart(2, '0')}-${slug(labels[i] ?? '')}`;
+      if (ONLY && !ONLY.test(id)) continue;
+      try {
+        await withLimit(id, async () => {
+          await tabs.nth(i).evaluate((el) => (el as HTMLElement).click());
+          await idle(page, 1500);
+          await look(page, id, size, { tab: labels[i] });
+        });
+        totals.tabs++;
+      } catch (e) {
+        totals.failed.push(`${size} ${id}`);
+        console.log(`REPORT ${size} ${id}: NOT MEASURED ${String(e).slice(0, 120)}`);
+      }
+    }
+  };
+
   for (const { size, theme } of SETTINGS) {
     await setTheme(theme);
     const { ctx, page } = await newPage(browser, size, theme, ownerCtx);
     await walkSettings(page, size, 'ss', `/settings/server/${world.guildId}`).catch((e) => {
       totals.failed.push(`${size} ${theme} ss: ${String(e).slice(0, 100)}`);
     });
+    if (!ONLY || ONLY.test('roles'))
+      await walkRole(page, size).catch((e) =>
+        totals.failed.push(`${size} roles-long: ${String(e).slice(0, 100)}`),
+      );
     if (!ONLY || ONLY.test('chan')) {
       await walkChannel(page, size, 'chan-text', world.channelId).catch((e) => {
         totals.failed.push(`${size} ${theme} chan-text: ${String(e).slice(0, 100)}`);

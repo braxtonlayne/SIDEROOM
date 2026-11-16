@@ -90,6 +90,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* SEC-AUD-350: a row's own buttons stay on one line (Invites: Copy link sat above Revoke at 1280). */
+.ss-row > .ss-actions {
+  flex: none;
+}
 .ss-row .ss-meta {
   font-size: 0.75rem;
   color: var(--ui-text-muted);
@@ -571,6 +575,11 @@
 .ss-card + .ss-danger-zone {
   margin-block-start: 16px;
 }
+/* SEC-AUD-350: a form followed by cards (AutoMod: the media filter touched the first card). */
+.ss-form + .ss-card,
+.ss-form + .ss-danger-zone {
+  margin-block-start: 16px;
+}
 .ss-form > .ss-card + .ss-card,
 .ss-form > .ss-card + .ss-danger-zone {
   margin-block-start: 0;
@@ -595,4 +604,26 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
+}
+
+/* SEC-AUD-350 (D-854, D-846): the small controls of server settings reach 44 px on a phone. The channel and role name
+   buttons keep their row's height (padding against a negative margin); the badge grid wraps instead of overflowing. */
+@media (max-width: 720px) {
+  .ss-row > button.ss-name {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+  .ss-preset {
+    block-size: 44px;
+  }
+  .ss-badge-grid {
+    grid-template-columns: repeat(auto-fill, 44px);
+  }
+  .ss-badge-pick {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+  .ss-root input[type='range'] {
+    block-size: 44px;
+  }
 }
