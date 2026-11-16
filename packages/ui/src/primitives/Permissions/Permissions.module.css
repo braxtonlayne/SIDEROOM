@@ -126,3 +126,33 @@
   color: var(--ui-text-muted);
   line-height: 1.3;
 }
+
+/* D-856: on a phone the three-state button keeps its 34 x 30 box and gets a 44 px tall target. The group stops
+   clipping (a pseudo-element would be cut), so its two end buttons round their own outer corners. */
+@media (max-width: 720px) {
+  .tri {
+    overflow: visible;
+  }
+  .triBtn {
+    position: relative;
+  }
+  .triBtn:first-child {
+    border-start-start-radius: calc(var(--ui-radius) - 1px);
+    border-end-start-radius: calc(var(--ui-radius) - 1px);
+  }
+  .triBtn:last-child {
+    border-start-end-radius: calc(var(--ui-radius) - 1px);
+    border-end-end-radius: calc(var(--ui-radius) - 1px);
+  }
+  .triBtn::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+  .search {
+    min-height: 44px;
+  }
+}

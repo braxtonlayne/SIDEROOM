@@ -81,3 +81,23 @@
 .dropper:focus-visible {
   outline: 2px solid var(--ui-focus);
 }
+
+/* D-856: on a phone a swatch keeps its 28 px circle and gets a 44 px tall target; the field and the eyedropper
+   grow to 44 px. */
+@media (max-width: 720px) {
+  .swatch {
+    position: relative;
+  }
+  .swatch::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+  .hex,
+  .dropper {
+    min-height: 44px;
+  }
+}

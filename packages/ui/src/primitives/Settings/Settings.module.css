@@ -260,6 +260,7 @@
     max-height: 60vh;
   }
   .navToggle {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -284,6 +285,13 @@
     border-block-end: 2px solid currentColor;
     transform: translateY(-2px) rotate(45deg);
     opacity: 0.7;
+  }
+  /* D-856: the toggle keeps its 38 px box and gets a 44 px tall target. */
+  .navToggle::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -3px;
   }
   .navToggle[aria-expanded='true']::after {
     transform: translateY(2px) rotate(-135deg);

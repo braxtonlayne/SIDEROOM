@@ -121,3 +121,18 @@
   inset: 0;
   margin: auto;
 }
+
+/* D-856: on a phone a small or medium button keeps its drawn box and gets a 44 px tall target from a pseudo-element
+   (icon-only and link included). The pseudo-element is the button's own: a click on it is a click on the button. */
+@media (max-width: 720px) {
+  .sm::after,
+  .md::after,
+  .link::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
