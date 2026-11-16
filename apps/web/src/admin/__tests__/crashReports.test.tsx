@@ -52,6 +52,23 @@ describe('Admin > Crash reports', () => {
     expect(screen.getByText('No report matches')).toBeInTheDocument();
   });
 
+  it('stacks as rows on a phone: each body cell carries its column header as its label (D-881)', async () => {
+    asStaff({ perms: ['STAFF_BASIC'] });
+    server.use(http.get('*/api/v1/admin/crash-reports', () => HttpResponse.json(LIST)));
+    openAdmin('crash-reports');
+    const table = await screen.findByRole('table', { name: 'Crash report groups' });
+    expect(table).toHaveClass('adm-table', 'adm-table-stack');
+    const heads = within(table)
+      .getAllByRole('columnheader')
+      .map((h) => (h.textContent ?? '').trim());
+    const cells = Array.from(table.querySelectorAll('tbody tr:first-child > td'));
+    expect(cells).toHaveLength(heads.length);
+    // The first cell is the row's title (no label); the others are labelled with their header; the last holds the actions.
+    expect(cells[0]).not.toHaveAttribute('data-label');
+    cells.slice(1, -1).forEach((c, i) => expect(c).toHaveAttribute('data-label', heads[i + 1]));
+    expect(cells[cells.length - 1]).toHaveAttribute('data-actions');
+  });
+
   it('fetches a report only when it is opened, then shows card and replay', async () => {
     asStaff({ perms: ['STAFF_BASIC'] });
     let detailReads = 0;

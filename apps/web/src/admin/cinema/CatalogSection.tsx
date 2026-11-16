@@ -188,7 +188,7 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
       )}
       {view.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label={t('admin.catalog.table')}>
+          <table className="adm-table adm-table-stack" aria-label={t('admin.catalog.table')}>
             <thead>
               <tr>
                 <th scope="col">{t('admin.catalog.col.poster')}</th>
@@ -208,7 +208,7 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                       <span className="adm-cin-poster adm-cin-poster-empty" aria-hidden="true" />
                     )}
                   </td>
-                  <td>
+                  <td data-label={t('admin.catalog.col.title')}>
                     <div className="ss-name">{ti.title}</div>
                     <div className="ss-meta">
                       {[ti.year, ti.content_rating].filter(Boolean).join(' · ') ||
@@ -220,13 +220,13 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                         })}
                     </div>
                   </td>
-                  <td>
+                  <td data-label={t('admin.catalog.col.kind')}>
                     {ti.kind}{' '}
                     {ti.age_restricted && (
                       <Badge variant="danger">{t('admin.catalog.age18')}</Badge>
                     )}
                   </td>
-                  <td>
+                  <td data-label={t('admin.catalog.col.status')}>
                     <Badge variant={ti.published ? 'success' : 'neutral'}>
                       {ti.published
                         ? t('admin.catalog.statusPublished')
@@ -236,7 +236,7 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
                       <Badge variant="warning">{t('admin.catalog.nothingPlayable')}</Badge>
                     )}
                   </td>
-                  <td>
+                  <td data-actions>
                     <div className="adm-actions">
                       <Button
                         size="sm"
