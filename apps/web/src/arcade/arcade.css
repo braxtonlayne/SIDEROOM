@@ -481,6 +481,41 @@
   background: var(--ui-bg-hover);
 }
 
+/* SEC-AUD-340 (D-844): an Arcade hero card is a surface kept dark (D-803), as the Cinema's hero is. The paintings are
+   dark and the wash below is the page colour, so under a light theme the member's `--ui-bg` was a pale veil over a dark
+   painting with dark text across its dark bands. Every colour token the card, its wash, its text, its tag, its flags
+   line, its tips, its live chip and the kit's button read is stated here with Editorial's values (the Arcade's shipped
+   theme: `lounge-editorial` in packages/ui/src/tokens/themes.ts, which spreads `lounge-dark`), so the card is the
+   same in every theme. Literals, not `var()`: a token that holds a `var()` would not recompute inside this block.
+   Colour only (D-831): the radius and the fonts stay the member's, and no box changes. */
+.arc-card[data-size='hero'] {
+  --ui-bg: #23221d;
+  --ui-bg-raised: #1c1b17;
+  --ui-bg-overlay: #1c1b17;
+  --ui-bg-hover: #2c2a24;
+  --ui-border: #3a382f;
+  --ui-text: #efe6d2;
+  --ui-text-muted: #b3ac9a;
+  --ui-text-faint: #a39d8b;
+  --ui-accent: #c2b08f;
+  --ui-accent-hover: #d1c1a2;
+  --ui-accent-ink: #1b1a15;
+  --ui-focus: #d9c9a4;
+  --ui-danger: #b4503f;
+  --ui-danger-ink: #fff6f2;
+  --ui-danger-text: #d97a68;
+  --ui-success: #8c9a6a;
+  --ui-warning: #c2b08f;
+  --ui-info: #9aa8a0;
+  --ui-status-online: #34c25f;
+  --ui-status-idle: #d9a441;
+  --ui-status-dnd: #cc5c47;
+  --ui-status-offline: #6f6c60;
+  --text-link: #c2b08f;
+  color: var(--ui-text);
+  color-scheme: dark;
+}
+
 /* The two house picks: the painting fills the card, the text sits on a wash of the page colour. */
 .arc-card[data-size='hero'] {
   display: block;
