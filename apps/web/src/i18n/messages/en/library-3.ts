@@ -77,7 +77,6 @@ export default {
   'library.browse.nothingFound': 'Nothing found',
   'library.browse.noSeriesMatch': 'No series match “{q}”.',
   'library.browse.seriesHeading': 'Series',
-  'library.browse.listMeta': '{kind} · {status} · {n} chapters',
   'library.browse.reset': 'Reset',
   'library.browse.showResults': 'Show results',
   'library.browse.genresInclude': 'Genres to include',
