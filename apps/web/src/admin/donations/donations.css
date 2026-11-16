@@ -61,8 +61,17 @@
   outline-offset: 1px;
 }
 @media (max-width: 720px) {
+  /* SEC-AUD-376 (D-882): "Donations are on" is a 44 px row (the label is the target); a perk field's text is 16 px
+     (the kit's field sets no size of its own and inherits; iOS zooms the page on focus below 16 px). */
+  .don-check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+  }
   .adm-perk-input {
     min-height: 44px;
+    font-size: 16px;
   }
   /* Each tier a block: its name as the title, each perk on a line (name, then field). */
   .adm-perk-table,

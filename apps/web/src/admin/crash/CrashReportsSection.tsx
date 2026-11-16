@@ -178,7 +178,7 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
               ) : (
                 <div className="adm-table-wrap">
                   <table
-                    className="adm-table adm-crash-table"
+                    className="adm-table adm-table-stack adm-crash-table"
                     aria-label={t('admin.crash.tableLabel')}
                   >
                     <thead>
@@ -202,12 +202,20 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
                               <div className="adm-mono">{shortFp(r.fingerprint)}</div>
                               <KindBadge kind={r.kind} />
                             </td>
-                            <td>{formatNumber(r.count)}</td>
-                            <td>{fmtMs(r.first_seen_ms)}</td>
-                            <td>{fmtMs(r.last_seen_ms)}</td>
-                            <td className="adm-mono">{r.commit.slice(0, 12)}</td>
-                            <td className="adm-mono">{r.route}</td>
-                            <td>
+                            <td data-label={t('admin.crash.colCount')}>{formatNumber(r.count)}</td>
+                            <td data-label={t('admin.crash.colFirstSeen')}>
+                              {fmtMs(r.first_seen_ms)}
+                            </td>
+                            <td data-label={t('admin.crash.colLastSeen')}>
+                              {fmtMs(r.last_seen_ms)}
+                            </td>
+                            <td className="adm-mono" data-label={t('admin.crash.colCommit')}>
+                              {r.commit.slice(0, 12)}
+                            </td>
+                            <td className="adm-mono" data-label={t('admin.crash.colRoute')}>
+                              {r.route}
+                            </td>
+                            <td data-actions>
                               <Button
                                 size="sm"
                                 variant="secondary"

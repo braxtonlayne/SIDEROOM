@@ -190,3 +190,20 @@
     margin-block: -1px;
   }
 }
+
+/* D-879: a chip's remove button gets a 44 px tall hit area (a pseudo-element); the chip's drawn box does not change.
+   It reaches 24 px toward the chip's label and 4 px past the button's end (the chip's own padding), so it never
+   covers the next chip's remove button or the chevron. */
+@media (max-width: 720px) {
+  .chipRemove {
+    position: relative;
+  }
+  .chipRemove::after {
+    content: '';
+    position: absolute;
+    inset-block: 50% auto;
+    block-size: 44px;
+    margin-block-start: -22px;
+    inset-inline: -24px -4px;
+  }
+}

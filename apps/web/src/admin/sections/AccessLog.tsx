@@ -97,7 +97,7 @@ export function AccessLogSection() {
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label={t('admin.accessLog.tableLabel')}>
+          <table className="adm-table adm-table-stack" aria-label={t('admin.accessLog.tableLabel')}>
             <thead>
               <tr>
                 <th scope="col">#</th>
@@ -112,9 +112,11 @@ export function AccessLogSection() {
               {paged.items.map((e) => (
                 <tr key={e.seq}>
                   <td>{e.seq}</td>
-                  <td>{fmtUs(e.at_us)}</td>
-                  <td className="adm-mono">{e.actor_id}</td>
-                  <td>
+                  <td data-label={t('admin.accessLog.colWhen')}>{fmtUs(e.at_us)}</td>
+                  <td className="adm-mono" data-label={t('admin.accessLog.colWho')}>
+                    {e.actor_id}
+                  </td>
+                  <td data-label={t('admin.accessLog.colWhat')}>
                     <Badge
                       variant={
                         e.kind === 'denied'
@@ -134,9 +136,10 @@ export function AccessLogSection() {
                       </div>
                     )}
                   </td>
-                  <td>{e.reason}</td>
+                  <td data-label={t('admin.accessLog.colReason')}>{e.reason}</td>
                   <td
                     className="adm-mono"
+                    data-label={t('admin.accessLog.colHash')}
                     title={t('admin.accessLog.prevHash', { hash: e.prev_hash })}
                   >
                     {shortHash(e.hash)}

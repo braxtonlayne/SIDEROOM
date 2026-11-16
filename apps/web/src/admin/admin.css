@@ -808,6 +808,16 @@ label.ss-field {
     gap: 8px;
     padding: 6px 0 0;
   }
+  /* SEC-AUD-375 (D-881): the Crash reports list keeps its ids and its last cell on one line (crash.css, a later sheet); in a
+     stacked row they wrap inside the row, and its button sits at the start of its own line. */
+  .adm-table.adm-table-stack .adm-mono {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .adm-table.adm-table-stack td[data-actions] {
+    text-align: start;
+    white-space: normal;
+  }
   .adm-table-stack td[data-actions] button,
   .adm-table-stack td[data-actions] a,
   .adm-table-stack td[data-actions] select,

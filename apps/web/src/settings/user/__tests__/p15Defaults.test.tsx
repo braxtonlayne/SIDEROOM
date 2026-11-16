@@ -27,6 +27,22 @@ describe('Activity defaults (LNG-USET-035)', () => {
     expect(useReaderPrefsStore.getState().global.preloadCount).toBe(6);
   });
 
+  it('labels each Library default control once, with its visible text (SEC-AUD-357)', () => {
+    const { container } = render(<LibraryDefaultsCard />);
+    for (const name of ['Reading mode', 'Reading direction', 'Background']) {
+      const group = screen.getByRole('radiogroup', { name });
+      const visible = Array.from(container.querySelectorAll('.us-seg-label')).find(
+        (e) => e.textContent === name,
+      );
+      expect(visible).toBeTruthy();
+      expect(visible).toHaveAttribute('aria-hidden', 'true');
+      expect(group.parentElement).toBe(visible?.parentElement);
+    }
+    expect(screen.getAllByRole('radiogroup')).toHaveLength(3);
+    expect(screen.getByRole('slider', { name: 'Pages to load ahead' })).toBeInTheDocument();
+    expect(screen.getByText('Pages to load ahead').tagName).toBe('LABEL');
+  });
+
   it('saves the audio language and the quality cap with the player defaults', () => {
     expect(readPlayerDefaults()).toMatchObject({ audioLang: null, qualityCap: null });
     render(<CinemaDefaultsCard />);
