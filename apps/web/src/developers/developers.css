@@ -327,6 +327,20 @@ form.dev-actions {
 .dev-uri-list code {
   overflow-wrap: anywhere;
 }
+/* A long token in a paragraph, a list item or a table cell (an Activity's origin: an application id inside a host name; a URL in a
+   paragraph) breaks inside its box instead of widening the page (D-841, SEC-AUD-337). A code block (pre) keeps its own scroll. */
+:where(.dev-main) :where(p, li, td, dd) > code {
+  overflow-wrap: anywhere;
+}
+/* A dotted name in a documentation paragraph or list item (a scope such as applications.commands.permissions.update has no
+   break point) wraps inside the column (D-841). */
+.dev-doc-body :is(p, li, dd) {
+  overflow-wrap: anywhere;
+}
+/* The gateway reference's table has no other rule: its cells wrap at any point rather than push the page sideways. */
+.dev-table :is(th, td) {
+  overflow-wrap: anywhere;
+}
 .dev-cmd-list p {
   margin: 2px 0 0;
 }
@@ -566,6 +580,31 @@ form.dev-actions {
   .dev-auth-actions > * {
     flex: 1;
   }
+  /* A mapping row's two kit fields (Activities) fill the line and wrap as a pair, each at least 12rem and free to shrink below the
+     control's intrinsic width; Remove sits at the row's end (D-841, SEC-AUD-337). Phone only: a wide row keeps its boxes. */
+  .dev-uri-list li > div {
+    flex: 1 1 12rem;
+    min-inline-size: 0;
+  }
+  .dev-uri-list li > div ~ button {
+    margin-inline-start: auto;
+  }
+  /* A list row's picture and name share the first line and take the room; the name breaks at a word (a dash) before a letter, the
+     kind label is one phrase, and the action sits at the row's end (D-842, SEC-AUD-338). The redirect URIs keep `anywhere`. */
+  .dev-uri-list li > .dev-media-row {
+    flex: 1 1 auto;
+    min-inline-size: 0;
+  }
+  .dev-media-row code {
+    overflow-wrap: break-word;
+    min-inline-size: 0;
+  }
+  .dev-media-row .dev-muted {
+    white-space: nowrap;
+  }
+  .dev-uri-list li > .dev-media-row ~ :is(button, .dev-actions) {
+    margin-inline-start: auto;
+  }
 }
 
 .dev-media-row {
@@ -623,6 +662,7 @@ form.dev-actions {
 }
 .dev-bundle {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding: 8px 12px;
   border: 1px solid var(--ui-border);
@@ -631,6 +671,9 @@ form.dev-actions {
 .dev-hash {
   overflow-wrap: anywhere;
   font-size: 0.8em;
+}
+.dev-file-list code {
+  overflow-wrap: anywhere;
 }
 .dev-file-list {
   margin: 0;
