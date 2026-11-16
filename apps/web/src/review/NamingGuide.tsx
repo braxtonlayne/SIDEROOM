@@ -97,7 +97,7 @@ export function NamingGuide({ section = 'library' }: { section?: 'library' | 'ci
         {parse.isError && <p role="alert">{t('review.naming.error')}</p>}
         {parse.data && (
           <div className="rv-table-wrap">
-            <table className="rv-table" aria-label={t('review.naming.results')}>
+            <table className="rv-table rv-naming" aria-label={t('review.naming.results')}>
               <thead>
                 <tr>
                   <th scope="col">{t('review.naming.colName')}</th>

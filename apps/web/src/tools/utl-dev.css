@@ -101,6 +101,16 @@
   font: inherit;
   box-sizing: border-box;
 }
+/* SEC-AUD-333 (D-837): the field rule above is for text controls; a checkbox or radio is its natural size. */
+.ud-root input[type='checkbox'],
+.ud-root input[type='radio'],
+.ud-timer input[type='checkbox'],
+.ud-timer input[type='radio'] {
+  inline-size: auto;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+}
 .ud-root textarea {
   min-block-size: 120px;
   resize: vertical;
