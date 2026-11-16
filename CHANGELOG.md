@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 89 - 2026-11-16
+
+- **Members.** In Settings each Cinema defaults label sits right above its own choice. On a profile page the guestbook's "Leave a message" label and the greyed-out "Sign" button are easier to read.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 88 - 2026-11-16
 
 - **Members.** On a phone the channel header's menu closes after "Member List", and the Cinema defaults settings show their labels like the Library ones. Profile headings are readable on the signed-out profile page too.
