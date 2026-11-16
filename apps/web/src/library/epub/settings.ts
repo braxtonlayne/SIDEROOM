@@ -55,11 +55,16 @@ export function normalize(raw: unknown): EpubSettings {
   };
 }
 
-/** The stylesheet injected into every section of the book. */
+/**
+ * The stylesheet injected into every section of the book. `--theme-bg-color` is the one hook foliate's paginator
+ * reads for the ground around the book: it paints a background behind the text columns (the margins and the gap
+ * between columns) from the colour the section had when it loaded, and only swaps the colour for this property when
+ * the styles change. Without it a theme chosen while a section is open leaves a band of the previous theme.
+ */
 export function epubCss(s: EpubSettings): string {
   const c = themeColors(s.theme);
   return `
-    html { color-scheme: ${s.theme === 'dark' ? 'dark' : 'light'}; }
+    html { color-scheme: ${s.theme === 'dark' ? 'dark' : 'light'}; --theme-bg-color: ${c.bg}; }
     html, body { background: ${c.bg} !important; color: ${c.fg} !important; }
     body { ${s.font ? `font-family: ${s.font} !important;` : ''} line-height: ${s.lineHeight} !important; }
     p, li, blockquote, dd { line-height: ${s.lineHeight} !important; }

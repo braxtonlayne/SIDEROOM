@@ -4,7 +4,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse, server } from '../../test/server';
 import { localProgress, setProgressApi } from '../progress';
-import { DEFAULT_EPUB, epubCss, normalize, useEpubSettings } from '../epub/settings';
+import { DEFAULT_EPUB, epubCss, normalize, themeColors, useEpubSettings } from '../epub/settings';
 import { chapter, manifest, renderAt, useLibraryApi } from './harness';
 
 interface Fake extends HTMLElement {
@@ -78,6 +78,15 @@ describe('settings', () => {
     expect(css).toContain('font-family: serif');
     expect(css).toContain('line-height: 1.8');
     expect(css).toContain('#16161a');
+  });
+
+  // The paginator paints the ground around the book from the colour the section had when it loaded, and swaps in
+  // `--theme-bg-color` of the book's <html> when the styles change (SEC-AUD-339): every theme states its own bg.
+  it('hands the reader theme background to the renderer through --theme-bg-color', () => {
+    for (const theme of ['light', 'sepia', 'dark'] as const) {
+      const css = epubCss({ ...DEFAULT_EPUB, theme });
+      expect(css).toContain(`--theme-bg-color: ${themeColors(theme).bg};`);
+    }
   });
 });
 
