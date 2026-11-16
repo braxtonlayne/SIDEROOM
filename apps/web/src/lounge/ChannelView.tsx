@@ -42,10 +42,12 @@ export interface ChannelViewProps {
   guildId: string;
   channelId: string;
   onBack?: (() => void) | undefined;
+  /** Phone only (D-887): "Member List" shows the shell's members pane instead of toggling the stored column. */
+  onShowMembers?: (() => void) | undefined;
 }
 
 /** One channel or DM: header, message list, composer. Remount (key) per channel. */
-export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
+export function ChannelView({ guildId, channelId, onBack, onShowMembers }: ChannelViewProps) {
   const t = useT();
   const isDm = guildId === HOME;
   const channels = useChannels(isDm ? undefined : guildId);
@@ -159,7 +161,7 @@ export function ChannelView({ guildId, channelId, onBack }: ChannelViewProps) {
         phone={presence.phone}
         topic={channel?.topic}
         membersOpen={membersOpen}
-        onToggleMembers={() => setMembersOpen(!membersOpen)}
+        onToggleMembers={onShowMembers ?? (() => setMembersOpen(!membersOpen))}
         onBack={onBack}
         searchLabel={t('lounge.channelView.search', { target })}
         guildId={guildId}

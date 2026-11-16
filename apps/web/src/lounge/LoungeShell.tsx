@@ -167,7 +167,15 @@ function useSwipe(order: Pane[], pane: Pane, setPane: (p: Pane) => void) {
   };
 }
 
-function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
+function Main({
+  isMobile,
+  onBack,
+  onShowMembers,
+}: {
+  isMobile: boolean;
+  onBack: () => void;
+  onShowMembers: () => void;
+}) {
   const route = useLoungeRoute();
   const { guildId } = route;
   const channels = useChannels(guildId && guildId !== HOME ? guildId : undefined);
@@ -220,6 +228,7 @@ function Main({ isMobile, onBack }: { isMobile: boolean; onBack: () => void }) {
         guildId={guildId}
         channelId={channelId}
         onBack={isMobile ? onBack : undefined}
+        onShowMembers={isMobile ? onShowMembers : undefined}
       />
       {threadId && guildId !== HOME && !restrictedParent && (
         <ThreadPane
@@ -295,6 +304,8 @@ function Shell() {
 
   const goList = useCallback(() => setPane('list'), []);
   const showChat = useCallback(() => setPane('chat'), []);
+  // D-887: on a phone the header's "Member List" shows the members pane (local state), not the stored desktop flag.
+  const showMembers = useCallback(() => setPane('members'), []);
   const swipe = useSwipe(['list', 'chat', 'members'], pane, setPane);
 
   const dm = dms.find((d) => d.id === channelId);
@@ -304,7 +315,11 @@ function Shell() {
       : t('lounge.loungeShell.directMessages')
     : (guild?.name ?? '');
 
-  const showRight = isHome ? !!dm && membersOpen : !!channelId && membersOpen;
+  // On a phone the pane is drawn while it is the one shown, whatever the desktop's stored flag says.
+  const phoneMembers = isMobile && pane === 'members';
+  const showRight = isHome
+    ? !!dm && (membersOpen || phoneMembers)
+    : !!channelId && (membersOpen || phoneMembers);
 
   return (
     <ThemeProvider
@@ -358,7 +373,7 @@ function Shell() {
             id="lounge-main"
             inert={isMobile && pane !== 'chat'}
           >
-            <Main isMobile={isMobile} onBack={goList} />
+            <Main isMobile={isMobile} onBack={goList} onShowMembers={showMembers} />
           </main>
           {showRight && (
             <>
