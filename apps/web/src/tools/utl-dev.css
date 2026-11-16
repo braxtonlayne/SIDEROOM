@@ -101,6 +101,28 @@
   font: inherit;
   box-sizing: border-box;
 }
+/* SEC-AUD-333 (D-837): the field rule above is for text controls; a checkbox or radio is its natural size. */
+.ud-root input[type='checkbox'],
+.ud-root input[type='radio'],
+.ud-timer input[type='checkbox'],
+.ud-timer input[type='radio'] {
+  inline-size: auto;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+}
+/* A label that holds a checkbox is a row with the box first (JSON's "Sort keys" is a column .ud-field). */
+.ud-root label:has(> input[type='checkbox']),
+.ud-timer label:has(> input[type='checkbox']) {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.ud-root label:has(> input[type='checkbox']) > input[type='checkbox'],
+.ud-timer label:has(> input[type='checkbox']) > input[type='checkbox'] {
+  order: -1;
+}
 .ud-root textarea {
   min-block-size: 120px;
   resize: vertical;

@@ -141,6 +141,14 @@
   color: var(--ui-text-muted);
   font-weight: 600;
 }
+/* SEC-AUD-334 (D-840): in the naming table the file name gives way and the reading does not. */
+.rv-naming td:first-child {
+  overflow-wrap: anywhere;
+}
+.rv-naming th:nth-child(2),
+.rv-naming td:nth-child(2) {
+  min-inline-size: 12rem;
+}
 /* The wrapper is the containing block of the visually hidden labels inside its cells: without it they sit at their
    static position past the wrapper and widen the page (D-817). */
 .rv-table-wrap {
