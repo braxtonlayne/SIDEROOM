@@ -1,7 +1,8 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { useState } from 'react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { effectiveZoom, useFloating } from './useFloating';
 
 describe('effectiveZoom (D-540)', () => {
@@ -71,5 +72,64 @@ describe('the --ui-zoom token (D-555)', () => {
     // The backdrop's one grid track may shrink below the dialog's min-content, and the dialog may shrink with it.
     expect(css).toMatch(/\.backdrop\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\);/);
     expect(css).toMatch(/\.dialog\s*{[^}]*min-width:\s*0;/);
+  });
+});
+
+describe('useFloating with an anchor that has no box (D-870)', () => {
+  const box = { x: 989, y: 316, width: 28, height: 28 };
+  function Harness({ anchor }: { anchor: HTMLElement }) {
+    const [, force] = useState(0);
+    const f = useFloating({ open: true, anchor, placement: 'bottom-end', offset: 4 });
+    return (
+      <div>
+        <button onClick={() => force((n) => n + 1)}>again</button>
+        <div data-testid="f" ref={f.ref} style={f.style} />
+      </div>
+    );
+  }
+  function anchorWith(rect: () => typeof box) {
+    const a = document.createElement('span');
+    document.body.appendChild(a);
+    Object.defineProperty(a, 'checkVisibility', { value: () => true });
+    a.getBoundingClientRect = () => {
+      const r = rect();
+      return {
+        ...r,
+        left: r.x,
+        top: r.y,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {},
+      };
+    };
+    return a;
+  }
+
+  it('keeps the place it has when the anchor measures 0 x 0, and stays hidden when it has none', async () => {
+    vi.useFakeTimers();
+    let current = { x: 0, y: 0, width: 0, height: 0 };
+    const a = anchorWith(() => current);
+    const { getByTestId, rerender } = render(<Harness anchor={a} />);
+    // No box at the first measure: nothing is placed (not the corner), the element is hidden.
+    expect(getByTestId('f').style.transform).toBe('');
+    expect(getByTestId('f').style.visibility).toBe('hidden');
+    // The anchor gets its box on a later frame: it is placed there.
+    current = box;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
+    const placed = getByTestId('f').style.transform;
+    expect(placed.startsWith('translate(')).toBe(true);
+    expect(placed).not.toBe('translate(8px, 4px)');
+    // The box is lost again (a display: none ancestor): a new measure keeps the last position.
+    current = { x: 0, y: 0, width: 0, height: 0 };
+    rerender(<Harness anchor={a} />);
+    window.dispatchEvent(new Event('resize'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(getByTestId('f').style.transform).toBe(placed);
+    vi.useRealTimers();
+    a.remove();
   });
 });
