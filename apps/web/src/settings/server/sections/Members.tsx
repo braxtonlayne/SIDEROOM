@@ -414,7 +414,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       )}
       {members.length > 0 && (
         <>
-          <table className="ss-table">
+          <table className="ss-table ss-table-stack">
             <caption className="ss-sub">
               {done
                 ? t('settings.members.count', { count: filtered.length })
@@ -670,11 +670,11 @@ function MemberRow({
           </span>
         </span>
       </td>
-      <td>{formatDate(member.joined_at)}</td>
+      <td data-label={t('settings.members.colSince')}>{formatDate(member.joined_at)}</td>
       {viewer.can('MANAGE_GUILD') && (
         <>
-          <td>{joinLabel(member, t)}</td>
-          <td>
+          <td data-label={t('settings.members.colJoined')}>{joinLabel(member, t)}</td>
+          <td data-label={t('settings.members.colSignals')}>
             <span className="ss-chips">
               {(member.sr_signals ?? []).map((sig) => (
                 <span key={sig} className="ss-role-chip">
@@ -689,7 +689,7 @@ function MemberRow({
           </td>
         </>
       )}
-      <td>
+      <td data-label={t('settings.members.colRoles')}>
         <span className="ss-chips">
           {member.roles.map((rid) => {
             const r = roleById.get(rid);

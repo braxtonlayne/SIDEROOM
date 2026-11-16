@@ -2288,3 +2288,17 @@
     display: none;
   }
 }
+
+/* SEC-AUD-354 (D-858): the channel header's icon buttons and Back were 28px tall on a phone (only Search had a 44px
+   target). They keep the 28px footprint, so the crowded row and the title do not move, and get a 44px tall target
+   from a pseudo-element (the header is 48px, so it stays inside it; 4px into the gap on each side, never as far as a
+   neighbour's centre), as the thread header's buttons do. The search button keeps its own wider rule above. */
+.lng-root[data-mobile] .lng-header .lng-icon-btn:not(.lng-phone-search) {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-header .lng-icon-btn:not(.lng-phone-search)::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: -4px;
+}

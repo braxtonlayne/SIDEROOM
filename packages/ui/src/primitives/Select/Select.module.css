@@ -172,3 +172,21 @@
   font-size: 0.875rem;
   text-align: center;
 }
+
+/* D-856: a 44 px trigger on a phone (the 1 px negative margins let the trigger cover the control's border box). */
+@media (max-width: 720px) {
+  .control {
+    min-height: 44px;
+  }
+  .control > .trigger,
+  .control > .chevron {
+    margin-block: -1px;
+  }
+  .inputRow {
+    padding-block: 0;
+  }
+  .inputRow .input {
+    min-height: 44px;
+    margin-block: -1px;
+  }
+}

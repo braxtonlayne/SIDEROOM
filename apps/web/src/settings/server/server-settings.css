@@ -1,4 +1,7 @@
 /* Server settings screens. Tokens come from @sideroom/ui (--ui-*). */
+/* D-866: .ss-root is the wrapper class of the theme providers of a server's settings (ServerSettings.tsx) and of Admin
+   (AdminApp.tsx). It must not make a box. No other element may carry it: Support and the Leaderboards lost their theme's
+   ground through it in wave 83. */
 .ss-root {
   display: contents;
 }
@@ -625,5 +628,122 @@
   }
   .ss-root input[type='range'] {
     block-size: 44px;
+  }
+}
+/* SEC-AUD-361 (b): the sliders of a voice channel use the accent, not the browser's blue. Reaches every .ss-root page
+   (a server's settings and Admin); only the voice channel's Overview has range inputs there. */
+.ss-root input[type='range'] {
+  accent-color: var(--ui-accent);
+}
+
+/* SEC-AUD-360 (D-864): on a phone Members and Invites are stacked rows, not a table scrolled sideways. The name (with its
+   checkbox) first, each fact under it as "label: value" (the label from the cell's data-label, the same string as the
+   column header), the row's actions last on a line of their own. The head stays for a screen reader (as bridge.css).
+   Only tables with .ss-table-stack are touched. */
+@media (max-width: 720px) {
+  .ss-table.ss-table-stack {
+    overflow-x: visible;
+  }
+  .ss-table-stack tbody,
+  .ss-table-stack tr,
+  .ss-table-stack td {
+    display: block;
+  }
+  /* The caption is a block line above the rows (as a table caption it shrank to a narrow column in the block table). */
+  .ss-table-stack caption {
+    display: block;
+  }
+  .ss-table-stack thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ss-table-stack tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 8px;
+    padding-block: 8px;
+    border-block-start: 1px solid var(--ui-border);
+  }
+  .ss-table-stack tbody tr:first-child {
+    border-block-start: 0;
+  }
+  .ss-table-stack td {
+    flex: 1 1 100%;
+    min-inline-size: 0;
+    padding: 2px 0;
+    border-top: 0;
+    overflow-wrap: anywhere;
+  }
+  /* The name cell: Members' checkbox cell and the cell after it share the first line; Invites' first cell is the name. */
+  .ss-table-stack td:has(> input[type='checkbox']) {
+    flex: none;
+  }
+  .ss-table-stack td:has(> input[type='checkbox']) + td {
+    flex: 1 1 0;
+  }
+  .ss-table-stack td:first-child:not(:has(> input[type='checkbox'])),
+  .ss-table-stack td:has(> input[type='checkbox']) + td {
+    font-weight: 700;
+  }
+  .ss-table-stack td[data-label] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .ss-table-stack td[data-label]::before {
+    content: attr(data-label) ':';
+    font-size: 0.8125rem;
+    color: var(--ui-text-muted);
+  }
+  /* A cell with nothing in it takes no line. */
+  .ss-table-stack td:empty,
+  .ss-table-stack td:has(> .ss-chips:empty) {
+    display: none;
+  }
+  /* The actions cell is last, on a line of its own, its buttons whole at the row's start. */
+  .ss-table-stack td:last-child {
+    padding-block-start: 4px;
+  }
+  .ss-table.ss-table-stack td > .ss-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  /* 44 px targets: the row's checkbox through a pseudo-element, the name link and the action buttons by height. */
+  .ss-table-stack input[type='checkbox'] {
+    position: relative;
+    inline-size: 20px;
+    block-size: 20px;
+    margin: 12px;
+  }
+  .ss-table-stack input[type='checkbox']::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+  .ss-table-stack .ss-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+  .ss-table-stack td .ss-actions button {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}
+
+/* SEC-AUD-361 (c) (D-865): a select is 44 px tall on a phone. .ss-select is shared with Admin (Accounts, Limits & settings,
+   the platform audit log): the same size there. (d): Compare levels keeps its first column at about 9rem so a label takes
+   two lines at most; the table scrolls inside its card (D-848, a table of figures), the tab does not. */
+@media (max-width: 720px) {
+  .ss-select {
+    min-height: 44px;
+  }
+  .ss-table.sup-compare :is(th, td):first-child {
+    min-inline-size: 9rem;
   }
 }

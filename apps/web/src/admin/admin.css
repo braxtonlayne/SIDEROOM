@@ -472,6 +472,28 @@
 .adm-unsaved-note:empty {
   display: none;
 }
+/* SEC-AUD-362 (D-867): inside a member's card the clean bar draws nothing, so its buttons start on the card's text
+   column; the raised, dirty bar keeps its padding. */
+.us-card .adm-unsaved:not([data-dirty='true']) {
+  padding-inline: 0;
+  border-inline-width: 0;
+}
+/* On a phone the bar's buttons are 44 px tall and sit on one row where both fit with one-line labels and on two rows
+   where they do not (the bar wraps; each button then takes the row's width); a long label wraps inside its button,
+   never past the card. */
+@media (max-width: 720px) {
+  .adm-unsaved .adm-actions {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .adm-unsaved .adm-actions > button,
+  .adm-unsaved .adm-actions > button:first-child {
+    flex: 1 1 auto;
+    min-block-size: 44px;
+  }
+}
 
 /* Invite graph canvas (ADM-GRAPH-003) */
 .adm-canvas-el {
@@ -674,4 +696,46 @@ label.ss-field {
 }
 .adm-sub-add > label.ss-field {
   flex: 1 1 100%;
+}
+
+/* SEC-AUD-363 (D-868), fix 1: the runbook's headings come from the Entrance's copy renderer, whose `.ent-copy h2`
+   paints them in the Entrance's cream (invisible in Lounge Light) and its display face; they take the page's. */
+.adm-runbook .ent-copy h2,
+.adm-runbook .ent-copy h3,
+.adm-runbook .ent-copy h4 {
+  color: var(--ui-text);
+  font-family: inherit;
+  font-weight: 600;
+}
+.adm-runbook .ent-copy a {
+  color: var(--ui-accent);
+}
+
+/* Fix 2: Ingest sources puts a bare <h2> where every other page has the section header; same size and weight. */
+.ss-root h2:not([class]):has(+ p.ss-desc) {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.ss-root h2:not([class]):has(+ p.ss-desc) + p.ss-desc {
+  margin-block-end: 24px;
+}
+
+/* Fixes 3, 4 and 5 (a phone only): the invite graph's tree names and the plain selects and checkboxes of the toolbars
+   (Invoices, Entitlements) are 44 px tall. */
+@media (max-width: 720px) {
+  /* Fix 5: a word-valued tile ("unknown") ran 12 px past its box on a phone. */
+  .adm-stat-value {
+    font-size: 1.375rem;
+    overflow-wrap: anywhere;
+  }
+  .adm-tree-row .adm-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+  .ss-root .ss-toolbar select:not([class]),
+  .ss-root .ss-toolbar > label:has(> input[type='checkbox']) {
+    min-height: 44px;
+  }
 }
