@@ -291,7 +291,7 @@
     content: '';
     position: absolute;
     inset-inline: 0;
-    inset-block: -3px;
+    inset-block: -4px;
   }
   .navToggle[aria-expanded='true']::after {
     transform: translateY(2px) rotate(-135deg);

@@ -85,6 +85,10 @@
 /* D-856: on a phone a swatch keeps its 28 px circle and gets a 44 px tall target; the field and the eyedropper
    grow to 44 px. */
 @media (max-width: 720px) {
+  /* The 44 px targets of two rows of swatches would overlap in an 8 px gap: the rows are 16 px apart. */
+  .swatches {
+    row-gap: 16px;
+  }
   .swatch {
     position: relative;
   }

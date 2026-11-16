@@ -124,11 +124,12 @@
   text-align: center;
 }
 .seg-md .segment {
-  min-height: 32px;
+  /* The pill is 32 px tall with its 6 px of padding (the box is the content box). */
+  min-height: 20px;
   font-size: 0.875rem;
 }
 .seg-sm .segment {
-  min-height: 24px;
+  min-height: 18px;
   font-size: 0.8125rem;
   padding: 3px 10px;
 }

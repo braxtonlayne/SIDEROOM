@@ -145,7 +145,7 @@
 
 /* D-856: on a phone a choice row is at least 44 px tall and the whole row is the target. The label carries the
    row's padding (its first line's centre sits 22 px down), the control's margin lines it up with that line, and a
-   pseudo-element gives the control itself a 44 px target (it is an 18 or 22 px box beside the label). */
+   pseudo-element gives the control itself a 44 px target (it is an 18 or 22 px box beside the label; the insets are counted from the padding box, inside its 1.5 px border). */
 @media (max-width: 720px) {
   .choice {
     min-height: 44px;
@@ -165,10 +165,10 @@
   .input::before {
     content: '';
     position: absolute;
-    inset-block: -13px;
+    inset-block: -14px;
     inset-inline: -6px;
   }
   .switch::before {
-    inset-block: -11px;
+    inset-block: -13px;
   }
 }
