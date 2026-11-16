@@ -1,7 +1,7 @@
 # Wave 85 guild handoff (SEC-AUD-369, 370; D-873)
 
 T = 15:00 on 2026-11-16. Clock times: no new item 16:00, checkpoint 16:15, finished 16:30, hard limit 16:45.
-Lock lines read before each round (`heavy.sh status`, 15:10 after my acquire): round 1 `guild 15:10` (read before the stack, before the seed, before the base run and before each "after" run). Round 2 (the caption rule): see "Round 2" below.
+Lock lines read (`heavy.sh status`): round 1 `guild 15:10` (before the stack, the seed, the base run and each "after" run); round 2 `guild 15:28` (before the stack and before the run). Both rounds under 5 minutes.
 
 ## Done
 Files: `apps/web/src/settings/server/server-settings.css` (CSS only), `e2e/tests/p85-guild-shots.spec.ts` (new, local only, `SR_P85_GUILD=1`, needs the sweep's seeded world; header says so), this handoff.
@@ -25,11 +25,11 @@ Files: `apps/web/src/settings/server/server-settings.css` (CSS only), `e2e/tests
 `admin/ui.tsx` (Admin: staff chunk, loaded by `import()` in `StaffDoor.tsx`) and `settings/server/ui.tsx` (lazy: the server settings route, the Lounge's edit-channel dialog, a listening room's settings, the Leaderboards). No `.tsx` and no first-paint or public file touched; no web build run. Every importer is lazy.
 
 ## Shots
-Folder `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p85-guild` (untracked). Round 1: 13 base + 19 after = 32 PNG. **Opened:** base Compare 375 Dark and Light, 1280; after Compare 375 start and end Dark and Light, 1280; base Library catalog 375 Dark, Invite graph 375 Dark; after Library catalog 375 Dark and Light and 1280, Invite graph 375 Dark and Light and 1280; Leaderboards base and after Light; after Members (Dark) and Roles (Light). **Not opened one by one (say so):** base Leaderboards Dark, after Leaderboards Dark, base Library and Invite graph 375 Light, base 1280 forms, base compare end shots, after Bans (both), Members Light, Roles Dark. Their boxes are in `measure.json` and equal the opened ones' Light/Dark counterparts.
+Folder `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p85-guild` (untracked). Round 1: 13 base + 19 after = 32 PNG; round 2 (`after2-*`, the caption rule): 7 more, all 7 opened (375 start and end in Light and Dark, 1280; the caption now stays at the inline start, the 1280 shot equals the base). Round 2 figures: same as round 1 (table over 102, label column left 33 at the end, last column whole, document 0, 1280 table over 0). **Opened:** base Compare 375 Dark and Light, 1280; after Compare 375 start and end Dark and Light, 1280; base Library catalog 375 Dark, Invite graph 375 Dark; after Library catalog 375 Dark and Light and 1280, Invite graph 375 Dark and Light and 1280; Leaderboards base and after Light; after Members (Dark) and Roles (Light). **Not opened one by one (say so):** base Leaderboards Dark, after Leaderboards Dark, base Library and Invite graph 375 Light, base 1280 forms, base compare end shots, after Bans (both), Members Light, Roles Dark. Their boxes are in `measure.json` and equal the opened ones' Light/Dark counterparts.
 
 ## Not done / listed
 - No RTL shot of Compare levels.
-- Round 2 results: see below.
+- Nothing else.
 
 ## Tests
 Spec run on the base (held-back CSS) and after: both passed (it logs, it does not assert). e2e `tsc` clean, prettier clean, `check-css-tokens` clean, `check-doc-links` ok.
@@ -47,3 +47,6 @@ None.
 
 ## Clean-up
 See the end of this file.
+
+## Clean-up (done)
+Stack stopped by PID tree (ports 5633, 8633, 9333 free), lock released, scratch DB `sr_p85_guild_ui` dropped, `p85-guild-bin` deleted (`p80-base-bin` untouched). No stash touched. The spec's measurement lines and `measure.json` stay in the shots folder.
