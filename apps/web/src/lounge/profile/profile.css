@@ -141,3 +141,29 @@
     max-block-size: calc(100dvh - 144px);
   }
 }
+
+/* SEC-AUD-356 (D-859): a phone has no Escape key and a screen reader has no "outside", so the pop-up has a close
+   button there: 44x44 at the top inline-end corner, on a round ground of the overlay colour of its own so the icon
+   reads on any banner. It floats and sticks, so it takes no room (the avatar, name and badges do not move) and stays
+   in view when the pop-up scrolls. Hidden at 1280, where Escape and an outside click close it. */
+.lng-pop .lng-pop-close {
+  display: none;
+}
+@media (max-width: 640px) {
+  .lng-pop .lng-pop-close {
+    position: sticky;
+    inset-block-start: 8px;
+    float: inline-end;
+    display: inline-grid;
+    z-index: 2;
+    box-sizing: border-box;
+    inline-size: 44px;
+    block-size: 44px;
+    margin-block: 8px 0;
+    margin-inline: 0 8px;
+    border-radius: 50%;
+    background: var(--ui-bg-overlay);
+    color: var(--text-normal);
+    box-shadow: 0 0 0 1px var(--ui-border);
+  }
+}
