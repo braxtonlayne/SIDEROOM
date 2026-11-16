@@ -91,6 +91,26 @@ describe('Channels', () => {
     expect(screen.getByRole('button', { name: 'Move general up' })).toBeDisabled();
   });
 
+  it("titles a text channel's editor with a hash and a voice channel's with the tree's speaker (SEC-AUD-361)", async () => {
+    seed({ perms: [MANAGE.channels] });
+    server.use(
+      http.get('*/api/v1/guilds/g1/channels', () =>
+        HttpResponse.json([
+          ...channels(),
+          ch('v1', 'Hangout', 2, { parent_id: 'cat', position: 2 }),
+        ]),
+      ),
+    );
+    await openSettings('channels');
+    await userEvent.click(await screen.findByRole('button', { name: '# general' }));
+    expect(await screen.findByRole('heading', { level: 2, name: '# general' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '🔊 Hangout' }));
+    expect(
+      await screen.findByRole('heading', { level: 2, name: '🔊 Hangout' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('# Hangout')).not.toBeInTheDocument();
+  });
+
   it('renames a channel and sends only the change; validates empty names', async () => {
     seed({ perms: [MANAGE.channels] });
     const cap = capture();

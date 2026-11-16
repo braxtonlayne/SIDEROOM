@@ -80,7 +80,7 @@ export function InvitesSection({ guildId }: SectionProps) {
               description={t('settings.invites.emptyDescription')}
             />
           ) : (
-            <table className="ss-table">
+            <table className="ss-table ss-table-stack">
               <thead>
                 <tr>
                   <th scope="col">{t('settings.invites.colInviter')}</th>
@@ -102,16 +102,20 @@ export function InvitesSection({ guildId }: SectionProps) {
                         t('settings.invites.unknown'),
                       )}
                     </td>
-                    <td>
+                    <td data-label={t('settings.invites.colCode')}>
                       <code>{i.code}</code>
                       <div className="ss-meta">{formatDate(i.created_at)}</div>
                     </td>
-                    <td>
+                    <td data-label={t('settings.invites.colUses')}>
                       {i.uses}
                       {i.max_uses ? ` / ${i.max_uses}` : ''}
                     </td>
-                    <td>{expiryLabel(i.expires_at)}</td>
-                    <td>{i.channel.name ? `#${i.channel.name}` : ''}</td>
+                    <td data-label={t('settings.invites.colExpires')}>
+                      {expiryLabel(i.expires_at)}
+                    </td>
+                    <td data-label={t('settings.invites.colChannel')}>
+                      {i.channel.name ? `#${i.channel.name}` : ''}
+                    </td>
                     <td>
                       <span className="ss-actions">
                         <Button
