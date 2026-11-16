@@ -36,6 +36,8 @@ import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 const GROUPS = permissionGroups();
 const isCategory = (c: api.ChannelObject) => c.type === 4;
 const isVoice = (c: api.ChannelObject) => c.type === 2 || c.type === 13;
+/** What the channel tree and the editor's title put before a channel's name: the speaker for voice and stage, a hash otherwise. */
+const kindMark = (c: api.ChannelObject) => (isVoice(c) ? '\u{1F50A} ' : '# ');
 const isText = (c: api.ChannelObject) => c.type === 0 || c.type === 5 || c.type === 15;
 const bySort = (a: api.ChannelObject, b: api.ChannelObject) =>
   a.position - b.position || (BigInt(a.id) < BigInt(b.id) ? -1 : 1);
@@ -203,7 +205,7 @@ function ChannelsEditor({
           aria-current={selectedId === c.id ? 'true' : undefined}
           onClick={() => select(c.id)}
         >
-          {isCategory(c) ? label : `${isVoice(c) ? '\u{1F50A} ' : '# '}${label}`}
+          {isCategory(c) ? label : `${kindMark(c)}${label}`}
         </button>
         {isCategory(c) && (
           <Button
@@ -418,7 +420,7 @@ export function ChannelEditor({
           : t('settings.channels.editChannel', { name: channel.name ?? '' })
       }
     >
-      <h2 className="ss-title">{cat ? channel.name : `# ${channel.name}`}</h2>
+      <h2 className="ss-title">{cat ? channel.name : `${kindMark(channel)}${channel.name}`}</h2>
       <ActionStatus error={action.error} />
       <Tabs
         items={tabs}
