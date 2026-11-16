@@ -60,6 +60,10 @@
   gap: 18px;
   align-items: center;
 }
+/* A form in the card (the template's name field and create button) fills the card's text column, like the lines above it (D-871). */
+.ent-invite-card > form {
+  align-self: stretch;
+}
 .ent-navlink span {
   color: var(--sr-gold);
 }
