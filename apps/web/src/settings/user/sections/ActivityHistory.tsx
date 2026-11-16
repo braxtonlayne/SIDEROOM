@@ -182,42 +182,48 @@ export function CinemaDefaultsCard() {
           checked={d.dataSaver}
           onChange={(e) => set({ dataSaver: e.target.checked })}
         />
-        <label className="us-seg-label" id="us-sub-lang-label">
-          {t('settings.activityHistory.subtitleLang')}
-        </label>
-        <Select
-          aria-labelledby="us-sub-lang-label"
-          value={d.subtitleLang ?? 'default'}
-          options={[
-            { value: 'default', label: t('settings.activityHistory.subtitleDefault') },
-            ...SUBTITLE_LANGS.map((code) => ({ value: code, label: code })),
-          ]}
-          onValueChange={(v) => set({ subtitleLang: v === 'default' ? null : v })}
-        />
-        <label className="us-seg-label" id="us-audio-lang-label">
-          {t('settings.activityHistory.audioLang')}
-        </label>
-        <Select
-          aria-labelledby="us-audio-lang-label"
-          value={d.audioLang ?? 'default'}
-          options={[
-            { value: 'default', label: t('settings.activityHistory.audioDefault') },
-            ...SUBTITLE_LANGS.map((code) => ({ value: code, label: code })),
-          ]}
-          onValueChange={(v) => set({ audioLang: v === 'default' ? null : v })}
-        />
-        <label className="us-seg-label" id="us-quality-cap-label">
-          {t('settings.activityHistory.qualityCap')}
-        </label>
-        <Select
-          aria-labelledby="us-quality-cap-label"
-          value={String(d.qualityCap ?? 'none')}
-          options={[
-            { value: 'none', label: t('settings.activityHistory.qualityNoCap') },
-            ...QUALITY_CAPS.map((h) => ({ value: String(h), label: `${h}p` })),
-          ]}
-          onValueChange={(v) => set({ qualityCap: v === 'none' ? null : Number(v) })}
-        />
+        <div>
+          <label className="us-seg-label" id="us-sub-lang-label">
+            {t('settings.activityHistory.subtitleLang')}
+          </label>
+          <Select
+            aria-labelledby="us-sub-lang-label"
+            value={d.subtitleLang ?? 'default'}
+            options={[
+              { value: 'default', label: t('settings.activityHistory.subtitleDefault') },
+              ...SUBTITLE_LANGS.map((code) => ({ value: code, label: code })),
+            ]}
+            onValueChange={(v) => set({ subtitleLang: v === 'default' ? null : v })}
+          />
+        </div>
+        <div>
+          <label className="us-seg-label" id="us-audio-lang-label">
+            {t('settings.activityHistory.audioLang')}
+          </label>
+          <Select
+            aria-labelledby="us-audio-lang-label"
+            value={d.audioLang ?? 'default'}
+            options={[
+              { value: 'default', label: t('settings.activityHistory.audioDefault') },
+              ...SUBTITLE_LANGS.map((code) => ({ value: code, label: code })),
+            ]}
+            onValueChange={(v) => set({ audioLang: v === 'default' ? null : v })}
+          />
+        </div>
+        <div>
+          <label className="us-seg-label" id="us-quality-cap-label">
+            {t('settings.activityHistory.qualityCap')}
+          </label>
+          <Select
+            aria-labelledby="us-quality-cap-label"
+            value={String(d.qualityCap ?? 'none')}
+            options={[
+              { value: 'none', label: t('settings.activityHistory.qualityNoCap') },
+              ...QUALITY_CAPS.map((h) => ({ value: String(h), label: `${h}p` })),
+            ]}
+            onValueChange={(v) => set({ qualityCap: v === 'none' ? null : Number(v) })}
+          />
+        </div>
       </div>
     </Card>
   );
