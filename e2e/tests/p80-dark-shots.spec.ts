@@ -77,6 +77,8 @@ function pictured(v: unknown, n = { i: 0 }): unknown {
   return v;
 }
 
+const DISCOVER: { value: unknown } = { value: null };
+
 type PlayMode = 'none' | 'error' | 'good';
 
 async function context(
@@ -85,6 +87,7 @@ async function context(
   size: { width: number; height: number },
   prefs: Prefs,
   play: PlayMode = 'none',
+  discover: unknown = DISCOVER.value,
 ) {
   const c = await browser.newContext({
     baseURL: ORIGIN,
@@ -102,6 +105,10 @@ async function context(
       body: SVG(Number(/-(\d+)\.svg/.exec(r.request().url())?.[1] ?? 0)),
     }),
   );
+  if (discover)
+    await c.route(/\/api\/v1\/cinema\/discover/, (r: Route) =>
+      r.fulfill({ status: 200, contentType: 'application/json', json: pictured(discover) }),
+    );
   await c.route(/\/api\/v1\/cinema\/(titles|facets|collections|search|my)/, async (r: Route) => {
     const res = await r.fetch();
     const ct = res.headers()['content-type'] ?? '';
@@ -277,6 +284,28 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
     await apiPost(o, `/admin/cinema/titles/${t.id}/publish`);
     made.push({ id: t.id });
   }
+  const list = await o.get('/api/v1/cinema/titles?limit=20');
+  const real = ((await list.json()) as { items: Record<string, unknown>[] }).items;
+  expect(real.length, 'published titles are listed').toBeGreaterThan(0);
+  DISCOVER.value = {
+    hero: {
+      key: 'hero',
+      kind: 'curated',
+      display: 'hero',
+      title: 'Featured',
+      items: real.slice(0, 2),
+    },
+    rows: [
+      {
+        key: 'trending',
+        kind: 'generated',
+        display: 'row',
+        title: 'Trending now',
+        eyebrow: 'This week',
+        items: real,
+      },
+    ],
+  };
   let tvId: string | null = null;
   try {
     tvId = (
@@ -362,6 +391,10 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
       page.setDefaultTimeout(25_000);
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.message));
+      page.on('response', (r) => {
+        if (r.status() >= 400 && /cinema|tv|__p80/.test(r.url()))
+          report(`${tag} HTTP ${r.status()} ${r.url().replace(ORIGIN, '')}`);
+      });
       const comp: Comp = {};
 
       // ---- the theatre as host: "End party" and the chat's Send, disabled then enabled
@@ -396,12 +429,18 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
         (live.probe as Record<string, Record<string, string>>)['.cpl-player'] ?? null;
 
       // ---- the title player with a stream that fails: its error state
+      const trace = (r: import('@playwright/test').Request) => {
+        if (/\/api\/v1\/(cinema|tv)|__p80\/hls/.test(r.url()))
+          report(`${tag} player req ${r.method()} ${r.url().replace(ORIGIN, '')}`);
+      };
+      page.on('request', trace);
       await page.goto(`/cinema/watch/${first}`);
       const stopped = page.getByRole('button', { name: 'Try again' });
       const reached = await stopped
         .waitFor({ state: 'visible', timeout: 45_000 })
         .then(() => true)
         .catch(() => false);
+      page.off('request', trace);
       report(`${tag} player error state reached: ${reached}`);
       if (reached) {
         await page.waitForTimeout(800);
@@ -515,43 +554,60 @@ test('SEC-AUD-319: dark Cinema surfaces keep the status colours', async ({ brows
     await setPrefs(prefs);
     const c = await context(browser, octx, SIZES.desktop, prefs, 'good');
     const page = await c.newPage();
-    page.setDefaultTimeout(25_000);
-    await page.goto(`/cinema/t/${first}`);
-    await expect(page.locator('.cin-title-head').first()).toBeVisible({ timeout: 60_000 });
-    await page
-      .getByRole('link', { name: /play/i })
-      .or(page.getByRole('button', { name: /play/i }))
-      .first()
-      .click();
-    await expect(page.locator('.cpl-player')).toBeVisible({ timeout: 30_000 });
-    // start playing: the big play button or the control bar's Play
-    const big = page.locator('.cpl-bigplay');
-    if (await big.isVisible().catch(() => false)) await big.click();
-    else await page.keyboard.press('Space');
-    await page.waitForTimeout(2500);
-    report(
-      `mini ${main}: playing state ${await page
-        .locator('video')
-        .evaluate((v: HTMLVideoElement) => `paused=${v.paused} t=${v.currentTime.toFixed(1)}`)
-        .catch(() => 'no video')}`,
+    page.setDefaultTimeout(20_000);
+    const step = async (name: string, fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+        report(`mini ${main}: ${name} ok`);
+      } catch (e) {
+        report(`mini ${main}: ${name} FAILED ${String(e).split('\n')[0]}`);
+      }
+    };
+    await page.goto(`/cinema/watch/${first}`);
+    await step('player opens', () =>
+      expect(page.locator('.cpl-player')).toBeVisible({ timeout: 30_000 }),
     );
-    // leave the Cinema with the browser's own navigation inside the app: close the player, then go to the Lounge
-    await page
-      .getByRole('button', { name: /back|close/i })
-      .first()
-      .click();
-    await page.waitForTimeout(600);
-    await page
-      .locator('.cin-sectionbar a', { hasText: /lounge/i })
-      .first()
-      .click()
-      .catch(async () => {
-        await page.locator('.cin-sectionbar-brand').first().click();
-      });
-    await page.waitForTimeout(2500);
+    await step('video loaded', () =>
+      expect
+        .poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.readyState), {
+          timeout: 30_000,
+        })
+        .toBeGreaterThanOrEqual(2),
+    );
+    // the control bar's Play is a real click (user activation)
+    await step('play clicked', async () => {
+      const big = page.locator('.cpl-bigplay');
+      if (await big.isVisible().catch(() => false)) await big.click();
+      else
+        await page
+          .getByRole('button', { name: /^play$/i })
+          .first()
+          .click();
+    });
+    await step('playing', () =>
+      expect
+        .poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime), {
+          timeout: 15_000,
+        })
+        .toBeGreaterThan(0.5),
+    );
+    // leave the player (history back to where it was opened from), then move to the Lounge by the app's own link
+    await step('back', async () => {
+      await page.locator('.cpl-top button').first().click();
+      await page.waitForTimeout(800);
+    });
+    report(`mini ${main}: after back url ${page.url()}`);
+    await step('to the lounge', async () => {
+      await page
+        .locator('.cin-sectionbar a', { hasText: /lounge|home|channels/i })
+        .first()
+        .click();
+      await page.waitForTimeout(2500);
+    });
+    report(`mini ${main}: url ${page.url()}`);
     const mini = page.locator('.cpl-mini-root');
     const shown = await mini.isVisible().catch(() => false);
-    report(`mini ${main}: shown ${shown} url ${page.url()}`);
+    report(`mini ${main}: shown ${shown}`);
     if (shown) {
       report(
         `mini ${main}: data-theme ${await themeOf(page, '.cpl-mini-root')} on ${await page.evaluate(() => document.documentElement.getAttribute('data-theme'))}`,
