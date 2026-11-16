@@ -18,6 +18,7 @@ import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-route
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { RoomsNav } from '../study/RoomsNav';
+import { scrollBarTo } from '../study/scrollBarTo';
 import { useStudyFlag, type StudyFlag } from '../study/flags';
 import { StudyAreas } from '../study/StudyAreas';
 import { useT, type MessageKey } from '../i18n';
@@ -33,8 +34,31 @@ import { updateLine } from './ui';
 /** `SIDE ROOM / The lounge · The cinema · The library` with the library active (LIB-UI-001). */
 export function SectionBar() {
   const t = useT();
+  const ref = useRef<HTMLElement>(null);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mobile = useMediaQuery(MOBILE_QUERY);
+  // On a phone the bar scrolls inside itself: bring the area you are in into view (D-817).
+  useEffect(() => {
+    let live = true;
+    const bring = () => {
+      const el = ref.current;
+      const link = el?.querySelector<HTMLElement>(
+        '[data-testid="study-areas"] [aria-current="page"]',
+      );
+      // Scroll the bar itself, never the page (D-821).
+      if (el && link) scrollBarTo(el, link);
+    };
+    bring();
+    // A web font that arrives later widens the links: bring the area into view again once the fonts are in.
+    void document.fonts?.ready.then(() => {
+      if (live) bring();
+    });
+    return () => {
+      live = false;
+    };
+  }, [pathname, mobile]);
   return (
-    <header className="lib-sectionbar">
+    <header className="lib-sectionbar" ref={ref}>
       <span className="lib-sectionbar-brand">{t('library.shell.brand')}</span>
       <span aria-hidden="true" className="lib-sectionbar-slash">
         /

@@ -1,4 +1,7 @@
-.anchor { position: relative; display: inline-flex; }
+.anchor {
+  position: relative;
+  display: inline-flex;
+}
 
 .tooltip,
 .popover {
@@ -19,14 +22,18 @@
   width: max-content;
   pointer-events: none;
 }
-.popover { padding: 12px; min-width: 200px; }
-.popover:focus { outline: none; }
-
+.popover {
+  padding: 12px;
+  min-width: 200px;
+}
+.popover:focus {
+  outline: none;
+}
 
 /* Q60: tooltips have an arrow pointing at their anchor; popovers do not. The arrow is a rotated
    square drawn from the tooltip's own border colour; `data-side` is the side the tooltip sits on. */
 .tooltip::after {
-  content: "";
+  content: '';
   position: absolute;
   width: 8px;
   height: 8px;
@@ -34,25 +41,25 @@
   border: 1px solid var(--ui-border);
   transform: rotate(45deg);
 }
-.tooltip[data-side="top"]::after {
+.tooltip[data-side='top']::after {
   bottom: -5px;
   inset-inline-start: calc(50% - 4px);
   border-top: 0;
   border-inline-start: 0;
 }
-.tooltip[data-side="bottom"]::after {
+.tooltip[data-side='bottom']::after {
   top: -5px;
   inset-inline-start: calc(50% - 4px);
   border-bottom: 0;
   border-inline-end: 0;
 }
-.tooltip[data-side="left"]::after {
+.tooltip[data-side='left']::after {
   inset-inline-end: -5px;
   top: calc(50% - 4px);
   border-bottom: 0;
   border-inline-start: 0;
 }
-.tooltip[data-side="right"]::after {
+.tooltip[data-side='right']::after {
   inset-inline-start: -5px;
   top: calc(50% - 4px);
   border-top: 0;

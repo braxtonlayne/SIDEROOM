@@ -1,16 +1,27 @@
-import { useId, type InputHTMLAttributes, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import styles from "./DateTime.module.css";
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import styles from './DateTime.module.css';
 
-interface PickerProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "defaultValue" | "onChange" | "size"> {
+interface PickerProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'type' | 'value' | 'defaultValue' | 'onChange' | 'size'
+> {
   label: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
   onValueChange?: (value: string) => void;
 }
 
-function makePicker(type: "date" | "time" | "datetime-local", displayName: string) {
-  function Picker({ label, hint, error, id, className, onValueChange, ...rest }: PickerProps & { value?: string; defaultValue?: string }) {
+function makePicker(type: 'date' | 'time' | 'datetime-local', displayName: string) {
+  function Picker({
+    label,
+    hint,
+    error,
+    id,
+    className,
+    onValueChange,
+    ...rest
+  }: PickerProps & { value?: string; defaultValue?: string }) {
     const auto = useId();
     const inputId = id ?? auto;
     const hintId = hint ? `${inputId}-hint` : undefined;
@@ -26,7 +37,7 @@ function makePicker(type: "date" | "time" | "datetime-local", displayName: strin
           type={type}
           className={styles.input}
           aria-invalid={error ? true : undefined}
-          aria-describedby={[hintId, errId].filter(Boolean).join(" ") || undefined}
+          aria-describedby={[hintId, errId].filter(Boolean).join(' ') || undefined}
           onChange={(e) => onValueChange?.(e.target.value)}
         />
         {hint && (
@@ -49,8 +60,11 @@ function makePicker(type: "date" | "time" | "datetime-local", displayName: strin
 export type DatePickerProps = PickerProps & { value?: string; defaultValue?: string };
 
 /** DS-PRIM-013: date field on the native picker (`YYYY-MM-DD`), so locale, keyboard entry and mobile pickers come for free. */
-export const DatePicker: (p: DatePickerProps) => ReactNode = makePicker("date", "DatePicker");
+export const DatePicker: (p: DatePickerProps) => ReactNode = makePicker('date', 'DatePicker');
 /** DS-PRIM-013: time field on the native picker (`HH:MM`). */
-export const TimePicker: (p: DatePickerProps) => ReactNode = makePicker("time", "TimePicker");
+export const TimePicker: (p: DatePickerProps) => ReactNode = makePicker('time', 'TimePicker');
 /** DS-PRIM-013: combined date and time field (`YYYY-MM-DDTHH:MM`), for scheduling (watch parties, events). */
-export const DateTimePicker: (p: DatePickerProps) => ReactNode = makePicker("datetime-local", "DateTimePicker");
+export const DateTimePicker: (p: DatePickerProps) => ReactNode = makePicker(
+  'datetime-local',
+  'DateTimePicker',
+);

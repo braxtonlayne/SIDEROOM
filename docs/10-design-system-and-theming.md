@@ -18,6 +18,8 @@ Users can pick **one theme for everything** (e.g. "Side Room everywhere") or **p
 
 A section that styles itself with `--sr-*` tokens (the Library and the Cinema, from wave 78) maps them from the chosen theme's `--ui-*` tokens under any theme that is not a Side Room theme, so a light or Lounge theme draws the whole room in one palette; the Cinema keeps its player, TV screen, watch-party theatre and text over pictures dark (D-802, D-803).
 
+A part that is not a room (a drawer, a dock, a panel that can open under any theme) reads the theme first, `var(--ui-x, var(--sr-x, literal))`; a room maps its own tokens once on its root (D-814). Under a theme that is not a Side Room theme, a room's gold as text or a line is the theme's link colour and its gold as a filled surface is the theme's accent with the accent's ink; a surface the room keeps dark restates the Side Room accent too, so a kit badge or button on it stays gold (D-815, D-816).
+
 ## 2. `sideroom` tokens (from the mockups)
 
 | Token | Value | Use |

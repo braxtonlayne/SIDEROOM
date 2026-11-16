@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 /**
  * Words the primitives speak on their own (screen-reader prefixes, built-in buttons). The library ships English
@@ -47,38 +47,44 @@ export interface UiStrings {
 }
 
 export const UI_STRINGS_EN: UiStrings = {
-  noticeInfo: "Information",
-  noticeSuccess: "Success",
-  noticeWarning: "Warning",
-  noticeError: "Error",
-  dismiss: "Dismiss",
-  notifications: "Notifications",
-  colorHex: "Hex",
-  colorPick: "Pick from screen",
-  close: "Close",
-  confirm: "Confirm",
-  cancel: "Cancel",
+  noticeInfo: 'Information',
+  noticeSuccess: 'Success',
+  noticeWarning: 'Warning',
+  noticeError: 'Error',
+  dismiss: 'Dismiss',
+  notifications: 'Notifications',
+  colorHex: 'Hex',
+  colorPick: 'Pick from screen',
+  close: 'Close',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
   typeToConfirm: (text) => `Type "${text}" to confirm`,
-  showPassword: "Show password",
-  hidePassword: "Hide password",
-  show: "Show",
-  hide: "Hide",
-  passwordStrength: "Password strength",
-  strengthLevels: ["Too weak", "Weak", "Fair", "Good", "Strong"],
-  errorTitle: "Something went wrong",
-  errorDescription: "An unexpected error stopped this page from loading.",
-  technicalDetails: "Technical details",
-  tryAgain: "Try again",
-  noResults: "No results",
+  showPassword: 'Show password',
+  hidePassword: 'Hide password',
+  show: 'Show',
+  hide: 'Hide',
+  passwordStrength: 'Password strength',
+  strengthLevels: ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'],
+  errorTitle: 'Something went wrong',
+  errorDescription: 'An unexpected error stopped this page from loading.',
+  technicalDetails: 'Technical details',
+  tryAgain: 'Try again',
+  noResults: 'No results',
   removeOption: (label) => `Remove ${label}`,
   selectedCount: (count) => `${count} selected`,
-  loading: "Loading",
-  submenu: "Submenu",
+  loading: 'Loading',
+  submenu: 'Submenu',
 };
 
 const UiStringsContext = createContext<UiStrings>(UI_STRINGS_EN);
 
-export function UiStringsProvider({ value, children }: { value: Partial<UiStrings>; children: ReactNode }) {
+export function UiStringsProvider({
+  value,
+  children,
+}: {
+  value: Partial<UiStrings>;
+  children: ReactNode;
+}) {
   const merged = useMemo(() => ({ ...UI_STRINGS_EN, ...value }), [value]);
   return <UiStringsContext.Provider value={merged}>{children}</UiStringsContext.Provider>;
 }

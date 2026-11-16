@@ -31,7 +31,7 @@
   z-index: 10;
   padding: 8px 12px;
   background: var(--ui-bg-hover);
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
 }
 
 /* ---------- bar ---------- */
@@ -125,7 +125,7 @@
 .dev-card {
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 8px);
+  border-radius: var(--ui-radius, 8px);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -169,14 +169,14 @@
   background: var(--ui-bg-hover);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
   padding: 9px 10px;
   font: inherit;
   max-width: 100%;
 }
 .dev-fieldset {
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
   padding: 12px 14px;
   margin: 0;
   min-width: 0;
@@ -226,7 +226,7 @@
   padding: 14px 16px;
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 8px);
+  border-radius: var(--ui-radius, 8px);
   text-decoration: none;
 }
 .dev-app-card:hover {
@@ -304,7 +304,7 @@
   background: var(--ui-bg-hover);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
   padding: 10px 12px;
   width: 100%;
   box-sizing: border-box;
@@ -312,7 +312,7 @@
 .dev-code {
   margin: 0;
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
   background: var(--ui-bg-hover);
   overflow: hidden;
 }
@@ -353,7 +353,7 @@
 .dev-doc-nav a {
   display: block;
   padding: 8px 10px;
-  border-radius: var(--sr-radius, 6px);
+  border-radius: var(--ui-radius, 6px);
   text-decoration: none;
   color: var(--ui-text-muted);
 }
@@ -404,7 +404,7 @@
   gap: 14px;
   background: var(--ui-bg-raised);
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 10px);
+  border-radius: var(--ui-radius, 10px);
   padding: 28px 24px;
 }
 .dev-auth-head {
@@ -514,7 +514,7 @@
   gap: 8px;
   padding: 16px;
   border: 1px dashed var(--ui-border);
-  border-radius: var(--sr-radius, 4px);
+  border-radius: var(--ui-radius, 4px);
 }
 .dev-dropzone[data-over] {
   border-color: var(--ui-accent);
@@ -541,7 +541,7 @@
   gap: 6px;
   padding: 8px 12px;
   border: 1px solid var(--ui-border);
-  border-radius: var(--sr-radius, 4px);
+  border-radius: var(--ui-radius, 4px);
 }
 .dev-hash {
   overflow-wrap: anywhere;

@@ -259,7 +259,9 @@ test('the bridge map table, and Block, Remove Friend, End Poll and End Stage ask
       });
       await page.goto(`/channels/${guild.id}/${stage.id}`);
       page.on('pageerror', (e) => console.log('pageerror', tag, String(e).slice(0, 300)));
-      await expect(page.getByRole('heading', { name: 'Quarterly town hall' })).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole('heading', { name: 'Quarterly town hall' })).toBeVisible({
+        timeout: 30_000,
+      });
       await page.getByRole('button', { name: 'End Stage' }).click();
       const es = page.getByRole('dialog', { name: 'End the stage for everyone?' });
       await expect(es).toBeVisible();

@@ -112,6 +112,6 @@ describe('reduced motion', () => {
     expect(guide).toMatch(/reduced \? 'auto' : 'smooth'/);
     const poster =
       Object.entries(sources).find(([p]) => p.endsWith('/sideroom/Poster.tsx'))?.[1] ?? '';
-    expect(poster).toMatch(/reduced \? "auto" : "smooth"/);
+    expect(poster).toMatch(/reduced \? ["']auto["'] : ["']smooth["']/);
   });
 });

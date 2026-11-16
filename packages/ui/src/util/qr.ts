@@ -4,7 +4,7 @@
  * reference approach (function patterns, Reed-Solomon over GF(256)/0x11D, zig-zag placement, 8 masks).
  */
 
-export type QrEcc = "L" | "M";
+export type QrEcc = 'L' | 'M';
 
 export interface QrMatrix {
   version: number;
@@ -139,7 +139,7 @@ function penalty(m: boolean[][], size: number): number {
 }
 
 /** Encodes UTF-8 text. Throws when it does not fit in version 10. */
-export function encodeQr(text: string, ecc: QrEcc = "M"): QrMatrix {
+export function encodeQr(text: string, ecc: QrEcc = 'M'): QrMatrix {
   const bytes = Array.from(new TextEncoder().encode(text));
 
   let ver = 1;
@@ -147,7 +147,7 @@ export function encodeQr(text: string, ecc: QrEcc = "M"): QrMatrix {
     const ccBits = ver <= 9 ? 8 : 16;
     if (4 + ccBits + bytes.length * 8 <= dataCodewords(ver, ecc) * 8) break;
   }
-  if (ver > MAX_VERSION) throw new RangeError("Text is too long for this QR generator");
+  if (ver > MAX_VERSION) throw new RangeError('Text is too long for this QR generator');
 
   // Data bits.
   const bits: number[] = [];
@@ -192,8 +192,12 @@ export function encodeQr(text: string, ecc: QrEcc = "M"): QrMatrix {
 
   // Matrix with function patterns.
   const size = ver * 4 + 17;
-  const modules: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
-  const isFn: boolean[][] = Array.from({ length: size }, () => new Array<boolean>(size).fill(false));
+  const modules: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
+  const isFn: boolean[][] = Array.from({ length: size }, () =>
+    new Array<boolean>(size).fill(false),
+  );
   const setFn = (x: number, y: number, dark: boolean) => {
     modules[y]![x] = dark;
     isFn[y]![x] = true;
@@ -269,14 +273,29 @@ export function encodeQr(text: string, ecc: QrEcc = "M"): QrMatrix {
       for (let x = 0; x < size; x++) {
         let invert: boolean;
         switch (mask) {
-          case 0: invert = (x + y) % 2 === 0; break;
-          case 1: invert = y % 2 === 0; break;
-          case 2: invert = x % 3 === 0; break;
-          case 3: invert = (x + y) % 3 === 0; break;
-          case 4: invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
-          case 5: invert = ((x * y) % 2) + ((x * y) % 3) === 0; break;
-          case 6: invert = (((x * y) % 2) + ((x * y) % 3)) % 2 === 0; break;
-          default: invert = (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+          case 0:
+            invert = (x + y) % 2 === 0;
+            break;
+          case 1:
+            invert = y % 2 === 0;
+            break;
+          case 2:
+            invert = x % 3 === 0;
+            break;
+          case 3:
+            invert = (x + y) % 3 === 0;
+            break;
+          case 4:
+            invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+            break;
+          case 5:
+            invert = ((x * y) % 2) + ((x * y) % 3) === 0;
+            break;
+          case 6:
+            invert = (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+            break;
+          default:
+            invert = (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
         }
         if (!isFn[y]![x]! && invert) modules[y]![x] = !modules[y]![x];
       }

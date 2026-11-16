@@ -1,9 +1,9 @@
-import { Component, type ErrorInfo, type HTMLAttributes, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import styles from "./State.module.css";
+import { Component, type ErrorInfo, type HTMLAttributes, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import styles from './State.module.css';
 
-export interface EmptyStateProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
+export interface EmptyStateProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   /** Decorative illustration or icon. */
   icon?: ReactNode;
   title: ReactNode;
@@ -13,7 +13,14 @@ export interface EmptyStateProps extends Omit<HTMLAttributes<HTMLDivElement>, "t
 }
 
 /** DS-PRIM-011: "nothing here yet" block. */
-export function EmptyState({ icon, title, description, action, className, ...rest }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  className,
+  ...rest
+}: EmptyStateProps) {
   return (
     <div {...rest} className={cx(styles.empty, className)}>
       {icon && (
@@ -39,13 +46,7 @@ export interface ErrorPageProps {
 }
 
 /** DS-PRIM-011: full-page error presentation. Uses role=alert so the failure is announced. */
-export function ErrorPage({
-  title,
-  description,
-  error,
-  action,
-  className,
-}: ErrorPageProps) {
+export function ErrorPage({ title, description, error, action, className }: ErrorPageProps) {
   const ui = useUiStrings();
   return (
     <div role="alert" className={cx(styles.errorPage, className)}>
@@ -101,13 +102,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     const { error } = this.state;
     if (!error) return this.props.children;
     if (this.props.fallback) return this.props.fallback({ error, reset: this.reset });
-    return (
-      <ErrorPage
-        error={error}
-        action={
-          <RetryButton onClick={this.reset} />
-        }
-      />
-    );
+    return <ErrorPage error={error} action={<RetryButton onClick={this.reset} />} />;
   }
 }

@@ -28,9 +28,11 @@ fn css_vars(src: &str) -> BTreeSet<String> {
     let b = src.as_bytes();
     let mut i = 0;
     while i + 2 < b.len() {
-        if b[i] == b'"' && b[i + 1] == b'-' && b[i + 2] == b'-' {
+        // Either quote: `packages/ui` is prettier-formatted with single quotes (D-811).
+        let q = b[i];
+        if (q == b'"' || q == b'\'') && b[i + 1] == b'-' && b[i + 2] == b'-' {
             let rest = &src[i + 1..];
-            if let Some(end) = rest.find('"') {
+            if let Some(end) = rest.find(q as char) {
                 let name = &rest[..end];
                 if name
                     .bytes()

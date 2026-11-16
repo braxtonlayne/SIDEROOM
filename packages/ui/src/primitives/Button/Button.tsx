@@ -1,12 +1,12 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import { Spinner } from "../Loading/Spinner";
-import styles from "./Button.module.css";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import { Spinner } from '../Loading/Spinner';
+import styles from './Button.module.css';
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "link" | "ghost";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'link' | 'ghost';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonBase extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+interface ButtonBase extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   /** Shows a spinner, sets aria-busy and blocks activation (stays focusable). */
@@ -19,19 +19,19 @@ interface ButtonBase extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "chil
 export type ButtonProps =
   | (ButtonBase & { iconOnly?: false; children: ReactNode })
   /** Icon-only buttons must carry an accessible name. */
-  | (ButtonBase & { iconOnly: true; "aria-label": string; children: ReactNode });
+  | (ButtonBase & { iconOnly: true; 'aria-label': string; children: ReactNode });
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
-    variant = "primary",
-    size = "md",
+    variant = 'primary',
+    size = 'md',
     loading = false,
     iconOnly = false,
     leadingIcon,
     trailingIcon,
     fullWidth,
     className,
-    type = "button",
+    type = 'button',
     disabled,
     onClick,
     children,

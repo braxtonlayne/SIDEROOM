@@ -6,11 +6,11 @@ import {
   useState,
   type InputHTMLAttributes,
   type ReactNode,
-} from "react";
-import { cx } from "../../util/cx";
-import styles from "./Controls.module.css";
+} from 'react';
+import { cx } from '../../util/cx';
+import styles from './Controls.module.css';
 
-interface ChoiceProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "size"> {
+interface ChoiceProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'size'> {
   label: ReactNode;
   description?: ReactNode;
 }
@@ -24,7 +24,7 @@ function ChoiceShell({
   inputRef,
   inputProps,
 }: {
-  kind: "checkbox" | "radio" | "switch";
+  kind: 'checkbox' | 'radio' | 'switch';
   label: ReactNode;
   description?: ReactNode;
   className?: string;
@@ -41,8 +41,8 @@ function ChoiceShell({
         {...inputProps}
         ref={inputRef}
         id={inputId}
-        type={kind === "radio" ? "radio" : "checkbox"}
-        role={kind === "switch" ? "switch" : undefined}
+        type={kind === 'radio' ? 'radio' : 'checkbox'}
+        role={kind === 'switch' ? 'switch' : undefined}
         aria-describedby={descId}
         className={cx(styles.input, styles[kind])}
       />
@@ -76,10 +76,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
       id={id}
       inputRef={(node) => {
         if (node) node.indeterminate = !!indeterminate;
-        if (typeof ref === "function") ref(node);
+        if (typeof ref === 'function') ref(node);
         else if (ref) ref.current = node;
       }}
-      inputProps={{ ...rest, "aria-checked": indeterminate ? "mixed" : undefined }}
+      inputProps={{ ...rest, 'aria-checked': indeterminate ? 'mixed' : undefined }}
     />
   );
 });
@@ -89,7 +89,15 @@ export const Switch = forwardRef<HTMLInputElement, ChoiceProps>(function Switch(
   ref,
 ) {
   return (
-    <ChoiceShell kind="switch" label={label} description={description} className={className} id={id} inputRef={ref} inputProps={rest} />
+    <ChoiceShell
+      kind="switch"
+      label={label}
+      description={description}
+      className={className}
+      id={id}
+      inputRef={ref}
+      inputProps={rest}
+    />
   );
 });
 
@@ -108,7 +116,7 @@ export interface RadioGroupProps {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   disabled?: boolean;
-  orientation?: "vertical" | "horizontal";
+  orientation?: 'vertical' | 'horizontal';
   className?: string;
   children: ReactNode;
 }
@@ -121,7 +129,7 @@ export function RadioGroup({
   defaultValue,
   onValueChange,
   disabled,
-  orientation = "vertical",
+  orientation = 'vertical',
   className,
   children,
 }: RadioGroupProps) {
@@ -148,7 +156,10 @@ export function RadioGroup({
   );
 }
 
-export interface RadioProps extends Omit<ChoiceProps, "name" | "checked" | "defaultChecked" | "value"> {
+export interface RadioProps extends Omit<
+  ChoiceProps,
+  'name' | 'checked' | 'defaultChecked' | 'value'
+> {
   value: string;
 }
 
@@ -157,7 +168,7 @@ export const Radio = forwardRef<HTMLInputElement, RadioProps>(function Radio(
   ref,
 ) {
   const group = useContext(RadioGroupContext);
-  if (!group) throw new Error("<Radio> must be used inside <RadioGroup>");
+  if (!group) throw new Error('<Radio> must be used inside <RadioGroup>');
   return (
     <ChoiceShell
       kind="radio"

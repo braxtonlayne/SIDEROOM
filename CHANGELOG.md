@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 79 - 2026-11-15
+
+- **Members.** On a phone, Cinema and Library pages no longer slide sideways, and the bar at the top shows the area you are in. The Cinema's rows scroll inside themselves however many titles they hold. Buttons and chips in a themed Cinema or Library match the app's buttons, the watch-party theatre's badges are gold in every theme, and the Library reader's bars keep the gold accent. Tab strips that do not fit fade at the edge and bring the chosen tab into view. The hash, notes, timer, dice and developer tools in the drawer, and the wheel, now match the theme you chose. The Admin's file pickers sit apart from their labels, and the Developers pages use the app's corner radius.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 78 - 2026-11-15
 
 - **Members.** The Library and the Cinema, Live TV included, now look right in any theme you choose for them under Per-section themes, light ones too; the video player, the TV screen, the watch party and text over posters stay dark. "Choose file" buttons look like the app's other buttons, in every theme. Every column of the emoji picker is whole: the last emoji of each row is no longer cut off, on a phone or a desktop, and the pinned messages box fits a phone. On a phone the last links of a Cinema, Library or Arcade page can now be scrolled out from under the music player.

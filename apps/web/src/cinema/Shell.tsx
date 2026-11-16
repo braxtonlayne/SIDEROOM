@@ -19,6 +19,7 @@ import { ApiError } from '../api/client';
 import { useT } from '../i18n';
 import { useStudyFlag, type StudyFlag } from '../study/flags';
 import { RoomsNav } from '../study/RoomsNav';
+import { scrollBarTo } from '../study/scrollBarTo';
 import { StudyAreas } from '../study/StudyAreas';
 import { getMe } from '../settings/user/api';
 import { useOpenUserSettings } from '../settings/user/nav';
@@ -28,8 +29,28 @@ import { SearchOverlay } from './Search';
 /** `SIDE ROOM / The lounge · The cinema · The library` with the cinema active (CIN-UI-001). No "board". */
 export function SectionBar() {
   const t = useT();
+  const bar = useRef<HTMLElement>(null);
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  // D-817: on a phone the bar scrolls inside itself; bring the area you are in into view (on mount, per route, and
+  // once the web fonts have set the bar's final width).
+  useEffect(() => {
+    // Scroll the bar itself, never the page (D-821): `scrollIntoView` would move every scrolling ancestor.
+    const show = () => {
+      const el = bar.current;
+      const link = el?.querySelector<HTMLElement>(
+        ".cin-sectionbar-nav + .cin-sectionbar-nav [aria-current='page']",
+      );
+      if (el && link) scrollBarTo(el, link);
+    };
+    show();
+    let live = true;
+    void document.fonts?.ready.then(() => live && show());
+    return () => {
+      live = false;
+    };
+  }, [path]);
   return (
-    <header className="cin-sectionbar">
+    <header className="cin-sectionbar" ref={bar}>
       <span className="cin-sectionbar-brand">{t('cinema.shell.brand')}</span>
       <span aria-hidden="true" className="cin-sectionbar-slash">
         /

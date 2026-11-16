@@ -50,9 +50,12 @@ export default function WheelTool() {
   };
 
   const gradient = useMemo(() => {
-    if (names.length === 0) return 'var(--sr-bg-1, #14120f)';
+    if (names.length === 0) return 'var(--ui-bg-hover, var(--sr-bg-1, #14120f))';
     const slice = 100 / names.length;
-    const shades = ['var(--sr-bg-2, #1c1914)', 'var(--sr-bg-1, #14120f)'];
+    const shades = [
+      'var(--ui-bg-raised, var(--sr-bg-2, #1c1914))',
+      'var(--ui-bg-hover, var(--sr-bg-1, #14120f))',
+    ];
     return `conic-gradient(${names
       .map((_, i) => `${shades[i % 2]} ${i * slice}% ${(i + 1) * slice}%`)
       .join(', ')})`;

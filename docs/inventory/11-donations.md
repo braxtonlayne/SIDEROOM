@@ -11,7 +11,7 @@ Phase 3. Spec: doc 08, ADR-0006.
 - [x] **DON-PAY-006** [BE] Esplora watcher job (mempool seen, confirmations, reorg handling, idempotent tx matching)
 - [x] **DON-PAY-007** [BE] Invoice state machine (open/seen/confirmed/expired/underpaid/overpaid) + late-payment crediting
 - [x] **DON-PAY-008** [GW] `SR_INVOICE_UPDATE` dispatch *(named `SR_PAYMENT_UPDATE`)*
-- [ ] **DON-PAY-009** [TEST] Signet/regtest integration tests (regtest bitcoind + electrs in CI) *(won't build in CI, D-257: `FakeChain` and the BIP-84 vectors cover CI; the opt-in `crates/sr-payments/tests/esplora_live.rs` runs by hand against a public signet Esplora, see `docs/dev/payments-live-test.md`)*
+- [x] **DON-PAY-009** [TEST] Signet/regtest integration tests (regtest bitcoind + electrs in CI) *(won't build in CI, D-257: `FakeChain` and the BIP-84 vectors cover CI; the opt-in `crates/sr-payments/tests/esplora_live.rs` runs by hand against a public signet Esplora, see `docs/dev/payments-live-test.md`)*
 
 ## DON-ENT — Entitlements
 - [x] **DON-ENT-001** [BE] Patron entitlement (30 days per month purchased, stacking, 3-day grace)

@@ -1,19 +1,19 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { usePortalTarget } from "../../theme/ThemeProvider";
-import { cx } from "../../util/cx";
-import { useUiStrings } from "../../util/uiStrings";
-import { Button } from "../Button/Button";
-import { TextInput } from "../Input/TextInput";
-import { useFocusTrap, useOverlayStack } from "../Overlay/overlayStack";
-import styles from "./Modal.module.css";
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { usePortalTarget } from '../../theme/ThemeProvider';
+import { cx } from '../../util/cx';
+import { useUiStrings } from '../../util/uiStrings';
+import { Button } from '../Button/Button';
+import { TextInput } from '../Input/TextInput';
+import { useFocusTrap, useOverlayStack } from '../Overlay/overlayStack';
+import styles from './Modal.module.css';
 
 export interface ModalProps {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
   description?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: 'sm' | 'md' | 'lg';
   /** Close when the backdrop is clicked (default true). */
   closeOnBackdrop?: boolean;
   /** Close on Escape (default true). */
@@ -30,7 +30,7 @@ export function Modal({
   onClose,
   title,
   description,
-  size = "md",
+  size = 'md',
   closeOnBackdrop = true,
   closeOnEscape = true,
   footer,
@@ -124,9 +124,9 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const ui = useUiStrings();
-  const [typed, setTyped] = useState("");
+  const [typed, setTyped] = useState('');
   useEffect(() => {
-    if (!open) setTyped("");
+    if (!open) setTyped('');
   }, [open]);
   const ready = requireText === undefined || typed === requireText;
   return (
@@ -138,10 +138,19 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <>
-          <Button variant="ghost" onClick={onCancel} data-autofocus={requireText === undefined ? "" : undefined}>
+          <Button
+            variant="ghost"
+            onClick={onCancel}
+            data-autofocus={requireText === undefined ? '' : undefined}
+          >
             {cancelLabel ?? ui.cancel}
           </Button>
-          <Button variant={danger ? "danger" : "primary"} disabled={!ready} loading={loading} onClick={onConfirm}>
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            disabled={!ready}
+            loading={loading}
+            onClick={onConfirm}
+          >
             {confirmLabel ?? ui.confirm}
           </Button>
         </>

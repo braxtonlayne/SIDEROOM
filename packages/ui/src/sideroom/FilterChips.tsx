@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
-import { Select } from "../primitives/Select/Select";
-import { cx } from "../util/cx";
-import styles from "./FilterChips.module.css";
+import { useState, type ReactNode } from 'react';
+import { Select } from '../primitives/Select/Select';
+import { cx } from '../util/cx';
+import styles from './FilterChips.module.css';
 
 export interface FilterChipOption {
   value: string;
@@ -18,8 +18,18 @@ interface Common {
 
 export type FilterChipsProps = Common &
   (
-    | { multiple?: false; value?: string | null; defaultValue?: string | null; onValueChange?: (value: string | null) => void }
-    | { multiple: true; value?: string[]; defaultValue?: string[]; onValueChange?: (value: string[]) => void }
+    | {
+        multiple?: false;
+        value?: string | null;
+        defaultValue?: string | null;
+        onValueChange?: (value: string | null) => void;
+      }
+    | {
+        multiple: true;
+        value?: string[];
+        defaultValue?: string[];
+        onValueChange?: (value: string[]) => void;
+      }
   );
 
 /** DS-SR-007: row of square filter chips; single (re-click clears) or multi select. Each chip is a toggle button. */
@@ -30,7 +40,13 @@ export function FilterChips(props: FilterChipsProps) {
     return Array.isArray(d) ? d : d ? [d] : [];
   });
   const controlled = props.value !== undefined;
-  const selected = controlled ? (Array.isArray(props.value) ? props.value : props.value ? [props.value] : []) : internal;
+  const selected = controlled
+    ? Array.isArray(props.value)
+      ? props.value
+      : props.value
+        ? [props.value]
+        : []
+    : internal;
 
   const toggle = (v: string) => {
     const on = selected.includes(v);
@@ -82,11 +98,16 @@ export interface DropdownChipProps {
  * DS-SR-007: chip-styled dropdown ("Room selection ▾"). Built on the themed `Select` primitive
  * (Q74), so its popup follows the theme and the keyboard model is the primitive's.
  */
-export function DropdownChip({ label, options, value, defaultValue, onValueChange, className, disabled }: DropdownChipProps) {
-  const controlledProps =
-    value === undefined
-      ? { defaultValue: defaultValue ?? null }
-      : { value };
+export function DropdownChip({
+  label,
+  options,
+  value,
+  defaultValue,
+  onValueChange,
+  className,
+  disabled,
+}: DropdownChipProps) {
+  const controlledProps = value === undefined ? { defaultValue: defaultValue ?? null } : { value };
   return (
     <span className={cx(styles.dropdown, className)}>
       <Select

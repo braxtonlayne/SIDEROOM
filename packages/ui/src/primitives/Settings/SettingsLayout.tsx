@@ -5,9 +5,9 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-} from "react";
-import { cx } from "../../util/cx";
-import styles from "./Settings.module.css";
+} from 'react';
+import { cx } from '../../util/cx';
+import styles from './Settings.module.css';
 
 export interface SettingsSection {
   id: string;
@@ -31,12 +31,12 @@ export interface SettingsLayoutLabels {
 }
 
 export const SETTINGS_LAYOUT_LABELS_EN: SettingsLayoutLabels = {
-  close: "Close",
-  closeTarget: "settings",
-  unsaved: "Careful, you have unsaved changes!",
-  reset: "Reset",
-  save: "Save changes",
-  saving: "Saving...",
+  close: 'Close',
+  closeTarget: 'settings',
+  unsaved: 'Careful, you have unsaved changes!',
+  reset: 'Reset',
+  save: 'Save changes',
+  saving: 'Saving...',
 };
 
 export interface SettingsLayoutProps {
@@ -87,7 +87,7 @@ export function SettingsLayout({
   inline,
   blockNavWhenDirty,
   wide,
-  navToggleLabel = "Sections",
+  navToggleLabel = 'Sections',
   labels,
   className,
   sidebarHeader,
@@ -111,13 +111,15 @@ export function SettingsLayout({
     const check = () => {
       const need =
         el.scrollHeight > el.clientHeight &&
-        !el.querySelector('a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])');
+        !el.querySelector(
+          'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])',
+        );
       setScrollStop((prev) => (prev === need ? prev : need));
     };
     check();
     const mo = new MutationObserver(check);
     mo.observe(el, { childList: true, subtree: true });
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(check);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(check);
     ro?.observe(el);
     return () => {
       mo.disconnect();
@@ -131,12 +133,12 @@ export function SettingsLayout({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (dirtyRef.current) setNudge((n) => n + 1);
       else onCloseRef.current();
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, []);
 
   const groups: Array<{ name: string | undefined; items: SettingsSection[] }> = [];
@@ -146,7 +148,11 @@ export function SettingsLayout({
     else groups.push({ name: s.group, items: [s] });
   }
   const active = sections.find((s) => s.id === activeId);
-  const tabStop = sections.some((s) => s.id === focusId) ? focusId : active ? active.id : sections[0]?.id;
+  const tabStop = sections.some((s) => s.id === focusId)
+    ? focusId
+    : active
+      ? active.id
+      : sections[0]?.id;
 
   const onNavKey = (e: ReactKeyboardEvent<HTMLElement>) => {
     const ids = sections.map((s) => s.id);
@@ -154,16 +160,16 @@ export function SettingsLayout({
     if (cur < 0) return;
     let next: number;
     switch (e.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         next = (cur + 1) % ids.length;
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         next = (cur - 1 + ids.length) % ids.length;
         break;
-      case "Home":
+      case 'Home':
         next = 0;
         break;
-      case "End":
+      case 'End':
         next = ids.length - 1;
         break;
       default:
@@ -199,13 +205,13 @@ export function SettingsLayout({
           onClick={() => setNavOpen((o) => !o)}
         >
           {navToggleLabel}
-          {typeof active?.label === "string" ? `: ${active.label}` : ""}
+          {typeof active?.label === 'string' ? `: ${active.label}` : ''}
         </button>
         {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble from the section buttons (roving tabindex) */}
         <nav id={`${navId}-nav`} className={styles.nav} aria-label={title} onKeyDown={onNavKey}>
           {sidebarHeader && <div className={styles.header}>{sidebarHeader}</div>}
           {groups.map((g, gi) => (
-            <div key={`${g.name ?? "g"}-${gi}`} className={styles.group}>
+            <div key={`${g.name ?? 'g'}-${gi}`} className={styles.group}>
               {g.name && <p className={styles.groupName}>{g.name}</p>}
               <ul className={styles.list}>
                 {g.items.map((s) => (
@@ -213,7 +219,7 @@ export function SettingsLayout({
                     <button
                       type="button"
                       className={cx(styles.navItem, s.danger && styles.danger)}
-                      aria-current={s.id === activeId ? "page" : undefined}
+                      aria-current={s.id === activeId ? 'page' : undefined}
                       tabIndex={s.id === tabStop ? 0 : -1}
                       ref={(el) => {
                         if (el) navRefs.current.set(s.id, el);
@@ -233,7 +239,11 @@ export function SettingsLayout({
       </div>
       <div className={styles.main}>
         <div className={styles.topline}>
-          <button type="button" className={styles.close} onClick={() => (dirty ? setNudge((n) => n + 1) : onClose())}>
+          <button
+            type="button"
+            className={styles.close}
+            onClick={() => (dirty ? setNudge((n) => n + 1) : onClose())}
+          >
             <span aria-hidden="true" className={styles.closeX}>
               ×
             </span>
@@ -249,7 +259,7 @@ export function SettingsLayout({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={scrollStop ? 0 : undefined}
           className={styles.content}
-          aria-label={typeof active?.label === "string" ? active.label : title}
+          aria-label={typeof active?.label === 'string' ? active.label : title}
         >
           {children}
         </main>

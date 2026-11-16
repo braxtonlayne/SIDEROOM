@@ -8,18 +8,18 @@ import {
   type HTMLAttributes,
   type Key,
   type ReactNode,
-} from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { cx } from "../../util/cx";
-import { observeRectWithFallback } from "../../util/virtual";
-import styles from "./Scroll.module.css";
+} from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { cx } from '../../util/cx';
+import { observeRectWithFallback } from '../../util/virtual';
+import styles from './Scroll.module.css';
 
 /* ------------------------------------------------------------ ScrollArea */
 
 export interface ScrollAreaProps extends HTMLAttributes<HTMLDivElement> {
   /** `thin` shows a slim themed bar on hover/focus; `auto` is the platform default; `hidden` hides it. */
-  scrollbar?: "thin" | "auto" | "hidden";
-  orientation?: "vertical" | "horizontal" | "both";
+  scrollbar?: 'thin' | 'auto' | 'hidden';
+  orientation?: 'vertical' | 'horizontal' | 'both';
 }
 
 /**
@@ -27,20 +27,20 @@ export interface ScrollAreaProps extends HTMLAttributes<HTMLDivElement> {
  * (tabIndex 0) and, when given an accessible name, exposed as a labelled region.
  */
 export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function ScrollArea(
-  { scrollbar = "thin", orientation = "vertical", className, children, tabIndex = 0, ...rest },
+  { scrollbar = 'thin', orientation = 'vertical', className, children, tabIndex = 0, ...rest },
   ref,
 ) {
-  const named = !!(rest["aria-label"] || rest["aria-labelledby"]);
+  const named = !!(rest['aria-label'] || rest['aria-labelledby']);
   return (
     <div
-      role={named && !rest.role ? "region" : rest.role}
+      role={named && !rest.role ? 'region' : rest.role}
       {...rest}
       ref={ref}
       tabIndex={tabIndex}
       data-sr-part="scroll-area"
       className={cx(
         styles.scroll,
-        orientation === "both" ? styles.both : orientation === "horizontal" ? styles.x : styles.y,
+        orientation === 'both' ? styles.both : orientation === 'horizontal' ? styles.x : styles.y,
         styles[scrollbar],
         className,
       )}
@@ -53,18 +53,18 @@ export const ScrollArea = forwardRef<HTMLDivElement, ScrollAreaProps>(function S
 /* ------------------------------------------------------------ VirtualList */
 
 export interface VirtualListHandle {
-  scrollToIndex: (index: number, align?: "start" | "center" | "end" | "auto") => void;
+  scrollToIndex: (index: number, align?: 'start' | 'center' | 'end' | 'auto') => void;
   element: HTMLDivElement | null;
 }
 
-export interface VirtualListProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+export interface VirtualListProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   count: number;
   /** Estimated row height in px. Rows are measured after render, so variable heights work. */
   estimateSize: number;
   renderItem: (index: number) => ReactNode;
   getItemKey?: (index: number) => Key;
   overscan?: number;
-  scrollbar?: ScrollAreaProps["scrollbar"];
+  scrollbar?: ScrollAreaProps['scrollbar'];
   /** Rows to assume visible before layout exists (SSR, tests). Default 20. */
   initialVisible?: number;
   /** Shown instead of the list when `count` is 0. */
@@ -83,7 +83,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     initialVisible = 20,
     empty,
     className,
-    role = "list",
+    role = 'list',
     ...rest
   },
   ref,
@@ -94,13 +94,24 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
     getScrollElement: () => scroller.current,
     estimateSize: () => estimateSize,
     measureElement: (el, entry) =>
-      Math.round(entry?.borderBoxSize?.[0]?.blockSize ?? el.getBoundingClientRect().height) || estimateSize,
+      Math.round(entry?.borderBoxSize?.[0]?.blockSize ?? el.getBoundingClientRect().height) ||
+      estimateSize,
     getItemKey,
     overscan,
     initialRect: { width: 0, height: estimateSize * initialVisible },
-    observeElementRect: observeRectWithFallback({ width: 0, height: estimateSize * initialVisible }),
+    observeElementRect: observeRectWithFallback({
+      width: 0,
+      height: estimateSize * initialVisible,
+    }),
   });
-  useImperativeHandle(ref, () => ({ scrollToIndex: (i, align) => v.scrollToIndex(i, { align }), element: scroller.current }), [v]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollToIndex: (i, align) => v.scrollToIndex(i, { align }),
+      element: scroller.current,
+    }),
+    [v],
+  );
 
   if (count === 0 && empty) return <>{empty}</>;
   return (
@@ -111,9 +122,9 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
             key={item.key}
             ref={v.measureElement}
             data-index={item.index}
-            role={role === "list" ? "listitem" : undefined}
-            aria-setsize={role === "list" ? count : undefined}
-            aria-posinset={role === "list" ? item.index + 1 : undefined}
+            role={role === 'list' ? 'listitem' : undefined}
+            aria-setsize={role === 'list' ? count : undefined}
+            aria-posinset={role === 'list' ? item.index + 1 : undefined}
             className={styles.row}
             style={{ transform: `translateY(${item.start}px)` }}
           >
@@ -127,7 +138,7 @@ export const VirtualList = forwardRef<VirtualListHandle, VirtualListProps>(funct
 
 /* ------------------------------------------------------------ VirtualGrid */
 
-export interface VirtualGridProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+export interface VirtualGridProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
   count: number;
   renderItem: (index: number) => ReactNode;
   /** Fixed column count. Takes precedence over `minColumnWidth`. */
@@ -138,7 +149,7 @@ export interface VirtualGridProps extends Omit<HTMLAttributes<HTMLDivElement>, "
   rowHeight: number;
   gap?: number;
   overscan?: number;
-  scrollbar?: ScrollAreaProps["scrollbar"];
+  scrollbar?: ScrollAreaProps['scrollbar'];
   initialVisibleRows?: number;
   empty?: ReactNode;
 }
@@ -157,7 +168,7 @@ export const VirtualGrid = forwardRef<HTMLDivElement, VirtualGridProps>(function
     initialVisibleRows = 6,
     empty,
     className,
-    role = "list",
+    role = 'list',
     ...rest
   },
   ref,
@@ -167,7 +178,7 @@ export const VirtualGrid = forwardRef<HTMLDivElement, VirtualGridProps>(function
   const setRef = useCallback(
     (el: HTMLDivElement | null) => {
       scroller.current = el;
-      if (typeof ref === "function") ref(el);
+      if (typeof ref === 'function') ref(el);
       else if (ref) ref.current = el;
     },
     [ref],
@@ -178,13 +189,16 @@ export const VirtualGrid = forwardRef<HTMLDivElement, VirtualGridProps>(function
     if (!el) return;
     const measure = () => setWidth(el.clientWidth);
     measure();
-    if (typeof ResizeObserver === "undefined") return;
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const cols = Math.max(1, columns ?? (width > 0 ? Math.floor((width + gap) / (minColumnWidth + gap)) : 1));
+  const cols = Math.max(
+    1,
+    columns ?? (width > 0 ? Math.floor((width + gap) / (minColumnWidth + gap)) : 1),
+  );
   const rows = Math.ceil(count / cols);
   const pitch = rowHeight + gap;
   const v = useVirtualizer({
@@ -221,9 +235,9 @@ export const VirtualGrid = forwardRef<HTMLDivElement, VirtualGridProps>(function
                 return (
                   <div
                     key={index}
-                    role={role === "list" ? "listitem" : undefined}
-                    aria-setsize={role === "list" ? count : undefined}
-                    aria-posinset={role === "list" ? index + 1 : undefined}
+                    role={role === 'list' ? 'listitem' : undefined}
+                    aria-setsize={role === 'list' ? count : undefined}
+                    aria-posinset={role === 'list' ? index + 1 : undefined}
                     style={{ minWidth: 0, minHeight: 0 }}
                   >
                     {renderItem(index)}

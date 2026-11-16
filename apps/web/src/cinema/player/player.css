@@ -37,6 +37,11 @@
   --sr-text-3: #918d7e;
   --sr-gold: #c2b08f;
   --sr-gold-ink: #1b1a15;
+  --ui-accent: #c2b08f;
+  --ui-accent-hover: #d1c1a2;
+  --ui-accent-ink: #1b1a15;
+  --cin-fill: #c2b08f;
+  --cin-fill-ink: #1b1a15;
   --ui-bg: #111110;
   --ui-bg-raised: #1c1d18;
   --ui-bg-overlay: #1c1d18;

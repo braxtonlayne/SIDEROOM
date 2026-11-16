@@ -102,7 +102,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
         await page.screenshot({ path: resolve(OUT, `${name}-${tag}.png`) });
       };
       const addServer = async () => {
-        await page.goto("/channels/@me");
+        await page.goto('/channels/@me');
         const open = page.getByRole('button', { name: 'Add a Server' });
         await open.click();
       };
@@ -163,7 +163,7 @@ test('the limits say why, in every dialog that creates or joins', async ({ brows
       );
       await page.route(/\/api\/v1\/directory\/categories$/, (r) => json(r, ['gaming']));
       await page.route(/\/api\/v1\/directory\/4242\/join$/, full);
-      await page.goto("/channels/@me");
+      await page.goto('/channels/@me');
       await page.getByRole('button', { name: 'Discover' }).click();
       const dir = page.getByRole('dialog', { name: 'Server Directory' });
       await dir

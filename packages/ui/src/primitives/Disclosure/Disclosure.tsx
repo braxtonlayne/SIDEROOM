@@ -1,6 +1,6 @@
-import { useId, useState, type ReactNode } from "react";
-import { cx } from "../../util/cx";
-import styles from "./Disclosure.module.css";
+import { useId, useState, type ReactNode } from 'react';
+import { cx } from '../../util/cx';
+import styles from './Disclosure.module.css';
 
 export interface CollapsibleProps {
   /** Trigger content (e.g. a channel category name). */
@@ -9,7 +9,7 @@ export interface CollapsibleProps {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** "category" is the compact uppercase Discord-style category header. */
-  variant?: "default" | "category";
+  variant?: 'default' | 'category';
   headingLevel?: 2 | 3 | 4 | 5 | 6;
   className?: string;
   children?: ReactNode;
@@ -21,7 +21,7 @@ export function Collapsible({
   open,
   defaultOpen = false,
   onOpenChange,
-  variant = "default",
+  variant = 'default',
   headingLevel = 3,
   className,
   children,
@@ -29,7 +29,7 @@ export function Collapsible({
   const id = useId();
   const [internal, setInternal] = useState(defaultOpen);
   const isOpen = open ?? internal;
-  const H = `h${headingLevel}` as "h3";
+  const H = `h${headingLevel}` as 'h3';
   const toggle = () => {
     if (open === undefined) setInternal(!isOpen);
     onOpenChange?.(!isOpen);
@@ -49,7 +49,13 @@ export function Collapsible({
           <span>{title}</span>
         </button>
       </H>
-      <div id={`${id}-panel`} role="region" aria-labelledby={`${id}-trigger`} hidden={!isOpen} className={styles.panel}>
+      <div
+        id={`${id}-panel`}
+        role="region"
+        aria-labelledby={`${id}-trigger`}
+        hidden={!isOpen}
+        className={styles.panel}
+      >
         {children}
       </div>
     </div>
@@ -72,7 +78,13 @@ export interface AccordionProps {
 }
 
 /** DS-PRIM-008: a stack of Collapsibles; single-open unless `multiple`. */
-export function Accordion({ items, multiple = false, defaultOpen = [], headingLevel = 3, className }: AccordionProps) {
+export function Accordion({
+  items,
+  multiple = false,
+  defaultOpen = [],
+  headingLevel = 3,
+  className,
+}: AccordionProps) {
   const [openIds, setOpenIds] = useState<string[]>(defaultOpen);
   return (
     <div className={cx(styles.accordion, className)}>
@@ -83,7 +95,9 @@ export function Accordion({ items, multiple = false, defaultOpen = [], headingLe
           headingLevel={headingLevel}
           open={openIds.includes(it.id)}
           onOpenChange={(o) =>
-            setOpenIds((cur) => (o ? (multiple ? [...cur, it.id] : [it.id]) : cur.filter((x) => x !== it.id)))
+            setOpenIds((cur) =>
+              o ? (multiple ? [...cur, it.id] : [it.id]) : cur.filter((x) => x !== it.id),
+            )
           }
         >
           {it.content}

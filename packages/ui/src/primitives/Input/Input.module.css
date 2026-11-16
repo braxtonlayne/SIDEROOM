@@ -1,5 +1,15 @@
-.field { display: flex; flex-direction: column; gap: 6px; }
-.label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-text-muted); }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
 .control {
   width: 100%;
   box-sizing: border-box;
@@ -11,18 +21,46 @@
   border-radius: var(--ui-radius);
   font: inherit;
 }
-.control::placeholder { color: var(--ui-text-faint); }
-.control:hover:not(:disabled) { border-color: var(--ui-text-faint); }
-.control:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
-.control:disabled { opacity: 0.55; cursor: not-allowed; }
-.control[aria-invalid="true"] { border-color: var(--ui-danger); }
-.textarea { resize: vertical; line-height: 1.4; }
-.hint { margin: 0; font-size: 0.75rem; color: var(--ui-text-muted); }
+.control::placeholder {
+  color: var(--ui-text-faint);
+}
+.control:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.control:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.control:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.control[aria-invalid='true'] {
+  border-color: var(--ui-danger);
+}
+.textarea {
+  resize: vertical;
+  line-height: 1.4;
+}
+.hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ui-text-muted);
+}
 /* Danger text on a surface (D-577): contrast-tested in every theme (tokens-contrast.test.ts). */
-.error { margin: 0; font-size: 0.75rem; color: var(--ui-danger-text, var(--ui-danger)); }
+.error {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ui-danger-text, var(--ui-danger));
+}
 
-.passwordWrap { position: relative; display: flex; }
-.hasToggle { padding-inline-end: 64px; }
+.passwordWrap {
+  position: relative;
+  display: flex;
+}
+.hasToggle {
+  padding-inline-end: 64px;
+}
 .toggle {
   position: absolute;
   inset-inline-end: 4px;
@@ -37,7 +75,18 @@
   font-size: 0.75rem;
   cursor: pointer;
 }
-.toggle:hover { color: var(--ui-text); }
-.toggle:focus-visible { outline: 2px solid var(--ui-focus); }
-.strength { display: flex; align-items: center; gap: 8px; }
-.meter { flex: 1; height: 6px; }
+.toggle:hover {
+  color: var(--ui-text);
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--ui-focus);
+}
+.strength {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meter {
+  flex: 1;
+  height: 6px;
+}
