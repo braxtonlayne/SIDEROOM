@@ -164,6 +164,10 @@
     height: 44px;
     margin-block: -12px;
   }
+  /* Wrapped rows of pills are 12 px apart, so that two rows of 44 px targets do not overlap. */
+  .segmented {
+    row-gap: 12px;
+  }
   .segment::before {
     content: '';
     position: absolute;
