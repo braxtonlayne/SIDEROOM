@@ -16,9 +16,9 @@ T = 16:10 on 2026-11-16 (clock times: no new item 16:50, checkpoint 17:05, finis
 - Other checkboxes on the Donations pages, measured at 375, not changed: Entitlements "Only active" (`EntitlementsSection.tsx:78`): label row 44 px, passes; Invoices "Needs attention" (`InvoicesSection.tsx:271`): label row 44 px, passes (both come from the kit's/Admin's filter-row rules); Entitlements grant dialog "No end date" (`:201`): box 13 px, label row 20 px, FAILS the hit test. Left of SEC-AUD-363 on the Donations pages: only that "No end date" checkbox (a dialog, `EntitlementsSection.tsx`, not mine). At 1280 all of these are 40 px label rows / 13 px boxes (desktop, not covered by D-856).
 
 ## Tests
-- `admin/__tests__/donations.test.tsx`, single file: 12/12 passed before (the change is a class name and CSS; run again not needed as no tsx logic changed; the file was run on the base tree before the edit was applied to it... see note) and the only .tsx change is a class name.
+- `admin/__tests__/donations.test.tsx`, single file: 12/12 passed with my change applied (run at 15:57); I did not run it on the base (a class name and CSS only).
 - web tsc clean, eslint on PricingSection.tsx clean, prettier clean on the three files, `check-css-tokens` clean, `i18n-audit --max 0` TOTAL 0, e2e tsc clean, my spec passes (`problems []`).
-- Not run: `check-doc-links` (no doc changed besides this handoff).
+- `check-doc-links` ok.
 
 ## Shots
 `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p86-donations`: 12 PNGs (before: top and tiers at 375 Light/Dark and 1280; after: the same 6), plus `measure*.json`, `totals*.json`. I opened all 12 after releasing the lock: the checkbox row is taller and the text sits level with the box; fields look the same size at 16 px; tiers blocks are whole; 1280 before and after identical.
