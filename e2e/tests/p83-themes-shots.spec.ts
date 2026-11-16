@@ -48,8 +48,8 @@ const loadWorld = (): World => {
 };
 
 const PAGES: { id: string; path: (w: World) => string | null; root: string }[] = [
-  { id: 'support', path: () => '/support', root: '.ss-root' },
-  { id: 'leaderboards', path: () => '/support/leaderboards', root: '.ss-root' },
+  { id: 'support', path: () => '/support', root: 'main.sup-page' },
+  { id: 'leaderboards', path: () => '/support/leaderboards', root: 'main.sup-page' },
   {
     id: 'invite-app',
     path: (w) => (w.inviteCode ? `/invite/${w.inviteCode}` : null),
@@ -74,6 +74,8 @@ interface Line {
   rootBox: Box | null;
   rootBg: string | null;
   bottomReaches: boolean;
+  bottomGround: string;
+  display: string | null;
   over: number;
   boxes: Box[];
   texts: { k: string; color: string; bg: string; ratio: number }[];
@@ -81,7 +83,14 @@ interface Line {
 
 /** In the page: everything the shots table needs. */
 function measureInPage(rootSel: string): Omit<Line, 'id' | 'theme' | 'size' | 'main'> {
-  const root = document.querySelector<HTMLElement>(rootSel);
+  const all = Array.from(document.querySelectorAll<HTMLElement>(rootSel)).map(
+    (e) => e.closest<HTMLElement>('[data-theme]') ?? e,
+  );
+  const root =
+    all.find((e) => e.hasAttribute('data-theme') && e.getBoundingClientRect().width > 0) ??
+    all.find((e) => e.getBoundingClientRect().width > 0) ??
+    all[0] ??
+    null;
   const de = document.documentElement;
   const rgb = (s: string) => (s.match(/[\d.]+/g) ?? []).map(Number);
   const lum = (c: number[]) => {
@@ -159,6 +168,10 @@ function measureInPage(rootSel: string): Omit<Line, 'id' | 'theme' | 'size' | 'm
       null,
     rootBox: root ? box(root, rootSel) : null,
     rootBg: root ? getComputedStyle(root).backgroundColor : null,
+    bottomGround: groundOf(
+      document.elementFromPoint(innerWidth / 2, innerHeight - 2) ?? document.body,
+    ).join(','),
+    display: root ? getComputedStyle(root).display : null,
     bottomReaches: rr ? rr.bottom + scrollY >= innerHeight - 1 : false,
     over: de.scrollWidth - de.clientWidth,
     boxes,
@@ -242,12 +255,12 @@ test('SEC-AUD-345: the four pages in the three main themes', async ({ browser })
         const tag = `${p.id}-${size}-${theme}`;
         await page.screenshot({ path: resolve(OUT, `${tag}.png`), timeout: 10_000 });
         console.log(
-          `REPORT ${tag}: data-theme ${m.rootTheme} main ${mainTheme} bg ${m.rootBg} reaches ${m.bottomReaches} over ${m.over} root ${JSON.stringify(m.rootBox)} low-contrast ${m.texts.filter((t) => t.ratio < 4.5).length}/${m.texts.length}`,
+          `REPORT ${tag}: data-theme ${m.rootTheme} main ${mainTheme} bg ${m.rootBg} reaches ${m.bottomReaches} display ${m.display} bottom-ground ${m.bottomGround} over ${m.over} root ${JSON.stringify(m.rootBox)} low-contrast ${m.texts.filter((t) => t.ratio < 4.5).length}/${m.texts.length}`,
         );
         if (!BASE) {
-          expect(m.rootTheme, `${tag} data-theme`).toBe(theme);
-          expect(m.over, `${tag} sideways scroll`).toBeLessThanOrEqual(0);
-          expect(m.bottomReaches, `${tag} ground reaches the bottom`).toBe(true);
+          expect.soft(m.rootTheme, `${tag} data-theme`).toBe(theme);
+          expect.soft(m.over, `${tag} sideways scroll`).toBeLessThanOrEqual(0);
+          expect.soft(m.bottomReaches, `${tag} ground reaches the bottom`).toBe(true);
         }
       }
       await ctx.close();
@@ -266,7 +279,7 @@ test('SEC-AUD-345: the four pages in the three main themes', async ({ browser })
     for (const l of lines.filter((x) => x.theme === 'lounge-editorial')) {
       const b = base.find((x) => x.id === l.id && x.theme === l.theme && x.size === l.size);
       if (!b) continue;
-      const pairs: [Box | null, Box | null][] = [[b.rootBox, l.rootBox]];
+      const pairs: [Box | null, Box | null][] = b.rootBox?.w ? [[b.rootBox, l.rootBox]] : []; // a display: contents root has no box on the base
       for (const bb of b.boxes) pairs.push([bb, l.boxes.find((x) => x.k === bb.k) ?? null]);
       for (const [x, y] of pairs) {
         if (!x || !y) {
@@ -318,7 +331,7 @@ test('SEC-AUD-345: click-through in Lounge Light', async ({ browser }) => {
     });
     await step('1-lounge');
     await page.goto('/support', { waitUntil: 'domcontentloaded' });
-    await page.locator('.ss-root').first().waitFor();
+    await page.locator('main.sup-page').first().waitFor();
     await step('2-support');
     const lb = page.locator('a[href="/support/leaderboards"]').first();
     await lb.scrollIntoViewIfNeeded();

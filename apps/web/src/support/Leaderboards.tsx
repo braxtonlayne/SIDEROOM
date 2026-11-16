@@ -163,7 +163,7 @@ export function LeaderboardsPage() {
   const [tab, setTab] = useState(initialTab);
   const money = tab === 'donors' || tab === 'servers';
   return (
-    <LoungeThemeProvider className="ss-root">
+    <LoungeThemeProvider>
       <ToastProvider>
         <main className="sup-page">
           <h1 className="us-title">{t('support.leaderboards.title')}</h1>

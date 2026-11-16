@@ -127,7 +127,7 @@ function Body() {
 export function SupportPage() {
   const t = useT();
   return (
-    <LoungeThemeProvider className="ss-root">
+    <LoungeThemeProvider>
       <ToastProvider>
         <main className="sup-page">
           <h1 className="us-title">{t('support.page.title')}</h1>
