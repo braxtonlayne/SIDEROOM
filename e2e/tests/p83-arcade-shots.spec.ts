@@ -173,7 +173,7 @@ async function textItems(page: Page): Promise<Item[]> {
         ['.arc-blurb:not([data-tone])', 'kicker'],
       ] as const) {
         const e = card.querySelector<HTMLElement>(cls);
-        if (!e) continue;
+        if (!e || e.getClientRects().length === 0) continue;
         const rg = document.createRange();
         rg.selectNodeContents(e);
         const r = rg.getBoundingClientRect();
@@ -469,5 +469,44 @@ test('SEC-AUD-344: one compact Arcade hero on a phone', async ({ browser }) => {
     zoom: 100,
     sectionThemes: { cinema: 'sideroom', library: 'sideroom', arcade: 'lounge-editorial' },
   });
+  await octx.close();
+});
+
+// The Showroom's Arcade preview loads the same sheet and renders the same hero cards: once at 375, Lounge Light.
+test('SEC-AUD-344: the Showroom preview shows one compact hero on a phone', async ({ browser }) => {
+  test.skip(MODE === 'base', 'after only');
+  mkdirSync(OUT, { recursive: true });
+  const owner = bootstrapState().owner;
+  const octx = await browser.newContext({ baseURL: ORIGIN });
+  await loginApi(octx.request, owner);
+  const prefs: Prefs = {
+    theme: 'lounge-dark',
+    zoom: 100,
+    sectionThemes: { cinema: 'sideroom', library: 'sideroom', arcade: 'lounge-light' },
+  };
+  await apiPatch(octx.request, '/users/@me/settings', { settings: { user_prefs: prefs } });
+  const c = await context(browser, octx, SIZES.phone, prefs);
+  await c.addInitScript(() => localStorage.setItem('sr.showroom.v1', '1'));
+  await c.route('**/sr/features/flags', (r) => json(r, { flags: { 'platform.showroom': true } }));
+  const page = await c.newPage();
+  page.setDefaultTimeout(30_000);
+  await page.goto('/games');
+  await expect(page.getByTestId('showroom-arcade')).toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(800);
+  const m = await page.evaluate(() => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(".arc-card[data-size='hero']"));
+    const vis = cards.filter((x) => x.offsetParent !== null);
+    return {
+      inDom: cards.length,
+      visible: vis.length,
+      heights: vis.map((x) => Math.round(x.getBoundingClientRect().height)),
+      sw: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+    };
+  });
+  log(`showroom-phone ${JSON.stringify(m)}`);
+  await page.screenshot({ path: resolve(OUT, `${MODE}-showroom-phone-top.png`) });
+  expect(m.visible).toBe(1);
+  expect(m.sw[0]).toBeLessThanOrEqual(m.sw[1]!);
+  await c.close();
   await octx.close();
 });
