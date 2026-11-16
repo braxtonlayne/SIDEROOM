@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 85 - 2026-11-16
+
+- **Members.** A message's "More" menu now opens next to its button instead of in the corner of the screen. On a phone a channel's name is readable in its header, with the header's other buttons under "More"; Server Support's level table keeps its first column in view and shows that it scrolls; a server template's name field fills its card.
+- **Staff.** Accounts, Servers, Applications and the Platform audit log are stacked lists on a phone instead of tables that scroll sideways. Pricing's per-tier fields look like every other field and stack on a phone.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 84 - 2026-11-16
 
 - **Members.** On a phone every button, switch, checkbox, field and tab is now at least 44 px tall to tap, a dialog's close button is bigger, and a switched-off setting keeps its text readable. On a phone the channel header's buttons are easier to tap, a member's profile pop-up has a close button, a server's Members and Invites lists show their actions without scrolling sideways, and Save and Discard on a Modules tab are whole. The donation form uses the same fields as the rest of Settings, and its amount buttons sit in an even grid. A voice channel's settings no longer show "#" in its title, and the "Verified" badge is easier to read in Lounge Light. Admin pages got a look pass with five small fixes.

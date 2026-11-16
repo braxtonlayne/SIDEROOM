@@ -9,6 +9,22 @@ import {
 /** Anything we can measure: a DOM element or a point (context menus). */
 export type FloatingAnchor = HTMLElement | { x: number; y: number } | null;
 
+/** How many animation frames an anchor with no box is waited for before the element is left as it is. */
+export const UNMEASURED_ANCHOR_FRAMES = 12;
+
+/**
+ * D-870: an element anchor that is not in the document or measures 0 x 0 (a display: none ancestor, a wrapper not laid
+ * out yet) has no box to place against: placing against it puts the element in the viewport's corner. The 0 x 0 test
+ * runs only where the browser can tell a laid-out element from one that is not (`checkVisibility`): jsdom measures
+ * every element as 0 x 0.
+ */
+function hasBox(a: HTMLElement): boolean {
+  if (!a.isConnected) return false;
+  if (typeof a.checkVisibility !== 'function') return true;
+  const r = a.getBoundingClientRect();
+  return r.width > 0 || r.height > 0;
+}
+
 function anchorBox(a: NonNullable<FloatingAnchor>): Box {
   if (a instanceof HTMLElement) {
     const r = a.getBoundingClientRect();
@@ -61,6 +77,10 @@ export function useFloating({
   // place in its own.
   const [zoom, setZoom] = useState(1);
 
+  const frames = useRef(0);
+  const raf = useRef(0);
+  const latest = useRef<() => void>(() => {});
+
   const ref = useCallback((node: HTMLElement | null) => {
     elRef.current = node;
     setEl(node);
@@ -69,6 +89,20 @@ export function useFloating({
   const update = useCallback(() => {
     const node = elRef.current;
     if (!node || !anchor) return;
+    if (anchor instanceof HTMLElement && !hasBox(anchor)) {
+      // Not used: the place already set is kept; with none yet the element stays hidden and the anchor is measured
+      // again on the next frame, a bounded number of times.
+      if (
+        frames.current < UNMEASURED_ANCHOR_FRAMES &&
+        typeof requestAnimationFrame === 'function'
+      ) {
+        frames.current += 1;
+        cancelAnimationFrame(raf.current);
+        raf.current = requestAnimationFrame(() => latest.current());
+      }
+      return;
+    }
+    frames.current = 0;
     const z = effectiveZoom(node);
     setZoom(z);
     const next = computePosition(
@@ -86,9 +120,11 @@ export function useFloating({
         : next,
     );
   }, [anchor, placement, offset, padding, flip, shift]);
+  latest.current = update;
 
   useLayoutEffect(() => {
     if (!open || !el) return;
+    frames.current = 0;
     update();
     const on = () => update();
     window.addEventListener('resize', on);
@@ -97,6 +133,7 @@ export function useFloating({
     const ro = RO ? new RO(on) : undefined;
     ro?.observe(el);
     return () => {
+      cancelAnimationFrame(raf.current);
       window.removeEventListener('resize', on);
       window.removeEventListener('scroll', on, true);
       ro?.disconnect();

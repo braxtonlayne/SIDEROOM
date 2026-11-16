@@ -1,7 +1,7 @@
 // Admin > Donations > Pricing (DON-ADM-002, DON-ADM-005): prices, thresholds, per-level perks, invoice
 // rules and the hosting cost; the cost calculator of doc 08 section 6.4; leaderboard moderation.
 // Edits send only the changed keys as a merge patch, with a reason.
-import { Button, Notice, TextInput } from '@sideroom/ui';
+import { Button, Notice, Select, TextInput } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import { usd } from '../../support/api';
 import { useT, type MessageKey } from '../../i18n';
@@ -133,7 +133,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
       </div>
       <h3>{t('admin.donations.pricing.perksPerTier')}</h3>
       <div className="adm-table-wrap">
-        <table className="adm-table">
+        <table className="adm-table adm-perk-table">
           <caption className="us-sr">{t('admin.donations.pricing.perksPerTier')}</caption>
           <thead>
             <tr>
@@ -161,8 +161,9 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
                 <tr key={labelKey}>
                   <th scope="row">{label}</th>
                   {PERK_FIELDS.map((p) => (
-                    <td key={p.key}>
+                    <td key={p.key} data-label={t(p.label)}>
                       <input
+                        className="adm-perk-input"
                         aria-label={t('admin.donations.pricing.perkAria', {
                           tier: label,
                           perk: t(p.label),
@@ -320,13 +321,20 @@ function Moderation() {
       <h2 id="don-mod-h">{t('admin.donations.pricing.modTitle')}</h2>
       <p className="ss-meta">{t('admin.donations.pricing.modIntro')}</p>
       <div className="ss-toolbar">
-        <label>
-          {t('admin.donations.pricing.who')}{' '}
-          <select value={what} onChange={(e) => setWhat(e.target.value as typeof what)}>
-            <option value="user">{t('admin.donations.pricing.whoAccount')}</option>
-            <option value="guild">{t('admin.donations.pricing.whoServer')}</option>
-          </select>
-        </label>
+        <div className="adm-pick">
+          <label className="adm-pick-label" htmlFor="don-mod-who">
+            {t('admin.donations.pricing.who')}
+          </label>
+          <Select
+            id="don-mod-who"
+            options={[
+              { value: 'user', label: t('admin.donations.pricing.whoAccount') },
+              { value: 'guild', label: t('admin.donations.pricing.whoServer') },
+            ]}
+            value={what}
+            onValueChange={(v) => setWhat(v as typeof what)}
+          />
+        </div>
         <TextInput
           label={t('admin.donations.pricing.id')}
           inputMode="numeric"

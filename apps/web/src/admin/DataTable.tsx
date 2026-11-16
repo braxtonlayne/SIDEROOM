@@ -153,7 +153,7 @@ export function DataTable<T>({
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table" aria-label={label}>
+          <table className="adm-table adm-table-stack" aria-label={label}>
             <thead>
               <tr>
                 {shown.map((c) => (
@@ -172,9 +172,11 @@ export function DataTable<T>({
               {paged.items.map((row) => (
                 <tr key={rowKey(row)}>
                   {shown.map((c) => (
-                    <td key={c.id}>{c.cell(row)}</td>
+                    <td key={c.id} data-label={c.header}>
+                      {c.cell(row)}
+                    </td>
                   ))}
-                  {actions && <td>{actions(row)}</td>}
+                  {actions && <td data-actions>{actions(row)}</td>}
                 </tr>
               ))}
             </tbody>

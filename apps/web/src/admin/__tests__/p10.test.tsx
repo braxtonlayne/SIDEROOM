@@ -133,6 +133,14 @@ describe('DataTable', () => {
     });
     expect(text).toBe('Name,Email\r\nAnn,ann@example.test\r\n');
   });
+
+  it('stacks on a phone: the table has the stack class and each body cell carries its column header as data-label', () => {
+    view(paged());
+    const table = screen.getByRole('table', { name: 'People' });
+    expect(table).toHaveClass('adm-table', 'adm-table-stack');
+    const cells = within(table).getAllByRole('cell');
+    expect(cells.map((c) => c.getAttribute('data-label'))).toEqual(['Name', 'Email']);
+  });
 });
 
 describe('account drawer extras', () => {
