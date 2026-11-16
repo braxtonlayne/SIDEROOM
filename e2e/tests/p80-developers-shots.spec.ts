@@ -208,7 +208,7 @@ test('Developers selects and the phone nav', async ({ browser }) => {
     ...THEMES.map((theme) => ({ theme, zoom: 100 })),
     { theme: 'lounge-editorial', zoom: 100 },
   ];
-  for (const prefs of prefsList) {
+  for (const prefs of BASE ? prefsList.slice(0, 1) : prefsList) {
     const editorial = prefs.theme === 'lounge-editorial';
     const short = prefs.theme.replace('lounge-', '');
     await setPrefs(prefs);
@@ -263,7 +263,7 @@ test('Developers selects and the phone nav', async ({ browser }) => {
       }
 
       // Every other page with a select (desktop, Dark: one each).
-      if (!phone && prefs.theme === 'lounge-dark') {
+      if (!BASE && !phone && prefs.theme === 'lounge-dark') {
         const others: [string, string][] = [
           ['commands', `/developers/applications/${appId}?tab=commands`],
           ['oauth2', `/developers/applications/${appId}?tab=oauth2`],
@@ -288,7 +288,7 @@ test('Developers selects and the phone nav', async ({ browser }) => {
       }
 
       // Click-through (phone, Dark): choose a value, press each nav link, leave.
-      if (phone && prefs.theme === 'lounge-dark') {
+      if (!BASE && phone && prefs.theme === 'lounge-dark') {
         await reach('clickthrough', async () => {
           await page.goto(`/developers/applications/${appId}?tab=richpresence`);
           const sel = page.locator('.dev-main select').first();
@@ -320,7 +320,7 @@ test('Developers selects and the phone nav', async ({ browser }) => {
       }
 
       // Rings composer with the real feed.
-      if (ringsOn && !editorial) {
+      if (!BASE && ringsOn && !editorial) {
         await reach(`ring-composer-${tag}`, async () => {
           await page.goto('/channels/@me');
           await page.getByRole('button', { name: 'Add a ring' }).click();
