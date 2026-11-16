@@ -1085,8 +1085,10 @@
 .lng-msg[data-tools-inside] .lng-msg-tools {
   top: 2px;
 }
+/* The toolbar stays shown while its "More" menu is open, so Escape returns focus to it (SEC-AUD-365, D-870). */
 .lng-msg:hover .lng-msg-tools,
-.lng-msg:focus-within .lng-msg-tools {
+.lng-msg:focus-within .lng-msg-tools,
+.lng-msg:has(.lng-msg-tools [aria-expanded='true']) .lng-msg-tools {
   display: flex;
 }
 .lng-reactions {
