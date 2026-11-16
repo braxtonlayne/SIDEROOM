@@ -1,9 +1,18 @@
 // Settings > Support / Patron (DON-UI-001..004): Patron status and months, one-off donations, invite
 // credits, supporting a server, leaderboard privacy and the invoice history. Everything that costs money
 // goes through an invoice dialog; nothing here signs or sends a payment.
-import { Badge, Button, Notice, ProgressBar, Switch, useToast } from '@sideroom/ui';
+import {
+  Badge,
+  Button,
+  Notice,
+  ProgressBar,
+  Select,
+  Switch,
+  TextInput,
+  useToast,
+} from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Card, Field, Loaded, SectionTitle } from '../settings/user/parts';
 import { useResource } from '../settings/user/api';
 import { formatDate, t, useT } from '../i18n';
@@ -15,6 +24,9 @@ import './support.css';
 
 const MONTH_CHOICES = [1, 3, 6, 12];
 const PRESETS = [500, 1000, 2500, 5000];
+
+/** A row of equal buttons: `sup-choices` lays `--sup-n` equal columns (two on a phone). */
+const columns = (n: number) => ({ '--sup-n': Math.max(1, n) }) as CSSProperties;
 
 export function perkLines(p: PerkSet): string[] {
   const lines = [t('support.panel.perkUpload', { mib: p.upload_mib })];
@@ -200,7 +212,12 @@ function PatronCard({
           <li key={l}>{l}</li>
         ))}
       </ul>
-      <div className="sup-choices" role="group" aria-label={t('support.panel.patronMonths')}>
+      <div
+        className="sup-choices"
+        role="group"
+        aria-label={t('support.panel.patronMonths')}
+        style={columns(MONTH_CHOICES.filter((m) => m <= cfg.patron.max_months).length)}
+      >
         {MONTH_CHOICES.filter((m) => m <= cfg.patron.max_months).map((m) => (
           <Button
             key={m}
@@ -236,7 +253,12 @@ export function AmountPicker({
     (cents === null || cents < cfg.min_donation_cents || cents > cfg.max_donation_cents);
   return (
     <div className="sup-amount">
-      <div className="sup-choices" role="group" aria-label={t('support.panel.amount')}>
+      <div
+        className="sup-choices"
+        role="group"
+        aria-label={t('support.panel.amount')}
+        style={columns(PRESETS.filter((c) => c >= cfg.min_donation_cents).length)}
+      >
         {PRESETS.filter((c) => c >= cfg.min_donation_cents).map((c) => (
           <Button
             key={c}
@@ -256,27 +278,27 @@ export function AmountPicker({
           if (cents && !bad) onPick(cents);
         }}
       >
-        <label htmlFor="sup-custom-amount">{t('support.panel.otherAmount')}</label>
-        <input
-          id="sup-custom-amount"
+        <TextInput
+          className="sup-field"
+          label={t('support.panel.otherAmount')}
           inputMode="decimal"
           value={custom}
           onChange={(e) => setCustom(e.target.value)}
-          aria-invalid={bad}
-          aria-describedby={bad ? 'sup-custom-err' : undefined}
+          error={
+            bad ? (
+              <span role="alert">
+                {t('support.panel.amountRange', {
+                  min: usd(cfg.min_donation_cents),
+                  max: usd(cfg.max_donation_cents),
+                })}
+              </span>
+            ) : undefined
+          }
           placeholder="7.50"
         />
-        <Button type="submit" disabled={disabled || !cents || bad}>
+        <Button className="sup-go" type="submit" disabled={disabled || !cents || bad}>
           {cta}
         </Button>
-        {bad && (
-          <span id="sup-custom-err" className="sup-error" role="alert">
-            {t('support.panel.amountRange', {
-              min: usd(cfg.min_donation_cents),
-              max: usd(cfg.max_donation_cents),
-            })}
-          </span>
-        )}
       </form>
     </div>
   );
@@ -326,14 +348,15 @@ function ServerCard({
       ) : (
         <>
           <div className="sup-custom">
-            <label htmlFor="sup-guild">{t('support.panel.server')}</label>
-            <select id="sup-guild" value={chosen} onChange={(e) => setGuildId(e.target.value)}>
-              {guilds.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+            <label className="sup-label" htmlFor="sup-guild">
+              {t('support.panel.server')}
+            </label>
+            <Select
+              id="sup-guild"
+              options={guilds.map((g) => ({ value: g.id, label: g.name }))}
+              value={chosen}
+              onValueChange={setGuildId}
+            />
           </div>
           <Switch
             label={t('support.panel.anonymous')}
@@ -642,21 +665,20 @@ export function SupportSection() {
               })}
             >
               <div className="sup-custom">
-                <label htmlFor="sup-credit-n">{t('support.panel.credits')}</label>
-                <select
+                <label className="sup-label" htmlFor="sup-credit-n">
+                  {t('support.panel.credits')}
+                </label>
+                <Select
                   id="sup-credit-n"
-                  value={credits}
-                  onChange={(e) => setCredits(Number(e.target.value))}
-                >
-                  {Array.from({ length: Math.min(c.max_invite_credits, 5) }, (_, i) => i + 1).map(
-                    (n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ),
-                  )}
-                </select>
+                  options={Array.from({ length: Math.min(c.max_invite_credits, 5) }, (_, i) => ({
+                    value: String(i + 1),
+                    label: String(i + 1),
+                  }))}
+                  value={String(credits)}
+                  onValueChange={(v) => setCredits(Number(v))}
+                />
                 <Button
+                  className="sup-go"
                   disabled={!c.enabled || busy}
                   onClick={() => void create({ purpose: 'invite_credit', credits })}
                 >
