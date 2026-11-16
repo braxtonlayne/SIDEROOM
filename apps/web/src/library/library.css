@@ -433,7 +433,7 @@
   display: inline-block;
   padding: 1px 6px;
   border: 1px solid var(--ui-danger, #b3563f);
-  color: var(--ui-danger, #d77b63);
+  color: var(--ui-danger-text, #d97a68);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -444,7 +444,7 @@
   position: absolute;
   top: 8px;
   inset-inline-end: 8px;
-  background: rgb(0 0 0 / 0.7);
+  background: rgb(0 0 0 / 0.82);
 }
 /* Text over a cover keeps its dark scrim, so it states light values itself under a light theme: the kit's corner tag
    (PosterCard's `tag`, a CSS-module class) reads --sr-text, and the age badge on a card reads --ui-danger. */
@@ -1614,6 +1614,15 @@
 .lib-epub {
   display: flex;
   flex-direction: column;
+}
+/* The book's own colours (set inline on the root, light by default) are the reader's theme, whatever the room's: the
+   buttons on it take the book's text colour, not the room's, which is cream on white under the shipped theme. */
+.lib-epub .lib-btn {
+  color: inherit;
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+.lib-epub .lib-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .lib-epub-host {
   flex: 1;

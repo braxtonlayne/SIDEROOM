@@ -10,6 +10,7 @@ import {
   registerUser,
   test,
 } from '../support/fixtures';
+import { runCli } from '../support/cli';
 import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
@@ -283,7 +284,9 @@ async function contrast(scope: Locator, name: string) {
       return acc;
     };
     const out: { text: string; ratio: number; size: number; tag: string }[] = [];
-    const els = [root, ...Array.from(root.querySelectorAll('*'))];
+    const els = [root, ...Array.from(root.querySelectorAll('*'))].filter(
+      (e) => !e.closest('.lib-sr-only'),
+    );
     for (const el of els) {
       const own = Array.from(el.childNodes)
         .filter((n) => n.nodeType === 3)
@@ -405,12 +408,27 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
   const octx = await browser.newContext({ baseURL: ORIGIN });
   await loginApi(octx.request, owner);
   await setStudySurfacesWith(octx.request, true);
+  try {
+    runCli([
+      'staff',
+      'appoint',
+      owner.username,
+      '--role',
+      'Senior Staff',
+      '--reason',
+      'e2e p80 library shots',
+    ]);
+  } catch (e) {
+    log(`staff appoint: ${String(e).slice(0, 120)}`);
+  }
   const setPrefs = (p: Prefs) =>
     apiPatch(octx.request, '/users/@me/settings', { settings: { user_prefs: p } });
 
-  const second = await registerUser(octx.request, 'rdr80');
   const sctx = await browser.newContext({ baseURL: ORIGIN });
+  const second = await registerUser(sctx.request, 'rdr80');
   await loginApi(sctx.request, second);
+  for (const r of [sctx.request, octx.request])
+    await call(r, 'POST', '/sr/age-gate', { over_18: true });
 
   const stamp = Date.now().toString(36);
   const adult = await makeSeries(
@@ -582,13 +600,23 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         const reviews = page.getByRole('tabpanel').first();
         const rc = await contrast(reviews, `reviews-${tag}`);
         expect.soft(rc.bad, `reviews-${tag}: text under 4.5:1`).toEqual([]);
+        await page
+          .getByRole('tabpanel')
+          .first()
+          .evaluate((el) => el.scrollIntoView({ block: 'start' }));
         await shot('reviews');
 
         await page.getByRole('tab', { name: 'Comments' }).click();
-        await expect(page.getByText('Short one.').first()).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByText('linework on page two').first()).toBeVisible({
+          timeout: 30_000,
+        });
         await check('comments');
         const cm = await contrast(page.getByRole('tabpanel').first(), `comments-${tag}`);
         expect.soft(cm.bad, `comments-${tag}: text under 4.5:1`).toEqual([]);
+        await page
+          .getByRole('tabpanel')
+          .first()
+          .evaluate((el) => el.scrollIntoView({ block: 'start' }));
         await shot('comments');
         if (vname === 'light' && phone) {
           // Click-through: post a comment.
@@ -641,7 +669,10 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         const commentsBtn = page.getByRole('button', { name: /Comments/ }).first();
         if (await commentsBtn.count()) {
           await commentsBtn.click();
-          await expect(page.getByText('Short one.').first()).toBeVisible({ timeout: 30_000 });
+          await expect(page.getByText('linework on page two').first()).toBeVisible({
+            timeout: 30_000,
+          });
+          await page.waitForTimeout(700);
           await check('reader-comments');
           const dlg = page.getByRole('dialog').first();
           const cr = await contrast(dlg, `reader-comments-${tag}`);
@@ -670,13 +701,13 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         await shot('reader-settings');
         if (vname === 'light' && phone) {
           const toggles = sd.getByRole('switch');
-          const n = await toggles.count();
-          if (n) {
-            const first = toggles.first();
-            const before = await first.getAttribute('aria-checked');
-            await first.click();
-            const after = await first.getAttribute('aria-checked');
-            log(`click: reader setting switch ${before} -> ${after}`);
+          if (await toggles.count()) {
+            const first = toggles.last();
+            const before = await first.isChecked();
+            await first.click({ force: true });
+            await page.waitForTimeout(300);
+            const after = await first.isChecked();
+            log('click: reader setting switch ' + before + ' -> ' + after);
             expect(after).not.toBe(before);
           } else log('click: no switch in the settings dialog');
         }
@@ -696,7 +727,10 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         if (vname === 'light') {
           await page.getByRole('button', { name: 'Next page' }).click();
           await page.waitForTimeout(800);
-          const after = await page.locator('[role=status]').first().textContent();
+          const after = await page
+            .getByText(/Page [0-9]+ of [0-9]+/)
+            .first()
+            .textContent();
           log(`click: pdf next page: "${pdfPage}" -> "${after}"`);
           expect(after).not.toBe(pdfPage);
           await shot('pdf-reader-page2');
@@ -706,6 +740,24 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         await go(`/library/r/${ids.epubChapter}/1`, '.lib-epub-host', 'epub', '.lib-root');
         await page.waitForTimeout(2500);
         await shot('epub-reader');
+        log(
+          'epub-btn-' +
+            tag +
+            ' ' +
+            JSON.stringify(
+              await page.evaluate(() => {
+                const b = document.querySelector('.lib-epub .lib-btn');
+                const r = document.querySelector('.lib-epub');
+                return b && r
+                  ? {
+                      color: getComputedStyle(b).color,
+                      border: getComputedStyle(b).borderTopColor,
+                      bg: getComputedStyle(r).backgroundColor,
+                    }
+                  : null;
+              }),
+            ),
+        );
         await contrast(page.locator('.lib-root').first(), `epub-${tag}`);
         if (vname === 'light') {
           const pctBefore = await page
@@ -732,18 +784,11 @@ test('the Library reader bars and the unseen pages', async ({ browser }) => {
         expect.soft(ec.bad, `epub-settings-${tag}: labels under 4.5:1`).toEqual([]);
         await shot('epub-settings');
         if (vname === 'light' && phone) {
-          const sel = ed.getByLabel('Theme').first();
           try {
-            await sel.selectOption({ label: 'Dark' });
+            await ed.getByText('Dark', { exact: true }).click({ timeout: 5000 });
             log('click: epub theme set to Dark');
-          } catch {
-            try {
-              await sel.click();
-              await page.getByRole('option', { name: 'Dark' }).click();
-              log('click: epub theme set to Dark (listbox)');
-            } catch (e) {
-              log(`click: epub theme not changed: ${String(e).slice(0, 80)}`);
-            }
+          } catch (e) {
+            log('click: epub theme not changed: ' + String(e).slice(0, 80));
           }
           await page.waitForTimeout(600);
           await shot('epub-settings-changed');
