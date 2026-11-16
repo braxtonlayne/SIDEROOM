@@ -20,7 +20,7 @@ A section that styles itself with `--sr-*` tokens (the Library and the Cinema, f
 
 A part that is not a room (a drawer, a dock, a panel that can open under any theme) reads the theme first, `var(--ui-x, var(--sr-x, literal))`; a room maps its own tokens once on its root (D-814). Under a theme that is not a Side Room theme, a room's gold as text or a line is the theme's link colour and its gold as a filled surface is the theme's accent with the accent's ink; a surface the room keeps dark restates the Side Room accent too, so a kit badge or button on it stays gold (D-815, D-816).
 
-A surface kept dark states every colour token a kit part reads, the status colours and the focus ring included, so a button or badge on it is the Side Room's in every theme (D-820). A room's section bar with two groups of links scrolls inside itself on a phone and brings the current link into view; a bar with one group wraps (D-821, D-822).
+A surface kept dark states every colour token a kit part reads (status, presence and link colours and the focus ring included) and paints its own ground, so a button or badge on it is the Side Room's in every theme; its radius and fonts follow the theme (D-820, D-831, D-832). A room's section bar with two groups of links scrolls inside itself on a phone and brings the current link into view; a bar with one group wraps (D-821, D-822).
 
 ## 2. `sideroom` tokens (from the mockups)
 

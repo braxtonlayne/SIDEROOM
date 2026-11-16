@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 81 - 2026-11-16
+
+- **Members.** "Whiteboard" and other game names fit on one line on the Arcade's cards. The Cinema's hero and title page keep their dark background when a picture is missing, so their text stays readable in a light Cinema, and the Cinema's dark surfaces keep Side Room's colours throughout. The Library says "1 chapter", its reader's page counter reads "1 / 3" in right-to-left chapters, and a disabled reader button no longer lights up under the pointer. On a phone the call bar's microphone and camera menu buttons are full-size, and the "Mark as verified" button in a call's privacy codes looks like a button and is readable in every theme. Checkboxes in the Base64, Markdown table and JSON tools are normal size beside their labels; the naming guide's table is readable on a phone; the Developers pages' "Upload" and "Invite tester" buttons are a normal size.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 80 - 2026-11-16
 
 - **Members.** In a light Cinema, the watch party's buttons and the other dark Cinema surfaces keep the Side Room's colours, and the Library reader's bars do too. The 18+ badge is easier to read, and the EPUB reader's buttons are visible on the page. The Regex and Diff tools no longer leave a tall empty gap under their fields, and the verified call shield, the Authorized Apps list and the elder badge are readable in a light theme. On the Developers pages every dropdown matches the app's fields, and on a phone the menu fades at its edge and shows the page you are on. On a phone the Lounge's panels can no longer slide out of place.
