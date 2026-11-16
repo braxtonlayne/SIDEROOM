@@ -45,6 +45,35 @@
   grid-row: 1;
   grid-column: 2;
   justify-self: end;
+  min-block-size: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+/* SEC-AUD-332 (D-833): the verify button has a look from tokens (it was the browser's default button). */
+.vc-e2ee-verify:hover {
+  background: var(--ui-bg-raised);
+}
+
+.vc-e2ee-verify:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+
+.vc-e2ee-verify[aria-pressed='true'] {
+  border-color: var(--ui-success);
+}
+
+@media (max-width: 768px) {
+  .vc-e2ee-verify {
+    min-block-size: 44px;
+  }
 }
 
 /* SEC-AUD-038 (D-564): someone's identity key changed since this device pinned it. */

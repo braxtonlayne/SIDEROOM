@@ -243,3 +243,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* SEC-AUD-331 (D-830): on a phone the call bar's microphone and camera chevrons are the device menus (D-828): a
+   touch target of 44 x 44 px, as the buttons beside them (they were 28 wide). The bar scrolls inside itself. The
+   two-class selector wins over the phone rule `.vc-ctl-arrow` of voice-p10.css whatever the file order. */
+@media (max-width: 768px) {
+  .vc-split .vc-ctl-arrow {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+}
