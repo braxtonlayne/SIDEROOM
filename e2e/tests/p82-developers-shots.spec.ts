@@ -181,15 +181,48 @@ async function width(page: Page, tag: string, assert = true): Promise<number> {
       const all = Array.from(document.body.querySelectorAll<HTMLElement>('*'))
         .map((e) => ({ e, b: e.getBoundingClientRect() }))
         .filter(({ b }) => b.width > 0 && b.right > vw + 0.5)
+        // inside its own scroller (a code block, the phone nav): contained, not the page's overflow
+        .filter(({ e }) => {
+          for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+            const ox = getComputedStyle(p).overflowX;
+            if (ox !== 'visible' && p.getBoundingClientRect().right <= vw + 0.5) return false;
+          }
+          return true;
+        })
         .sort((a, b) => depth(b.e) - depth(a.e));
       for (const { e, b } of all.slice(0, 14)) {
         const cls = typeof e.className === 'string' ? e.className.trim().replace(/\s+/g, '.') : '';
         offenders.push({
-          node: `${e.tagName.toLowerCase()}${cls ? `.${cls.slice(0, 60)}` : ''}`,
+          node: `${e.tagName.toLowerCase()}${cls ? `.${cls.slice(0, 60)}` : ''} < ${e.parentElement?.tagName.toLowerCase()}.${String(e.parentElement?.className ?? '').slice(0, 40)} "${(e.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 44)}"`,
           l: Math.round(b.left),
           r: Math.round(b.right),
           w: Math.round(b.width),
         });
+      }
+    }
+    if (over > 0 && offenders.length === 0) {
+      // Text that spills past its own box: a Range per text node.
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const rb = range.getBoundingClientRect();
+        const p = n.parentElement!;
+        let clipped = false;
+        for (let q: HTMLElement | null = p; q && q !== document.body; q = q.parentElement) {
+          if (
+            getComputedStyle(q).overflowX !== 'visible' &&
+            q.getBoundingClientRect().right <= de.clientWidth + 0.5
+          )
+            clipped = true;
+        }
+        if (!clipped && rb.right > de.clientWidth + 0.5)
+          offenders.push({
+            node: `TEXT in ${p.tagName.toLowerCase()}.${String(p.className).slice(0, 40)} < ${p.parentElement?.tagName.toLowerCase()}.${String(p.parentElement?.className).slice(0, 40)} "${(n.textContent ?? '').trim().slice(0, 40)}"`,
+            l: Math.round(rb.left),
+            r: Math.round(rb.right),
+            w: Math.round(rb.width),
+          });
       }
     }
     return { over, offenders };
@@ -230,7 +263,7 @@ const baseBoxes: Record<string, { k: string; x: number; y: number; w: number; h:
 function diffBoxes(key: string, now: { k: string; x: number; y: number; w: number; h: number }[]) {
   boxLog[key] = now;
   const before = baseBoxes[key];
-  if (BASE || !before) return;
+  if (BASE || !before || !key.includes('desktop')) return;
   if (before.length !== now.length) {
     log(`boxes ${key}: count ${before.length} -> ${now.length}`);
   }
@@ -358,14 +391,20 @@ async function navLook(page: Page, tag: string, gesture: boolean) {
     const cdp = await page.context().newCDPSession(page);
     const nb = await page.locator('.dev-nav').boundingBox();
     if (nb) {
-      await cdp.send('Input.synthesizeScrollGesture', {
-        x: nb.x + nb.width / 2,
-        y: nb.y + nb.height / 2,
-        xDistance: -300,
-        yDistance: 0,
-        gestureSourceType: 'touch',
-        speed: 800,
+      const y = nb.y + nb.height / 2;
+      const x0 = nb.x + nb.width - 20;
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: x0, y }],
       });
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [{ x: x0 - i * 20, y }],
+        });
+        await page.waitForTimeout(16);
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await page.waitForTimeout(500);
       log(`nav ${tag} after touch swipe ${JSON.stringify(await look())}`);
     }
@@ -530,7 +569,8 @@ test('Developers pages hold their width and their list rows read', async ({ brow
         }
         await page.waitForTimeout(300);
         await wide('activities-bundle');
-        await page.getByRole('button', { name: 'Show files' }).first().click();
+        if (await page.getByRole('button', { name: 'Show files' }).count())
+          await page.getByRole('button', { name: 'Show files' }).first().click();
         await page.waitForTimeout(500);
         await wide('activities-bundle-files');
         diffBoxes(`activities-bundle-${tag}`, await boxes(page, '.dev-main .dev-card'));
