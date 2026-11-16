@@ -217,7 +217,7 @@ async function newPage(browser: Browser, s: Setting, base: BrowserContext) {
 async function openCard(page: Page, first: boolean) {
   await page.goto('/settings/user/account', { waitUntil: 'domcontentloaded', timeout: 20_000 });
   const btns = page.locator('[role="dialog"] nav ul li > button');
-  await btns.first().waitFor({ timeout: 15_000 });
+  await btns.first().waitFor({ state: 'attached', timeout: 15_000 });
   const n = await btns.count();
   for (let i = 0; i < n; i++) {
     await btns.nth(i).evaluate((el) => (el as HTMLElement).click());
