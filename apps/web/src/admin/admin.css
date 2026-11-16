@@ -104,7 +104,9 @@
 .adm-gauge {
   margin-top: 8px;
 }
-.adm-vh {
+/* .us-sr is the member settings' sheet's class; Admin's donations tables use it for their captions and that sheet is not loaded there. */
+.adm-vh,
+.us-sr {
   position: absolute;
   width: 1px;
   height: 1px;
