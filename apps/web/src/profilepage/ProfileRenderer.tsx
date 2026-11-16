@@ -14,6 +14,7 @@ import { cdnUrl } from '../store/cdn';
 import { QrBox } from '../tips/QrBox';
 import { HeaderPicture, appSlots } from './blocks';
 import type { ProfileDoc, ProfileMedia, ProfilePage } from './types';
+import './profilepage.css';
 
 /** The popout's header picture is the 64 px one, in the same ring (D-504). */
 const compactSlots: BlockSlots = {
