@@ -88,13 +88,16 @@
   color: var(--ui-text-muted);
   font-size: 0.75rem;
 }
+/* D-860: a status badge is tinted, not filled: the tone's token as a wash and a border, the text in the theme's text colour. */
 .us-badge[data-tone='good'] {
-  background: var(--ui-success);
-  color: #0b0b0a;
+  border: 1px solid var(--ui-success);
+  background: color-mix(in srgb, var(--ui-success) 20%, transparent);
+  color: var(--ui-text);
 }
 .us-badge[data-tone='bad'] {
-  background: var(--ui-danger);
-  color: #fff;
+  border: 1px solid var(--ui-danger);
+  background: color-mix(in srgb, var(--ui-danger) 20%, transparent);
+  color: var(--ui-text);
 }
 .us-counter {
   text-align: end;
@@ -399,6 +402,12 @@
 .us-key-row dt {
   margin: 0;
 }
+/* SEC-AUD-357 row 20: the label takes the room left, so the keys sit at the row's end on every row (a long label used to push them under it). */
+.us-key-row dt,
+.us-keybind-row > :first-child {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
 .us-key-row dd {
   display: flex;
   flex-wrap: wrap;
@@ -589,5 +598,27 @@
   .us-actions > button,
   .us-card > button {
     min-block-size: 44px;
+  }
+}
+
+/* SEC-AUD-357 (wave 84). Row 11: a switch followed by a slider (Voice & Video, Sounds) keeps the 10 px gap between switches. */
+.us-card > div:has(> input[role='switch']) + div:has(input[type='range']) {
+  margin-block-start: 10px;
+}
+@media (max-width: 480px) {
+  /* Row 7: the keyword field fills the row; Add shares the line or sits whole under it. */
+  #us-keywords .us-stack > .us-actions > :first-child {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+  /* Row 8: a server's name takes its own line; the two selects share the next one when each keeps 10rem, else sit one under the other: the same x and width on every row, no value cut. */
+  #us-servers .us-list > li {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  #us-servers .us-list > li > .us-actions > * {
+    flex: 1 1 10rem;
+    min-width: 0;
   }
 }

@@ -142,24 +142,29 @@ export function AppearanceSection({ prefs, setPrefs }: PrefsFormProps) {
         description={t('settings.storageNav.description')}
       >
         <div className="us-stack">
-          {(['navCinema', 'navLibrary'] as const).map((key) => (
-            <div key={key}>
-              <SegmentedControl
-                label={
-                  key === 'navCinema'
-                    ? t('settings.storageNav.cinema')
-                    : t('settings.storageNav.library')
-                }
-                value={prefs[key]}
-                onValueChange={(v) => setPrefs({ [key]: v as NavMode })}
-                options={[
-                  { value: 'show', label: t('settings.storageNav.show') },
-                  { value: 'hide', label: t('settings.storageNav.hide') },
-                  { value: 'auto', label: t('settings.storageNav.auto') },
-                ]}
-              />
-            </div>
-          ))}
+          {(['navCinema', 'navLibrary'] as const).map((key) => {
+            const name =
+              key === 'navCinema'
+                ? t('settings.storageNav.cinema')
+                : t('settings.storageNav.library');
+            return (
+              <div key={key}>
+                <span className="us-seg-label" aria-hidden="true">
+                  {name}
+                </span>
+                <SegmentedControl
+                  label={name}
+                  value={prefs[key]}
+                  onValueChange={(v) => setPrefs({ [key]: v as NavMode })}
+                  options={[
+                    { value: 'show', label: t('settings.storageNav.show') },
+                    { value: 'hide', label: t('settings.storageNav.hide') },
+                    { value: 'auto', label: t('settings.storageNav.auto') },
+                  ]}
+                />
+              </div>
+            );
+          })}
         </div>
       </Card>
       <PlayerSkinCard />
