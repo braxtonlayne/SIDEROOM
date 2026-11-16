@@ -354,6 +354,18 @@ describe('Lounge mobile layout', () => {
     expect(document.querySelector('.lng-main')).toHaveAttribute('inert');
   });
 
+  it("shows the members pane from the header's Member List and leaves the stored flag alone (D-887)", async () => {
+    at('/channels/1001/2001');
+    await screen.findByRole('log');
+    const root = document.querySelector('.lng-root')!;
+    await vi.waitFor(() => expect(root).toHaveAttribute('data-pane', 'chat'));
+    const before = useLoungeUi.getState().memberListOpen;
+    await userEvent.click(screen.getByRole('button', { name: 'Member List' }));
+    expect(root).toHaveAttribute('data-pane', 'members');
+    expect(useLoungeUi.getState().memberListOpen).toBe(before);
+    expect(document.querySelector('.lng-right')).not.toHaveAttribute('inert');
+  });
+
   it('swipes between panes', async () => {
     at('/channels/1001/2001');
     const body = (await screen.findByRole('log')).closest('.lng-body')!;
