@@ -263,6 +263,16 @@ describe('search on a phone (D-740)', () => {
     expect(phone.container.querySelector('.lng-dm-extra')).toHaveAttribute('data-open');
   });
 
+  it('closes the strip when Member List is chosen on a phone (D-892)', async () => {
+    const phone = header(vi.fn());
+    const more = screen.getByRole('button', { name: 'More actions' });
+    await userEvent.click(more);
+    expect(more).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Member List' }));
+    expect(more).toHaveAttribute('aria-expanded', 'false');
+    expect(phone.container.querySelector('.lng-dm-extra')).not.toHaveAttribute('data-open');
+  });
+
   it('opens the box focused, finds a hit, closes on the jump and goes to the message', async () => {
     header(vi.fn());
     const button = screen.getByRole('button', { name: 'Search this conversation' });

@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 88 - 2026-11-16
+
+- **Members.** On a phone the channel header's menu closes after "Member List", and the Cinema defaults settings show their labels like the Library ones. Profile headings are readable on the signed-out profile page too.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 87 - 2026-11-16
 
 - **Members.** On a phone "Member List" in a channel's header now opens the members pane. A profile page's block headings use the profile's text colour, so they stay readable whatever accent a member picks.
