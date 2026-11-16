@@ -90,3 +90,14 @@
   flex: 1;
   height: 6px;
 }
+
+/* D-856: a 44 px field on a phone. */
+@media (max-width: 720px) {
+  .control {
+    min-height: 44px;
+  }
+  .toggle {
+    top: 0;
+    bottom: 0;
+  }
+}

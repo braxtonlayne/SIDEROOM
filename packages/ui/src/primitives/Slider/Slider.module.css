@@ -101,6 +101,8 @@
 
 .segmented {
   display: inline-flex;
+  /* SEC-AUD-353: pills that do not fit one line wrap onto a second row; a pill that is alone and still too wide wraps its label. */
+  flex-wrap: wrap;
   padding: 2px;
   gap: 2px;
   border: 1px solid var(--ui-border);
@@ -113,20 +115,23 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 14px;
+  padding: 6px 14px;
   border-radius: calc(var(--ui-radius) - 2px);
   color: var(--ui-text-muted);
   cursor: pointer;
   user-select: none;
+  /* A wrapped label sits at least 6 px from the pill's edge and is centred. */
+  text-align: center;
 }
 .seg-md .segment {
-  min-height: 32px;
+  /* The pill is 32 px tall with its 6 px of padding (the box is the content box). */
+  min-height: 20px;
   font-size: 0.875rem;
 }
 .seg-sm .segment {
-  min-height: 24px;
+  min-height: 18px;
   font-size: 0.8125rem;
-  padding: 0 10px;
+  padding: 3px 10px;
 }
 .segment:hover {
   color: var(--ui-text);
@@ -149,4 +154,26 @@
 .segment:has(.segInput:focus-visible) {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
+}
+
+/* D-856: on a phone a range input is a 44 px tall target and a segmented control's pill gets a 44 px tall target
+   from a pseudo-element on its label (the radio inside is the same box). The range's negative margin keeps the
+   slider as tall as it was. */
+@media (max-width: 720px) {
+  .input {
+    height: 44px;
+    margin-block: -12px;
+  }
+  /* Wrapped rows of pills are 12 px apart, so that two rows of 44 px targets do not overlap. */
+  .segmented {
+    row-gap: 12px;
+  }
+  .segment::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
 }
