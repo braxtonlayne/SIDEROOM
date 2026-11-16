@@ -56,4 +56,15 @@ describe('Activity defaults (LNG-USET-035)', () => {
     localStorage.setItem('sr.cinema.player.v1', JSON.stringify({ qualityCap: 1234 }));
     expect(readPlayerDefaults().qualityCap).toBeNull();
   });
+
+  it('styles the Cinema labels like the Library ones and keeps each select named by its label (SEC-AUD-381)', () => {
+    const { container } = render(<CinemaDefaultsCard />);
+    for (const id of ['us-sub-lang-label', 'us-audio-lang-label', 'us-quality-cap-label']) {
+      const label = container.querySelector(`#${id}`);
+      expect(label?.tagName).toBe('LABEL');
+      expect(label).toHaveClass('us-seg-label');
+      expect(label).not.toHaveAttribute('aria-hidden');
+      expect(screen.getByRole('combobox', { name: label?.textContent ?? '' })).toBeInTheDocument();
+    }
+  });
 });
