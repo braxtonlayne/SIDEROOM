@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 82 - 2026-11-16
+
+- **Members.** The Developers pages no longer slide sideways on a phone (the Activities tab and two documentation pages did), and their image and emoji lists keep their labels and buttons in place on a phone. Switching an EPUB book to Dark or Sepia while reading no longer leaves a white frame around the page. The Arcade's featured cards keep their dark look and readable text in a light theme. The Poll builder's checkbox takes your theme's accent colour and shows a focus ring.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 81 - 2026-11-16
 
 - **Members.** "Whiteboard" and other game names fit on one line on the Arcade's cards. The Cinema's hero and title page keep their dark background when a picture is missing, so their text stays readable in a light Cinema, and the Cinema's dark surfaces keep Side Room's colours throughout. The Library says "1 chapter", its reader's page counter reads "1 / 3" in right-to-left chapters, and a disabled reader button no longer lights up under the pointer. On a phone the call bar's microphone and camera menu buttons are full-size, and the "Mark as verified" button in a call's privacy codes looks like a button and is readable in every theme. Checkboxes in the Base64, Markdown table and JSON tools are normal size beside their labels; the naming guide's table is readable on a phone; the Developers pages' "Upload" and "Invite tester" buttons are a normal size.
