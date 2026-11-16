@@ -20,7 +20,7 @@ import { apiPatch, test } from '../support/fixtures';
  * Shots and measure.json go to SR_P84_LOUNGE_OUT. No assertions: it measures and writes lines.
  */
 const MODE = process.env.SR_P84_LOUNGE ?? '';
-const ON = ['header', 'more', 'profile', 'all'].includes(MODE);
+const ON = ['header', 'more', 'profile', 'probe', 'all'].includes(MODE);
 const BASE = process.env.SR_P84_BASE === '1';
 const PRE = BASE ? 'base-' : '';
 const OUT =
@@ -468,6 +468,11 @@ async function profileItem(browser: Browser, ownerCtx: BrowserContext) {
               await btn.click({ timeout: 4000 });
             });
             await page.waitForTimeout(500);
+            if ((await page.locator('.lng-pop').count()) > 0) {
+              how = 'tap sent no click (after the swipe); mouse click';
+              await btn.click({ timeout: 4000 });
+              await page.waitForTimeout(500);
+            }
             const gone = (await page.locator('.lng-pop').count()) === 0;
             log(`${id}-tap-close`, {
               how,
@@ -509,6 +514,41 @@ async function profileItem(browser: Browser, ownerCtx: BrowserContext) {
   }
 }
 
+/** The base's menu, sampled with the pointer left on the message (no move onto the menu). */
+async function probeItem(browser: Browser, ownerCtx: BrowserContext) {
+  const w = world();
+  await setTheme(ownerCtx, 'lounge-dark');
+  const { ctx, page } = await newPage(browser, 'desktop', ownerCtx, 'lounge-dark');
+  try {
+    await page.goto(`/channels/${w.guildId}/${w.channelId}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15_000,
+    });
+    await idle(page, 4000);
+    const msgs = page
+      .locator('.lng-msg')
+      .filter({ has: page.getByRole('button', { name: /^Open profile of / }) });
+    const m = msgs.nth(Math.floor((await msgs.count()) / 2));
+    await m.scrollIntoViewIfNeeded();
+    await m.evaluate((e) => e.setAttribute('data-p84', '1'));
+    const box = await m.boundingBox();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.waitForTimeout(300);
+    await m.locator('.lng-msg-tools').getByRole('button', { name: 'More', exact: true }).click();
+    for (const ms of [0, 60, 150, 400, 1000]) {
+      await page.waitForTimeout(ms === 0 ? 0 : 60);
+      log(`probe-still-${ms}`, await moreState(page, 'More'));
+    }
+    await page.mouse.move(5, 300);
+    await page.waitForTimeout(400);
+    log('probe-pointer-away', await moreState(page, 'More'));
+    await shot(page, 'probe-pointer-away');
+  } catch (e) {
+    log('probe', { ok: false, error: String(e).slice(0, 300) });
+  }
+  await ctx.close().catch(() => undefined);
+}
+
 test('SEC-AUD-354, 355, 356: the channel header on a phone, the message More menu, the profile close button', async ({
   browser,
 }) => {
@@ -516,6 +556,7 @@ test('SEC-AUD-354, 355, 356: the channel header on a phone, the message More men
   const ownerCtx = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
   if (MODE === 'header' || MODE === 'all') await headerItem(browser, ownerCtx);
   if (MODE === 'more' || MODE === 'all') await moreItem(browser, ownerCtx);
+  if (MODE === 'probe') await probeItem(browser, ownerCtx);
   if (MODE === 'profile' || MODE === 'all') await profileItem(browser, ownerCtx);
   await ownerCtx.close();
 });
