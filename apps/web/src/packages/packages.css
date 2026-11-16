@@ -93,6 +93,10 @@
   gap: 6px;
   align-items: center;
 }
+/* SEC-AUD-357 row 14: "Apply to" wrapped to two lines beside its select. */
+.pkg-where label {
+  white-space: nowrap;
+}
 .pkg-problems {
   margin: 8px 0 0;
   padding-inline-start: 20px;
