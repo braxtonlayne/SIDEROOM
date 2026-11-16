@@ -220,12 +220,14 @@ function measureInPage(arg: { phone: boolean; domSel: string }): Measure {
 
   // Text under 4.5:1 (3:1 for large text): the text colour, with the opacity of its ancestors, over the first opaque background.
   const parse = (c: string) => {
-    const m = /rgba?(([^)]+))/.exec(c);
+    const m = /(rgba?|color)\(([^)]+)\)/.exec(c);
     if (!m) return null;
-    const v = m[1]!
+    const k = m[1] === 'color' ? 255 : 1;
+    const v = m[2]!
+      .replace('srgb', '')
       .split(/[ ,/]+/)
       .filter(Boolean)
-      .map(Number);
+      .map((x, i) => (i < 3 ? Number(x) * k : Number(x)));
     return {
       r: v[0]!,
       g: v[1]!,
@@ -287,7 +289,7 @@ function measureInPage(arg: { phone: boolean; domSel: string }): Measure {
     low.push({
       tag: e.tagName.toLowerCase(),
       cls: typeof e.className === 'string' ? e.className.slice(0, 60) : '',
-      text: own.replace(/s+/g, ' ').slice(0, 40),
+      text: own.replace(/\s+/g, ' ').slice(0, 40),
       ratio: Math.round(ratio * 100) / 100,
       fg: cs.color,
       bg: `rgb(${Math.round(base.r)},${Math.round(base.g)},${Math.round(base.b)})`,
@@ -298,7 +300,7 @@ function measureInPage(arg: { phone: boolean; domSel: string }): Measure {
   if (arg.domSel) {
     for (const e of Array.from(root.querySelectorAll<HTMLElement>(arg.domSel)).slice(0, 4)) {
       const par = e.parentElement ?? e;
-      dom.push({ sel: sel(e), html: par.outerHTML.replace(/s+/g, ' ').slice(0, 900) });
+      dom.push({ sel: sel(e), html: par.outerHTML.replace(/\s+/g, ' ').slice(0, 900) });
     }
   }
 
