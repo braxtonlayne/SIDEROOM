@@ -166,13 +166,34 @@
   flex-wrap: wrap;
 }
 .dev-select {
-  background: var(--ui-bg-hover);
+  max-width: 100%;
+}
+/* The Developers' native selects (in `.dev-main` and on the authorize page) take the kit field's look (D-825): bare ones and `.dev-select`, never a kit Select
+   (those carry a module class). The option list is the browser's. */
+:where(.dev-main, .dev-authorize) select:not([class]),
+:where(.dev-main, .dev-authorize) select.dev-select {
+  box-sizing: border-box;
+  min-block-size: 40px;
+  padding: 8px 12px;
+  background: var(--ui-bg-raised);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius, 6px);
-  padding: 9px 10px;
   font: inherit;
-  max-width: 100%;
+}
+:where(.dev-main, .dev-authorize) select:not([class]):hover:not(:disabled),
+:where(.dev-main, .dev-authorize) select.dev-select:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+:where(.dev-main, .dev-authorize) select:not([class]):focus-visible,
+:where(.dev-main, .dev-authorize) select.dev-select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+:where(.dev-main, .dev-authorize) select:not([class]):disabled,
+:where(.dev-main, .dev-authorize) select.dev-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .dev-fieldset {
   border: 1px solid var(--ui-border);
@@ -454,9 +475,47 @@
     overflow-x: auto;
     flex-wrap: nowrap;
     white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .dev-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .dev-nav-link {
+    flex: none;
   }
   .dev-nav-exit {
     margin-inline-start: 0;
+  }
+  /* Fade at an edge that hides links (D-812, D-825): as the kit Tabs, swapped under :dir(rtl). */
+  .dev-nav[data-overflow='end'] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .dev-nav[data-overflow='start'] {
+    mask-image: linear-gradient(to right, transparent, #000 24px);
+  }
+  .dev-nav[data-overflow='both'] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
+  }
+  .dev-nav:dir(rtl)[data-overflow='end'] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent);
+  }
+  .dev-nav:dir(rtl)[data-overflow='start'] {
+    mask-image: linear-gradient(to left, transparent, #000 24px);
+  }
+  .dev-nav:dir(rtl)[data-overflow='both'] {
+    mask-image: linear-gradient(
+      to left,
+      transparent,
+      #000 24px,
+      #000 calc(100% - 24px),
+      transparent
+    );
   }
   .dev-main {
     padding: 20px 16px 48px;
@@ -503,6 +562,7 @@
 }
 .dev-file {
   display: grid;
+  align-content: start;
   gap: 0.25rem;
   font-size: 0.875rem;
 }
