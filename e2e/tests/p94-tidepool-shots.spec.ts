@@ -15,7 +15,7 @@ import { serveTone } from '../support/playerAudio';
  * chosen through the dev handle and read back (`.sr-ply[data-skin]`).
  *
  * Passes, each on a fresh page: BASE (the skin's phone block, the `@media (max-width: 720px)` rules of
- * `tidepool.css`, is deleted from the live style sheet in the page) at 700, 640, 620 and 375 x 812; AFTER (the
+ * `tidepool.css`, is deleted from the live style sheet in the page) at 700, 680, 660, 640, 620 and 375 x 812; AFTER (the
  * sheet as built) at the same four widths; W93 at 375 (if SR_P94_TIDEPOOL_W93CSS names a copy of the wave 93
  * sheet, it replaces the live one, to compare every box at 375 with wave 93's). Each pass: the layout that shows
  * (the grid's columns), the player's width against 38rem (608 px), sideways scroll of the document, the dock and
@@ -24,7 +24,7 @@ import { serveTone } from '../support/playerAudio';
  * failing point; the gap from each control's box to its neighbours. Full passes (375 and 700) also count running
  * animations under reduced motion; AFTER at 700 and 375 taps each kind of control with a real touch at its centre
  * and 20 px above and below (Seek and Volume by the input's own `input` event, D-935). Then 1280 x 800 (no
- * touch): every control's box, base and after. Shots (4): `base-700`, `after-700`, `after-640`, `after-375`;
+ * touch): every control's box, base and after. Shots (8): `base-700`, `base-680`, `base-660`, `base-640`, `after-700`, `after-660`, `after-640`, `after-375`;
  * `measure.json`.
  *
  * Local only (SR_P94_TIDEPOOL_ON=1). SR_P94_TIDEPOOL_OUT is the shots folder. SR_P94_TIDEPOOL_BASE=1 runs the
@@ -459,6 +459,49 @@ async function pass(
     };
   });
   e.boxes = await page.evaluate(boxesInPage);
+  e.overlaps = await page.evaluate(() => {
+    const root = document.querySelector<HTMLElement>('.sr-ply')!;
+    const vis = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return r.width > 4 && r.height > 4 && !e.closest('[aria-hidden="true"]');
+    };
+    const nm = (e: Element) =>
+      e.getAttribute('aria-label') ||
+      (e.textContent ?? '').trim().slice(0, 20) ||
+      e.className.toString();
+    const items = [
+      ...Array.from(root.querySelectorAll('button, input:not([type="hidden"])')).map((e) => ({
+        k: 'control',
+        e,
+      })),
+      ...Array.from(root.querySelectorAll('.tp-etch-text')).map((e) => ({ k: 'label', e })),
+    ].filter(({ e }) => vis(e));
+    const out: string[] = [];
+    for (let i = 0; i < items.length; i++)
+      for (let j = i + 1; j < items.length; j++) {
+        const a = items[i]!;
+        const b = items[j]!;
+        if (a.e.contains(b.e) || b.e.contains(a.e)) continue;
+        const r = a.e.getBoundingClientRect();
+        const o = b.e.getBoundingClientRect();
+        const w = Math.min(r.right, o.right) - Math.max(r.left, o.left);
+        const h = Math.min(r.bottom, o.bottom) - Math.max(r.top, o.top);
+        if (w > 1 && h > 1)
+          out.push(`${a.k} "${nm(a.e)}" x ${b.k} "${nm(b.e)}" ${Math.round(w)}x${Math.round(h)}`);
+      }
+    const cut = (sel: string) => {
+      const e = root.querySelector<HTMLElement>(sel);
+      return e ? [e.scrollWidth, e.clientWidth, (e.textContent ?? '').trim()] : null;
+    };
+    return {
+      pairs: out,
+      capsuleName: cut('.tp-capsule-name'),
+      ticker: cut('.tp-title .sr-ply-ticker'),
+    };
+  });
+  console.log(
+    `REPORT overlaps ${mode} ${width}: ${JSON.stringify((e.overlaps as { pairs: string[] }).pairs)}`,
+  );
 
   const root = page.locator(ROOT);
   e.opened = (await openCollapsed(page, root)).length;
@@ -542,7 +585,7 @@ test('SEC-AUD-428: the Tidepool skin between 625 and 720 px, base and after', as
     return { ctx, page };
   };
 
-  const widths = [700, 640, 620, 375];
+  const widths = [700, 680, 660, 640, 620, 375];
   const bases: Record<string, unknown> = {};
   for (const w of widths) {
     const { ctx, page } = await newCtx(w, 812);
@@ -551,7 +594,7 @@ test('SEC-AUD-428: the Tidepool skin between 625 and 720 px, base and after', as
       'base',
       w,
       w === 700 || w === 375,
-      w === 700 ? 'base-700' : null,
+      w === 620 || w === 375 ? null : `base-${w}`,
     );
     await ctx.close();
   }
@@ -563,7 +606,7 @@ test('SEC-AUD-428: the Tidepool skin between 625 and 720 px, base and after', as
     for (const w of widths) {
       const { ctx, page } = await newCtx(w, 812);
       const full = w === 700 || w === 375;
-      const r = await pass(page, 'after', w, full, w === 620 ? null : `after-${w}`);
+      const r = await pass(page, 'after', w, full, w === 620 || w === 680 ? null : `after-${w}`);
       afters[String(w)] = r;
       const c = r.counts as { fail: number; notReached: number };
       if (c.fail || c.notReached) failing.push(`${w}: ${c.fail} fail, ${c.notReached} not reached`);

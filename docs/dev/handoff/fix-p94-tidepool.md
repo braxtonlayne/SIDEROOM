@@ -1,67 +1,62 @@
 # Wave 94, tidepool: SEC-AUD-428 (D-934), the Tidepool skin passes the 44 px hit test between 625 and 720 px
 
-2026-11-17. Clock: start 13:55, lock taken 14:02, round 14:02 to 14:05 (one round, stack stopped, lock released 14:05), checks 14:06. Commits: `SEC-AUD-428: Tidepool wide layout phone targets`, then this handoff. **The CSS in the last commit is the CSS measured in the round** (no rule changed after the run).
+2026-11-17. Clock: start 13:55; round 1 14:02 to 14:05; the commander looked at `after-640.png` and found the deck crowded, so round 2 14:10 to 14:14 (stack stopped, lock released 14:14); checks 14:14. Commits: `SEC-AUD-428: Tidepool wide layout phone targets`, then `SEC-AUD-428: Tidepool stacked layout up to 720 px`, plus handoffs. **The CSS in the last commit is the CSS measured in round 2.**
 
-## Base (spec `e2e/tests/p94-tidepool-shots.spec.ts`; helper `hitTestAll`; touch; queue of three tone tracks, first title 57 characters; the phone block deleted from the live sheet; I ran it)
-Which layout shows: the player's width against 38rem (608 px): 700 -> 684 px wide layout, 640 -> 624 wide layout, 620 -> 604 narrow layout (so the narrow layout takes over between 640 and 620; the band is about 625 to 720). Document, dock and skin all equal at every width.
+## Base (spec `e2e/tests/p94-tidepool-shots.spec.ts`; helper `hitTestAll`; touch; queue of three tone tracks, first title 57 characters; the phone block deleted from the live sheet; I ran it twice)
+Layout by the player's width against 38rem (608 px): 700 -> 684 wide layout, 680 -> 664, 660 -> 644, 640 -> 624 wide; 620 -> 604 narrow. The band is about 625 to 720.
 
-| Width | Layout | pass / fail / not reached |
-|---|---|---|
-| 700 | wide | 7 / 11 / 0 |
-| 640 | wide | 7 / 11 / 0 |
-| 620 | narrow | 1 / 17 / 0 (base of wave 93: the block only applies in the narrow layout and the sheet is stripped here) |
-| 375 | narrow | 1 / 17 / 0 |
+| Width | Layout | pass / fail / not reached | Skin height |
+|---|---|---|---|
+| 700, 680, 660, 640 | wide | 7 / 11 / 0 each | 498, 522, 522, 533 |
+| 620 | narrow | 1 / 17 / 0 | 638 |
+| 375 | narrow | 1 / 17 / 0 | 658 |
 
-Wide layout failures (700; 640 the same set, boxes slightly narrower): Move and Close gems 26 x 26 (taker: the body above and below); Seek 256 x 18 (the screen grid above, the screen below); Mute 38 x 38 (the deck above, the volume span below); Volume 80 x 16 (the Mute ball above, the slot below); Repeat 115 x 20, Stop 74 x 20, Drift off 122 x 20 (the deck, the slot, the strip, the body); queue rows 164 x 27 (the wing above, the next row below, the wing below). Passing already in the wide layout: the three wing pills (110 x 57, 106 x 46, 110 x 57, rotated), Shuffle 56, Previous 76 x 52, Next 76 x 52, Pause 84. Skin height 498 at 700 and 533 at 640.
+Wide layout failures (700; the others the same set): gems 26 x 26 (taker: the body), Seek 18 tall (the screen grid, the screen), Mute 38 (the deck, the volume span), Volume 16 tall (the Mute ball, the slot), Repeat/Stop/Drift off 20 tall (the deck, slot, strip), queue rows 27 tall (the wing, the next row).
+
+**Crowding that was already on the base (the commander's finding, measured):** the wide layout's deck (five slots, about 442 px) does not fit the body at any width under 720. Overlapping control boxes on the base: 700: Shuffle x Previous 6 px, Previous x Pause 7, Pause x Next 15, Next x Volume 14; 680: 9, 11, 20, 18; 660: 12, 14, 25, 21; 640: 15, 18, 30, 25 and Next x Mute 4. At 640 the capsule title is cut ("Tidepoo...": name 103 px in 69) and the labels "PLAY / PAUSE" and "NEXT" run together. The screen title is a ticker (scrolls by design: 923 px of text in 66), not a fault.
 
 ## What I built (`tidepool.css`, the one `@media (max-width: 720px)` block at the end; one comment names SEC-AUD-428 and D-934)
-- The rules that are word for word the same in both layouts moved from the narrow container query to the media block's top level: crown 44 min, the gem and ball 44 px `::after`, Seek 44 px, the Mute/Volume 8 px gap, the Volume input and its track, the strip and the chips (44 px high, drawn 22 px), the queue rows 44 px. Measured: 375 is equal to wave 93 to the pixel (below).
-- The narrow layout's own rules stay in `@container (max-width: 38rem)`: pills 44 min, gems gap 1.25rem, capsule margin 4.75rem, Shuffle and Prev/Next sizes, queue `max-block-size` 11.5rem.
-- New `@container (min-width: 38.01rem)` (the wide layout): gems 1.125rem apart (26 px gems: centres 44 px apart), capsule `margin-inline-end: 5.5rem` so it never runs under the gems. Nothing else was needed: the pills, Shuffle, Prev, Next and Pause are 44 px or more in the wide layout.
+Round 1 gave the wide layout its own 44 px rules and left the crowding. Round 2: **at 720 px and under the stacked layout (the narrow container query's own rules) applies at any player width**: those rules are repeated at the top of the media block inside `@container (min-width: 38.01rem)`; the 44 px rules that follow (they come last) no longer sit in a container query, they hold for both. The wide-only gem and capsule rules of round 1 are gone. Nothing changes above 720 px. The player is never in its wide layout under 720 now, so the 625 to 720 band looks as 620 and 375 do.
 
-## After (same round, same run)
-| Width | Layout | pass / fail / not reached | Skin height (base) |
-|---|---|---|---|
-| 700 | wide | 18 / 0 / 0 | 548 (498, +50) |
-| 640 | wide | 18 / 0 / 0 | 579 (533, +46) |
-| 620 | narrow | 18 / 0 / 0 | 729 (638) |
-| 375 | narrow | 18 / 0 / 0 | 747 (658, +89 as wave 93) |
+## After (round 2, same run)
+| Width | Layout | pass / fail / not reached | Overlapping boxes | Skin height |
+|---|---|---|---|---|
+| 700 | stacked | 18 / 0 / 0 | none | 729 (base 498) |
+| 680 | stacked | 18 / 0 / 0 | none | 729 (522) |
+| 660 | stacked | 18 / 0 / 0 | none | 729 (522) |
+| 640 | stacked | 18 / 0 / 0 | none | 729 (533) |
+| 620 | stacked | 18 / 0 / 0 | none | 729 (638) |
+| 375 | stacked | 18 / 0 / 0 | none | 747 (658) |
 
-Boxes at 700: gems 26 x 26 (target 44, 18 px apart), Seek 256 x 44, Mute 38 (target 44), Volume 80 x 44, chips 44 high, queue rows 164 x 44; 640 the same with narrower widths. Gaps between neighbouring boxes: Mute to Volume 8 px, rows 2 px, chips 12 px beside, Next to Mute 7 px (the Mute target reaches 3 px past its ball: no overlap).
-- Sideways scroll: document, dock and skin scrollWidth equal clientWidth at 700, 640, 620 and 375 (700/700, 684/684, 684/684; 640/640, 624/624; 620/620, 604/604; 375/375, 359/359).
-- One scroller (D-927): at 700, 640 and 620 nothing scrolls (the dock 548/548, 579/579, 729/729); at 375 the skin scrolls by 8 px (747 against 739), the one scroller, as in wave 93.
-- Touch taps (centre, 20 px above, 20 px below): 46 at 700 and 46 at 375, 0 failed (Pause, queue rows, Prev, Next, Shuffle, Mute, Repeat, Drift off, EQ, Move, Skin pill, Close and reopen, Stop). Seek by the input's own `input` event: 3 of 3 at both widths (last values 0.23, 0.78, 0.50 for targets 0.25, 0.75, 0.5); Volume by its value: 0.20, 0.87, 0.53 (D-935).
-- Reduced motion: 16 running animations with motion allowed, 0 reduced at 700 (base 16 / 0); 15 / 0 at 375.
-- 375 against wave 93's sheet (the spec swaps the live sheet for a copy of wave 93's, in the same run): 18 controls each, **max box difference 0 px**, skin height 747 both, 18 of 18 both.
-- 1280 x 800: 18 controls, **max box difference 0 px** against the base, height 498 both.
+- At 640 against the base: overlaps 5 -> 0 (controls and etch labels checked pairwise), capsule "Tidepool Glass" whole (89 in 89), 18 of 18 (was 7).
+- Sideways scroll: document, dock and skin `scrollWidth` equal `clientWidth` at 700, 680, 660, 640, 620 and 375. One scroller (D-927): nothing scrolls at 700 to 620 (dock 729/729); at 375 the skin scrolls 8 px (747 against 739) as in wave 93.
+- Touch taps (centre, 20 px above, 20 px below): 46 at 700 and 46 at 375, 0 failed; Seek by the input's own `input` event 3 of 3, Volume by its value (D-935).
+- Reduced motion: 16 allowed, 0 reduced (base 16 / 0) at 700; 15 / 0 at 375.
+- **375 against wave 93's sheet** (swapped into the page in the same run): 18 controls, max box difference **0 px**, height 747 both.
+- **1280 x 800:** 18 controls, max box difference **0 px** against the base, height 498 both.
+- Cost: the player is taller in the band (729 against 498 to 533) because the wings stack above and below the body, as on a phone; it is not wider.
 
 ## Listed, not built
-- At 640 the deck is crowded (the "PLAY / PAUSE" etch label touches "NEXT", the Mute ball overlaps the deck's groove) and the capsule title reads "Tidepoo..." (the capsule's `max-inline-size` is the wide layout's own, unchanged). I did not shoot the base at 640, so I cannot say it was different before; the deck rules are untouched except the Mute/Volume gap (6 to 8 px). Not a hit-test fault; a polish item for a later wave if the owner cares.
 - Firefox track rules are written but not measured (Chromium only), as in wave 93.
 
 ## Lazy chunks
-`tidepool.css` is imported only by `TidepoolSkin.tsx` (`git grep -n "tidepool.css"`; also named in docs and the spec), which `PlayerHost.tsx` loads lazily. `TidepoolSkin.tsx` unchanged. No web build run, no cargo, no Rust.
+`tidepool.css` is imported only by `TidepoolSkin.tsx` (`git grep -n "tidepool.css"`), loaded lazily by `PlayerHost.tsx`. `TidepoolSkin.tsx` unchanged. No web build, no cargo.
 
-## Shots (`visual-sweep-shots/p94-tidepool`, 4 PNGs, all opened, plus `measure.json`)
-`base-700`, `after-700`, `after-640`, `after-375`. Base 700: the gems, Seek, chips and rows small, the shell the same shape. After 700: same look, taller by 50 px, rows and chips roomier, nothing cut or overlapping at 700 or 375. After 640: all in place; the deck crowding noted above. After 375: as wave 93.
+## Shots (`visual-sweep-shots/p94-tidepool`, 8 PNGs, all opened, plus `measure.json`)
+`base-700`, `base-680`, `base-660`, `base-640` (the crowding and overlaps), `after-700`, `after-660`, `after-640`, `after-375`. After: wings stacked above and below the body, deck in one row with the labels apart, Volume beside Next with a gap, capsule whole, nothing cut or overlapping. The title is shot mid-scroll (ticker).
 
-## Checks (on my own tree, after my last edit; clock 14:06)
-- e2e `tsc` (`cd e2e && npx tsc --noEmit -p tsconfig.json`): exit 0.
-- `npx prettier --check` on the css and the spec: exit 0.
-- `node scripts/check-css-tokens.mjs`: clean, exit 0. `node scripts/i18n-audit.mjs --max 0`: TOTAL 0, exit 0. `node scripts/check-doc-links.mjs`: ok, exit 0.
-- The spec itself, `--project=chromium --reporter=line`: 1 passed (2.4 m), in the round.
-- Not run: eslint on the spec (the e2e package has no eslint of its own), web `tsc` (no `.tsx` changed), web build (none this wave).
+## Checks (own tree, after my last edit, 14:14)
+e2e `tsc` (`cd e2e && npx tsc --noEmit -p tsconfig.json`) exit 0; `npx prettier --check` css and spec exit 0; `check-css-tokens` clean; `i18n-audit --max 0` TOTAL 0; `check-doc-links` ok; the spec in the round: 1 passed (2.8 m). Not run: eslint on the spec (the e2e package has none), web `tsc` (no `.tsx` changed), web build.
 
 ## Commander's command (from `e2e/`, stack with the sweep world, API 8723, Vite 5723, metrics 9423, `SR_ADMIN_REQUIRE_REAUTH=0`)
-`SR_E2E_BASE_URL=http://localhost:5723 SR_P94_TIDEPOOL_ON=1 SR_P94_TIDEPOOL_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p94-tidepool npx playwright test tests/p94-tidepool-shots.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line` (`SR_P94_TIDEPOOL_BASE=1` runs the base passes only; leave `SR_P94_TIDEPOOL_W93CSS` unset on the merged tree: it points at a copy of wave 93's sheet and skips the comparison without it).
+`SR_E2E_BASE_URL=http://localhost:5723 SR_P94_TIDEPOOL_ON=1 SR_P94_TIDEPOOL_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p94-tidepool npx playwright test tests/p94-tidepool-shots.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line` (`SR_P94_TIDEPOOL_BASE=1`: base passes only; leave `SR_P94_TIDEPOOL_W93CSS` unset on the merged tree, the comparison with wave 93 is then skipped).
 
 ## Proposed rows
-- SEC-AUD-428 closes: "Tidepool between 625 and 720 px (wide layout): 11 of 18 controls failed the hit test at 700 and 640 (gems 26, Seek 18, Mute 38, Volume 16, chips 20, queue rows 27; takers the body, the deck, the screen, the neighbour); now 18 of 18 pass at 700, 640, 620 and 375, 0 not reached, 92 touch taps do their job, no sideways scroll, 375 equal to wave 93 and 1280 equal to the base (0 px); the skin is 50 px taller at 700 (D-934)."
-- Open (new, optional): Tidepool's deck is crowded at about 640 px (label "PLAY / PAUSE" meets "NEXT"), and the capsule title is cut to an ellipsis there; not measured against the base.
+- SEC-AUD-428 closes: "Tidepool between 625 and 720 px: 11 of 18 controls failed the hit test at 700 to 640 (gems 26, Seek 18, Mute 38, Volume 16, chips 20, rows 27) and the wide layout's deck overlapped (boxes by 4 to 30 px, labels ran together, capsule title cut); now at 720 px and under the stacked layout shows at any width: 18 of 18 pass at 700, 680, 660, 640, 620 and 375, no overlap, no sideways scroll, 92 touch taps do their job, 375 equal to wave 93 and 1280 equal to the base (0 px); the skin is 231 px taller at 700 (729 against 498) (D-934)."
 
-Changelog sentence: The Tidepool player skin keeps its full-size controls on a small tablet or a phone held sideways.
+Changelog sentence: The Tidepool player skin uses its stacked layout and full-size controls on a small tablet or a phone held sideways.
 
-Owner questions: none.
+Owner questions: on a 700 px tablet the Tidepool player now stacks its wings above and below (729 px tall) instead of the side-by-side wide layout (498 px, crowded). Default taken: stacked, because the wide deck cannot hold 44 px controls in that width.
 
 ## Cleanup
-Stack stopped by PID tree (8723, 5723, 9423 have no listener), `sr_p94_tidepool_ui` dropped, `p94-tidepool-bin` deleted, lock released at 14:05 (it went to the next builder). No stash. `p92-base-bin` and `p80-base-bin` untouched. `e2e/.state` is untracked and not committed.
+Stack stopped by PID tree (8723, 5723, 9423 free), `sr_p94_tidepool_ui` dropped, `p94-tidepool-bin` deleted, lock released at 14:14. No stash. `p92-base-bin` and `p80-base-bin` untouched. `e2e/.state` untracked, not committed.
