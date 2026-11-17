@@ -209,7 +209,8 @@ function probesInPage(): Probe[] {
       color: colorOf(e),
     });
   };
-  const title = root.querySelector<HTMLElement>('.sr-ply-ticker-text');
+  // The ticker's clipping box is the visible part of the title; the inner text is as wide as the whole title.
+  const title = root.querySelector<HTMLElement>('.sr-ply-ticker');
   if (title) add(title, 'title');
   for (const e of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
     if (e.children.length > 0) continue;
@@ -244,10 +245,16 @@ async function pixelsOf(
       );
     const w = c.width;
     const h = c.height;
-    const corners = [px(1, 1), px(w - 2, 1), px(1, h - 2), px(w - 2, h - 2)];
+    // Inset past a 1-3 px border (the text's own box often has one), as far as the box allows.
+    const i = Math.max(1, Math.min(4, Math.floor(w / 4), Math.floor(h / 4)));
+    const corners = [px(i, i), px(w - 1 - i, i), px(i, h - 1 - i), px(w - 1 - i, h - 1 - i)];
+    const inset = i;
     const grid: number[][] = [];
     for (let j = 0; j < 3; j++)
-      for (let i = 0; i < 7; i++) grid.push(px(1 + (i * (w - 3)) / 6, 1 + (j * (h - 3)) / 2));
+      for (let ii = 0; ii < 7; ii++)
+        grid.push(
+          px(inset + (ii * (w - 1 - 2 * inset)) / 6, inset + (j * (h - 1 - 2 * inset)) / 2),
+        );
     return { corners, grid, w, h };
   }, png.toString('base64'));
 }
@@ -303,12 +310,12 @@ async function contrastOf(page: Page, probe: Probe) {
     ([kind, text]) => {
       const root = document.querySelector('.sr-ply')!;
       const all = Array.from(root.querySelectorAll<HTMLElement>('*')).filter(
-        (e) => e.children.length === 0 || e.matches('.sr-ply-ticker-text'),
+        (e) => e.children.length === 0 || e.matches('.sr-ply-ticker'),
       );
       const el = all.find(
         (e) =>
           (e.textContent ?? '').trim().slice(0, 60) === text &&
-          (kind === 'title' ? e.matches('.sr-ply-ticker-text') : true),
+          (kind === 'title' ? e.matches('.sr-ply-ticker') : true),
       );
       if (!el) return false;
       el.setAttribute('data-p92-probe', '1');
@@ -345,12 +352,26 @@ async function contrastOf(page: Page, probe: Probe) {
       if ((s.textContent ?? '').startsWith('[data-p92-probe="1"]')) s.remove();
   });
   const px = await pixelsOf(page, png);
-  const cr = px.corners.map((p) => ratioOn(probe.color, rgba(p)));
-  const gr = px.grid.map((p) => ratioOn(probe.color, rgba(p)));
+  // Chromium reports oklab()/oklch() for some computed colours, which the helper cannot read: the browser's own
+  // canvas converts the string to sRGB first (the original string stays in the report).
+  const [cssColor, opacity] = probe.color.split('|opacity:');
+  const srgb = await page.evaluate((c) => {
+    const k = document.createElement('canvas');
+    k.width = k.height = 1;
+    const g = k.getContext('2d')!;
+    g.fillStyle = c;
+    g.fillRect(0, 0, 1, 1);
+    const d = g.getImageData(0, 0, 1, 1).data;
+    return `rgba(${d[0]}, ${d[1]}, ${d[2]}, ${(d[3]! / 255).toFixed(3)})`;
+  }, cssColor!);
+  const colorForHelper = opacity ? `${srgb}|opacity:${opacity}` : srgb;
+  const cr = px.corners.map((p) => ratioOn(colorForHelper, rgba(p)));
+  const gr = px.grid.map((p) => ratioOn(colorForHelper, rgba(p)));
   return {
     kind: probe.kind,
     text: probe.text,
     color: probe.color,
+    colorAsSrgb: srgb,
     box: [Math.round(box.x), Math.round(box.y), Math.round(box.w), Math.round(box.h)],
     corners: cr.map((v) => Number(v.toFixed(2))),
     cornersMin: Number(Math.min(...cr).toFixed(2)),
@@ -582,6 +603,33 @@ test('SEC-AUD-406: the five player skins on a phone, looked at', async ({ browse
       if (!d) return false;
       d.scrollTop = d.scrollHeight;
       return d.scrollHeight > d.clientHeight + 2;
+    });
+    // Is the last queue row (the third track) whole inside the dock at its end, and what clips it if not?
+    entry.queueTail = await page.evaluate(() => {
+      const root = document.querySelector<HTMLElement>('.sr-ply')!;
+      const dock = document.querySelector<HTMLElement>('.sr-ply-dock')!;
+      const leaf = Array.from(root.querySelectorAll<HTMLElement>('*')).find(
+        (e) => e.children.length === 0 && /^Tone 3/.test((e.textContent ?? '').trim()),
+      );
+      if (!leaf) return null;
+      const r = leaf.getBoundingClientRect();
+      const d = dock.getBoundingClientRect();
+      const clippers: string[] = [];
+      for (let a = leaf.parentElement; a && a !== dock; a = a.parentElement) {
+        const o = getComputedStyle(a).overflowY;
+        if (o !== 'visible') {
+          const ar = a.getBoundingClientRect();
+          clippers.push(
+            `${a.tagName.toLowerCase()}.${String(a.getAttribute('class') ?? '').split(/s+/)[0]} overflow-y:${o} box ${Math.round(ar.top)}-${Math.round(ar.bottom)} scroll ${a.scrollHeight}/${a.clientHeight}`,
+          );
+        }
+      }
+      return {
+        row: [Math.round(r.top), Math.round(r.bottom)],
+        dock: [Math.round(d.top), Math.round(d.bottom)],
+        inside: r.top >= d.top && r.bottom <= d.bottom,
+        clippers,
+      };
     });
     entry.expandedShot = scrollable;
     if (scrollable) {
