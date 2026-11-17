@@ -457,3 +457,17 @@
     transform: translateY(-50%);
   }
 }
+
+/* SEC-AUD-433, D-936: on a phone a full profile page shows its blocks in one column, each the full width, in reading order (the renderer's inline grid placement is overridden here, the only place `!important` is used). The compact rendering is already one column and has no inline placement. SEC-AUD-431, D-937: the guestbook's Report, Approve and Remove buttons are 44 px tall. Only the profile's own classes: no app section, no theme. */
+@media (max-width: 720px) {
+  .pp-root:not([data-compact]) .pp-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .pp-root:not([data-compact]) .pp-grid > .pp-block {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+  .pp-entries li > button {
+    min-block-size: 44px;
+  }
+}

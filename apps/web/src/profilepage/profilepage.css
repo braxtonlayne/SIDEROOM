@@ -277,3 +277,16 @@
   flex-wrap: wrap;
   gap: 4px;
 }
+
+/* SEC-AUD-431, D-937: on a phone the profile page's ring button gets a 44 x 44 target (its 40 px drawn size plus the wrap's 2 px padding). Under the page's own root only: the Lounge's rings are not reached. */
+@media (max-width: 720px) {
+  .pp-body .rng-btn {
+    position: relative;
+  }
+  .pp-body .rng-btn::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+  }
+}

@@ -2000,3 +2000,59 @@
     }
   }
 }
+
+/*
+ * SEC-AUD-432 (wave 95; D-940, D-927): on a phone the skin is taller than its box and scrolls inside itself. The panel
+ * bevel (`::before`) and the cabinet art (the backdrop's SVG) are absolutely placed, so they are as tall as the first
+ * screen and the scrolled part had no frame. Both are drawn here as the skin's own background layers with
+ * `background-attachment: local`, which follow the content for its whole scrolled height (as the cheeks do since wave
+ * 94): the iron gradient, the cast noise (the same turbulence as a tile), the bevel's top light, foot line and shaded
+ * sides, inset from the cheeks. The absolute pieces are switched off here; nothing is in the flow, so no control moves.
+ */
+@media (max-width: 720px) {
+  .sr-ply-valve {
+    --v-frame-whole: 1;
+    --v-bx: 2.25rem;
+    --v-light: linear-gradient(
+      color-mix(in oklab, var(--ui-text) 14%, transparent),
+      color-mix(in oklab, var(--ui-text) 14%, transparent)
+    );
+    --v-foot: linear-gradient(var(--v-shade), var(--v-shade));
+    background:
+      var(--v-light) var(--v-bx) 0 / calc(100% - 2 * var(--v-bx)) 1px no-repeat local,
+      var(--v-foot) var(--v-bx) 100% / calc(100% - 2 * var(--v-bx)) 2px no-repeat local,
+      linear-gradient(90deg, var(--v-shade), transparent) var(--v-bx) 0 / 6px 100% no-repeat local,
+      linear-gradient(270deg, var(--v-shade), transparent) right var(--v-bx) top 0 / 6px 100%
+        no-repeat local,
+      var(--v-cheek-sheen) 0 0 / var(--v-cheek-w) 100% no-repeat local,
+      var(--v-cheek-sheen) 100% 0 / var(--v-cheek-w) 100% no-repeat local,
+      linear-gradient(var(--v-cheek-flat), var(--v-cheek-flat)) 0 0 / var(--v-cheek-w) 100%
+        no-repeat local,
+      linear-gradient(var(--v-cheek-flat), var(--v-cheek-flat)) 100% 0 / var(--v-cheek-w) 100%
+        no-repeat local,
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' seed='7' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.3'/></svg>")
+        0 0 / 160px 160px repeat local,
+      radial-gradient(
+          ellipse 70% 45% at 28% 8%,
+          color-mix(in oklab, var(--v-iron-hi) 70%, transparent),
+          transparent 70%
+        )
+        0 0 / 100% 100% no-repeat local,
+      linear-gradient(180deg, var(--v-iron), var(--v-iron-lo)) 0 0 / 100% 100% no-repeat local,
+      var(--v-iron);
+    background-blend-mode:
+      normal, normal, normal, normal, normal, normal, normal, normal, overlay, normal, normal,
+      normal;
+  }
+  @media (max-width: 40rem) {
+    .sr-ply-valve {
+      --v-bx: 0.875rem;
+    }
+  }
+  .sr-ply-valve::before {
+    content: none;
+  }
+  .sr-ply-valve .sr-ply-bd-backdrop {
+    display: none;
+  }
+}
