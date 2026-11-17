@@ -18,6 +18,12 @@
 .sr-ply-bd *::after {
   box-sizing: border-box;
 }
+/* SEC-AUD-422, D-927: in a bottom dock the dock is capped to the room above the composer (player.css, via
+   --sr-ply-lift, which the skin inherits through the display:contents theme wrapper). The skin's box takes the same
+   cap, so a tall skin is the one scroller and the dock itself never scrolls. */
+.sr-ply-dock[data-dock^='bottom'] .sr-ply-bd {
+  max-block-size: calc(100vh / var(--sr-overlay-zoom, 1) - var(--sr-ply-lift) - 0.5rem);
+}
 /* Artwork is painted: no hit area, no focus, no selection. */
 .sr-ply-bd-art {
   pointer-events: none;
