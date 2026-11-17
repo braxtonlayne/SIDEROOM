@@ -16,7 +16,13 @@ Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\visual-sweep`, branch `fix/visual-s
 ## How to run the sweep
 
 Stack: `sr-server` on 127.0.0.1:8080 with `SR_DATABASE__URL` (own scratch DB), `SR_SERVER__PUBLIC_URL=http://localhost:5173`,
-`SR_STORAGE__ENDPOINT=memory:`; Playwright starts the Vite dev server (`VITE_SR_E2E=1`).
+`SR_STORAGE__ENDPOINT=memory:`, **and `SR_ADMIN_REQUIRE_REAUTH=0`**; Playwright starts the Vite dev server (`VITE_SR_E2E=1`).
+The last one is for a development host only: the server keeps its second-factor window on by default, and the seed's
+`suspended app` step (`POST /admin/developers/apps/{id}/suspend` as the Owner, a listed sensitive route in
+`crates/sr-api/src/sensitive.rs`) is refused with 900004 "Set up two-factor authentication..." because the sweep's Owner
+has no second factor (SEC-AUD-391, D-901). The server refuses to start with the variable unless `server.public_url` is a
+localhost address, so it cannot weaken a real host. Without it the seed prints `FAIL suspended app` and the Review hub's
+Applications tab has no suspended row; with it the seed prints no `FAIL` line.
 
 ```bash
 SR_E2E_SWEEP=1 pnpm --filter @sideroom/e2e exec playwright test tests/page-sweep.spec.ts --project chromium
