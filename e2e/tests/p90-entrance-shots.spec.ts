@@ -100,6 +100,38 @@ async function makePng(page: Page, hue: number): Promise<Buffer> {
   return Buffer.from(b64, 'base64');
 }
 
+/**
+ * The sweep's Owner has no second factor, and the hero upload and removal need a fresh one (`withReauth`), so the three
+ * hero routes are answered by the spec (as wave 68's previews spec fakes its routes): the page's own request is
+ * checked (a data URI of a PNG and a reason) and the stored image is served back to the preview.
+ */
+const fake: { png: Buffer | null; puts: number; lastReason: string | null } = {
+  png: null,
+  puts: 0,
+  lastReason: null,
+};
+async function fakeHero(page: Page) {
+  await page.route('**/api/v1/admin/entrance/hero', async (route) => {
+    const req = route.request();
+    if (req.method() === 'PUT') {
+      const body = req.postDataJSON() as { image?: string; reason?: string };
+      const m = /^data:image[/]png;base64,(.+)$/.exec(body.image ?? '');
+      if (!m) return route.fulfill({ status: 400, body: 'not a png data uri' });
+      fake.png = Buffer.from(m[1]!, 'base64');
+      fake.puts++;
+      fake.lastReason = body.reason ?? null;
+      return route.fulfill({ status: 204 });
+    }
+    fake.png = null;
+    return route.fulfill({ status: 204 });
+  });
+  await page.route('**/api/v1/sr/entrance/hero*', (route) =>
+    fake.png
+      ? route.fulfill({ status: 200, contentType: 'image/png', body: fake.png })
+      : route.fulfill({ status: 404, body: '' }),
+  );
+}
+
 async function openEntrance(browser: Browser, s: (typeof SETTINGS)[number]) {
   const ctx = await browser.newContext({
     baseURL: ORIGIN,
@@ -120,6 +152,7 @@ async function openEntrance(browser: Browser, s: (typeof SETTINGS)[number]) {
   }, s.theme);
   const page = await ctx.newPage();
   page.setDefaultTimeout(15_000);
+  await fakeHero(page);
   await page.goto('/admin/entrance', { waitUntil: 'domcontentloaded', timeout: 20_000 });
   await page.locator('#ent-hero-title').waitFor({ timeout: 30_000 });
   await page.waitForTimeout(1500);
@@ -268,13 +301,9 @@ test('SEC-AUD-389: the Entrance hero image control', async ({ browser }) => {
     const dlg = page.getByRole('dialog', { name: 'Replace the hero image?' });
     await dlg.getByLabel(/Reason/).fill('p90 shot');
     await dlg.getByRole('button', { name: 'Upload image' }).click();
-    const reauth = page.getByRole('dialog', { name: 'Confirm it is you' });
-    await Promise.race([
-      card.getByText('Hero image saved.').waitFor({ timeout: 15_000 }),
-      reauth.waitFor({ timeout: 15_000 }).then(() => {
-        throw new Error('re-auth asked on upload');
-      }),
-    ]);
+    await card.getByText('Hero image saved.').waitFor({ timeout: 15_000 });
+    row.fakedPuts = fake.puts;
+    row.lastReason = fake.lastReason;
     await expect(card.locator('img')).toBeVisible();
     await page.waitForTimeout(600);
     row.uploaded = true;
