@@ -387,17 +387,16 @@
   color: var(--pp-text);
   background: color-mix(in srgb, var(--pp-accent) 45%, transparent);
 }
-/* SEC-AUD-384, D-897: the enabled button takes the profile's colours too (the accent, a little of the profile's bg so the text reads). */
+/* SEC-AUD-384, D-897: the enabled button takes the profile's colours too (the accent, a little of the profile's bg so the text reads). SEC-AUD-394, D-904: hover and pressed mix in more of the profile's bg (never the text), so the text keeps 4.5:1 in every state. */
 .pp-sign > button:not(.pp-link):not(:disabled) {
   color: var(--pp-text);
   background: color-mix(in srgb, var(--pp-accent) 85%, var(--pp-bg));
 }
 .pp-sign > button:not(.pp-link):not(:disabled):hover {
-  background: color-mix(
-    in srgb,
-    color-mix(in srgb, var(--pp-accent) 85%, var(--pp-bg)) 85%,
-    var(--pp-text)
-  );
+  background: color-mix(in srgb, var(--pp-accent) 70%, var(--pp-bg));
+}
+.pp-sign > button:not(.pp-link):not(:disabled):active {
+  background: color-mix(in srgb, var(--pp-accent) 60%, var(--pp-bg));
 }
 .pp-sign > button:not(.pp-link):not(:disabled):focus-visible {
   outline: 2px solid var(--pp-text);
