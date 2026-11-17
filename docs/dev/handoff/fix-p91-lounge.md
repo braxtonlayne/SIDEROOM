@@ -1,6 +1,6 @@
 # Wave 91 lounge handoff: SEC-AUD-397 and SEC-AUD-398 (D-907, D-909)
 
-T = 10:48 on 2026-11-17. Clock: ready 10:50, lock round 1 (base case and a first after) 10:54 to 10:57, round 2 (after) 10:59 to 11:00 (both behind members and measure). **Status at 11:02: item 1 is done and measured; item 2's final CSS (the last commit) has not been measured. It needs one more 4-minute round, which the brief reserves for the commander's word (no third round without it).**
+T = 10:48 on 2026-11-17. Clock: ready 10:50, lock round 1 (base case and a first after) 10:54 to 10:57, round 2 (after) 10:59 to 11:00 (both behind members and measure). Round 3 (commander approved, 11:10 to 11:11, after-only) measured the final CSS: see "Round 3" below. Item 2 is done.
 
 ## Done (commits on `fix/p91-lounge`)
 - Item 1 (SEC-AUD-397, D-907): `lounge/voice/VoiceChannelView.tsx` and `lounge/voice/StageView.tsx` read `memberListOpen` / `setMemberListOpen` from `useLoungeUi` (as `ChannelView.tsx:58-59`) and pass `membersOpen={onShowMembers ? false : membersOpen}` and `onToggleMembers={onShowMembers ?? (() => setMembersOpen(!membersOpen))}`. The phone path (`onShowMembers` defined) is wave 90's, unchanged. No new string. **`LoungeShell.tsx` was not touched**: its `showRight` already draws the column from the stored flag in a voice channel (measured: column drawn and removed on click).
@@ -19,7 +19,12 @@ T = 10:48 on 2026-11-17. Clock: ready 10:50, lock round 1 (base case and a first
 - Item 2, 375 Lounge Light: heading block, "Add friends" and "Create invite link" start at x = 20, equal to the card's content (card box [8,367], content 20); `cut` 0, page overflow 0. Hit test: every control passed except **one**: the middle member row ("Open profile of cat") failed, because "Group settings"'s own 44 px target (top at 209) reached 8 px into that row (its bottom is at 217). The final commit adds 12 px above the action row for that, and moves the member avatars to x = 20 (before, they sat at x = 12 while the buttons sat at 20: seen in the shot).
 - **Not measured**: the final CSS (commit 3: the 12 px, the avatars at 20, the 4 px row padding), 375 Lounge Dark, and the 1280 Editorial panel against the base. The spec asserts all of them (hit test on every control, Add friends / Create invite link / avatars / heading block at the card's content x, 1280 panel, head, members, actions and buttons equal to `base-measure.json`).
 
-## What the commander runs for the missing round (about 4 minutes, after-only; the base file is in the folder)
+## Round 3 (final CSS, commit 0b0ac056; ran)
+- 375 Lounge Light and Lounge Dark: **every control passes the hit test** (member rows 44 px, Remove icons, Add friends, Group settings, Create invite link: all true); heading block box [8,367] (content 20); Add friends and Create invite link start at x = 20 (the card's content); member avatars start at x = 20;  0, page overflow 0. Both group-panel shots opened.
+- 1280 Editorial: panel [1040,1280,53,257], head, members and actions boxes and every button box and hit flag are **0 px from the base**. The spec's first run failed only on the button labels (random usernames per run); the compare now ignores labels (the geometry was equal).
+- Stack stopped, lock released,  dropped,  deleted. 768 px (not 720) is a choice, see Owner questions.
+
+## (Superseded) what the commander runs for the missing round (about 4 minutes, after-only; the base file is in the folder)
 `bash C:/Users/braxt/Desktop/SIDEROOM_wt/p91-lounge-scratch/round.sh after` inside a `heavy.sh acquire lounge` (it needs `p91-lounge-bin`, which I kept for it; it makes and leaves a fresh `sr_p91_lounge_ui`). By hand: the stack of the brief (ports 8692 / 5692 / 9392, `SR_VOICE__ENABLED=true`, `SR_ADMIN_REQUIRE_REAUTH=0`), seed the sweep world, then from `e2e/`:
 `SR_E2E_BASE_URL=http://localhost:5692 SR_P91_LOUNGE_ON=1 SR_P91_LOUNGE_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p91-lounge npx playwright test tests/p91-lounge-shots.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line` (`-g voice` or `-g dm`). The base case adds `SR_P91_LOUNGE_BASE=1` with `VoiceChannelView.tsx`, `StageView.tsx` and `profile-p11.css` restored from `9da8b619`.
 

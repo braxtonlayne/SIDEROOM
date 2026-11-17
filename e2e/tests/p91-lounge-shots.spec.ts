@@ -509,7 +509,10 @@ test('dm: the group DM members panel gutter on a phone (SEC-AUD-398)', async ({ 
     const b = baseRow('dm-group-desktop') as Measure | null;
     if (b) {
       for (const k of ['panel', 'head', 'members', 'actions', 'invite', 'buttons'] as const) {
-        ex(m[k], `1280 ${k} equals the base`).toEqual(b[k]);
+        // The buttons' labels carry the run's random usernames: compare the boxes and the hit flags only.
+        const strip = (v: unknown) =>
+          k === 'buttons' ? (v as unknown[][]).map((x) => x.slice(1)) : v;
+        ex(strip(m[k]), `1280 ${k} equals the base`).toEqual(strip(b[k]));
       }
     }
   } finally {
