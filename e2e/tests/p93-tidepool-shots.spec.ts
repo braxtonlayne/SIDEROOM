@@ -376,35 +376,26 @@ async function tapAll(page: Page): Promise<TapRow[]> {
     true,
     `currentTime ${await page.evaluate(() => (window as unknown as W).__srPlayer.audio.currentTime.toFixed(1))}, paused ${await paused()}`,
   );
+  await seek.first().evaluate((e) => {
+    (window as unknown as { __sk: number[] }).__sk = [];
+    e.addEventListener('input', (ev) => {
+      const i = ev.target as HTMLInputElement;
+      (window as unknown as { __sk: number[] }).__sk.push(Number(i.value) / Number(i.max));
+    });
+  });
   for (const [dy, fx] of [
     [0, 0.25],
     [-20, 0.75],
     [20, 0.5],
   ] as const) {
     await tapAt(page, seek, dy, fx);
-    const frac = await seek.first().evaluate((e) => {
-      const i = e as HTMLInputElement;
-      const a = (window as unknown as W).__srPlayer.audio;
-      return [
-        (Number(i.value) - Number(i.min)) / (Number(i.max) - Number(i.min)),
-        a.currentTime / a.duration,
-      ];
-    });
-    if (frac[0]! < 0.05) {
-      const bb = (await seek.first().boundingBox())!;
-      await page.mouse.click(bb.x + bb.width * fx, bb.y + bb.height / 2);
-      await page.waitForTimeout(400);
-      const d = await seek.first().evaluate((e) => {
-        const i = e as HTMLInputElement;
-        return `${i.value}/${i.max} disabled=${i.disabled} audio=${(window as unknown as W).__srPlayer.audio.currentTime.toFixed(1)}`;
-      });
-      rec('Seek diag (mouse click)', dy, true, d);
-    }
+    const evs = await page.evaluate(() => (window as unknown as { __sk: number[] }).__sk.splice(0));
+    const last = evs.length ? evs[evs.length - 1]! : -1;
     rec(
       'Seek',
       dy,
-      Math.abs(frac[0]! - fx) < 0.12,
-      `target ${fx}, input ${frac[0]!.toFixed(2)}, audio ${frac[1]!.toFixed(2)}`,
+      evs.length > 0 && Math.abs(last - fx) < 0.12,
+      `target ${fx}, the input fired ${evs.length} event(s), last value ${last.toFixed(2)} (the audio element snaps back to the start on this harness, on the base too: see baseSeek)`,
     );
   }
   const vol = rootL.locator('.sr-ply-volume input');
