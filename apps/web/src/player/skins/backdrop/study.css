@@ -682,7 +682,8 @@
 }
 .st-lcd .sr-ply-time {
   margin-block-start: 0.125rem;
-  color: var(--st-olive);
+  /* SEC-AUD-424, D-928: the olive alone read 4.05 at the lowest point of the butter ground; a little more ink. */
+  color: color-mix(in oklab, var(--st-olive) 65%, var(--ui-text));
   font-size: 1.75rem;
   font-weight: 900;
   line-height: 1.05;
@@ -1741,4 +1742,60 @@
 }
 .st-queue-leaf .st-leaf-vein {
   stroke: var(--st-mint-hi);
+}
+
+/*
+ * SEC-AUD-420, D-926: on a phone every control of the Study deck passes the 44 px touch test (D-856). A control with
+ * room grows to 44 px (the seek ribbon, the timer buttons, the queue rows, the volume range); the three corner
+ * buttons keep their drawn size and get a centred 44 px ::after, with a wider gap so no two targets overlap. Nothing
+ * changes above 720 px, and the skin keeps its width.
+ */
+@media (max-width: 720px) {
+  .sr-ply-study .st-win {
+    gap: 1rem;
+  }
+  .sr-ply-study .st-dot {
+    position: relative;
+  }
+  .sr-ply-study .st-dot::after {
+    content: '';
+    position: absolute;
+    inset-block: calc(50% - 1.375rem);
+    inset-inline: calc(50% - 1.375rem);
+  }
+  .sr-ply-study .st-ribbon-rail {
+    block-size: 2.75rem;
+  }
+  .sr-ply-study .st-ribbon-art {
+    inset-block: 0.25rem;
+  }
+  .sr-ply-study .st-seek::-webkit-slider-thumb {
+    block-size: 2.75rem;
+  }
+  .sr-ply-study .st-seek::-moz-range-thumb {
+    block-size: 2.75rem;
+  }
+  .sr-ply-study .st-timer-btns {
+    gap: 0.5rem;
+  }
+  .sr-ply-study .st-chip {
+    min-block-size: 2.75rem;
+  }
+  .sr-ply-study .st-chip-round {
+    inline-size: 2.75rem;
+  }
+  .sr-ply-study .st-queue {
+    background: repeating-linear-gradient(
+        transparent 0 0.125rem,
+        color-mix(in oklab, var(--st-mint-hi) 70%, var(--st-cream)) 0.125rem 2.875rem,
+        transparent 2.875rem 3.125rem
+      )
+      0 0 / 100% 100% local;
+  }
+  .sr-ply-study .st-queue button {
+    min-block-size: 2.75rem;
+  }
+  .sr-ply-study .st-tile-vol input[type='range'] {
+    block-size: 2.75rem;
+  }
 }
