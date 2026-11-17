@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 94 - 2026-11-17
+
+- **Music.** Dragging the player's Seek bar, or a short network stall while a track plays, no longer restarts the track from the start; pressing Next during a stall starts the next track at once.
+- **Everyone, on a phone.** The Valve and Steel Stack player skins have full-size controls, and Valve's title is easier to read. Tidepool keeps full-size controls on a small tablet or a phone held sideways. In a server member's profile popout, "Add role" and a role's remove button are easy to tap. On a profile page the link buttons and a guestbook signer's name are easier to tap.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 93 - 2026-11-17
 
 - **Everyone, on a phone.** The Circuit, Study and Tidepool player skins have full-size controls, and Study's time readout is easier to read. A tall skin scrolls once, inside itself, to reach the end of the queue. The profile popout's Note and Message fields and "View Full Profile" link are easy to tap. In Settings, My Account's Edit buttons no longer take each other's taps, "Edit your profile page" and "View leaderboards" are full-size, and sliders and segmented controls no longer pass a tap to the control below.

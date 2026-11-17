@@ -381,3 +381,31 @@
     min-block-size: 44px;
   }
 }
+
+/* SEC-AUD-426 (D-932): on a phone the guild popout's "Add role" button (34 x 22) and a role's remove button (a 16px
+   icon with no padding) get a 44px target (D-856). "Add role" stands alone in its own li, so it grows to a real
+   44px box; a remove button sits inside its chip, whose drawn size must not change, so it keeps its size and gets a
+   centred 44px ::after. The chip rows get a row-gap so that a remove button on one line and one on the next do not
+   take each other's taps. Every selector is under .lng-pop; 768px is the shell's phone width (D-915, D-924). */
+@media (max-width: 768px) {
+  .lng-pop .lng-pop-roles {
+    row-gap: 24px;
+  }
+  .lng-pop .lng-pop-role-add {
+    justify-content: center;
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+  .lng-pop .lng-pop-role-x {
+    position: relative;
+  }
+  .lng-pop .lng-pop-role-x::after {
+    content: '';
+    position: absolute;
+    inset-inline-start: 50%;
+    inset-block-start: 50%;
+    inline-size: 44px;
+    block-size: 44px;
+    transform: translate(-50%, -50%);
+  }
+}

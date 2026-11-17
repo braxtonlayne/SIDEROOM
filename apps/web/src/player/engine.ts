@@ -156,6 +156,7 @@ export function createPlayerEngine(
   let graphTried = false;
   let decks: GaplessDecks | null = null;
   let loadedKey: string | null = null;
+  let reportingWaiting = false;
   let loadToken = 0;
   /** The key the decks handed over to; the store's matching `loading` must not reload it. */
   let handedOver: string | null = null;
@@ -406,7 +407,8 @@ export function createPlayerEngine(
       return;
     }
     const key = keyOf(s.index, track);
-    const entering = s.status === 'loading' && prev.status !== 'loading';
+    // `loading` that the element itself reported (`waiting`: a seek, a stall) is the same track buffering, not a new load.
+    const entering = s.status === 'loading' && prev.status !== 'loading' && !reportingWaiting;
     if (entering && handedOver === key) {
       // The decks already play this track (gapless hand-over).
       handedOver = null;
@@ -416,7 +418,10 @@ export function createPlayerEngine(
       refreshNext();
       return;
     }
-    if (entering || (s.status === 'playing' && key !== loadedKey)) {
+    // A new track picked while the element stalls: the store goes loading -> loading with another key, so `entering` is
+    // false; load it at once instead of waiting for the old element's `playing`.
+    const switchedWhileLoading = s.status === 'loading' && key !== loadedKey && !reportingWaiting;
+    if (entering || switchedWhileLoading || (s.status === 'playing' && key !== loadedKey)) {
       void load();
       return;
     }
@@ -462,7 +467,15 @@ export function createPlayerEngine(
     if (store.getState().status !== 'playing') engineReport.status('playing');
   });
   const onWaiting = fromPlaying(() => {
-    if (store.getState().status === 'playing') engineReport.status('loading');
+    if (store.getState().status !== 'playing') return;
+    // Every seek and every stall fires `waiting`. Show the buffering, but never let `onStore` read it as a new load
+    // (`load()` would set src again and restart the track at 0). The store notifies its subscribers synchronously.
+    reportingWaiting = true;
+    try {
+      engineReport.status('loading');
+    } finally {
+      reportingWaiting = false;
+    }
   });
   // With the decks, `ended` is theirs (they hand over or call onDecksEnded).
   const onEnded = fromPlaying(() => {
