@@ -173,7 +173,10 @@
   text-align: center;
 }
 
-/* D-856: a 44 px trigger on a phone (the 1 px negative margins let the trigger cover the control's border box). */
+/* D-856: a 44 px trigger on a phone (the 1 px negative margins let the trigger cover the control's border box).
+   D-913: chip rows are 44 px apart on a phone (a chip's 20 px box in a 42 px line: 11 px of margin above and below,
+   a 2 px row gap), so no remove button's 44 px target (D-879, below) reaches into the row above or below; a control
+   with one row of chips stays 44 px, and the text input's line is the same 42 px line. */
 @media (max-width: 720px) {
   .control {
     min-height: 44px;
@@ -183,17 +186,22 @@
     margin-block: -1px;
   }
   .inputRow {
+    row-gap: 2px;
     padding-block: 0;
   }
   .inputRow .input {
     min-height: 44px;
     margin-block: -1px;
   }
+  .chip {
+    margin-block: 11px;
+  }
 }
 
 /* D-879: a chip's remove button gets a 44 px tall hit area (a pseudo-element); the chip's drawn box does not change.
    It reaches 24 px toward the chip's label and 4 px past the button's end (the chip's own padding), so it never
-   covers the next chip's remove button or the chevron. */
+   covers the next chip's remove button or the chevron. D-913: the rows are 44 px apart, so the target also stays
+   inside its own row's 44 px band and never covers the row above or below. */
 @media (max-width: 720px) {
   .chipRemove {
     position: relative;
