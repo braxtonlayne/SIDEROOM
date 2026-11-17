@@ -256,6 +256,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* SEC-AUD-398 (D-909): on a phone the group members panel's heading, buttons and invite block sit in the one-to-one
+   card's gutter (.lng-profile-card: 8px margin and 12px padding) instead of at the panel's edge. The member rows
+   already sit there (8px list padding, 8px row padding, 4px button padding). 768px is the shell's phone width. */
+@media (max-width: 768px) {
+  .lng-profile > .prf-group-head,
+  .lng-profile > .prf-group-actions,
+  .lng-profile > section {
+    margin-inline: 8px;
+    padding-inline: 12px;
+  }
+}
 .lng-dm-identity {
   display: inline-flex;
   align-items: center;

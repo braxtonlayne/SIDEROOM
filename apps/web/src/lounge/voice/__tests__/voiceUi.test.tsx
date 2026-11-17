@@ -397,5 +397,28 @@ describe('SEC-AUD-385 header Member List', () => {
     );
     await user.click(await screen.findByRole('button', { name: 'Member List' }));
     expect(onShowMembers).toHaveBeenCalledTimes(1);
+    expect(useLoungeUi.getState().memberListOpen).toBe(true);
+  });
+
+  it('SEC-AUD-397: on a desktop it toggles the stored flag and aria-pressed follows', async () => {
+    useLoungeUi.setState({ memberListOpen: true });
+    const user = userEvent.setup();
+    render(
+      <MockDataProvider>
+        <VoiceChannelView
+          channel={
+            { id: '2011', guildId: '1001', type: 'voice', name: 'General', position: 0 } as Channel
+          }
+        />
+      </MockDataProvider>,
+    );
+    const button = await screen.findByRole('button', { name: 'Member List' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    await user.click(button);
+    expect(useLoungeUi.getState().memberListOpen).toBe(false);
+    expect(button).toHaveAttribute('aria-pressed', 'false');
+    await user.click(button);
+    expect(useLoungeUi.getState().memberListOpen).toBe(true);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
   });
 });
