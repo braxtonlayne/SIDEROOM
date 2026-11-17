@@ -9,8 +9,9 @@ import { hitTest, ProbeError } from '../support/hit-test';
  * SEC-AUD-430 (D-938), wave 95 menu: on a phone (max-width 720px, the kit's own condition) a kit menu item is at
  * least 44 px tall. Needs the sweep's seeded world (`e2e/.state/sweep/world.json`, made by `page-sweep.spec.ts`
  * "seed the sweep world"; this spec never edits that spec). The Owner's account. Local only. A second guild member
- * (`dan`) and three roles are made through the API in the first run (D-863) and kept in `ids.json` in the shots
- * folder (delete it on a fresh database). Every variable starts with SR_P95_MENU_.
+ * (`dan`) and three roles (Menu Alders, Menu Birches, Menu Cedars: names no other spec uses, D-942) are made through the API
+ * in the first run (D-863) and kept in `ids.json` in the shots folder: kept for the same world; a file from another
+ * world is discarded (D-942). Every variable starts with SR_P95_MENU_.
  *
  * The commander's command (from `e2e/`, after the world is seeded on the same database; also set SR_CLI_BIN,
  * SR_DATABASE__URL and DATABASE_URL of the stack):
@@ -150,20 +151,28 @@ const switchRuleOff = (page: Page) =>
     return off;
   });
 
+/** D-942: role names of this spec's own (the lounge spec makes Garden Wardens, Night Stewards, Spare Keepers). */
+const ROLE_NAMES = ['Menu Alders', 'Menu Birches', 'Menu Cedars'] as const;
+
 interface World {
   guildId: string;
   channelId: string;
 }
 interface Ids {
+  guild: string;
   member: string;
   roles: [string, string, string];
 }
 
-/** dan joins the sweep guild; three roles with 14-character names; two go to dan, the third is left to add. */
+/** dan joins the sweep guild; three roles named by ROLE_NAMES (D-942); two go to dan, the third is left to add. */
 async function makeState(browser: Browser, ownerCtx: BrowserContext): Promise<Ids> {
   mkdirSync(OUT, { recursive: true });
-  if (existsSync(IDS_FILE)) return JSON.parse(readFileSync(IDS_FILE, 'utf8')) as Ids;
   const world = JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as World;
+  if (existsSync(IDS_FILE)) {
+    // D-942: the cache is kept for the same world only; a file from another world (or with no guild) is discarded.
+    const cached = JSON.parse(readFileSync(IDS_FILE, 'utf8')) as Partial<Ids>;
+    if (cached.guild === world.guildId) return cached as Ids;
+  }
   const invite = await apiPost<{ code: string }>(
     ownerCtx.request,
     `/channels/${world.channelId}/invites`,
@@ -175,7 +184,7 @@ async function makeState(browser: Browser, ownerCtx: BrowserContext): Promise<Id
   await apiPost(dc.request, `/invites/${invite.code}`, {});
   await dc.close();
   const roles: string[] = [];
-  for (const name of ['Garden Wardens', 'Night Stewards', 'Spare Keepers']) {
+  for (const name of ROLE_NAMES) {
     const r = await apiPost<{ id: string }>(ownerCtx.request, `/guilds/${world.guildId}/roles`, {
       name,
     });
@@ -184,7 +193,7 @@ async function makeState(browser: Browser, ownerCtx: BrowserContext): Promise<Id
   await apiPatch(ownerCtx.request, `/guilds/${world.guildId}/members/${du.id}`, {
     roles: [roles[0], roles[1]],
   });
-  const ids = { member: du.id, roles } as Ids;
+  const ids = { guild: world.guildId, member: du.id, roles } as Ids;
   writeFileSync(IDS_FILE, JSON.stringify(ids));
   return ids;
 }
@@ -215,7 +224,12 @@ async function openPopout(page: Page, phone: boolean) {
     else await row.click();
     await page.locator('.lng-pop').first().waitFor({ timeout: 6000 });
     await page.waitForTimeout(700);
-    if (await page.locator('.lng-pop .lng-pop-role-x').count()) return i;
+    // D-942: the popout of THIS spec's dan (the lounge spec's dan has chips too in a shared world).
+    if (
+      (await page.locator('.lng-pop .lng-pop-role-x').count()) &&
+      (await page.locator('.lng-pop').first().innerText()).includes(ROLE_NAMES[0])
+    )
+      return i;
     if (phone) await page.getByRole('button', { name: 'Close', exact: true }).first().tap();
     else await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
@@ -435,7 +449,10 @@ test('kit menu items on a phone (SEC-AUD-430)', async ({ browser }) => {
   const f = await newPage(browser, true, ownerCtx, 'lounge-light');
   try {
     await openRoleMenu(f.page, true);
-    const pick = f.page.getByRole('menuitem').filter({ hasText: 'Spare Keepers' }).first();
+    const pick = f.page
+      .getByRole('menuitem')
+      .filter({ hasText: new RegExp(`^\\s*${ROLE_NAMES[2]}\\s*$`) });
+    ex(await pick.count(), 'exactly one item is named Menu Cedars').toBe(1);
     await pick.tap();
     await f.page.waitForTimeout(900);
     const held = await heldRoles(ownerCtx, ids);
