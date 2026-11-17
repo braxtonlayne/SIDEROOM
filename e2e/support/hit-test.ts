@@ -17,6 +17,8 @@ import type { Locator, Page } from '@playwright/test';
  *   const opened = await openCollapsed(page, page.getByRole('main'));
  *   const rows = await hitTestAll(page, page.getByRole('main'));
  *   expect(rows.filter((r) => r.status !== 'pass' && r.status !== 'skipped')).toEqual([]);
+ * An open menu (items are `role="menuitem"`, not buttons; D-941): add them with the `also` option:
+ *   const rows = await hitTestAll(page, menu, { also: MENU_ITEM_SELECTOR });
  *
  * Plain Playwright and DOM; nothing is imported from a spec.
  */
@@ -71,6 +73,8 @@ export interface HitOptions {
   wrapper?: string;
   /** Distance of the points from the centre; 21 px is D-856. */
   reach?: number;
+  /** A selector: nodes under the root that match it are tested as well as the built-in controls (D-941). */
+  also?: string;
 }
 
 export interface Opened {
@@ -292,6 +296,9 @@ export const CONTROL_SELECTOR = [
   '[role=radio]',
 ].join(',');
 
+/** The items of a kit menu (D-941): pass as `also` to `hitTestAll`. */
+export const MENU_ITEM_SELECTOR = '[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio]';
+
 /**
  * Every enabled button, link, kit select trigger, checkbox, switch, radio and text field under `root`, one row each.
  * A control that is not displayed (`display: none` up the tree) or is disabled is `skipped`, except when the thing
@@ -304,7 +311,7 @@ export async function hitTestAll(
   root: Locator,
   opts: HitOptions = {},
 ): Promise<ControlRow[]> {
-  const all = root.locator(CONTROL_SELECTOR);
+  const all = root.locator(opts.also ? `${CONTROL_SELECTOR},${opts.also}` : CONTROL_SELECTOR);
   const n = await all.count();
   const rows: ControlRow[] = [];
   for (let i = 0; i < n; i++) {
