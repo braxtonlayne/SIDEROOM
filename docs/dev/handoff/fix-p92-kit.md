@@ -49,5 +49,7 @@ No doc states the chip pitch. `node scripts/check-doc-links.mjs` run at the end 
 ## Cleanup
 Scratch database dropped, `p92-kit-bin` deleted, stack stopped by PID tree (8702 / 5702 / 9402 free), lock released. No stash touched.
 
-## The web build: NOT RUN
-Not run by 12:11: the brief puts it last in the lock order, after every builder's rounds, and the other builders' handoffs were not yet in. The commander (or a new kit run) must run it: `bash C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents/heavy.sh run kit npx pnpm@10.12.1 --filter @sideroom/web build`, then `node scripts/check-bundle-budget.mjs`, `node scripts/check-entrance-isolation.mjs`, `node scripts/check-staff-delivery.mjs`; first paint before: 218 353 B (wave 91). A CSS-only change in the kit's Select sheet should move the first-paint script by 0 B. Cleanup: `sr_p92_kit_ui` dropped and `p92-kit-bin` deleted at 12:11.
+## The web build (run 12:34 to 12:35 after every builder's handoff was in; `heavy.sh run kit`, exit 0, under a minute)
+- `node scripts/check-bundle-budget.mjs`: all ok. First paint `app/app-hQRZEEuG.js`: **218 359 B gzip, room 37 641 B** (needs 8 KB). Before (wave 91): 218 353 B. **+6 B**; my change is CSS-only in a module sheet, so I do not know the cause of the 6 B (the first-paint script is JS; it may be the base differing from wave 91 by the wave 92 base commits). Not chased.
+- `node scripts/check-entrance-isolation.mjs`: every public surface is clean. `node scripts/check-staff-delivery.mjs`: ok.
+- Nothing the build wrote was committed. `sr_p92_kit_ui` dropped and `p92-kit-bin` deleted at 12:11.
