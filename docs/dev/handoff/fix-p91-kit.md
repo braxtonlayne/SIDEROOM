@@ -1,6 +1,6 @@
 # Wave 91, kit builder: SEC-AUD-394 (D-904), SEC-AUD-395 (D-905), SEC-AUD-396 (D-906); the wave's one web build
 
-T = 10:48 (2026-11-17). Binaries copied 10:46, spec and code ready 10:50, lock taken 11:02 (round 1, one round for all three items), released 11:09 (stack stopped by PID tree, ports 8691/5691/9391 free). Web build: see "The web build" below. Branch `fix/p91-kit`.
+T = 10:48 (2026-11-17). Binaries copied 10:46, spec and code ready 10:50, lock taken 11:02 (round 1, one round for all three items), released 11:09 (stack stopped by PID tree, ports 8691/5691/9391 free). Web build: taken 11:23 as a one-shot `heavy.sh run kit` (the lock was free, every builder had had a first round), ended 11:24, lock released by the one-shot; finished 11:27. Branch `fix/p91-kit`.
 
 ## Done (commits)
 1. `7f1d726f` SEC-AUD-394: guestbook "Sign" button hover and pressed keep 4.5:1.
@@ -39,7 +39,10 @@ Vitest: `misc.test.tsx` (new: the English default, the plural default with `mult
 - Base case: run on this worktree with the files of the three commits checked out from `9da8b619` (`git checkout <base> -- <files>`, then `git checkout HEAD -- <files>`), never a stash and never another worktree.
 
 ## The web build
-(see the end of this file)
+`npx pnpm@10.12.1 --filter @sideroom/web build` (the build's own run took under a minute; exit 0), then the three checks, all exit 0:
+- `node scripts/check-bundle-budget.mjs`: every line ok. **First paint `app/app-Crcw14gI.js`: 218 353 B gzip, room 37 647 B to the 250 KB limit (needs 8 KB). Before (wave 90): 218 312 B. +41 B** (the two `dropText` props, the solo branch of `ChoiceShell`; the `profile-blocks.css` change and the fragment are not in the first-paint script).
+- `node scripts/check-entrance-isolation.mjs`: "every public surface is clean" (auth 121.4/150 KB, invite 113.5/120, profile 115.1/150, guest-play 115.5/120).
+- `node scripts/check-staff-delivery.mjs`: ok (7 staff files, 731.6 KB).
 
 ## Shots (folder `visual-sweep-shots/p91-kit`)
 The spec made 19 `after-*` and 19 `base-*` shots (hover, pressed and rest of the Sign button; Members; the labelled-controls page; both pickers; per setting). **I opened the 11 the task lists, all of them:** `base-sign-hover-desk-editorial`, `after-sign-hover-desk-editorial`, `after-sign-pressed-desk-editorial`, `after-sign-rest-phone-light`, `after-members-phone-light`, `after-members-phone-dark`, `after-members-desk-editorial`, `after-members-selected-desk-editorial` (bulk bar, mixed header), `after-labelled-controls-phone-light`, `after-drop-entrance-phone-light`, `after-drop-expressions-phone-light`. The others (the base shots, the dark and Editorial pickers, the keyboard shot, the signed-out form) I did not open; their figures are in the JSON files. The "labelled checkbox and switch" shot is of Accessibility (switches only); the checkbox figures (Privacy page: `checkbox:Messages in ...`, 18 x 18, row 64 at 375 and 20 at 1280) are in `*-members-measure.json` and are equal to the base. Sign button hover: the base is a lighter, greyer blurple; the after is a visibly deeper one, still the profile's blue; pressed deeper again.
@@ -73,4 +76,4 @@ A kit choice control with no visible label must be given `aria-label` (and `labe
 None. Choices made: hover 70% and pressed 60% as the task gave (hover against rest 1.22:1, no 5% step needed); a solo control with a description keeps its label (the description needs it).
 
 ## Cleanup
-Stack stopped by PID tree; `sr_p91_kit_ui` and `p91-kit-bin` removed at the end (see the last line).
+Stack stopped by PID tree (ports free), lock released at 11:09 and again after the build; `sr_p91_kit_ui` dropped and `p91-kit-bin` deleted (`p80-base-bin` untouched). I found no stash and touched none.
