@@ -271,7 +271,7 @@ test('SEC-AUD-409/410/411/423: Invoices stacked, Entitlements badges, room above
       const u = new URL(route.request().url());
       const m = /\/invoices\/(\d+)$/.exec(u.pathname);
       if (route.request().method() !== 'GET') return route.continue();
-      if (m) return route.fulfill({ json: fakeInvoice(Number(m[1].slice(-1))) });
+      if (m?.[1]) return route.fulfill({ json: fakeInvoice(Number(m[1].slice(-1))) });
       return route.fulfill({
         json: { items: [0, 1, 2, 3, 4].map(fakeInvoice), next_before: null },
       });
