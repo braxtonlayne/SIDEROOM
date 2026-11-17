@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 98 - 2026-11-17
+
+- **Admins.** The Invoices table shows a soft shade at the edge where it scrolls sideways.
+- **Test suite.** The Sketch & Slander gate spec waits for the guest's reveal before reading the word; a new spec records the Circuit and Study player skins at 700 px.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 97 - 2026-11-17
 
 - **Test suite only.** The touch-target probe's menu screenshot is taken with no submenu open. Nothing a member or an operator sees changes.
