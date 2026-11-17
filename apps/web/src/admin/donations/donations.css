@@ -240,3 +240,32 @@
 .adm-audit + .adm-actions {
   margin-block-start: 12px;
 }
+
+/* SEC-AUD-438 (D-945): between 721 px and the width where the Invoices table fits, it scrolls in its own wrapper (D-817) and
+   nothing showed that there was more to the side. The wrapper draws a soft shade at each inline edge that has more table
+   beyond it, none at an edge that is at its end: backgrounds only (the scroll-shade pattern). Two cover layers in the
+   ground under the wrapper (var(--ui-bg), opaque for the shade's 16 px) scroll with the content (local) and hide the shade at the edge where the
+   content starts or ends; under them two shade layers stay at the wrapper's edges (scroll). Both edges are treated alike,
+   so the rule does not depend on the writing direction. Cells and rows paint no ground of their own. Not on a phone
+   (stacked rows, D-925). */
+@media (min-width: 721px) {
+  .adm-table-wrap:has(> .inv-table) {
+    background-image:
+      linear-gradient(to right, var(--ui-bg) 50%, transparent),
+      linear-gradient(to left, var(--ui-bg) 50%, transparent),
+      linear-gradient(to right, color-mix(in srgb, var(--ui-text) 16%, transparent), transparent),
+      linear-gradient(to left, color-mix(in srgb, var(--ui-text) 16%, transparent), transparent);
+    background-position:
+      left center,
+      right center,
+      left center,
+      right center;
+    background-size:
+      32px 100%,
+      32px 100%,
+      16px 100%,
+      16px 100%;
+    background-attachment: local, local, scroll, scroll;
+    background-repeat: no-repeat;
+  }
+}
