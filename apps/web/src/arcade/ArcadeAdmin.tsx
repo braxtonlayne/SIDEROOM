@@ -1,6 +1,7 @@
-import { Button, Notice, TextInput } from '@sideroom/ui';
+import { Button, Notice, Select, TextInput } from '@sideroom/ui';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useT } from '../i18n';
+import { SectionHeader } from '../admin/ui';
 import { errorText } from '../settings/server/api';
 import { httpArcadeAdminApi, type ArcadeAdminApi } from './adminApi';
 import { httpArcadeApi, type ArcadeApi } from './api';
@@ -75,9 +76,8 @@ export function ArcadeAdminSection({
   };
 
   return (
-    <section className="arc-section" aria-labelledby="arc-admin">
-      <h2 id="arc-admin">{t('arcade.admin.heading')}</h2>
-      <p className="arc-dim">{t('arcade.admin.intro')}</p>
+    <section className="arc-section arc-admin" aria-label={t('arcade.admin.heading')}>
+      <SectionHeader title={t('arcade.admin.heading')} description={t('arcade.admin.intro')} />
       {error !== null && (
         <Notice variant="danger" title={t('arcade.admin.failed', { reason: error })} />
       )}
@@ -110,20 +110,18 @@ export function ArcadeAdminSection({
                 void release(s);
               }}
             >
-              <label className="arc-field">
-                <span>{t('arcade.admin.soonReleaseAs')}</span>
-                <select
+              <div className="arc-field">
+                <label htmlFor={`arc-release-${s.id}`}>{t('arcade.admin.soonReleaseAs')}</label>
+                <Select
+                  id={`arc-release-${s.id}`}
+                  options={[
+                    { value: '', label: t('arcade.admin.soonReleaseAsNone') },
+                    ...(cands ?? []).map((c) => ({ value: c.application_id, label: c.name })),
+                  ]}
                   value={releaseAs[s.id] ?? ''}
-                  onChange={(e) => setReleaseAs({ ...releaseAs, [s.id]: e.target.value })}
-                >
-                  <option value="">{t('arcade.admin.soonReleaseAsNone')}</option>
-                  {(cands ?? []).map((c) => (
-                    <option key={c.application_id} value={c.application_id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onValueChange={(v) => setReleaseAs({ ...releaseAs, [s.id]: v })}
+                />
+              </div>
               <Button size="sm" type="submit">
                 {t('arcade.admin.soonRelease', { title: s.title })}
               </Button>
@@ -152,16 +150,15 @@ export function ArcadeAdminSection({
           maxLength={240}
           onChange={(e) => setSummary(e.target.value)}
         />
-        <label className="arc-field">
-          <span>{t('arcade.admin.soonTier')}</span>
-          <select value={tier} onChange={(e) => setTier(e.target.value as Tier)}>
-            {TIERS.map((x) => (
-              <option key={x} value={x}>
-                {t(tierKey(x))}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="arc-field">
+          <label htmlFor="arc-admin-tier">{t('arcade.admin.soonTier')}</label>
+          <Select
+            id="arc-admin-tier"
+            options={TIERS.map((x) => ({ value: x, label: t(tierKey(x)) }))}
+            value={tier}
+            onValueChange={(v) => setTier(v as Tier)}
+          />
+        </div>
         <TextInput
           label={t('arcade.admin.soonRepo')}
           value={repo}

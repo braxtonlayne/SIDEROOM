@@ -137,3 +137,44 @@
     white-space: nowrap;
   }
 }
+
+/* SEC-AUD-390 (D-900): the Invoices filter toolbar. Its State and Purpose filters are bare <label>text <select> pairs
+   (admin.css draws each on one line, label beside select), while the search field is the kit's: its label above its
+   input, its hint below. The pairs take the kit label's look and its label-above structure (label 15 px + 6 px gap), so
+   the three labels share one line and the three controls share one line. The toolbar then aligns to the top, and the
+   checkbox row and the Search button, which have no label, sit down by the label's height (15 + 6 px) onto the
+   controls' line. On a phone the toolbar keeps its end alignment, and each filter takes the row, as the text field does
+   (server-settings.css, SEC-AUD-370). */
+.ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.ss-root .ss-toolbar.inv-toolbar > label:has(> select) > select {
+  font-size: 0.875rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  color: var(--ui-text);
+}
+@media (min-width: 721px) {
+  .ss-root .ss-toolbar.inv-toolbar {
+    align-items: flex-start;
+  }
+  .ss-root .ss-toolbar.inv-toolbar > label:has(> input[type='checkbox']) {
+    margin-block-start: 21px;
+  }
+  .ss-root .ss-toolbar.inv-toolbar > button {
+    margin-block-start: 23px;
+  }
+}
+@media (max-width: 720px) {
+  .ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
+    flex: 1 1 100%;
+  }
+}

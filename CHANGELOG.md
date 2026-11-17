@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 90 - 2026-11-17
+
+- **Members.** On a phone "Member List" works in voice and stage channels, and tapping a group DM's name shows its members. A profile's guestbook "Sign" button uses the profile's colours. A server's Members list uses the standard checkbox.
+- **Staff.** The Arcade, Entrance and Invoices admin pages have proper headings, labels and phone-sized controls; the Entrance image picker refuses a wrong file type at once.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 89 - 2026-11-16
 
 - **Members.** In Settings each Cinema defaults label sits right above its own choice. On a profile page the guestbook's "Leave a message" label and the greyed-out "Sign" button are easier to read.

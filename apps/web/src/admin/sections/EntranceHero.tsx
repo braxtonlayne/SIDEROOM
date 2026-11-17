@@ -1,7 +1,7 @@
 // Entrance hero image (H-41, D-239): the operator's picture for the door slot on the landing page, with the alt
 // text (`hero-alt`). Upload and removal need MANAGE_ENTRANCE and a fresh second factor (through `withReauth`).
-import { Button, ConfirmDialog, Notice, TextInput } from '@sideroom/ui';
-import { useEffect, useRef, useState } from 'react';
+import { Button, ConfirmDialog, FileDrop, Notice, TextInput } from '@sideroom/ui';
+import { useEffect, useState } from 'react';
 import * as api from '../api';
 import { useT } from '../../i18n';
 import { resetEntranceHero } from '../../routes/entrance/entranceCopy';
@@ -29,7 +29,6 @@ export function HeroBlock({
   onAltSaved: (next: string | undefined) => void;
 }) {
   const t = useT();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [version, setVersion] = useState(0);
   const [present, setPresent] = useState<boolean | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -83,15 +82,24 @@ export function HeroBlock({
       ) : (
         <p className="ss-sub">{present === null ? '' : t('admin.entranceHero.none')}</p>
       )}
-      <label className="ss-field">
-        <span>{t('admin.entranceHero.fileLabel')}</span>
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ACCEPT}
-          onChange={(e) => pick(e.target.files?.[0] ?? null)}
-        />
-      </label>
+      <FileDrop
+        label={t('admin.entranceHero.fileLabel')}
+        accept={ACCEPT}
+        maxSize={HERO_MAX_BYTES}
+        hint={file ? file.name : undefined}
+        onFiles={(files) => pick(files[0] ?? null)}
+        onReject={(rejected) => {
+          setNotice(null);
+          setFile(null);
+          setFileError(
+            t(
+              rejected[0]?.reason === 'size'
+                ? 'admin.entranceHero.tooLarge'
+                : 'admin.entranceHero.wrongType',
+            ),
+          );
+        }}
+      />
       {fileError && (
         <Notice variant="danger" role="alert">
           {fileError}
@@ -158,7 +166,6 @@ export function HeroBlock({
           await api.putEntranceHero(await readDataUri(file), reason);
           setUploading(false);
           setFile(null);
-          if (fileRef.current) fileRef.current.value = '';
           setNotice(t('admin.entranceHero.uploaded'));
           changed();
         }}
