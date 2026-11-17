@@ -435,3 +435,24 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* SEC-AUD-427, D-933: on a phone a link block is at least 44 px tall (the padding and the centred text stay), and the guestbook author link gets a 44 px target from a pseudo-element (its drawn size stays). Only the profile's own classes: no app section, no theme. */
+@media (max-width: 720px) {
+  .pp-linktree a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+  }
+  .pp-entries .pp-muted > a.pp-link {
+    position: relative;
+  }
+  .pp-entries .pp-muted > a.pp-link::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 50%;
+    block-size: 44px;
+    transform: translateY(-50%);
+  }
+}
