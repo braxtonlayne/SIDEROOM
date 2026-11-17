@@ -6,6 +6,12 @@ all-features = true
 version = 2
 yanked = "deny"
 ignore = [
+  # chrono and humantime are marked unmaintained (2026-11-17, chronotope/chrono#1768); neither advisory names a
+  # vulnerability and no maintained release exists. chrono 0.4.45 comes in through oauth2 5.0.0 (sr-api's OAuth
+  # sign-in), humantime 2.4.0 through object_store 0.14.2 (sr-storage). Owner-approved 2026-11-17. Revisit when
+  # oauth2 or object_store move off them (`cargo tree -i chrono`, `cargo tree -i humantime`).
+  { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained, no vulnerability, no maintained release; via oauth2; owner-approved 2026-11-17" },
+  { id = "RUSTSEC-2026-0542", reason = "humantime unmaintained (wraps chrono), no vulnerability; via object_store; owner-approved 2026-11-17" },
   # proc-macro-error2 is unmaintained with no safe upgrade. It is a compile-time helper of
   # hax-lib-macros, reached only through hpke-rs -> libcrux-sha3, which openmls_rust_crypto (the
   # approved MLS provider, D-249) needs; it never ends up in the shipped binary. Revisit when
