@@ -1,6 +1,6 @@
 # Wave 90, public builder: SEC-AUD-384 (D-897), the enabled guestbook "Sign" button follows the profile; the shared contrast helper
 
-T = 05:50 (2026-11-17). Ready 05:57 (spec and CSS drafted; binaries copied 05:51), lock taken 05:54 (round 1, wasted: a regex bug in the helper that I had not run offline; released 05:56), 06:21 (round 2, wasted: the sweep seed returned at once because a stale `e2e/.state/sweep` was left by round 1; released 06:21), 06:30 (round 3, good; released 06:32). Web build: see "Build and checks". Finished: see the end.
+T = 05:50 (2026-11-17). Ready 05:57 (spec and CSS drafted; binaries copied 05:51), lock taken 05:54 (round 1, wasted: a regex bug in the helper that I had not run offline; released 05:56), 06:21 (round 2, wasted: the sweep seed returned at once because a stale `e2e/.state/sweep` was left by round 1; released 06:21), 06:30 (round 3, good; released 06:32). Web build lock taken after the 06:33 request had to wait (exit 75 once); the machine's clock jumped from 06:36 to 10:23 while I waited (a stale-lock takeover message shows it), so the build ran at "10:23" by the clock and was done by 10:25; its work was requested at 06:33, before the limit, and the lock was free when it ran. Finished 10:26 by the clock (past 08:30 only because of the jump: all my work was committed by 06:35).
 
 ## What I saw on the base (I ran it: `/u/owner`, sweep world, `SR_P90_PUBLIC_BASE=1`, round 3)
 - The enabled button is `button._button._primary._sm` (a direct child of `form.pp-sign`): Lounge Light and Dark white rgb(255,255,255) on blurple rgb(88,101,242), **4.61:1**, border 1px transparent, opacity 1; Editorial dark rgb(27,26,21) on tan rgb(194,176,143), **8.22:1**; Editorial hover tan rgb(209,193,162) 9.84:1.
@@ -33,7 +33,7 @@ Signed-out `/~owner` at 375: label rgb(242,243,245) opacity 1 (12.42), span `.pp
 `e2e/support/contrast.ts`: `parseColor` (rgb, rgba, `color(srgb r g b)` with and without `/ a`, hex; anything else throws), `over`, `luminance`, `ratio`, `textRatio`. Self-check in the spec, on wave 89's colours: label **7.70** (target 7.70), disabled button **7.73** (target 7.72; within 0.05; it runs in every run and fails the spec if off by more than 0.05). My first version had its regexes written with doubled escapes and failed to parse any colour; the self-check test caught it (and it threw rather than returning a number). Nobody else imports it this wave.
 
 ## Build and checks
-(filled in below)
+One-shot `heavy.sh run public` (script: build, then the three checks), all exit 0: `pnpm --filter @sideroom/web build` rc 0; `check-bundle-budget` ok, first paint `app/app-Dp7ptV7C.js` **218 312 B gzip** (before, wave 89: 218 303 B; +9 B, none of it from my sheet: the `profile` entry is the one the sheet is in, and the budget is ok), room 37 688 B to the limit (needs 8 KB); `check-entrance-isolation` ok, every public surface clean; `check-staff-delivery` ok. Build ran about 1m15s (the machine's clock jumped during the wait, see below).
 
 ## Tests run
 `packages/profile-blocks` `blocks.test.tsx`: 21 passed, as it is (it asserts no colour; the base/after run is the check). The spec ran on the stack, base and after (both passed: self-check plus measure). I did not watch a test fail for the change itself: the spec asserts only the helper's self-check, the base case is the evidence (the figures above). prettier clean (css, helper, spec), `check-css-tokens` clean, `check-doc-links` ok, e2e `tsc` clean.
@@ -58,4 +58,4 @@ The enabled "Sign" button on a profile's guestbook form now takes the profile's 
 2. The ground is a mix of 85% accent and `--pp-bg`, not the plain accent (4.13:1 on the seeded profile). Say if the plain accent is preferred.
 
 ## Clean-up
-(filled in below)
+Stack stopped by PID tree and ports 8681/5681/9381 free after round 3 (round.log), `sr_p90_public_ui` dropped at the end of every round, `p90-public-bin` deleted, `p80-base-bin` untouched, lock free. No stash touched. `e2e/.state` is untracked and ignored.
