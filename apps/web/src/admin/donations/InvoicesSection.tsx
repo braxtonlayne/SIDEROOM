@@ -232,7 +232,7 @@ export function InvoicesSection() {
         description={t('admin.donations.invoices.description')}
       />
       <form
-        className="ss-toolbar"
+        className="ss-toolbar inv-toolbar"
         onSubmit={(e) => {
           e.preventDefault();
           setApplied(q.trim());

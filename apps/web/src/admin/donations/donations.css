@@ -137,3 +137,13 @@
     white-space: nowrap;
   }
 }
+
+/* SEC-AUD-390 (D-900): the Invoices filter toolbar. Its State and Purpose filters are bare <label>text <select> pairs
+   (admin.css draws them label and select on one line), while the search field is the kit's, its label above its input.
+   Give the pairs the same label-above structure, so the labels share one line and the controls share one line. The
+   toolbar's own rule (align-items: flex-end) keeps the Search button and the checkbox row level with the controls. */
+.ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
