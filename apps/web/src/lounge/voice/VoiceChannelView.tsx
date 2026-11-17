@@ -6,6 +6,7 @@ import { useClientFlags } from '../../moderation/reports';
 import { useLocalVideo, useRemoteVideo } from '../../voice/video';
 import { ChannelHeader } from '../ChannelHeader';
 import { CHANNEL_ICON } from '../ChannelSidebar';
+import { useLoungeUi } from '../store';
 import { useCurrentUser, useUsers, useVoiceMembers, type Channel } from '../data';
 import { useJoinVoice } from './actions';
 import { CallControls, type ViewLayout } from './CallControls';
@@ -47,6 +48,9 @@ export function VoiceChannelView({
   onShowMembers?: (() => void) | undefined;
 }) {
   const t = useT();
+  // D-907: on a desktop the button toggles the shell's members column and shows its true state.
+  const membersOpen = useLoungeUi((s) => s.memberListOpen);
+  const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
   const join = useJoinVoice();
   const session = useVoiceSession();
   const me = useCurrentUser();
@@ -151,8 +155,8 @@ export function VoiceChannelView({
         isDm={false}
         status={undefined}
         topic={channel.topic}
-        membersOpen={false}
-        onToggleMembers={onShowMembers ?? (() => undefined)}
+        membersOpen={onShowMembers ? false : membersOpen}
+        onToggleMembers={onShowMembers ?? (() => setMembersOpen(!membersOpen))}
         onBack={onBack}
         searchLabel={t('lounge.voiceChannel.search', { name: channel.name })}
         guildId={channel.guildId}

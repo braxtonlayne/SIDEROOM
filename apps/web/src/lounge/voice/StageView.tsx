@@ -18,6 +18,7 @@ import {
 import { useCurrentUser, useUsers, useVoiceMembers, type Channel, type VoiceMember } from '../data';
 import { ChannelHeader } from '../ChannelHeader';
 import { CHANNEL_ICON } from '../ChannelSidebar';
+import { useLoungeUi } from '../store';
 import { useJoinVoice } from './actions';
 import { useVoicePerms } from './perms';
 import { ParticipantTile } from './Tiles';
@@ -131,6 +132,9 @@ export function StageView({
   onShowMembers?: (() => void) | undefined;
 }) {
   const t = useT();
+  // D-907: on a desktop the button toggles the shell's members column and shows its true state.
+  const membersOpen = useLoungeUi((s) => s.memberListOpen);
+  const setMembersOpen = useLoungeUi((s) => s.setMemberListOpen);
   const join = useJoinVoice();
   const session = useVoiceSession();
   const me = useCurrentUser();
@@ -170,8 +174,8 @@ export function StageView({
         isDm={false}
         status={undefined}
         topic={instance?.topic ?? channel.topic}
-        membersOpen={false}
-        onToggleMembers={onShowMembers ?? (() => undefined)}
+        membersOpen={onShowMembers ? false : membersOpen}
+        onToggleMembers={onShowMembers ?? (() => setMembersOpen(!membersOpen))}
         onBack={onBack}
         searchLabel={t('lounge.voiceChannel.search', { name: channel.name })}
         guildId={channel.guildId}

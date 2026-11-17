@@ -7,6 +7,7 @@ import { patchSession, resetSession } from '../../../voice/session';
 import { applyStageEvent, resetStage, useStage } from '../../../voice/stage';
 import type { Channel } from '../../data';
 import { MockDataProvider } from '../../mockData';
+import { useLoungeUi } from '../../store';
 import { audienceOrder, StageView } from '../StageView';
 
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
@@ -283,5 +284,22 @@ describe('stage view (VOX-STG-002)', () => {
     );
     await user.click(await screen.findByRole('button', { name: 'Member List' }));
     expect(onShowMembers).toHaveBeenCalledTimes(1);
+    expect(useLoungeUi.getState().memberListOpen).toBe(true);
+  });
+
+  it('SEC-AUD-397: on a desktop the header "Member List" toggles the stored flag', async () => {
+    live();
+    useLoungeUi.setState({ memberListOpen: true });
+    const user = userEvent.setup();
+    render(
+      <MockDataProvider>
+        <StageView channel={channel} />
+      </MockDataProvider>,
+    );
+    const button = await screen.findByRole('button', { name: 'Member List' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    await user.click(button);
+    expect(useLoungeUi.getState().memberListOpen).toBe(false);
+    expect(button).toHaveAttribute('aria-pressed', 'false');
   });
 });
