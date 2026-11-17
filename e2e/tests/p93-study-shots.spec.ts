@@ -363,6 +363,7 @@ function boxesInPage(): {
 /** A real touch tap on a locator at (centre + dx, centre + dy), after the control is scrolled into view. */
 async function tap(page: Page, loc: Locator, fx = 0.5, dy = 0) {
   await loc.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(500); // a scroller may still be settling
   const b = (await loc.boundingBox())!;
   const x = b.x + b.width * fx;
   const y = b.y + b.height / 2 + dy;
@@ -564,7 +565,13 @@ test('SEC-AUD-420 / 424: the Study skin on a phone, hit test and readout contras
     {
       const res: unknown[] = [];
       const btn = R.locator('.st-keys .st-key-btn').nth(1);
-      await audioCall(page, 'pause');
+      // The store and the element can disagree after the spec's own pause: click until the audio is paused.
+      for (let k = 0; k < 3; k++) {
+        const label = (await btn.getAttribute('aria-label')) ?? '';
+        if (!/pause/i.test(label) && (await audio(page)).paused) break;
+        await btn.click();
+        await page.waitForTimeout(300);
+      }
       for (const dy of offs) {
         const before = (await audio(page)).paused;
         await tap(page, btn, 0.5, dy);
@@ -572,19 +579,25 @@ test('SEC-AUD-420 / 424: the Study skin on a phone, hit test and readout contras
         res.push({ dy, pausedBefore: before, pausedAfter: (await audio(page)).paused });
       }
       taps.playPause = res;
-      await audioCall(page, 'pause');
+      for (let k = 0; k < 3; k++) {
+        const label = (await btn.getAttribute('aria-label')) ?? '';
+        if (!/pause/i.test(label) && (await audio(page)).paused) break;
+        await btn.click();
+        await page.waitForTimeout(300);
+      }
     }
     // a queue row plays
     {
       const res: unknown[] = [];
       for (const dy of offs) {
-        await tap(page, R.locator('.st-queue li button').nth(0), 0.5, 0);
-        const third = R.locator('.st-queue li button').nth(2);
-        await tap(page, third, 0.5, dy);
-        const cur = await R.locator('.st-queue li[data-current="true"]').evaluate((li) =>
-          Array.from(li.parentElement!.children).indexOf(li),
-        );
-        res.push({ dy, currentIndexAfter: cur });
+        const idx = () =>
+          R.locator('.st-queue li[data-current="true"]').evaluate((li) =>
+            Array.from(li.parentElement!.children).indexOf(li),
+          );
+        await tap(page, R.locator('.st-queue li button').nth(0), 0.5, dy);
+        const first = await idx();
+        await tap(page, R.locator('.st-queue li button').nth(2), 0.5, dy);
+        res.push({ dy, afterFirstRow: first, afterThirdRow: await idx() });
       }
       taps.queueRow = res;
       await tap(page, R.locator('.st-queue li button').nth(0), 0.5, 0);
@@ -623,13 +636,23 @@ test('SEC-AUD-420 / 424: the Study skin on a phone, hit test and readout contras
       ];
       for (const [fx, dy] of targets) {
         await tap(page, vol, fx, dy);
-        res.push({ fx, dy, volume: Number((await audio(page)).v.toFixed(2)) });
+        res.push({ fx, dy, rangeValue: Number(await vol.inputValue()) });
       }
       taps.volume = res;
     }
     // the skin button (cycles to the next skin, then back to Study)
     {
       const res: unknown[] = [];
+      // Warm the next skin's lazy chunk once (the dev server compiles it on first use), then come back.
+      await act.setSkin('stack');
+      await page.waitForFunction(
+        () => document.querySelector('.sr-ply')?.getAttribute('data-skin') === 'stack',
+        undefined,
+        { timeout: 30_000 },
+      );
+      await act.setSkin('study');
+      await expect(page.locator(ROOT)).toBeVisible();
+      await page.waitForTimeout(500);
       for (const dy of offs) {
         await tap(page, R.locator('.st-dot-a'), 0.5, dy);
         const to = await page.evaluate(() =>
