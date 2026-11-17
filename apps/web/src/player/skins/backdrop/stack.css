@@ -545,3 +545,42 @@
     letter-spacing: 0;
   }
 }
+
+/*
+ * SEC-AUD-421, D-930, D-934: on a phone (720 px and under, in the wide layout and in the narrow container layout
+ * alike) every control of the skin is a 44 px target (D-856). The pixel look stays; the windows grow taller and the
+ * skin scrolls once inside itself (D-927). Hit tests are vertical: a title-bar button keeps its drawn size and carries
+ * a centred 44 px ::after inside its 44 px bar; Seek, Volume, toggles, keys, the preset select, ADD, REM, SEL and the
+ * queue rows are 44 px tall; the ten EQ sliders already pass and are left alone.
+ */
+@media (max-width: 720px) {
+  .sr-ply-stack .ss-bar {
+    block-size: 2.75rem;
+  }
+  .sr-ply-stack .ss-tiny {
+    position: relative;
+  }
+  .sr-ply-stack .ss-tiny::after {
+    content: '';
+    position: absolute;
+    inset-block: -0.875rem;
+    inset-inline: 0;
+  }
+  .sr-ply-stack .ss-seek,
+  .sr-ply-stack .sr-ply-volume input {
+    block-size: 2.75rem;
+  }
+  .sr-ply-stack .ss-toggle,
+  .sr-ply-stack .ss-key,
+  .sr-ply-stack .ss-presets,
+  .sr-ply-stack .ss-small {
+    block-size: 2.75rem;
+  }
+  .sr-ply-stack .ss-pl-screen {
+    max-block-size: 11rem;
+  }
+  .sr-ply-stack .ss-pl li {
+    min-block-size: 2.75rem;
+    align-items: center;
+  }
+}
