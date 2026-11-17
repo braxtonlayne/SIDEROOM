@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 92 - 2026-11-17
+
+- **Everyone, on a phone.** Removing a chip in a multi-select with several rows of chips removes the chip you touched, not the one below. The profile card in a one-to-one chat has a menu button and links big enough to tap. A group chat's "Invite link" heading has room above it, and its invite field is easy to tap.
+- **Staff.** On Admin's Invoices page the Search button sits with the "Needs attention" box on its own row under the filters, and an invoice's audit trail wraps on a phone instead of being cut off.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 91 - 2026-11-17
 
 - **Members.** On a desktop "Member List" works in voice and stage channels. On a phone the group DM members panel lines up with the profile card and its buttons are easier to tap. A profile's guestbook "Sign" button stays readable when hovered or pressed. The file drop area's text can be translated.

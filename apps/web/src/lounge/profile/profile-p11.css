@@ -338,3 +338,31 @@
   align-self: flex-start;
   text-align: start;
 }
+
+/* SEC-AUD-403 (D-916): the group DM panel's invite block (the one section directly under .lng-profile: the one-to-one
+   card's sections sit inside .lng-profile-card) has 12px of room above its label, at every width, like the action
+   row above it has on a phone. */
+.lng-profile > section {
+  margin-block-start: 12px;
+}
+/* SEC-AUD-402 (D-915): on a phone the one-to-one card's "More actions" button (28px square), mutual servers/friends
+   link and "View Full Profile" link (20px tall) get a 44px target (D-856). Real boxes, not ::after: the card is a
+   column with a 12px gap, so two 44px boxes never reach into each other or into the action row's buttons. */
+@media (max-width: 768px) {
+  .prf-dm-panel .prf-dm-actions .lng-icon-btn {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+  .prf-dm-panel .lng-profile-card > .lng-link-btn {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+}
+/* SEC-AUD-403 (D-916), found by the same check: the invite field (33px tall) failed the 44px hit test (D-856) on a
+   phone once "Create invite link" had made it; its copy button passes. Scoped under .prf-invite. */
+@media (max-width: 768px) {
+  .prf-invite .lng-pop-input {
+    min-block-size: 44px;
+  }
+}
