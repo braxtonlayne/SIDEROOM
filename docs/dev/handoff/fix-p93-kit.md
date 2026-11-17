@@ -45,4 +45,49 @@ Docs outside my files: D-856's decisions-log row gets "the target inside the con
 Faults found, not mine: none new. Owner questions: none.
 
 ## The web build and cleanup
-(filled in after the build)
+Build:  13:40 (free, all seven other handoffs already in), None of the selected packages has a "build" script exit 0, 13:40 to 13:41, lock released 13:41. It ran on my branch (kit CSS only), not on the merged tree.
+- ok   landing       115.8 KB gzip  (budget 120 KB, 6 files)
+ok   auth          121.4 KB gzip  (budget 150 KB, 5 files)
+ok   invite        113.5 KB gzip  (budget 120 KB, 5 files)
+ok   profile       115.1 KB gzip  (budget 150 KB, 3 files)
+ok   guest-play    115.5 KB gzip  (budget 120 KB, 2 files)
+ok   app           213.2 KB gzip  (budget 300 KB, 1 files)
+ok   lounge        488.9 KB gzip  (budget 600 KB, 66 files)
+ok   library       239.8 KB gzip  (budget 600 KB, 25 files)
+ok   settings      334.1 KB gzip  (budget 600 KB, 55 files)
+ok   cinema-player    241.9 KB gzip  (budget 600 KB, 17 files)
+ok   cinema-tv     243.5 KB gzip  (budget 600 KB, 19 files)
+ok   cinema-tv-live    242.5 KB gzip  (budget 600 KB, 17 files)
+ok   watch-party    253.0 KB gzip  (budget 600 KB, 21 files)
+ok   developers    214.5 KB gzip  (budget 400 KB, 3 files)
+ok   music-player    229.3 KB gzip  (budget 300 KB, 8 files)
+ok   drawer        229.6 KB gzip  (budget 300 KB, 11 files)
+ok   converter     221.6 KB gzip  (budget 300 KB, 3 files)
+ok   studio        220.5 KB gzip  (budget 300 KB, 3 files)
+ok   emulator      240.9 KB gzip  (budget 320 KB, 12 files)
+ok   activities    217.9 KB gzip  (budget 550 KB, 7 files)
+ok   arcade        239.2 KB gzip  (budget 310 KB, 15 files)
+ok   staff      no /app/staff/ file in the first paint
+ok   first-paint app/app-BFsznGzQ.js: 218351 bytes gzip, room 37649 bytes to the 250 KB limit (needs at least 8 KB)
+ok   handbook   lazy: no handbook page code in the entrance
+ok   browse     lazy: no browse page code in the entrance
+ok   shelves    lazy: no shelves page code in the entrance
+ok   epub       lazy: no epub page code in the entrance
+ok   ffmpeg     core is lazy and separate (ffmpeg-core-BHITvbuk.js, ffmpeg-core-CgUfceKH.wasm, ffmpeg-core-CI9Irx9p.js, ffmpeg-core-CQNwQuNi.js)
+ok   music        197.9 KB brotli (limit 600 KB), lazy (music_bg-ByFsd0wL.wasm)
+ok   player     no player or music library code in the entrance
+ok   pseudo     no pseudo-locale text in any chunk: all ok. First paint : **218 351 B gzip, room 37 649 B** (needs 8 KB). Before (wave 92): 218 359 B and 37 641 B, so -8 B (CSS-only change; the difference is the base's, not mine).
+-      denylist  933 tokens (309 chunkref, 187 chunk, 47 route, 295 api, 32 i18n, 60 word, 3 structural)
+ok   landing   115.8/120 KB gzip, 6 files
+ok   auth      121.4/150 KB gzip, 5 files
+ok   invite    113.5/120 KB gzip, 5 files
+ok   profile   115.1/150 KB gzip, 3 files
+ok   guest-play 115.5/120 KB gzip, 2 files
+ok   legal     1 document, no script
+ok   error     3 documents, no script
+ok   static    6 files scanned (sw.js, manifests, stylesheets, notices)
+Entrance isolation: every public surface is clean.: every public surface is clean. staff files: 7, 731.6 KB raw
+report: 0 module(s) outside src/admin/ look like staff code and sit in member chunks (wave 66):
+report: 9 module(s) under src/admin/ are shared with member code and stay in member chunks
+ok   staff delivery: staff chunks are under /app/staff/ and nothing outside loads or holds them: ok. Nothing the build wrote was committed.
+- Cleanup:  dropped,  deleted, stack stopped by PID tree (ports free), no stash touched, nothing running.
