@@ -95,6 +95,8 @@ function measureMembers() {
         parent: e.parentElement ? desc(e.parentElement) : '',
         hitTop: hitOk(e, cx, cy - 21),
         hitBottom: hitOk(e, cx, cy + 21),
+        hitLeft: hitOk(e, cx - 21, cy),
+        hitRight: hitOk(e, cx + 21, cy),
         centreOwn: hit === e || e.contains(hit),
         isCheckbox: e instanceof HTMLInputElement,
       };

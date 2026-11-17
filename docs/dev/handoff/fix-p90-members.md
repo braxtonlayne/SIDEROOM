@@ -50,3 +50,11 @@ Server settings, Members: the row checkbox and "select all" are the same control
 
 ## Cleanup
 Scratch DB `sr_p90_members_ui` dropped; `p90-members-bin` deleted (`p80-base-bin` untouched); stack stopped by PID tree, ports 8683/5683/9383 free; lock released. No stash touched.
+
+## Fix-up round (D-903, Fable's answers to both owner questions), 06:04-06:21
+Done: `className="ss-check-solo"` on the two label-less checkboxes; the three rules in `server-settings.css` as written in the plan; vitest asserts both wrappers carry the class (the SEC-AUD-387 case passes); the spec now also hit-tests 21 px left and right of each box's centre. One lock round (06:19-06:21), after case only (the base figures above stand). Shots re-taken and opened: after 375 Light, 375 Dark, 1280 Editorial (the others of the 7 were also re-taken, not re-opened). Prettier, css-tokens, e2e tsc clean.
+
+Figures (pass range in brackets):
+- 1280 Editorial: first column 34 [34-38] ok; name link x 422 [422-426] ok; row 59, table 828, bulk bar [340,263,828,28]: all as expected.
+- 375 Lounge Light and Dark (same): first cell 44 ok; name link x 108 ok; box 18x18 at x 29 ok; rows 202 / 180, table 343, no sideways scroll (0), bulk bar unchanged; every other control of the row hits itself at its centre; hit test 21 px above, below and left of the box's centre: true.
+- **OUT OF RANGE: 21 px to the right of the box's centre: false** (rows 1 and 2, both themes). The target is 41 wide (x 17.5-58.5), not 44: the kit's `::before` insets count from the input's padding box, inside its 1.5 px border, so `inset-inline: -13px` stops 1.5 px short on each side; the left check passes only because the cell's left edge at x 16 is reached from x 17.5 by the point at 17. Per the plan I did not tune it: needs `inset-inline: -14.5px` (a 44 px target, x 16-60) if Fable agrees. Nothing else is outside its range.

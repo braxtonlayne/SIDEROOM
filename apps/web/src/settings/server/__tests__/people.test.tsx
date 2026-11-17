@@ -176,6 +176,9 @@ describe('Members', () => {
     const bob = screen.getByRole('checkbox', { name: 'Select bob' });
     // The kit's control: wrapped in its choice row, with its label element beside it (D-856's 44 px row on a phone).
     expect(bob.closest('div')?.querySelector('label')).not.toBeNull();
+    // D-903: both label-less boxes carry the class that takes their empty label's room away.
+    expect(all.closest('div')).toHaveClass('ss-check-solo');
+    expect(bob.closest('div')).toHaveClass('ss-check-solo');
     expect(all).not.toBeChecked();
     expect(all).not.toHaveAttribute('aria-checked');
     await userEvent.click(bob);
