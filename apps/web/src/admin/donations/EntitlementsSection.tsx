@@ -99,7 +99,7 @@ export function EntitlementsSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <ul className="ss-list" aria-label={t('admin.entitlements.title')}>
+        <ul className="ss-list ent-list" aria-label={t('admin.entitlements.title')}>
           {paged.items.map((g) => (
             <li key={g.id} className="ss-row">
               <div className="ss-grow">

@@ -195,3 +195,44 @@
     flex: 1 1 100%;
   }
 }
+
+/* SEC-AUD-409 (D-925): on a phone the Invoices table is stacked rows by the D-874 rule in admin.css (.adm-table-stack, the
+   cells' data-label); its row's title is a <th scope="row"> holding the id button, which that rule does not reach: it
+   takes the title's look here. Between 721 px and the width where the table fits, it scrolls in its own wrapper (D-817). */
+@media (max-width: 720px) {
+  .adm-table.inv-table th[scope='row'] {
+    display: block;
+    padding: 2px 0;
+    border-bottom: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ui-text);
+  }
+}
+
+/* SEC-AUD-423 (D-925): a long payer name breaks between words where it can and inside a word only where one word is wider
+   than the column; it is never clipped. */
+.adm-table.inv-table .inv-payer {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: none;
+}
+
+/* SEC-AUD-410 (D-925): in the Entitlements list the name line wraps, so the second badge is never cut by the one-line
+   ellipsis server-settings.css gives .ss-name; the badges drop to a second line when they do not fit. */
+.ss-list.ent-list .ss-row .ss-name {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* SEC-AUD-411 (D-925): room between the invoice's last audit line and "Resolve by hand". */
+.adm-audit + .adm-actions {
+  margin-block-start: 12px;
+}
