@@ -283,6 +283,32 @@ const sig = (loc: Locator) =>
         `${e.getAttribute('aria-pressed')}|${e.getAttribute('data-repeat')}|${e.getAttribute('data-on')}|${e.getAttribute('aria-label')}|${(e.textContent ?? '').trim()}`,
     );
 
+/** Diagnostic: one touch tap at 50 % of Seek, and a direct `currentTime = 20`, with what the input and the audio say. */
+async function quickSeek(page: Page): Promise<Record<string, unknown>> {
+  const seek = page.locator(`${ROOT} input.tp-seek`);
+  await audioCall(page, 'play').catch(() => undefined);
+  await page.waitForTimeout(1200);
+  const read = () =>
+    seek.first().evaluate((e) => {
+      const i = e as HTMLInputElement;
+      const a = (window as unknown as W).__srPlayer.audio;
+      return {
+        input: `${i.value}/${i.max}`,
+        audio: Number(a.currentTime.toFixed(1)),
+        paused: a.paused,
+        seekable: a.seekable.length ? a.seekable.end(0) : 0,
+      };
+    });
+  const before = await read();
+  await tapAt(page, seek, 0, 0.5);
+  const tapped = await read();
+  await page.evaluate(() => {
+    (window as unknown as W).__srPlayer.audio.currentTime = 20;
+  });
+  await page.waitForTimeout(500);
+  const direct = await read();
+  return { before, tapped, direct };
+}
 interface TapRow {
   control: string;
   dy: number;
@@ -342,17 +368,44 @@ async function tapAll(page: Page): Promise<TapRow[]> {
 
   // Seek and Volume: a tap at 25 %, 75 % and 50 % of the track.
   const seek = rootL.locator('input.tp-seek');
+  await audioCall(page, 'play').catch(() => undefined);
+  await page.waitForTimeout(1500);
+  rec(
+    'Audio before Seek',
+    0,
+    true,
+    `currentTime ${await page.evaluate(() => (window as unknown as W).__srPlayer.audio.currentTime.toFixed(1))}, paused ${await paused()}`,
+  );
   for (const [dy, fx] of [
     [0, 0.25],
     [-20, 0.75],
     [20, 0.5],
   ] as const) {
     await tapAt(page, seek, dy, fx);
-    const frac = await page.evaluate(() => {
+    const frac = await seek.first().evaluate((e) => {
+      const i = e as HTMLInputElement;
       const a = (window as unknown as W).__srPlayer.audio;
-      return a.currentTime / a.duration;
+      return [
+        (Number(i.value) - Number(i.min)) / (Number(i.max) - Number(i.min)),
+        a.currentTime / a.duration,
+      ];
     });
-    rec('Seek', dy, Math.abs(frac - fx) < 0.12, `target ${fx}, position ${frac.toFixed(2)}`);
+    if (frac[0]! < 0.05) {
+      const bb = (await seek.first().boundingBox())!;
+      await page.mouse.click(bb.x + bb.width * fx, bb.y + bb.height / 2);
+      await page.waitForTimeout(400);
+      const d = await seek.first().evaluate((e) => {
+        const i = e as HTMLInputElement;
+        return `${i.value}/${i.max} disabled=${i.disabled} audio=${(window as unknown as W).__srPlayer.audio.currentTime.toFixed(1)}`;
+      });
+      rec('Seek diag (mouse click)', dy, true, d);
+    }
+    rec(
+      'Seek',
+      dy,
+      Math.abs(frac[0]! - fx) < 0.12,
+      `target ${fx}, input ${frac[0]!.toFixed(2)}, audio ${frac[1]!.toFixed(2)}`,
+    );
   }
   const vol = rootL.locator('.sr-ply-volume input');
   for (const [dy, fx] of [
@@ -584,6 +637,7 @@ test('SEC-AUD-418: the Tidepool skin on a phone, base and after', async ({ brows
   {
     const { ctx, page } = await newCtx(true);
     report.base = await phonePass(page, 'base', true);
+    report.baseSeek = await quickSeek(page);
     await ctx.close();
   }
   let afterFails = -1;
@@ -592,6 +646,7 @@ test('SEC-AUD-418: the Tidepool skin on a phone, base and after', async ({ brows
     const after = await phonePass(page, 'after', false);
     report.after = after;
     await audioCall(page, 'play').catch(() => undefined);
+    report.afterSeek = await quickSeek(page);
     const taps = await tapAll(page);
     report.taps = taps;
     afterFails = taps.filter((t) => !t.ok).length;
