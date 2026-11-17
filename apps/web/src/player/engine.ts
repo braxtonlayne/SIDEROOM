@@ -418,7 +418,10 @@ export function createPlayerEngine(
       refreshNext();
       return;
     }
-    if (entering || (s.status === 'playing' && key !== loadedKey)) {
+    // A new track picked while the element stalls: the store goes loading -> loading with another key, so `entering` is
+    // false; load it at once instead of waiting for the old element's `playing`.
+    const switchedWhileLoading = s.status === 'loading' && key !== loadedKey && !reportingWaiting;
+    if (entering || switchedWhileLoading || (s.status === 'playing' && key !== loadedKey)) {
       void load();
       return;
     }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetPwaState, applyPendingUpdate, setUpdateReady } from '../../pwa/state';
 import { createPlayerEngine, restoreResume, RESUME_KEY, type PlayerEngine } from '../engine';
-import { __resetPlayerStore, pause, play, seek, setVolume, usePlayerStore } from '../store';
+import { __resetPlayerStore, next, pause, play, seek, setVolume, usePlayerStore } from '../store';
 import type { PlayerTrack } from '../types';
 
 /** A stand-in for HTMLAudioElement: the pieces the engine touches, and a way to fire its events. */
@@ -143,6 +143,28 @@ describe('engine', () => {
     audio.fire('playing');
     expect(state().status).toBe('playing');
     expect(audio.playCalls).toBe(1);
+  });
+
+  it('Next during a stall loads the new track at once, before any playing', async () => {
+    play([track(1), track(2)]);
+    await flush();
+    audio.fire('waiting');
+    expect(state().status).toBe('loading');
+    next();
+    await flush();
+    expect(state().index).toBe(1);
+    expect(audio.src).toBe('/t2.mp3');
+    expect(audio.playCalls).toBe(2);
+  });
+
+  it('picking another queue row during a stall loads it at once', async () => {
+    play([track(1), track(2), track(3)]);
+    await flush();
+    audio.fire('waiting');
+    play(2);
+    await flush();
+    expect(audio.src).toBe('/t3.mp3');
+    expect(audio.playCalls).toBe(2);
   });
 
   it('a real track change still loads after a waiting', async () => {

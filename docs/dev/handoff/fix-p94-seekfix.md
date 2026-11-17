@@ -10,9 +10,13 @@ Every seek makes the browser fire `waiting`. `onWaiting` set the store status `l
 
 `onWaiting` now reports `loading` inside a flag, `reportingWaiting`, set around the one `engineReport.status('loading')` call (the store notifies subscribers synchronously, so the flag is true exactly while `onStore` sees that change). `onStore` computes `entering = status loading && prev not loading && !reportingWaiting`. So a `loading` that the element itself reported (seek or stall) shows the buffering state but never reloads. A `loading` that comes from the store (play of a new queue, next/previous, retry after an error, a pick) still enters and calls `load()`. The gapless hand-over branch (`handedOver === key`) and the "playing with a different key" branch are untouched; the resume branch needs `el.paused`, so the `playing` that follows a `waiting` does not replay.
 
+## Follow-up (commander review): Next during a stall
+
+After a stall the store stays `loading` until the element fires `playing`. Next (or a queue pick) in that window goes loading -> loading with a new index, so `entering` is false and nothing loaded the new track. Fixed in `onStore`: `switchedWhileLoading = status loading && key !== loadedKey && !reportingWaiting` is a load too (`loadedKey` is set synchronously in `load()`, so no double load; the hand-over branch runs first and is unchanged). Two more engine tests (Next during a stall; picking another row during a stall): both fail without the line, pass with it. The seek behaviour is unchanged, so no new stack round.
+
 ## Tests
 
-- `engine.test.ts`, three new cases: a seek's `waiting` (src not written again, currentTime stays 60, one `play()`, status loading then playing); a mid-play stall (no `load()`, currentTime stays 33, one `play()`); a track change after a `waiting` still loads (`ended` then `/t2.mp3` at 0, then `play(track(3))` loads `/t3.mp3`). Run on the unfixed engine: all three fail (3 failed, 17 passed); on the fix: 20 passed.
+- `engine.test.ts`, five new cases (the first three below, then the two of the follow-up): a seek's `waiting` (src not written again, currentTime stays 60, one `play()`, status loading then playing); a mid-play stall (no `load()`, currentTime stays 33, one `play()`); a track change after a `waiting` still loads (`ended` then `/t2.mp3` at 0, then `play(track(3))` loads `/t3.mp3`). Run on the unfixed engine: all three fail (3 failed, 17 passed); on the fix: 20 passed.
 - `npx vitest run src/player src/music --maxWorkers=2` (under `heavy.sh run`): 23 files, 295 tests, all pass (includes engine, gapless-engine, rate-pan-sleep).
 - Web `tsc --noEmit -p .`: exit 0. eslint on the two changed web files: clean. prettier: clean.
 
