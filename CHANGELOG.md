@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 99 - 2026-11-17
+
+- **Everyone, on a phone.** With the Study skin, the polka dots and paper flecks now run to the foot of the scrolled skin.
+- **Admins.** The Invoices table can be focused with the keyboard and scrolled sideways with the arrow keys.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 98 - 2026-11-17
 
 - **Admins.** The Invoices table shows a soft shade at the edge where it scrolls sideways.
