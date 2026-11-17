@@ -99,3 +99,11 @@
   text-transform: uppercase;
   color: var(--ui-text-muted);
 }
+
+/* SEC-AUD-430, D-938: on a phone a menu row is a 44 px target (D-856); the kit's phone condition, as Button's and Select's. */
+@media (max-width: 720px) {
+  .item {
+    box-sizing: border-box; /* the row is content-box, so the 44 px counts its padding */
+    min-block-size: 44px;
+  }
+}
