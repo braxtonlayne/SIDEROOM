@@ -332,6 +332,10 @@ async function playerCase(
   console.log(
     `FACT ${label}: target ${target}, snappedBack ${(out.summary as { snappedBack: boolean }).snappedBack}, min ${(out.summary as { min: number }).min}, max ${(out.summary as { max: number }).max}, writes ${writes.length}, requests ${net.req.length}`,
   );
+  // The fix (wave 94, seekfix): a seek's `waiting` no longer reloads the track, so the clock stays near the target.
+  const sm = out.summary as { snappedBack: boolean; min: number };
+  expect(sm.snappedBack, `${label}: no snap-back`).toBe(false);
+  expect(sm.min, `${label}: currentTime stays near the target`).toBeGreaterThan(target - 1);
   return out;
 }
 

@@ -102,6 +102,65 @@ describe('engine', () => {
     expect(audio.volume).toBe(0.25);
   });
 
+  it('a seek fires waiting and does not reload the track (SEC-AUD-429)', async () => {
+    play(track(1));
+    await flush();
+    audio.duration = 120;
+    audio.fire('loadedmetadata');
+    const srcWrites: string[] = [];
+    let src = audio.src;
+    Object.defineProperty(audio, 'src', {
+      get: () => src,
+      set: (v: string) => {
+        srcWrites.push(v);
+        src = v;
+      },
+    });
+    seek(60);
+    expect(audio.currentTime).toBe(60);
+    audio.fire('seeking');
+    audio.fire('waiting');
+    expect(state().status).toBe('loading');
+    await flush();
+    expect(srcWrites).toEqual([]);
+    expect(audio.currentTime).toBe(60);
+    expect(audio.playCalls).toBe(1);
+    audio.fire('playing');
+    expect(state().status).toBe('playing');
+    expect(audio.currentTime).toBe(60);
+  });
+
+  it('a mid-play stall (waiting, no seek) does not reload the track', async () => {
+    play(track(1));
+    await flush();
+    audio.currentTime = 33;
+    audio.fire('waiting');
+    expect(state().status).toBe('loading');
+    await flush();
+    expect(audio.load).not.toHaveBeenCalled();
+    expect(audio.currentTime).toBe(33);
+    expect(audio.playCalls).toBe(1);
+    audio.fire('playing');
+    expect(state().status).toBe('playing');
+    expect(audio.playCalls).toBe(1);
+  });
+
+  it('a real track change still loads after a waiting', async () => {
+    play([track(1), track(2)]);
+    await flush();
+    audio.fire('waiting');
+    audio.fire('playing');
+    audio.fire('ended');
+    await flush();
+    expect(audio.src).toBe('/t2.mp3');
+    expect(audio.currentTime).toBe(0);
+    expect(audio.playCalls).toBe(2);
+    play(track(3));
+    await flush();
+    expect(audio.src).toBe('/t3.mp3');
+    expect(audio.playCalls).toBe(3);
+  });
+
   it('mirrors the element clock into the store', async () => {
     play(track(1));
     await flush();
