@@ -14,6 +14,9 @@ import { patchSession, resetSession, useVoiceSession } from '../../../voice/sess
 import { DEFAULT_VOICE_SETTINGS, useVoiceSettings } from '../../../voice/settings';
 import { setPreviewFetcher } from '../useStreamPreview';
 import { warmLoungeRoute } from '../../../test/warmRoutes';
+import { MockDataProvider } from '../../mockData';
+import type { Channel } from '../../data';
+import { VoiceChannelView } from '../VoiceChannelView';
 
 beforeAll(() => vi.stubEnv('VITE_SR_MOCK', '1'));
 afterAll(() => vi.unstubAllEnvs());
@@ -375,5 +378,24 @@ describe('moderator voice menu', () => {
     expect(
       renderHook(() => useVoiceMenuEntries('g1', { id: 'u9', name: 'Zed' })).result.current,
     ).toEqual([]);
+  });
+});
+
+describe('SEC-AUD-385 header Member List', () => {
+  it("calls the shell's onShowMembers (a phone) from a voice channel", async () => {
+    const onShowMembers = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MockDataProvider>
+        <VoiceChannelView
+          channel={
+            { id: '2011', guildId: '1001', type: 'voice', name: 'General', position: 0 } as Channel
+          }
+          onShowMembers={onShowMembers}
+        />
+      </MockDataProvider>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Member List' }));
+    expect(onShowMembers).toHaveBeenCalledTimes(1);
   });
 });

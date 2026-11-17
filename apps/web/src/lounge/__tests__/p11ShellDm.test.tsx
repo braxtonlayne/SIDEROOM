@@ -357,3 +357,33 @@ describe('LNG-DM-009 blocked messages in a DM', () => {
     expect(await within(log).findByText('you should not see this')).toBeInTheDocument();
   });
 });
+
+describe('SEC-AUD-386: the group DM identity tap on a phone (D-899)', () => {
+  beforeAll(async () => {
+    await import('../LoungeShell');
+  }, 90_000);
+  beforeEach(() => {
+    seedDms();
+    handlers();
+    window.matchMedia = ((q: string) => ({
+      matches: q.includes('max-width'),
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+    })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => {
+    // @ts-expect-error restore jsdom default (no matchMedia)
+    delete window.matchMedia;
+  });
+
+  it('shows the pane and leaves the stored memberListOpen alone', async () => {
+    useLoungeUi.setState({ memberListOpen: false });
+    at('/channels/@me/grp');
+    const identity = await screen.findByRole('button', { name: /^Show members of/ });
+    await userEvent.click(identity);
+    const root = document.querySelector('.lng-root')!;
+    await waitFor(() => expect(root).toHaveAttribute('data-pane', 'members'));
+    expect(useLoungeUi.getState().memberListOpen).toBe(false);
+  });
+});

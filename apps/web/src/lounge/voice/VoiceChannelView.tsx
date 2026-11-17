@@ -39,9 +39,12 @@ interface TileItem {
 export function VoiceChannelView({
   channel,
   onBack,
+  onShowMembers,
 }: {
   channel: Channel;
   onBack?: (() => void) | undefined;
+  /** Phone only (D-899): "Member List" shows the shell's members pane. */
+  onShowMembers?: (() => void) | undefined;
 }) {
   const t = useT();
   const join = useJoinVoice();
@@ -149,7 +152,7 @@ export function VoiceChannelView({
         status={undefined}
         topic={channel.topic}
         membersOpen={false}
-        onToggleMembers={() => undefined}
+        onToggleMembers={onShowMembers ?? (() => undefined)}
         onBack={onBack}
         searchLabel={t('lounge.voiceChannel.search', { name: channel.name })}
         guildId={channel.guildId}
