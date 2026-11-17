@@ -157,16 +157,20 @@
 }
 
 /* D-856: on a phone a range input is a 44 px tall target and a segmented control's pill gets a 44 px tall target
-   from a pseudo-element on its label (the radio inside is the same box). The range's negative margin keeps the
-   slider as tall as it was. */
+   from a pseudo-element on its label (the radio inside is the same box).
+   D-922 (SEC-AUD-416): the target lies inside the control's own layout box, so no neighbour that is painted later
+   can take part of it. The range's top 12 px lie over its own label row (its own group); its bottom no longer
+   hangs out (margin-block-end 0). The segmented control's margin box holds its pills' 44 px targets. */
 @media (max-width: 720px) {
   .input {
     height: 44px;
-    margin-block: -12px;
+    margin-block-start: -12px;
+    margin-block-end: 0;
   }
   /* Wrapped rows of pills are 12 px apart, so that two rows of 44 px targets do not overlap. */
   .segmented {
     row-gap: 12px;
+    margin-block: 4px;
   }
   .segment::before {
     content: '';
