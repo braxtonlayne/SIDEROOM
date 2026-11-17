@@ -1816,3 +1816,69 @@
     block-size: auto;
   }
 }
+
+/*
+ * SEC-AUD-419, D-926: on a phone every control passes the 44 px hit test (D-856). The corner buttons, Mute, the EQ
+ * switch, the flags and the queue rows draw their shapes in ::before and ::after, so each grows to a 44 px box and
+ * its shape is inset to the size it was drawn at. The skin grows taller (D-791), never wider. Seek, the cue pads,
+ * the transport, the faders and the knobs already pass and are not touched.
+ */
+@media (max-width: 720px) {
+  .sr-ply-circuit .nc-head {
+    block-size: 2.75rem;
+  }
+  .sr-ply-circuit .nc-title {
+    align-self: center;
+    block-size: 2.125rem;
+  }
+  .sr-ply-circuit .nc-win {
+    gap: 0.125rem;
+  }
+  .sr-ply-circuit .nc-winbtn {
+    inline-size: 2.5rem;
+    block-size: 2.75rem;
+  }
+  .sr-ply-circuit .nc-winbtn::before {
+    inset: 0.4375rem 0.1875rem;
+  }
+  .sr-ply-circuit .nc-winbtn::after {
+    inset: calc(0.4375rem + var(--nc-lw, 2px)) calc(0.1875rem + var(--nc-lw, 2px));
+  }
+  .sr-ply-circuit .nc-mute {
+    block-size: 2.75rem;
+  }
+  .sr-ply-circuit .nc-mute::before {
+    inset-block: 0.625rem;
+  }
+  .sr-ply-circuit .nc-mute::after {
+    inset-block: calc(0.625rem + var(--nc-lw, 2px));
+  }
+  .sr-ply-circuit .nc-knobs {
+    padding-block-start: 3rem;
+  }
+  .sr-ply-circuit .nc-eq {
+    inset-block-start: 0.125rem;
+    justify-content: center;
+    block-size: 2.75rem;
+    min-inline-size: 2.75rem;
+  }
+  .sr-ply-circuit .nc-eq::before {
+    inset-block: 0.875rem;
+  }
+  .sr-ply-circuit .nc-eq::after {
+    inset-block: calc(0.875rem + 1px);
+  }
+  .sr-ply-circuit .nc-flags {
+    row-gap: 0;
+  }
+  .sr-ply-circuit .nc-flag {
+    min-block-size: 2.75rem;
+    padding-inline: 0.5rem;
+  }
+  .sr-ply-circuit .nc-rows {
+    max-block-size: 11.75rem;
+  }
+  .sr-ply-circuit .nc-rows button {
+    min-block-size: 2.75rem;
+  }
+}
