@@ -98,8 +98,10 @@ export function ChannelView({ guildId, channelId, onBack, onShowMembers }: Chann
   }
 
   // Server voice channels have their own view (tiles and call controls), not a message list.
-  if (channel?.type === 'voice') return <VoiceChannelView channel={channel} onBack={onBack} />;
-  if (channel?.type === 'stage') return <StageView channel={channel} onBack={onBack} />;
+  if (channel?.type === 'voice')
+    return <VoiceChannelView channel={channel} onBack={onBack} onShowMembers={onShowMembers} />;
+  if (channel?.type === 'stage')
+    return <StageView channel={channel} onBack={onBack} onShowMembers={onShowMembers} />;
 
   const title =
     isDm && dm
@@ -145,8 +147,11 @@ export function ChannelView({ guildId, channelId, onBack, onShowMembers }: Chann
                 group: dm.recipientIds.length > 1,
                 callDisabled: inCallHere,
                 onIdentity: (anchor) => {
-                  if (dm.recipientIds.length > 1 || !dmFirst) setMembersOpen(true);
-                  else openProfilePopout({ userId: dmFirst.id }, anchor);
+                  if (dm.recipientIds.length > 1 || !dmFirst) {
+                    // SEC-AUD-386 (D-899): on a phone show the pane; never write the stored desktop flag.
+                    if (onShowMembers) onShowMembers();
+                    else setMembersOpen(true);
+                  } else openProfilePopout({ userId: dmFirst.id }, anchor);
                 },
                 onCall: () => startDmCall(channelId, title, false),
                 onVideo: () => startDmCall(channelId, title, true),

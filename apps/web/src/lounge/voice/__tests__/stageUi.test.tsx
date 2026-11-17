@@ -271,4 +271,17 @@ describe('stage view (VOX-STG-002)', () => {
     const view = await screen.findByLabelText('Town hall');
     expect(await axeViolations(view)).toEqual([]);
   });
+
+  it('SEC-AUD-385: the header "Member List" calls the shell\'s onShowMembers (a phone)', async () => {
+    live();
+    const onShowMembers = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MockDataProvider>
+        <StageView channel={channel} onShowMembers={onShowMembers} />
+      </MockDataProvider>,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Member List' }));
+    expect(onShowMembers).toHaveBeenCalledTimes(1);
+  });
 });
