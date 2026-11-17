@@ -932,6 +932,19 @@
 .arc-release .arc-field {
   flex: 1 1 14rem;
 }
+/* Admin > Arcade (D-900): Admin's section header leads the page (no Arcade rule above it), and the kit Select's
+   label is drawn as the kit's and Pricing's pickers are. */
+.arc-section.arc-admin {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+.arc-admin .arc-field > label {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 
 /* --- Narrow screens ----------------------------------------------------------------------------------------- */
 @media (max-width: 60rem) {
