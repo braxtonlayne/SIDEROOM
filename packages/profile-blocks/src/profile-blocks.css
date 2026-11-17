@@ -442,6 +442,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
     min-block-size: 44px;
   }
   .pp-entries .pp-muted > a.pp-link {
