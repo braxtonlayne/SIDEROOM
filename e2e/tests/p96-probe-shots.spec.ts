@@ -30,7 +30,8 @@ import {
  * Case 2: with `{ also: MENU_ITEM_SELECTOR }`: one row per menu item, in document order, all pass, 44 px or more.
  * Case 3: `hitTest` on each `[role=menuitem]` equals case 2's row (box and pass).
  * Case 4: menu closed, on `main`: with and without the option give the same rows.
- * probe.json and the shot go to SR_P96_PROBE_OUT.
+ * probe.json and the shot go to SR_P96_PROBE_OUT. The shot is taken with the pointer on the first plain item and no
+ * submenu open (D-943, wave 97).
  */
 const ON = process.env.SR_P96_PROBE_ON === '1';
 const OUT =
@@ -124,6 +125,20 @@ test('hitTestAll takes menu items by an option (SEC-AUD-434)', async ({ browser 
     await menu.waitFor({ timeout: 5000 });
     const items = menu.locator('[role=menuitem]');
     const nItems = await items.count();
+    // D-943: the pointer that hovered the message rests where the menu opens, and a hover-opened submenu only closes
+    // when the pointer enters a plain item. Rest it on the first plain item, wait out the hover intent
+    // (SUBMENU_HOVER_INTENT_MS = 150), and assert no submenu is open and one menu panel is on the page.
+    const plainItem = menu
+      .locator('[role=menuitem]:not([aria-haspopup]):not([aria-disabled="true"])')
+      .first();
+    await plainItem.scrollIntoViewIfNeeded();
+    await plainItem.hover();
+    await page.waitForTimeout(450);
+    await expect(
+      menu.locator('[aria-haspopup="menu"][aria-expanded="true"]'),
+      'no submenu is open for the shot (D-943)',
+    ).toHaveCount(0);
+    await expect(page.getByRole('menu'), 'one menu panel on the page (D-943)').toHaveCount(1);
     await menu.evaluate((m) => m.scrollTo(0, 0));
     mkdirSync(OUT, { recursive: true });
     await page.screenshot({ path: resolve(OUT, 'long-menu-375-light.png'), timeout: 10_000 });
