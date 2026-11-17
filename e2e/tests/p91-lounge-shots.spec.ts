@@ -378,9 +378,12 @@ test('voice: Member List on a desktop voice and stage channel (SEC-AUD-397)', as
         true,
         true,
       ]);
-      // Leave it closed and go on: the next view (a text channel last) agrees with what was left.
-      await btn.click();
-      await page.waitForTimeout(400);
+      // The voice channel leaves the column open for the stage channel; the stage channel leaves it closed, and the
+      // text channel after it must agree with that.
+      if (kind === 'stage') {
+        await btn.click();
+        await page.waitForTimeout(400);
+      }
     }
     await page.goto(text, { waitUntil: 'domcontentloaded' });
     await idle(page, 3000);
