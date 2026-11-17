@@ -25,7 +25,7 @@ Wave 94's spec `p94-valve-shots.spec.ts`, unchanged, same round, its own variabl
 ## Circuit and Study (looked at, nothing built; 375, scrolled to the end; scroll 739/974 and 723/1250)
 Opened `circuit-375-end.png` and `study-375-end.png` (and the starts). Circuit: the cyan outer border runs the whole height and the hazard stripe is at the foot; Study: the pink-cream outer frame is continuous to the end. I see no framing art that stops part-way in either. No row proposed. (Looking, not pixel-probed.)
 
-## Shots (`visual-sweep-shots/p95-valve`, 12 files: base and after Valve at 375 and 700 start and end, Circuit and Study start and end; all 12 opened? I opened 8: base-375-start, base-375-end, after-375-start, after-375-end, base-700-end, after-700-end, circuit-375-end, study-375-end. Not opened: base-700-start, after-700-start, circuit-375-start, study-375-start.)
+## Shots (`visual-sweep-shots/p95-valve`, 12 files; the 6 the task lists are all opened by me, plus base-375-start, base-375-end, base-700-end: 9 opened. Not opened (extras): base-700-start, after-700-start, circuit-375-start, study-375-start.)
 
 ## Checks (own tree, after my last edit, 15:04)
 e2e `npx tsc --noEmit -p tsconfig.json` exit 0; prettier --check on `valve.css` and the spec exit 0; `check-css-tokens.mjs` exit 0 (73 clean); `i18n-audit.mjs --max 0` TOTAL 0, exit 0; `check-doc-links.mjs` ok, exit 0. `ValveSkin.tsx` unchanged (no eslint, no web tsc). **The CSS in my last commit is the CSS I measured** (the only edit after the round was the spec's probe offsets, which ran in the same round).
