@@ -44,3 +44,21 @@
   font-size: 0.85em;
   color: var(--ui-text-muted);
 }
+
+/* SEC-AUD-431, D-937: on a phone the vouch badge keeps its drawn size and gets a centred 44 px target; the panel's block padding keeps that target inside the panel. */
+@media (max-width: 720px) {
+  .vouch-panel {
+    padding-block: 14px;
+  }
+  .vouch-badge {
+    position: relative;
+  }
+  .vouch-badge::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 50%;
+    block-size: 44px;
+    transform: translateY(-50%);
+  }
+}
