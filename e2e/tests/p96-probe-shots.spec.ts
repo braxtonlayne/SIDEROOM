@@ -122,6 +122,9 @@ test('hitTestAll takes menu items by an option (SEC-AUD-434)', async ({ browser 
     await page.waitForTimeout(600);
     const menu = page.getByRole('menu').first();
     await menu.waitFor({ timeout: 5000 });
+    // The pointer that hovered the message can sit over "Remind me" and open its submenu: move it away.
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(400);
     const items = menu.locator('[role=menuitem]');
     const nItems = await items.count();
     await menu.evaluate((m) => m.scrollTo(0, 0));
