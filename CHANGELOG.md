@@ -8,6 +8,10 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 96 - 2026-11-17
+
+- **Test suite only.** The shared touch-target probe can test menu items, and two screenshot specs no longer collide in a shared test world. Nothing a member or an operator sees changes.
+
 ## Phase 95 - 2026-11-17
 
 - **Everyone, on a phone.** Menu rows are 44 px tall, so a tap lands on the row you aim at. A profile page reads in one column, and its guestbook buttons, vouch badge and ring are easier to tap. Valve's panel frame no longer stops part-way down when the skin scrolls.

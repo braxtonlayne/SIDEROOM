@@ -18,7 +18,7 @@ import { type ControlRow, hitTestAll, openCollapsed } from '../support/hit-test'
  *   SR_E2E_BASE_URL=http://localhost:5721 SR_P94_LOUNGE_ON=1 \
  *   SR_P94_LOUNGE_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p94-lounge \
  *   npx playwright test tests/p94-lounge-shots.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line
- * Delete `ids.json` in the shots folder on a fresh database. The base case is taken in the same run: the page's
+ * The `ids.json` in the shots folder is kept for the same world; a file from another world is discarded (D-942). The base case is taken in the same run: the page's
  * loaded sheet has the SEC-AUD-426 media rule switched off (`mediaText = 'not all'`), the same tree. Setting
  * SR_P94_LOUNGE_BASE=1 makes the after case skip its assertions too (figures only).
  *
@@ -157,6 +157,7 @@ interface World {
   channelId: string;
 }
 interface Ids {
+  guild: string;
   member: string;
   roles: [string, string, string];
 }
@@ -164,8 +165,12 @@ interface Ids {
 /** dan joins the sweep guild; three roles with 14-character names; two go to dan, the third is left to add. */
 async function makeState(browser: Browser, ownerCtx: BrowserContext): Promise<Ids> {
   mkdirSync(OUT, { recursive: true });
-  if (existsSync(IDS_FILE)) return JSON.parse(readFileSync(IDS_FILE, 'utf8')) as Ids;
   const world = JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as World;
+  if (existsSync(IDS_FILE)) {
+    // D-942: the cache is kept for the same world only; a file from another world (or with no guild) is discarded.
+    const cached = JSON.parse(readFileSync(IDS_FILE, 'utf8')) as Partial<Ids>;
+    if (cached.guild === world.guildId) return cached as Ids;
+  }
   const invite = await apiPost<{ code: string }>(
     ownerCtx.request,
     `/channels/${world.channelId}/invites`,
@@ -186,7 +191,7 @@ async function makeState(browser: Browser, ownerCtx: BrowserContext): Promise<Id
   await apiPatch(ownerCtx.request, `/guilds/${world.guildId}/members/${du.id}`, {
     roles: [roles[0], roles[1]],
   });
-  const ids = { member: du.id, roles } as Ids;
+  const ids = { guild: world.guildId, member: du.id, roles } as Ids;
   writeFileSync(IDS_FILE, JSON.stringify(ids));
   return ids;
 }
@@ -273,7 +278,12 @@ async function openPopout(page: Page, phone: boolean) {
     else await row.click();
     await page.locator('.lng-pop').first().waitFor({ timeout: 6000 });
     await page.waitForTimeout(700);
-    if (await page.locator('.lng-pop .lng-pop-role-x').count()) return i;
+    // D-942: the popout of THIS spec's dan (the menu spec's dan has chips too in a shared world).
+    if (
+      (await page.locator('.lng-pop .lng-pop-role-x').count()) &&
+      (await page.locator('.lng-pop').first().innerText()).includes('Garden Wardens')
+    )
+      return i;
     if (phone) await page.getByRole('button', { name: 'Close', exact: true }).first().tap();
     else await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
