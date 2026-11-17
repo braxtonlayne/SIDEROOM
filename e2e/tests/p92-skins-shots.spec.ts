@@ -376,6 +376,9 @@ async function contrastOf(page: Page, probe: Probe) {
     corners: cr.map((v) => Number(v.toFixed(2))),
     cornersMin: Number(Math.min(...cr).toFixed(2)),
     gridMin: Number(Math.min(...gr).toFixed(2)),
+    // Round 2: a corner can lie outside a rounded or clipped ground (an artefact); trust the median and 20th percentile.
+    gridMedian: Number([...gr].sort((x, y) => x - y)[Math.floor(gr.length / 2)]!.toFixed(2)),
+    gridP20: Number([...gr].sort((x, y) => x - y)[Math.floor(gr.length * 0.2)]!.toFixed(2)),
     ground: 'screenshot pixels (text hidden): the helper cannot read a gradient, an image or art',
   };
 }
@@ -612,6 +615,15 @@ test('SEC-AUD-406: the five player skins on a phone, looked at', async ({ browse
         (e) => e.children.length === 0 && /^Tone 3/.test((e.textContent ?? '').trim()),
       );
       if (!leaf) return null;
+      // Round 2: the player's own box can scroll inside the dock (a second scroller): measure the row at the end
+      // of every scroller above it, as a finger would take it, and say how many scrollers had to move.
+      let scrolled = 0;
+      for (let a: HTMLElement | null = leaf.parentElement; a; a = a.parentElement) {
+        if (a.scrollHeight > a.clientHeight + 2 && getComputedStyle(a).overflowY !== 'visible') {
+          a.scrollTop = a.scrollHeight;
+          scrolled++;
+        }
+      }
       const r = leaf.getBoundingClientRect();
       const d = dock.getBoundingClientRect();
       const clippers: string[] = [];
@@ -620,13 +632,14 @@ test('SEC-AUD-406: the five player skins on a phone, looked at', async ({ browse
         if (o !== 'visible') {
           const ar = a.getBoundingClientRect();
           clippers.push(
-            `${a.tagName.toLowerCase()}.${String(a.getAttribute('class') ?? '').split(/s+/)[0]} overflow-y:${o} box ${Math.round(ar.top)}-${Math.round(ar.bottom)} scroll ${a.scrollHeight}/${a.clientHeight}`,
+            `${a.tagName.toLowerCase()}.${String(a.getAttribute('class') ?? '').split(/\s+/)[0]} overflow-y:${o} box ${Math.round(ar.top)}-${Math.round(ar.bottom)} scroll ${a.scrollHeight}/${a.clientHeight}`,
           );
         }
       }
       return {
         row: [Math.round(r.top), Math.round(r.bottom)],
         dock: [Math.round(d.top), Math.round(d.bottom)],
+        scrollersMoved: scrolled,
         inside: r.top >= d.top && r.bottom <= d.bottom,
         clippers,
       };
