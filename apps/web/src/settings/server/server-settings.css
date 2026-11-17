@@ -679,14 +679,14 @@
     overflow-wrap: anywhere;
   }
   /* The name cell: Members' checkbox cell and the cell after it share the first line; Invites' first cell is the name. */
-  .ss-table-stack td:has(> input[type='checkbox']) {
+  .ss-table-stack td:has(input[type='checkbox']) {
     flex: none;
   }
-  .ss-table-stack td:has(> input[type='checkbox']) + td {
+  .ss-table-stack td:has(input[type='checkbox']) + td {
     flex: 1 1 0;
   }
-  .ss-table-stack td:first-child:not(:has(> input[type='checkbox'])),
-  .ss-table-stack td:has(> input[type='checkbox']) + td {
+  .ss-table-stack td:first-child:not(:has(input[type='checkbox'])),
+  .ss-table-stack td:has(input[type='checkbox']) + td {
     font-weight: 700;
   }
   .ss-table-stack td[data-label] {
@@ -713,18 +713,7 @@
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  /* 44 px targets: the row's checkbox through a pseudo-element, the name link and the action buttons by height. */
-  .ss-table-stack input[type='checkbox'] {
-    position: relative;
-    inline-size: 20px;
-    block-size: 20px;
-    margin: 12px;
-  }
-  .ss-table-stack input[type='checkbox']::after {
-    content: '';
-    position: absolute;
-    inset: -12px;
-  }
+  /* 44 px targets: the row's checkbox is the kit's (SEC-AUD-387, D-898: its own 44 px target on a phone), the name link and the action buttons by height. */
   .ss-table-stack .ss-link {
     display: inline-flex;
     align-items: center;

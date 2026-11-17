@@ -423,13 +423,11 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             <thead>
               <tr>
                 <th scope="col">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    label={null}
                     aria-label={t('settings.members.selectAll')}
                     checked={allOnPage}
-                    ref={(el) => {
-                      if (el) el.indeterminate = !allOnPage && someOnPage;
-                    }}
+                    indeterminate={!allOnPage && someOnPage}
                     onChange={(e) => toggleAll(e.target.checked)}
                   />
                 </th>
@@ -646,8 +644,8 @@ function MemberRow({
   return (
     <tr>
       <td>
-        <input
-          type="checkbox"
+        <Checkbox
+          label={null}
           aria-label={t('settings.members.selectMember', { name })}
           checked={checked}
           onChange={(e) => onCheck(e.target.checked)}

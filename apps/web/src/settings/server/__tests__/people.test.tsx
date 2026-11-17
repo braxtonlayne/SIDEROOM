@@ -168,6 +168,28 @@ describe('Members', () => {
     expect(screen.queryByRole('checkbox', { name: 'Select bob' })).toBeNull();
   });
 
+  it('SEC-AUD-387: the row and select-all checkboxes are the kit Checkbox, with the mixed state', async () => {
+    seed({ perms: [MANAGE.kick], position: 3 });
+    await openSettings('members');
+    await screen.findByText('3 members');
+    const all = screen.getByRole('checkbox', { name: 'Select all members on this page' });
+    const bob = screen.getByRole('checkbox', { name: 'Select bob' });
+    // The kit's control: wrapped in its choice row, with its label element beside it (D-856's 44 px row on a phone).
+    expect(bob.closest('div')?.querySelector('label')).not.toBeNull();
+    expect(all).not.toBeChecked();
+    expect(all).not.toHaveAttribute('aria-checked');
+    await userEvent.click(bob);
+    expect(bob).toBeChecked();
+    expect(all).toHaveAttribute('aria-checked', 'mixed');
+    await userEvent.click(all);
+    expect(all).toBeChecked();
+    expect(all).not.toHaveAttribute('aria-checked');
+    expect(screen.getByRole('checkbox', { name: 'Select carol' })).toBeChecked();
+    await userEvent.click(bob);
+    expect(bob).not.toBeChecked();
+    expect(all).toHaveAttribute('aria-checked', 'mixed');
+  });
+
   it('bulk-adds a role and keeps the failed members selected', async () => {
     seed({ perms: [MANAGE.roles], position: 9 });
     const puts: string[] = [];
