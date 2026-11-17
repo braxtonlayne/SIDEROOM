@@ -83,7 +83,7 @@ function measure(phone: boolean) {
   };
   const controls = Array.from(
     document.querySelectorAll<HTMLElement>(
-      '.arc-admin select, .arc-admin [role=combobox], .adm-pick [role=combobox], .adm-pick select',
+      '.arc-section select, .arc-section [role=combobox], .adm-pick [role=combobox], .adm-pick select',
     ),
   ).map((el) => {
     const id = el.id;
@@ -127,8 +127,12 @@ function measure(phone: boolean) {
     };
   });
   window.scrollTo(0, 0);
+  for (const e of Array.from(document.querySelectorAll<HTMLElement>('body *')))
+    if (e.scrollTop > 0) e.scrollTop = 0;
   const blocks = Array.from(
-    document.querySelectorAll<HTMLElement>('.arc-admin h3, .arc-admin .arc-form, .arc-admin-list'),
+    document.querySelectorAll<HTMLElement>(
+      '.arc-section h3, .arc-section .arc-form, .arc-admin-list',
+    ),
   ).map((e) => ({
     sel: `${e.tagName.toLowerCase()}.${e.className}`.slice(0, 40),
     box: r4(e.getBoundingClientRect()),
@@ -171,6 +175,7 @@ test('SEC-AUD-388: Admin > Arcade heading and selects', async ({ browser }) => {
     };
     const addEntry = async (title: string, repo: string) => {
       await page.getByLabel('Title').first().fill(title);
+      await page.getByLabel('Summary').first().fill('A flow-check entry.');
       await page.getByLabel('Repository link').first().fill(repo);
       await page.getByRole('button', { name: /^Add to the showcase/ }).click();
       await page.waitForTimeout(1500);
@@ -218,6 +223,15 @@ test('SEC-AUD-388: Admin > Arcade heading and selects', async ({ browser }) => {
       }
       await addEntry('Flow entry', 'https://example.com/flow');
       const rows = await page.locator('.arc-release').count();
+      const notice = await page
+        .locator('.arc-section [role=alert], .arc-section [role=status]')
+        .allTextContents();
+      console.log(
+        'REPORT notices ' +
+          JSON.stringify(notice) +
+          ' titles ' +
+          JSON.stringify(await page.locator('.arc-admin-list strong').allTextContents()),
+      );
       console.log(
         `REPORT flows: tier now ${tierText}; released-as options ${JSON.stringify(opts)}; picked ${picked}; rows after add ${rows}`,
       );
