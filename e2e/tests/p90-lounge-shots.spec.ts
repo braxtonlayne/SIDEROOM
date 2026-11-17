@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page, Route } from '@playwright/test';
 import { repoRoot } from '../support/cli';
-import { apiPatch, apiPost, test } from '../support/fixtures';
+import { apiPatch, apiPost, apiPut, loginApi, registerUser, test } from '../support/fixtures';
 
 /**
  * SEC-AUD-385 and SEC-AUD-386 (wave 90; D-899): on a phone "Member List" in a voice channel's and a stage channel's
@@ -181,6 +181,23 @@ async function tap(page: Page, name: string) {
   await page.getByRole('button', { name, exact: true }).first().tap({ timeout: 5000 });
   await page.waitForTimeout(500);
 }
+/** Opens `path` with the stored `memberListOpen` set to false (the default is true, which hides a write of true). */
+async function openStoredFalse(page: Page, path: string) {
+  await open(page, path);
+  await page.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('sr.lounge.ui') ?? 'null') as {
+      state?: Record<string, unknown>;
+    } | null;
+    if (raw?.state) {
+      raw.state.memberListOpen = false;
+      localStorage.setItem('sr.lounge.ui', JSON.stringify(raw));
+    }
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await idle(page, 3000);
+  await page.locator('.lng-header').waitFor({ timeout: 8000 });
+  await page.waitForTimeout(800);
+}
 const tapRe = async (page: Page, name: RegExp) => {
   await page.getByRole('button', { name }).first().tap({ timeout: 5000 });
   await page.waitForTimeout(500);
@@ -332,7 +349,7 @@ test('voice: Member List in a voice channel and a stage channel (SEC-AUD-385)', 
       await page.waitForTimeout(500);
       const after = { ...(await state(page)), pressed: await btn.getAttribute('aria-pressed') };
       log(`${kind}-desktop-after-click`, after);
-      if (kind === 'voice') await shot(page, 'voice-desktop-editorial');
+      if (kind === 'voice' && !BASE) await shot(page, 'voice-desktop-editorial');
       sameBoxes(`${kind}-desktop-before`, before);
       sameBoxes(`${kind}-desktop-after-click`, after);
       ex(after.stored, 'the desktop button does what it did').toBe(before.stored);
@@ -348,12 +365,19 @@ test('dm: the DM identity tap and the DM header button on a phone (SEC-AUD-386)'
 }) => {
   mkdirSync(OUT, { recursive: true });
   const ownerCtx = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
-  const w = world();
+  // The world has one other member and a stranger's DM is a message request: two new accounts, made friends of the
+  // Owner, give a 1:1 DM and a group DM that open as conversations (D-863).
   const me = (await (await ownerCtx.request.get('/api/v1/users/@me')).json()) as { id: string };
-  const ms = (await (
-    await ownerCtx.request.get(`/api/v1/guilds/${w.guildId}/members?limit=20`)
-  ).json()) as { user?: { id: string } }[];
-  const others = ms.map((m) => m.user?.id).filter((i): i is string => !!i && i !== me.id);
+  const others: string[] = [];
+  for (const label of ['bob', 'cat']) {
+    const c = await browser.newContext({ baseURL: ORIGIN });
+    const u = await registerUser(c.request, label);
+    await loginApi(c.request, u);
+    await apiPut(ownerCtx.request, `/users/@me/relationships/${u.id}`, { type: 1 });
+    await apiPut(c.request, `/users/@me/relationships/${me.id}`, { type: 1 });
+    others.push(u.id);
+    await c.close();
+  }
   log('dm-setup', { others: others.length });
   const one = await apiPost<{ id: string }>(ownerCtx.request, '/users/@me/channels', {
     recipient_id: others[0],
@@ -372,7 +396,7 @@ test('dm: the DM identity tap and the DM header button on a phone (SEC-AUD-386)'
   ) => {
     const { ctx, page } = await newPage(browser, true, ownerCtx, theme);
     try {
-      await open(page, path);
+      await openStoredFalse(page, path);
       const before = await state(page);
       log(`${id}-before`, before);
       await tapRe(page, /^(Show members of|Open profile of)/);
@@ -438,7 +462,7 @@ test('dm: the DM identity tap and the DM header button on a phone (SEC-AUD-386)'
   await setTheme(ownerCtx, 'lounge-editorial');
   const { ctx, page } = await newPage(browser, false, ownerCtx, 'lounge-editorial');
   try {
-    await open(page, groupP);
+    await openStoredFalse(page, groupP);
     const before = await state(page);
     log('dm-group-desktop-before', before);
     await page.getByRole('button', { name: /^Show members of/ }).click();
