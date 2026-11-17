@@ -290,7 +290,12 @@ export function InvoicesSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <div
+          className="adm-table-wrap"
+          role="region"
+          aria-label={t('admin.donations.invoices.title')}
+          tabIndex={0}
+        >
           <table className="adm-table adm-table-stack inv-table">
             <caption className="us-sr">{t('admin.donations.invoices.title')}</caption>
             <thead>
