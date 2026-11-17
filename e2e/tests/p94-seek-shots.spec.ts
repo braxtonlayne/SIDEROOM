@@ -67,6 +67,8 @@ interface PW {
   __w: Rec[];
   __ev: Ev[];
   __t0: number;
+  __blockWaiting?: boolean;
+  __watch: (t: EventTarget) => void;
   __srPlayerActions: { play(t: unknown): void; setSkin(k: string): void };
   __srPlayer: { audio: HTMLAudioElement };
 }
@@ -144,24 +146,30 @@ function instrument(): void {
     'abort',
     'ratechange',
   ];
-  for (const n of names)
-    document.addEventListener(
-      n,
-      (e) => {
-        const el = e.target as HTMLMediaElement;
-        if (!(el instanceof HTMLMediaElement)) return;
-        w.__ev.push({
-          t: Math.round(performance.now() - w.__t0),
-          name: n,
-          el: idOf(el),
-          ct: Number(el.currentTime.toFixed(3)),
-          rs: el.readyState,
-          paused: el.paused,
-          src: el.currentSrc.slice(-24),
-        });
-      },
-      true,
-    );
+  const watch = (target: EventTarget) => {
+    for (const n of names)
+      target.addEventListener(
+        n,
+        (e) => {
+          const el = e.target as HTMLMediaElement;
+          if (!(el instanceof HTMLMediaElement)) return;
+          w.__ev.push({
+            t: Math.round(performance.now() - w.__t0),
+            name: n,
+            el: idOf(el),
+            ct: Number(el.currentTime.toFixed(3)),
+            rs: el.readyState,
+            paused: el.paused,
+            src: el.currentSrc.slice(-24),
+          });
+          // Case d: swallow `waiting` before the page's own listeners see it.
+          if (n === 'waiting' && w.__blockWaiting) e.stopImmediatePropagation();
+        },
+        true,
+      );
+  };
+  w.__watch = watch;
+  watch(document);
 }
 
 interface Net {
@@ -386,6 +394,7 @@ async function bareCase(page: Page, net: Net, label: string, file: string, targe
     w.__bare?.pause();
     const a = new Audio(f);
     w.__bare = a;
+    (window as unknown as PW).__watch(a);
     await a.play();
     await new Promise<void>((ok) => {
       const tick = () => (a.readyState >= 4 && a.currentTime > 0.3 ? ok() : setTimeout(tick, 50));
@@ -510,6 +519,26 @@ test('SEC-AUD-429: the seek snap-back, isolated (report only)', async ({ browser
         await page.evaluate((t) => {
           (window as unknown as PW).__srPlayer.audio.currentTime = t;
         }, dur / 4);
+      },
+    );
+    await flush(report);
+    // d: the same seek as a, with the `waiting` event swallowed before the page's listeners see it.
+    await page.evaluate(() => {
+      (window as unknown as PW).__srPlayer.audio.currentTime = 2;
+    });
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => {
+      (window as unknown as PW).__blockWaiting = true;
+    });
+    report.d = await playerCase(
+      page,
+      net,
+      'd: currentTime = 20 with waiting swallowed (1280)',
+      20,
+      async () => {
+        await page.evaluate(() => {
+          (window as unknown as PW).__srPlayer.audio.currentTime = 20;
+        });
       },
     );
     await flush(report);
