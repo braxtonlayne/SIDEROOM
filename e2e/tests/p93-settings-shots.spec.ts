@@ -221,7 +221,7 @@ async function case1(browser: Browser, owner: BrowserContext, mode: Mode, themeI
   const b = (await edits.nth(0).boundingBox())!;
   await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2 + 21);
   await page.waitForTimeout(700);
-  const dlg = page.getByRole('dialog').first();
+  const dlg = page.getByRole('dialog').last();
   fig['tapBelowUsername'] = (await dlg.count())
     ? ((await dlg.getAttribute('aria-label')) ??
       (await dlg
