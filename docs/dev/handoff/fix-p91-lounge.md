@@ -20,9 +20,9 @@ T = 10:48 on 2026-11-17. Clock: ready 10:50, lock round 1 (base case and a first
 - **Not measured**: the final CSS (commit 3: the 12 px, the avatars at 20, the 4 px row padding), 375 Lounge Dark, and the 1280 Editorial panel against the base. The spec asserts all of them (hit test on every control, Add friends / Create invite link / avatars / heading block at the card's content x, 1280 panel, head, members, actions and buttons equal to `base-measure.json`).
 
 ## Round 3 (final CSS, commit 0b0ac056; ran)
-- 375 Lounge Light and Lounge Dark: **every control passes the hit test** (member rows 44 px, Remove icons, Add friends, Group settings, Create invite link: all true); heading block box [8,367] (content 20); Add friends and Create invite link start at x = 20 (the card's content); member avatars start at x = 20;  0, page overflow 0. Both group-panel shots opened.
+- 375 Lounge Light and Lounge Dark: **every control passes the hit test** (member rows 44 px, Remove icons, Add friends, Group settings, Create invite link: all true); heading block box [8,367] (content 20); Add friends and Create invite link start at x = 20 (the card's content); member avatars start at x = 20; `cut` 0, page overflow 0. Both group-panel shots opened.
 - 1280 Editorial: panel [1040,1280,53,257], head, members and actions boxes and every button box and hit flag are **0 px from the base**. The spec's first run failed only on the button labels (random usernames per run); the compare now ignores labels (the geometry was equal).
-- Stack stopped, lock released,  dropped,  deleted. 768 px (not 720) is a choice, see Owner questions.
+- Stack stopped, lock released, `sr_p91_lounge_ui` dropped, `p91-lounge-bin` deleted (`p80-base-bin` untouched). 768 px (not 720) is a choice, see Owner questions.
 
 ## (Superseded) what the commander runs for the missing round (about 4 minutes, after-only; the base file is in the folder)
 `bash C:/Users/braxt/Desktop/SIDEROOM_wt/p91-lounge-scratch/round.sh after` inside a `heavy.sh acquire lounge` (it needs `p91-lounge-bin`, which I kept for it; it makes and leaves a fresh `sr_p91_lounge_ui`). By hand: the stack of the brief (ports 8692 / 5692 / 9392, `SR_VOICE__ENABLED=true`, `SR_ADMIN_REQUIRE_REAUTH=0`), seed the sweep world, then from `e2e/`:
