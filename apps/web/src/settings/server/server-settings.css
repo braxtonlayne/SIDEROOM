@@ -559,10 +559,6 @@
   text-align: start;
   padding-block-end: 8px;
 }
-/* SEC-AUD-387 (D-903): a label-less kit Checkbox alone in a table cell takes no room for its empty label. */
-.ss-table .ss-check-solo {
-  gap: 0;
-}
 
 .ss-table .ss-role-chip {
   white-space: nowrap;
@@ -718,14 +714,7 @@
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  /* 44 px targets: the row's checkbox is the kit's (SEC-AUD-387, D-898; its width from D-903 below), the name link and the action buttons by height. */
-  /* D-903: the cell is 44 px wide again and the kit's target fills it (44 x 46), so it covers no neighbour. */
-  .ss-table-stack .ss-check-solo {
-    padding-inline: 13px;
-  }
-  .ss-table-stack .ss-check-solo > input::before {
-    inset-inline: -14.5px;
-  }
+  /* 44 px targets: the row's checkbox is the kit's label-less Checkbox (SEC-AUD-387, D-898; its 44 px width is the kit's own, D-905), the name link and the action buttons by height. */
   .ss-table-stack .ss-link {
     display: inline-flex;
     align-items: center;

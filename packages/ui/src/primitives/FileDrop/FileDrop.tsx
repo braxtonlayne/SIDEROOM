@@ -11,6 +11,8 @@ export interface FileDropProps {
   /** Accessible name / visible prompt, e.g. "Upload cover art". */
   label: ReactNode;
   hint?: ReactNode;
+  /** The "or drop a file here" text. The kit keeps an English default; an app passes its own translated text (D-906). */
+  dropText?: ReactNode;
   /** `accept` attribute syntax: ".png,.jpg" or "image/*". */
   accept?: string;
   multiple?: boolean;
@@ -60,6 +62,7 @@ export function filterFiles(
 export function FileDrop({
   label,
   hint,
+  dropText,
   accept,
   multiple,
   maxSize,
@@ -112,7 +115,7 @@ export function FileDrop({
         {label}
       </button>
       <span className={styles.or} aria-hidden="true">
-        or drop {multiple ? 'files' : 'a file'} here
+        {dropText ?? (multiple ? 'or drop files here' : 'or drop a file here')}
       </span>
       {hint && (
         <span id={hintId} className={styles.hint}>

@@ -3,6 +3,10 @@
   align-items: flex-start;
   gap: 10px;
 }
+/* SEC-AUD-395, D-905: a control with no label draws no label element, so no gap either. */
+.choice[data-solo] {
+  gap: 0;
+}
 /* D-857: a disabled row dims its control, not its text (the label and the description keep their contrast). */
 .choice[data-disabled] .input {
   opacity: 0.55;
@@ -170,5 +174,12 @@
   }
   .switch::before {
     inset-block: -13px;
+  }
+  /* SEC-AUD-395, D-905: a lone checkbox's row is 44 px wide and its target lies inside it (the insets count from inside the 1.5 px border). */
+  .choice[data-solo] {
+    padding-inline: 13px;
+  }
+  .choice[data-solo] .input::before {
+    inset-inline: -14.5px;
   }
 }
