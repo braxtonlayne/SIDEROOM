@@ -84,6 +84,7 @@ export function HeroBlock({
       )}
       <FileDrop
         label={t('admin.entranceHero.fileLabel')}
+        dropText={t('kit.fileDrop.orDropOne')}
         accept={ACCEPT}
         maxSize={HERO_MAX_BYTES}
         hint={file ? file.name : undefined}

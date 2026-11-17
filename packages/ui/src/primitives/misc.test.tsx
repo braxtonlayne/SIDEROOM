@@ -299,6 +299,16 @@ describe('FileDrop', () => {
     ]);
   });
 
+  it('SEC-AUD-396: the drop text has an English default and a prop replaces it', () => {
+    const { rerender } = render(<FileDrop label="Upload" onFiles={() => {}} />);
+    expect(screen.getByText('or drop a file here')).toBeInTheDocument();
+    rerender(<FileDrop label="Upload" multiple onFiles={() => {}} />);
+    expect(screen.getByText('or drop files here')).toBeInTheDocument();
+    rerender(<FileDrop label="Upload" dropText="ou deposez ici" onFiles={() => {}} />);
+    expect(screen.getByText('ou deposez ici')).toBeInTheDocument();
+    expect(screen.queryByText('or drop a file here')).toBeNull();
+  });
+
   it('accepts dropped files and reports rejects', () => {
     const onFiles = vi.fn();
     const onReject = vi.fn();
