@@ -119,6 +119,16 @@ describe('Checkbox / Switch / Radio', () => {
     expect(cb).toBeChecked();
     expect(cb).toHaveAccessibleDescription('On this device');
   });
+  it('SEC-AUD-395: a label-less checkbox draws no label and is marked solo; a labelled one is not', () => {
+    const { container, rerender } = render(<Checkbox label={null} aria-label="Pick row" />);
+    const cb = screen.getByRole('checkbox', { name: 'Pick row' });
+    expect(container.querySelector('label')).toBeNull();
+    expect(cb.closest('div')).toHaveAttribute('data-solo');
+    expect(cb).toHaveAttribute('aria-label', 'Pick row');
+    rerender(<Checkbox label="Pick row" />);
+    expect(container.querySelector('label')).not.toBeNull();
+    expect(container.querySelector('[data-solo]')).toBeNull();
+  });
   it('supports indeterminate', () => {
     render(<Checkbox label="All" indeterminate readOnly checked={false} />);
     const cb = screen.getByRole('checkbox') as HTMLInputElement;
