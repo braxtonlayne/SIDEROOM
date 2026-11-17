@@ -1913,6 +1913,37 @@
  * a centred 44 px strip, the seek and speed ranges are 44 px tall with the drawing unchanged. Nothing grows wider.
  */
 @media (max-width: 720px) {
+  /*
+   * The walnut cheeks are drawn the height of the skin's box, so once the skin scrolls they stop short of its end (a
+   * hand's width at 375 with the taller controls). The same cheeks go on, plain, behind them for the whole scroll
+   * (background-attachment: local follows the content); the drawn cheeks lie over them.
+   */
+  .sr-ply-valve {
+    --v-cheek-w: 2.25rem;
+    --v-cheek-flat: color-mix(in oklab, var(--v-walnut) 72%, var(--v-walnut-hi));
+    --v-cheek-sheen: linear-gradient(
+      90deg,
+      var(--v-shade),
+      transparent 28%,
+      color-mix(in oklab, var(--v-cream) 16%, transparent) 46%,
+      color-mix(in oklab, var(--v-walnut-hi) 30%, transparent) 54%,
+      transparent 72%,
+      var(--v-shade)
+    );
+    background:
+      var(--v-cheek-sheen) 0 0 / var(--v-cheek-w) 100% no-repeat local,
+      var(--v-cheek-sheen) 100% 0 / var(--v-cheek-w) 100% no-repeat local,
+      linear-gradient(var(--v-cheek-flat), var(--v-cheek-flat)) 0 0 / var(--v-cheek-w) 100%
+        no-repeat local,
+      linear-gradient(var(--v-cheek-flat), var(--v-cheek-flat)) 100% 0 / var(--v-cheek-w) 100%
+        no-repeat local,
+      var(--v-iron);
+  }
+  @media (max-width: 40rem) {
+    .sr-ply-valve {
+      --v-cheek-w: 0.875rem;
+    }
+  }
   .sr-ply-valve .v-cap {
     position: relative;
   }
