@@ -259,6 +259,7 @@ async function tap(page: Page, selector: string, dy: number, fx = 0.5, fy: numbe
     });
   const y = fy === null ? b.y + b.h / 2 + dy : b.y + b.h * fy;
   await page.touchscreen.tap(b.x + b.w * fx, y);
+  return { x: b.x + b.w * fx, y };
 }
 
 const attr = (page: Page, selector: string, name: string) =>
@@ -297,6 +298,8 @@ async function taps(page: Page): Promise<Record<string, unknown>> {
   out.rows = rows;
   // Seek: a tap at 80 percent, then at 10 percent, moves the value.
   const seek = '.nc-seek';
+  await expect(page.locator(seek)).toBeEnabled();
+  await expect.poll(async () => Number(await attr(page, seek, 'max'))).toBeGreaterThan(10);
   const val = async (s: string) => Number(await page.locator(s).first().inputValue());
   const max = Number(await attr(page, seek, 'max'));
   const seekRes: number[] = [];
@@ -306,8 +309,19 @@ async function taps(page: Page): Promise<Record<string, unknown>> {
     [0.6, 20],
   ] as const) {
     await tap(page, seek, dy, fx);
-    await page.waitForTimeout(250);
-    seekRes.push(await val(seek));
+    const series = await page.evaluate(async () => {
+      const a = (window as unknown as Win).__srPlayer.audio;
+      const out: number[] = [Math.round(a.currentTime)];
+      for (const ms of [20, 80, 300]) {
+        await new Promise((r) => setTimeout(r, ms));
+        out.push(Math.round(a.currentTime));
+      }
+      return out;
+    });
+    console.log(
+      `REPORT seek tap ${fx}/${dy}: currentTime at 0, 20, 100, 400 ms: ${series.join(', ')}`,
+    );
+    seekRes.push(series[0]!);
   }
   out.seek = { max, values: seekRes };
   expect(seekRes[0]!).toBeGreaterThan(max * 0.6);
