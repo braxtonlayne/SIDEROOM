@@ -425,7 +425,6 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 <th scope="col">
                   <Checkbox
                     label={null}
-                    className="ss-check-solo"
                     aria-label={t('settings.members.selectAll')}
                     checked={allOnPage}
                     indeterminate={!allOnPage && someOnPage}
@@ -647,7 +646,6 @@ function MemberRow({
       <td>
         <Checkbox
           label={null}
-          className="ss-check-solo"
           aria-label={t('settings.members.selectMember', { name })}
           checked={checked}
           onChange={(e) => onCheck(e.target.checked)}

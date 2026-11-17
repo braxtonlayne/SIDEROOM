@@ -174,6 +174,7 @@ function EmojiTab({
       </p>
       <FileDrop
         label={t('settings.expressions.uploadEmoji')}
+        dropText={t('kit.fileDrop.orDropMany')}
         accept={IMAGE_ACCEPT}
         multiple
         maxSize={LIMITS.maxEmojiBytes}
@@ -408,6 +409,7 @@ function StickerTab({
       </p>
       <FileDrop
         label={t('settings.expressions.chooseSticker')}
+        dropText={t('kit.fileDrop.orDropOne')}
         accept={`${IMAGE_ACCEPT},.json`}
         maxSize={LIMITS.maxStickerBytes}
         onFiles={(f) => void pick(f)}

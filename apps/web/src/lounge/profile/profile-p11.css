@@ -256,6 +256,45 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* SEC-AUD-398 (D-909): on a phone the group members panel's heading, buttons and invite block sit in the one-to-one
+   card's gutter (.lng-profile-card: 8px margin, 12px padding: content at 20px), and so do the member rows' avatars
+   (12px list padding, 4px row padding, 4px button padding), instead of at the panel's edge. The rows (44px tall, with
+   the Remove button's own 44px target) and the action row's 12px of room above and the last block's 12px below pass
+   the 44px hit test (D-856): a neighbour's target must not reach into a row, and the panel scrolls, so a target past
+   its bottom is clipped. 768px is the shell's phone width. */
+@media (max-width: 768px) {
+  .lng-profile > .prf-group-head,
+  .lng-profile > .prf-group-actions,
+  .lng-profile > section {
+    margin-inline: 8px;
+    padding-inline: 12px;
+  }
+  .lng-profile > .prf-group-actions {
+    margin-block-start: 12px;
+  }
+  .lng-profile > section {
+    padding-block-end: 12px;
+  }
+  .lng-profile > .prf-members {
+    padding-inline: 12px;
+  }
+  .lng-profile-members .prf-member {
+    height: 44px;
+    padding-inline: 4px;
+  }
+  .prf-member-main {
+    min-block-size: 44px;
+  }
+  .prf-member .lng-icon-btn {
+    position: relative;
+  }
+  .prf-member .lng-icon-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: -4px;
+  }
+}
 .lng-dm-identity {
   display: inline-flex;
   align-items: center;

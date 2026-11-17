@@ -35,8 +35,15 @@ function ChoiceShell({
   const auto = useId();
   const inputId = id ?? auto;
   const descId = description ? `${inputId}-desc` : undefined;
+  // SEC-AUD-395, D-905: no label and no description means no label element and no gap (give the input an aria-label).
+  const solo =
+    (label === null || label === undefined || label === false || label === '') && !description;
   return (
-    <div className={cx(styles.choice, className)} data-disabled={inputProps.disabled || undefined}>
+    <div
+      className={cx(styles.choice, className)}
+      data-disabled={inputProps.disabled || undefined}
+      data-solo={solo || undefined}
+    >
       <input
         {...inputProps}
         ref={inputRef}
@@ -46,14 +53,16 @@ function ChoiceShell({
         aria-describedby={descId}
         className={cx(styles.input, styles[kind])}
       />
-      <label htmlFor={inputId} className={styles.text}>
-        <span>{label}</span>
-        {description && (
-          <span id={descId} className={styles.desc}>
-            {description}
-          </span>
-        )}
-      </label>
+      {!solo && (
+        <label htmlFor={inputId} className={styles.text}>
+          <span>{label}</span>
+          {description && (
+            <span id={descId} className={styles.desc}>
+              {description}
+            </span>
+          )}
+        </label>
+      )}
     </div>
   );
 }
