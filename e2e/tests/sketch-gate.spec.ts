@@ -328,6 +328,14 @@ test.describe('wave 47 gate proof: Sketch & Slander, a member and a guest phone'
       await expect
         .poll(() => fa.evaluate(() => (window as any).__sketch.state()?.phase), { timeout: 15_000 })
         .toBe('reveal');
+      // SEC-AUD-437, D-944: the two frames get the reveal separately; wait on the guest's own frame before reading its word.
+      await expect
+        .poll(() => fg.evaluate(() => (window as any).__sketch.state()?.phase), {
+          timeout: 15_000,
+          message:
+            "D-944: the guest's frame was late to the reveal (the member's frame already had it)",
+        })
+        .toBe('reveal');
       const after = await fg.evaluate(() => (window as any).__sketch.state());
       expect(after.word).toBe(prompt);
       expect(after.players.every((p: any) => p.score > 0)).toBe(true);
