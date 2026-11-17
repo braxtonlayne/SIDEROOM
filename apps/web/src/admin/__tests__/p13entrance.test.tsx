@@ -114,6 +114,10 @@ describe('Entrance pages editor', () => {
   });
 });
 
+/** The kit FileDrop's button carries the name; its hidden input is the button's sibling (SEC-AUD-389). */
+const heroInput = (button: HTMLElement) =>
+  button.parentElement!.querySelector<HTMLInputElement>('input[type=file]')!;
+
 describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
   it('uploads a picture after a reason, then removes it', async () => {
     asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
@@ -145,7 +149,7 @@ describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeDisabled();
 
     const file = new File([new Uint8Array([137, 80, 78, 71])], 'door.png', { type: 'image/png' });
-    await user.upload(screen.getByLabelText('Choose an image'), file);
+    await user.upload(heroInput(screen.getByRole('button', { name: 'Choose an image' })), file);
     await user.click(screen.getByRole('button', { name: 'Upload image' }));
     const dialog = await screen.findByRole('dialog', { name: 'Replace the hero image?' });
     await user.type(within(dialog).getByLabelText(/Reason/), 'new season');
@@ -168,10 +172,33 @@ describe('Entrance hero image (H-41)', { timeout: 40_000 }, () => {
     const user = userEvent.setup({ applyAccept: false });
     const big = new File([new Uint8Array(8 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' });
     await user.upload(
-      await screen.findByLabelText('Choose an image', {}, { timeout: 25_000 }),
+      heroInput(
+        await screen.findByRole('button', { name: 'Choose an image' }, { timeout: 25_000 }),
+      ),
       big,
     );
     expect(await screen.findByText('That file is over 8 MiB.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Upload image' })).toBeDisabled();
+  });
+
+  it('refuses a wrong type, and a chosen file reaches the upload dialog by the named control', async () => {
+    asStaff({ perms: ['STAFF_BASIC', 'MANAGE_ENTRANCE'] });
+    openAdmin('entrance');
+    const user = userEvent.setup({ applyAccept: false });
+    const choose = await screen.findByRole(
+      'button',
+      { name: 'Choose an image' },
+      { timeout: 25_000 },
+    );
+    await user.upload(heroInput(choose), new File(['x'], 'a.txt', { type: 'text/plain' }));
+    expect(await screen.findByText('Choose a PNG, JPEG or WebP image.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload image' })).toBeDisabled();
+    await user.upload(
+      heroInput(choose),
+      new File([new Uint8Array([1])], 'door.png', { type: 'image/png' }),
+    );
+    expect(await screen.findByText('door.png')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Upload image' })).toBeEnabled();
+    expect(screen.queryByText('Choose a PNG, JPEG or WebP image.')).toBeNull();
   });
 });
