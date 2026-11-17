@@ -622,3 +622,19 @@
     min-width: 0;
   }
 }
+
+/* SEC-AUD-412, 413, 415 (D-923): on a phone (720 px, the kit's) a row that holds a button is 44 px tall, so the kit's 44 px
+   targets of two rows (My Account's "Edit" of Username and Display name) no longer overlap, and a link that stands alone in a
+   card ("Edit your profile page") or in a card's actions ("View leaderboards") has a 44 px tall box. Desktop unchanged. */
+@media (max-width: 720px) {
+  .us-field:has(dd button) {
+    min-block-size: 44px;
+    align-items: center;
+  }
+  .us-card > a.us-link,
+  .us-actions > a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+}

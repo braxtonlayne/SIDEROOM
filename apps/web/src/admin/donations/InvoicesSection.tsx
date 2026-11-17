@@ -291,7 +291,7 @@ export function InvoicesSection() {
       )}
       {paged.items.length > 0 && (
         <div className="adm-table-wrap">
-          <table className="adm-table">
+          <table className="adm-table adm-table-stack inv-table">
             <caption className="us-sr">{t('admin.donations.invoices.title')}</caption>
             <thead>
               <tr>
@@ -311,17 +311,21 @@ export function InvoicesSection() {
                       {i.id}
                     </Button>
                   </th>
-                  <td>
+                  <td className="inv-payer" data-label={t('admin.donations.invoices.dtPayer')}>
                     {i.user_id === '0'
                       ? t('admin.donations.invoices.detached')
                       : (i.user_name ?? i.user_id)}
                   </td>
-                  <td>{PURPOSE_COPY[i.purpose]}</td>
-                  <td>{usd(i.usd_cents)}</td>
-                  <td>
+                  <td data-label={t('admin.donations.invoices.dtFor')}>
+                    {PURPOSE_COPY[i.purpose]}
+                  </td>
+                  <td data-label={t('admin.donations.invoices.colAmount')}>{usd(i.usd_cents)}</td>
+                  <td data-label={t('admin.donations.invoices.dtState')}>
                     <StateBadge state={i.state} />
                   </td>
-                  <td>{fmtMs(i.created_at_ms)}</td>
+                  <td data-label={t('admin.donations.invoices.dtCreated')}>
+                    {fmtMs(i.created_at_ms)}
+                  </td>
                 </tr>
               ))}
             </tbody>
