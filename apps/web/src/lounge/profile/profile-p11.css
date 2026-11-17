@@ -366,3 +366,18 @@
     min-block-size: 44px;
   }
 }
+
+/* SEC-AUD-408 (D-924): on a phone the profile popout's Note and Message fields (33px tall) and "View Full Profile"
+   (20px tall) get a 44px target (D-856). Real boxes, not ::after: the popout body is a column with a 10px gap, so
+   two 44px boxes never reach into each other. Every selector is under .lng-pop; 768px is the shell's phone width
+   (D-915). The popout already scrolls inside itself (profile.css: max-height, overflow auto). */
+@media (max-width: 768px) {
+  .lng-pop .lng-pop-input {
+    min-block-size: 44px;
+  }
+  .lng-pop .lng-pop-full {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
+}
