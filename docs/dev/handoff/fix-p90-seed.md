@@ -41,18 +41,7 @@ The brief's stack (and the how-to) lacks `SR_ADMIN_REQUIRE_REAUTH=0`, a developm
 
 Two fresh databases (`sr_p90_seed_ui2`, `sr_p90_seed_ui3`), stack as the brief plus `SR_ADMIN_REQUIRE_REAUTH=0`: both seeds 27 steps ok, no FAIL, no WARN (`1 passed`), 26 s and 30 s (the base 47 s; these ran warm). World key lists identical to the base's on both (14 leaves; compared as sorted key paths, not ids).
 
-Shot (1): `visual-sweep-shots/p90-seed/admin-review-applications-desktop-dark.png` (Admin, Review queues, All applications, 1280 Editorial). I opened it: three rows, Doodle Board released, Projector Bot development, Sketchy Relay shown as SUSPENDED with its reason, "Suspended by @owner" and an Unsuspend button. The sweep also wrote desktop-light, phone-light and phone-dark of the same page (not looked at in detail; not asked for). The sweep's capture printed an ENOENT for `data/*.png.json` (the shots folder had no `data/` sub-folder yet); the PNGs are written before that and are fine. Re-shoot: on a stack with `SR_ADMIN_REQUIRE_REAUTH=0`, from `e2e/`: `SR_E2E_BASE_URL=http://localhost:<vite> SR_CLI_BIN=<sr-cli> SR_DATABASE__URL=<url> DATABASE_URL=<url> SR_E2E_SWEEP=1 SR_SWEEP_ONLY='^admin-review-applications
-
-## Proposed rows
-
-- SEC-AUD-391 (closed): the sweep seed printed `FAIL suspended app` (900004) on a stack without `SR_ADMIN_REQUIRE_REAUTH=0`; the suspend route is a listed second-factor route (`sensitive.rs:244`), the switch is default-on. Fixed by naming the switch in the sweep how-to and the stack lines (no code, no server change).
-- Threat-model rows: none. Changelog: none (development tooling).
-- Owner questions: none. Should the brief's stack env carry the line for every wave (commander's call)?
-
-## Cleanup
-
-Scratch databases dropped (`sr_p90_seed_ui`, `_ui2`, `_ui3`), `p90-seed-bin` deleted, ports 8688/5688/9388 free, `p80-base-bin` untouched, no stash touched.
- SR_SWEEP_OUT=<folder, with a data/ sub-folder> npx playwright test tests/page-sweep.spec.ts -g "theme |in (desktop|phone) .* admin-review-applications$" --project=chromium --workers=1 --retries=0 --reporter=line` (after the seed).
+Shot (1): `visual-sweep-shots/p90-seed/admin-review-applications-desktop-dark.png` (Admin, Review queues, All applications, 1280 Editorial). I opened it: three rows, Doodle Board released, Projector Bot development, Sketchy Relay shown as SUSPENDED with its reason, "Suspended by @owner" and an Unsuspend button. The sweep also wrote desktop-light, phone-light and phone-dark of the same page (not looked at in detail; not asked for). The sweep's capture printed an ENOENT for `data/*.png.json` (the shots folder had no `data/` sub-folder yet); the PNGs are written before that and are fine. Re-shoot: on a stack with `SR_ADMIN_REQUIRE_REAUTH=0`, from `e2e/`: `SR_E2E_BASE_URL=http://localhost:<vite> SR_CLI_BIN=<sr-cli> SR_DATABASE__URL=<url> DATABASE_URL=<url> SR_E2E_SWEEP=1 SR_SWEEP_ONLY='^admin-review-applications$' SR_SWEEP_OUT=<folder, with a data/ sub-folder> npx playwright test tests/page-sweep.spec.ts -g "theme |in (desktop|phone) .* admin-review-applications$" --project=chromium --workers=1 --retries=0 --reporter=line` (after the seed).
 
 ## Proposed rows
 
