@@ -23,6 +23,8 @@
 }
 .adm-audit li {
   padding: 2px 0;
+  /* The payload is JSON with no spaces: on a phone it ran past the dialog and was cut (SEC-AUD-405). */
+  overflow-wrap: anywhere;
 }
 
 /* SEC-AUD-372 (D-875): a kit Select's label, and the per-tier perk fields on the kit field's look.
@@ -141,10 +143,9 @@
 /* SEC-AUD-390 (D-900): the Invoices filter toolbar. Its State and Purpose filters are bare <label>text <select> pairs
    (admin.css draws each on one line, label beside select), while the search field is the kit's: its label above its
    input, its hint below. The pairs take the kit label's look and its label-above structure (label 15 px + 6 px gap), so
-   the three labels share one line and the three controls share one line. The toolbar then aligns to the top, and the
-   checkbox row and the Search button, which have no label, sit down by the label's height (15 + 6 px) onto the
-   controls' line. On a phone the toolbar keeps its end alignment, and each filter takes the row, as the text field does
-   (server-settings.css, SEC-AUD-370). */
+   the three labels share one line and the three controls share one line. The toolbar aligns to the top (721 px and up).
+   On a phone the toolbar keeps its end alignment, and each filter takes the row, as the text field does
+   (server-settings.css, SEC-AUD-370). The checkbox row and Search at 721 px and up: SEC-AUD-405 below. */
 .ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
   flex-direction: column;
   align-items: stretch;
@@ -166,11 +167,27 @@
   .ss-root .ss-toolbar.inv-toolbar {
     align-items: flex-start;
   }
-  .ss-root .ss-toolbar.inv-toolbar > label:has(> input[type='checkbox']) {
-    margin-block-start: 21px;
+  /* SEC-AUD-405 (D-918): five items do not fit one row at 1280 (State 270 + Purpose 145 + a field of 200 or more + the
+     checkbox row 131 + Search 81, with 4 gaps, is 859 px against 828), and the button hung 23 px low on a row of its own.
+     So the labelled filters take the first row (the search field takes what is left, 200 px or more), and the checkbox row
+     and Search take the second row at the start edge, level with each other, with no block offset. The ::after is the
+     row break (a line of no height, so the two rows are one row gap of 8 px apart on each side of it: 16 px). */
+  .ss-root .ss-toolbar.inv-toolbar > div:has(> input) {
+    flex: 1 1 200px;
+    min-inline-size: 0;
+  }
+  .ss-root .ss-toolbar.inv-toolbar::after {
+    content: '';
+    order: 1;
+    flex: 0 0 100%;
+    block-size: 0;
+  }
+  .ss-root .ss-toolbar.inv-toolbar > label:has(> input[type='checkbox']),
+  .ss-root .ss-toolbar.inv-toolbar > button {
+    order: 2;
   }
   .ss-root .ss-toolbar.inv-toolbar > button {
-    margin-block-start: 23px;
+    min-block-size: 40px;
   }
 }
 @media (max-width: 720px) {
