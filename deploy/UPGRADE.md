@@ -154,6 +154,10 @@ A link SIDE ROOM signs to a file in a member's or a server's bucket tells the bu
 - With no mail server configured (the log-only mail transport), the server never writes a message body to its log (CHANGELOG, Phase 60).
 - An Activity's old files are kept for a day after an update so people mid-session are not cut off (migration `2670_activity_bundle_superseded_at.sql`).
 
+## Release notes: wave 99 (SEC-AUD-439..441)
+
+No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. The changes are in the web app and the test suite only.
+
 ## Release notes: wave 98 (SEC-AUD-437..439)
 
 No migration, no new setting and nothing to do: pull the release, run `sr-cli migrate` as usual (it has nothing to apply for this wave) and restart. The changes are in the web app's admin sheet and the test suite only.

@@ -1799,3 +1799,41 @@
     block-size: 2.75rem;
   }
 }
+
+/*
+ * SEC-AUD-439 (wave 99; D-947, D-940): on a phone the skin is taller than its box and scrolls inside itself. The dots
+ * and flecks are two absolute spans, so they were as tall as the first screen and stopped short of the scrolled
+ * foot. They are drawn here as the skin's own background layers with `background-attachment: local`, over the cream,
+ * which follow the content for its whole scrolled height. Element opacity cannot be carried by a layer, so the tile
+ * colours are mixed with transparent (55% for the dots, 60% for the flecks). The spans are switched off here;
+ * nothing is in the flow, so no control moves. Above 720 px nothing changes.
+ */
+@media (max-width: 720px) {
+  .sr-ply-study {
+    background:
+      radial-gradient(
+          circle,
+          color-mix(in oklab, var(--st-pink) 55%, transparent) 1.2px,
+          transparent 1.8px
+        )
+        0 0 / 18px 18px local padding-box,
+      radial-gradient(
+          circle,
+          color-mix(in oklab, var(--st-cream-dk) 60%, transparent) 0.5px,
+          transparent 0.9px
+        )
+        3px 5px / 7px 9px local padding-box,
+      radial-gradient(
+          circle,
+          color-mix(in oklab, var(--st-shine) 60%, transparent) 0.6px,
+          transparent 1px
+        )
+        0 0 / 11px 7px local padding-box,
+      linear-gradient(var(--st-cream-hi), var(--st-cream)) padding-box,
+      linear-gradient(var(--st-pink-hi), var(--st-pink) 30%, var(--st-pink-lo)) border-box;
+  }
+  .sr-ply-study .st-dots,
+  .sr-ply-study .st-grain {
+    display: none;
+  }
+}
