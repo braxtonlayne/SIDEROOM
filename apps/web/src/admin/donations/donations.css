@@ -200,6 +200,9 @@
    cells' data-label); its row's title is a <th scope="row"> holding the id button, which that rule does not reach: it
    takes the title's look here. Between 721 px and the width where the table fits, it scrolls in its own wrapper (D-817). */
 @media (max-width: 720px) {
+  .adm-table.inv-table th[scope='row'] button {
+    min-block-size: 44px;
+  }
   .adm-table.inv-table th[scope='row'] {
     display: block;
     padding: 2px 0;
@@ -213,12 +216,13 @@
 }
 
 /* SEC-AUD-423 (D-925): a long payer name breaks between words where it can and inside a word only where one word is wider
-   than the column; it is never clipped. */
+   than the column; it is never clipped. (break-word, not anywhere: anywhere shrinks the column's minimum to one letter and the
+   whole table squeezes at 1024.) */
 .adm-table.inv-table .inv-payer {
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: normal;
   hyphens: none;
 }
