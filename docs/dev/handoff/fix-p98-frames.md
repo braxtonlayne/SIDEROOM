@@ -45,3 +45,6 @@ Test harness only: a new local spec shoots and hit-tests the Circuit and Study p
 
 ## Owner questions
 None (the Study texture row is a later-wave choice: fix as D-940 or leave, it is faint).
+
+## Lock
+After release (16:33) `heavy.sh status` printed `free`; at 16:34, just before the reply, it printed `cue 16:33` (no hold in the name `frames`). No shell of mine is running an acquire.
