@@ -341,6 +341,17 @@
   font-size: 1.0625rem;
   font-weight: 600;
 }
+/*
+ * SEC-AUD-425 (wave 94; D-931, D-928): the title's own ground. The dark ink on the plate's brass gradient fell to 4.11
+ * where the gradient darkens under the text; the title now sits on a lighter strip of the same brass (the top of the
+ * plate's own gradient, hi to mid), where the ink reads at 6.69 or better at every point. Every width.
+ */
+.sr-ply-valve .v-plate .sr-ply-ticker {
+  padding-inline: 0.375rem;
+  background: linear-gradient(180deg, var(--v-brass-hi), var(--v-brass-mid));
+  border-radius: 2px;
+  box-shadow: inset 0 1px 0 color-mix(in oklab, var(--v-brass-dk) 40%, transparent);
+}
 
 /* ---- Mains plate: pilot lamp and the window buttons ---- */
 .v-mains {
@@ -1892,5 +1903,69 @@
   }
   .v-cheek {
     inline-size: 0.875rem;
+  }
+}
+
+/*
+ * SEC-AUD-417 (wave 94; D-930, D-934, D-856): the skin on a phone, in both layouts (the wide one shows from 625 to 720
+ * px, the narrow one under it), so one media block and not a container query around it. Every control is a 44 px
+ * target: a box grows with a minimum (never smaller than it was), the 28 px corner buttons keep their drawing and get
+ * a centred 44 px strip, the seek and speed ranges are 44 px tall with the drawing unchanged. Nothing grows wider.
+ */
+@media (max-width: 720px) {
+  .sr-ply-valve .v-cap {
+    position: relative;
+  }
+  .sr-ply-valve .v-cap::after {
+    content: '';
+    position: absolute;
+    /* The button has a 1 px border, so its padding box is 26 px: 9 px beyond it makes 44 tall, 3 px makes 32 wide. */
+    inset-block: -9px;
+    inset-inline: -3px;
+  }
+  .sr-ply-valve .v-seek {
+    block-size: 44px;
+  }
+  .sr-ply-valve .v-seek::-webkit-slider-runnable-track {
+    block-size: 44px;
+  }
+  .sr-ply-valve .v-seek::-webkit-slider-thumb {
+    margin-block-start: 8px;
+  }
+  .sr-ply-valve .v-queue button {
+    align-items: center;
+    min-block-size: 44px;
+  }
+  /* Three 44 px rows must not fall behind a second scroll: the cap moves from the folio to the queue. */
+  .sr-ply-valve .v-folio {
+    grid-template-rows: auto auto auto;
+    max-block-size: none;
+  }
+  .sr-ply-valve .v-queue {
+    max-block-size: 20rem;
+  }
+  .sr-ply-valve .v-knob-input,
+  .sr-ply-valve .v-knob-art {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
+  .sr-ply-valve .v-key,
+  .sr-ply-valve .v-lever-btn {
+    min-block-size: 44px;
+  }
+  .sr-ply-valve .v-speed-slot {
+    block-size: 44px;
+  }
+  .sr-ply-valve .v-speed-cap {
+    inset-block: 9px;
+  }
+  .sr-ply-valve .v-speed-detent {
+    inset-block: 11px;
+  }
+  /* Narrow layout only: seven knobs of 44 px share the row without crowding (the wide layout's are larger). */
+  @container (max-width: 38rem) {
+    .sr-ply-valve .v-knobs {
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
   }
 }
