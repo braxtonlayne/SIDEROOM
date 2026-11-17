@@ -173,6 +173,7 @@ interface Measure {
   heading?: Edges;
   members?: Edges;
   row?: Edges;
+  rowAvatar?: Edges;
   actions?: Edges;
   inviteHeading?: Edges;
   invite?: Edges;
@@ -232,6 +233,7 @@ const panelMeasure = (page: Page) =>
     pick('members', '.prf-members');
     pick('row', '.prf-member');
     pick('rowMain', '.prf-member-main');
+    pick('rowAvatar', '.prf-member-main > :first-child');
     pick('actions', '.prf-group-actions');
     pick('inviteHeading', '.lng-pop-h');
     pick('invite', '.prf-invite');
@@ -488,13 +490,13 @@ test('dm: the group DM members panel gutter on a phone (SEC-AUD-398)', async ({ 
     if (o?.m.card) {
       // The group panel's blocks start and end where the card's own content does, to the pixel.
       const [cs, ce] = [o.m.card[0] + 12, o.m.card[1] - 12];
-      for (const k of ['actions', 'invite'] as const) {
-        const e = g.m[k];
-        if (e) {
-          ex(e[0], `${k} starts at the card's content`).toBe(cs);
-          ex(e[1], `${k} ends no further than the card's content`).toBeLessThanOrEqual(ce);
-        }
+      const at = (label: string) => g.m.buttons?.find((x) => x[0].startsWith(label));
+      for (const label of ['Add friends', 'Create invite link']) {
+        ex(at(label)?.[1], `${label} starts at the card's content`).toBe(cs);
       }
+      ex(g.m.rowAvatar?.[0], 'the member avatars start at the same x').toBe(cs);
+      ex(g.m.head ? g.m.head[0] + 12 : null, 'the heading block starts at the same x').toBe(cs);
+      ex(at('Group settings')?.[2], 'the last button ends inside the card').toBeLessThanOrEqual(ce);
     }
   }
   await setTheme(ownerCtx, 'lounge-editorial');
