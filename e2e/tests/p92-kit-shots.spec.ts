@@ -338,6 +338,9 @@ async function states(
     }, FIELD);
     log(`list-${tag}`, place);
     await shot(page, `list-open-${tag}`);
+    // Type the name into the open list's filter first: with more channels in the guild the option is off screen.
+    await page.keyboard.type('p92-r10');
+    await page.waitForTimeout(300);
     await page
       .locator('[role="option"]', { hasText: /p92-r10$/ })
       .first()
