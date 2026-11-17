@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { repoRoot } from '../support/cli';
 import { apiPatch, apiPost, expect, test } from '../support/fixtures';
+import { apiDelete } from '../support/world';
 import {
   CONTROL_SELECTOR,
   hitTest,
@@ -191,11 +192,23 @@ async function case1(browser: Browser, owner: BrowserContext) {
 /* ---------- case 2: equal-width chips, wave 91 measure's case 1 ---------- */
 async function case2(browser: Browser, owner: BrowserContext) {
   const w = world();
+  // Make the nine channels only when they are not there yet (a repeated run must not add duplicates).
+  const have = (await (await owner.request.get(`/api/v1/guilds/${w.guildId}/channels`)).json()) as {
+    id: string;
+    name?: string;
+  }[];
+  const names = new Set<string | undefined>();
+  for (const c of have) {
+    if (!c.name?.startsWith('p92-probe-r')) continue;
+    if (names.has(c.name)) await apiDelete(owner.request, `channels/${c.id}`);
+    names.add(c.name);
+  }
   for (let i = 1; i <= 9; i++)
-    await apiPost(owner.request, `/guilds/${w.guildId}/channels`, {
-      name: `p92-probe-r${i}`,
-      type: 0,
-    }).catch(() => undefined);
+    if (!names.has(`p92-probe-r${i}`))
+      await apiPost(owner.request, `/guilds/${w.guildId}/channels`, {
+        name: `p92-probe-r${i}`,
+        type: 0,
+      });
   await setMain(owner);
   const { ctx, page } = await newPage(browser, owner);
   await go(page, `/settings/server/${w.guildId}/community`);
@@ -215,7 +228,7 @@ async function case2(browser: Browser, owner: BrowserContext) {
     await page.waitForTimeout(150);
   }
   await field.click();
-  for (let n = 0; n < 12; n++) {
+  for (let n = 0; n < 9; n++) {
     const free = page.locator('[role="option"]:not([aria-selected="true"])', {
       hasText: /p92-probe-r\d/,
     });
@@ -233,13 +246,21 @@ async function case2(browser: Browser, owner: BrowserContext) {
     .first();
   const rows = await hitTestAll(page, control);
   const chips = rows.filter((r) => r.name.startsWith('Remove '));
+  say(`case2 chips: ${chips.map((r) => r.name + '/' + r.tag).join(' , ')}`);
   expect(chips.length).toBe(9);
   expect(notReached(rows)).toEqual([]);
-  // Rows of chips by the buttons' y (a row is within 4 px).
-  const ys = Array.from(new Set(chips.map((r) => Math.round((r.result?.box.y ?? 0) / 8)))).sort(
-    (a, b) => a - b,
-  );
-  const rowOf = (r: ControlRow) => ys.indexOf(Math.round((r.result?.box.y ?? 0) / 8));
+  // Rows of chips, read once from the layout (a hit test scrolls, so its own boxes cannot be compared).
+  const tops = await page.evaluate(() => {
+    const out: Record<string, number> = {};
+    document.querySelectorAll<HTMLElement>('button[aria-label^="Remove "]').forEach((b) => {
+      out[b.getAttribute('aria-label') ?? ''] = Math.round(
+        b.parentElement!.getBoundingClientRect().top + window.scrollY,
+      );
+    });
+    return out;
+  });
+  const ys = Array.from(new Set(Object.values(tops))).sort((x, y) => x - y);
+  const rowOf = (r: ControlRow) => ys.indexOf(tops[r.name] ?? -1);
   const figures = chips.map((r) => ({
     name: r.name,
     row: rowOf(r),
@@ -254,18 +275,19 @@ async function case2(browser: Browser, owner: BrowserContext) {
   report['case2'] = { rows: ys.length, figures, base: BASE, theme: await theme(page) };
   save();
   if (BASE) {
-    const upper = figures.filter((f) => f.row < 2);
-    expect(ys.length).toBe(3);
-    expect(upper.length).toBe(6);
-    expect(upper.every((f) => f.below === false)).toBe(true);
-    // The taker is a remove button of the next row down.
-    for (const f of upper) {
+    // A button fails "below" when a button of the next row sits under it (the names of this spec's channels are
+    // longer than wave 91's, so a row holds two chips, not three); the taker is that lower row's button.
+    const last = ys.length - 1;
+    expect(ys.length).toBeGreaterThanOrEqual(2);
+    const failing = figures.filter((f) => f.below === false);
+    expect(failing.length).toBeGreaterThanOrEqual(6);
+    for (const f of failing) {
       expect(f.belowTaker).toMatch(/^Remove /);
       expect(f.belowTaker).not.toBe(f.name);
-      const own = figures.find((g) => g.name === f.belowTaker);
-      expect(own?.row).toBe(f.row + 1);
+      expect(figures.find((g) => g.name === f.belowTaker)?.row).toBe(f.row + 1);
+      expect(f.row).toBeLessThan(last);
     }
-    expect(figures.filter((f) => f.row === 2).every((f) => f.status === 'pass')).toBe(true);
+    expect(figures.filter((f) => f.row === last).every((f) => f.status === 'pass')).toBe(true);
     expect(figures.every((f) => f.centre === true)).toBe(true);
     expect(figures.every((f) => f.above === true)).toBe(true);
   }
