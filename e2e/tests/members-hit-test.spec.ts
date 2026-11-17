@@ -92,17 +92,24 @@ function probeCheckbox(name: string): Probe {
 }
 
 async function openMembers(page: Page, guildId: string) {
-  await page.goto(`/settings/server/${guildId}`);
+  // Deep-link to the section. The bare /settings/server/:id route redirects to the first section once the
+  // viewer has loaded; that remounts SettingsLayout and closes a phone nav opened meanwhile (Firefox and
+  // WebKit lose that race, Chromium happens to win it).
+  await page.goto(`/settings/server/${guildId}/members`);
   const dialog = page.getByRole('dialog');
   // On a phone the section list sits behind the "Sections" button; on a desktop it is already open.
   const sections = dialog.getByRole('button', { name: /^Sections/ });
   await expect(dialog).toBeVisible();
   // The button only exists below the phone breakpoint: wait for it there, never on a desktop.
-  if ((page.viewportSize()?.width ?? 1280) <= 720) await sections.click();
-  await dialog
-    .getByRole('button', { name: /^Members$/ })
-    .first()
-    .click();
+  const members = dialog.getByRole('button', { name: /^Members$/ }).first();
+  if ((page.viewportSize()?.width ?? 1280) <= 720) {
+    // Retry open-then-look until the nav is open and its list is populated (it fills in after the viewer loads).
+    await expect(async () => {
+      if ((await sections.getAttribute('aria-expanded')) !== 'true') await sections.click();
+      await expect(members).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+  }
+  await members.click();
   await expect(page.locator('table.ss-table tbody tr').first()).toBeVisible();
 }
 
