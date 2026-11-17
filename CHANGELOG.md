@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 91 - 2026-11-17
+
+- **Members.** On a desktop "Member List" works in voice and stage channels. On a phone the group DM members panel lines up with the profile card and its buttons are easier to tap. A profile's guestbook "Sign" button stays readable when hovered or pressed. The file drop area's text can be translated.
+- **Operators.** No migration and nothing to do.
+
 ## Phase 90 - 2026-11-17
 
 - **Members.** On a phone "Member List" works in voice and stage channels, and tapping a group DM's name shows its members. A profile's guestbook "Sign" button uses the profile's colours. A server's Members list uses the standard checkbox.
