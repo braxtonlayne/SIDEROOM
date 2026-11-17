@@ -169,7 +169,7 @@ async function prepare(page: Page, n: number) {
       .click();
     await page.waitForTimeout(150);
   }
-  await page.keyboard.press('Escape');
+  if (n > 0) await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   return field;
 }
