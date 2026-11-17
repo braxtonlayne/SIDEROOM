@@ -262,7 +262,12 @@ function chipsProbe() {
   };
 }
 
-async function item1(browser: Browser, owner: BrowserContext, which: keyof typeof SETTINGS) {
+async function item1(
+  browser: Browser,
+  owner: BrowserContext,
+  which: keyof typeof SETTINGS,
+  aligned = false,
+) {
   const w = world();
   const s = SETTINGS[which];
   await setMain(owner, s.theme);
@@ -275,7 +280,9 @@ async function item1(browser: Browser, owner: BrowserContext, which: keyof typeo
   const opts = page.getByRole('option');
   console.log(`REPORT item1 ${which} options: ${await opts.count()}`);
   for (let n = 0; n < 14; n++) {
-    const free = page.locator('[role="option"]:not([aria-selected="true"])');
+    const free = aligned
+      ? page.locator('[role="option"]:not([aria-selected="true"])', { hasText: /p90-rd/ })
+      : page.locator('[role="option"]:not([aria-selected="true"])');
     if ((await page.getByRole('listbox').count()) === 0) await field.click();
     if ((await free.count()) === 0) break;
     await free.first().click();
@@ -285,8 +292,8 @@ async function item1(browser: Browser, owner: BrowserContext, which: keyof typeo
   await page.waitForTimeout(400);
   const m = await page.evaluate(chipsProbe);
   if (!m) throw new Error('item1: no chips reached');
-  log(`item1-chips-${s.tag}`, m);
-  await shot(page, `1-chips-${s.tag}`);
+  log(`item1-chips-${aligned ? 'aligned-' : ''}${s.tag}`, m);
+  await shot(page, `1-chips-${aligned ? 'aligned-' : ''}${s.tag}`);
   await ctx.close();
 }
 
@@ -614,14 +621,54 @@ function stacksProbe() {
       };
     })
     .filter((c) => c.switches >= 2 || c.card === 'us-voice-sounds');
-  return { theme: M.root(), scroll: M.scroll(), cards: out };
+  // Every parent that holds two or more switch rows, wherever it is (not only a card's direct children).
+  const rowsAll = Array.from(document.querySelectorAll<HTMLElement>('div')).filter((e) =>
+    e.querySelector(':scope > input[role="switch"]'),
+  );
+  const parents = Array.from(new Set(rowsAll.map((e) => e.parentElement!)));
+  const stacks = parents
+    .map((par) => {
+      const rs = rowsAll.filter((e) => e.parentElement === par);
+      return { par, rs };
+    })
+    .filter((g) => g.rs.length >= 2)
+    .map(({ par, rs }) => {
+      const cs = getComputedStyle(par);
+      return {
+        parent: M.d(par),
+        parentId: par.id || par.closest('[id]')?.id || null,
+        parentDisplay: cs.display,
+        parentGap: cs.rowGap,
+        title: (par.closest('.us-card')?.querySelector('.us-card-title')?.textContent ?? '').trim(),
+        rows: rs.map((r, i) => {
+          const rb = r.getBoundingClientRect();
+          const pb = i ? rs[i - 1]!.getBoundingClientRect() : null;
+          return {
+            label: (r.textContent ?? '').trim().slice(0, 24),
+            box: M.box(r),
+            gapToPrevSwitch: pb ? Math.round((rb.top - pb.bottom) * 10) / 10 : null,
+            marginTop: getComputedStyle(r).marginTop,
+            adjacentRule: i ? r.previousElementSibling === rs[i - 1] : null,
+          };
+        }),
+      };
+    });
+  return { theme: M.root(), scroll: M.scroll(), cards: out, stacks };
 }
 
 async function item5(browser: Browser, owner: BrowserContext) {
   const s = SETTINGS.phone;
   await setMain(owner, s.theme);
   const { ctx, page } = await newPage(browser, s, owner);
-  for (const p of ['voice', 'notifications', 'streamer', 'accessibility']) {
+  for (const p of [
+    'voice',
+    'notifications',
+    'streamer',
+    'accessibility',
+    'privacy',
+    'text',
+    'appearance',
+  ]) {
     try {
       await go(page, `/settings/user/${p}`);
       log(`item5-${p}-${s.tag}`, await page.evaluate(stacksProbe));
@@ -654,6 +701,13 @@ test('p90 measure: the five re-measure items', async ({ browser }) => {
       console.log(`REPORT item ${id} FAILED ${String(e).slice(0, 300)}`);
     }
   };
+  if (ONLY.includes('1a')) {
+    for (let i = 1; i <= 9; i++)
+      await apiPost(owner.request, `/guilds/${w.guildId}/channels`, {
+        name: `p90-r${i}`,
+        type: 0,
+      }).catch(() => undefined);
+  }
   if (ONLY.includes('1')) {
     // Extra channels, so that the chips wrap to three rows at 375 (they stay in the scratch database).
     for (const name of [
@@ -669,6 +723,7 @@ test('p90 measure: the five re-measure items', async ({ browser }) => {
   }
   await run('1', () => item1(browser, owner, 'phone'));
   await run('1', () => item1(browser, owner, 'desk'));
+  await run('1a', () => item1(browser, owner, 'phone', true));
   await run('2', () => item2(browser, owner, 'phone'));
   await run('2', () => item2(browser, owner, 'desk'));
   await run('3', () => item3(browser, owner));
