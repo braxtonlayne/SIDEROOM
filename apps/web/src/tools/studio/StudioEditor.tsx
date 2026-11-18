@@ -3,7 +3,7 @@
  * drag selects a region for crop and redaction, and a panel per mode holds the options. Nothing in this file
  * (or the session) sends the image anywhere: "Use the edited image" hands a Blob to the caller, which decides.
  */
-import { Button, Icon } from '@sideroom/ui';
+import { Button, Icon, NativeSelect } from '@sideroom/ui';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { announce } from '../../a11y/announcer';
 import { useT } from '../../i18n';
@@ -438,7 +438,7 @@ export function StudioEditor({
             </label>
             <label className="sr-st-field">
               <span>{t('studio.caption.font')}</span>
-              <select
+              <NativeSelect
                 value={caption.font}
                 onChange={(e) => setCaption({ ...caption, font: e.target.value as CaptionFont })}
               >
@@ -447,7 +447,7 @@ export function StudioEditor({
                     {fontLabel[f]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="sr-st-field">
               <span>{t('studio.caption.size')}</span>
@@ -574,11 +574,14 @@ export function StudioEditor({
           <>
             <label className="sr-st-field">
               <span>{t('studio.export.format')}</span>
-              <select value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}>
+              <NativeSelect
+                value={format}
+                onChange={(e) => setFormat(e.target.value as ExportFormat)}
+              >
                 <option value="png">{t('studio.export.formatPng')}</option>
                 <option value="jpeg">{t('studio.export.formatJpeg')}</option>
                 <option value="webp">{t('studio.export.formatWebp')}</option>
-              </select>
+              </NativeSelect>
             </label>
             {format !== 'png' && (
               <label className="sr-st-field">
