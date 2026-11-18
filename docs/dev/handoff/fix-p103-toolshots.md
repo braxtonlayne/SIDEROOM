@@ -1,0 +1,18 @@
+# fix-p103-toolshots (shots builder, pod tools; SEC-AUD-463, 464, 465; D-972, D-973)
+
+Spec: `e2e/tests/p103-tools-shots.spec.ts`. Shots and figures: `visual-sweep-shots/p103-tools` (`figures-base.json`, `figures-after.json`, `report-base.json`, `report-after.json`, `table-after.json`, `base-*.png`, `*.png`, `pairs/*.png`). I changed no app file. Branch holds the merges of `fix/p103-calc` (62be59bc), `fix/p103-studio` (e0e9a26a) and `fix/p103-rooms` (c4440c32); no conflict.
+
+## Clock
+Started 11:56. Spec compiled 12:00. Lock `toolshots 12:14`; one round, base then after, on one database (12:14 to 12:23, 9 min). Released 12:23.
+
+## STACK-ROUND 1 (base and after in one hold)
+`heavy.sh status` at the start of the round: `toolshots 12:14 / loungeshots 12:14`. Stack on 8809 / 5809 / 9509 with `SR_ADMIN_REQUIRE_REAUTH=0`, database `sr_p103_toolshots_ui`, seed with no FAIL line. Base: the pod's app files put back to wave 102's text with `git checkout 49ca8946 -- apps/web/src/tools` (the commander had asked me to merge calc and studio before my slot came), 4.1 min, 60 figures, nothing unreached. Then `git checkout HEAD -- apps/web/src/tools` (the merged text; `git status` clean afterwards) and the after phase on the same database, 60 figures, nothing unreached, 61 problem lines (see FAULTS). Stack stopped by PID, ports free, lock released.
+
+## FAULTS (after round 1)
+1. **calc, `tools/calc/calc.css` (the floor), Units "From" at 375, both themes:** the floor `min-inline-size: 7.5rem` leaves the field 120.6 px wide; the selected text "Kilometre (km)" is 97.1 px and only 70.6 px lie inside the padding, so the text runs under the chevron (gap -12.5 px; the base was 77.8 px and clipped too). Cure **(b)**: raise the floor so the longest unit text fits: 97.1 + 12 + 36 + 2 = 147.1 px at least; ask for `10rem` (160 px, 110 px inside). The informational "widest option" figure in `table-after.json` shows other unit names, see the table. Timezone Work starts and ends (30 and 35 px of text in 70 px), Programmer and the rest are clear.
+2. **rooms, `tools/tierlist/rooms.css` `.sr-room-move` (the Move chip, kept raw), 1024 and 375, all themes:** base 80 x 21 px, after 80 x 19 px: the chip's select is 2 px shorter, so every tier row with a chip is 2 px shorter and the controls below it move up 2 px (the tier-list lines in `report-after.json`). Cause measured: in the base `.sr-room select { font: inherit }` (specificity 0,1,1) beat `.sr-room-move { font-size: 0.75rem }` (0,1,0), so the chip's text was the inherited size, not 12 px. Cure **(b)**: take `font-size: 0.75rem` out of `.sr-room-move` (keep `font: inherit`) so the box equals the base; `max-inline-size: 5rem` stays.
+3. **rooms, `PollBuilderTool.tsx` Lasts (`fit="content"`), 375 only, not a cure request:** it is 94 x 44 (base 82 x 27: +12 px, inside the 36 px allowed, text 28.9 px in 44 px, clear of the chevron; same at 1024: 94 x 40). The row `.sr-room-inline` no longer holds the checkbox beside it at 375: "Allow more than one answer" moves 88 px left and 42 px down (allowed 17) onto its own line, and "Post the poll" follows. Whole fields, nothing overlaps or scrolls. The kit's end padding is fixed (D-973), so I ask for no cure; written here so the commander knows the poll form is one line taller at 375. The spec lists it as a note (Poll is in `WRAP_OK`).
+No kit fault (the chevron stays at the box end in every shot I opened, see below). Nothing else breaks "what the measuring checks".
+
+## TYPECHECK
+e2e `npx tsc --noEmit -p tsconfig.json` exit 0 and prettier on the spec exit 0 after the last edit (12:3x). Web typecheck on the merged tree: see below (filled at the end).

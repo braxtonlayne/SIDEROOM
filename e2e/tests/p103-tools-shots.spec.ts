@@ -373,6 +373,8 @@ interface SelFig {
   /** The selected option's text, its width in the select's own font, and the room inside its padding and border. */
   text: string;
   textW: number;
+  /** The widest option's text (informational: a field narrower than it cuts that option when picked). */
+  maxOptW: number;
   inner: number;
   /** Chevron zone (the kit's ::after: a 6 px box 14 px from the end) minus the end of the text; null when not the kit's. */
   chevronGap: number | null;
@@ -450,6 +452,7 @@ async function measure(drawer: Locator): Promise<Measured> {
       cvs.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
       const text = opt?.text ?? '';
       const textW = cvs.measureText(text).width;
+      const maxOptW = Math.max(0, ...Array.from(e.options, (o) => cvs.measureText(o.text).width));
       const padStart = parseFloat(cs.paddingInlineStart);
       const padEnd = parseFloat(cs.paddingInlineEnd);
       const borders = parseFloat(cs.borderInlineStartWidth) + parseFloat(cs.borderInlineEndWidth);
@@ -470,6 +473,7 @@ async function measure(drawer: Locator): Promise<Measured> {
         value: e.value,
         text,
         textW: Math.round(textW * 10) / 10,
+        maxOptW: Math.round(maxOptW * 10) / 10,
         inner: Math.round((r.width - borders - padStart - padEnd) * 10) / 10,
         chevronGap: kit
           ? Math.round((r.right - 20 - 3 - (r.left + borders / 2 + padStart + textW)) * 10) / 10
@@ -576,7 +580,12 @@ async function keyboardCases(page: Page, drawer: Locator, problems: string[], ta
   const n = await drawer.locator('select').count();
   for (let i = 0; i < n; i++) {
     const sel = drawer.locator('select').nth(i);
-    const options = await sel.locator('option').count();
+    let options = await sel.locator('option').count();
+    if (options < 2) {
+      // A Channel select changes the room and the drawer re-renders: give the next select time to settle.
+      await page.waitForTimeout(1200);
+      options = await sel.locator('option').count();
+    }
     if (options < 2) {
       out.push({ i, options, note: 'one option: nothing to change' });
       continue;
@@ -603,6 +612,7 @@ async function keyboardCases(page: Page, drawer: Locator, problems: string[], ta
     await page.keyboard.press(rev);
     await page.waitForTimeout(150);
     const back = await sel.inputValue();
+    await page.waitForTimeout(600);
     out.push({
       i,
       options,
@@ -706,7 +716,7 @@ const TARGET_FONT: Record<string, number> = {
   timezone: 14,
 };
 /** Targets whose rows may wrap at 375 because of the floor (D-973): a moved control there is a note, not a problem. */
-const WRAP_OK = new Set(['units', 'currency', 'percent', 'programmer', 'timezone']);
+const WRAP_OK = new Set(['poll', 'units', 'currency', 'percent', 'programmer', 'timezone']);
 const expFor = (target: string, key: string): Exp => {
   const nm = key.split(':select:')[1] ?? key;
   return (
@@ -795,6 +805,10 @@ function check(
         bad(
           i,
           `text "${a.text}" ${a.textW} px does not fit the ${a.inner} px inside its padding (chevron gap ${a.chevronGap})`,
+        );
+      if (a.maxOptW > a.inner + 0.5)
+        notes.push(
+          `${label}: ${a.key} widest option ${a.maxOptW} px is wider than the ${a.inner} px inside its padding (cut when picked)`,
         );
       const want = TARGET_FONT[target];
       if (want !== undefined && Math.abs(a.fontPx - want) > 0.1)
