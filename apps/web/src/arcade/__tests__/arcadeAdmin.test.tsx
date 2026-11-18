@@ -63,6 +63,13 @@ describe('Arcade admin: Coming Soon release', () => {
     expect(admin.releaseComingSoon).toHaveBeenCalledWith('7', { application_id: '42' });
   });
 
+  it('shows the tier of a Coming Soon entry beside its title', async () => {
+    const { admin, api } = rig();
+    render(<ArcadeAdminSection admin={admin} api={api} />);
+    const item = (await screen.findByText('OpenMW')).closest('li');
+    expect(item?.textContent).toContain('Clean-room reimplementation');
+  });
+
   it('keeps Remove as the silent removal', async () => {
     const { admin, api } = rig();
     render(<ArcadeAdminSection admin={admin} api={api} />);
