@@ -8,6 +8,7 @@ import { useT, type MessageKey } from '../../i18n';
 import { Async, ReasonDialog, SectionHeader, useResource } from '../ui';
 import * as api from './api';
 import { breakEven, suggestedPrice, type CostInputs, type LevelShape } from './calculator';
+import { TableRegion } from '../TableRegion';
 import './donations.css';
 
 type NumKey = {
@@ -132,7 +133,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
         ))}
       </div>
       <h3>{t('admin.donations.pricing.perksPerTier')}</h3>
-      <div className="adm-table-wrap">
+      <TableRegion label={t('admin.donations.pricing.perksPerTier')}>
         <table className="adm-table adm-perk-table">
           <caption className="us-sr">{t('admin.donations.pricing.perksPerTier')}</caption>
           <thead>
@@ -180,7 +181,7 @@ function ConfigForm({ cfg, onSaved }: { cfg: api.AdminConfig; onSaved: () => voi
             })}
           </tbody>
         </table>
-      </div>
+      </TableRegion>
       <p className="ss-meta">{t('admin.donations.pricing.perksNote')}</p>
       {notice && (
         <Notice variant="success" role="status">

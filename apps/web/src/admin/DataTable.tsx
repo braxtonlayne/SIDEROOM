@@ -4,6 +4,7 @@ import { Button, Checkbox, EmptyState, Notice } from '@sideroom/ui';
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { useT } from '../i18n';
 import { LoadMore, type Paged } from './ui';
+import { TableRegion } from './TableRegion';
 
 export interface Column<T> {
   /** Stable id (also the storage key for the chooser). */
@@ -152,7 +153,7 @@ export function DataTable<T>({
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={label}>
           <table className="adm-table adm-table-stack" aria-label={label}>
             <thead>
               <tr>
@@ -181,7 +182,7 @@ export function DataTable<T>({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <p className="ss-sub adm-dt-count" role="status">
         {t('admin.dataTable.loaded', { count: paged.items.length })}

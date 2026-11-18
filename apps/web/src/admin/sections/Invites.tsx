@@ -15,6 +15,7 @@ import {
   usePaged,
   useResource,
 } from '../ui';
+import { TableRegion } from '../TableRegion';
 
 const INVITE_STATES: { value: string; label: MessageKey }[] = [
   { value: '', label: 'admin.invites.stateAny' },
@@ -81,7 +82,7 @@ export function InvitesSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={t('admin.invites.tableLabel')}>
           <table className="adm-table" aria-label={t('admin.invites.tableLabel')}>
             <thead>
               <tr>
@@ -126,7 +127,7 @@ export function InvitesSection() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
       <Suspicion />

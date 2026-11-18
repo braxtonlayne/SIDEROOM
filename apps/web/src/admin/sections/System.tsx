@@ -19,6 +19,7 @@ import {
   usePaged,
   useResource,
 } from '../ui';
+import { TableRegion } from '../TableRegion';
 
 const INTEGRATION_LABELS: Record<string, MessageKey> = {
   smtp: 'admin.system.integrationSmtp',
@@ -347,7 +348,7 @@ export function JobsSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={t('admin.jobs.tableLabel')}>
           <table className="adm-table" aria-label={t('admin.jobs.tableLabel')}>
             <thead>
               <tr>
@@ -406,7 +407,7 @@ export function JobsSection() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
       <ConfirmDialog
