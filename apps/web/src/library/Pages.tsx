@@ -6,6 +6,7 @@ import {
   EmptyState,
   FilterChips,
   Icon,
+  NativeSelect,
   Notice,
   SegmentedControl,
   Skeleton,
@@ -183,13 +184,17 @@ export function MyLibraryPage() {
         <h1 className="lib-h1">{t('library.pages.myLibrary.title')}</h1>
         <label className="lib-select">
           <span>{t('library.pages.myLibrary.sort')}</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value as LibrarySort)}>
+          <NativeSelect
+            fit="content"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as LibrarySort)}
+          >
             <option value="followed">{t('library.pages.myLibrary.sortFollowed')}</option>
             <option value="read">{t('library.pages.myLibrary.sortRead')}</option>
             <option value="updated">{t('library.pages.myLibrary.sortUpdated')}</option>
             <option value="unread">{t('library.pages.myLibrary.sortUnread')}</option>
             <option value="title">{t('library.pages.myLibrary.sortTitle')}</option>
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <FilterChips
