@@ -213,7 +213,7 @@ async function readFields(root: Locator): Promise<Raw[]> {
       ['Top', 'Right', 'Bottom', 'Left'].find(
         (s) =>
           (c as unknown as Record<string, string>)['border' + s + 'Style'] !== 'none' &&
-          parseFloat((c as unknown as Record<string, string>)['border' + s + 'Width']) > 0,
+          parseFloat(String((c as unknown as Record<string, string>)['border' + s + 'Width'])) > 0,
       ) ?? 'Top';
     const bp = (c: CSSStyleDeclaration, k: string) =>
       (c as unknown as Record<string, string>)['border' + sideOf(c) + k] as string;
