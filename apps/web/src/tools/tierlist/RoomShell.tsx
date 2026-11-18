@@ -1,3 +1,4 @@
+import { NativeSelect } from '@sideroom/ui';
 import { useRouterState } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useT } from '../../i18n';
@@ -47,14 +48,14 @@ function ChannelPicker({
   return (
     <label className="sr-room-field">
       <span>{t('tools.rooms.channel')}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{t('tools.rooms.pickChannel')}</option>
         {options.map((c) => (
           <option key={c.id} value={c.id}>
             {channelLabel(c)}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }
