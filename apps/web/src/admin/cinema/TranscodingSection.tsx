@@ -13,7 +13,8 @@ import {
   Tabs,
   TextInput,
 } from '@sideroom/ui';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type CSSProperties } from 'react';
+import { apiFetch } from '../../api/client';
 import { formatNumber, useT } from '../../i18n';
 import {
   LoadMore,
@@ -28,6 +29,36 @@ import { NotAvailableYet } from './AssetPanel';
 import { Banner, LoadProblem, useLoad, useRun } from './hooks';
 import * as tx from './transcodeApi';
 import { TableRegion } from '../TableRegion';
+import type { AdminStorageMount } from '../storage/api';
+
+/** D-991: the label of a mount sits on one line and is cut with an ellipsis, so a long one cannot widen the table
+    (the State cell clamps its error text the same way: the text stays whole, the cell shows less). */
+const MOUNT_LABEL_STYLE: CSSProperties = {
+  display: 'block',
+  maxInlineSize: '16ch',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+/** D-991: id -> label of the mounts the Storage page lists, asked once when the queue opens. It is a plain read (no
+    `withReauth`, so a closed re-auth window can never put a prompt on this page); a failure leaves the map empty. */
+function useMountLabels(): Map<string, string> {
+  const [labels, setLabels] = useState<Map<string, string>>(() => new Map());
+  useEffect(() => {
+    let live = true;
+    apiFetch<AdminStorageMount[]>('/admin/storage/mounts?limit=50', { retries: 0 })
+      .then((rows) => {
+        if (!live || !Array.isArray(rows)) return;
+        setLabels(new Map(rows.map((m) => [m.id, m.label])));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return labels;
+}
 
 export function TranscodingSection() {
   const t = useT();
@@ -337,6 +368,7 @@ function QueueTab() {
     }
   });
   const { busy, error, notice, run } = useRun();
+  const mountLabels = useMountLabels();
   const [counts, setCounts] = useState<tx.QueueCounts | null>(null);
   useEffect(() => {
     let live = true;
@@ -421,7 +453,18 @@ function QueueTab() {
                     <span className="adm-mono">{j.asset_id}</span>
                   </td>
                   <td data-label={t('admin.transcoding.col.storageMount')}>
-                    {j.mount_id ? <span className="adm-mono">{j.mount_id}</span> : null}
+                    {j.mount_id ? (
+                      <>
+                        {mountLabels.get(j.mount_id) ? (
+                          <>
+                            <span style={MOUNT_LABEL_STYLE}>
+                              {mountLabels.get(j.mount_id)}
+                            </span>{' '}
+                          </>
+                        ) : null}
+                        <span className="adm-mono">{j.mount_id}</span>
+                      </>
+                    ) : null}
                   </td>
                   <td data-label={t('admin.transcoding.col.state')}>
                     <StateBadge state={j.state} />
