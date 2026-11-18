@@ -1,4 +1,4 @@
-import { Button, Icon, Modal, TextInput } from '@sideroom/ui';
+import { Button, Icon, Modal, NativeSelect, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
@@ -97,17 +97,13 @@ export function CustomStatusDialog({ onClose }: { onClose: () => void }) {
         )}
         <label className="lng-field">
           <span className="lng-field-label">{t('lounge.customStatus.clearAfter')}</span>
-          <select
-            className="lng-select"
-            value={clearAfter}
-            onChange={(e) => setClearAfter(e.target.value)}
-          >
+          <NativeSelect value={clearAfter} onChange={(e) => setClearAfter(e.target.value)}>
             {CLEAR_AFTER.map((o) => (
               <option key={o.value} value={o.value}>
                 {t(o.labelKey)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="lng-form-actions">
           {(current || currentEmoji) && (
