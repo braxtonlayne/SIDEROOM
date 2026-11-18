@@ -22,7 +22,7 @@ import {
  * `figures-part<n>.json` (page, state, name, role or tag, box, status, taker, path); one viewport shot per page and per
  * overlay. An overlay that did not open is written as a note in the same file, never as a failure.
  *
- * Parts (SR_P106_TOUCHA_PART): 1 the text channel (+ overlays) and a thread; 2 forum and post, DM, voice channel,
+ * Parts (SR_P106_TOUCHA_PART; "12" runs 1 and 2 in one job): 1 the text channel (+ overlays) and a thread; 2 forum and post, DM, voice channel,
  * scrapbook; 3 the Home list, Friends and its tabs, Message Requests, a channel's list pane (server rail, sidebar), the
  * inbox; 4 User settings, the first ten sections; 5 the last ten.
  *
@@ -31,7 +31,7 @@ import {
  */
 const ON = process.env.SR_P106_TOUCHA_ON === '1';
 const PHASE = process.env.SR_P106_TOUCHA_PHASE === 'after' ? 'after' : 'base';
-const PART = Number(process.env.SR_P106_TOUCHA_PART ?? '1');
+const PART = process.env.SR_P106_TOUCHA_PART ?? '1';
 const OUT =
   process.env.SR_P106_TOUCHA_OUT ??
   'C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p106-toucha';
@@ -276,6 +276,27 @@ const openMore = async (page: Page) => {
     await more.first().click({ timeout: 5000 });
 };
 
+/** A touch long press (the kit's ContextMenu opens after 500 ms of a resting touch, Q60). */
+async function longPress(page: Page, loc: Locator) {
+  await loc.scrollIntoViewIfNeeded({ timeout: 5000 });
+  await loc.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const x = r.left + Math.min(r.width / 2, 120);
+    const y = r.top + Math.min(r.height / 2, 40);
+    const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+    el.dispatchEvent(
+      new TouchEvent('touchstart', {
+        bubbles: true,
+        cancelable: true,
+        touches: [t],
+        targetTouches: [t],
+        changedTouches: [t],
+      }),
+    );
+  });
+  await page.waitForTimeout(800);
+}
+
 const main = (page: Page) => page.locator('#lounge-main');
 const dialog = (page: Page) => page.getByRole('dialog').last();
 
@@ -321,7 +342,7 @@ async function part1(browser: Browser, owner: BrowserContext, w: World) {
       'channel',
       'message action menu',
       async () => {
-        await page.locator('article.lng-msg').first().click({ button: 'right', timeout: 6000 });
+        await longPress(page, page.locator('article.lng-msg').first());
       },
       () => page.getByRole('menu').last(),
       { also: MENU_ITEM_SELECTOR },
@@ -374,7 +395,10 @@ async function part1(browser: Browser, owner: BrowserContext, w: World) {
       'thread',
       'message action menu',
       async () => {
-        await page.locator('article.lng-msg').first().click({ button: 'right', timeout: 6000 });
+        await longPress(
+          page,
+          page.locator('aside.lng-thread-pane').locator('article.lng-msg').first(),
+        );
       },
       () => page.getByRole('menu').last(),
       { also: MENU_ITEM_SELECTOR },
@@ -418,7 +442,7 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
         'forum',
         'post opened',
         async () => {
-          await tap(page.getByText(`p106toucha-post-${STAMP}`));
+          await tap(page.locator('.lng-post-btn'));
         },
         () => main(page),
         { reload: `/channels/${w.guildId}/${forumId}` },
@@ -437,7 +461,12 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
     // DM
     if (w.dmId) {
       const durl = `/channels/@me/${w.dmId}`;
-      await go(page, durl, page.getByRole('log'));
+      // The seeded DM is a message request from the member: test that view, then accept it and test the DM.
+      await go(page, durl);
+      await pageCensus(page, 'dm-request', main(page));
+      await tap(main(page).getByRole('button', { name: /^Accept/ }));
+      await page.getByRole('log').first().waitFor({ timeout: 20_000 });
+      await settle(page);
       await pageCensus(page, 'dm', main(page));
       await overlay(
         page,
@@ -465,7 +494,7 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
         'dm',
         'message action menu',
         async () => {
-          await page.locator('article.lng-msg').first().click({ button: 'right', timeout: 6000 });
+          await longPress(page, page.locator('article.lng-msg').first());
         },
         () => page.getByRole('menu').last(),
         { also: MENU_ITEM_SELECTOR },
@@ -691,11 +720,11 @@ test(`wave 106 toucha: the 44 px census, part ${PART}`, async ({ browser }) => {
     await apiPatch(ownerCtx.request, '/users/@me/settings', {
       settings: { user_prefs: { theme: 'lounge-light', zoom: 100 } },
     });
-    if (PART === 1) await part1(browser, ownerCtx, w);
-    else if (PART === 2) await part2(browser, ownerCtx, w);
-    else if (PART === 3) await part3(browser, ownerCtx, w);
-    else if (PART === 4) await settingsPage(browser, ownerCtx, USER_SETTINGS.slice(0, 10));
-    else if (PART === 5) await settingsPage(browser, ownerCtx, USER_SETTINGS.slice(10));
+    if (PART === '1' || PART === '12') await part1(browser, ownerCtx, w);
+    if (PART === '2' || PART === '12') await part2(browser, ownerCtx, w);
+    if (PART === '3') await part3(browser, ownerCtx, w);
+    if (PART === '4') await settingsPage(browser, ownerCtx, USER_SETTINGS.slice(0, 10));
+    if (PART === '5') await settingsPage(browser, ownerCtx, USER_SETTINGS.slice(10));
   } finally {
     writeFileSync(
       resolve(OUT, `figures-part${PART}.json`),
