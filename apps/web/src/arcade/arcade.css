@@ -1022,6 +1022,12 @@
   .arc-card[data-size='hero'] .arc-actions :is(button, a) {
     min-block-size: 44px;
   }
+  /* SEC-AUD-445, D-956: a Coming soon card's Repository link is a 44 px touch target, as the hero's actions above. */
+  .arc-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
+  }
   .arc-tabs-action {
     flex: none;
     padding-inline-start: 12px;
