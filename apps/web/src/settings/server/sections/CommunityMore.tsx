@@ -1,4 +1,4 @@
-import { Badge, Button, Switch, TextArea, TextInput } from '@sideroom/ui';
+import { Badge, Button, NativeSelect, Switch, TextArea, TextInput } from '@sideroom/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { useT } from '../../../i18n';
 import { limitErrorText } from '../../../lounge/limitErrors';
@@ -144,9 +144,8 @@ function GuideForm({
             <label className="ss-field-label" htmlFor={`ss-guide-ch-${i}`}>
               {t('settings.communityMore.todoChannel', { n: i + 1 })}
             </label>
-            <select
+            <NativeSelect
               id={`ss-guide-ch-${i}`}
-              className="ss-select"
               value={x.channel_id ?? ''}
               onChange={(e) => setTodo(i, { channel_id: e.target.value || null })}
             >
@@ -156,7 +155,7 @@ function GuideForm({
                   #{c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <div>
             <Button
@@ -678,9 +677,8 @@ export function InsightsTab({ guildId }: { guildId: string }) {
         <label className="ss-field-label" htmlFor="ss-insights-days">
           {t('settings.communityMore.insightsRange')}
         </label>
-        <select
+        <NativeSelect
           id="ss-insights-days"
-          className="ss-select"
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
@@ -689,7 +687,7 @@ export function InsightsTab({ guildId }: { guildId: string }) {
               {t('settings.communityMore.insightsDays', { count: d })}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <Async res={res} label={t('settings.communityMore.loadingInsights')}>
         {(ins) => {
@@ -868,9 +866,8 @@ function ListingForm({
         <label className="ss-field-label" htmlFor="ss-listing-category">
           {t('settings.communityMore.directoryCategory')}
         </label>
-        <select
+        <NativeSelect
           id="ss-listing-category"
-          className="ss-select"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
@@ -879,7 +876,7 @@ function ListingForm({
               {prettyCategory(c)}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <TextArea
         label={t('settings.communityMore.directoryDescription')}

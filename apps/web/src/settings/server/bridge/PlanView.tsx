@@ -1,4 +1,14 @@
-import { Badge, Button, Modal, Notice, Radio, RadioGroup, Switch, Tabs } from '@sideroom/ui';
+import {
+  Badge,
+  Button,
+  Modal,
+  NativeSelect,
+  Notice,
+  Radio,
+  RadioGroup,
+  Switch,
+  Tabs,
+} from '@sideroom/ui';
 import { useCallback, useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { errorText } from '../api';
@@ -439,25 +449,25 @@ function RowsTable({
           <legend>{t('settings.bridgeSync.plan.linkTitle')}</legend>
           <label className="ss-field-label">
             {t('settings.bridgeSync.plan.linkHere')}
-            <select className="ss-select" value={here} onChange={(e) => setHere(e.target.value)}>
+            <NativeSelect value={here} onChange={(e) => setHere(e.target.value)}>
               <option value="">{t('settings.bridgeSync.plan.linkChoose')}</option>
               {onlyHere.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="ss-field-label">
             {t('settings.bridgeSync.plan.linkThere')}
-            <select className="ss-select" value={there} onChange={(e) => setThere(e.target.value)}>
+            <NativeSelect value={there} onChange={(e) => setThere(e.target.value)}>
               <option value="">{t('settings.bridgeSync.plan.linkChoose')}</option>
               {onlyThere.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <div className="ss-actions">
             <Button
