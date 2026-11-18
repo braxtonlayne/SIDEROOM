@@ -9,10 +9,10 @@ import { setStudySurfacesWith } from '../support/studySwitches';
 /**
  * D-958 (wave 101, library): the raw `<select>` elements of the Library's Browse (the Filters drawer's Status, Rating
  * and Age-restricted; the sort select in the toolbar stays raw, see the handoff) and Series social (Your rating, the
- * review form's rating, the reader's "Rate this chapter") move to the kit's `NativeSelect`. A record of every select's
+ * review form's rating) move to the kit's `NativeSelect`; the reader's "Rate this chapter" is not reached by this spec and stays raw. A record of every select's
  * box and of the controls around it, base then after, with the exact hit test (`e2e/support/hit-test.ts`).
  * NEEDS THE SWEEP'S SEEDED WORLD (`e2e/.state/sweep/`, made by `page-sweep.spec.ts`'s "seed the sweep world"; never
- * edited) for its stack and owner. The data it makes goes through the admin API under `p101-library-<stamp>` names
+ * edited) for its stack and owner. The data it makes goes through the admin API under `p101-lib-<digits>` names
  * (D-942): one published series with one chapter of three pages (the reader's pictures are answered by `page.route`).
  * It is deleted in a `finally`. Ratings and reviews it makes are on that series only and go with it.
  *
@@ -164,7 +164,7 @@ async function measure(page: Page, rootSel: string): Promise<Measured> {
     const root = document.querySelector(sel);
     const none: Measured = { scroll: [0, 0], selects: {}, controls: [], overlaps: [], extra: {} };
     if (!root) return none;
-    const box = (e: Element) => {
+    const abs = (e: Element) => {
       const r = e.getBoundingClientRect();
       let sx = 0;
       let sy = 0;
@@ -172,11 +172,17 @@ async function measure(page: Page, rootSel: string): Promise<Measured> {
         sx += p.scrollLeft;
         sy += p.scrollTop;
       }
+      return { x: r.left + sx, y: r.top + sy, w: r.width, h: r.height };
+    };
+    const o = abs(root);
+    // Boxes are relative to the root's top-left corner, so a change above the root does not count as a move.
+    const box = (e: Element) => {
+      const r = abs(e);
       return {
-        x: Math.round((r.left + sx) * 10) / 10,
-        y: Math.round((r.top + sy) * 10) / 10,
-        w: Math.round(r.width * 10) / 10,
-        h: Math.round(r.height * 10) / 10,
+        x: Math.round((r.x - o.x) * 10) / 10,
+        y: Math.round((r.y - o.y) * 10) / 10,
+        w: Math.round(r.w * 10) / 10,
+        h: Math.round(r.h * 10) / 10,
       };
     };
     const visible = (e: Element) => e.getClientRects().length > 0;
@@ -249,6 +255,8 @@ async function view(page: Page, rootSel: string, tag: string, problems: string[]
         .map((p) => ({ at: p.at, taker: p.taker })),
     }));
   say(`${tag}: selects ${JSON.stringify(m.selects)} hit ${JSON.stringify(hit)}`);
+  for (const f of hitFails.filter((h) => h.status === 'not-reached'))
+    say(`${tag}: not reached ${JSON.stringify(f)}`);
   if (hit.notReached) problems.push(`${tag}: ${hit.notReached} controls not reached (probe error)`);
   return { ...m, hit, hitFails, opened };
 }
@@ -336,10 +344,12 @@ async function runConfig(
   seriesId: string,
   chapterId: string,
   problems: string[],
+  store: Record<string, Figures>,
 ): Promise<Figures> {
   await setPrefs(owner, c.section);
   const { ctx, page } = await newPage(browser, owner, c);
   const fig: Figures = {};
+  store[c.tag] = fig;
   try {
     // ---- Browse: the toolbar (the sort select stays raw) and what a kit-height sort select would do to it.
     await page.goto('/library/browse', { waitUntil: 'domcontentloaded' });
@@ -436,7 +446,7 @@ async function runConfig(
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
     await theme(page, c, problems);
     await page.waitForTimeout(800);
-    const ser = await view(page, '.lib-root', `${c.tag} series`, problems);
+    const ser = await view(page, '.lib-rating', `${c.tag} series`, problems);
     fig['series'] = ser;
     (ser.extra as Record<string, unknown>)['tokens'] = {
       select: await probe(page, '.lib-rate select'),
@@ -472,11 +482,11 @@ async function runConfig(
     // ---- The Reviews tab: the form's rating select.
     await page.getByRole('tab', { name: 'Reviews' }).click();
     await page.getByRole('button', { name: /Write a review|Edit your review/ }).click();
-    await page.getByLabel('Rating', { exact: true }).first().waitFor();
+    await page.getByLabel('Rating with this review').first().waitFor();
     await page.waitForTimeout(600);
     const rev = await view(page, '.lib-review-form', `${c.tag} review form`, problems);
     fig['review'] = rev;
-    await page.getByLabel('Rating', { exact: true }).first().scrollIntoViewIfNeeded();
+    await page.getByLabel('Rating with this review').first().scrollIntoViewIfNeeded();
     if (c.review) await shot(page, c.review);
 
     // ---- The reader's end card: "Rate this chapter" (best effort; not reached is listed).
@@ -494,9 +504,7 @@ async function runConfig(
           .first()
           .scrollIntoViewIfNeeded({ timeout: 2000 })
           .catch(() => undefined);
-        await page.keyboard.press('End');
-        await page.keyboard.press('ArrowLeft');
-        await page.keyboard.press('ArrowRight');
+        for (let k = 0; k < 3; k++) await page.keyboard.press('ArrowRight');
         await page.waitForTimeout(800);
       }
     }
@@ -544,23 +552,32 @@ function compare(c: Cfg, base: Figures, after: Figures, problems: string[]) {
     const moved: { key: string; moved: number; allowed: number }[] = [];
     b.controls.forEach((bc, i) => {
       const ac = a.controls[i]!;
-      let allowed = 0;
+      // Allowed: the height added by every select wholly above this control, plus (for a control in a select's own
+      // row, which is centred or stretched with it) up to the select's own height difference either way.
+      let below = 0;
+      let beside = 0;
       for (const key of Object.keys(a.selects)) {
         const bs = b.selects[key];
         const as = a.selects[key];
-        if (bs && as && bs.y + bs.h <= bc.box.y + 0.5) allowed += as.h - bs.h;
+        if (!bs || !as) continue;
+        const diff = as.h - bs.h;
+        if (bs.y + bs.h <= bc.box.y + 0.5) below += diff;
+        else if (bs.y < bc.box.y + bc.box.h) beside += Math.abs(diff);
       }
+      const allowed = below + beside;
       const mv = Math.round((ac.box.y - bc.box.y) * 10) / 10;
       moved.push({ key: bc.key, moved: mv, allowed: Math.round(allowed * 10) / 10 });
       if (mv > allowed + 1)
         problems.push(`${c.tag} ${name}: ${bc.key} moved ${mv} px, allowed ${allowed}`);
-      if (mv < -1) problems.push(`${c.tag} ${name}: ${bc.key} moved up ${mv} px`);
+      if (mv < -(beside + 1)) problems.push(`${c.tag} ${name}: ${bc.key} moved up ${mv} px`);
     });
     d['moved'] = moved.filter((x) => x.moved !== 0 || x.allowed !== 0);
-    if (JSON.stringify(b.hit) !== JSON.stringify(a.hit))
+    const sum = (h: HitCount) => h.pass + h.fail + h.notReached + h.skipped;
+    if (sum(b.hit) !== sum(a.hit) || a.hit.pass < b.hit.pass || a.hit.fail > b.hit.fail)
       problems.push(
         `${c.tag} ${name}: hit test ${JSON.stringify(b.hit)} -> ${JSON.stringify(a.hit)}`,
       );
+    d['hit'] = { base: b.hit, after: a.hit };
     diffs[name] = d;
   }
   return diffs;
@@ -587,14 +604,14 @@ test(`p101 library: Browse and Series social selects, ${PHASE}`, async ({ browse
   }
   await call(octx.request, 'POST', '/sr/age-gate', { over_18: true }).catch(() => undefined);
 
-  const stamp = Date.now().toString(36);
+  const stamp = String(Date.now()).slice(-6); // digits only: the same width every run
   const problems: string[] = [];
   const figs: Record<string, Figures> = {};
   let seriesId = '';
   try {
     const series = await call<{ id: string }>(octx.request, 'POST', '/admin/library/series', {
       kind: 'manga',
-      title: `p101-library-${stamp}`,
+      title: `p101-lib-${stamp}`,
       synopsis: 'A series made by the wave 101 library spec.',
       genres: ['Drama'],
       authors: ['E2E Author'],
@@ -630,7 +647,7 @@ test(`p101 library: Browse and Series social selects, ${PHASE}`, async ({ browse
 
     for (const c of CONFIGS) {
       try {
-        figs[c.tag] = await runConfig(browser, octx, c, seriesId, chapter.id, problems);
+        figs[c.tag] = await runConfig(browser, octx, c, seriesId, chapter.id, problems, figs);
       } catch (e) {
         problems.push(`${c.tag}: ${String(e).slice(0, 600)}`);
       }

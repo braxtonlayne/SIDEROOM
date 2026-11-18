@@ -90,7 +90,7 @@ export function RatingBlock({ seriesId }: { seriesId: string }) {
             { value: 'friends', label: t('library.social.rating.scopeFriends') },
           ]}
         />
-        <label className="lib-rate">
+        <label className="lib-select-block">
           <span>{t('library.social.rating.yours')}</span>
           <NativeSelect
             value={r.mine ?? ''}
@@ -336,7 +336,7 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
         maxLength={8000}
         onChange={(e) => setBody(e.target.value)}
       />
-      <label className="lib-rate">
+      <label className="lib-select-block">
         <span>{t('library.social.reviews.rating')}</span>
         <NativeSelect
           value={rating ?? ''}
@@ -457,9 +457,9 @@ export function ChapterRate({ chapterId }: { chapterId: string }) {
   const r = q.data;
   return (
     <div className="lib-chapter-rate">
-      <label className="lib-rate">
+      <label className="lib-select lib-rate">
         <span>{t('library.social.chapterRate.label')}</span>
-        <NativeSelect
+        <select
           value={r?.mine ?? ''}
           disabled={!r || rate.isPending}
           onChange={(e) => rate.mutate(e.target.value === '' ? null : Number(e.target.value))}
@@ -470,7 +470,7 @@ export function ChapterRate({ chapterId }: { chapterId: string }) {
               {s}
             </option>
           ))}
-        </NativeSelect>
+        </select>
       </label>
       {r && r.count > 0 && (
         <span className="lib-muted">
