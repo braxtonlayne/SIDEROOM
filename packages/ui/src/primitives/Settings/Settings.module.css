@@ -311,6 +311,10 @@
   .sidebar > * {
     width: 100%;
   }
+  /* D-1022: a settings row is 44 px tall on a phone (the drawer scrolls); text size and inline padding are unchanged. */
+  .navItem {
+    min-block-size: 44px;
+  }
   .content,
   .wide .content {
     padding: 8px 16px 96px;

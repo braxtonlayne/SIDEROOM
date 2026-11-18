@@ -90,3 +90,19 @@
   padding: 16px 20px;
   border-top: 1px solid var(--ui-border);
 }
+
+/* D-1022: on a phone the close keeps its 32 px box and gets a 44 px tall tap area from a pseudo-element (the kit's own
+   small-Button pattern, D-856). The area is the button's own: a click on it is a click on the button. */
+@media (max-width: 720px) {
+  .close {
+    position: relative;
+  }
+  .close::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
