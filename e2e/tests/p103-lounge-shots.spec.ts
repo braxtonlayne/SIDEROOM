@@ -260,7 +260,7 @@ const STOPS: Stop[] = [
     area: 'lounge',
     builder: 'forum',
     file: 'lounge/forum/ForumView.tsx',
-    moved: ['Sort by'],
+    moved: [],
     select: (page) => page.getByRole('combobox', { name: 'Sort by' }),
     keyboard: true,
     open: async ({ page, ids }) => {
@@ -319,7 +319,7 @@ const STOPS: Stop[] = [
     area: 'settings',
     builder: 'pages',
     file: 'settings/server/bridge/ConflictLog.tsx',
-    moved: ['Show'],
+    moved: [],
     select: (page) => page.getByTestId('bridge-conflicts').getByRole('combobox'),
     keyboard: true,
     open: async ({ page, ids }) => {
