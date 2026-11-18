@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 100 - 2026-11-18
+
+- Every Admin table that scrolls sideways can be focused with the keyboard (it announces its name) and scrolled with the arrow keys, and a table that fits is no longer an extra stop.
+- The UI kit has a `NativeSelect`, the browser's own select in the kit's field look (tokens, focus ring, a 44 px height on a phone or touch screen, a chevron at the inline end), and Server settings Overview uses it for its four lists.
+- Server settings, Channels, on a phone: picking a channel takes you to its editor (heading in view and focused), with a "Back to channels" button that returns to the row.
+
 ## Phase 99 - 2026-11-17
 
 - **Everyone, on a phone.** With the Study skin, the polka dots and paper flecks now run to the foot of the scrolled skin.
