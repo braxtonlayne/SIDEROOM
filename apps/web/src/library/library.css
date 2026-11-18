@@ -1728,3 +1728,11 @@ label.lib-chapter-select {
 .lib-sort {
   font-size: 14px;
 }
+
+/* D-998 (SEC-AUD-474): a select's label text keeps a gap from its field. The label is an inline box around the text
+   span and the kit's inline-block wrapper, so nothing sat between them; 8 px is `.lib-rate`'s own gap (that label is a
+   flex box with the gap already, so it is left out) and `.lib-select-block`'s is 6. A screen-reader-only text span
+   has no box to keep a gap from. */
+.lib-select:not(.lib-rate) > span:first-child:not(.lib-sr-only) {
+  margin-inline-end: 8px;
+}
