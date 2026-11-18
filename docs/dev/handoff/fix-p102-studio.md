@@ -24,7 +24,7 @@ Still raw in my files: TierListTool.tsx chip "Move" select (flex chip, 5rem cap)
 Expected for the shots builder to measure on the two moved: `.sr-room select` padding-inline 0.5rem replaces the kit's 36 px end padding, so long option text can run under the chevron; if the shot shows that, put them back to raw.
 
 ## TYPECHECK
-(pending)
+`tc.sh run studio bash -c "cd .../p102-studio/apps/web && npx tsc --noEmit -p ."`, finished 09:37, exit 0 (after the last code edit). `node scripts/i18n-audit.mjs --max 0` exit 0; `node scripts/check-doc-links.mjs` exit 0.
 
 ## STACK-ROUND: none (code builder)
 
