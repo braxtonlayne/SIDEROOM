@@ -30,6 +30,11 @@ import type { Locator, Page } from '@playwright/test';
  * (`box.height`), so a reader can tell the two reaches apart. A number is still accepted as `reach` (a fixed offset).
  *   const rows = await hitTestAll(page, root, { reach: 'box' });
  *
+ * Names (wave 105, D-1012). A row's and a taker's `name` is, in order: `aria-label`; `aria-labelledby`; the text of the
+ * control's own `<label>` (`labels` for a labelable element, with the control itself left out; else the closest
+ * `label`); its own text; `placeholder`; `title`. Folded to single spaces, 40 characters. The name never changes a
+ * status, a taker or a count.
+ *
  * Plain Playwright and DOM; nothing is imported from a spec.
  */
 
@@ -235,19 +240,34 @@ function inPage(
     return null;
   };
   const name = (e: Element): string => {
+    const fold = (x: string) => x.trim().replace(/\s+/g, ' ').slice(0, 40);
     const aria = e.getAttribute('aria-label');
     if (aria) return aria.trim().slice(0, 40);
     const by = e.getAttribute('aria-labelledby');
     if (by) {
-      const txt = by
-        .split(/\s+/)
-        .map((id) => document.getElementById(id)?.textContent ?? '')
-        .join(' ')
-        .trim();
-      if (txt) return txt.slice(0, 40);
+      const txt = fold(
+        by
+          .split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? '')
+          .join(' '),
+      );
+      if (txt) return txt;
     }
-    const txt = (e.textContent ?? '').trim().replace(/\s+/g, ' ');
-    if (txt) return txt.slice(0, 40);
+    // D-1012: the text of the control's own <label> (`labels` for a labelable element, with the control itself left out), else the closest label.
+    const labels = (e as HTMLInputElement).labels;
+    const lab = labels ? labels[0] : e instanceof HTMLLabelElement ? null : e.closest('label');
+    if (lab) {
+      const text = (n: Node): string =>
+        n === e
+          ? ''
+          : n.nodeType === 3
+            ? (n.textContent ?? '')
+            : Array.from(n.childNodes).map(text).join(' ');
+      const txt = fold(labels ? text(lab) : (lab.textContent ?? ''));
+      if (txt) return txt;
+    }
+    const own = fold(e.textContent ?? '');
+    if (own) return own;
     return (e.getAttribute('placeholder') ?? e.getAttribute('title') ?? '').slice(0, 40);
   };
   const path = (e: Element): string => {
@@ -350,25 +370,38 @@ export async function hitTestAll(
                 .slice(0, 24)}`
             : ''
         }`;
-      const aria = el.getAttribute('aria-label');
-      const by = el.getAttribute('aria-labelledby');
-      const byTxt = by
-        ? by
-            .split(/\s+/)
-            .map((id) => document.getElementById(id)?.textContent ?? '')
-            .join(' ')
-        : '';
-      const name = (
-        aria ||
-        byTxt ||
-        (el.textContent ?? '') ||
-        el.getAttribute('placeholder') ||
-        el.getAttribute('title') ||
-        ''
-      )
-        .trim()
-        .replace(/\s+/g, ' ')
-        .slice(0, 40);
+      const nameOf = (e: Element): string => {
+        const fold = (x: string) => x.trim().replace(/\s+/g, ' ').slice(0, 40);
+        const aria = e.getAttribute('aria-label');
+        if (aria) return aria.trim().slice(0, 40);
+        const by = e.getAttribute('aria-labelledby');
+        if (by) {
+          const txt = fold(
+            by
+              .split(/\s+/)
+              .map((id) => document.getElementById(id)?.textContent ?? '')
+              .join(' '),
+          );
+          if (txt) return txt;
+        }
+        // D-1012: the text of the control's own <label> (`labels` for a labelable element, with the control itself left out), else the closest label.
+        const labels = (e as HTMLInputElement).labels;
+        const lab = labels ? labels[0] : e instanceof HTMLLabelElement ? null : e.closest('label');
+        if (lab) {
+          const text = (n: Node): string =>
+            n === e
+              ? ''
+              : n.nodeType === 3
+                ? (n.textContent ?? '')
+                : Array.from(n.childNodes).map(text).join(' ');
+          const txt = fold(labels ? text(lab) : (lab.textContent ?? ''));
+          if (txt) return txt;
+        }
+        const own = fold(e.textContent ?? '');
+        if (own) return own;
+        return (e.getAttribute('placeholder') ?? e.getAttribute('title') ?? '').slice(0, 40);
+      };
+      const name = nameOf(el);
       const disabled =
         (el as HTMLButtonElement).disabled === true || el.getAttribute('aria-disabled') === 'true';
       // Is something up the tree display: none, and is that thing a collapsed button's panel?
