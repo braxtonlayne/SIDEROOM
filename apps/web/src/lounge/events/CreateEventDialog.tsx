@@ -127,7 +127,7 @@ export function CreateEventDialog({
     <Modal
       open
       onClose={onClose}
-      size="sm"
+      size="md"
       title={t('lounge.createEvent.title')}
       description={t('lounge.createEvent.description')}
     >
