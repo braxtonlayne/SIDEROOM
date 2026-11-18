@@ -26,4 +26,9 @@ Started 09:30, written 09:40. No stack, no lock, no spec, no shots.
 ## STACK-ROUND: none (code builder)
 
 ## TYPECHECK
-(see below)
+`bash tc.sh run chat bash -c "cd ./apps/web && npx tsc --noEmit -p ."` at 09:39: exit 0 (once, after the last code edit). Also: eslint on both files exit 0; `node scripts/i18n-audit.mjs --max 0` exit 0 (TOTAL 0); `node scripts/check-doc-links.mjs` exit 0.
+
+## Proposed rows
+None. Changelog sentence: the Follow-channel picker and the search-results sort in the Lounge now use the kit select. Owner questions: none.
+
+Faults from mediashots: none received at time of writing.
