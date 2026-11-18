@@ -180,7 +180,7 @@ test(`p105 music: focus ring and action row of the music panel, ${PHASE}`, async
   let forumCh: string | null = null;
   try {
     const p = await apiPost<{ id: string }>(owner.request, '/users/@me/music/playlists', {
-      name: `p105m playlist ${STAMP}`,
+      name: 'p105m playlist',
     });
     playlistId = p.id;
     const c = await apiPost<{ id: string }>(owner.request, `/guilds/${w.guildId}/channels`, {
