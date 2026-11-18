@@ -1309,13 +1309,28 @@
   caret-color: var(--text-normal);
 }
 .lng-textarea[data-backdrop]::placeholder {
-  color: var(--text-muted);
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .lng-textarea[data-backdrop]::selection {
   background: rgb(88 101 242 / 0.35);
 }
+.lng-textarea::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
 .lng-textarea:focus-visible {
   outline: none;
+}
+/* D-1023: the box is the wrapper's, so the wrapper shows the focus (quiet: the composer has focus most of the time). */
+.lng-composer:has(.lng-textarea:focus-visible) {
+  outline: 1px solid var(--ui-focus);
+  outline-offset: -1px;
+}
+/* D-1024: the inline edit draws its own box, so the textarea takes the full ring itself. */
+.lng-textarea.lng-inline-textarea:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
 }
 .lng-counter {
   align-self: center;
@@ -1375,12 +1390,31 @@
   padding: 8px;
 }
 .lng-emoji-search {
+  box-sizing: border-box;
   height: 32px;
   padding: 0 8px;
-  border: 0;
+  border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: 4px;
   background: var(--bg-base-lowest);
   color: var(--text-normal);
+}
+.lng-emoji-search:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-emoji-search:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-emoji-search::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
+/* D-1022: 44px tall on a phone (the picker scrolls a little more). */
+@media (max-width: 720px) {
+  .lng-emoji-search {
+    height: 44px;
+  }
 }
 .lng-emoji-scroll {
   max-height: 240px;
@@ -1678,6 +1712,17 @@
 }
 .lng-root[data-mobile] .lng-composer-wrap {
   padding: 0 8px;
+}
+/* D-1022: the composer's buttons keep their 28px drawn size and get a 44px tall tap area from a pseudo-element
+   (the composer is at least 44px tall; 8px each way stays inside the row and never reaches a neighbour's centre). */
+.lng-root[data-mobile] .lng-composer .lng-icon-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-composer .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
 }
 /* While the keyboard is up the tab bar would only eat space above it. */
 :root[style*='--sr-vvh'] .lng-root[data-mobile] .lng-tabbar {
