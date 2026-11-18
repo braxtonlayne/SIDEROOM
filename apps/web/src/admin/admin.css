@@ -825,3 +825,19 @@ label.ss-field {
     min-block-size: 44px;
   }
 }
+
+/* SEC-AUD-443 (D-955): a failed job's error text in the Transcoding queue's State cell. The cell is narrow beside seven
+   other columns, so the text wrapped a word a line (one row 480 px tall against 87). It keeps a floor of readable width,
+   breaks an unbroken file name where it must. It is not clamped: the Logs dialog shows the encoder and the log tail, not the
+   job's error, so the State cell is the only place the whole text is. In
+   a stacked row (720 px and under) the cell is the full width, so the floor is lifted and cannot widen the page. Used
+   only by TranscodingSection.tsx. */
+.adm-tx-error {
+  min-inline-size: 24ch;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .adm-tx-error {
+    min-inline-size: 0;
+  }
+}
