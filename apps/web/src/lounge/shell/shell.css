@@ -133,6 +133,16 @@
   background: none;
   cursor: pointer;
 }
+/* D-1022: on a phone the status avatar keeps its 32px box and gets a 44px tall tap area inside the 52px user panel. */
+.lng-root[data-mobile] .lng-user-avatar {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-user-avatar::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
 .lng-user-avatar:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
@@ -618,6 +628,9 @@
   }
   .lng-friends .lng-header-title {
     flex: 1;
+    /* D-1022: the first line is 44px tall, so the Back and New Group DM tap areas stay inside it. */
+    min-block-size: 44px;
+    line-height: 44px;
   }
   .lng-friends .lng-friends-tabs {
     order: 3;
