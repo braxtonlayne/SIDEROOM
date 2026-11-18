@@ -18,4 +18,4 @@ A first prepare at 14:33 left the seed server running (cygwin pid recorded befor
 not needed.
 
 ## PROCESSES
-(filled before reply)
+Process listing for `*p104-runner*`: no line. Listeners on 8841/8842/9541/9542 and the seed port 8849/9549: no line. `runner.sh status`: runner NOT running. `heavy.sh status` at 14:38: `loungeshots 14:37` only, no hold in my name. No `sr_p104_j*` database left; `sr_p104_world`, its state folder, `p104-base-dist` and `run/conf` kept for the commander. `p104-cell-bin` untouched (not deleted). Scratch run folder used for dummy tests is in the session scratchpad.
