@@ -84,4 +84,6 @@ After: the same without `SR_P103_LIBRARY_PHASE=base` (it compares with `figures-
 - None.
 
 ## Round 2, cleanup and lock
-(filled in at hand-back)
+- Round 2 was not run: the reader's cure for FAULT 1 was not on `fix/p103-reader` (still `a3bc1081`) at 13:11, and a slot was not free. When the commander writes that it is in: `git merge --no-edit fix/p103-reader`, e2e `tsc`, one stack round (after phase only; `figures-base.json` is in the folder), read `compare.json` and the shots `reader-bars-*` and `reader-end-*` and the three `browse-filters-*`.
+- Kept for that round (and to be deleted after it): `C:/Users/braxt/Desktop/SIDEROOM_wt/p103-libshots-bin` and the scratch helper in my scratchpad. The database `sr_p103_libshots_ui` is already dropped; the stack is stopped (ports 5812, 8812, 9512 show only TIME_WAIT sockets).
+- `heavy.sh status` at 13:11: `mediashots 13:06` (no hold in my name; my queued `acquire` of 13:00 ended with exit 75 and is not running). Released my round-1 hold at 12:49: output `released`, then `free`.
