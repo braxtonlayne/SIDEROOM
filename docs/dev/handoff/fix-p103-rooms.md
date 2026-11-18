@@ -24,7 +24,7 @@ Roots: `.sr-room` (`RoomShell.tsx:138`, hosts the tier list and the poll builder
 Nothing else renders inside `.sr-room` or `.sr-card` (`git grep` over `apps/web/src`). Neither sheet has a rule on the label's `span`, so the kit wrapper span is not caught by a label rule.
 
 ## Sheet diffs in words
-- `rooms.css`: `.sr-room select` removed from the box list (`:19`, inputs keep their rule) and from the focus-ring list (`:30`, replaced by `.sr-room-move:focus-visible` so the raw chip keeps its ring; kit selects have their own). `.sr-room-move` (`:211`) now carries the box the removed rule gave it, by class: `min-inline-size:0`, `max-inline-size:5rem`, `padding-block:0` (no more `!important`: nothing out-specifies a class now), `padding-inline:0.5rem`, border, radius, background, colour, `font: inherit`, `font-size:0.75rem`. Same pixels as base.
+- `rooms.css`: `.sr-room select` removed from the box list (`:19`, inputs keep their rule) and from the focus-ring list (`:30`, replaced by `.sr-room-move:focus-visible` so the raw chip keeps its ring; kit selects have their own). `.sr-room-move` (`:211`) now carries the box the removed rule gave it, by class: `min-inline-size:0`, `max-inline-size:5rem`, `padding-block:0` (no more `!important`: nothing out-specifies a class now), `padding-inline:0.5rem`, border, radius, background, colour, `font: inherit` (no font-size: in the base `.sr-room select { font: inherit }` beat the 0.75rem, so the chip inherits 0.875rem; FAULT from toolshots, 80x19 vs 80x21, cured by deleting it). Same pixels as base.
 - `cards.css`: `.sr-card select` removed from both lists (`:27`, `:43`); the three Invite selects now have the kit's own box.
 - Dependants of `.sr-room select`: Move chip (raw, own class now), Lasts (moved), Channel and Mount (kit already). Of `.sr-card select`: the Invite card's three (kit already). `git grep` finds no other raw select under either root.
 
@@ -52,3 +52,6 @@ Should the tier list's Move chip become a 40 px kit field (chips and tier rows g
 
 ## For toolshots
 Measure Lasts at 1024 and 375 (text clear of the chevron, no wider than base + 36 px); Channel, Mount and the three Invite selects for `fill` (not narrower than base); Move chip unchanged from base.
+
+## Update (FAULT from toolshots)
+Move chip font: `font-size: 0.75rem` deleted from `.sr-room-move` so the chip matches the base (80x21). Fable decided the Move chip stays raw permanently: the owner question above is closed.
