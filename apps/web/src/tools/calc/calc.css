@@ -23,7 +23,6 @@
   font-weight: 600;
 }
 .sr-calc-input,
-.sr-calc select,
 .sr-calc input[type='date'],
 .sr-calc input[type='text'] {
   font: inherit;
@@ -51,7 +50,6 @@
   flex: 1;
   min-inline-size: 0;
 }
-.sr-calc-field select,
 .sr-calc-field input {
   font-size: 0.875rem;
   color: var(--ui-text);
@@ -343,4 +341,18 @@
   .sr-calc-bit {
     transition: background-color 0.12s ease;
   }
+}
+
+/*
+ * SEC-AUD-463, D-973: the calc selects are the kit's NativeSelect (36px of end padding for the chevron).
+ * A field that holds one keeps a floor on its width so the longest option text is whole beside the chevron
+ * and the row wraps (.sr-calc-opts and .sr-calc-convert are flex-wrap) instead of squeezing the field.
+ * D-974 / D-972: .sr-calc-field is 0.75rem for its label; the select keeps the 0.875rem the old
+ * element rule gave it, through a class on the select (two classes beat the kit's one, whatever the load order).
+ */
+.sr-calc-field:has(select) {
+  min-inline-size: 7.5rem;
+}
+.sr-calc-field .sr-calc-pick {
+  font-size: 0.875rem;
 }
