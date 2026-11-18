@@ -826,15 +826,19 @@ label.ss-field {
   }
 }
 
-/* SEC-AUD-443 (D-955): a failed job's error text in the Transcoding queue's State cell. The cell is narrow beside seven
-   other columns, so the text wrapped a word a line (one row 480 px tall against 87). It keeps a floor of readable width,
-   breaks an unbroken file name where it must. It is not clamped: the Logs dialog shows the encoder and the log tail, not the
-   job's error, so the State cell is the only place the whole text is. In
-   a stacked row (720 px and under) the cell is the full width, so the floor is lifted and cannot widen the page. Used
-   only by TranscodingSection.tsx. */
+/* SEC-AUD-443 (D-955), SEC-AUD-448 (D-962): a failed job's error text in the Transcoding queue's State cell. The cell is
+   narrow beside seven other columns, so the text wrapped a word a line (one row 480 px tall against 87). It keeps a floor
+   of readable width and breaks an unbroken file name where it must. Since the Logs dialog now shows the whole error under
+   its own heading, the cell clamps the text to three lines (a clamp hides the rest, it does not cut the text: the cell's
+   textContent stays whole). In a stacked row (720 px and under) the cell is the full width, so the floor is lifted and
+   cannot widen the page; the clamp holds there too. Used only by TranscodingSection.tsx. */
 .adm-tx-error {
   min-inline-size: 24ch;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 @media (max-width: 720px) {
   .adm-tx-error {

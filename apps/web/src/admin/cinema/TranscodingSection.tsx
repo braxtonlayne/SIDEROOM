@@ -13,7 +13,7 @@ import {
   Tabs,
   TextInput,
 } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { formatNumber, useT } from '../../i18n';
 import {
   LoadMore,
@@ -530,6 +530,7 @@ function JobLogs({ job, onClose }: { job: tx.TranscodeJob | null; onClose: () =>
 
 function JobLogBody({ id }: { id: string }) {
   const t = useT();
+  const errorId = useId();
   const { res, unavailable } = useTx(`tx-job:${id}`, () => tx.getJob(id));
   if (unavailable) return <NotAvailableYet what={t('admin.transcoding.logs.whatLogs')} />;
   if (res.error && !res.data)
@@ -540,6 +541,16 @@ function JobLogBody({ id }: { id: string }) {
   const j = res.data;
   return (
     <>
+      {j.error && (
+        <>
+          <h3 className="ss-sub" id={errorId}>
+            {t('admin.transcoding.logs.error')}
+          </h3>
+          <pre className="adm-pre" aria-labelledby={errorId} tabIndex={0}>
+            {j.error}
+          </pre>
+        </>
+      )}
       {j.encoder && (
         <p className="ss-meta">{t('admin.transcoding.logs.encoder', { name: j.encoder })}</p>
       )}
