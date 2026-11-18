@@ -99,6 +99,19 @@
   color: inherit;
   font: inherit;
   box-sizing: border-box;
+  /* D-1024: the kit field's manners (rest border a step stronger than the fallback above). */
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.ud-root input:hover:not(:disabled),
+.ud-root textarea:hover:not(:disabled),
+.ud-timer input:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.ud-root input::placeholder,
+.ud-root textarea::placeholder,
+.ud-timer input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 /* SEC-AUD-333 (D-837): the field rule above is for text controls; a checkbox or radio is its natural size. */
 .ud-root input[type='checkbox'],
@@ -146,6 +159,20 @@
 :where(.ud-root, .ud-timer) :focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
+}
+/* D-1024: a field's ring sits 1px off the box, as the kit field's does. */
+.ud-root input:not([type='checkbox'], [type='radio']):focus-visible,
+.ud-root textarea:focus-visible,
+.ud-timer input:not([type='checkbox'], [type='radio']):focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+/* D-1022: a one-line field is 44 px tall on a phone (a textarea keeps its height). */
+@media (max-width: 720px) {
+  .ud-root input:not([type='checkbox'], [type='radio']),
+  .ud-timer input:not([type='checkbox'], [type='radio']) {
+    min-block-size: 44px;
+  }
 }
 
 /* timers */
