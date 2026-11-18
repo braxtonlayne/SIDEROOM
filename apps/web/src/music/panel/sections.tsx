@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NativeSelect } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { useGuilds } from '../../store/hooks';
@@ -253,8 +254,8 @@ export function PlaylistsSection(p: SectionProps & { onGuild(id: string | null):
       <div className="sr-mlib-bar">
         <label className="sr-mlib-lbl">
           {t('music.lib.playlists.whose')}
-          <select
-            className="sr-mlib-select"
+          <NativeSelect
+            fit="content"
             value={p.guildId ?? ''}
             onChange={(e) => p.onGuild(e.target.value || null)}
           >
@@ -264,7 +265,7 @@ export function PlaylistsSection(p: SectionProps & { onGuild(id: string | null):
                 {g.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <Status loading={own.isLoading || guild.isLoading} error={own.error ?? guild.error} />
@@ -481,8 +482,8 @@ export function EqSection() {
         </label>
         <label className="sr-mlib-lbl">
           {t('music.lib.eq.presetLabel')}
-          <select
-            className="sr-mlib-select"
+          <NativeSelect
+            fit="content"
             value={preset}
             onChange={(e) => {
               const id = e.target.value as (typeof EQ_PRESET_IDS)[number];
@@ -497,7 +498,7 @@ export function EqSection() {
                 {t(PRESET_LABELS[id])}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <div className="sr-mlib-eq" role="group" aria-label={t('music.lib.eq.bands')}>
