@@ -146,7 +146,8 @@
    the three labels share one line and the three controls share one line. The toolbar aligns to the top (721 px and up).
    On a phone the toolbar keeps its end alignment, and each filter takes the row, as the text field does
    (server-settings.css, SEC-AUD-370). The checkbox row and Search at 721 px and up: SEC-AUD-405 below. */
-.ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
+.ss-root .ss-toolbar.inv-toolbar > label.inv-field {
+  display: inline-flex;
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
@@ -156,7 +157,26 @@
   text-transform: uppercase;
   color: var(--ui-text-muted);
 }
-.ss-root .ss-toolbar.inv-toolbar > label:has(> select) > select {
+.inv-field .inv-pick {
+  font-size: 0.875rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  color: var(--ui-text);
+}
+/* SEC-AUD-497 (D-1002): the grant dialog's Kind label wears the kit field label's look (Input.module.css .label: 12 px, 600, 0.04em,
+   capitals, muted), as the Account id and Days labels below it do; its select keeps normal type. */
+.don-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-muted);
+}
+.don-field .don-pick {
   font-size: 0.875rem;
   text-transform: none;
   letter-spacing: normal;
@@ -191,7 +211,7 @@
   }
 }
 @media (max-width: 720px) {
-  .ss-root .ss-toolbar.inv-toolbar > label:has(> select) {
+  .ss-root .ss-toolbar.inv-toolbar > label.inv-field {
     flex: 1 1 100%;
   }
 }

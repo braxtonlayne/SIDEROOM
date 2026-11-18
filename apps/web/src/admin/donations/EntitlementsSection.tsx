@@ -65,13 +65,17 @@ export function EntitlementsSection() {
         actions={<Button onClick={() => setGranting(true)}>{t('admin.entitlements.grant')}</Button>}
       />
       <div className="ss-toolbar">
-        <label>
-          {t('admin.entitlements.kind')}{' '}
-          <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+        <label className="adm-toolbar-field">
+          {t('admin.entitlements.kind')}
+          <NativeSelect
+            fit="content"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as typeof kind)}
+          >
             <option value="">{t('admin.entitlements.all')}</option>
             <option value="patron">{t('admin.entitlements.patron')}</option>
             <option value="server_pool">{t('admin.entitlements.serverPoolOption')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <label>
           <input
@@ -176,9 +180,13 @@ export function EntitlementsSection() {
           paged.reload();
         }}
       >
-        <label>
-          {t('admin.entitlements.kind')}{' '}
-          <NativeSelect value={gKind} onChange={(e) => setGKind(e.target.value as typeof gKind)}>
+        <label className="don-field">
+          <span>{t('admin.entitlements.kind')}</span>
+          <NativeSelect
+            className="don-pick"
+            value={gKind}
+            onChange={(e) => setGKind(e.target.value as typeof gKind)}
+          >
             <option value="patron">{t('admin.entitlements.grantDialog.patronOption')}</option>
             <option value="server_pool">{t('admin.entitlements.grantDialog.poolOption')}</option>
           </NativeSelect>

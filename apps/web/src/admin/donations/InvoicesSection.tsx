@@ -248,27 +248,35 @@ export function InvoicesSection() {
           setApplied(q.trim());
         }}
       >
-        <label>
-          {t('admin.donations.invoices.filterState')}{' '}
-          <select value={state} onChange={(e) => setState(e.target.value as InvoiceState | '')}>
+        <label className="inv-field">
+          <span>{t('admin.donations.invoices.filterState')}</span>
+          <NativeSelect
+            className="inv-pick"
+            value={state}
+            onChange={(e) => setState(e.target.value as InvoiceState | '')}
+          >
             <option value="">{t('admin.donations.invoices.anyState')}</option>
             {STATES.map((s) => (
               <option key={s} value={s}>
                 {STATE_COPY[s]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
-        <label>
-          {t('admin.donations.invoices.filterPurpose')}{' '}
-          <select value={purpose} onChange={(e) => setPurpose(e.target.value as Purpose | '')}>
+        <label className="inv-field">
+          <span>{t('admin.donations.invoices.filterPurpose')}</span>
+          <NativeSelect
+            className="inv-pick"
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as Purpose | '')}
+          >
             <option value="">{t('admin.donations.invoices.anyPurpose')}</option>
             {PURPOSES.map((p) => (
               <option key={p} value={p}>
                 {PURPOSE_COPY[p]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <TextInput
           label={t('admin.donations.invoices.searchLabel')}
