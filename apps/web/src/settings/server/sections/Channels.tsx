@@ -3,6 +3,7 @@ import {
   Button,
   Combobox,
   ConfirmDialog,
+  NativeSelect,
   Notice,
   PermissionMatrix,
   Switch,
@@ -582,9 +583,8 @@ function ChannelOverview({
             <label className="ss-field-label" htmlFor="ss-slowmode">
               {t('settings.channels.slowmode')}
             </label>
-            <select
+            <NativeSelect
               id="ss-slowmode"
-              className="ss-select"
               value={draft.value.rate_limit_per_user}
               onChange={(e) => draft.set('rate_limit_per_user', Number(e.target.value))}
             >
@@ -593,7 +593,7 @@ function ChannelOverview({
                   {slowLabel(s)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
           <Switch
             label={t('settings.channels.ageRestricted')}
@@ -653,9 +653,8 @@ function ChannelOverview({
           <label className="ss-field-label" htmlFor="ss-parent">
             {t('settings.channels.categoryLabel')}
           </label>
-          <select
+          <NativeSelect
             id="ss-parent"
-            className="ss-select"
             value={draft.value.parent_id}
             onChange={(e) => draft.set('parent_id', e.target.value)}
           >
@@ -665,7 +664,7 @@ function ChannelOverview({
                 {c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       )}
     </div>

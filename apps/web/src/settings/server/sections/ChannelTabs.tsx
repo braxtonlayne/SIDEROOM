@@ -3,7 +3,7 @@
  * channel's own; Features holds the per-channel settings the server accepts for threads. The per-channel switches
  * of feature modules (docs/11) are the separate Modules tab (`ChannelModules.tsx`).
  */
-import { Button, ConfirmDialog, EmptyState, Modal, TextInput } from '@sideroom/ui';
+import { Button, ConfirmDialog, EmptyState, Modal, NativeSelect, TextInput } from '@sideroom/ui';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { MAX_STATUS, setChannelStatus, useChannelStatus } from '../../../voice/channelStatus';
@@ -465,9 +465,8 @@ export function ChannelFeatures({
         <label className="ss-field-label" htmlFor="ss-thread-archive">
           {t('settings.channelTabs.hideAfter')}
         </label>
-        <select
+        <NativeSelect
           id="ss-thread-archive"
-          className="ss-select"
           value={archive}
           disabled={action.busy}
           onChange={(e) => {
@@ -484,15 +483,14 @@ export function ChannelFeatures({
               {t(o.label)}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div>
         <label className="ss-field-label" htmlFor="ss-thread-slow">
           {t('settings.channelTabs.slowmodeNew')}
         </label>
-        <select
+        <NativeSelect
           id="ss-thread-slow"
-          className="ss-select"
           value={slowmode}
           disabled={action.busy}
           onChange={(e) => {
@@ -511,7 +509,7 @@ export function ChannelFeatures({
               {slow(s)}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
     </div>
   );
@@ -603,30 +601,24 @@ export function ForumSettings({
         <label className="ss-field-label" htmlFor="ss-forum-sort">
           {t('settings.forumSettings.sort')}
         </label>
-        <select
-          id="ss-forum-sort"
-          className="ss-select"
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-        >
+        <NativeSelect id="ss-forum-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="0">{t('settings.forumSettings.sortActivity')}</option>
           <option value="1">{t('settings.forumSettings.sortCreated')}</option>
-        </select>
+        </NativeSelect>
       </div>
       <div>
         <label className="ss-field-label" htmlFor="ss-forum-layout">
           {t('settings.forumSettings.layout')}
         </label>
-        <select
+        <NativeSelect
           id="ss-forum-layout"
-          className="ss-select"
           value={layout}
           onChange={(e) => setLayout(e.target.value)}
         >
           <option value="0">{t('settings.forumSettings.layoutDefault')}</option>
           <option value="1">{t('settings.forumSettings.layoutList')}</option>
           <option value="2">{t('settings.forumSettings.layoutGallery')}</option>
-        </select>
+        </NativeSelect>
       </div>
       <p className="ss-na">{t('settings.forumSettings.guidelinesNote')}</p>
       <div className="ss-actions">

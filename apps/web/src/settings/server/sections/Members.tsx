@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   Icon,
   Modal,
+  NativeSelect,
   TextArea,
   TextInput,
   type MenuEntry,
@@ -282,9 +283,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           <label className="ss-field-label" htmlFor="ss-member-role">
             {t('settings.members.filterRole')}
           </label>
-          <select
+          <NativeSelect
             id="ss-member-role"
-            className="ss-select"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
           >
@@ -297,7 +297,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                   {r.name}
                 </option>
               ))}
-          </select>
+          </NativeSelect>
         </div>
         <div>
           <label className="ss-field-label" htmlFor="ss-member-after">
@@ -305,8 +305,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           </label>
           <input
             id="ss-member-after"
-            type="date"
             className="ss-select"
+            type="date"
             value={joinedAfter}
             max={joinedBefore || undefined}
             onChange={(e) => {
@@ -321,8 +321,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           </label>
           <input
             id="ss-member-before"
-            type="date"
             className="ss-select"
+            type="date"
             value={joinedBefore}
             min={joinedAfter || undefined}
             onChange={(e) => {
@@ -342,9 +342,8 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           <label className="ss-field-label" htmlFor="ss-member-sort">
             {t('settings.members.sortBy')}
           </label>
-          <select
+          <NativeSelect
             id="ss-member-sort"
-            className="ss-select"
             value={sort}
             onChange={(e) => {
               setSort(e.target.value as SortKey);
@@ -354,7 +353,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
             <option value="name">{t('settings.members.sortName')}</option>
             <option value="newest">{t('settings.members.sortNewest')}</option>
             <option value="oldest">{t('settings.members.sortOldest')}</option>
-          </select>
+          </NativeSelect>
         </div>
         {viewer.can('KICK_MEMBERS') && (
           <Button variant="secondary" onClick={() => setPruning(true)}>
@@ -833,9 +832,8 @@ function BanDialog({
           <label className="ss-field-label" htmlFor="ss-ban-delete">
             {t('settings.members.deleteHistory')}
           </label>
-          <select
+          <NativeSelect
             id="ss-ban-delete"
-            className="ss-select"
             value={seconds}
             onChange={(e) => setSeconds(Number(e.target.value))}
           >
@@ -844,7 +842,7 @@ function BanDialog({
                 {t(w.label)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <TextArea
           label={t('settings.members.reason')}
@@ -908,9 +906,8 @@ function TimeoutDialog({
       <label className="ss-field-label" htmlFor="ss-timeout-len">
         {t('settings.members.duration')}
       </label>
-      <select
+      <NativeSelect
         id="ss-timeout-len"
-        className="ss-select"
         value={seconds}
         onChange={(e) => setSeconds(Number(e.target.value))}
       >
@@ -919,7 +916,7 @@ function TimeoutDialog({
             {t(c.label)}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </Modal>
   );
 }
