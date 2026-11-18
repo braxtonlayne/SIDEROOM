@@ -854,3 +854,60 @@
     clip-path: inset(50%);
   }
 }
+
+/* SEC-AUD-457 (D-977): at tablet width the Members table fits its column without its own sideways scroll. At 1024 the column
+   is 585 px and the table needed 664: every column was at its minimum (the Name cell holds an avatar and a name, the Roles and
+   Signals columns hold chips whose text never wrapped, Actions stays on one line). Wrapping the role chips did not help (each
+   chip is as wide as its text), so, inside this table only and only while its column is narrower than 700 px (a container query
+   on the table's own wrapper, so the viewport does not matter), three things give: the cells keep 4 px of inline padding instead of
+   8, a chip keeps 6 px instead of 8, and the text of a Signals chip may break at a space (the 12px radius keeps a one-line chip a pill). Role chips stay whole
+   and wrap as whole chips (.ss-chips is a wrapping row), the Actions buttons stay on one line, no column is dropped. Where the
+   column is 700 px or wider (1280) nothing here applies and the boxes are the base's. The table's own scroll (D-964) stays as
+   the safety net for a width where even this does not fit. */
+@media (min-width: 721px) {
+  .ss-table-scroll {
+    container-type: inline-size;
+  }
+  @container (max-width: 700px) {
+    .ss-table.ss-members-table th,
+    .ss-table.ss-members-table td {
+      padding-inline: 4px;
+    }
+    .ss-table.ss-members-table .ss-role-chip {
+      padding-inline: 6px;
+    }
+    .ss-table.ss-members-table .ss-signal-chips .ss-role-chip {
+      white-space: normal;
+      border-radius: 0.75rem;
+    }
+  }
+}
+
+/* SEC-AUD-458 (D-975): the head's "select all" checkbox carries its own label (the string that was its aria-label), so a tap
+   on the words ticks it. The label shows on a phone, where the stacked table's head is a 44 px line of its own (D-964).
+   Above a phone the head cell stays a bare box: the label is clipped to 1 px (the .ss-sr pattern) and is still the box's one
+   accessible name. */
+@media (min-width: 721px) {
+  .ss-members-table thead th label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* SEC-AUD-458 (D-975), phone: the label reads as a line of plain text, not as a table head (the th's capitals, spacing and
+   weight), and the box keeps the x of the row boxes below it (a lone kit checkbox has 13 px of inline padding, a labelled one
+   has none). */
+@media (max-width: 720px) {
+  .ss-members-table thead th label {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+  }
+  .ss-members-table thead th > div {
+    padding-inline-start: 13px;
+  }
+}
