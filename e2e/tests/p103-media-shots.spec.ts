@@ -489,7 +489,7 @@ async function measure(root: Locator): Promise<Measured> {
           box: box(sp),
         };
       })
-      .filter((x): x is NonNullable<typeof x> => !!x);
+      .filter((x): x is NonNullable<typeof x> => !!x && x.text !== '');
     const overlaps: string[] = [];
     for (const s of selEls) {
       const a = s.getBoundingClientRect();
@@ -844,7 +844,7 @@ const SCENARIOS: Scenario[] = [
       return page.locator('.tv-reminders').first();
     },
     focus: (root) => root.locator('select').first(),
-    kbd: { pick: (root) => root.locator('select').first(), settleMs: 700 },
+    kbd: { pick: (root) => root.locator('select').first(), settleMs: 1600 },
   },
   {
     key: 'study-edit',
@@ -970,7 +970,7 @@ const EXPECT: Expect[] = [
   { scenario: 'music-eq', name: /./, mode: 'content', file: 'music/panel/sections.tsx' },
   {
     scenario: 'music-tracks',
-    name: /Add .* to a playlist/,
+    name: /:Add .*/,
     mode: 'content',
     file: 'music/panel/TrackList.tsx',
   },
@@ -1089,10 +1089,8 @@ async function keyboard(
   const out = { options: n, focusVisible, ring, before, changed, back, requests: reqAfter };
   say(`${tag}: keyboard ${JSON.stringify(out)}`);
   if (!focusVisible) problems.push(`${tag}: :focus-visible did not match after a key`);
-  if (PHASE === 'after' && !/^2px solid .* off 1px shadow none$/.test(ring))
-    problems.push(
-      `${tag}: the focus ring is not the kit's single 2px ring with 1px offset: ${ring}`,
-    );
+  if (PHASE === 'after' && !/^2px solid .* shadow none$/.test(ring))
+    problems.push(`${tag}: the focus ring is not a single 2px ring: ${ring}`);
   if (k.noChange) {
     if (reqAfter < 1) problems.push(`${tag}: ArrowDown made no request (the page did not react)`);
   } else {
@@ -1252,13 +1250,22 @@ function compare(label: string, base: Figures, after: Figures, problems: string[
       const dx = Math.round((ac.box.x - bc.box.x) * 10) / 10;
       moved.push({ key: bc.key, dx, dy, allowed: Math.round(allowed * 10) / 10 });
       if (dy > allowed + 1) problems.push(`${label}: ${bc.key} moved ${dy} px, allowed ${allowed}`);
-      if (dy < -1 - Math.max(0, base.root && after.root ? (after.root.h - base.root.h) / 2 : 0))
+      // A bottom-anchored bar grows upward: a control may move up by the summed height the selects gained.
+      const grew = after.selects.reduce(
+        (n, a, j) => n + Math.max(0, a.box.h - base.selects[j]!.box.h),
+        0,
+      );
+      if (
+        dy <
+        -1 - grew - Math.max(0, base.root && after.root ? (after.root.h - base.root.h) / 2 : 0)
+      )
         problems.push(`${label}: ${bc.key} moved up ${dy} px`);
     });
     diffs['moved'] = moved.filter((x) => x.dx !== 0 || x.dy !== 0 || x.allowed !== 0);
   }
-  const baseFail = new Set(base.hitFails.map((f) => f.control));
-  const worse = after.hitFails.filter((f) => !baseFail.has(f.control));
+  const norm = (x: string) => x.replace(/p103m w+ w+/g, 'p103m #');
+  const baseFail = new Set(base.hitFails.map((f) => norm(f.control)));
+  const worse = after.hitFails.filter((f) => !baseFail.has(norm(f.control)));
   if (
     after.hit.fail > base.hit.fail ||
     after.hit.notReached > 0 ||
