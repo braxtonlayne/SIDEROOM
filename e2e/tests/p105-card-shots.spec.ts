@@ -290,7 +290,7 @@ test('Card and room fields, the chip remove button', async ({ browser }) => {
         await drawer.getByRole('button', { name: 'Start a new one' }).click();
         const rowsBtn = drawer.getByRole('button', { name: 'Add the rows S to D' });
         if (await rowsBtn.isVisible().catch(() => false)) await rowsBtn.click();
-        const names = ['a', 'b'].map((s) => `P105 ${RUN} ${s}`);
+        const names = ['a', 'b'].map((s) => `P105 card ${s}`);
         for (const n of names) {
           await drawer.getByLabel('Item', { exact: true }).fill(n);
           await drawer.getByRole('button', { name: 'Add item' }).click();
@@ -321,7 +321,7 @@ test('Card and room fields, the chip remove button', async ({ browser }) => {
         const tool = drawer.locator('.sr-room').first();
         await openCollapsed(page, tool);
         const hit = await hitTestAll(page, tool, cfg.touch ? {} : { reach: 'box' });
-        const xRows = hit.filter((r) => /remove/i.test(r.name));
+        const xRows = hit.filter((r) => /^remove P105/i.test(r.name));
         rm['xHit'] = xRows.map((r) => ({
           name: r.name,
           status: r.status,
