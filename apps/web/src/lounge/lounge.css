@@ -484,6 +484,20 @@
   letter-spacing: 0.02em;
   cursor: pointer;
 }
+/* D-1022: on a phone a category head is a 44px row, and the add button keeps its 28px box with a 44px tap area
+   that stays inside that row. */
+.lng-root[data-mobile] .lng-category-btn {
+  min-block-size: 44px;
+}
+.lng-root[data-mobile] .lng-category-head .lng-icon-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-category-head .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
+}
 .lng-category-btn:hover {
   color: var(--interactive-hover);
 }
@@ -514,6 +528,10 @@
   text-decoration: none;
   cursor: pointer;
   box-sizing: border-box;
+}
+/* D-1022: a channel row is 44px tall on a phone (the text and icons do not change). */
+.lng-root[data-mobile] .lng-channel {
+  min-block-size: 44px;
 }
 .lng-channel:hover {
   background: var(--ui-bg-hover);
@@ -607,6 +625,10 @@
   text-overflow: ellipsis;
   cursor: pointer;
 }
+/* D-1022: the find box is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-find {
+  height: 44px;
+}
 .lng-home-nav {
   display: flex;
   flex-direction: column;
@@ -631,6 +653,10 @@
   font: inherit;
   text-align: start;
 }
+/* D-1022: a Home list row is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-nav-item {
+  height: 44px;
+}
 .lng-nav-item > span:not([class]) {
   flex: 1;
   min-width: 0;
@@ -648,6 +674,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 8px 4px 18px;
+}
+/* D-1022: the Create DM button gets a 44px tap area; the head keeps 8px under it so the area never takes the first
+   conversation's top edge. */
+.lng-root[data-mobile] .lng-dm-head {
+  padding-block-end: 8px;
+}
+.lng-root[data-mobile] .lng-dm-head .lng-icon-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-dm-head .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
 }
 .lng-dm-head h2 {
   margin: 0;
@@ -749,6 +789,24 @@
 .lng-user-panel .lng-device-arrow {
   inline-size: 14px;
   min-inline-size: 14px;
+}
+/* D-1022: inside the 52px panel the five controls and the name keep their boxes and get 44px tall tap areas (the
+   chevrons keep their 14px width). */
+.lng-root[data-mobile] .lng-user-panel .lng-icon-btn,
+.lng-root[data-mobile] .lng-user-id {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-user-panel .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
+}
+.lng-root[data-mobile] .lng-user-id::after {
+  content: '';
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0;
 }
 .lng-user-id {
   display: flex;
@@ -1434,6 +1492,10 @@
   background: transparent;
   text-align: start;
   cursor: pointer;
+}
+/* D-1022: a member row is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-member {
+  height: 44px;
 }
 .lng-member:hover {
   background: var(--ui-bg-hover);
