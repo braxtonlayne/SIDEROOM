@@ -15,7 +15,7 @@ import { over, parseColor, ratio, textRatio, type Rgba } from '../support/contra
  * Places: a Server settings form (page ground), settings sections with cards or panels, the Create Channel dialog (a
  * kit Modal), toolbars (lounge channel page, Library, Cinema), each by the ground the field really sits on.
  * Themes: the five account themes on a Lounge/Settings page (lounge-light, lounge-dark, lounge-ash, lounge-onyx,
- * lounge-editorial) plus `sideroom` and `sideroom-broadcast` set as the main theme too, and the section pages
+ * lounge-editorial) plus `sideroom` set as the main theme too (`sideroom-broadcast` as the main theme is not applied by the app: the base run read lounge-editorial), and the section pages
  * (Library, Cinema: `sideroom`; Live TV: `sideroom-broadcast`; once all `lounge-light`).
  * Finds fields by tag inside a root found by role; the kit's own are the ones whose resting border is `--ui-border` on a
  * `--ui-bg-raised` ground (`kit: true`). Data: none made. Needs the sweep world (`e2e/.state/sweep/`, never edited).
@@ -50,7 +50,6 @@ const MAIN_THEMES = [
   'lounge-onyx',
   'lounge-editorial',
   'sideroom',
-  'sideroom-broadcast',
 ] as const;
 
 interface Raw {
@@ -58,6 +57,7 @@ interface Raw {
   tag: string;
   type: string;
   name: string;
+  theme: string | null;
   inDialog: boolean;
   inToolbar: boolean;
   box: { x: number; y: number; w: number; h: number };
@@ -104,12 +104,15 @@ async function readFields(root: Locator): Promise<Raw[]> {
         } else if (image)
           stack.push({ bg: 'rgba(0, 0, 0, 0)', image, tag: a.tagName.toLowerCase() });
       }
+      const lab = f.id ? document.querySelector('label[for="' + f.id + '"]') : f.closest('label');
+      let labText = '';
+      if (lab) {
+        const c = lab.cloneNode(true) as HTMLElement;
+        c.querySelectorAll('select, input, textarea, option').forEach((x) => x.remove());
+        labText = c.textContent ?? '';
+      }
       const label =
-        f.getAttribute('aria-label') ??
-        (f.id ? document.querySelector(`label[for="${f.id}"]`)?.textContent : null) ??
-        f.closest('label')?.textContent ??
-        f.getAttribute('placeholder') ??
-        f.id;
+        f.getAttribute('aria-label') || labText || f.getAttribute('placeholder') || f.id;
       const tok: Record<string, string> = {};
       for (const k of [
         '--ui-border',
@@ -125,6 +128,7 @@ async function readFields(root: Locator): Promise<Raw[]> {
         tag: f.tagName.toLowerCase(),
         type: f.getAttribute('type') ?? '',
         name: (label ?? '').trim().slice(0, 40),
+        theme: f.closest('[data-theme]')?.getAttribute('data-theme') ?? null,
         inDialog: !!f.closest('[role=dialog]'),
         inToolbar: !!f.closest('[role=toolbar], [role=search], header, [role=banner]'),
         box: {
@@ -163,6 +167,7 @@ interface FieldFig {
   tag: string;
   type: string;
   name: string;
+  theme: string | null;
   kit: boolean;
   outsideKind: string;
   outside: string;
@@ -221,8 +226,8 @@ async function measureFields(
       : is(outside, tk['--ui-bg-raised']!)
         ? 'raised (--ui-bg-raised)'
         : `other ${hex(outside)}`;
-    const place = f.inDialog
-      ? 'dialog'
+    const place = pageName.startsWith('dialog')
+      ? 'dialog (kit Modal)'
       : f.inToolbar
         ? 'toolbar/header'
         : outsideKind.startsWith('raised')
@@ -237,6 +242,7 @@ async function measureFields(
       tag: f.tag,
       type: f.type,
       name: f.name,
+      theme: f.theme,
       kit,
       outsideKind,
       outside: hex(outside),
@@ -270,7 +276,7 @@ async function measureFields(
       const loc = page.locator(`[data-p105b="${f.n}"]`).first();
       try {
         await loc.scrollIntoViewIfNeeded({ timeout: 2000 });
-        await loc.hover({ timeout: 2000 });
+        await loc.hover({ timeout: 3000, force: true });
         const hb = await loc.evaluate((e) => getComputedStyle(e).borderTopColor);
         const hv = borderVis(hb);
         fig.hover = {
@@ -481,7 +487,17 @@ test(`p105 border: field boundary figures, ${PHASE}`, async ({ browser }) => {
       const { ctx, page } = await newPage(browser, owner, theme, {});
       try {
         await fakeBridge(page, w.guildId);
-        for (const sec of ['', 'bridge', 'invites', 'emoji', 'roles']) {
+        for (const sec of [
+          '',
+          'bridge',
+          'roles',
+          'channels',
+          'members',
+          'features',
+          'storage',
+          'community',
+          'tag',
+        ]) {
           try {
             await visit(page, `/settings/server/${w.guildId}${sec ? `/${sec}` : ''}`);
             if (sec === '') {
