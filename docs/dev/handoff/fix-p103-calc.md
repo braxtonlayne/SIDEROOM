@@ -6,7 +6,7 @@ Branch `fix/p103-calc`. Clock: started 11:55, all code and checks done by about 
 - `SEC-AUD-465 ... ProgrammerTool.tsx (READY)`, `UnitsTool.tsx (READY)`: three raw selects (Programmer Input base; Units From, To) are `NativeSelect`, no `fit`, `className="sr-calc-pick"`.
 - `TimezoneTool.tsx (READY)`: Work starts and Work ends are `NativeSelect`, no `fit`, `className="sr-calc-pick"`; the import was added.
 - `CurrencyTool.tsx (READY)`, `PercentTool.tsx (READY)`: one `className="sr-calc-pick"` on each `NativeSelect` (CurrencyTool `:93`, `:111`; PercentTool `:130`) and nothing else (prettier broke the lines; no other change). UnitsTool's Category `NativeSelect` (wave 102) got the class too (`:138`).
-- `SEC-AUD-463 calc.css`: `.sr-calc select,` taken out of the list at `:25-28` and `.sr-calc-field select,` out of the list at `:54-55`; the `input` selectors keep both rules untouched. New block at the very end: `.sr-calc-field:has(select) { min-inline-size: 7.5rem }` (the floor, D-973) and `.sr-calc-field .sr-calc-pick { font-size: 0.875rem }` (two classes, wins over the kit's one; keeps the 14 px the old rule gave the select while the label stays 0.75rem, D-974).
+- `SEC-AUD-463 calc.css`: `.sr-calc select,` taken out of the list at `:25-28` and `.sr-calc-field select,` out of the list at `:54-55`; the `input` selectors keep both rules untouched. New block at the very end: `.sr-calc-field:has(select) { min-inline-size: 10rem }` (the floor, D-973) and `.sr-calc-field .sr-calc-pick { font-size: 0.875rem }` (two classes, wins over the kit's one; keeps the 14 px the old rule gave the select while the label stays 0.75rem, D-974).
 - `SEC-AUD-464 utl-dev.css`: `.ud-root > select,` taken out. No raw `select` is left under `.ud-root`: `.ud-root` is rendered only by `tools/dev/parts.tsx`, and `git grep "<select" -- apps/web/src/tools` finds none in `tools/dev` (the remaining raw ones are poll, studio, tierlist: not under `.ud-root`).
 - Final commit: `(ALL READY)`.
 
@@ -30,7 +30,7 @@ No test finds a select by a class. Nothing else in `apps/web/src` uses `.sr-calc
 - `.sr-calc select` (box: font, colour, ground, border, radius, padding, min size): dependants = every select under `.sr-calc`: the eight above, all moved to the kit in this branch. No raw select is left, so the rule is not needed for any.
 - `.sr-calc-field select` (14 px, text colour): same eight. The kit sets `color: var(--ui-text)` itself; the size now comes from `.sr-calc-pick`.
 - `.ud-root > select`: no raw select under `.ud-root` (above).
-- Floor: `.sr-calc-field:has(select)` is 7.5rem (120 px) so a select field never gets narrower than text plus the kit's 36 px end padding; `.sr-calc-opts` and `.sr-calc-convert` already wrap. The base had Units From/To at 77.8 px at 375; with the floor the row wraps. toolshots measures whether 120 px is enough for the longest unit name; if not, the cure is a larger floor in the same block.
+- Floor: `.sr-calc-field:has(select)` is 10rem (160 px; raised from 7.5rem after toolshots FAULT: Kilometre (km) was under the chevron at 375) so a select field never gets narrower than text plus the kit's 36 px end padding; `.sr-calc-opts` and `.sr-calc-convert` already wrap. The base had Units From/To at 77.8 px at 375; with the floor the row wraps. toolshots measures whether 120 px is enough for the longest unit name; if not, the cure is a larger floor in the same block.
 
 ## Who imports (lazy chunks)
 UnitsTool, ProgrammerTool, TimezoneTool, CurrencyTool, PercentTool are loaded by `import()` in `tools/registry.ts` (`:277`, `:288`, `:321`): lazy tool chunks. `calc.css` is imported by those tools only. `utl-dev.css` is the dev tools' sheet, loaded with the tools. None is in first paint or a public page. No web build run.
@@ -56,5 +56,5 @@ none (code builder).
 The Tools drawer's Units, Programmer and Time zones selects are the shared select now, with a width floor so their text sits clear of the chevron, and `calc.css` no longer styles selects by element name.
 
 ## Owner questions
-- The floor is 7.5rem for all; one floor for the longest unit name. Confirm if a unit name needs more (toolshots measures).
+- The floor is 10rem for all; one floor for the longest unit name. Confirm if a unit name needs more (toolshots measures).
 - Stash: none touched.

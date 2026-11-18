@@ -351,7 +351,7 @@
  * element rule gave it, through a class on the select (two classes beat the kit's one, whatever the load order).
  */
 .sr-calc-field:has(select) {
-  min-inline-size: 7.5rem;
+  min-inline-size: 10rem;
 }
 .sr-calc-field .sr-calc-pick {
   font-size: 0.875rem;
