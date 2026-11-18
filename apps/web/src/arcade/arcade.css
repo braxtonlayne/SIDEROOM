@@ -888,8 +888,8 @@
   gap: 8px;
   margin-block-start: 4px;
 }
-/* Native selects dressed like the kit's TextInput (label above, same control box) so a form reads as one. */
-.arc-field > span {
+/* The small-caps label of a form field: the label's own first-child span (the kit select's wrapper never is). */
+.arc-field > span:first-child {
   color: var(--ui-text-muted);
   font-size: 0.75rem;
   font-weight: 600;
@@ -899,22 +899,6 @@
 .arc-form .arc-field,
 .arc-start .arc-field {
   max-inline-size: none;
-}
-.arc-field select {
-  box-sizing: border-box;
-  inline-size: 100%;
-  min-block-size: 40px;
-  padding-block: 8px;
-  padding-inline: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius, 6px);
-  background: var(--ui-bg-raised, var(--ui-bg));
-  color: var(--ui-text);
-  font: inherit;
-}
-.arc-field select:focus-visible {
-  outline: 2px solid var(--ui-focus);
-  outline-offset: 1px;
 }
 /* Admin > Arcade: the form keeps its framed box, and the "Released as" picker sits beside its two buttons. */
 .arc-section > .arc-form {
@@ -1081,19 +1065,6 @@
   .arc-admin-list > li + li {
     margin-block-start: 8px;
   }
-}
-
-/* SEC-AUD-453, D-958: the three raw selects of the Arcade are the kit's NativeSelect. Its wrapper span is a direct
-   child of `.arc-field`, so the label rule `.arc-field > span` and the element rule `.arc-field select` reach it:
-   undo what would make the field read as a label (small caps) and give back the room for the kit's chevron. */
-.arc-field > span:has(> select) {
-  color: inherit;
-  font: inherit;
-  letter-spacing: normal;
-  text-transform: none;
-}
-.arc-field > span > select {
-  padding-inline: 12px 36px;
 }
 
 /* SEC-AUD-456, D-981: in the Start dialog at phone width every channel row is at least 44 px tall, so a tap on one
