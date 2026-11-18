@@ -241,6 +241,29 @@ test('SEC-AUD-455 / D-969: the Transcoding queue names its Mount column; its tab
         else expect(m.labels[2], 'the data-label').toBe('Mount');
       }
 
+      const logsHit = async () => {
+        const btn = page
+          .locator('.adm-table-wrap tbody tr', {
+            has: page.getByText(failed.id, { exact: true }),
+          })
+          .getByRole('button', { name: /logs/i });
+        try {
+          const h = await hitTest(page, btn);
+          console.log(
+            `REPORT ${tag} ${PHASE} Logs button: box ${Math.round(h.box.width)}x${Math.round(h.box.height)}, hit test pass ${h.pass}; ${JSON.stringify(h.points.map((p) => [p.at, p.ok]))}`,
+          );
+          const centre = h.points.find((p) => p.at === 'centre');
+          if (centre && !centre.ok)
+            problems.push(`${tag}: the Logs button's centre is taken by another node`);
+          // The 44 px rule is a phone rule (D-856): a fail at 1024 / 900 is noted, not a fault (SEC-AUD-467).
+          if (s.phone && !h.pass) problems.push(`${tag}: the Logs button fails the 44 px hit test`);
+        } catch (e) {
+          if (e instanceof ProbeError)
+            problems.push(`${tag}: Logs hit test not reached: ${e.message}`);
+          else throw e;
+        }
+      };
+
       const shoot = async (name: string, where: 'start' | 'end' | null) => {
         await page.evaluate(() => window.scrollTo(0, 0));
         if (where) await scrollTo(page, where);
@@ -256,6 +279,7 @@ test('SEC-AUD-455 / D-969: the Transcoding queue names its Mount column; its tab
       };
 
       if (PHASE === 'base') {
+        await logsHit();
         if (s.key === '1024') await shoot('base-queue-1024.png', null);
         // Confirm first (item 2): the table scrolls, and nothing shows there is more.
         console.log(
@@ -344,24 +368,10 @@ test('SEC-AUD-455 / D-969: the Transcoding queue names its Mount column; its tab
             },
             [WRAP] as const,
           );
-          const btn = page
-            .locator('.adm-table-wrap tbody tr', {
-              has: page.getByText(failed.id, { exact: true }),
-            })
-            .getByRole('button', { name: /logs/i });
-          try {
-            const h = await hitTest(page, btn);
-            rep(
-              `Logs button hit test: pass ${h.pass}; ${JSON.stringify(h.points.map((p) => [p.at, p.ok]))}`,
-            );
-            if (!h.pass) problems.push(`${tag}: the Logs button fails the hit test`);
-          } catch (e) {
-            if (e instanceof ProbeError)
-              problems.push(`${tag}: Logs hit test not reached: ${e.message}`);
-            else throw e;
-          }
+          await logsHit();
         } else {
           expect(m.bgImage, 'no shade in the stacked layout').toBe('none');
+          await logsHit();
         }
       }
       await ctx.close();
