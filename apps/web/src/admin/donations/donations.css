@@ -247,7 +247,12 @@
    ground under the wrapper (var(--ui-bg), opaque for the shade's 16 px) scroll with the content (local) and hide the shade at the edge where the
    content starts or ends; under them two shade layers stay at the wrapper's edges (scroll). Both edges are treated alike,
    so the rule does not depend on the writing direction. Cells and rows paint no ground of their own. Not on a phone
-   (stacked rows, D-925). */
+   (stacked rows, D-925).
+   SEC-AUD-454 (D-965): the wrapper's width is fractional (585.28 px at 1024) while the scroll area is a whole number of
+   pixels, so a local cover ends where the content ends and the wrapper's last partial pixel is outside it: the shade
+   (scroll) showed there as a 1 px line at an edge that is at its end, however the covers were positioned. The shades
+   (scroll) now stand 1 px in from each edge and are 17 px wide, so that pixel is never shaded and the darkest column
+   is the same; the covers are 36 px wide (opaque for 18 px) so they still hide the whole shade at the end. */
 @media (min-width: 721px) {
   .adm-table-wrap:has(> .inv-table) {
     background-image:
@@ -258,13 +263,13 @@
     background-position:
       left center,
       right center,
-      left center,
-      right center;
+      left 1px center,
+      right 1px center;
     background-size:
-      32px 100%,
-      32px 100%,
-      16px 100%,
-      16px 100%;
+      36px 100%,
+      36px 100%,
+      17px 100%,
+      17px 100%;
     background-attachment: local, local, scroll, scroll;
     background-repeat: no-repeat;
   }
