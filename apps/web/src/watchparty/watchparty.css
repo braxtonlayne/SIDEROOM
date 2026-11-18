@@ -409,14 +409,6 @@
   margin: 8px 0;
   font-size: 0.9rem;
 }
-.wp-field select,
-.wp-inline select {
-  background: var(--sr-bg-2, #1d1a15);
-  color: inherit;
-  border: 1px solid var(--sr-line, rgba(255, 255, 255, 0.2));
-  border-radius: var(--sr-radius, 2px);
-  padding: 6px 8px;
-}
 .wp-settings {
   margin-top: 16px;
   border-top: 1px solid var(--sr-line, rgba(255, 255, 255, 0.12));
