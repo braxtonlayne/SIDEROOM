@@ -1,23 +1,32 @@
 # fix-p103-toolshots (shots builder, pod tools; SEC-AUD-463, 464, 465; D-972, D-973)
 
-Spec: `e2e/tests/p103-tools-shots.spec.ts`. Shots and figures: `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p103-tools` (`figures-base.json`, `figures-after.json`, `report-base.json`, `report-after.json`, `table-after.json`, `round1/` = round 1's report, table and figures, `base-*.png`, `*.png`, `pairs/*.png` base beside after). I changed no app file. My branch holds the merges of `fix/p103-calc` (84b52b41, with the 10rem floor), `fix/p103-studio` (e0e9a26a) and `fix/p103-rooms` (b38ba63c, with the chip font cure); no conflict.
+Spec: `e2e/tests/p103-tools-shots.spec.ts`. Shots and figures: `C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p103-tools` (`figures-base.json`, `figures-after.json`, `report-base.json`, `report-after.json`, `table-after.json`, `round2/` = round 2's report (`round1/` holds round 2's three files too: I overwrote round 1's copies by mistake; round 1's problem lines are quoted below), `base-*.png`, `*.png`, `pairs/*.png` base beside after). I changed no app file. My branch holds the merges of `fix/p103-calc` (7e0420bd: 7.5rem for every select field, 9.25rem only for the Units From and To labels), `fix/p103-studio` (e0e9a26a) and `fix/p103-rooms` (b38ba63c, with the chip font cure); no conflict.
 
 ## Clock
-Started 11:56. Spec compiled 12:00. Round 1 (lock `toolshots 12:14`, base then after, one hold, 12:14 to 12:23). FAULTS sent 12:25. Round 2 (lock `toolshots 12:49`, after only on a fresh database and seed, 12:49 to 12:55). Typecheck 12:56.
+Started 11:56. Spec compiled 12:00. Round 1 (lock `toolshots 12:14`, base then after, one hold, 12:14 to 12:23). FAULTS sent 12:25. Round 2 (lock `toolshots 12:49`, after only on a fresh database and seed, 12:49 to 12:55). Typecheck 12:56. Round 3 (lock `toolshots 13:01`, after only on a fresh database and seed, 13:01 to 13:06), after the commander's word that calc's cure 7e0420bd was in.
 
 ## STACK-ROUND
 1. 12:14-12:23, `status` read `toolshots 12:14 / loungeshots 12:14`. Stack 8809 / 5809 / 9509 with `SR_ADMIN_REQUIRE_REAUTH=0`, database `sr_p103_toolshots_ui`, seed with no FAIL line. Base: the pod's app files put back with `git checkout 49ca8946 -- apps/web/src/tools` (calc and studio had been merged at the commander's word before my slot came), 4.1 min, 60 figures, nothing unreached; then `git checkout HEAD -- apps/web/src/tools` (`git status` clean) and the after phase: 60 figures, 61 problem lines.
 2. 12:49-12:55, `status` read `toolshots 12:49` alone. Fresh database, seed with no FAIL line, after phase against round 1's `figures-base.json` (a layout figure; the world differs only in names), 60 figures, nothing unreached, 116 problem lines (all explained below). Stack stopped by PID, ports free, released; `status` read `free`.
 
+3. 13:01-13:06, `status` read `toolshots 13:01` alone. Fresh database, seed with no FAIL line, after phase against round 1's `figures-base.json`: **60 figures, unreached 0, problems 0, the spec passed (4.6 min)**. Stack stopped by PID, ports free, released, `status` read `free`.
+
 ## TYPECHECK
-`tc.sh run toolshots bash -c "cd .../p103-toolshots/apps/web && npx tsc --noEmit -p ."` 12:56, exit 0 (merged tree). e2e `npx tsc --noEmit -p tsconfig.json` exit 0 and prettier --check on the spec exit 0 after the last edit.
+`tc.sh run toolshots bash -c "cd .../p103-toolshots/apps/web && npx tsc --noEmit -p ."` 12:56, exit 0 (merged tree; round 3's merge changed only `calc.css` and `UnitsTool.tsx`' class, which is not a type change; I did not run it again). e2e `npx tsc --noEmit -p tsconfig.json` exit 0 and prettier --check on the spec exit 0 after the last edit.
 
 ## What the commander asked to confirm
 - **"Kilometre (km)" at 375: clear of the chevron.** Round 2: Units From is 160 x 44, text 97.1 px inside 110 px (round 1: 120.6 wide, 70.6 inside, text under the chevron). Opened `pairs/units-375-editorial.png`: the text reads whole. Timezone Work starts and ends 160 x 44 (30 and 35 px of text), Programmer Decimal fills its row.
 - **Move chip: 80 x 21 again** at 1024 and 375 in every theme (round 1: 80 x 19). The tier-list lines of round 1 are gone.
 
-## FAULTS
-1. **calc, `tools/calc/calc.css` end block, floor `10rem` (the cost of round 2's cure), kind (b), new:** one floor for every select field now wraps rows that did not need it.
+## ROUND 3 RESULT (the commander's four checks)
+- **"Kilometre (km)" at 375 is clear of the chevron:** Units From 148 x 44, text 97.1 px inside 98 px; `pairs/units-375-editorial.png` opened, the text reads whole. To wraps below at 287 x 44.
+- **Currency From and To side by side at 375:** 120.6 x 44 each, at x 44 and x 210.4 (round 1 and base: the same); `pairs/currency-375-editorial.png` opened.
+- **"Digits are read as" back on its row at 1024 in all three themes:** 156.9 x 40 at x 607.1 beside the buttons and Signed (base 156.9 x 33); `pairs/programmer-1024-dark.png` opened (the other two themes: figures only, the box is the same).
+- **0 problem lines.** The Move chip is 80 x 21 at both sizes.
+- Informational NOTE lines: a few options are wider than their field and are cut with an ellipsis when picked: Units From and To at 1024 (widest option 123.3 px in 100.1 px, the base clipped it as well) and at 375 (123.3 in 98), Percent Calculation at 375 (241.5 in 219). Not a rule of this wave; listed for the commander.
+
+## FAULTS (history; items 1 is cured in round 3)
+1. **(CURED in round 3 by 7e0420bd) calc, `tools/calc/calc.css` end block, floor `10rem` (the cost of round 2's cure), kind (b), new:** one floor for every select field now wraps rows that did not need it.
    - **Currency, 375:** From and To were 120.6 px each, side by side with the swap button; now From is 249.3 x 44 and To 287 x 44 on two lines (text "EUR" and "USD" is 28 px). The spec calls it "a kit select whose box changed although it was the kit's already". Pair `currency-375-editorial.png` opened: whole fields, no overlap, but the converter is one line taller.
    - **Programmer, 1024 (all three themes):** "Digits are read as" was 156.9 px beside the 8/16/32/64 buttons and "Signed"; now it is on its own line, 504 x 40, the Signed row moves 22 px up and everything below it (the bit grid, 32 buttons) moves 45 px down (allowed 7). Round 1 with 7.5rem did not wrap at 1024. Pair `programmer-1024-editorial.png` opened.
    - Cure (b), one: keep `min-inline-size: 7.5rem` for `.sr-calc-field:has(select)` and give only the Units From and To labels the larger floor (a class on those two labels; `9.25rem` = 148 px is the least that holds "Kilometre (km)": 97.1 + 12 + 36 + 2 = 147.1; the widest option of the Length list may need more: `table-after.json` has `maxOptW`, and the spec writes a NOTE line for every kit select whose widest option is wider than its field). The Units row then wraps as in round 2 and Currency and Programmer return to round 1's layout.
@@ -51,7 +60,8 @@ End padding: in the base the wave 102 kit selects under `.sr-calc-field`, `.sr-r
 ## Shots
 Folder `visual-sweep-shots/p103-tools`: 60 pairs in `pairs/` (page x configuration), plus 60 base and 60 after PNGs. Configs: 1024 Lounge Editorial and 375 touch Editorial (every page), 375 Lounge Light, 1024 Lounge Light and 1024 Lounge Dark (ten pages each); `data-theme` is read back each time.
 **Opened by me (base beside after), what I saw:** round 1: units-375-editorial (From cut as "Kilome", after "Kilometr..."), poll-375-editorial (Lasts wider, checkbox wrapped), studio-caption-1024-editorial (kit Font next to the slider), tierlist-1024-editorial (chip not in view: the spec now scrolls the changed select into view), timezone-375-editorial (whole "9:00" and "17:00", wrapped), programmer-375-editorial (whole "Decimal"), invite-1024-light (grey kit ground, item 3), loot-375-editorial (equal), currency-375-editorial (equal). Round 2: units-375-editorial (whole "Kilometre (km)"), tierlist-375-editorial (the chip at its base size, text "Unranked" cut by the chevron as in the base), programmer-1024-editorial (the select on its own line, FAULT 1), currency-375-editorial (From and To one under the other, FAULT 1).
-**That is 13 of 60 pairs opened; the other 47 (the rest of the Light and Dark configurations, diff, url, mdtable, json, percent, studio-export and so on) I did not open.** The figures (box, text width, hit test, keyboard, scroll) cover them, but that is not looking: they are unopened.
+Round 3: units-375-editorial, currency-375-editorial, programmer-1024-dark (see ROUND 3 RESULT).
+**That is 16 opening events on 13 different pairs (of 60); the other 47 (the rest of the Light and Dark configurations, diff, url, mdtable, json, percent, studio-export and so on) I did not open.** The figures (box, text width, hit test, keyboard, scroll) cover them, but that is not looking: they are unopened.
 
 ## STALE
 None found (I ran no earlier spec).
@@ -59,10 +69,10 @@ None found (I ran no earlier spec).
 ## Commander's commands (from `e2e/`, on a stack with the sweep world)
 Base, with the pod's app files at wave 102's text (`git checkout 49ca8946 -- apps/web/src/tools`, restore with `git checkout HEAD -- apps/web/src/tools`):
 `SR_E2E_BASE_URL=http://localhost:<vite> SR_P103_TOOLS_ON=1 SR_P103_TOOLS_PHASE=base SR_P103_TOOLS_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p103-tools npx playwright test tests/p103-tools-shots.spec.ts --project=chromium --workers=1 --retries=0 --reporter=line`
-then the same with `SR_P103_TOOLS_PHASE=after` on the merged tree. The after run ends red until FAULT 1 is cured (116 lines, all of it Currency and Programmer wrapping).
+then the same with `SR_P103_TOOLS_PHASE=after` on the merged tree. On the merged tree as it stands (calc 7e0420bd) the after run passes with 0 problem lines.
 
 ## Proposed rows
-- SEC-AUD-463 (narrow fields): closed for the Units, Timezone and Programmer text; the 10rem floor wraps Currency at 375 and Programmer at 1024 (FAULT 1). Proposed wording: "a floor per field, not one for all".
+- SEC-AUD-463 (narrow fields): closed for the Units, Timezone and Programmer text; a per-field floor (7.5rem, and 9.25rem on the Units From and To) holds every text clear of the chevron with Currency and Programmer rows unchanged; the Units widest option is still cut when picked (NOTE).
 - SEC-AUD-464 and 465: the tools pod's rules and selects are as the builders' handoffs say; the tier-list Move chip stays raw (80 x 21; at 375 "Unranked" is cut by the chevron, in the base too).
 - Optional new row: Invite card selects in Lounge Light draw the kit's grey ground beside white inputs (item 3).
 
