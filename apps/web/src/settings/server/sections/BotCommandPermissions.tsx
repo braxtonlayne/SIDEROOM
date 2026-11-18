@@ -175,7 +175,7 @@ export function BotCommandPermissions({
               {special.map((s) => {
                 const name = nameOf({ id: s.id, type: s.type, permission: true });
                 return (
-                  <li key={`${s.type}:${s.id}`} className="ss-row">
+                  <li key={`${s.type}:${s.id}`} className="ss-row ss-rule-row">
                     <div className="ss-grow">
                       <div className="ss-name">{name}</div>
                     </div>
@@ -194,7 +194,7 @@ export function BotCommandPermissions({
               {extra.map((e) => {
                 const name = nameOf(e);
                 return (
-                  <li key={`${e.type}:${e.id}`} className="ss-row">
+                  <li key={`${e.type}:${e.id}`} className="ss-row ss-rule-row">
                     <div className="ss-grow">
                       <div className="ss-name">{name}</div>
                       <div className="ss-meta">

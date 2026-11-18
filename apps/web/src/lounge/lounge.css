@@ -1655,7 +1655,6 @@
   text-transform: uppercase;
   color: var(--text-muted);
 }
-.lng-field select,
 .lng-invite-link input {
   height: 36px;
   padding: 0 8px;

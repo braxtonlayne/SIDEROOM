@@ -797,3 +797,60 @@
     scroll-margin-block-start: 52px;
   }
 }
+
+/* SEC-AUD-451 (D-964): Members' table scrolls in its own wrapper above a phone, not the content column (at 1024 the column
+   scrolled sideways and the sidebar covered the heading and the search field). The stacked rows of a phone need no wrapper. */
+@media (min-width: 721px) {
+  .ss-table-scroll {
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+}
+
+/* SEC-AUD-450 (D-964): in a Command permissions rule row the name keeps a floor on its width and the kit's select (its
+   wrapper is 100 % wide) takes a basis of its own, so the name no longer shrinks to 0. Above a phone only; the phone keeps
+   its wrapped rows. */
+@media (min-width: 721px) {
+  .ss-row.ss-rule-row > .ss-grow {
+    flex: 1 1 12ch;
+    min-inline-size: 12ch;
+  }
+  .ss-row.ss-rule-row > .ss-grow > .ss-name {
+    min-inline-size: 12ch;
+  }
+  .ss-row.ss-rule-row > span {
+    flex: 0 1 220px;
+    inline-size: auto;
+    min-inline-size: 160px;
+  }
+}
+
+/* SEC-AUD-452 (D-964): on a phone the stacked table's head is clipped to 1 px, so the "Select all members on this page"
+   checkbox had no target (rows took its points). The head row of a table with a checkbox in it shows that one cell as a
+   line of its own above the rows, 44 px tall (the kit's Checkbox); the other head cells stay for a screen reader. */
+@media (max-width: 720px) {
+  .ss-table-stack thead:has(th input[type='checkbox']) {
+    position: static;
+    display: block;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) tr {
+    display: flex;
+    padding-block: 0;
+    border-block-start: 0;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) th {
+    display: block;
+    padding: 0;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) th:not(:has(input[type='checkbox'])) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}

@@ -1,4 +1,4 @@
-import { Button, Modal } from '@sideroom/ui';
+import { Button, Modal, NativeSelect } from '@sideroom/ui';
 import { useState } from 'react';
 import { t, useT } from '../../i18n';
 import type { NewPoll } from '../data';
@@ -179,7 +179,7 @@ export function PollModal({
         </fieldset>
         <label className="lng-field">
           <span>{t('lounge.pollModal.duration')}</span>
-          <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+          <NativeSelect value={hours} onChange={(e) => setHours(Number(e.target.value))}>
             {!DURATIONS.some((d) => d.hours === hours) && (
               <option value={hours}>{t('lounge.pollModal.durationCustom', { n: hours })}</option>
             )}
@@ -188,7 +188,7 @@ export function PollModal({
                 {t(d.labelKey)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="lng-check">
           <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} />

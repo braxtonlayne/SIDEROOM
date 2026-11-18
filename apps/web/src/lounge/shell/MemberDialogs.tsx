@@ -1,4 +1,4 @@
-import { Button, Modal, TextInput } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { t, useT, type MessageKey } from '../../i18n';
@@ -139,17 +139,13 @@ export function MemberActionDialog({
                 ? t('lounge.memberDialogs.duration')
                 : t('lounge.memberDialogs.deleteHistory')}
             </span>
-            <select
-              className="lng-select"
-              value={seconds}
-              onChange={(e) => setSeconds(Number(e.target.value))}
-            >
+            <NativeSelect value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>
               {options.map((o) => (
                 <option key={o.seconds} value={o.seconds}>
                   {t(o.labelKey)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         )}
         <TextInput

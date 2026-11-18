@@ -1,4 +1,13 @@
-import { Button, Modal, Notice, RadioGroup, Radio, Spinner, Switch } from '@sideroom/ui';
+import {
+  Button,
+  Modal,
+  NativeSelect,
+  Notice,
+  RadioGroup,
+  Radio,
+  Spinner,
+  Switch,
+} from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { useChannels, useGuild } from '../data';
@@ -118,17 +127,13 @@ export function NotificationDialog({
           {!muted && (
             <label className="lng-field">
               <span className="lng-field-label">{t('lounge.notificationDialog.muteFor')}</span>
-              <select
-                className="lng-select"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-              >
+              <NativeSelect value={duration} onChange={(e) => setDuration(e.target.value)}>
                 {MUTE_DURATIONS.map((d) => (
                   <option key={d.seconds} value={String(d.seconds)}>
                     {d.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
           <RadioGroup

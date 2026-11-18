@@ -51,6 +51,9 @@ stage_verify() {
   out=$(systemd-analyze verify "$repo"/deploy/systemd/*.service "$repo"/deploy/systemd/*.timer 2>&1) && rc=0 || rc=$?
   [ -z "$out" ] || echo "$out"
   [ "$rc" = "0" ] || die "systemd-analyze verify failed (exit $rc)"
+  # Known: the runner's own units (/usr/lib, /lib, /etc systemd paths) can warn on a newer systemd
+  # (259 dropped CPUAccounting=). Those lines are not about our units, so they do not count.
+  out=$(printf '%s\n' "$out" | grep -vE '^(/usr/lib|/lib|/etc)/systemd/' || true)
   [ -z "$out" ] || die "systemd-analyze verify printed warnings (above); fix the units or list the warning as known"
   log "all unit files pass systemd-analyze verify"
 }

@@ -1,3 +1,4 @@
+import { NativeSelect } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { listMounts } from '../../settings/user/storage/api';
@@ -55,7 +56,7 @@ export function MountImagePicker({
     <div className="sr-room-picker" role="group" aria-label={t('tools.rooms.mountPicker')}>
       <label className="sr-room-field">
         <span>{t('tools.rooms.mount')}</span>
-        <select
+        <NativeSelect
           value={mount}
           onChange={(e) => {
             setMount(e.target.value);
@@ -68,7 +69,7 @@ export function MountImagePicker({
               {m.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       {mounts?.length === 0 && <p className="sr-tl-muted">{t('tools.rooms.noMounts')}</p>}
       {failed && (

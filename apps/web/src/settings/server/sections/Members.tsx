@@ -413,51 +413,53 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       )}
       {members.length > 0 && (
         <>
-          <table className="ss-table ss-table-stack">
-            <caption className="ss-sub">
-              {done
-                ? t('settings.members.count', { count: filtered.length })
-                : t('settings.members.countLoaded', { count: filtered.length })}
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">
-                  <Checkbox
-                    label={null}
-                    aria-label={t('settings.members.selectAll')}
-                    checked={allOnPage}
-                    indeterminate={!allOnPage && someOnPage}
-                    onChange={(e) => toggleAll(e.target.checked)}
+          <div className="ss-table-scroll">
+            <table className="ss-table ss-table-stack">
+              <caption className="ss-sub">
+                {done
+                  ? t('settings.members.count', { count: filtered.length })
+                  : t('settings.members.countLoaded', { count: filtered.length })}
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <Checkbox
+                      label={null}
+                      aria-label={t('settings.members.selectAll')}
+                      checked={allOnPage}
+                      indeterminate={!allOnPage && someOnPage}
+                      onChange={(e) => toggleAll(e.target.checked)}
+                    />
+                  </th>
+                  <th scope="col">{t('settings.members.colName')}</th>
+                  <th scope="col">{t('settings.members.colSince')}</th>
+                  {viewer.can('MANAGE_GUILD') && (
+                    <>
+                      <th scope="col">{t('settings.members.colJoined')}</th>
+                      <th scope="col">{t('settings.members.colSignals')}</th>
+                    </>
+                  )}
+                  <th scope="col">{t('settings.members.colRoles')}</th>
+                  <th scope="col">{t('settings.members.colActions')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((m) => (
+                  <MemberRow
+                    key={m.user.id}
+                    member={m}
+                    roleById={roleById}
+                    viewer={viewer}
+                    block={blockReason(m)}
+                    checked={selected.has(m.user.id)}
+                    onCheck={(on) => toggleOne(m.user.id, on)}
+                    onAction={(kind) => setDialog({ kind, member: m })}
+                    onDetails={() => setDetails(m)}
                   />
-                </th>
-                <th scope="col">{t('settings.members.colName')}</th>
-                <th scope="col">{t('settings.members.colSince')}</th>
-                {viewer.can('MANAGE_GUILD') && (
-                  <>
-                    <th scope="col">{t('settings.members.colJoined')}</th>
-                    <th scope="col">{t('settings.members.colSignals')}</th>
-                  </>
-                )}
-                <th scope="col">{t('settings.members.colRoles')}</th>
-                <th scope="col">{t('settings.members.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((m) => (
-                <MemberRow
-                  key={m.user.id}
-                  member={m}
-                  roleById={roleById}
-                  viewer={viewer}
-                  block={blockReason(m)}
-                  checked={selected.has(m.user.id)}
-                  onCheck={(on) => toggleOne(m.user.id, on)}
-                  onAction={(kind) => setDialog({ kind, member: m })}
-                  onDetails={() => setDetails(m)}
-                />
-              ))}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="ss-pager">
             <Button
               size="sm"

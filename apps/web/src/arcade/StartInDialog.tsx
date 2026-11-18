@@ -3,7 +3,7 @@
 // channels first), and the existing ActivityLauncher opens with the game preselected: it launches at once and falls
 // back to the shelf if refused. Starting in a voice channel the member is not in joins that call first; a failed join
 // launches nothing. Once the game runs, the member goes to that channel, where the Activity has its full-size slot.
-import { Button, Icon, Modal, Notice, Spinner } from '@sideroom/ui';
+import { Button, Icon, Modal, NativeSelect, Notice, Spinner } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { httpActivityApi, type ActivityApi } from '../activities/api';
@@ -255,13 +255,13 @@ export function StartInDialog({
               {guilds.length > 1 && (
                 <label className="arc-field">
                   <span>{t('arcade.cartridges.server')}</span>
-                  <select value={guildId} onChange={(e) => setGuild(e.target.value)}>
+                  <NativeSelect value={guildId} onChange={(e) => setGuild(e.target.value)}>
                     {guilds.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.name}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
               )}
               {loading && <Spinner label={t('arcade.start.loading')} />}

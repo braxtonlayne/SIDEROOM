@@ -1,6 +1,6 @@
 // "Watch together" (WP-FE-008, 009): pick where the party lives (a server channel you can post in, a DM, or a
 // private party with a share link) and, when no title was given (the voice call bar), which title to start.
-import { Button, Modal, Notice } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, Notice } from '@sideroom/ui';
 import { useRouter } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../api/client';
@@ -208,7 +208,7 @@ export function StartPartyDialog({
         )}
         <label className="wp-field">
           <span>{t('watchparty.startDialog.where')}</span>
-          <select
+          <NativeSelect
             value={dest}
             onChange={(e) => setDest(e.target.value)}
             aria-label={t('watchparty.startDialog.whereToWatch')}
@@ -237,7 +237,7 @@ export function StartPartyDialog({
                 ))}
               </optgroup>
             )}
-          </select>
+          </NativeSelect>
         </label>
         <p className="wp-muted">
           {dest === PRIVATE

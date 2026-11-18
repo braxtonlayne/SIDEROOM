@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { canonicalJson } from './logic';
 import { Field, Problem, Root } from './parts';
@@ -70,12 +71,12 @@ export default function DiffTool() {
   return (
     <Root label={t('tools.diff.name')}>
       <Field label={t('tools.diff.mode')}>
-        <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
+        <NativeSelect value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
           <option value="lines">{t('tools.diff.lines')}</option>
           <option value="words">{t('tools.diff.words')}</option>
           <option value="chars">{t('tools.diff.chars')}</option>
           <option value="json">{t('tools.diff.json')}</option>
-        </select>
+        </NativeSelect>
       </Field>
       <div className="ud-row">
         <Field label={t('tools.diff.before')}>
