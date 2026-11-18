@@ -74,7 +74,6 @@
   margin-inline-start: auto;
 }
 .dev-root a:focus-visible,
-.dev-root select:focus-visible,
 .dev-root pre:focus-visible,
 .dev-root input:focus-visible {
   outline: 2px solid var(--ui-focus);
@@ -189,36 +188,6 @@ form.dev-actions {
     align-self: start;
     margin-block-start: 23px;
   }
-}
-.dev-select {
-  max-width: 100%;
-}
-/* The Developers' native selects (in `.dev-main` and on the authorize page) take the kit field's look (D-825): bare ones and `.dev-select`, never a kit Select
-   (those carry a module class). The option list is the browser's. */
-:where(.dev-main, .dev-authorize) select:not([class]),
-:where(.dev-main, .dev-authorize) select.dev-select {
-  box-sizing: border-box;
-  min-block-size: 40px;
-  padding: 8px 12px;
-  background: var(--ui-bg-raised);
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius, 6px);
-  font: inherit;
-}
-:where(.dev-main, .dev-authorize) select:not([class]):hover:not(:disabled),
-:where(.dev-main, .dev-authorize) select.dev-select:hover:not(:disabled) {
-  border-color: var(--ui-text-faint);
-}
-:where(.dev-main, .dev-authorize) select:not([class]):focus-visible,
-:where(.dev-main, .dev-authorize) select.dev-select:focus-visible {
-  outline: 2px solid var(--ui-focus);
-  outline-offset: 1px;
-}
-:where(.dev-main, .dev-authorize) select:not([class]):disabled,
-:where(.dev-main, .dev-authorize) select.dev-select:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .dev-fieldset {
   border: 1px solid var(--ui-border);
