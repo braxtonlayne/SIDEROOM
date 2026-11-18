@@ -1,7 +1,7 @@
 // Generated reference sections of the documentation hub (DEV-PORT-004): the endpoint list is read from the
 // server's own OpenAPI document, the gateway tables come from gatewayDocs.generated.ts (built from the
 // specification by scripts/lib/gateway-docs.mjs).
-import { Notice, TextInput } from '@sideroom/ui';
+import { NativeSelect, Notice, TextInput } from '@sideroom/ui';
 import { useMemo, useState } from 'react';
 import { useT } from '../i18n';
 import { useLoad } from '../packages/useLoad';
@@ -102,7 +102,8 @@ export function OpenApiReference() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <select
+        <NativeSelect
+          fit="content"
           aria-label={t('developers.reference.area')}
           value={tag}
           onChange={(e) => setTag(e.target.value)}
@@ -113,7 +114,7 @@ export function OpenApiReference() {
               {x}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <p className="dev-muted" role="status">
         {t('developers.reference.count', { shown: shown.length, total: all.length })}
