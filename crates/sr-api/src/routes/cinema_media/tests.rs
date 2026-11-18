@@ -915,7 +915,13 @@ async fn a_job_row_carries_its_mounts_label_and_a_job_without_a_mount_carries_no
     assert!(jobs[1].get("mount_id").is_none(), "{jobs}");
     // Nothing else of the mount rides on the row.
     let keys: Vec<&String> = jobs[0].as_object().unwrap().keys().collect();
-    for k in ["bucket", "endpoint", "owner_id", "owner_kind", "access_key_id"] {
+    for k in [
+        "bucket",
+        "endpoint",
+        "owner_id",
+        "owner_kind",
+        "access_key_id",
+    ] {
         assert!(!keys.iter().any(|x| x.as_str() == k), "{k} leaked: {jobs}");
     }
 }

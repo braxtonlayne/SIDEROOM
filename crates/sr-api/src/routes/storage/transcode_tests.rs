@@ -259,7 +259,13 @@ async fn the_owners_conversion_list_carries_each_jobs_mount_label_and_nothing_el
     assert_eq!(body[0]["mount_label"], "Ada films", "{body}");
     assert!(body[1].get("mount_label").is_none(), "{body}");
     let keys: Vec<&String> = body[0].as_object().unwrap().keys().collect();
-    for k in ["bucket", "endpoint", "owner_id", "owner_kind", "access_key_id"] {
+    for k in [
+        "bucket",
+        "endpoint",
+        "owner_id",
+        "owner_kind",
+        "access_key_id",
+    ] {
         assert!(!keys.iter().any(|x| x.as_str() == k), "{k} leaked: {body}");
     }
     // A mount that is not the stub's canned one lists nothing.

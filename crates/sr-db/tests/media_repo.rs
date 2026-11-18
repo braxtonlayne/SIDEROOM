@@ -2737,7 +2737,7 @@ async fn a_job_lists_its_mounts_label_and_none_when_the_mount_is_gone_or_the_job
     for (id, label, gone) in [(live, "p106 live", false), (deleted, "p106 gone", true)] {
         sqlx::query(
             "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc, deleted_at) \
-             VALUES ($1, 'user', 1, $2, 's3', 'https://example.invalid', 'b', 'k', '\x00', CASE WHEN $3 THEN now() END)",
+             VALUES ($1, 'user', 1, $2, 's3', 'https://example.invalid', 'b', 'k', decode('00', 'hex'), CASE WHEN $3 THEN now() END)",
         )
         .bind(id)
         .bind(label)
@@ -2749,17 +2749,18 @@ async fn a_job_lists_its_mounts_label_and_none_when_the_mount_is_gone_or_the_job
     let mut ids = Vec::new();
     for mount in [Some(live), Some(deleted), Some(missing), None] {
         let id = next_id();
-        let (kind, spec) = if mount.is_some() {
-            ("mount_transcode", "'{}'::jsonb")
+        let kind = if mount.is_some() {
+            "mount_transcode"
         } else {
-            ("remux", "'{}'::jsonb")
+            "remux"
         };
-        sqlx::query(&format!(
+        sqlx::query(
             "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, mount_id) \
-             VALUES ($1, 0, '{kind}', {spec}, 'a.mkv', 1, 'mkv', $2)"
-        ))
+             VALUES ($1, 0, $3, '{}'::jsonb, 'a.mkv', 1, 'mkv', $2)",
+        )
         .bind(id)
         .bind(mount)
+        .bind(kind)
         .execute(&w.pool)
         .await
         .unwrap();
