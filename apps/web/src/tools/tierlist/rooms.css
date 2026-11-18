@@ -207,18 +207,25 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* SEC-AUD-464 (D-972): the chip's select stays a raw select (a 40 px kit field would make every chip 40 px tall),
- * so it carries its own box by class; the sheet no longer styles a select by element name. */
+/* SEC-AUD-480 (D-994): the chip's Move control is a menu button (the kit's DropdownMenu) drawn no taller than the chip's
+ * text line; its menu lists Unranked and the tiers. It carries its own box by class; the phone block at the end of the sheet
+ * gives it the 44 px target. */
 .sr-room-move {
-  min-inline-size: 0;
-  max-inline-size: 5rem;
-  padding-block: 0;
-  padding-inline: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  padding: 0;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
   background: var(--ui-bg);
   color: var(--ui-text);
-  font: inherit;
+  cursor: pointer;
+}
+.sr-room-move:hover {
+  background: var(--ui-bg-hover);
 }
 .sr-room-img {
   inline-size: 2.5rem;
@@ -259,4 +266,17 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+/* SEC-AUD-480 (D-994): on a phone the chip's Move button is a 44 x 44 target. The chip takes its height from the button
+ * (its 1 px borders are covered by the button's own -1 px margin, so the chip is 44 px, not 46) and the tier rows follow. */
+@media (max-width: 720px) {
+  .sr-room-chip {
+    padding-block: 0;
+  }
+  .sr-room-move {
+    inline-size: 44px;
+    block-size: 44px;
+    margin-block: -1px;
+  }
 }
