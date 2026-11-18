@@ -1,6 +1,6 @@
 // The Reader (LIB-RDR-001..009, 013, 014, 017): full-screen, auto-hiding chrome, paged (single and double) and long-strip
 // modes, keyboard and tap-zone navigation, zoom and fit, progress through the data layer, next/previous chapter.
-import { Drawer, EmptyState, Icon, Slider, Spinner } from '@sideroom/ui';
+import { Drawer, EmptyState, Icon, NativeSelect, Slider, Spinner } from '@sideroom/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -841,14 +841,14 @@ function ChapterSelect({
   return (
     <label className="lib-chapter-select">
       <span className="lib-sr-only">{t('library.reader.chapterSelect')}</span>
-      <select value={current.id} onChange={(e) => onPick(e.target.value)}>
+      <NativeSelect value={current.id} onChange={(e) => onPick(e.target.value)}>
         {sorted.map((c) => (
           <option key={c.id} value={c.id}>
             {t('library.reader.chapterOption', { n: c.number })}
             {c.title ? t('library.reader.titleSuffix', { title: c.title }) : ''}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }
