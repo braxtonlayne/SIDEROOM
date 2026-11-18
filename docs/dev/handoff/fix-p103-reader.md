@@ -30,7 +30,7 @@ The kit's chevron is drawn in `--ui-text-muted` on the wrapper's `::after`; the 
 - `node scripts/check-css-tokens.mjs`: exit 0 (73 files clean). `node scripts/i18n-audit.mjs --max 0`: TOTAL 0. `node scripts/check-doc-links.mjs`: ok.
 
 ## TYPECHECK
-`bash cli-agents/tc.sh run reader bash -c "cd .../p103-reader/apps/web && npx tsc --noEmit -p ."`: RESULT_PLACEHOLDER
+`bash cli-agents/tc.sh run reader bash -c "cd .../p103-reader/apps/web && npx tsc --noEmit -p ."`: exit 0 (2026-11-18 about 12:08)
 
 ## STACK-ROUND: none (code builder)
 
