@@ -237,7 +237,7 @@ async function readFields(root: Locator): Promise<Raw[]> {
       let wrap: unknown = null;
       if (cs.borderTopStyle === 'none' || parseFloat(cs.borderTopWidth) === 0) {
         let a = f.parentElement;
-        for (let k = 0; k < 3 && a && a !== el; k++, a = a.parentElement) {
+        for (let k = 0; k < 4 && a && a !== el; k++, a = a.parentElement) {
           const acs = getComputedStyle(a);
           const ar = a.getBoundingClientRect();
           const hb = acs.borderTopStyle !== 'none' && parseFloat(acs.borderTopWidth) > 0;
@@ -245,8 +245,8 @@ async function readFields(root: Locator): Promise<Raw[]> {
             acs.backgroundColor !== 'rgba(0, 0, 0, 0)' && acs.backgroundColor !== 'transparent';
           if (
             (hb || hbg) &&
-            ar.width <= r.width + 220 &&
-            ar.height <= r.height + 60 &&
+            ar.width <= r.width + 520 &&
+            ar.height <= r.height + 100 &&
             ar.left <= r.left + 1 &&
             ar.top <= r.top + 1
           ) {
