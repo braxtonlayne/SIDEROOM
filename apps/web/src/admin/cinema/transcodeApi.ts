@@ -74,6 +74,8 @@ export interface TranscodeJob {
   asset_id: string;
   /** The storage mount a mount_transcode job works in (BYOS-CNV-003); absent for the Cinema kinds. */
   mount_id?: string | null;
+  /** The label of that mount (D-999), from the job row itself; absent when there is no mount or it is gone. */
+  mount_label?: string | null;
   kind: 'proxy' | 'ladder' | 'remux' | string;
   state: JobState;
   priority: number;
@@ -109,6 +111,8 @@ interface WireJob {
   job_id: string;
   asset_id: string;
   mount_id?: string | null;
+  /** The label of that mount (D-999), from the job row itself; absent when there is no mount or it is gone. */
+  mount_label?: string | null;
   kind: string;
   state: JobState;
   priority: number;
@@ -126,6 +130,7 @@ const toJob = (j: WireJob): TranscodeJob => ({
   id: j.job_id,
   asset_id: j.asset_id,
   mount_id: j.mount_id ?? null,
+  mount_label: j.mount_label ?? null,
   kind: j.kind,
   state: j.state,
   priority: j.priority,

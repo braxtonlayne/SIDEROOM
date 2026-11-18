@@ -39,7 +39,8 @@ describe('danger text tokens (D-577)', () => {
   it('the kit error text uses --ui-danger-text in every theme', () => {
     const rule = /\.error\s*\{([^}]*)\}/.exec(kitInput)?.[1] ?? '';
     expect(rule).toMatch(/color:\s*var\(--ui-danger-text/);
-    expect(kitInput).not.toMatch(/color-mix/);
+    // D-1018 mixes the resting border; the error text must still never be a colour mix of the danger token.
+    expect(kitInput).not.toMatch(/color-mix\([^)]*--ui-danger/);
     expect(kitInput).not.toMatch(/data-theme/);
   });
 });

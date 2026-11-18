@@ -32,6 +32,7 @@
   background: var(--ui-bg-raised);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: var(--ui-radius);
   font: inherit;
   text-overflow: ellipsis;

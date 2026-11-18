@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 106 - 2026-11-18
+
+- Form fields (text boxes, text areas and drop-downs) have a firmer outline at rest in every theme, so you can see where a field begins and ends. In the Lounge a channel's header folds its search field to an icon when it is short of room, so the channel name can be read; focusing the icon opens the field. In the player the music panel's selects show the same focus ring and look as selects elsewhere. Tier list controls are full-size touch targets on a phone.
+- Staff: the Transcoding queue reads each job's mount from the job itself, so the instance mount is named too and the list needs no extra permission.
+- For the team: the 44 px touch targets and the fields that are not the kit's were counted across the app (reports for wave 107), and the job runner's next version (hold reasons, a cargo class, a per-job server binary) is built beside the live one.
+
 ## Phase 105 - 2026-11-18
 
 - On a phone the Library reader's bar buttons are easier to hit (44 px tall), the bar fits a 320 px screen, and the end of a chapter reads on the white and sepia backgrounds. The forum's search field and view buttons are full-size touch targets, and the phone search keeps its filter chips in view while the results scroll.

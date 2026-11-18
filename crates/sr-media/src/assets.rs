@@ -277,6 +277,10 @@ pub struct JobSummary {
     #[serde(with = "ids::opt_id", default, skip_serializing_if = "Option::is_none")]
     #[schema(value_type = Option<String>)]
     pub mount_id: Option<i64>,
+    /// The label of that mount, and nothing else of it (D-999): `None` when the job has no mount or the
+    /// mount is gone (soft-deleted or never existed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mount_label: Option<String>,
     pub state: JobState,
     pub priority: u8,
     pub attempt: u32,

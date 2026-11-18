@@ -75,6 +75,7 @@ fn summary_from_row(r: &PgRow) -> MediaResult<JobSummary> {
         asset_id: r.try_get("asset_id").map_err(be)?,
         kind: job_kind(&kind)?,
         mount_id: r.try_get("mount_id").map_err(be)?,
+        mount_label: r.try_get("mount_label").map_err(be)?,
         state: super::jobs::job_state(&state).map_err(|e| MediaError::Backend(e.to_string()))?,
         priority: u8::try_from(priority).unwrap_or(0),
         attempt: u32::try_from(attempt).unwrap_or(0),
@@ -90,7 +91,9 @@ fn summary_from_row(r: &PgRow) -> MediaResult<JobSummary> {
 
 fn job_summary_cols() -> String {
     format!(
-        "id, asset_id, kind, mount_id, state, priority, attempt, worker_id, cancel_requested, progress, error, {}, {}, {}",
+        "id, asset_id, kind, mount_id, \
+         (SELECT m.label FROM storage_mounts m WHERE m.id = transcode_jobs.mount_id AND m.deleted_at IS NULL) AS mount_label, \
+         state, priority, attempt, worker_id, cancel_requested, progress, error, {}, {}, {}",
         ms("created_at", "created_ms"),
         ms("started_at", "started_ms"),
         ms("finished_at", "finished_ms"),

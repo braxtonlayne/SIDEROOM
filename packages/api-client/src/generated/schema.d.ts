@@ -23445,6 +23445,11 @@ export interface components {
             kind: components["schemas"]["JobKind"];
             /** @description The storage mount a `mount_transcode` job works in (BYOS-CNV-003). */
             mount_id?: string | null;
+            /**
+             * @description The label of that mount, and nothing else of it (D-999): `None` when the job has no mount or the
+             *     mount is gone (soft-deleted or never existed).
+             */
+            mount_label?: string | null;
             /** Format: int32 */
             priority: number;
             progress?: null | components["schemas"]["ProgressRequest"];
