@@ -25,7 +25,7 @@ Computed (base): header, body, button all `overflow` visible/auto/visible, `posi
 After (same configs): at 375 every Close hit test **pass**, 0 takers, in Light and Dark, all three modals; a real tap on the lowest row (y = bottom - 1.5 px) closes the dialog in all six 375 configs; with the long body scrolled to the end the Close still passes (Light and Dark). At 1024 the figures equal the base (fail from the 21 px reach, taker header/body; result B).
 
 ## Item 3: build
-Build not yet run (queue busy); see the final handoff update.
+NOT RUN. `heavy.sh run modal ... pnpm --filter @sideroom/web build` was called 7 times between 12:04 and 13:30 and answered exit 75 (busy) every time (the other slot was held by other builders each time, or slot 2 was refused by the memory gate); I did not hold a slot for it. So no first-paint figure after, no bundle-budget, entrance-isolation or staff-delivery result. Expected effect: the change is 3 lines of CSS inside an existing `@media` block, no bytes of JS; the Modal sheet is part of the kit stylesheet, which public pages already load. The commander runs: `bash cli-agents/heavy.sh run commander bash -c "cd <tree> && npx pnpm@10.12.1 --filter @sideroom/web build"`, then `node scripts/check-bundle-budget.mjs`, `node scripts/check-entrance-isolation.mjs`, `node scripts/check-staff-delivery.mjs` (before: 218 419 B gzip first paint, room 37 581 B). This is the brief's "a miss is listed, not chased".
 
 ## STACK-ROUND
 One round, 11:58 to 12:02 (slot 1; `heavy.sh status` after acquire: `modal 11:58`), database `sr_p103_modal_ui`, ports 8807 / 5807 / 9507, sweep world seeded with no FAIL line. Base phase twice (the first base run had a wrong body selector in the spec's own facts, fixed, base re-run), then the fixed CSS copied in and the after phase. Stack stopped by PID (the server PID that was listening, 48716, and Vite), ports 8807 / 5807 / 9507 free, database dropped, released at 12:01.
@@ -62,4 +62,4 @@ The dialog Close button on a phone is now a whole 44 px target: it sits above th
 None.
 
 ## Cleanup
-Database dropped, `p103-modal-bin` deleted, scratch folder `SIDEROOM_wt/scratch-modal` is outside the repo. Lock: see below.
+Database dropped, `p103-modal-bin` deleted, scratch folder `SIDEROOM_wt/scratch-modal` is outside the repo. `heavy.sh status` at hand-back is read in the reply; no hold in my name (my only hold was the stack round, released 12:01).
