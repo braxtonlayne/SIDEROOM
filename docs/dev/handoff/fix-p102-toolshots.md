@@ -50,3 +50,10 @@ Folder `visual-sweep-shots/p102-tools`: 36 shots after (`<tool>-<config>.png`), 
 
 ## Cleanup
 Database `sr_p102_toolshots_ui` dropped; `p102-toolshots-bin` deleted; ports 8797, 5797 and 9497 free; no shell of mine alive. `heavy.sh status` at hand-back showed `mediashots 10:32` only: no hold in my name (I released after every round).
+
+## Re-shoot after the fixes (10:38-10:41, slot `toolshots 10:38`, fresh database and seed with no FAIL line, then dropped again)
+Merged `fix/p102-calc` (f7a68f9e, 562e68a3) and `fix/p102-cards` (24b11e64); after round on the merged tree against the same `measure-base.json`. The spec passed whole: 27 figures, nothing unreached, no problem (the corrected comparison rules run in the spec itself this time), keyboard cases pass, hit-test counts equal and no worse.
+- FAULT 1 (Loot, cards' sheet line with calc's file): **FIXED.** Both Loot selects are `NativeSelect`: 496x32 -> 496x40 (1024), 279x32 -> 279x44 (375); the controls below move only by the height growth. Pair `pairs/loot-375-editorial.png` opened: matches the dev tools.
+- FAULT 2 (Poll Lasts, cards): **FIXED.** Raw again, 82x27 -> 82x27 at 1024 and 375 (equal to base; the checkbox beside it no longer moves).
+- FAULT 3 (calc: Units From and To, Timezone Work starts and Work ends, Programmer Input base): **FIXED.** Raw again: 150.1x33 / 77.8x33 / 120.4x33 / 48.1x33 / 156.9x33 / 84.1x33 equal to base at both sizes.
+No FAULT is open. The other kit selects are unchanged from the table above. Cleanup: database dropped, `p102-toolshots-bin` deleted, ports free, `heavy.sh status` read `free` after my release.
