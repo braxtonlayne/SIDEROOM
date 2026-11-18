@@ -251,7 +251,7 @@ async function fakeBot(page: Page, guildId: string, channelId: string) {
 
 interface View {
   name: string;
-  /** What the measures and the hit test cover. */
+  /** What the measures and the hit test cover ('dialog': the innermost dialog, the settings layer is one too). */
   scope: string;
   /** A select the keyboard drives, and what it must do. */
   keyboard?: (
@@ -274,7 +274,7 @@ async function arrow(page: Page, sel: string, key: 'ArrowDown' | 'ArrowUp') {
 const VIEWS: View[] = [
   {
     name: 'moderation',
-    scope: '[role=dialog]',
+    scope: 'dialog',
     open: async (page, g) => {
       await page.goto(section(g, 'moderation'), { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await page.getByRole('button', { name: 'Create rule' }).first().click();
@@ -285,7 +285,7 @@ const VIEWS: View[] = [
       await page.waitForSelector('#ss-rule-timeout');
     },
     keyboard: async (page, sayIt, problems, tag) => {
-      const dlg = page.locator('[role=dialog]').first();
+      const dlg = page.locator('[role=dialog]').last();
       const before = await page.locator('#ss-rule-trigger').inputValue();
       const textBefore = await dlg.innerText();
       await arrow(page, '#ss-rule-trigger', 'ArrowDown');
@@ -355,7 +355,7 @@ const VIEWS: View[] = [
   },
   {
     name: 'bot-permissions',
-    scope: '[role=dialog]',
+    scope: 'dialog',
     open: async (page, g, channelId) => {
       await fakeBot(page, g, channelId);
       await page.goto(section(g, 'integrations'), {
@@ -463,7 +463,10 @@ interface Figures extends Measured {
 /** Boxes in scope coordinates: every scrolled ancestor's offset added, so a scrolled dialog compares with a top one. */
 async function measure(page: Page, scope: string): Promise<Measured> {
   return page.evaluate((scopeSel) => {
-    const root = document.querySelector(scopeSel)!;
+    const root =
+      scopeSel === 'dialog'
+        ? Array.from(document.querySelectorAll('[role=dialog]')).pop()!
+        : document.querySelector(scopeSel)!;
     const box = (e: Element) => {
       const r = e.getBoundingClientRect();
       let sx = 0;
@@ -561,7 +564,8 @@ async function runConfig(
   await page.evaluate(() => document.fonts?.ready);
   await page.waitForTimeout(1200);
 
-  const scope = page.locator(v.scope).first();
+  const scope =
+    v.scope === 'dialog' ? page.locator('[role=dialog]').last() : page.locator(v.scope).first();
   const m = await measure(page, v.scope);
   say(`${tag}: data-theme html=${m.theme.html} first=${m.theme.first}`);
   if (m.theme.html !== c.theme && m.theme.first !== c.theme)
@@ -574,7 +578,7 @@ async function runConfig(
 
   // Shot first, with the first select in view (a hit test scrolls).
   mkdirSync(OUT, { recursive: true });
-  await page.locator(`${v.scope} select`).first().scrollIntoViewIfNeeded();
+  await scope.locator('select').first().scrollIntoViewIfNeeded();
   await page.waitForTimeout(400);
   await page.screenshot({
     path: resolve(OUT, `${shotName(`${v.name}-${c.tag}`)}.png`),
