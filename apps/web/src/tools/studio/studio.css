@@ -62,8 +62,7 @@
 .sr-st-field input[type='text'] {
   inline-size: 100%;
 }
-.sr-st-field input,
-.sr-st-field select {
+.sr-st-field input {
   min-block-size: 2rem;
   padding-block: 0;
   padding-inline: 0.5rem;
