@@ -1,4 +1,13 @@
-import { Button, Checkbox, MultiSelect, Switch, Tabs, TextArea, TextInput } from '@sideroom/ui';
+import {
+  Button,
+  Checkbox,
+  MultiSelect,
+  NativeSelect,
+  Switch,
+  Tabs,
+  TextArea,
+  TextInput,
+} from '@sideroom/ui';
 import { useCallback, useMemo, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
@@ -88,19 +97,14 @@ function ChannelSelect({
       <label className="ss-field-label" htmlFor={id}>
         {label}
       </label>
-      <select
-        id={id}
-        className="ss-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{none ?? t('settings.community.none')}</option>
         {channels.map((c) => (
           <option key={c.id} value={c.id}>
             #{c.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </div>
   );
 }
