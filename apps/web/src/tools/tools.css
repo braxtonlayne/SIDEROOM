@@ -271,6 +271,14 @@
   cursor: default;
 }
 
+/* D-1022: the drawer's header controls (tabs, Back, Pop out, Pin) and the buttons of a tool opened in it are 44 px tall on a phone. */
+@media (max-width: 720px) {
+  .sr-tl-drawer .sr-tl-tab,
+  .sr-tl-drawer .sr-tl-btn {
+    min-block-size: 44px;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .sr-tl-rail-btn,
   .sr-tl-btn,
