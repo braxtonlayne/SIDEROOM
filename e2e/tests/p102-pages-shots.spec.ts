@@ -36,7 +36,7 @@ import { setStudySurfacesWith } from '../support/studySwitches';
  * label wraps into more lines than in the base; the document scrolls sideways).
  * Configs: Server settings 1024 x 768 Lounge Light and Dark and 375 x 812 touch Lounge Light; Library 1024 and 375
  * touch in `sectionThemes.library = 'sideroom'` and 1024 in `'lounge-light'`; Developers 1024 and 375 touch in
- * `sectionThemes.developer = 'lounge-dark'` and 1024 in `'lounge-light'`. The account theme is set by PATCH and
+ * the main theme `lounge-dark` and 1024 in `lounge-light` (the portal has no section theme of its own). The account theme is set by PATCH and
  * localStorage and `data-theme` is read back from the select's nearest themed ancestor before each shot.
  *
  * Local only (SR_P102_PAGES_ON=1). SR_P102_PAGES_OUT is the folder of the shots and the figures.
@@ -70,7 +70,7 @@ interface Cfg {
   width: number;
   height: number;
   touch: boolean;
-  /** Settings: the account's main theme. Library and developers: the section's theme. */
+  /** Settings and developers (which follows the main theme): the account's main theme. Library: its section theme. */
   theme: 'lounge-light' | 'lounge-dark' | 'sideroom';
   /** Take pictures at this config. */
   shots: boolean;
@@ -745,10 +745,9 @@ async function view(
 // ------------------------------------------------------------------------------------------------ the run
 
 async function setPrefs(ctx: BrowserContext, c: Cfg) {
-  const main = c.area === 'settings' ? c.theme : 'lounge-dark';
+  const main = c.area === 'library' ? 'lounge-dark' : c.theme;
   const sectionThemes = {
     library: c.area === 'library' ? c.theme : 'sideroom',
-    developer: c.area === 'dev' ? c.theme : 'lounge-dark',
   };
   const csrf = await ctx.request.get(`${API}/sr/csrf`, { headers: { Origin: ORIGIN } });
   const token = ((await csrf.json()) as { token: string }).token;
@@ -763,7 +762,6 @@ async function setPrefs(ctx: BrowserContext, c: Cfg) {
   };
   expect(back.settings?.user_prefs?.theme).toBe(main);
   expect(back.settings?.user_prefs?.sectionThemes?.['library']).toBe(sectionThemes.library);
-  expect(back.settings?.user_prefs?.sectionThemes?.['developer']).toBe(sectionThemes.developer);
   return { main, sectionThemes };
 }
 
