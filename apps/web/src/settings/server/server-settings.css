@@ -784,3 +784,15 @@
     flex: 1 1 100%;
   }
 }
+
+/* D-951: on a phone the channel editor sits under the whole channel tree. Picking a channel scrolls its heading into view
+   and focuses it (Channels.tsx); "Back to channels" is only rendered at this width. The button sits close above the
+   heading, and the heading keeps a margin clear of the top edge when it is scrolled to. */
+@media (max-width: 720px) {
+  .ss-editor-back {
+    margin-block-end: 8px;
+  }
+  .ss-split h2.ss-title {
+    scroll-margin-block-start: 16px;
+  }
+}

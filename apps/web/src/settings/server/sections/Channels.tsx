@@ -9,8 +9,9 @@ import {
   Tabs,
   TextInput,
   type TriState,
+  useMediaQuery,
 } from '@sideroom/ui';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import { CreateChannelDialog } from '../../../lounge/CreateChannelDialog';
 import { useChannels as useLoungeChannels } from '../../../lounge/data';
@@ -34,6 +35,8 @@ import { ChannelModules } from './ChannelModules';
 import { ActionStatus, Async, SectionHeader, useAction } from '../ui';
 
 const GROUPS = permissionGroups();
+/** D-951: the width at which the channel editor sits under the tree (server-settings.css, `.ss-split`). */
+const PHONE_QUERY = '(max-width: 720px)';
 const isCategory = (c: api.ChannelObject) => c.type === 4;
 const isVoice = (c: api.ChannelObject) => c.type === 2 || c.type === 13;
 /** What the channel tree and the editor's title put before a channel's name: the speaker for voice and stage, a hash otherwise. */
@@ -153,6 +156,27 @@ function ChannelsEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  // D-951: on a phone the editor sits under the whole tree, so a pick moves view and focus to it. `pick` counts the
+  // member's own picks (not a channel just created, not a save), so the effect below runs for those only.
+  const phone = useMediaQuery(PHONE_QUERY);
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const [pick, setPick] = useState(0);
+  const splitRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (pick === 0 || !phone) return;
+    const heading = splitRef.current?.querySelector<HTMLElement>('h2.ss-title');
+    if (!heading) return;
+    heading.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' });
+    heading.focus({ preventScroll: true });
+    // Only a new pick moves view and focus, not a change of the media queries.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pick]);
+  const backToList = () => {
+    const row = splitRef.current?.querySelector<HTMLElement>('.ss-tree-row [aria-current="true"]');
+    if (!row) return;
+    row.scrollIntoView({ block: 'center', behavior: reduceMotion ? 'auto' : 'smooth' });
+    row.focus({ preventScroll: true });
+  };
   const known = channels.some((c) => c.id === focusId);
   useEffect(() => {
     if (focusId && known && !dirty) setSelectedId(focusId);
@@ -179,6 +203,7 @@ function ChannelsEditor({
     }
     setBlocked(false);
     setSelectedId(id);
+    setPick((n) => n + 1);
   };
 
   /** Swap `id` with its neighbour among `siblings`, renumbering the whole sibling set contiguously. */
@@ -244,7 +269,7 @@ function ChannelsEditor({
   };
 
   return (
-    <div className="ss-split">
+    <div className="ss-split" ref={splitRef}>
       <div>
         <ActionStatus error={action.error} />
         {blocked && (
@@ -279,6 +304,7 @@ function ChannelsEditor({
           channel={selected}
           channels={channels}
           categories={categories}
+          onBack={phone ? backToList : undefined}
           onDirty={setDirty}
           onChanged={res.reload}
           onDeleted={() => {
@@ -314,6 +340,7 @@ export function ChannelEditor({
   channel,
   channels,
   categories,
+  onBack,
   onDirty,
   onChanged,
   onDeleted,
@@ -323,6 +350,8 @@ export function ChannelEditor({
   channel: api.ChannelObject;
   channels: api.ChannelObject[];
   categories: api.ChannelObject[];
+  /** D-951: set on a phone only; returns view and focus to the picked row of the tree. */
+  onBack?: () => void;
   onDirty: (d: boolean) => void;
   onChanged: () => Promise<void>;
   onDeleted: () => void;
@@ -420,7 +449,14 @@ export function ChannelEditor({
           : t('settings.channels.editChannel', { name: channel.name ?? '' })
       }
     >
-      <h2 className="ss-title">{cat ? channel.name : `${kindMark(channel)}${channel.name}`}</h2>
+      {onBack && (
+        <Button variant="ghost" size="sm" className="ss-editor-back" onClick={onBack}>
+          {t('settings.channels.backToList')}
+        </Button>
+      )}
+      <h2 className="ss-title" tabIndex={-1}>
+        {cat ? channel.name : `${kindMark(channel)}${channel.name}`}
+      </h2>
       <ActionStatus error={action.error} />
       <Tabs
         items={tabs}
