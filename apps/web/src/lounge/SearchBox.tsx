@@ -1,5 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
-import { Icon } from '@sideroom/ui';
+import { Icon, NativeSelect } from '@sideroom/ui';
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { formatNumber, useT } from '../i18n';
@@ -355,13 +355,16 @@ export function SearchBox({
                 </h2>
                 <label className="lng-search-sort">
                   <span className="lng-sr-only">{t('lounge.searchBox.sortBy')}</span>
-                  <select value={sort} onChange={(e) => changeSort(e.target.value as SearchSort)}>
+                  <NativeSelect
+                    value={sort}
+                    onChange={(e) => changeSort(e.target.value as SearchSort)}
+                  >
                     {(Object.keys(SORT_LABELS) as SearchSort[]).map((s) => (
                       <option key={s} value={s}>
                         {SORT_LABELS[s]}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </label>
               </div>
               {groupByChannel(status.hits).map((g) => {
