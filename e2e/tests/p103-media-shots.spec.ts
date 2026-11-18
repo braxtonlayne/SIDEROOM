@@ -1075,7 +1075,7 @@ async function keyboard(
   const focusVisible = await sel.evaluate((e) => e.matches(':focus-visible'));
   const ring = await sel.evaluate((e) => {
     const cs = getComputedStyle(e);
-    return `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor} off ${cs.outlineOffset}`;
+    return `${cs.outlineWidth} ${cs.outlineStyle} ${cs.outlineColor} off ${cs.outlineOffset} shadow ${cs.boxShadow}`;
   });
   const before = await sel.inputValue();
   const reqBefore = requests.length;
@@ -1089,6 +1089,10 @@ async function keyboard(
   const out = { options: n, focusVisible, ring, before, changed, back, requests: reqAfter };
   say(`${tag}: keyboard ${JSON.stringify(out)}`);
   if (!focusVisible) problems.push(`${tag}: :focus-visible did not match after a key`);
+  if (PHASE === 'after' && !/^2px solid .* off 1px shadow none$/.test(ring))
+    problems.push(
+      `${tag}: the focus ring is not the kit's single 2px ring with 1px offset: ${ring}`,
+    );
   if (k.noChange) {
     if (reqAfter < 1) problems.push(`${tag}: ArrowDown made no request (the page did not react)`);
   } else {
