@@ -140,7 +140,11 @@ function measureCompare(dir: Dir): CompareM | null {
     }
   let tabScroller = 0;
   for (const e of Array.from(document.querySelectorAll<HTMLElement>('[role=dialog] *')))
-    if (/(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.clientWidth > 300)
+    if (
+      !e.matches('table') &&
+      /(auto|scroll)/.test(getComputedStyle(e).overflowY) &&
+      e.clientWidth > 300
+    )
       tabScroller = Math.max(tabScroller, e.scrollWidth - e.clientWidth);
   const cs = getComputedStyle(t);
   const first = t.querySelector<HTMLElement>('tbody tr > :first-child');
@@ -192,8 +196,21 @@ function measureWrap(sel: string): WrapM | null {
   const max = w.scrollWidth - w.clientWidth;
   const rtl = getComputedStyle(w).direction === 'rtl';
   const sl = w.scrollLeft;
-  const split = (s: string) =>
-    s.split(/,(?![^(]*\))/).map((x) => x.trim().replace(/color-mix\([^)]*\)/g, 'cm(..)'));
+  const split = (s: string) => {
+    const out: string[] = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of s) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) {
+        out.push(cur.trim());
+        cur = '';
+      } else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
   const im = split(cs.backgroundImage);
   const po = split(cs.backgroundPosition);
   const sz = split(cs.backgroundSize);
@@ -447,8 +464,18 @@ test('D-953: Compare levels and the Invoices shade, left-to-right and right-to-l
         t.scrollIntoView({ block: 'center' });
         t.scrollLeft = 0;
       });
-      await openCollapsed(page, panel);
+      const opened = await openCollapsed(page, panel);
       const rows = await hitTestAll(page, panel);
+      // Shut again what the probe opened (the phone's Sections list), so the next direction's shot is of the same page.
+      for (const op of opened)
+        if (op.kind === 'aria-expanded')
+          await panel
+            .locator('button[aria-expanded="true"]')
+            .filter({ hasText: op.text })
+            .first()
+            .click()
+            .catch(() => undefined);
+      await page.waitForTimeout(300);
       compareHits[key]![dir] = rows.map(
         (r) => `${r.status}|${r.name}|${r.result?.points.find((p) => !p.ok)?.taker?.path ?? ''}`,
       );
