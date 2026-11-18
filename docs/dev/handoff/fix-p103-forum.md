@@ -20,7 +20,7 @@ Kit prop `fit` arrived 11:58 (merged `fix/p103-kit`). All three moved to `Native
 - Not run: no stack, shots or spec (loungeshots measures). The `.lng-scr-input` class is still used by the Gallery's other inputs (scrapbook.css untouched).
 
 ## TYPECHECK
-`tc.sh run forum ... npx tsc --noEmit -p .` (started 11:59): see result line below.
+`bash cli-agents/tc.sh run forum bash -c "cd ./apps/web && npx tsc --noEmit -p ."`, started 11:59, finished 12:06: exit 0.
 
 ## STACK-ROUND
 none (code builder).
