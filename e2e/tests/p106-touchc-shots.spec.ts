@@ -311,7 +311,7 @@ async function testRoot(
 }
 
 const DANGER =
-  /delete|remove|ban|kick|suspend|revoke|reset|purge|prune|leave|disconnect|sign out|log out/i;
+  /create role|delete|remove|ban|kick|suspend|revoke|reset|purge|prune|leave|disconnect|sign out|log out/i;
 const OVERLAY_ALSO = `${MENU_ITEM_SELECTOR},[role=option]`;
 
 /** The overlay (menu, listbox or dialog) that is not the page shell: visible, with no <main> inside it. */
@@ -363,13 +363,27 @@ async function overlays(page: Page, root: Locator, pageName: string, url: string
   for (const p of picked) {
     try {
       const before = await overlayOf(page).count();
-      await p.loc.scrollIntoViewIfNeeded();
+      await p.loc.scrollIntoViewIfNeeded({ timeout: 5000 });
+      await root.locator(CONTROL_SELECTOR).evaluateAll((els) => {
+        for (const e of els) e.setAttribute('data-p106-seen', '1');
+      });
       await p.loc.evaluate((el) => (el as HTMLElement).click());
       await page.waitForTimeout(600);
       const ov = overlayOf(page);
       const count = await ov.count();
       if (count <= before) {
-        notes.push(`${pageName}: "${p.name}" opened no overlay`);
+        notes.push(`${pageName}: "${p.name}" opened no overlay (new controls tested in the page)`);
+        await testRoot(
+          page,
+          root,
+          pageName,
+          `after tap: ${p.name} (new controls only)`,
+          undefined,
+          async (i) => {
+            const seen = await root.locator(CONTROL_SELECTOR).nth(i).getAttribute('data-p106-seen');
+            return seen === null;
+          },
+        );
         continue;
       }
       await testRoot(page, ov.last(), pageName, `overlay: ${p.name}`, OVERLAY_ALSO);
