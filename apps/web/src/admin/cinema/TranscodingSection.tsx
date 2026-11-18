@@ -393,7 +393,7 @@ function QueueTab() {
       {paged.items.length > 0 && (
         <TableRegion label={t('admin.transcoding.queue.table')}>
           <table
-            className="adm-table adm-table-stack"
+            className="adm-table adm-table-stack adm-tx-table"
             aria-label={t('admin.transcoding.queue.table')}
           >
             <thead>
