@@ -23,7 +23,7 @@ All five are in the lazy `ServerSettings` chunk (`routes/settingsServer.tsx` imp
 ## Checks (own tree, after the last edit; last edit 09:32)
 - prettier --write then eslint on the five files: exit 0 / exit 0.
 - vitest single files: `p14communityMore` (25 passed), `people`, `content`, `appDirectory`, `bridge/__tests__/sync` all passed (these render the five sections). Not run on base for failure comparison (no behaviour change expected).
-- TYPECHECK: see below.
+- i18n audit and doc links: not run (no string and no doc changed).
 
 ## Commits
 See `git log fix/p102-srv`: one commit per file, subject `SEC-AUD-453 <file> (READY)`.
@@ -36,3 +36,12 @@ Server settings drop-downs (prune days, webhook channel, Community channels, bri
 
 ## Owner questions
 None. Note for shots: the kit select is 100 % wide inside its wrapper like `.ss-select` was; ConflictLog's select sits in a shrink-to-fit flex label, so its width may differ from the base: measure it.
+
+## TYPECHECK
+`bash cli-agents/tc.sh run srv bash -c "cd .../p102-srv/apps/web && npx tsc --noEmit -p ."` at 09:36 on 2026-11-18: exit 0.
+
+## FAULTS from pageshots
+None received yet (as of 09:36).
+
+## Heavy lock
+Never taken (code builder). No stash touched. Nothing of mine is running.
