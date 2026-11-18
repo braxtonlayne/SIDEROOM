@@ -242,6 +242,27 @@
   width: 80px;
   accent-color: var(--sr-gold, #c9a24d);
 }
+/* D-1022: on a phone the bar's buttons keep their 36 px and reach 4 px each way (so the lines are 8 px apart), and the
+   16 px volume slider is 44 px tall by padding that a negative margin takes back: its row does not grow. */
+@media (max-width: 600px) {
+  .wp-controls {
+    row-gap: 8px;
+  }
+  .wp-btn {
+    position: relative;
+  }
+  .wp-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -4px;
+    inset-inline: 0;
+  }
+  .wp-vol {
+    box-sizing: content-box;
+    padding-block: 14px;
+    margin-block: -14px;
+  }
+}
 .wp-inline {
   display: inline-flex;
   align-items: center;

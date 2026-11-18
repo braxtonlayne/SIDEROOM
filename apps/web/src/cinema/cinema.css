@@ -933,6 +933,26 @@
   .cin-row-label {
     display: none;
   }
+  /* D-1022: the poster's quick actions (an overlay, nothing in flow) are 44 px on a phone; the episode rows' buttons
+     (`.cin-ep .cin-qa`) keep their size. */
+  .cin-card .cin-qa {
+    width: 44px;
+    height: 44px;
+  }
+  /* D-1022: a comment's action links keep their drawn size and reach 7.5 px each way; a wrapped second line gets the
+     row gap that keeps the two reaches apart. */
+  .cin-post-actions {
+    row-gap: 15px;
+  }
+  .cin-post-actions .cin-link-btn {
+    position: relative;
+  }
+  .cin-post-actions .cin-link-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -7.5px;
+    inset-inline: 0;
+  }
   /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). The whole bar
      scrolls as one: two navs each scrolling on their own squeezed each other ("The Arca" cut off next to
      "Shelves", XC-VIS-001). */
