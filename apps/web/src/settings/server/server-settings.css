@@ -824,3 +824,33 @@
     min-inline-size: 160px;
   }
 }
+
+/* SEC-AUD-452 (D-964): on a phone the stacked table's head is clipped to 1 px, so the "Select all members on this page"
+   checkbox had no target (rows took its points). The head row of a table with a checkbox in it shows that one cell as a
+   line of its own above the rows, 44 px tall (the kit's Checkbox); the other head cells stay for a screen reader. */
+@media (max-width: 720px) {
+  .ss-table-stack thead:has(th input[type='checkbox']) {
+    position: static;
+    display: block;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) tr {
+    display: flex;
+    padding-block: 0;
+    border-block-start: 0;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) th {
+    display: block;
+    padding: 0;
+  }
+  .ss-table-stack thead:has(th input[type='checkbox']) th:not(:has(input[type='checkbox'])) {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
