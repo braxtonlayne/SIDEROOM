@@ -506,6 +506,10 @@ interface EdgeFig {
   edge: Awaited<ReturnType<typeof readEdge>>;
 }
 
+/** The focus look is the ring; the border under it is the resting border, which is meant to change. */
+const ringOf = (x: FieldFig['focus']) =>
+  JSON.stringify(x && { s: x.outlineStyle, w: x.outlineWidth, c: x.outline, r: x.ringOutside });
+
 test(`p106 kit: field resting border, ${PHASE}`, async ({ browser }) => {
   mkdirSync(OUT, { recursive: true });
   const owner = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
@@ -641,10 +645,8 @@ test(`p106 kit: field resting border, ${PHASE}`, async ({ browser }) => {
           problems.push(
             `${id}: hover changed ${JSON.stringify(b.hover)} -> ${JSON.stringify(f.hover)}`,
           );
-        if (JSON.stringify(b.focus) !== JSON.stringify(f.focus))
-          problems.push(
-            `${id}: focus changed ${JSON.stringify(b.focus)} -> ${JSON.stringify(f.focus)}`,
-          );
+        if (ringOf(b.focus) !== ringOf(f.focus))
+          problems.push(`${id}: focus ring changed ${ringOf(b.focus)} -> ${ringOf(f.focus)}`);
       }
       for (const e of edges) {
         const b = base.edges?.find((x) => x.cfg === e.cfg && x.page === e.page);
