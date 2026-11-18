@@ -1,4 +1,13 @@
-import { Button, Checkbox, Radio, RadioGroup, Switch, TextArea, TextInput } from '@sideroom/ui';
+import {
+  Button,
+  Checkbox,
+  NativeSelect,
+  Radio,
+  RadioGroup,
+  Switch,
+  TextArea,
+  TextInput,
+} from '@sideroom/ui';
 import { useCallback, useMemo } from 'react';
 import { formatDate, type MessageKey, useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
@@ -215,9 +224,8 @@ function OverviewForm({
           <label className="ss-field-label" htmlFor="ss-system-channel">
             {t('settings.overview.systemChannel')}
           </label>
-          <select
+          <NativeSelect
             id="ss-system-channel"
-            className="ss-select"
             value={draft.value.system_channel_id}
             onChange={(e) => draft.set('system_channel_id', e.target.value)}
           >
@@ -227,7 +235,7 @@ function OverviewForm({
                 #{c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <fieldset className="ss-flags" disabled={!draft.value.system_channel_id}>
           <legend className="ss-field-label">{t('settings.overview.systemFlagsLegend')}</legend>
@@ -258,9 +266,8 @@ function OverviewForm({
           <label className="ss-field-label" htmlFor="ss-afk-channel">
             {t('settings.overview.afkChannel')}
           </label>
-          <select
+          <NativeSelect
             id="ss-afk-channel"
-            className="ss-select"
             value={draft.value.afk_channel_id}
             onChange={(e) => draft.set('afk_channel_id', e.target.value)}
           >
@@ -270,15 +277,14 @@ function OverviewForm({
                 {c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <div>
           <label className="ss-field-label" htmlFor="ss-afk-timeout">
             {t('settings.overview.afkTimeout')}
           </label>
-          <select
+          <NativeSelect
             id="ss-afk-timeout"
-            className="ss-select"
             value={String(draft.value.afk_timeout)}
             onChange={(e) => draft.set('afk_timeout', Number(e.target.value))}
           >
@@ -287,7 +293,7 @@ function OverviewForm({
                 {o.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </section>
 
@@ -364,9 +370,8 @@ function WidgetCard({
             <label className="ss-field-label" htmlFor="ss-widget-channel">
               {t('settings.overview.widgetChannel')}
             </label>
-            <select
+            <NativeSelect
               id="ss-widget-channel"
-              className="ss-select"
               value={widget.data.channel_id ?? ''}
               disabled={action.busy}
               onChange={(e) => void save({ channel_id: e.target.value || null })}
@@ -377,7 +382,7 @@ function WidgetCard({
                   {c.type === 2 ? (c.name ?? c.id) : `#${c.name ?? c.id}`}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         </>
       ) : widget.error ? (

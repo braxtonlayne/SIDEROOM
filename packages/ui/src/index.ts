@@ -24,6 +24,7 @@ export { contrastRatio, isHexColor, readableInk } from './util/contrast';
 // --- overlays, menus, select, scrolling (DS-PRIM-004, 005, 012) ---
 export * from './primitives/Menu/Menu';
 export * from './primitives/Select/Select';
+export * from './primitives/Select/NativeSelect';
 export * from './primitives/Scroll/ScrollArea';
 export { useFloating } from './primitives/Overlay/useFloating';
 export type {
