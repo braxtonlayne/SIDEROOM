@@ -25,11 +25,14 @@ import { messageLineText } from './msg/lineText';
 import { useHiddenAuthors } from './shell/hiddenAuthors';
 import { formatMessageTime } from './time';
 
+type Done = { kind: 'done'; total: number; hits: rest.SearchHit[] };
 type Status =
   | { kind: 'idle' }
-  | { kind: 'loading' }
+  // `prev` is the answer on screen while a sort or page change re-runs the query (D-980): the bar and its Sort select
+  // stay mounted, so the select keeps its focus and its value.
+  | { kind: 'loading'; prev?: Done }
   | { kind: 'error'; message: string }
-  | { kind: 'done'; total: number; hits: rest.SearchHit[] };
+  | Done;
 
 const CHIPS = ['from:', 'in:', 'has:link', 'has:image', 'pinned:true'] as const;
 
@@ -138,13 +141,16 @@ export function SearchBox({
   );
   const optActive = Math.min(optIndex, Math.max(0, options.length - 1));
 
-  const exec = async (raw: string, nextSort: SearchSort, nextPage: number) => {
+  const exec = async (raw: string, nextSort: SearchSort, nextPage: number, keep = false) => {
     if (!raw.trim()) return setStatus({ kind: 'idle' });
     const built = buildSearchQuery(raw, lookups);
     setOpen(true);
     if ('error' in built) return setStatus({ kind: 'error', message: built.error });
     const mine = ++seq.current;
-    setStatus({ kind: 'loading' });
+    setStatus((cur) => {
+      const prev = cur.kind === 'done' ? cur : cur.kind === 'loading' ? cur.prev : undefined;
+      return keep && prev ? { kind: 'loading', prev } : { kind: 'loading' };
+    });
     const opts = { offset: nextPage * PAGE_SIZE, extra: sortParams(nextSort) };
     try {
       const res = isDm
@@ -175,11 +181,11 @@ export function SearchBox({
   const changeSort = (s: SearchSort) => {
     setSort(s);
     setPage(0);
-    void exec(submitted.current || text, s, 0);
+    void exec(submitted.current || text, s, 0, true);
   };
   const goPage = (p: number) => {
     setPage(p);
-    void exec(submitted.current || text, sort, p);
+    void exec(submitted.current || text, sort, p, true);
   };
 
   const addChip = (chip: string) => {
@@ -208,10 +214,12 @@ export function SearchBox({
 
   const channelName = (id: string) => channels.find((c) => c.id === id)?.name;
 
-  const pages =
-    status.kind === 'done'
-      ? Math.max(1, Math.min(Math.ceil(status.total / PAGE_SIZE), MAX_OFFSET / PAGE_SIZE + 1))
-      : 1;
+  // The answer on screen: the finished one, or the last one while a sort or page change re-runs the query.
+  const shown =
+    status.kind === 'done' ? status : status.kind === 'loading' ? status.prev : undefined;
+  const pages = shown
+    ? Math.max(1, Math.min(Math.ceil(shown.total / PAGE_SIZE), MAX_OFFSET / PAGE_SIZE + 1))
+    : 1;
 
   const hasText = text.trim() !== '';
   const showHistory = open && !hasText && history.length > 0;
@@ -338,19 +346,19 @@ export function SearchBox({
               </ul>
             </div>
           )}
-          {hasText && status.kind === 'loading' && (
+          {hasText && status.kind === 'loading' && !status.prev && (
             <p role="status">{t('lounge.searchBox.searching')}</p>
           )}
           {hasText && status.kind === 'error' && <p role="alert">{status.message}</p>}
-          {hasText && status.kind === 'done' && (
+          {hasText && shown && (
             <>
               <div className="lng-search-bar">
                 <h2 className="lng-search-count">
-                  {status.total === 0
+                  {shown.total === 0
                     ? t('lounge.searchBox.noResults')
                     : t('lounge.searchBox.resultCount', {
-                        count: status.total,
-                        formatted: formatNumber(status.total),
+                        count: shown.total,
+                        formatted: formatNumber(shown.total),
                       })}
                 </h2>
                 <label className="lng-search-sort">
@@ -367,7 +375,7 @@ export function SearchBox({
                   </NativeSelect>
                 </label>
               </div>
-              {groupByChannel(status.hits).map((g) => {
+              {groupByChannel(shown.hits).map((g) => {
                 const where = isDm ? undefined : channelName(g.channelId);
                 return (
                   <div key={g.channelId} className="lng-search-group">

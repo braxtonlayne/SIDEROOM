@@ -776,13 +776,6 @@
   justify-content: space-between;
   gap: 8px;
 }
-.lng-search-sort select {
-  height: 28px;
-  border: 1px solid var(--ui-border);
-  border-radius: 4px;
-  background: var(--bg-base-lowest);
-  color: var(--text-normal);
-}
 .lng-search-channel {
   margin: 8px 0 4px;
   color: var(--text-muted);
