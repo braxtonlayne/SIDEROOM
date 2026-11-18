@@ -208,6 +208,15 @@ async function readFields(root: Locator): Promise<Raw[]> {
       return out;
     };
     const out: unknown[] = [];
+    // The side that draws the border (a field with only a bottom line still has a boundary).
+    const sideOf = (c: CSSStyleDeclaration) =>
+      ['Top', 'Right', 'Bottom', 'Left'].find(
+        (s) =>
+          (c as unknown as Record<string, string>)['border' + s + 'Style'] !== 'none' &&
+          parseFloat((c as unknown as Record<string, string>)['border' + s + 'Width']) > 0,
+      ) ?? 'Top';
+    const bp = (c: CSSStyleDeclaration, k: string) =>
+      (c as unknown as Record<string, string>)['border' + sideOf(c) + k] as string;
     const all = Array.from(el.querySelectorAll<HTMLElement>(sel));
     let n = 0;
     for (const f of all) {
@@ -235,12 +244,12 @@ async function readFields(root: Locator): Promise<Raw[]> {
       const stack = stackOf(f);
       // A field with no border of its own: the wrapper that draws the visible box (a border or a ground, about its size).
       let wrap: unknown = null;
-      if (cs.borderTopStyle === 'none' || parseFloat(cs.borderTopWidth) === 0) {
+      if (bp(cs, 'Style') === 'none' || parseFloat(bp(cs, 'Width')) === 0) {
         let a = f.parentElement;
         for (let k = 0; k < 4 && a && a !== el; k++, a = a.parentElement) {
           const acs = getComputedStyle(a);
           const ar = a.getBoundingClientRect();
-          const hb = acs.borderTopStyle !== 'none' && parseFloat(acs.borderTopWidth) > 0;
+          const hb = bp(acs, 'Style') !== 'none' && parseFloat(bp(acs, 'Width')) > 0;
           const hbg =
             acs.backgroundColor !== 'rgba(0, 0, 0, 0)' && acs.backgroundColor !== 'transparent';
           if (
@@ -254,9 +263,9 @@ async function readFields(root: Locator): Promise<Raw[]> {
             wrap = {
               tag: a.tagName.toLowerCase(),
               cls: (typeof a.className === 'string' ? a.className : '').trim().slice(0, 80),
-              borderColor: acs.borderTopColor,
-              borderWidth: acs.borderTopWidth,
-              borderStyle: acs.borderTopStyle,
+              borderColor: bp(acs, 'Color'),
+              borderWidth: bp(acs, 'Width'),
+              borderStyle: bp(acs, 'Style'),
               bg: acs.backgroundColor,
               stack: stackOf(a),
               rules: rulesOf(a),
@@ -303,9 +312,9 @@ async function readFields(root: Locator): Promise<Raw[]> {
           w: Math.round(r.width),
           h: Math.round(r.height * 10) / 10,
         },
-        borderColor: cs.borderTopColor,
-        borderWidth: cs.borderTopWidth,
-        borderStyle: cs.borderTopStyle,
+        borderColor: bp(cs, 'Color'),
+        borderWidth: bp(cs, 'Width'),
+        borderStyle: bp(cs, 'Style'),
         radius: cs.borderTopLeftRadius,
         bg: cs.backgroundColor,
         text: cs.color,
