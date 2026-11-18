@@ -1,4 +1,4 @@
-import { Button, Modal, TextArea, TextInput } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, TextArea, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../../i18n';
 import { newNonce, sendInteraction } from './interactions';
@@ -146,8 +146,7 @@ function ModalBody({ modal, onClose }: { modal: ActiveModal; onClose: () => void
             return (
               <label key={id} className="lng-appform-field">
                 <span className="lng-appform-label">{label}</span>
-                <select
-                  className="lng-appform-select"
+                <NativeSelect
                   aria-invalid={err ? true : undefined}
                   value={current[0] ?? ''}
                   onChange={(e) =>
@@ -160,7 +159,7 @@ function ModalBody({ modal, onClose }: { modal: ActiveModal; onClose: () => void
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 {err && (
                   <span role="alert" className="lng-appform-error">
                     {err}

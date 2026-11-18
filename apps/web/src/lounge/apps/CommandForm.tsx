@@ -1,4 +1,4 @@
-import { Button, Checkbox, Modal, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, Modal, NativeSelect, TextInput } from '@sideroom/ui';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useT, type MessageKey } from '../../i18n';
 import { useChannels, useMembers, useRoles, type Snowflake } from '../data';
@@ -174,18 +174,14 @@ export function CommandForm({
         {levels.map((l) => (
           <label key={l.level} className="lng-appform-field">
             <span className="lng-appform-label">{t('lounge.apps.form.subcommand')}</span>
-            <select
-              className="lng-appform-select"
-              value={l.value}
-              onChange={(e) => choose(l.level, e.target.value)}
-            >
+            <NativeSelect value={l.value} onChange={(e) => choose(l.level, e.target.value)}>
               <option value="">{t('lounge.apps.form.pick')}</option>
               {l.options.map((o) => (
                 <option key={o.name} value={o.name}>
                   {o.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         ))}
         {opts.map((opt) => (
@@ -356,8 +352,7 @@ function OptionField({ opt, value, error, guildId, autocomplete, onChange, onFil
     return (
       <label className="lng-appform-field">
         <span className="lng-appform-label">{label}</span>
-        <select
-          className="lng-appform-select"
+        <NativeSelect
           aria-invalid={errText ? true : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -368,7 +363,7 @@ function OptionField({ opt, value, error, guildId, autocomplete, onChange, onFil
               {o.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <span className="lng-appform-hint">{hint}</span>
         {errText && (
           <span role="alert" className="lng-appform-error">

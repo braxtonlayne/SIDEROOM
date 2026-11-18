@@ -1,4 +1,4 @@
-import { Spinner, useToast } from '@sideroom/ui';
+import { NativeSelect, Spinner, useToast } from '@sideroom/ui';
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
@@ -221,8 +221,7 @@ export function ComponentRows({
                 const label = c.placeholder ?? t('lounge.components.selectPlaceholder');
                 return (
                   <span key={j} className="lng-cselect-wrap">
-                    <select
-                      className="lng-cselect"
+                    <NativeSelect
                       aria-label={label}
                       data-select-type={c.type}
                       disabled={c.disabled || busy === key}
@@ -242,7 +241,7 @@ export function ComponentRows({
                           {o.label}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                     {busy === key && <Spinner label={t('lounge.components.waitingForApp')} />}
                   </span>
                 );
