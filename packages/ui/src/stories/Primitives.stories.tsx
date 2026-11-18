@@ -188,6 +188,25 @@ export const NativeSelectBasic = () => (
   </NativeSelect>
 );
 
+export const NativeSelectFitContent = () => (
+  <div style={{ display: 'grid', gap: 12 }}>
+    <label htmlFor="fit-season" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      Season
+      <NativeSelect id="fit-season" fit="content">
+        <option>1</option>
+        <option>Season 46</option>
+      </NativeSelect>
+    </label>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <button type="button">Play</button>
+      <NativeSelect aria-label="Speed" fit="content">
+        <option>Speed 1x</option>
+        <option>Speed 2.5x</option>
+      </NativeSelect>
+    </div>
+  </div>
+);
+
 export const ScrollAndVirtual = () => (
   <div style={{ display: 'grid', gap: 12 }}>
     <ScrollArea aria-label="Scrollable notes" style={{ maxHeight: 80 }}>
