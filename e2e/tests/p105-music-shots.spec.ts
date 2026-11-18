@@ -131,7 +131,7 @@ async function openPlayer(page: Page) {
       ? json(r, { items: TRACKS, total: TRACKS.length })
       : r.fallback(),
   );
-  await page.route(
+  await page.route(new RegExp('/api/v1/music/playlists/[^/]+/items$'), (r) =>
     //api/v1/music/playlists/[^/]+/items$/, (r) =>
     r.request().method() === 'POST' ? json(r, {}) : r.fallback(),
   );
