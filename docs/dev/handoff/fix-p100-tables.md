@@ -1,6 +1,6 @@
 # Wave 100, tables: SEC-AUD-441 (D-949), every Admin table wrapper is a named keyboard stop while it scrolls sideways
 
-Clock: started 04:53; lock round 1 (base, unedited tree) 05:07 to 05:11; round 2 (after) 05:19 to 05:24; round 2b (375 only, a spec fix: the nav `waitFor` needed `state: 'attached'` at 375) 05:26 to 05:28. Each time `heavy.sh status` showed `tables` before the stack started. `p99-reach-shots` and `p98-cue-shots` are not yet run (a third round, not before 06:30; see "Older specs").
+Clock: started 04:53; lock round 1 (base, unedited tree) 05:07 to 05:11; round 2 (after) 05:19 to 05:24; round 2b (375 only, a spec fix: the nav `waitFor` needed `state: 'attached'` at 375) 05:26 to 05:28. Each time `heavy.sh status` showed `tables` before the stack started. Round 3 (05:32 to 05:35): `p99-reach-shots` and `p98-cue-shots` (they belong to round 2 of the task; I had left them out of 2 and 2b).
 
 ## Base (unedited tree, Lounge Light; scrollWidth/clientWidth; S = scrolls; stop = number of Tab stops on the wrapper from the control before it; R = has role region)
 Figures: `visual-sweep-shots/p100-tables/base-light-{1024,900,375}.json`. 12 wrappers were reachable in the world (the other pages list no rows or no wrapper: "no rows: not measured").
@@ -38,7 +38,7 @@ So the fault is as the plan says, and wider than wave 99 measured: 4 wrappers sc
 Only files under `apps/web/src/admin/` (`git grep -n TableRegion -- apps/web/src`): `DataTable.tsx` and the 13 section files. They load through `AdminApp`, which only `import('./AdminApp')` in `StaffDoor.tsx` loads (wave 98's and 99's read of the same chain). Admin chunk only; not first paint, not a public page. No web build run (the commander's).
 
 ## Older specs
-See the end of this file (updated after the third round, or "not run").
+Both run on my stack, same world, after the change (05:34, 05:35): `p99-reach-shots` 1 passed (1.1 min), `REPORT problems []`; `p98-cue-shots` 1 passed (42.8 s), `REPORT problems []`. Neither fails on "Invoices is a tab stop at 375": neither asserts it (p99 notes the extra phone stop only in a comment of its handoff), so no line of either needs changing. Folders `visual-sweep-shots/p100-tables-p99` and `p100-tables-p98` (not opened: record runs, not shots of mine).
 
 ## Shots (`visual-sweep-shots/p100-tables`, 6, all 6 opened by me after the release)
 `accounts-1024-focus-lounge-light.png`, `accounts-1024-focus-end-lounge-light.png`, `crash-1024-focus-lounge-dark.png`, `pricing-900-focus-lounge-light.png`, `audit-1024-focus-lounge-light.png`, `invoices-375-lounge-light.png`. Each focus shot shows a clear ring round the region (black in Light, light grey in Dark) and the table cut only by its own scroll; the end shot shows State, Joined and View reached. Invoices at 375 shows stacked rows, no frame.
@@ -65,4 +65,4 @@ Every Admin table that scrolls sideways can be focused with the keyboard (it ann
 None.
 
 ## Cleanup
-Written at the end of the work.
+Stack stopped by PID tree after each round (ports 8781 / 5781 / 9481 free each time); lock released after each round; database `sr_p100_tables_ui` dropped; `p100-tables-bin` deleted (`p92-base-bin` untouched). `git stash` not used or touched. Last `heavy.sh status` (05:35, after the release): `free`; the final one is in the reply.
