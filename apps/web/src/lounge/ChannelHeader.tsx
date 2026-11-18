@@ -1,5 +1,5 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useT } from '../i18n';
 import { statusProps } from './phoneStatus';
 import { FollowButton } from './header/FollowButton';
@@ -65,6 +65,27 @@ function Soon({ icon, label }: { icon: IconName; label: string }) {
       </button>
     </Tooltip>
   );
+}
+
+/**
+ * D-1014: while the header is short of room the search field is folded to its icon and open only while it or its panel
+ * has focus (the stylesheet sets `--lng-search-folded` on the tools then). Escape closes the panel (SearchBox); this moves
+ * focus off the field, to the tool before it, so the field folds again and the Tab order is not lost.
+ */
+function foldSearchOnEscape(e: KeyboardEvent<HTMLDivElement>) {
+  if (e.key !== 'Escape' || !(e.target instanceof HTMLInputElement)) return;
+  const tools = e.currentTarget;
+  if (getComputedStyle(tools).getPropertyValue('--lng-search-folded').trim() !== '1') return;
+  if (!e.target.closest('.lng-search-wrap')) return;
+  const before = Array.from(tools.querySelectorAll('button')).filter(
+    (b) =>
+      !b.closest('.lng-search-wrap') &&
+      !!(e.target as Node).compareDocumentPosition(b) &&
+      (e.target as Node).compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING,
+  );
+  const prev = before[before.length - 1];
+  if (prev) prev.focus();
+  else e.target.blur();
 }
 
 export function ChannelHeader({
@@ -157,7 +178,7 @@ export function ChannelHeader({
           </button>
         </>
       )}
-      <div className="lng-header-tools">
+      <div className="lng-header-tools" onKeyDown={foldSearchOnEscape}>
         {isDm && dm && (
           <>
             <Tooltip content={t('lounge.channelHeader.startCall')}>
