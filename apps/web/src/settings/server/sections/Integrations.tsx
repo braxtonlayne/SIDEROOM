@@ -5,6 +5,7 @@ import {
   ConfirmDialog,
   EmptyState,
   Modal,
+  NativeSelect,
   Tabs,
   TextArea,
   TextInput,
@@ -348,9 +349,8 @@ function WebhookDialog({
           <label className="ss-field-label" htmlFor="ss-webhook-channel">
             {t('settings.integrations.channel')}
           </label>
-          <select
+          <NativeSelect
             id="ss-webhook-channel"
-            className="ss-select"
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
           >
@@ -359,7 +359,7 @@ function WebhookDialog({
                 #{c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </div>
     </Modal>
