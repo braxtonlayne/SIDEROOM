@@ -911,3 +911,18 @@
     padding-inline-start: 13px;
   }
 }
+
+/* D-997 (SEC-AUD-465): the Conflict log's Kind is the kit's select inside .ss-field-label. The kit's select is font: inherit and
+   the label is a small bold uppercase line, so the field gets 14px regular type through two classes (the .ss-select it replaces
+   read 14px), and the label's text keeps the 9px gap the base had from the field. Only the Conflict log carries these two
+   classes; the .ss-field-label and .ss-select rules are unchanged. */
+.ss-field-label .ss-field-pick {
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.ss-field-label > .ss-field-label-text {
+  display: inline-block;
+  margin-inline-end: 9px;
+}
