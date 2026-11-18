@@ -7,7 +7,7 @@ All five files are loaded only through `apps/web/src/library/routes.tsx` `lazyNa
 
 | # | File:line | Select | Page / how to open | Sheet rule now | Status |
 |---|---|---|---|---|---|
-| 1 | `library/reader/Reader.tsx:844` | chapter picker (label `lib-chapter-select`, sr-only name "library.reader.chapterSelect") | `/library/r/$chapterId/1`, a series with 2+ chapters (the component returns null under 2). Reader chrome (dark). | `library.css:1040` `.lib-chapter-select select` (max-width 220, height 32, hard-coded dark colours/border). Sets no padding, so the kit's end padding for the chevron stays. | **MOVED** (READY). Effective height 40 (min-block-size) / 44 coarse; kit chevron colour is `--ui-text-muted`: shots builder to check it reads on the dark chrome, and that the 220 px cap still holds (the cap is on the select inside a 100 % wrapper). Tests: `reader.test.tsx` 16/16 pass unedited. |
+| 1 | `library/reader/Reader.tsx:844` | chapter picker (label `lib-chapter-select`, sr-only name "library.reader.chapterSelect") | `/library/r/$chapterId/1`, a series with 2+ chapters (the component returns null under 2). Reader chrome (dark). | `library.css:1040` `.lib-chapter-select select` (max-width 220, height 32, hard-coded dark colours/border). Sets no padding, so the kit's end padding for the chevron stays. | **PUT BACK TO RAW (FAULT from pageshots)**: at 1024 220x32 became 220x40 (fine), but at 375 the select shrank from 218 px to 115 px wide, so Bookmark, Comments, Bookmarks and Reader settings all moved 103 px left. The 100 % wrapper span inside the label sizes to content. Left raw; file equals b308d5e2. |
 | 2 | `library/SeriesPage.tsx:182` | Edition (`label.lib-select.lib-edition`) | `/library/s/$seriesId`, a series with 2+ editions | `library.css:737` `.lib-select select` | **LEFT RAW** |
 | 3 | `library/Rankings.tsx:53` | Kind (`label.lib-select`, sr-only name) | `/library/rankings` | `library.css:737` | **LEFT RAW** |
 | 4 | `library/Pages.tsx:186` | Sort (`label.lib-select`) | `/library/my` (My library) | `library.css:737` | **LEFT RAW** |
@@ -18,7 +18,7 @@ Why 2 to 5 stay raw: `library.css:737` `.lib-select select { height: 36px; paddi
 Found by class in tests: `e2e/tests/p78-library-shots.spec.ts:300` `.lib-select select` (Browse, not mine). Unit tests find mine by label text. No test finds `.lib-chapter-select`.
 
 ## Done
-- `SEC-AUD-453 Reader.tsx (READY)`: chapter select -> `NativeSelect`, same value/onChange/children, class stays on the label; the diff is import + 2 tags.
+- Moved 0 of 5: Reader.tsx was moved, then put back to raw after the pageshots FAULT (see table).
 
 ## Not done
 - Four selects left raw, above.
@@ -30,7 +30,7 @@ Command: tc.sh run reader (web tsc --noEmit), 09:32-09:33, exit 0. prettier --ch
 none (code builder)
 
 ## SEC-AUD-453 text
-Raw `<select>` still in reader's files: SeriesPage edition, Rankings kind, Pages sort, Lists visibility, all behind `library.css:737`.
+Raw `<select>` still in reader's files: all five. Four behind `library.css:737`; the Reader chapter picker shrinks 218 to 115 px at 375 inside its label (wrapper span).
 
 ## Proposed rows / changelog / questions
 - Proposed row: SEC-AUD-455 `.lib-select select` (library.css:737) blocks the kit select for 4 selects in SeriesPage, Rankings, Pages, Lists.
