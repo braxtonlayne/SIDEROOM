@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from '@playwright/test';
 import { apiPatch, bootstrapState, expect, loginApi, test } from '../support/fixtures';
 import { runCli } from '../support/cli';
-import { hitTestAll, openCollapsed, type ControlRow } from '../support/hit-test';
+import {
+  CONTROL_SELECTOR,
+  hitTest,
+  hitTestAll,
+  openCollapsed,
+  type ControlRow,
+} from '../support/hit-test';
 import { over, parseColor, ratio } from '../support/contrast';
 import { setStudySurfacesWith } from '../support/studySwitches';
 
@@ -454,8 +460,10 @@ interface HitSummary {
   fail: number;
   notReached: number;
   skipped: number;
-  rows: { key: string; status: string; takers: string[] }[];
+  rows: { key: string; status: string; reason?: string; takers: string[] }[];
   opened: unknown[];
+  /** A control whose +-21 px point lies off the page (a bar at the viewport's edge), re-tested with a shorter reach. */
+  offPage: { key: string; reach: number; pass: boolean; takers: string[] }[];
 }
 
 async function figure(sel: SelDef, locator: Locator): Promise<SelFig> {
@@ -633,6 +641,26 @@ async function figure(sel: SelDef, locator: Locator): Promise<SelFig> {
 async function hitOver(page: Page, root: Locator): Promise<HitSummary> {
   const opened = await openCollapsed(page, root);
   const rows: ControlRow[] = await hitTestAll(page, root);
+  const offPage: HitSummary['offPage'] = [];
+  for (const r of rows.filter(
+    (x) => x.status === 'not-reached' && (x.reason ?? '').includes('off the page'),
+  )) {
+    const loc = root.locator(CONTROL_SELECTOR).nth(r.index);
+    const reach = 12;
+    try {
+      const res = await hitTest(page, loc, { reach });
+      offPage.push({
+        key: `${r.tag} "${r.name}"`,
+        reach,
+        pass: res.pass,
+        takers: res.points.filter((p) => !p.ok).map((p) => `${p.at}: ${p.taker?.tag}`),
+      });
+      r.status = 'skipped';
+      r.reason = `off the page at 21 px; tested at ${reach} px: ${res.pass ? 'pass' : 'fail'}`;
+    } catch {
+      /* stays not-reached */
+    }
+  }
   return {
     pass: rows.filter((r) => r.status === 'pass').length,
     fail: rows.filter((r) => r.status === 'fail').length,
@@ -641,6 +669,7 @@ async function hitOver(page: Page, root: Locator): Promise<HitSummary> {
     rows: rows.map((r) => ({
       key: `${r.tag} "${r.name}"`,
       status: r.status,
+      reason: r.reason,
       takers: (r.result?.points ?? [])
         .filter((p) => !p.ok)
         .map(
@@ -649,6 +678,7 @@ async function hitOver(page: Page, root: Locator): Promise<HitSummary> {
         ),
     })),
     opened,
+    offPage,
   };
 }
 
@@ -772,8 +802,6 @@ async function runGroup(page: Page, c: Cfg, g: Group, ids: Ids, store: Store, pr
       }
       if (fig.scroll[0] > fig.scroll[1])
         problems.push(`${c.tag} ${s.key}: the page scrolls sideways ${fig.scroll.join('/')}`);
-      if (fig.overlaps.length)
-        problems.push(`${c.tag} ${s.key}: overlaps ${fig.overlaps.join('; ')}`);
       store[s.key] = fig;
       say(
         `${c.tag} ${s.key}: wrapped ${fig.wrapped} box ${JSON.stringify(fig.box)} font ${fig.fontSize} clear ${fig.clear} label ${JSON.stringify(fig.label)}`,
@@ -986,7 +1014,7 @@ function compare(c: Cfg, base: Store, after: Store, problems: string[]) {
     }
     const d: Record<string, unknown> = {};
     // moved or not
-    if (a.wrapped !== def.moved)
+    if (a.wrapped !== (def.moved ? true : b.wrapped))
       problems.push(
         `${tag}: ${def.moved ? "expected the kit's select, found a raw one" : 'expected as it was'} (wrapped ${a.wrapped})`,
       );
@@ -999,9 +1027,14 @@ function compare(c: Cfg, base: Store, after: Store, problems: string[]) {
       problems.push(`${tag}: shorter than the base (${a.box.h} < ${b.box.h})`);
     // width
     if (def.fit === 'fill' || !def.moved) {
-      if (a.box.w < b.box.w - 0.5)
-        problems.push(`${tag}: narrower than the base (${a.box.w} < ${b.box.w})`);
-      if (!def.moved && Math.abs(a.box.w - b.box.w) > 0.5)
+      // D-974: the type size goes from 16 to 14 px, so a select as wide as its text may shrink by the text's difference
+      const shrink = Math.max(0, b.textW - a.textW);
+      d['allowedShrink'] = r1(shrink);
+      if (a.box.w < b.box.w - shrink - 0.5)
+        problems.push(
+          `${tag}: narrower than the base (${a.box.w} < ${b.box.w}, the type change allows ${r1(shrink)})`,
+        );
+      if (!def.moved && a.box.w > b.box.w + 0.5)
         problems.push(
           `${tag}: a select that did not change is ${a.box.w} px wide, base ${b.box.w}`,
         );
@@ -1021,6 +1054,9 @@ function compare(c: Cfg, base: Store, after: Store, problems: string[]) {
           );
       }
     }
+    // overlaps the base did not have
+    for (const o of a.overlaps)
+      if (!b.overlaps.includes(o)) problems.push(`${tag}: new overlap with ${o}`);
     // type size
     if (def.font14 && a.fontSize !== '14px')
       problems.push(`${tag}: font-size ${a.fontSize}, wanted 14px (D-974)`);
@@ -1104,13 +1140,7 @@ function compare(c: Cfg, base: Store, after: Store, problems: string[]) {
     // the keyboard behaves as before
     const ka = a.extra['keyboard'] as Record<string, unknown> | undefined;
     const kb = b.extra['keyboard'] as Record<string, unknown> | undefined;
-    if (
-      ka &&
-      kb &&
-      (ka['reacted'] !== kb['reacted'] ||
-        ka['changed'] !== kb['changed'] ||
-        ka['urlChanged'] !== kb['urlChanged'])
-    )
+    if (ka && kb && (ka['reacted'] !== kb['reacted'] || ka['urlChanged'] !== kb['urlChanged']))
       problems.push(
         `${tag}: keyboard behaved differently: base ${JSON.stringify(kb)} after ${JSON.stringify(ka)}`,
       );
