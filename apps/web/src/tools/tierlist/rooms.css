@@ -219,7 +219,6 @@
   background: var(--ui-bg);
   color: var(--ui-text);
   font: inherit;
-  font-size: 0.75rem;
 }
 .sr-room-img {
   inline-size: 2.5rem;
