@@ -19,6 +19,17 @@
   cursor: pointer;
   color: inherit;
 }
+/* D-1022: on a phone the ring button keeps its round 40px box and gets a 44px tall tap area (a taller button would
+   stretch the ring into an oval). */
+.lng-root[data-mobile] .rng-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .rng-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -2px;
+  inset-inline: 0;
+}
 .rng-btn:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 3px;
