@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { apiFetch } from '../../api/client';
 import { formatDate, formatNumber, useT } from '../../i18n';
 import type { ToolProps } from '../registry';
@@ -89,13 +90,13 @@ export default function CurrencyTool({ host }: ToolProps) {
       <div className="sr-calc-convert">
         <label className="sr-calc-field">
           {t('tools.currency.from')}
-          <select value={safeFrom} onChange={(e) => set([e.target.value, safeTo])}>
+          <NativeSelect value={safeFrom} onChange={(e) => set([e.target.value, safeTo])}>
             {codes.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <button
           type="button"
@@ -107,13 +108,13 @@ export default function CurrencyTool({ host }: ToolProps) {
         </button>
         <label className="sr-calc-field">
           {t('tools.currency.to')}
-          <select value={safeTo} onChange={(e) => set([safeFrom, e.target.value])}>
+          <NativeSelect value={safeTo} onChange={(e) => set([safeFrom, e.target.value])}>
             {codes.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
 
