@@ -54,4 +54,4 @@ None (merge `fix/p103-event`; no UNRUN). Spec: from `e2e/`, `SR_P103_EVENT_ON=1 
 - Owner question: in this fixed 402 px dialog the two dates now always stack; a wider dialog would put them side by side again. Chosen as the Discord-like default.
 
 ## Clean-up
-Database `sr_p103_event_ui` dropped, `p103-event-bin` deleted, stack stopped by PID tree, ports free. Final `heavy.sh status`: see below.
+Database `sr_p103_event_ui` dropped, `p103-event-bin` deleted, stack stopped by PID tree, ports free. Final `heavy.sh status` (12:33): `kit 12:32` only, no hold in my name; I released with `released`.
