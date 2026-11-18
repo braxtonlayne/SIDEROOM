@@ -8,7 +8,7 @@ Started 18:37, all three sheets READY 18:41 (clock of `date`). No jobs (code bui
 - Every rule is new, phone only (`.lng-root[data-mobile]`, or the sheet's own `max-width: 720px` block for the Friends header), placed directly after the rule it amends.
 
 ## Not done
-- "Add a ring" (`.lng-icon-btn` in `.rng-tray-item`, rings.css, 28 px, directly under the 40 px ring avatar with a 4 px gap): not named in my task; no room for A.1 (it would take the ring's point), needs A.2 (`min-block-size: 44px`) in a `.rng-tray-item` rule. Not mine: flagged for the commander.
+- "Add a ring": cured in a later commit (A.2, `.rng-tray-item > .lng-icon-btn` min-block-size 44px, phone only; moves only the tray item height and what is under it).
 - Set channel status and Mute the music (voice page): not mine.
 - The channel row's own hover actions (`.lng-channel-actions` invite/edit icon buttons, 28 px): not in the task, untouched.
 

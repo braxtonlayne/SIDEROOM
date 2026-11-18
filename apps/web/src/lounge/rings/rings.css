@@ -70,6 +70,11 @@
   max-inline-size: 64px;
   font-size: 11px;
 }
+/* D-1022: on a phone the Add a ring button is 44px tall (it sits 4px under the ring avatar, so a tap area would take the
+   ring's point); only the tray item grows. */
+.lng-root[data-mobile] .rng-tray-item > .lng-icon-btn {
+  min-block-size: 44px;
+}
 .rng-tray-name {
   max-inline-size: 100%;
   overflow: hidden;
