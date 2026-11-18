@@ -41,3 +41,7 @@ Unchanged by me: all of the above; `.ss-field-label` and `.ss-select` rules are 
 
 ## PROCESSES
 Nothing of mine runs (no stack, no vitest). Listing run before the reply: see the final report.
+
+## Cure (FAULT, 70900d15)
+
+loungeshots measured the base and found the first build wrong: the weight and the gap above (400, 9 px) are not the base. Final values, which supersede them: the Kind label is `display: inline-flex` at 14 px with a gap of 8 px (`.ss-root .ss-toolbar > label.ss-field-label:has(> * > .ss-field-pick)`), and `.ss-field-pick` is weight 600 (`font-size: 0.875rem; font-weight: 600; letter-spacing: normal; text-transform: none`). Cause: `admin.css:599` gave the base label its inline-flex, gap and 14 px and the select its weight, through `label:has(> select)`, which no longer matches once the kit's wrapper span stands between the label and the select. The cure may move only the Kind label, its text span, the Kind select and the Switch (D-990); loungeshots confirmed weight 600 and gap 8 in the after round. The text above is left as written.
