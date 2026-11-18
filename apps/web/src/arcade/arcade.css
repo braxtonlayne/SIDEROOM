@@ -1095,3 +1095,11 @@
 .arc-field > span > select {
   padding-inline: 12px 36px;
 }
+
+/* SEC-AUD-456, D-981: in the Start dialog at phone width every channel row is at least 44 px tall, so a tap on one
+   cannot land on the row above or below. Above the phone width nothing changes (36 px). */
+@media (max-width: 40rem) {
+  .arc-start-row {
+    min-block-size: 44px;
+  }
+}
