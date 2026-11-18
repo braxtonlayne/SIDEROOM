@@ -148,6 +148,8 @@ interface SelDef {
   hit: boolean;
   /** Driven by the keyboard (focus, ArrowDown changes the value, ArrowUp puts it back). */
   keyboard?: boolean;
+  /** Found inside the open dialog (the filter drawer's page behind it holds a select whose options say "Rating"). */
+  within?: 'dialog';
   /** An expected computed font size, after (D-974). */
   font14?: boolean;
 }
@@ -196,7 +198,7 @@ const GROUPS: Group[] = [
         .getByRole('button', { name: /^Filters/ })
         .first()
         .click();
-      await page.getByLabel('Status').and(page.locator('select')).first().waitFor();
+      await selectOf(page, 'Status', 'dialog').waitFor();
       await page.waitForTimeout(600);
     },
     selects: [
@@ -205,6 +207,7 @@ const GROUPS: Group[] = [
         file: 'library/Browse.tsx (filter drawer)',
         builder: 'already the kit',
         label: 'Status',
+        within: 'dialog',
         moved: false,
         fit: 'fill',
         root: "ancestor::*[@role='dialog'][1]",
@@ -216,6 +219,7 @@ const GROUPS: Group[] = [
         file: 'library/Browse.tsx (filter drawer)',
         builder: 'already the kit',
         label: 'Rating',
+        within: 'dialog',
         moved: false,
         fit: 'fill',
         root: "ancestor::*[@role='dialog'][1]",
@@ -227,6 +231,7 @@ const GROUPS: Group[] = [
         file: 'library/Browse.tsx (filter drawer)',
         builder: 'already the kit',
         label: 'Age-restricted titles',
+        within: 'dialog',
         moved: false,
         fit: 'fill',
         root: "ancestor::*[@role='dialog'][1]",
@@ -748,8 +753,8 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: resolve(OUT, `${shotName(name)}.png`), timeout: 10_000 });
 }
 
-const selectOf = (page: Page, label: string) =>
-  page.getByLabel(label).and(page.locator('select')).first();
+const selectOf = (page: Page, label: string, within?: 'dialog') =>
+  (within ? page.getByRole('dialog') : page).getByLabel(label).and(page.locator('select')).first();
 
 /** Focus, ArrowDown changes the value, ArrowUp puts it back; what the page showed before and after. */
 async function keyboardDrive(page: Page, sel: Locator, sig: () => Promise<string>) {
@@ -784,7 +789,7 @@ async function runGroup(page: Page, c: Cfg, g: Group, ids: Ids, store: Store, pr
   }
   let firstShot = true;
   for (const s of g.selects) {
-    const loc = selectOf(page, s.label);
+    const loc = selectOf(page, s.label, s.within);
     try {
       await loc.scrollIntoViewIfNeeded();
       const fig = await figure(s, loc);
@@ -822,7 +827,7 @@ async function runGroup(page: Page, c: Cfg, g: Group, ids: Ids, store: Store, pr
       const fig = store[s.key];
       if (!fig || 'missing' in fig) continue;
       try {
-        const k = await keyboardDrive(page, selectOf(page, s.label), async () =>
+        const k = await keyboardDrive(page, selectOf(page, s.label, s.within), async () =>
           (
             await page
               .locator('main')
