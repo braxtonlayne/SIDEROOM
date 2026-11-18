@@ -67,6 +67,8 @@ interface Cfg {
   height: number;
   touch: boolean;
   theme: 'lounge-light' | 'lounge-dark';
+  /** The account's page zoom in percent (default 100): the fractional-width probe of the event dialog. */
+  zoom?: number;
 }
 const L1024: Cfg = {
   tag: '1024-lounge-light',
@@ -108,9 +110,9 @@ async function mk<T>(f: () => Promise<T>, what: string): Promise<T> {
   }
 }
 
-async function setMain(owner: BrowserContext, theme: string) {
+async function setMain(owner: BrowserContext, theme: string, zoom = 100) {
   await apiPatch(owner.request, '/users/@me/settings', {
-    settings: { user_prefs: { theme, zoom: 100 } },
+    settings: { user_prefs: { theme, zoom } },
   });
   const back = (await (await owner.request.get('/api/v1/users/@me/settings')).json()) as {
     settings?: { user_prefs?: { theme?: string } };
@@ -119,7 +121,7 @@ async function setMain(owner: BrowserContext, theme: string) {
 }
 
 async function newCtx(browser: Browser, owner: BrowserContext, c: Cfg) {
-  await setMain(owner, c.theme);
+  await setMain(owner, c.theme, c.zoom ?? 100);
   const ctx = await browser.newContext({
     baseURL: ORIGIN,
     viewport: { width: c.width, height: c.height },
@@ -127,16 +129,19 @@ async function newCtx(browser: Browser, owner: BrowserContext, c: Cfg) {
     bypassCSP: true,
     ...(c.touch ? { userAgent: PHONE_UA, isMobile: true, hasTouch: true } : {}),
   });
-  await ctx.addInitScript((theme) => {
-    try {
-      localStorage.setItem(
-        'sr.user.prefs',
-        JSON.stringify({ state: { prefs: { theme, zoom: 100 } }, version: 2 }),
-      );
-    } catch {
-      /* no storage */
-    }
-  }, c.theme);
+  await ctx.addInitScript(
+    ([theme, zoom]) => {
+      try {
+        localStorage.setItem(
+          'sr.user.prefs',
+          JSON.stringify({ state: { prefs: { theme, zoom } }, version: 2 }),
+        );
+      } catch {
+        /* no storage */
+      }
+    },
+    [c.theme, c.zoom ?? 100] as const,
+  );
   return ctx;
 }
 
@@ -687,6 +692,22 @@ async function keysScenario(browser: Browser, owner: BrowserContext, ids: Ids, p
     const m2 = await rec('list: Alt+ArrowUp');
     if (m2.path !== m0.path)
       problems.push(`keys: Alt+ArrowUp did not come back (${m0.path} -> ${m1.path} -> ${m2.path})`);
+    // the Create Event dialog's channel select (voice kind)
+    {
+      const dlg = await openEvent(page, ids);
+      await dlg.getByRole('radio', { name: /voice/i }).first().check({ force: true });
+      const evSel = dlg.getByRole('combobox').first();
+      await evSel.waitFor({ timeout: 8000 });
+      await evSel.focus();
+      const e0 = await rec('event: channel select focused');
+      await page.keyboard.press('Alt+ArrowDown');
+      await page.waitForTimeout(900);
+      const e1 = await rec('event: Alt+ArrowDown on the channel select');
+      if (MOVED.keys && (e1.path !== e0.path || !/^select/.test(e1.active)))
+        problems.push(
+          `keys (keys) the Create Event channel select: path ${e0.path} -> ${e1.path}, active ${e1.active}`,
+        );
+    }
     // a button and the body keep the shortcut too
     for (const target of ['button', 'body'] as const) {
       await goto(page, home);
@@ -1275,13 +1296,13 @@ function compareBridge(c: Cfg, b: BridgeFig, a: BridgeFig, problems: string[]) {
   if (!as.kit) problems.push(`${tag}: the Kind is not the kit's select`);
   if (as.box.h < minH - 0.5) problems.push(`${tag}: Kind height ${as.box.h}, wanted ${minH}`);
   if (
-    as.fontSize !== '14px' ||
-    as.fontWeight !== '400' ||
-    as.textTransform !== 'none' ||
-    !/^(normal|0px)$/.test(as.letterSpacing)
+    as.fontSize !== bs.fontSize ||
+    as.fontWeight !== bs.fontWeight ||
+    as.textTransform !== bs.textTransform ||
+    as.letterSpacing !== bs.letterSpacing
   )
     problems.push(
-      `${tag}: Kind type ${as.fontSize}/${as.fontWeight}/${as.textTransform}/${as.letterSpacing}, wanted 14px/400/none/normal (base ${bs.fontSize}/${bs.fontWeight}/${bs.textTransform}/${bs.letterSpacing})`,
+      `${tag}: Kind type ${as.fontSize}/${as.fontWeight}/${as.textTransform}/${as.letterSpacing}, wanted the base's (base ${bs.fontSize}/${bs.fontWeight}/${bs.textTransform}/${bs.letterSpacing})`,
     );
   if (bs.fontWeight !== as.fontWeight)
     say(`${tag}: NOTE the base Kind weight is ${bs.fontWeight}, the after is ${as.fontWeight}`);
@@ -1387,6 +1408,15 @@ test(`p104 lounge: keys, event, forum and bridge, ${PHASE}`, async ({ browser })
           () => eventScenario(browser, owner, ids, c, problems),
           figs.event!,
           c.tag,
+        );
+    if (want('event'))
+      for (const z of [90, 110, 125])
+        await run(
+          'event zoom',
+          () =>
+            eventScenario(browser, owner, ids, { ...L1024, tag: `zoom${z}`, zoom: z }, problems),
+          figs.event!,
+          `zoom${z}`,
         );
     if (want('forum'))
       for (const c of [L1024, D1024, L375])
