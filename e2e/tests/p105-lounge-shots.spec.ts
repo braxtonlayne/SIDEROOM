@@ -15,7 +15,7 @@ import { hitTestAll, openCollapsed, type ControlRow } from '../support/hit-test'
  *  - sheet: the phone search sheet at 375 Light and Dark after a real search (chips row, each chip and how much of it is
  *    inside every ancestor, the count row and its Sort, the list, the hit test); the desktop search panel at 1024 Light.
  * Own data (D-942), named `p105l ...`, removed (and the topic of nothing else touched) in a `finally`: a forum channel
- * with a tag and two posts, a text channel with a long topic, a text channel with four messages that hold one word.
+ * with a tag and two posts, a text channel with a long topic, a text channel with ten messages that hold one word.
  * NEEDS THE SWEEP'S SEEDED WORLD (`e2e/.state/sweep/`), never edited, never seeded here. It imports no `/src` module.
  *
  * Switches: SR_P105_LOUNGE_ON=1, SR_P105_LOUNGE_PHASE=base|after, SR_P105_LOUNGE_OUT=<shots folder>. Base shots have the
@@ -208,7 +208,7 @@ async function makeData(octx: BrowserContext, ids: Ids) {
   ids.titleChan = await chan(`p105l-title-${STAMP}`, 0);
   await apiPatch(o, `/channels/${ids.titleChan}`, { topic: LONG_TOPIC });
   ids.searchChan = await chan(`p105l-search-${STAMP}`, 0);
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 10; i++) {
     await mk(
       () => apiPost(o, `/channels/${ids.searchChan}/messages`, { content: `${WORD} line m${i}` }),
       'message',
@@ -448,7 +448,15 @@ interface ChipFig {
   /** The part of the chip's height inside every clipping ancestor, 0..1. */
   visible: number;
 }
+interface Scrolled {
+  scrollTop: number;
+  scrollHeight: number;
+  clientHeight: number;
+  chips: ChipFig[];
+  chipsRow: Box | null;
+}
 interface SheetFig {
+  scrolled?: Scrolled;
   theme: string | null;
   scroll: number[];
   dialog: Box | null;
@@ -475,10 +483,10 @@ async function runSearch(page: Page): Promise<Locator> {
     await sb.press('Enter');
     await panel.getByRole('combobox', { name: 'Sort by' }).waitFor({ timeout: 25_000 });
     count = ((await panel.locator('.lng-search-count').first().textContent()) ?? '').trim();
-    if (/^4 /.test(count)) break;
+    if (/^10 /.test(count)) break;
     await page.waitForTimeout(1000);
   }
-  expect(count, 'the index holds the four messages').toMatch(/^4 /);
+  expect(count, 'the index holds the ten messages').toMatch(/^10 /);
   await page.waitForTimeout(900);
   return panel;
 }
@@ -577,7 +585,23 @@ async function sheetScenario(
           hitFails: [] as SheetFig['hitFails'],
         };
     await shot(page, c.touch ? `sheet-${c.tag}` : 'search-panel-1024-light');
-    return { ...m, ...h } as SheetFig;
+    let scrolled: Scrolled | undefined;
+    if (c.touch) {
+      // the panel is the sheet's scroller: scroll it to its end and see where the chips row is (p103's sliver)
+      const pos = await panel.evaluate((p) => {
+        p.scrollTop = p.scrollHeight;
+        return {
+          scrollTop: p.scrollTop,
+          scrollHeight: p.scrollHeight,
+          clientHeight: p.clientHeight,
+        };
+      });
+      await page.waitForTimeout(300);
+      const m2 = await sheetFigures(panel, page, true);
+      scrolled = { ...pos, chips: m2.chips, chipsRow: m2.chipsRow };
+      await shot(page, `sheet-${c.tag}-scrolled`);
+    }
+    return { ...m, ...h, ...(scrolled ? { scrolled } : {}) } as SheetFig;
   } finally {
     await ctx.close();
   }
@@ -726,7 +750,9 @@ function compareTitle(
       // tools: size always equal; position equal (they never shrink)
       if (!sameTools) problems.push(`${t}: a tool box moved or changed`);
       const cutBase = !!b.title && b.title.sw > b.title.cw + 0.5;
-      const topicRoom = (b.topic?.w ?? 0) > 1;
+      // room the topic can give: the title's own box, the topic's box, and the separator and two gaps (about 17)
+      const room = (b.title?.cw ?? 0) + (b.topic?.w ?? 0) + (b.topic ? 17 : 0);
+      const topicRoom = !!b.title && room >= b.title.sw;
       if (cutBase && topicRoom && a.title && a.title.sw > a.title.cw + 0.5)
         problems.push(
           `${t}: title still cut (${a.title.sw} in ${a.title.cw}) although the base topic had ${b.topic?.w} px`,
@@ -768,6 +794,11 @@ function compareSheet(
     const t = `sheet ${k}`;
     if (k.startsWith('375')) {
       if (!a.chips.length) problems.push(`${t}: no chips found`);
+      for (const c of a.scrolled?.chips ?? [])
+        if (c.visible < 0.99)
+          problems.push(
+            `${t}: scrolled to the end, chip "${c.name}" ${c.visible * 100}% inside its ancestors (panel top ${a.scrolled?.scrollTop} of ${a.scrolled?.scrollHeight})`,
+          );
       for (const c of a.chips) {
         if (c.visible < 0.99)
           problems.push(`${t}: chip "${c.name}" ${c.visible * 100}% inside its ancestors`);
