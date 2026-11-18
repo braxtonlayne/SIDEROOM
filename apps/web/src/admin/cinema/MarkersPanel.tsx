@@ -7,6 +7,7 @@ import { t, useT } from '../../i18n';
 import { useAdminViewer } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, Section, fmtClock, useLoad, useRun } from './hooks';
+import { TableRegion } from '../TableRegion';
 
 const KINDS: api.MarkerKind[] = ['intro', 'recap', 'credits'];
 const DAY_MS = 24 * 3600 * 1000;
@@ -208,7 +209,7 @@ function MarkerEditor({
         onTime={setNow}
         onReady={setReady}
       />
-      <div className="adm-table-wrap">
+      <TableRegion label={t('admin.markersPanel.windows')}>
         <table className="adm-table" aria-label={t('admin.markersPanel.windows')}>
           <thead>
             <tr>
@@ -262,7 +263,7 @@ function MarkerEditor({
             })}
           </tbody>
         </table>
-      </div>
+      </TableRegion>
       <p className="ss-meta">{t('admin.markersPanel.hint')}</p>
       <Banner error={error} notice={notice} />
       {canEdit ? (

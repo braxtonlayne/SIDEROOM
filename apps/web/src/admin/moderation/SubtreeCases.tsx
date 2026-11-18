@@ -17,6 +17,7 @@ import {
   RestrictionAppeals,
   type NodeAct,
 } from './SubtreeCaseParts';
+import { TableRegion } from '../TableRegion';
 
 type Act = { kind: NodeAct; node: g.SubtreeNode } | { kind: 'branch' };
 
@@ -185,7 +186,7 @@ function CaseDetail({ id }: { id: string }) {
           {d.nodes_truncated && (
             <Notice variant="warning">{t('admin.moderation.grd.truncated')}</Notice>
           )}
-          <div className="adm-table-wrap">
+          <TableRegion label={`${catLabel(t, d.case.category)} · @${d.case.root_username}`}>
             <table className="adm-table">
               <thead>
                 <tr>
@@ -208,7 +209,7 @@ function CaseDetail({ id }: { id: string }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
           {d.case.state === 'open' && (
             <div className="adm-actions">
               <Button variant="secondary" onClick={() => setCloseOpen(true)}>

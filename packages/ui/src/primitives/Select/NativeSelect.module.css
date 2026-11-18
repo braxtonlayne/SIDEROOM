@@ -1,0 +1,63 @@
+/* D-950: the native <select> in the kit's field look (the same tokens as Input.module.css's .control). */
+.wrap {
+  position: relative;
+  display: block;
+  inline-size: 100%;
+}
+/* The chevron: two borders of a rotated box, drawn in the text colour at the inline end. */
+.wrap::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 14px;
+  inset-block-start: 50%;
+  inline-size: 6px;
+  block-size: 6px;
+  border-inline-end: 2px solid var(--ui-text-muted);
+  border-block-end: 2px solid var(--ui-text-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.wrap:has(.select:disabled)::after {
+  opacity: 0.55;
+}
+
+.select {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  box-sizing: border-box;
+  min-block-size: 40px;
+  padding-block: 8px;
+  padding-inline: 12px 36px;
+  background: var(--ui-bg-raised);
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+.select:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.select:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.select[aria-invalid='true'] {
+  border-color: var(--ui-danger);
+}
+/* multiple / size: the browser's list box, no chevron, no extra end padding. */
+.listbox {
+  padding-inline-end: 12px;
+}
+
+/* D-856: a 44 px field on a phone (the kit's own breakpoint, as Input and Select), and on any touch screen. */
+@media (max-width: 720px), (pointer: coarse) {
+  .select:not(.listbox) {
+    min-block-size: 44px;
+  }
+}

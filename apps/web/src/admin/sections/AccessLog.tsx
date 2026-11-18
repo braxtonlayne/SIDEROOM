@@ -11,6 +11,7 @@ import {
   usePaged,
   ActionStatus,
 } from '../ui';
+import { TableRegion } from '../TableRegion';
 
 const KINDS: { value: string; label: MessageKey }[] = [
   { value: '', label: 'admin.accessLog.kindAll' },
@@ -96,7 +97,7 @@ export function AccessLogSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={t('admin.accessLog.tableLabel')}>
           <table className="adm-table adm-table-stack" aria-label={t('admin.accessLog.tableLabel')}>
             <thead>
               <tr>
@@ -148,7 +149,7 @@ export function AccessLogSection() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
     </>

@@ -27,6 +27,7 @@ import {
 import { NotAvailableYet } from './AssetPanel';
 import { Banner, LoadProblem, useLoad, useRun } from './hooks';
 import * as tx from './transcodeApi';
+import { TableRegion } from '../TableRegion';
 
 export function TranscodingSection() {
   const t = useT();
@@ -390,7 +391,7 @@ function QueueTab() {
         />
       )}
       {paged.items.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={t('admin.transcoding.queue.table')}>
           <table className="adm-table" aria-label={t('admin.transcoding.queue.table')}>
             <thead>
               <tr>
@@ -465,7 +466,7 @@ function QueueTab() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
       <JobLogs job={logs} onClose={() => setLogs(null)} />
