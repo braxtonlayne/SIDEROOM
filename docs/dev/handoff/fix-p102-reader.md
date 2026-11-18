@@ -24,7 +24,7 @@ Found by class in tests: `e2e/tests/p78-library-shots.spec.ts:300` `.lib-select 
 - Four selects left raw, above.
 
 ## TYPECHECK
-(filled at the end)
+Command: tc.sh run reader (web tsc --noEmit), 09:32-09:33, exit 0. prettier --check and eslint on Reader.tsx clean; vitest reader.test.tsx 16/16; i18n-audit exit 0; check-doc-links exit 0 (09:33).
 
 ## STACK-ROUND
 none (code builder)
