@@ -339,7 +339,11 @@ function MapCard({
         <legend>{t('settings.bridge.map.addTitle')}</legend>
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldOurs')}
-          <NativeSelect value={ours} onChange={(e) => setOurs(e.target.value)}>
+          <NativeSelect
+            className="ss-form-pick"
+            value={ours}
+            onChange={(e) => setOurs(e.target.value)}
+          >
             <option value="">{t('settings.bridge.map.choose')}</option>
             {free.map((c) => (
               <option key={c.id} value={c.id}>
@@ -350,7 +354,11 @@ function MapCard({
         </label>
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldTheirs')}
-          <NativeSelect value={theirs} onChange={(e) => setTheirs(e.target.value)}>
+          <NativeSelect
+            className="ss-form-pick"
+            value={theirs}
+            onChange={(e) => setTheirs(e.target.value)}
+          >
             <option value="">{t('settings.bridge.map.choose')}</option>
             {(discord.data ?? []).map((c) => (
               <option key={c.id} value={c.id}>
@@ -362,6 +370,7 @@ function MapCard({
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldDirection')}
           <NativeSelect
+            className="ss-form-pick"
             value={direction}
             onChange={(e) => setDirection(e.target.value as api.BridgeDirection)}
           >
