@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { type Align, markdownTable, parseDelimited } from './logic';
 import { CopyButton, Field, Root } from './parts';
@@ -28,7 +29,7 @@ export default function MdTableTool() {
       <div className="ud-row">
         {Array.from({ length: cols }, (_, i) => (
           <Field key={i} label={t('tools.mdtable.column', { n: i + 1 })}>
-            <select
+            <NativeSelect
               value={aligns[i] ?? 'none'}
               onChange={(e) =>
                 setAligns((cur) => {
@@ -42,7 +43,7 @@ export default function MdTableTool() {
               <option value="left">{t('tools.mdtable.left')}</option>
               <option value="center">{t('tools.mdtable.center')}</option>
               <option value="right">{t('tools.mdtable.right')}</option>
-            </select>
+            </NativeSelect>
           </Field>
         ))}
         <label className="ud-row">
