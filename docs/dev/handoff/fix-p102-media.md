@@ -1,4 +1,4 @@
-# Wave 102, media (code builder, pod media): D-958, 6 raw selects of 5 files: 1 moved, 5 left raw
+# Wave 102, media (code builder, pod media): D-958, 6 raw selects of 5 files: 0 moved, all 6 left raw
 
 Started 09:30 (real clock). Stack-free: no stack, lock, spec, shots, binaries or database.
 
@@ -7,7 +7,7 @@ Chunks: all five files are lazy. `git grep` importers: `TrackList` <- `sections.
 
 | file:line | select | page and how to open | sheet rule now | theme | flex label | status |
 |---|---|---|---|---|---|---|
-| music/panel/TrackList.tsx:89 | "Add to playlist" (aria-label `music.lib.row.addToPlaylist`, no id) | Music library panel (player's library manager), a track list (Search or playlist detail) with at least one own playlist: click a row's "..." button, the select is last in the `.sr-mlib-more` group. Needs one playlist made through the API. | `.sr-mlib-select` panel.css:50 (dropped) | player/music panel, main theme | no, but its parent `.sr-mlib-more` (panel.css:144) is `display:flex; flex-wrap:wrap` | **MOVED** (READY) |
+| music/panel/TrackList.tsx:89 | "Add to playlist" (aria-label `music.lib.row.addToPlaylist`, no id) | Music library panel (player's library manager), a track list (Search or playlist detail) with at least one own playlist: click a row's "..." button, the select is last in the `.sr-mlib-more` group. Needs one playlist made through the API. | `.sr-mlib-select` panel.css:50 (dropped) | player/music panel, main theme | no, but its parent `.sr-mlib-more` (panel.css:144) is `display:flex; flex-wrap:wrap` | put back to raw (FAULT from mediashots: 214 -> 506 px wide at 1024, 321 at 375; took a full-width line; rows below moved 42 px against 11 allowed) |
 | music/panel/sections.tsx:256 | "Whose" playlists (`music.lib.playlists.whose`) | Library manager > Playlists tab | `.sr-mlib-select` panel.css:50 | same | yes: `label.sr-mlib-lbl` is inline-flex (panel.css:90) | left raw |
 | music/panel/sections.tsx:484 | EQ preset (`music.lib.eq.presetLabel`) | Library manager > Equalizer tab | `.sr-mlib-select` | same | yes: `label.sr-mlib-lbl` | left raw |
 | study/StudyDialogs.tsx:199 | Cover (`study.edit.fieldCover`) | Study > a file > Edit details dialog | `.stu-field > select` study.css:311 | Study | label.stu-field is grid | left raw |
@@ -25,6 +25,6 @@ The moved TrackList select sits in a flex-wrap row: the kit wrapper is `inline-s
 ## TYPECHECK
 `tc.sh run media ... tsc --noEmit -p .` at 09:35: exit 0 (once, after the last edit). prettier --check, eslint (TrackList.tsx), `panel.test.tsx` (15/15), `i18n-audit --max 0`, `check-doc-links`: all exit 0, 09:32 to 09:35.
 
-SEC-AUD-453 text: still raw in my files: sections.tsx x2, StudyDialogs, RemindersCard (flex label or sheet rule), StackSkin (skin). Changelog: the music library track row's "add to playlist" menu uses the kit select. Owner question: may the kit take an `inline-size:auto` option for selects in flex labels (would free 3 of these)?
+SEC-AUD-453 text: all six still raw (TrackList put back after the fault); the others: sections.tsx x2, StudyDialogs, RemindersCard (flex label or sheet rule), StackSkin (skin). Changelog: the music library track row's "add to playlist" menu uses the kit select. Owner question: may the kit take an `inline-size:auto` option for selects in flex labels (would free 3 of these)?
 
 ## STACK-ROUND: none (code builder)
