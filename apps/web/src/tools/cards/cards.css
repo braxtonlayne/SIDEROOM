@@ -30,9 +30,16 @@
   padding-inline: 0.5rem;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
-  background: var(--ui-bg);
+  background: var(--ui-bg-raised);
   color: var(--ui-text);
   font: inherit;
+}
+/* SEC-AUD-489 (D-1000): the placeholder is the kit's own faint text colour, as the kit's Input states it (the browser's
+ * default grey measured 4.61 / 2.74 / 3.46 on the three themes). */
+.sr-card input::placeholder,
+.sr-card textarea::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .sr-card textarea {
   resize: vertical;

@@ -1767,3 +1767,40 @@ label.lib-chapter-select {
   .lib-endcard {
   --sr-gold: #c2b08f;
 }
+
+/* D-1001 (SEC-AUD-487): on a phone the reader's bar buttons keep their 36 px width but are 44 px tall, so the bars'
+   width does not grow. The top bar (60 px: 8 + the 44 px picker + 8) and the bottom bar (72 px: the slider's 56)
+   already hold 44 px, so neither bar changes height. `.lib-icon-btn` itself (shared by the whole Library) is not
+   changed: the rule is scoped to the two bars. */
+@media (max-width: 480px) {
+  .lib-reader-top .lib-icon-btn,
+  .lib-reader-bottom .lib-icon-btn {
+    min-block-size: 44px;
+  }
+}
+
+/* D-1001 (SEC-AUD-486): at 360 and under the five buttons, the gaps and the bar's padding leave 60 px at 320, so the
+   chapter picker's floor falls from 96 (D-998, above) to 56 and the bar fits. The select cuts its own text; its
+   chevron stays at the field's end and the field keeps its accessible name. */
+@media (max-width: 360px) {
+  .lib-reader-top label.lib-chapter-select {
+    min-inline-size: 56px;
+  }
+}
+
+/* D-1001 (SEC-AUD-488): under Side Room the end card's eyebrow (the theme's gold) and its comments button (the
+   theme's light text) sat on a white or sepia stage at 1.1 to 1.9:1. The stage's ink is its own `color` (no token:
+   `.lib-reader[data-bg]` sets `color`), which the card inherits; these two take it, as the back link and the rating
+   label already do. The gold "next chapter" button keeps its own fill and ink. The hover ground of a button is the
+   theme's dark `--sr-bg-2`, which dark ink would not read on, so the card states a light veil for it. */
+.lib-root[data-theme^='sideroom']
+  .lib-reader:is([data-bg='white'], [data-bg='sepia'])
+  .lib-endcard {
+  --sr-bg-2: rgb(0 0 0 / 0.08);
+}
+.lib-root[data-theme^='sideroom']
+  .lib-reader:is([data-bg='white'], [data-bg='sepia'])
+  .lib-endcard
+  :is(.lib-eyebrow, .lib-btn:not(.lib-btn-gold)) {
+  color: inherit;
+}

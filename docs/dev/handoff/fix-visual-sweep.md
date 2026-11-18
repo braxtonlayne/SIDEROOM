@@ -128,6 +128,10 @@ Environment note: the web production build rewrites `apps/web/node_modules/.vite
 server shares; afterwards every app route captured blank (504 "Outdated Optimize Dep"). Touching
 `apps/web/vite.config.ts` makes Vite reload in place and re-optimize; do that after a build while the dev server runs.
 
+## Built-mode shots and jobs (wave 105, D-1004)
+
+Wave 105 was the first wave on jobs (D-1004): 56 jobs, fourteen builders, three cells at once, no crash and no killed job. Shots are taken in built mode through the job runner (`cli-agents/job.sh`): a builder never starts a server, Vite or Playwright. `shoot base` serves the wave's base bundle and `shoot after` serves the builder's own build; a tree edited after its build is refused with `stale build` (rc 3), so build again. A spec reads only `SR_E2E_BASE_URL`, never imports a `/src/...` module, uses the seeded sweep world, and compares in the `after` phase only when `figures-base.json` is there. A web typecheck costs about 3.3 GB of memory and a cell about 1 GB. Waiting (median 81 s) was longer than running, so submit fewer, fuller jobs and read a failed job's log before submitting again. The dev-server recipe above is for the full sweep on its own scratch database; a wave's shots do not use it.
+
 ## Gates
 
 | Gate | Result |

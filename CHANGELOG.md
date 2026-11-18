@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 105 - 2026-11-18
+
+- On a phone the Library reader's bar buttons are easier to hit (44 px tall), the bar fits a 320 px screen, and the end of a chapter reads on the white and sepia backgrounds. The forum's search field and view buttons are full-size touch targets, and the phone search keeps its filter chips in view while the results scroll.
+- In the Lounge a channel's name is cut later: the topic now gives way first (with the member list open on a small desktop window the name can still be cut). The tool cards' and rooms' fields, such as the Invite card's, share the kit's field ground and a readable placeholder, and the tier chip's remove button is a full-size target on a phone. In the music panel a track's action row keeps its buttons at their own height beside the select.
+- Staff: the Donations Invoices and Entitlements filters are the shared select field, the grant dialog's Kind label has the same look as its other labels, and the Discord bridge's channel and direction pickers read as normal 14 px fields.
+- For the team: builders now run typechecks, builds and screenshot runs through the job runner (56 jobs in its first wave), and the shared touch-target helper names a control from its label.
+
 ## Phase 104 - 2026-11-18
 
 - In the Lounge, Alt+ArrowDown and the other arrow-key shortcuts no longer steal the key from a focused select, so the Sort lists open with the keyboard. The new-event dialog is wider, so the start and end dates sit side by side. The forum's Sort now uses the shared select, sized to its text, at the Lounge's 14 px control size.

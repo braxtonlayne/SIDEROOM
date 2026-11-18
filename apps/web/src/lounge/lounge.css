@@ -835,6 +835,9 @@
   background: var(--ui-border);
 }
 .lng-topic {
+  /* D-1007 (SEC-AUD-495): the topic gives way before the title. Both shrink from a 0 floor; a shrink factor this much
+     larger takes all the missing room from the topic first, and the title (factor 1) only cuts once the topic is 0. */
+  flex: 0 9999 auto;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -2307,6 +2310,15 @@
   border: 0;
   background: transparent;
   box-shadow: none;
+}
+/* The panel is the sheet's one scroller (the chips, the count row and the hit groups are its children), so a scrolled
+   panel carried the chips up under the box as a sliver. The chips row stays at the top of the scroller, whole. */
+.lng-search-sheet .lng-search-chips {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  flex: none;
+  background: var(--bg-base-low);
 }
 .lng-search-sheet .lng-chip {
   min-block-size: 44px;

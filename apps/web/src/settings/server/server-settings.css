@@ -932,3 +932,16 @@
   display: inline-block;
   margin-inline-end: 0;
 }
+
+/* D-1011 (SEC-AUD-493, 494): a kit select inside a .ss-field-label form field reads as a form field, not as its uppercase
+   label. NativeSelect sets `font: inherit`, so the select took the label's 12px / 600 / capitals / tracking. Two classes
+   (D-974): only the selects that carry .ss-form-pick (the bridge's "Mirror another channel" fieldset and the plan's link
+   fieldset) match; the .ss-field-label rule, the label's own text and .ss-field-pick (the Conflict log's Kind, weight 600
+   on purpose) are unchanged. The select's box is untouched: height, width and the label's margin stay. */
+.ss-field-label .ss-form-pick {
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ui-text);
+}
