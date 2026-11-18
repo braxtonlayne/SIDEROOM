@@ -520,8 +520,7 @@ function cinemaDefs(w: World): PageDef[] {
       // The seeded title has no video, so the page shows its "back to the title" empty state. The play target and the
       // playback grant are answered here (no media behind the grant) so the player draws its bars and control bar.
       open: async (p: Page) => {
-        await p.route(
-          //api/v1/cinema/titles/[^/]+/play(?.*)?$/, (r) =>
+        await p.route(/\/api\/v1\/cinema\/titles\/[^/]+\/play(\?.*)?$/, (r) =>
           json(r, {
             title_id: w.titleId,
             asset_id: 'p106asset',
@@ -531,8 +530,7 @@ function cinemaDefs(w: World): PageDef[] {
             markers: [],
           }),
         );
-        await p.route(
-          //api/v1/cinema/assets/[^/]+/playback(?.*)?$/, (r) =>
+        await p.route(/\/api\/v1\/cinema\/assets\/[^/]+\/playback(\?.*)?$/, (r) =>
           json(r, {
             master_url: `${ORIGIN}/cdn/p106-master.m3u8`,
             expires_at: Math.floor(Date.now() / 1000) + 3600,
