@@ -43,3 +43,7 @@ Measure the chevron with `e2e/support/contrast.ts` against `#1c1d18` in the Libr
 
 ## Owner questions
 - The kit chevron (`--ui-text-muted`) on the reader's fixed dark bar is about 2.6:1 if the Library is set to Lounge Light. Accept, or should the Reader bar use its own chevron colour (needs a kit hook, not in this wave)?
+
+## FAULT from libshots round 1 (cured, (b))
+The kit select inherits the bar's font, so the picker text grew from 13.33 to 16 px and "Chapter 1: p103-lib first" (170.1 px) was cut at the 220 px cap. Cure: `label.lib-chapter-select { font-size: 14px }` (the Library's field size), in `library.css`. No .ts/.tsx touched, so no new typecheck. `check-css-tokens.mjs` exit 0, prettier clean.
+Correction to the chevron note above: libshots measured the chevron at 6.8:1 on the select and 7.99:1 on the bar in both sideroom and lounge-light; my 2.6:1 hand figure does not hold (the sheet already gives the bars the Side Room muted colour). The owner question about it is withdrawn.

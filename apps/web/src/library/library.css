@@ -1028,6 +1028,9 @@
 .lib-reader-slider {
   flex: 1;
 }
+label.lib-chapter-select {
+  font-size: 14px;
+}
 .lib-chapter-select .lib-chapter-pick {
   max-inline-size: 220px;
   background: #1c1d18;
