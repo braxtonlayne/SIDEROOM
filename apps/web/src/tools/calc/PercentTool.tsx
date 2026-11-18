@@ -127,7 +127,11 @@ export default function PercentTool({ host }: ToolProps) {
         <legend>{t('tools.percent.form')}</legend>
         <label className="sr-calc-field">
           {t('tools.percent.kind')}
-          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as PercentKind)}>
+          <NativeSelect
+            className="sr-calc-pick"
+            value={kind}
+            onChange={(e) => setKind(e.target.value as PercentKind)}
+          >
             {KINDS.map((k) => (
               <option key={k} value={k}>
                 {t(KIND_LABELS[k])}
