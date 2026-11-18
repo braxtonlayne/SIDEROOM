@@ -155,6 +155,15 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
     await p.waitForLoadState('networkidle', { timeout: ms }).catch(() => undefined);
     await p.waitForTimeout(500);
   };
+  /** Back to the top: the page and every scrolled element (Admin scrolls its own content), wrappers to the start. */
+  const top = (page: Page) =>
+    page.evaluate(() => {
+      window.scrollTo(0, 0);
+      for (const e of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+        if (e.scrollTop > 0) e.scrollTop = 0;
+        if (e.scrollLeft > 0) e.scrollLeft = 0;
+      }
+    });
   const hits = async (page: Page, root: Locator) => {
     await openCollapsed(page, root);
     const rows = await hitTestAll(page, root);
@@ -164,7 +173,14 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
     return rows.map((r) => ({
       name: r.name,
       status: r.status,
-      taker: r.result?.points.find((p) => !p.ok)?.taker?.path ?? null,
+      box: r.result ? `${Math.round(r.result.box.width)}x${Math.round(r.result.box.height)}` : null,
+      // Every failing point, with who took it (another control taking a point is the fault that matters most).
+      takers: (r.result?.points ?? [])
+        .filter((p) => !p.ok)
+        .map(
+          (p) =>
+            `${p.at}: ${p.taker?.tag ?? 'none'} "${p.taker?.name ?? ''}" (${p.taker?.path ?? ''})`,
+        ),
     }));
   };
 
@@ -214,20 +230,12 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
         root: '.adm-table-wrap',
         texts: [tx.jobs.find((j) => j.text)!.text!, ...tx.jobs.map((j) => j.id)],
       });
-      const hit = await hits(page, panel);
-      log({ id: 'transcoding', size: s.key, theme, table, cut, hit });
-      console.log(
-        `REPORT transcoding ${s.key} (${theme}): wrapper ${table?.scrollWidth}/${table?.clientWidth}, role ${table?.wrapRole}, tabindex ${table?.wrapTabindex}, stacked ${table?.stacked}, thead display ${table?.theadDisplay}, rows ${table?.rows}, doc sideways ${cut.doc}, text missing ${JSON.stringify((cut as { missing?: string[] }).missing)}, cut ${JSON.stringify((cut as { cut?: unknown[] }).cut)}`,
-      );
-      console.log(
-        `REPORT transcoding ${s.key} hit: ${hit.length} controls, fails ${JSON.stringify(hit.filter((h) => h.status === 'fail'))}`,
-      );
-      await page.evaluate(() => window.scrollTo(0, 0));
+      await top(page);
       let file = `transcoding-${s.key}-${theme}.png`;
       await page.screenshot({ path: resolve(OUT, file) });
       shots.push(file);
       if (s.key === '375') {
-        // The wrapper in view, whole (the phone's page is long).
+        // The table in view, whole (the phone's page is long).
         await page
           .locator('.adm-table-wrap')
           .first()
@@ -235,7 +243,16 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
         file = `transcoding-${s.key}-table-${theme}.png`;
         await page.screenshot({ path: resolve(OUT, file) });
         shots.push(file);
+        await top(page);
       }
+      const hit = await hits(page, panel);
+      log({ id: 'transcoding', size: s.key, theme, table, cut, hit });
+      console.log(
+        `REPORT transcoding ${s.key} (${theme}): wrapper ${table?.scrollWidth}/${table?.clientWidth}, role ${table?.wrapRole}, tabindex ${table?.wrapTabindex}, stacked ${table?.stacked}, thead display ${table?.theadDisplay}, rows ${table?.rows}, doc sideways ${cut.doc}, text missing ${JSON.stringify((cut as { missing?: string[] }).missing)}, cut ${JSON.stringify((cut as { cut?: unknown[] }).cut)}`,
+      );
+      console.log(
+        `REPORT transcoding ${s.key} hit${s.phone ? '' : ' (the 44 px touch rule, informational on a desktop width)'}: ${hit.length} controls, fails ${JSON.stringify(hit.filter((h) => h.status === 'fail'))}`,
+      );
 
       // ------------------------------------------------ the Arcade (member's view)
       if (s.key !== '900') {
@@ -270,25 +287,27 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
           root: '#coming-soon',
           texts: [orig.title, reimpl.title, orig.summary, reimpl.summary],
         });
+        // The seeded cards in the viewport (the section is far down the page); shot before the hit test scrolls.
+        await cards[0]!.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(400);
+        let file = `activity-tier-${s.key}-${arcTheme}.png`;
+        await page.screenshot({ path: resolve(OUT, file) });
+        shots.push(file);
+        if (s.phone) {
+          await cards[1]!.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+          await page.waitForTimeout(400);
+          file = `activity-tier-${s.key}-reimplementation-${arcTheme}.png`;
+          await page.screenshot({ path: resolve(OUT, file) });
+          shots.push(file);
+        }
         const arcHit = await hits(page, soon);
         log({ id: 'activity-tier', size: s.key, theme: arcTheme, cardFacts, arcCut, arcHit });
         console.log(
           `REPORT activity-tier ${s.key} (${arcTheme}): cards ${JSON.stringify(cardFacts)}; doc sideways ${arcCut.doc}; missing ${JSON.stringify((arcCut as { missing?: string[] }).missing)}; cut ${JSON.stringify((arcCut as { cut?: unknown[] }).cut)}`,
         );
         console.log(
-          `REPORT activity-tier ${s.key} hit: ${arcHit.length} controls, fails ${JSON.stringify(arcHit.filter((h) => h.status === 'fail'))}`,
+          `REPORT activity-tier ${s.key} hit${s.phone ? '' : ' (the 44 px touch rule, informational on a desktop width)'}: ${arcHit.length} controls, fails ${JSON.stringify(arcHit.filter((h) => h.status === 'fail'))}`,
         );
-        // The two seeded cards in the viewport (the section is far down the page).
-        await cards[0]!.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-        await page.waitForTimeout(400);
-        file = `activity-tier-${s.key}-${arcTheme}.png`;
-        await page.screenshot({ path: resolve(OUT, file) });
-        shots.push(file);
-        await cards[1]!.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-        await page.waitForTimeout(400);
-        file = `activity-tier-${s.key}-reimplementation-${arcTheme}.png`;
-        await page.screenshot({ path: resolve(OUT, file) });
-        shots.push(file);
       }
 
       // ------------------------------------------------ Admin > Arcade (where the Operator sets the tier)
@@ -303,19 +322,20 @@ test('D-952: Transcoding rows and an Arcade game with a tier, shot and measured'
           root: '.arc-admin',
           texts: [orig.title, reimpl.title],
         });
-        const admHit = await hits(page, page.locator('.arc-admin'));
         // The tier is chosen by the form's Select: open it, pick the reimplementation, read it back.
         await tierSel.click();
         await page.getByRole('option', { name: /Reimplementation/i }).click();
         const after = (await tierSel.textContent())?.trim();
-        log({ id: 'admin-arcade', size: s.key, before, after, admCut, admHit });
-        console.log(
-          `REPORT admin-arcade ${s.key}: tier select "${before}" -> "${after}"; doc sideways ${admCut.doc}; missing ${JSON.stringify((admCut as { missing?: string[] }).missing)}; cut ${JSON.stringify((admCut as { cut?: unknown[] }).cut)}; hit ${admHit.length} controls, fails ${JSON.stringify(admHit.filter((h) => h.status === 'fail'))}`,
-        );
         await tierSel.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(300);
         file = `admin-arcade-tier-${s.key}-${await themeOf('.ss-root[data-theme]')}.png`;
         await page.screenshot({ path: resolve(OUT, file) });
         shots.push(file);
+        const admHit = await hits(page, page.locator('.arc-admin'));
+        log({ id: 'admin-arcade', size: s.key, before, after, admCut, admHit });
+        console.log(
+          `REPORT admin-arcade ${s.key}: tier select '${before}' -> '${after}'; doc sideways ${admCut.doc}; missing ${JSON.stringify((admCut as { missing?: string[] }).missing)}; cut ${JSON.stringify((admCut as { cut?: unknown[] }).cut)}; hit (the 44 px touch rule, informational on a desktop width) ${admHit.length} controls, fails ${admHit.filter((h) => h.status === 'fail').length}: ${JSON.stringify(admHit.filter((h) => h.status === 'fail'))}`,
+        );
       }
       await ctx.close();
     }
