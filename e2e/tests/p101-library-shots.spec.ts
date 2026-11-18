@@ -7,10 +7,12 @@ import { hitTestAll, openCollapsed, type ControlRow } from '../support/hit-test'
 import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
- * D-958 (wave 101, library): the raw `<select>` elements of the Library's Browse (the Filters drawer's Status, Rating
- * and Age-restricted; the sort select in the toolbar stays raw, see the handoff) and Series social (Your rating, the
- * review form's rating) move to the kit's `NativeSelect`; the reader's "Rate this chapter" is not reached by this spec and stays raw. A record of every select's
- * box and of the controls around it, base then after, with the exact hit test (`e2e/support/hit-test.ts`).
+ * D-958 (wave 101, library): the raw `<select>` elements of the Library's Browse Filters drawer (Status, Rating and
+ * Age-restricted) move to the kit's `NativeSelect`. Left raw, with their figures in the handoff: Browse's sort select
+ * (toolbar), Series social's "Your rating", the review form's rating and the reader's "Rate this chapter" (a
+ * `NativeSelect` there stacks its label above it and moves the neighbours by more than the select's own height
+ * difference). A record of every select's box and of the controls around it, base then after, with the exact hit test
+ * (`e2e/support/hit-test.ts`; boxes are relative to the measured root).
  * NEEDS THE SWEEP'S SEEDED WORLD (`e2e/.state/sweep/`, made by `page-sweep.spec.ts`'s "seed the sweep world"; never
  * edited) for its stack and owner. The data it makes goes through the admin API under `p101-lib-<digits>` names
  * (D-942): one published series with one chapter of three pages (the reader's pictures are answered by `page.route`).

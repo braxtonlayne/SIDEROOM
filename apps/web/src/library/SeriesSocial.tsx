@@ -6,7 +6,6 @@ import {
   EmptyState,
   Icon,
   Modal,
-  NativeSelect,
   Notice,
   SegmentedControl,
   Skeleton,
@@ -90,9 +89,9 @@ export function RatingBlock({ seriesId }: { seriesId: string }) {
             { value: 'friends', label: t('library.social.rating.scopeFriends') },
           ]}
         />
-        <label className="lib-select-block">
+        <label className="lib-select lib-rate">
           <span>{t('library.social.rating.yours')}</span>
-          <NativeSelect
+          <select
             value={r.mine ?? ''}
             disabled={rate.isPending}
             onChange={(e) => rate.mutate(e.target.value === '' ? null : Number(e.target.value))}
@@ -103,7 +102,7 @@ export function RatingBlock({ seriesId }: { seriesId: string }) {
                 {s}
               </option>
             ))}
-          </NativeSelect>
+          </select>
         </label>
       </div>
       {r.global.count > 0 && (
@@ -336,9 +335,9 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
         maxLength={8000}
         onChange={(e) => setBody(e.target.value)}
       />
-      <label className="lib-select-block">
+      <label className="lib-select lib-rate">
         <span>{t('library.social.reviews.rating')}</span>
-        <NativeSelect
+        <select
           value={rating ?? ''}
           onChange={(e) => setRating(e.target.value === '' ? null : Number(e.target.value))}
         >
@@ -348,7 +347,7 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
               {s}
             </option>
           ))}
-        </NativeSelect>
+        </select>
       </label>
       <Checkbox
         label={t('library.social.reviews.spoiler')}
