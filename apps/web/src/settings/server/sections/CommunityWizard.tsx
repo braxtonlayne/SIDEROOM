@@ -3,7 +3,7 @@
 // The two safety requirements (verification level, content filter) are switches the admin turns on themselves and
 // Next stays disabled until both are on (G-35, P10-SFE-1); Finish never sets them silently. Everything else is
 // sent at Finish: the guild, the @everyone role and the community settings are written in turn.
-import { Button, Checkbox, Modal, Notice, Switch } from '@sideroom/ui';
+import { Button, Checkbox, Modal, NativeSelect, Notice, Switch } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { useChannels, useGuild } from '../../../store';
@@ -260,19 +260,14 @@ function WizardChannel({
       <label className="ss-field-label" htmlFor={id}>
         {label}
       </label>
-      <select
-        id={id}
-        className="ss-select"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">{t('settings.communityWizard.chooseChannel')}</option>
         {channels.map((c) => (
           <option key={c.id} value={c.id}>
             #{c.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </div>
   );
 }
