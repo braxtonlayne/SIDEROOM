@@ -449,7 +449,11 @@ function RowsTable({
           <legend>{t('settings.bridgeSync.plan.linkTitle')}</legend>
           <label className="ss-field-label">
             {t('settings.bridgeSync.plan.linkHere')}
-            <NativeSelect value={here} onChange={(e) => setHere(e.target.value)}>
+            <NativeSelect
+              className="ss-form-pick"
+              value={here}
+              onChange={(e) => setHere(e.target.value)}
+            >
               <option value="">{t('settings.bridgeSync.plan.linkChoose')}</option>
               {onlyHere.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -460,7 +464,11 @@ function RowsTable({
           </label>
           <label className="ss-field-label">
             {t('settings.bridgeSync.plan.linkThere')}
-            <NativeSelect value={there} onChange={(e) => setThere(e.target.value)}>
+            <NativeSelect
+              className="ss-form-pick"
+              value={there}
+              onChange={(e) => setThere(e.target.value)}
+            >
               <option value="">{t('settings.bridgeSync.plan.linkChoose')}</option>
               {onlyThere.map((r) => (
                 <option key={r.id} value={r.id}>
