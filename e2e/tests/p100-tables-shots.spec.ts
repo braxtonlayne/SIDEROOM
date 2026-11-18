@@ -232,7 +232,7 @@ test('SEC-AUD-441: every Admin table wrapper that scrolls is a named keyboard st
     };
     await page.goto('/admin/dashboard', { waitUntil: 'domcontentloaded', timeout: 15_000 });
     await idle(page, 4000);
-    await page.locator(NAV).first().waitFor({ timeout: 20_000 });
+    await page.locator(NAV).first().waitFor({ state: 'attached', timeout: 20_000 });
     const labels = (await page.locator(NAV).allTextContents()).map((t) => t.trim());
     console.log(`REPORT [${s.key}] nav pages ${labels.length}: ${labels.join(' | ')}`);
     const recs = new Map<string, Rec>();
