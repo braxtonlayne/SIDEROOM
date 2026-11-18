@@ -1,7 +1,7 @@
 // Server Settings > Discord bridge (BRG-UI-001). The entry exists only while the module is on (D-381). The owner
 // pastes the bot token (sealed, never shown again) and switches the bridge off; the owner and MANAGE_GUILD map
 // channels and post a test.
-import { Button, Notice, TextInput } from '@sideroom/ui';
+import { Button, NativeSelect, Notice, TextInput } from '@sideroom/ui';
 import { Fragment, useEffect, useState } from 'react';
 import { useT } from '../../../i18n';
 import { useChannels } from '../../../store';
@@ -339,30 +339,29 @@ function MapCard({
         <legend>{t('settings.bridge.map.addTitle')}</legend>
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldOurs')}
-          <select className="ss-select" value={ours} onChange={(e) => setOurs(e.target.value)}>
+          <NativeSelect value={ours} onChange={(e) => setOurs(e.target.value)}>
             <option value="">{t('settings.bridge.map.choose')}</option>
             {free.map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldTheirs')}
-          <select className="ss-select" value={theirs} onChange={(e) => setTheirs(e.target.value)}>
+          <NativeSelect value={theirs} onChange={(e) => setTheirs(e.target.value)}>
             <option value="">{t('settings.bridge.map.choose')}</option>
             {(discord.data ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="ss-field-label">
           {t('settings.bridge.map.fieldDirection')}
-          <select
-            className="ss-select"
+          <NativeSelect
             value={direction}
             onChange={(e) => setDirection(e.target.value as api.BridgeDirection)}
           >
@@ -371,7 +370,7 @@ function MapCard({
                 {directionLabel(d)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {discord.error && <Notice variant="warning">{discord.error}</Notice>}
         <div className="ss-actions">

@@ -1,6 +1,6 @@
 // LNG-SSET-028: bulk actions over the selected members (add or remove a role, kick, ban). The server has no
 // bulk endpoint, so each member is sent on its own, one after the other; the dialog reports which ones failed.
-import { Button, Modal, TextArea } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, TextArea } from '@sideroom/ui';
 import { useState } from 'react';
 import { useT } from '../../../i18n';
 import * as api from '../api';
@@ -110,9 +110,8 @@ export function BulkDialog({
             <label className="ss-field-label" htmlFor="ss-bulk-role">
               {t('settings.members.bulkRole')}
             </label>
-            <select
+            <NativeSelect
               id="ss-bulk-role"
-              className="ss-select"
               value={roleId}
               onChange={(e) => setRoleId(e.target.value)}
             >
@@ -121,7 +120,7 @@ export function BulkDialog({
                   {r.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         ) : (
           <>
@@ -130,9 +129,8 @@ export function BulkDialog({
                 <label className="ss-field-label" htmlFor="ss-bulk-delete">
                   {t('settings.members.deleteHistory')}
                 </label>
-                <select
+                <NativeSelect
                   id="ss-bulk-delete"
-                  className="ss-select"
                   value={seconds}
                   onChange={(e) => setSeconds(Number(e.target.value))}
                 >
@@ -141,7 +139,7 @@ export function BulkDialog({
                       {t(w.label)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </div>
             )}
             <TextArea

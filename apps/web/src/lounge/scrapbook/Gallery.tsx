@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, EmptyState, Icon, Spinner } from '@sideroom/ui';
+import { Button, EmptyState, Icon, NativeSelect, Spinner } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useChannels } from '../data';
 import {
@@ -240,7 +240,7 @@ export function Filters({
       </label>
       <label>
         {t('lounge.scrapbook.channel')}
-        <select
+        <NativeSelect
           className="lng-scr-input"
           value={value.channelId ?? ''}
           onChange={(e) => set({ channelId: e.target.value })}
@@ -251,11 +251,11 @@ export function Filters({
               #{channelNames[c.id] ?? c.id} ({c.count})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label>
         {t('lounge.scrapbook.tag')}
-        <select
+        <NativeSelect
           className="lng-scr-input"
           value={value.tag ?? ''}
           onChange={(e) => set({ tag: e.target.value })}
@@ -266,11 +266,11 @@ export function Filters({
               #{x.tag} ({x.count})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label>
         {t('lounge.scrapbook.member')}
-        <select
+        <NativeSelect
           className="lng-scr-input"
           value={value.authorId ?? ''}
           onChange={(e) => set({ authorId: e.target.value })}
@@ -281,7 +281,7 @@ export function Filters({
               {a.name} ({a.count})
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
     </form>
   );

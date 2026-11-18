@@ -392,7 +392,10 @@ function QueueTab() {
       )}
       {paged.items.length > 0 && (
         <TableRegion label={t('admin.transcoding.queue.table')}>
-          <table className="adm-table" aria-label={t('admin.transcoding.queue.table')}>
+          <table
+            className="adm-table adm-table-stack"
+            aria-label={t('admin.transcoding.queue.table')}
+          >
             <thead>
               <tr>
                 <th scope="col">{t('admin.transcoding.col.job')}</th>
@@ -408,29 +411,33 @@ function QueueTab() {
             <tbody>
               {paged.items.map((j) => (
                 <tr key={j.id}>
-                  <td>
+                  <td data-label={t('admin.transcoding.col.job')}>
                     <span className="adm-mono">{j.id}</span>
                     <div className="ss-meta">
                       {j.kind} · {t('admin.transcoding.queue.attempt', { n: j.attempt })}
                     </div>
                   </td>
-                  <td>
+                  <td data-label={t('admin.transcoding.col.asset')}>
                     <span className="adm-mono">{j.asset_id}</span>
                   </td>
-                  <td>{j.mount_id ? <span className="adm-mono">{j.mount_id}</span> : null}</td>
-                  <td>
+                  <td data-label={t('admin.transcoding.col.mount')}>
+                    {j.mount_id ? <span className="adm-mono">{j.mount_id}</span> : null}
+                  </td>
+                  <td data-label={t('admin.transcoding.col.state')}>
                     <StateBadge state={j.state} />
                     {j.state === 'running' && (
                       <div className="ss-meta">
                         {j.stage ?? ''} {j.percent != null ? `${Math.round(j.percent)}%` : ''}
                       </div>
                     )}
-                    {j.error && <div className="ss-meta">{j.error}</div>}
+                    {j.error && <div className="ss-meta adm-tx-error">{j.error}</div>}
                   </td>
-                  <td>{j.priority}</td>
-                  <td>{j.worker_name ?? j.worker_id ?? ''}</td>
-                  <td>{fmtMs(j.created_at_ms)}</td>
-                  <td>
+                  <td data-label={t('admin.transcoding.col.priority')}>{j.priority}</td>
+                  <td data-label={t('admin.transcoding.col.worker')}>
+                    {j.worker_name ?? j.worker_id ?? ''}
+                  </td>
+                  <td data-label={t('admin.transcoding.col.created')}>{fmtMs(j.created_at_ms)}</td>
+                  <td data-actions>
                     <div className="adm-actions">
                       <Button
                         size="sm"

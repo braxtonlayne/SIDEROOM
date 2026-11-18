@@ -1,4 +1,4 @@
-import { Button, EmptyState } from '@sideroom/ui';
+import { Button, EmptyState, NativeSelect } from '@sideroom/ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../../i18n';
 import { snowflakeTime } from '../../../lounge/liveMap';
@@ -103,9 +103,8 @@ export function AuditLogSection({ guildId }: SectionProps) {
           <label className="ss-field-label" htmlFor="ss-audit-user">
             {t('settings.auditLog.filterUser')}
           </label>
-          <select
+          <NativeSelect
             id="ss-audit-user"
-            className="ss-select"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
           >
@@ -115,15 +114,14 @@ export function AuditLogSection({ guildId }: SectionProps) {
                 {m.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         <div>
           <label className="ss-field-label" htmlFor="ss-audit-action">
             {t('settings.auditLog.filterAction')}
           </label>
-          <select
+          <NativeSelect
             id="ss-audit-action"
-            className="ss-select"
             value={action}
             onChange={(e) => setAction(e.target.value)}
           >
@@ -133,7 +131,7 @@ export function AuditLogSection({ guildId }: SectionProps) {
                 {f.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       </div>
       {error && <ActionStatus error={error} />}

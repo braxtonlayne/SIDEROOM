@@ -1,4 +1,4 @@
-import { Button, EmptyState, Modal } from '@sideroom/ui';
+import { Button, EmptyState, Modal, NativeSelect } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { useT } from '../../../i18n';
 import * as api from '../api';
@@ -153,9 +153,8 @@ export function BotCommandPermissions({
             <label className="ss-field-label" htmlFor="cmdperm-target">
               {t('settings.commandPermissions.command')}
             </label>
-            <select
+            <NativeSelect
               id="cmdperm-target"
-              className="ss-select"
               value={target}
               onChange={(e) => setTarget(e.target.value)}
             >
@@ -165,7 +164,7 @@ export function BotCommandPermissions({
                   /{c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {list.length === 0 && (
               <EmptyState
                 title={t('settings.commandPermissions.noCommands')}
@@ -180,8 +179,7 @@ export function BotCommandPermissions({
                     <div className="ss-grow">
                       <div className="ss-name">{name}</div>
                     </div>
-                    <select
-                      className="ss-select"
+                    <NativeSelect
                       aria-label={t('settings.commandPermissions.ruleFor', { name })}
                       value={stateOf(s.id, s.type)}
                       onChange={(e) => setEntry(s.id, s.type, fromState(e.target.value))}
@@ -189,7 +187,7 @@ export function BotCommandPermissions({
                       <option value="default">{t('settings.commandPermissions.default')}</option>
                       <option value="allow">{t('settings.commandPermissions.allow')}</option>
                       <option value="deny">{t('settings.commandPermissions.deny')}</option>
-                    </select>
+                    </NativeSelect>
                   </li>
                 );
               })}
@@ -209,15 +207,14 @@ export function BotCommandPermissions({
                         )}
                       </div>
                     </div>
-                    <select
-                      className="ss-select"
+                    <NativeSelect
                       aria-label={t('settings.commandPermissions.ruleFor', { name })}
                       value={e.permission ? 'allow' : 'deny'}
                       onChange={(ev) => setEntry(e.id, e.type, ev.target.value === 'allow')}
                     >
                       <option value="allow">{t('settings.commandPermissions.allow')}</option>
                       <option value="deny">{t('settings.commandPermissions.deny')}</option>
-                    </select>
+                    </NativeSelect>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -233,9 +230,8 @@ export function BotCommandPermissions({
             <label className="ss-field-label" htmlFor="cmdperm-add">
               {t('settings.commandPermissions.add')}
             </label>
-            <select
+            <NativeSelect
               id="cmdperm-add"
-              className="ss-select"
               value=""
               onChange={(e) => {
                 const [type, id] = e.target.value.split(':');
@@ -250,7 +246,7 @@ export function BotCommandPermissions({
                   {a.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         )}
       </Async>

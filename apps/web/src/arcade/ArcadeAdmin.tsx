@@ -102,7 +102,7 @@ export function ArcadeAdminSection({
       <ul className="arc-admin-list">
         {soon.map((s) => (
           <li key={s.id}>
-            <strong>{s.title}</strong>
+            <strong>{s.title}</strong> <span className="arc-chip">{t(tierKey(s.tier))}</span>
             <form
               className="arc-release"
               onSubmit={(e) => {

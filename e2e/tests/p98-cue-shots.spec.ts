@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { repoRoot } from '../support/cli';
 import { apiPatch, apiPost, apiPut, loginApi, registerUser, test } from '../support/fixtures';
+import { edgeStrips } from '../support/edge-strips';
 import { hitTestAll, openCollapsed } from '../support/hit-test';
 
 /**
@@ -245,6 +246,7 @@ test('SEC-AUD-438: the Invoices wrapper shows an edge shade where the table scro
   const ownerCtx = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
   const o = ownerCtx.request;
   const shots: string[] = [];
+  const stripClips: string[] = [];
   const problems: string[] = [];
   const notes: string[] = [];
   const idle = async (p: Page, ms = 3000) => {
@@ -338,10 +340,9 @@ test('SEC-AUD-438: the Invoices wrapper shows an edge shade where the table scro
     };
     const edges = async (page: Page, where: 'start' | 'mid' | 'end'): Promise<Edge> => {
       await scrollTo(page, where);
-      const b = (await page.locator(WRAP).boundingBox())!;
-      const clip = (x: number) => ({ x, y: b.y, width: 16, height: Math.min(b.height, 200) });
-      const l = await page.screenshot({ clip: clip(b.x) });
-      const r = await page.screenshot({ clip: clip(b.x + b.width - 16) });
+      // SEC-AUD-447 (D-957): cut from the part of the wrapper that is inside the viewport.
+      const { l, r, clip } = await edgeStrips(page, WRAP, { width: 16, maxHeight: 200 });
+      stripClips.push(`${where} y ${clip.y} h ${clip.height} viewport h ${clip.viewportHeight}`);
       return { l, r };
     };
     const hits = async (page: Page) => {
@@ -571,6 +572,7 @@ test('SEC-AUD-438: the Invoices wrapper shows an edge shade where the table scro
   await ownerCtx.close();
   for (const n of notes) console.log(`REPORT note ${n}`);
   console.log(`REPORT shots ${shots.length}: ${shots.join(', ')}`);
+  console.log(`REPORT strips ${JSON.stringify(stripClips)}`);
   console.log(`REPORT problems ${JSON.stringify(problems)}`);
   writeFileSync(resolve(OUT, 'totals.json'), JSON.stringify({ shots, notes, problems }, null, 1));
   if (problems.length) throw new Error(`problems: ${problems.join(' ; ')}`);

@@ -6,6 +6,7 @@ import {
   EmptyState,
   Modal,
   MultiSelect,
+  NativeSelect,
   Radio,
   RadioGroup,
   Switch,
@@ -519,9 +520,8 @@ function RuleEditor({
             <label className="ss-field-label" htmlFor="ss-rule-trigger">
               {t('settings.moderation.trigger')}
             </label>
-            <select
+            <NativeSelect
               id="ss-rule-trigger"
-              className="ss-select"
               value={f.trigger}
               onChange={(e) => set('trigger', Number(e.target.value))}
             >
@@ -530,7 +530,7 @@ function RuleEditor({
                   {t(TRIGGER_LABEL[tr]!)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         ) : (
           <p className="ss-sub">
@@ -655,9 +655,8 @@ function RuleEditor({
               <label className="ss-field-label" htmlFor="ss-rule-alert">
                 {t('settings.moderation.alertChannel')}
               </label>
-              <select
+              <NativeSelect
                 id="ss-rule-alert"
-                className="ss-select"
                 value={f.alertChannel}
                 onChange={(e) => set('alertChannel', e.target.value)}
               >
@@ -667,7 +666,7 @@ function RuleEditor({
                     #{c.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           )}
           <Checkbox
@@ -680,9 +679,8 @@ function RuleEditor({
               <label className="ss-field-label" htmlFor="ss-rule-timeout">
                 {t('settings.moderation.timeoutDuration')}
               </label>
-              <select
+              <NativeSelect
                 id="ss-rule-timeout"
-                className="ss-select"
                 value={f.timeoutSeconds}
                 onChange={(e) => set('timeoutSeconds', Number(e.target.value))}
               >
@@ -691,7 +689,7 @@ function RuleEditor({
                     {t(o.label)}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
           )}
         </fieldset>

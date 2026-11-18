@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 101 - 2026-11-18
+
+- Staff on a phone: the Cinema transcoding queue reads as one block per job with full-size Logs, Cancel and Re-run buttons, and a failed job's error no longer stretches its row to one word a line.
+- Members on a phone: the Repository link on a Coming soon card is a full-size touch target. Staff: Admin > Arcade shows each Coming soon game's tier beside its title.
+- More lists use the kit's `NativeSelect` (a 44 px height on a phone or touch screen): Server settings Channels, Members, Audit log, Moderation, Community and the Discord bridge, the bot Command permissions dialog, the Invite dialog, the Scrapbook gallery's filters and the Library's Filters panel.
+- Security: the email library (lettre) is updated to 0.11.24 for six advisories published on 2026-11-18 (shipped with wave 100's merge).
+
 ## Phase 100 - 2026-11-18
 
 - Every Admin table that scrolls sideways can be focused with the keyboard (it announces its name) and scrolled with the arrow keys, and a table that fits is no longer an extra stop.
