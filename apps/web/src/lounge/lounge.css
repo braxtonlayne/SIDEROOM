@@ -2308,6 +2308,15 @@
   background: transparent;
   box-shadow: none;
 }
+/* The panel is the sheet's one scroller (the chips, the count row and the hit groups are its children), so a scrolled
+   panel carried the chips up under the box as a sliver. The chips row stays at the top of the scroller, whole. */
+.lng-search-sheet .lng-search-chips {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  flex: none;
+  background: var(--bg-base-low);
+}
 .lng-search-sheet .lng-chip {
   min-block-size: 44px;
   padding-inline: 14px;
