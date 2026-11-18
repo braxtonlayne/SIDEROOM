@@ -253,6 +253,8 @@ interface View {
   name: string;
   /** What the measures and the hit test cover ('dialog': the innermost dialog, the settings layer is one too). */
   scope: string;
+  /** A second shot with the last select of the scope in view. */
+  lastShot?: boolean;
   /** A select the keyboard drives, and what it must do. */
   keyboard?: (
     page: Page,
@@ -275,6 +277,7 @@ const VIEWS: View[] = [
   {
     name: 'moderation',
     scope: 'dialog',
+    lastShot: true,
     open: async (page, g) => {
       await page.goto(section(g, 'moderation'), { waitUntil: 'domcontentloaded', timeout: 20_000 });
       await page.getByRole('button', { name: 'Create rule' }).first().click();
@@ -584,6 +587,15 @@ async function runConfig(
     path: resolve(OUT, `${shotName(`${v.name}-${c.tag}`)}.png`),
     timeout: 10_000,
   });
+  if (v.lastShot) {
+    // The selects further down the scrolled dialog (the alert channel and the timeout), in view for a second shot.
+    await scope.locator('select').last().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(400);
+    await page.screenshot({
+      path: resolve(OUT, `${shotName(`${v.name}-actions-${c.tag}`)}.png`),
+      timeout: 10_000,
+    });
+  }
 
   const opened = await openCollapsed(page, scope);
   const rows = await hitTestAll(page, scope);
