@@ -274,3 +274,11 @@ export function matchCustomShortcut(
  */
 export const DRAWER_SHORTCUTS: ReadonlySet<ShortcutId> = new Set<ShortcutId>(['quickSwitcher']);
 export const isDrawerShortcut = (id: ShortcutId): boolean => DRAWER_SHORTCUTS.has(id);
+
+/**
+ * D-995: while focus is on a `select`, ArrowUp and ArrowDown (with any modifiers, so Alt+ArrowDown opens the list) belong
+ * to the select. The Lounge neither takes the key as a shortcut nor prevents it.
+ */
+export function yieldsToSelect(e: Pick<KeyboardEvent, 'key'>, target: EventTarget | null): boolean {
+  return (e.key === 'ArrowUp' || e.key === 'ArrowDown') && target instanceof HTMLSelectElement;
+}
