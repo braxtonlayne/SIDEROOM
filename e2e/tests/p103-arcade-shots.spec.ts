@@ -100,7 +100,16 @@ test('SEC-AUD-456 and 464: Start dialog rows on a phone, arcade.css without a se
   const made: string[] = [];
   const mkGuild = async (suffix: string, n: number) => {
     const name = `p103-arcade-${suffix}-${tag}`;
-    const g = await apiPost<{ id: string }>(o, '/guilds', { name });
+    let g: { id: string } | undefined;
+    for (let attempt = 0; !g; attempt++) {
+      try {
+        g = await apiPost<{ id: string }>(o, '/guilds', { name });
+      } catch (e) {
+        // A 429 is the stack's own limit on server creation, not a page fault: wait it out (three tries).
+        if (!String(e).includes('429') || attempt >= 3) throw e;
+        await new Promise((r) => setTimeout(r, 30_000));
+      }
+    }
     made.push(g.id);
     for (let i = 0; i < n; i++)
       await apiPost(o, `/guilds/${g.id}/channels`, {
