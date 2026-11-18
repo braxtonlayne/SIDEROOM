@@ -176,9 +176,10 @@ describe('Members', () => {
     const bob = screen.getByRole('checkbox', { name: 'Select bob' });
     // D-905: the kit's label-less control draws no label element; the name comes from the input's own aria-label.
     expect(bob.closest('div')?.querySelector('label')).toBeNull();
-    expect(all.closest('div')?.querySelector('label')).toBeNull();
+    expect(all.closest('div')?.querySelector('label')).toHaveTextContent(
+      'Select all members on this page',
+    );
     expect(bob).toHaveAttribute('aria-label', 'Select bob');
-    expect(all).toHaveAttribute('aria-label', 'Select all members on this page');
     expect(all).not.toBeChecked();
     expect(all).not.toHaveAttribute('aria-checked');
     await userEvent.click(bob);
