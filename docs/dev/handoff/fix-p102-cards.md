@@ -51,3 +51,8 @@ Eight more selects in the Tools drawer (Invite card, Diff, JSON, Markdown table,
 
 ## Owner questions
 None. Open follow-up: remove `select` from the `utl-dev.css` field rule once the dev tools are confirmed.
+
+## TYPECHECK
+`bash cli-agents/tc.sh run cards bash -c "cd .../p102-cards/apps/web && npx tsc --noEmit -p ."` ran 09:32 to 09:38, exit 0 (no code edit after it; the commit after only added this file).
+`node scripts/i18n-audit.mjs --max 0`: TOTAL 0, exit 0 (09:38). `node scripts/check-doc-links.mjs`: ok, exit 0.
+Lock: `heavy.sh status` at 09:36 showed only "settings"; I hold nothing and never called acquire.
