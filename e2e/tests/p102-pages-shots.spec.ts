@@ -56,6 +56,8 @@ const OUT =
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
 const API = '/api/v1';
 /** `SR_P102_PAGES_AREAS=settings,library,dev` (default: all three) lets a round be split. */
+/** `SR_P102_PAGES_STOPS=name,name` runs only those stops. */
+const ONLY = process.env.SR_P102_PAGES_STOPS?.split(',') ?? null;
 const AREAS = process.env.SR_P102_PAGES_AREAS?.split(',') ?? null;
 const WORLD_FILE = resolve(repoRoot, 'e2e', '.state', 'sweep', 'world.json');
 const PHONE_UA =
@@ -250,8 +252,6 @@ const holding = (page: Page, css: string, sel: string) =>
     .locator(css)
     .filter({ has: page.locator(sel) })
     .last();
-const up = (page: Page, sel: string, n: number) =>
-  page.locator(sel).first().locator(`xpath=ancestor::*[${n}]`);
 
 async function fakeCommunity(page: Page, g: string) {
   await page.route(new RegExp(`/api/v1/guilds/${g}/sr/community$`), async (route) => {
@@ -260,7 +260,7 @@ async function fakeCommunity(page: Page, g: string) {
     const body = (await res.json()) as Record<string, unknown>;
     return route.fulfill({ response: res, json: { ...body, community_enabled: false } });
   });
-  await page.route(new RegExp(`/api/v1/guilds/${g}$`), async (route) => {
+  await page.route(new RegExp(`/api/v1/guilds/${g}([?].*)?$`), async (route) => {
     if (route.request().method() !== 'GET') return route.continue();
     const res = await route.fetch();
     const body = (await res.json()) as Record<string, unknown>;
@@ -361,6 +361,7 @@ const STOPS: Stop[] = [
     keyboard: true,
     open: async ({ page, ids }) => {
       await goto(page, settings(ids, 'integrations'));
+      await page.getByRole('tab', { name: 'Webhooks' }).click();
       await page.getByRole('button', { name: 'Create webhook' }).first().click();
       await page.waitForSelector('#ss-webhook-channel');
     },
@@ -376,7 +377,7 @@ const STOPS: Stop[] = [
     open: async ({ page, ids }) => {
       await fakeCommunity(page, ids.guildId);
       await goto(page, settings(ids, 'community'));
-      await page.getByLabel('Enable Community').first().check({ force: true });
+      await page.getByLabel('Enable Community').first().click({ force: true });
       const dlg = page.getByRole('dialog', { name: 'Enable Community' });
       await dlg.waitFor();
       await expect(dlg.getByRole('button', { name: 'Next' })).toBeEnabled({ timeout: 15_000 });
@@ -396,7 +397,7 @@ const STOPS: Stop[] = [
       await goto(page, settings(ids, 'community'));
       await page.waitForSelector('#ss-rules-channel');
     },
-    scope: (page) => up(page, '#ss-rules-channel', 2),
+    scope: (page) => holding(page, '.ss-form', '#ss-rules-channel'),
   },
   {
     name: 'bridge-conflicts',
@@ -424,7 +425,7 @@ const STOPS: Stop[] = [
       await goto(page, `/library/s/${ids.seriesId}`);
       await page.waitForSelector('.lib-edition select');
     },
-    scope: (page) => up(page, '.lib-edition select', 3),
+    scope: (page) => page.locator('.lib-edition').first().locator('xpath=..'),
   },
   {
     name: 'rankings-kind',
@@ -437,7 +438,7 @@ const STOPS: Stop[] = [
       await goto(page, '/library/rankings');
       await page.waitForSelector('.lib-select select');
     },
-    scope: (page) => up(page, '.lib-select select', 3),
+    scope: (page) => page.locator('.lib-select').first().locator('xpath=..'),
   },
   {
     name: 'mylibrary-sort',
@@ -450,7 +451,7 @@ const STOPS: Stop[] = [
       await goto(page, '/library/me');
       await page.waitForSelector('.lib-page-head select');
     },
-    scope: (page) => up(page, '.lib-page-head select', 2),
+    scope: (page) => page.locator('.lib-page-head').first(),
   },
   {
     name: 'lists-new',
@@ -506,7 +507,7 @@ const STOPS: Stop[] = [
       }
       await page.waitForSelector('.lib-chapter-select select', { state: 'visible', timeout: 5000 });
     },
-    scope: (page) => up(page, '.lib-chapter-select select', 3),
+    scope: (page) => page.locator('.lib-chapter-select').first().locator('xpath=..'),
   },
   // ---- devs: the developer portal
   {
@@ -578,7 +579,7 @@ const STOPS: Stop[] = [
       );
       await page.waitForSelector('#dev-auth-guild', { timeout: 30_000 });
     },
-    scope: (page) => up(page, '#dev-auth-guild', 2),
+    scope: (page) => page.locator('.dev-auth-card').first(),
   },
 ];
 
@@ -657,7 +658,7 @@ async function measure(scope: Locator): Promise<Measured> {
         }
         labelLines = tops.size;
       }
-      const key = `${s.id || s.getAttribute('aria-label') || labelText.trim() || 'select'}#${n}`;
+      const key = `${s.id.replace(/^_r_[a-z0-9]+_-?/, '') || s.getAttribute('aria-label') || labelText.trim() || 'select'}#${n}`;
       selects[key] = {
         box: box(s),
         kit: s.parentElement?.tagName === 'SPAN',
@@ -897,6 +898,7 @@ async function runConfig(
   try {
     for (const stop of STOPS.filter((s) => s.area === c.area)) {
       if (AREAS && !AREAS.includes(c.area)) continue;
+      if (ONLY && !ONLY.includes(stop.name)) continue;
       const tag = `${c.tag} ${stop.name}`;
       const page = await ctx.newPage();
       page.setDefaultTimeout(20_000);
@@ -996,7 +998,9 @@ function compare(c: Cfg, base: Figures, after: Figures, verdicts: Verdict[], not
           if (mv < -(Math.abs(allowed) + 1) && !bc.key.includes(':select#'))
             reasons.push(`${bc.key} moved ${mv} px up`);
           if (Math.abs(mvx) > 1 && !bc.key.includes(':select#'))
-            reasons.push(`${bc.key} moved ${mvx} px sideways`);
+            notes.push(
+              `${label} "${key}": ${bc.key} moved ${mvx} px sideways (the select is ${as.box.w - bs.box.w} px wider)`,
+            );
         });
       }
       verdicts.push({
@@ -1193,7 +1197,18 @@ test(`p102 pages: Server settings, Library and Developer portal selects, ${PHASE
       );
     await octx.close();
   }
-  writeFileSync(resolve(OUT, `measure-${PHASE}.json`), JSON.stringify({ figs, keys }, null, 1));
+  const mf = resolve(OUT, `measure-${PHASE}.json`);
+  if ((AREAS || ONLY) && existsSync(mf)) {
+    const prev = JSON.parse(readFileSync(mf, 'utf8')) as {
+      figs: Record<string, Figures>;
+      keys: typeof keys;
+    };
+    for (const [tag, f] of Object.entries(figs))
+      prev.figs[tag] = { ...(prev.figs[tag] ?? {}), ...f };
+    Object.assign(prev.keys, keys);
+    writeFileSync(mf, JSON.stringify(prev, null, 1));
+    for (const tag of Object.keys(prev.figs)) figs[tag] = prev.figs[tag]!;
+  } else writeFileSync(mf, JSON.stringify({ figs, keys }, null, 1));
   const baseFile = resolve(OUT, 'measure-base.json');
   const verdicts: Verdict[] = [];
   if (PHASE === 'after' && existsSync(baseFile)) {
