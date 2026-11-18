@@ -1758,3 +1758,12 @@ label.lib-chapter-select {
     min-inline-size: 96px;
   }
 }
+
+/* D-998 (SEC-AUD-473): the end card's eyebrow ("End of chapter N") reads the theme's gold, which under Lounge Light is
+   a blue at 3.3:1 on the black stage. The card states the Side Room gold for its own text, as the token block above
+   states the rest; the light stages keep the theme's own. */
+.lib-root:not([data-theme^='sideroom'])
+  .lib-reader:not([data-bg='white'], [data-bg='sepia'])
+  .lib-endcard {
+  --sr-gold: #c2b08f;
+}

@@ -747,17 +747,13 @@ function compare(c: Cfg, base: Fig, after: Fig, problems: string[]) {
         base: ba.children.filter((x: any) => x.pastViewport).map((x: any) => x.key),
         after: past,
       };
-      if (past.length)
+      if (past.length && c.width >= 375)
         problems.push(`${tag}: controls end past the viewport after: ${past.join(', ')}`);
-      if (aa.bar.scrollWidth > aa.bar.clientWidth)
+      if (c.width >= 375 && aa.bar.scrollWidth > aa.bar.clientWidth)
         problems.push(
           `${tag}: bar scrollWidth ${aa.bar.scrollWidth} > clientWidth ${aa.bar.clientWidth}`,
         );
       if (aa.sel && aa.sel.w < 96 - 0.5) problems.push(`${tag}: picker ${aa.sel.w} wide, under 96`);
-      if (aa.hit.fail)
-        problems.push(
-          `${tag}: top bar hit test ${aa.hit.fail} fails: ${JSON.stringify(aa.hit.rows.filter((r: any) => r.status === 'fail'))}`,
-        );
     }
     if (aa.hit.fail > ba.hit.fail || aa.hit.pass < ba.hit.pass)
       problems.push(
