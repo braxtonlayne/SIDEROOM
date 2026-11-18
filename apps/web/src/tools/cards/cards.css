@@ -24,7 +24,6 @@
   flex: 1 1 8rem;
 }
 .sr-card input,
-.sr-card select,
 .sr-card textarea {
   min-inline-size: 0;
   padding-block: 0.25rem;
@@ -40,7 +39,6 @@
   min-block-size: 3rem;
 }
 .sr-card input:focus-visible,
-.sr-card select:focus-visible,
 .sr-card textarea:focus-visible,
 .sr-card button:focus-visible {
   outline: 2px solid var(--ui-focus);
