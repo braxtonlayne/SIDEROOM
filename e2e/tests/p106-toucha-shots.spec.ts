@@ -342,7 +342,15 @@ async function part1(browser: Browser, owner: BrowserContext, w: World) {
       'channel',
       'message action menu',
       async () => {
-        await longPress(page, page.locator('article.lng-msg').first());
+        await page.getByRole('log').first().waitFor({ timeout: 15_000 });
+        await settle(page, 2500);
+        const arts = page.locator('article.lng-msg');
+        const n = await arts.count();
+        for (const i of [n - 1, n - 2, n - 3, 0]) {
+          if (i < 0) continue;
+          await longPress(page, arts.nth(i));
+          if (await page.getByRole('menu').last().isVisible()) return;
+        }
       },
       () => page.getByRole('menu').last(),
       { also: MENU_ITEM_SELECTOR },
@@ -397,7 +405,7 @@ async function part1(browser: Browser, owner: BrowserContext, w: World) {
       async () => {
         await longPress(
           page,
-          page.locator('aside.lng-thread-pane').locator('article.lng-msg').first(),
+          page.locator('aside.lng-thread-pane').locator('article.lng-msg').last(),
         );
       },
       () => page.getByRole('menu').last(),
@@ -494,7 +502,7 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
         'dm',
         'message action menu',
         async () => {
-          await longPress(page, page.locator('article.lng-msg').first());
+          await longPress(page, page.locator('article.lng-msg').last());
         },
         () => page.getByRole('menu').last(),
         { also: MENU_ITEM_SELECTOR },
@@ -661,43 +669,54 @@ async function settingsPage(browser: Browser, owner: BrowserContext, sections: s
     const { ctx, page } = await newPage(browser, owner);
     const name = `settings-${s}`;
     try {
-      await go(page, `/settings/user/${s}`, page.locator('main, [role="main"]'));
-      const root = page.locator('main, [role="main"]');
-      const has = (await root.count()) > 0;
-      if (!has) notes.push(`${name}: no main region, tested the whole page`);
-      await census(page, name, 'page', has ? root.first() : page.locator('body'));
+      await go(page, `/settings/user/${s}`, page.locator('main'));
+      // The whole settings layout is itself role=dialog (SettingsLayout): its parts are the sidebar (the "Sections"
+      // toggle and the nav, a drawer on a phone), the content column (the close button, <main>, the save bar).
+      const mainEl = page.locator('main').first();
+      const column = mainEl.locator('xpath=..');
+      const sidebar = mainEl.locator('xpath=../../div[1]');
+      await census(page, name, 'page', column);
       await shot(page, name);
       covered.push(`${name} / page`);
+      if (s === 'account') {
+        await overlay(
+          page,
+          name,
+          'sections nav (drawer)',
+          async () => {
+            await tap(sidebar.getByRole('button', { name: /^Sections/ }));
+          },
+          () => sidebar,
+          { reload: `/settings/user/${s}` },
+        );
+      }
 
-      // One dialog: the first control of the page that opens one.
-      const r = has ? root.first() : page.locator('body');
-      const btns = await r.getByRole('button').all();
+      // One dialog: the first control of the page that opens one (a second role=dialog above the layout).
+      const modal = page
+        .locator('[role="dialog"],[role="alertdialog"]')
+        .filter({ hasNot: page.locator('main') });
+      const btns = await mainEl.getByRole('button').all();
       let tried = 0;
       let done = false;
       for (const b of btns) {
         if (done || tried >= 4) break;
         const label = (
-          (await b.getAttribute('aria-label')) ??
-          (await b.textContent()) ??
+          (await b.getAttribute('aria-label', { timeout: 1500 }).catch(() => null)) ??
+          (await b.textContent({ timeout: 1500 }).catch(() => null)) ??
           ''
         ).trim();
-        if (!OPENERS.test(label) || !(await b.isVisible()) || !(await b.isEnabled())) continue;
+        if (!OPENERS.test(label) || /^(Connect|Link) (?!a )/i.test(label)) continue;
+        if (!(await b.isVisible()) || !(await b.isEnabled())) continue;
         tried++;
         try {
           await b.scrollIntoViewIfNeeded({ timeout: 3000 });
           await b.click({ timeout: 4000 });
-          await page.getByRole('dialog').last().waitFor({ timeout: 3500 });
+          await modal.last().waitFor({ timeout: 3500 });
           await settle(page, 2000);
-          await census(
-            page,
-            name,
-            `dialog "${label.slice(0, 30)}"`,
-            page.getByRole('dialog').last(),
-          );
+          await census(page, name, `dialog "${label.slice(0, 30)}"`, modal.last());
           await shot(page, `${name}-dialog`);
           covered.push(`${name} / dialog "${label.slice(0, 30)}"`);
           done = true;
-          await page.keyboard.press('Escape');
         } catch {
           await page.keyboard.press('Escape').catch(() => undefined);
           await page.waitForTimeout(300);
