@@ -1,6 +1,6 @@
 # Wave 101, lounge: D-958, the Invite dialog and the Scrapbook gallery move to the kit's `NativeSelect`; and the wave's one builder web build
 
-2026-11-18. Clock: started 06:19; code and spec by 06:25 (commit 13e6d5a7); lock `lounge` 06:41 to 06:48 (one stack round: base, then after, in one run; two re-runs of the after phase inside the same round for a class fix and the spec's comparison rules); fix commit 78dcc36d (06:49). BUILD_CLOCK_PLACEHOLDER
+2026-11-18. Clock: started 06:19; code and spec by 06:25 (commit 13e6d5a7); lock `lounge` 06:41 to 06:48 (one stack round: base, then after, in one run; two re-runs of the after phase inside the same round for a class fix and the spec's comparison rules); fix commit 78dcc36d (06:49). Web build lock 07:03 to 07:05 (taken early: the lock was free and my tree is final; build 07:03 to 07:04, 1 min 3 s). Handoff committed after; clean up below.
 
 ## Done
 Files: `apps/web/src/lounge/InviteDialog.tsx`, `apps/web/src/lounge/scrapbook/Gallery.tsx`, `e2e/tests/p101-lounge-shots.spec.ts` (new), this handoff. No sheet, kit file, fragment or string touched. `apps/web/src/lounge/apps/CommandForm.tsx` **not reached: left raw** (below).
@@ -48,7 +48,10 @@ The Scrapbook is operator-gated and per server: the spec switches `lounge.scrapb
 - Single vitest files, unedited: `lounge/scrapbook/__tests__/scrapbook.test.tsx` 20 passed; `lounge/__tests__/serverFlows.test.tsx` and `shellFlows.test.tsx` (they open the Invite dialog) 70 passed; `lounge/apps/__tests__/CommandForm.attachment.test.tsx` 2 passed (06:24, CommandForm unchanged). None finds a select by a dropped class.
 - The spec: base phase `problems: []`, after phase `problems: []` against the base's figures (spec rules: select block size not smaller, 44 at 375 except the ShelfPanel's, width not smaller, controls moved by no more than the select growth above or beside them and the dialog's re-centring, hit test not worse and equal in count). I did not watch the spec fail without the change except through its first comparison runs, which flagged the 72 px filter width (fixed by keeping `lng-scr-input`) and the centred dialog's re-centring (a rule of the spec, not a page fault).
 
-BUILD_SECTION_PLACEHOLDER
+## Web build (07:03 to 07:05, tree of commit 78dcc36d, the files unchanged since)
+`npx pnpm@10.12.1 --filter @sideroom/web build`: exit 0. `node scripts/check-bundle-budget.mjs`: exit 0, first paint `app/app-GsdQ1Zsg.js` **218 351 B gzip, room 37 649 B** (before 218 363 B, room 37 637 B: 12 B less). `node scripts/check-entrance-isolation.mjs`: exit 0 ("every public surface is clean"). `node scripts/check-staff-delivery.mjs`: exit 0. A budget miss: none. This is my tree only (wave 101's other builders' files are not in it).
+
+**Where the kit sheet went.** In wave 100 `NativeSelect`'s CSS (class fragment `_listbox_2n8dp_54`, 2 907 B) was in `app/ServerSettings-*.css`. Now that the Lounge (Invite dialog, Gallery) and Server settings both use it, the bundler moved it to a shared chunk: **`app/Channels-B5HwtEnV.css`** (its script is `Channels-BvZES_-W.js`), and no other built CSS file holds it (`ServerSettings-PUagnRPX.css` is 2 115 B without it). Importers of that chunk: `LoungeRoot-B0WGInkC.js` and `ServerSettings-DEdyisDg.js`, both lazy. First paint (`app-GsdQ1Zsg.js`) does not import it; it names `Channels-B5HwtEnV.css` once, in its dynamic-import dependency list (the preload map of lazy routes), so it is not fetched at first paint. No public page (`index.html`, `auth.html`, `invite.html`, `dist/entrance/`) references it. The chunk name "Channels" is the bundler's pick for the shared module; the commander's merged build (chan, mod and library add more adopters) may name or place it differently: re-check with a search for `_listbox_` in `dist/app/*.css`.
 
 ## The commander's command (from `e2e/`, on a stack with the sweep's world: API 8787, Vite 5787, metrics 9487, `SR_ADMIN_REQUIRE_REAUTH=0`, `DATABASE_URL` and `SR_CLI_BIN` set)
 ```
@@ -68,4 +71,4 @@ After the merge there is no base: delete `figures-base.json` from the folder fir
 - Should the Command form's two selects get a seeded app with a choice command in the sweep world so a later wave can move them?
 
 ## Cleanup
-BUILD_CLEANUP_PLACEHOLDER
+Stack stopped by PID tree after the round (ports 8787 / 5787 / 9487 checked free), database `sr_p101_lounge_ui` dropped, `p101-lounge-bin` deleted, `apps/web/dist` is ignored and not staged, no stash touched, `e2e/test-results` untracked and uncommitted. `heavy.sh status`: after the stack round `free`; after the build `free`; just before the reply: see the final report.
