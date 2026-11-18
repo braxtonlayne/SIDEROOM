@@ -50,6 +50,7 @@ const OWNER_STATE = resolve(STATE, 'owner.json');
 const PHONE_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
 const GUILD_NAME = 'P102 tools shots';
+const ONLY = process.env.SR_P102_TOOLS_ONLY?.split(',');
 const RUN = Date.now().toString(36);
 
 test.skip(!ON, 'local visual check only');
@@ -185,7 +186,7 @@ const TARGETS: Target[] = [
   {
     id: 'json',
     query: 'json',
-    pick: /json/i,
+    pick: /^json/i,
     selects: 1,
   },
   { id: 'diff', query: 'diff', pick: /diff/i, selects: 1 },
@@ -204,11 +205,11 @@ const TARGETS: Target[] = [
     id: 'poll',
     query: 'poll',
     pick: /poll builder/i,
-    selects: 1,
+    selects: 2,
     room: true,
     setup: async (c) => {
       await startRoom(c);
-      await expect(c.drawer.locator('select')).toHaveCount(1, { timeout: 20_000 });
+      await expect(c.drawer.locator('select')).toHaveCount(2, { timeout: 20_000 });
     },
   },
   {
@@ -219,7 +220,8 @@ const TARGETS: Target[] = [
     room: true,
     setup: async (c) => {
       await startRoom(c);
-      await c.drawer.getByRole('button', { name: 'Add the rows S to D' }).click();
+      const rows = c.drawer.getByRole('button', { name: 'Add the rows S to D' });
+      if (await rows.isVisible().catch(() => false)) await rows.click();
       await c.drawer.getByLabel('Item', { exact: true }).fill('P102 item');
       await c.drawer.getByRole('button', { name: 'Add item' }).click();
       await c.drawer.getByRole('button', { name: 'Image from a bucket' }).click();
@@ -489,11 +491,16 @@ async function keyboardCases(page: Page, drawer: Locator, problems: string[], ta
     });
     const textBefore = await drawer.innerText();
     const before = await sel.inputValue();
-    await page.keyboard.press('ArrowDown');
+    const lastOpt = await sel.evaluate(
+      (e) => (e as HTMLSelectElement).selectedIndex === (e as HTMLSelectElement).options.length - 1,
+    );
+    const fwd = lastOpt ? 'ArrowUp' : 'ArrowDown';
+    const rev = lastOpt ? 'ArrowDown' : 'ArrowUp';
+    await page.keyboard.press(fwd);
     await page.waitForTimeout(150);
     const changed = await sel.inputValue();
     const textAfter = await drawer.innerText();
-    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press(rev);
     await page.waitForTimeout(150);
     const back = await sel.inputValue();
     out.push({
@@ -508,8 +515,10 @@ async function keyboardCases(page: Page, drawer: Locator, problems: string[], ta
     });
     if (!focusVisible)
       problems.push(`${tag}: select ${i} :focus-visible did not match after a key`);
-    if (changed === before) problems.push(`${tag}: select ${i} ArrowDown did not change the value`);
-    if (back !== before) problems.push(`${tag}: select ${i} ArrowUp did not restore the value`);
+    if (changed === before)
+      problems.push(`${tag}: select ${i} the arrow key did not change the value`);
+    if (back !== before)
+      problems.push(`${tag}: select ${i} the way back did not restore the value`);
   }
   return out;
 }
@@ -652,6 +661,7 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
       try {
         for (const t of TARGETS) {
           if (cfg.only && !cfg.only.includes(t.id)) continue;
+          if (ONLY && !ONLY.includes(t.id)) continue;
           const key = `${cfg.tag}|${t.id}`;
           const tag = `${t.id} ${cfg.tag}`;
           try {
@@ -716,7 +726,12 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
         await ctx.close();
       }
     }
-    writeFileSync(resolve(OUT, `measure-${PHASE}.json`), JSON.stringify(all, null, 1));
+    const outFile = resolve(OUT, `measure-${PHASE}.json`);
+    const prev =
+      ONLY && existsSync(outFile)
+        ? (JSON.parse(readFileSync(outFile, 'utf8')) as Record<string, Figures>)
+        : {};
+    writeFileSync(outFile, JSON.stringify({ ...prev, ...all }, null, 1));
     if (PHASE === 'after' && baseFigs) {
       writeFileSync(
         resolve(OUT, 'report-after.json'),
