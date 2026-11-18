@@ -160,13 +160,13 @@ export default function UnitsTool({ host }: ToolProps) {
         </label>
         <label className="sr-calc-field">
           {t('tools.units.from')}
-          <NativeSelect value={from} onChange={(e) => setFrom(e.target.value)}>
+          <select value={from} onChange={(e) => setFrom(e.target.value)}>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </NativeSelect>
+          </select>
         </label>
         <button
           type="button"
@@ -181,13 +181,13 @@ export default function UnitsTool({ host }: ToolProps) {
         </button>
         <label className="sr-calc-field">
           {t('tools.units.to')}
-          <NativeSelect value={to} onChange={(e) => setTo(e.target.value)}>
+          <select value={to} onChange={(e) => setTo(e.target.value)}>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </NativeSelect>
+          </select>
         </label>
       </div>
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { ApiError } from '../../api/client';
 import { useT } from '../../i18n';
 import { useGuilds } from '../../lounge/data';
@@ -26,7 +27,7 @@ export default function LootTool() {
   return (
     <Root label={t('tools.loot.name')}>
       <Field label={t('tools.loot.scope')}>
-        <select
+        <NativeSelect
           value={scope ?? ''}
           onChange={(e) => setScope(e.target.value === '' ? null : e.target.value)}
         >
@@ -36,7 +37,7 @@ export default function LootTool() {
               {g.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </Field>
       {scope === null ? (
         <LootBody key="mine" scope={null} canWrite />
@@ -138,14 +139,14 @@ function LootBody({ scope, canWrite }: { scope: LootScope; canWrite: boolean }) 
         </p>
       ) : (
         <Field label={t('tools.loot.table')}>
-          <select value={selected} onChange={(e) => pick(e.target.value)}>
+          <NativeSelect value={selected} onChange={(e) => pick(e.target.value)}>
             <option value="">{t('tools.loot.new')}</option>
             {tables.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
       )}
       {!canWrite ? <p className="ud-muted">{t('tools.loot.readOnly')}</p> : null}
