@@ -1,4 +1,4 @@
-import { Button, TextInput, useToast } from '@sideroom/ui';
+import { Button, NativeSelect, TextInput, useToast } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../i18n';
@@ -285,10 +285,10 @@ export function RichPresenceTab({ app }: { app: DevApp }) {
         />
         <label className="dev-file">
           <span>{t('developers.media.assetType')}</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value === '2' ? 2 : 1)}>
+          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value === '2' ? 2 : 1)}>
             <option value="1">{t('developers.media.assetLarge')}</option>
             <option value="2">{t('developers.media.assetSmall')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <Button type="submit" loading={add.isPending} disabled={!name.trim() || !file}>
           {t('developers.media.upload')}

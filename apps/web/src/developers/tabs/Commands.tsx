@@ -1,4 +1,4 @@
-import { Button, Checkbox, Notice, TextInput } from '@sideroom/ui';
+import { Button, Checkbox, NativeSelect, Notice, TextInput } from '@sideroom/ui';
 import { useState } from 'react';
 import { t, useT } from '../../i18n';
 import { OPTION_TYPES, type CommandInput, type CommandOption, type DevApp } from '../types';
@@ -111,9 +111,8 @@ export function CommandsTab({ app }: { app: DevApp }) {
             <label className="dev-label" htmlFor="cmd-type">
               {tr('developers.commands.typeLabel')}
             </label>
-            <select
+            <NativeSelect
               id="cmd-type"
-              className="dev-select"
               value={draft.type}
               onChange={(e) => {
                 const type = Number(e.target.value) as CommandInput['type'];
@@ -123,7 +122,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
               <option value={1}>{tr('developers.commands.typeSlash')}</option>
               <option value={2}>{tr('developers.commands.typeUser')}</option>
               <option value={3}>{tr('developers.commands.typeMessage')}</option>
-            </select>
+            </NativeSelect>
           </div>
           <TextInput
             label={tr('developers.commands.nameLabel')}
@@ -176,9 +175,8 @@ export function CommandsTab({ app }: { app: DevApp }) {
                     <label className="dev-label" htmlFor={`opt-type-${i}`}>
                       {tr('developers.commands.optionType', { n: i + 1 })}
                     </label>
-                    <select
+                    <NativeSelect
                       id={`opt-type-${i}`}
-                      className="dev-select"
                       value={o.type}
                       onChange={(e) => setOption(i, { type: Number(e.target.value) })}
                     >
@@ -187,7 +185,7 @@ export function CommandsTab({ app }: { app: DevApp }) {
                           {ot.label}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </div>
                   <Checkbox
                     label={tr('developers.commands.optionRequired', { n: i + 1 })}

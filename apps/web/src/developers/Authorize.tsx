@@ -1,4 +1,4 @@
-import { Button, Notice, ThemeProvider, ToastProvider } from '@sideroom/ui';
+import { Button, NativeSelect, Notice, ThemeProvider, ToastProvider } from '@sideroom/ui';
 import { exitToLogin } from '../lib/enterApp';
 import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useRouter } from '@tanstack/react-router';
@@ -207,9 +207,8 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
             <label className="dev-label" htmlFor="dev-auth-guild">
               {t('developers.authorize.addToServer')}
             </label>
-            <select
+            <NativeSelect
               id="dev-auth-guild"
-              className="dev-select"
               value={guildId}
               onChange={(e) => setGuildId(e.target.value)}
             >
@@ -226,7 +225,7 @@ function AuthorizeScreen({ search }: { search: AuthorizeSearch }) {
                       })}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {!p.guilds.some((g) => g.can_install) && (
               <p className="dev-muted">
                 {p.application.release_state !== 'released'

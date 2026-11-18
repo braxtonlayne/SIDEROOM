@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  NativeSelect,
   Notice,
   PermissionMatrix,
   TextInput,
@@ -242,9 +243,8 @@ export function UrlGenerator({ app, installOnly = false }: { app: DevApp; instal
           <label className="dev-label" htmlFor={`${bitsId}-redirect`}>
             {t('developers.oauth2.redirectUri')}
           </label>
-          <select
+          <NativeSelect
             id={`${bitsId}-redirect`}
-            className="dev-select"
             value={redirect}
             onChange={(e) => setRedirect(e.target.value)}
           >
@@ -254,7 +254,7 @@ export function UrlGenerator({ app, installOnly = false }: { app: DevApp; instal
                 {u}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
       )}
 
