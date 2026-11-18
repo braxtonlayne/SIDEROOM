@@ -424,8 +424,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 <tr>
                   <th scope="col">
                     <Checkbox
-                      label={null}
-                      aria-label={t('settings.members.selectAll')}
+                      label={t('settings.members.selectAll')}
                       checked={allOnPage}
                       indeterminate={!allOnPage && someOnPage}
                       onChange={(e) => toggleAll(e.target.checked)}
