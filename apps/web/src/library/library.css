@@ -978,9 +978,17 @@
   color: #ece6d6;
 }
 /* The reader's bars are dark under every theme; under a Lounge theme the kit parts on them (page label, slider) read
-   the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. */
+   the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. D-998: so
+   does the end card, which sits on the same dark stage (the black and the grey ones; the white and the sepia stages
+   are light, and the theme's own dark text reads on them). */
 .lib-root:not([data-theme^='sideroom'])
-  :is(.lib-reader-top, .lib-reader-bottom, .lib-sync-notice, .lib-pdf .lib-pdf-bar) {
+  :is(
+    .lib-reader-top,
+    .lib-reader-bottom,
+    .lib-sync-notice,
+    .lib-pdf .lib-pdf-bar,
+    .lib-reader:not([data-bg='white'], [data-bg='sepia']) .lib-endcard
+  ) {
   --ui-text: #ece6d6;
   --ui-text-muted: #a9a493;
   --ui-text-faint: #918d7e;
@@ -1727,4 +1735,35 @@ label.lib-chapter-select {
 .lib-select,
 .lib-sort {
   font-size: 14px;
+}
+
+/* D-998 (SEC-AUD-474): a select's label text keeps a gap from its field. The label is an inline box around the text
+   span and the kit's inline-block wrapper, so nothing sat between them; 8 px is `.lib-rate`'s own gap (that label is a
+   flex box with the gap already, so it is left out) and `.lib-select-block`'s is 6. A screen-reader-only text span
+   has no box to keep a gap from. */
+.lib-select:not(.lib-rate) > span:first-child:not(.lib-sr-only) {
+  margin-inline-end: 8px;
+}
+
+/* D-998 (SEC-AUD-472): at 375 the reader's top bar holds the back arrow, the title, the chapter picker (up to 220 px)
+   and four buttons, and was wider than the viewport, so the last two fell off the edge. On a phone the title gives way
+   first (its basis is 0, it cuts with an ellipsis), then the picker: it may shrink from its 220 px cap down to 96 px,
+   the select cutting its own text with the kit's padding and the chevron staying at the field's end. */
+@media (max-width: 480px) {
+  .lib-reader-top .lib-reader-title {
+    min-inline-size: 0;
+  }
+  .lib-reader-top label.lib-chapter-select {
+    flex: 0 1 auto;
+    min-inline-size: 96px;
+  }
+}
+
+/* D-998 (SEC-AUD-473): the end card's eyebrow ("End of chapter N") reads the theme's gold, which under Lounge Light is
+   a blue at 3.3:1 on the black stage. The card states the Side Room gold for its own text, as the token block above
+   states the rest; the light stages keep the theme's own. */
+.lib-root:not([data-theme^='sideroom'])
+  .lib-reader:not([data-bg='white'], [data-bg='sepia'])
+  .lib-endcard {
+  --sr-gold: #c2b08f;
 }

@@ -56,14 +56,15 @@
 }
 
 /*
- * SEC-AUD-459 (D-978): a datetime-local field cannot shrink under its own text (about 16rem with its picker), and the
- * dialog is a fixed box, so two 1fr tracks ran past it and the body scrolled sideways. The two fields share a line
- * only where both fit whole (each track at least 16rem); otherwise Ends goes under Starts. At a phone width the
- * track is the whole line, as before.
+ * SEC-AUD-459 (D-978, D-992): a datetime-local field cannot shrink under its own text (254 px with its picker), and a
+ * track narrower than that lets the field run past the dialog and the body scroll sideways. The two fields share a
+ * line only where each track is at least 15.875rem (254 px); otherwise Ends goes under Starts. The medium dialog's
+ * content is 520 px: two 254 px tracks and the 12 px gap fill it exactly (16rem each would need 524 px). At a phone
+ * width the track is the whole line.
  */
 .lng-event-times {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.875rem), 1fr));
   gap: 12px;
 }
 

@@ -47,7 +47,9 @@ test.describe('Tool rooms (tier list)', () => {
     await expect(db.getByRole('list', { name: 'Unranked' }).getByText('pizza')).toBeVisible();
 
     // B moves it into S; A sees it in the S row.
-    await db.getByLabel('Move pizza to').selectOption({ label: 'S' });
+    // D-994: Move is a menu button now (a radio menu, portalled outside the drawer).
+    await db.getByLabel('Move pizza to').click();
+    await db.page().getByRole('menuitemradio', { name: 'S', exact: true }).click();
     await expect(da.getByRole('list', { name: 'S' }).getByText('pizza')).toBeVisible();
 
     // Both edit at the same moment (different items): neither loses theirs.

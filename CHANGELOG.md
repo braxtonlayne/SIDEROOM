@@ -8,6 +8,14 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 104 - 2026-11-18
+
+- In the Lounge, Alt+ArrowDown and the other arrow-key shortcuts no longer steal the key from a focused select, so the Sort lists open with the keyboard. The new-event dialog is wider, so the start and end dates sit side by side. The forum's Sort now uses the shared select, sized to its text, at the Lounge's 14 px control size.
+- The tier list's Move control is now a small menu button on each chip (a menu of Unranked and the tiers, the current one checked); on a phone it is a 44 px target and the chip fits its row.
+- On a phone the Library reader's top bar now fits the screen (the title and then the chapter picker give way), the end of a chapter reads under a light Library theme, and a select's label keeps a gap from its field.
+- Staff: the Admin Transcoding queue shows each job's mount by its label (cut to one line when long) before its id. The Discord bridge conflict log's Kind filter uses the shared select field again, keeping its label gap and text size.
+- For the team: a job runner for stack work (queue, lanes, memory gate) is built and drilled outside the repository; builders start using it in wave 105.
+
 ## Phase 103 - 2026-11-18
 
 - More drop-downs have the kit's look and a full touch size on a phone: the Lounge's emoji skin tone and shelf picker, the Library's edition, kind, sort, visibility and rating pickers, the Reader's chapter picker, the music panel, the watch party's speed and season, the Live TV reminder lead time, the Study cover picker, the API reference's Area filter, the Poll builder's Lasts, the Image studio, and the calculators and Time zones in Tools. The Library's drop-downs read at the same size as the controls beside them, and the kit's `NativeSelect` gains `fit="content"` for a select as wide as its longest option.

@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { DropdownMenu, Icon } from '@sideroom/ui';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { MountImagePicker } from './MountImagePicker';
@@ -38,11 +39,24 @@ function ItemChip({
 }) {
   const t = useT();
   const label = [item.emoji, item.text].filter(Boolean).join(' ');
+  // D-994: a press that starts on the Move button never starts the chip's drag (Chromium drags a draggable
+  // ancestor from a button). The flag is set by the button's pointerdown and read by the chip's dragstart.
+  const onButton = useRef(false);
+  const moveName = t('tools.tierlist.moveItem', { name: label || t('tools.tierlist.image') });
   return (
     <li
       className="sr-room-chip"
+      data-chip={item.id}
       draggable
+      onPointerUp={() => {
+        onButton.current = false;
+      }}
       onDragStart={(e) => {
+        if (onButton.current) {
+          onButton.current = false;
+          e.preventDefault();
+          return;
+        }
         e.dataTransfer.setData(DRAG_TYPE, item.id);
         e.dataTransfer.effectAllowed = 'move';
       }}
@@ -60,19 +74,32 @@ function ItemChip({
     >
       {item.img && <RoomImage img={item.img} label={label || t('tools.tierlist.image')} />}
       {label && <span className="sr-room-chip-text">{label}</span>}
-      <select
-        className="sr-room-move"
-        aria-label={t('tools.tierlist.moveItem', { name: label || t('tools.tierlist.image') })}
-        value={item.tier}
-        onChange={(e) => onMove(e.target.value)}
-      >
-        <option value={UNRANKED}>{t('tools.tierlist.unranked')}</option>
-        {tiers.map((tier) => (
-          <option key={tier.id} value={tier.id}>
-            {tier.name}
-          </option>
-        ))}
-      </select>
+      <DropdownMenu
+        label={moveName}
+        items={[
+          {
+            type: 'radio-group',
+            value: item.tier,
+            onValueChange: onMove,
+            options: [
+              { value: UNRANKED, label: t('tools.tierlist.unranked') },
+              ...tiers.map((tier) => ({ value: tier.id, label: tier.name })),
+            ],
+          },
+        ]}
+        trigger={
+          <button
+            type="button"
+            className="sr-room-move"
+            aria-label={moveName}
+            onPointerDown={() => {
+              onButton.current = true;
+            }}
+          >
+            <Icon name="chevron-down" size={16} />
+          </button>
+        }
+      />
       <button
         type="button"
         className="sr-room-x"
@@ -97,6 +124,27 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
   const [posted, setPosted] = useState(false);
   const [imaging, setImaging] = useState<'idle' | 'busy' | 'failed'>('idle');
   const boardRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // D-994: after a move from the menu the chip is a new node in another row; its Move button takes the focus
+  // back (the request lives 3 s, so a move that never arrives steals nothing later).
+  const refocus = useRef<{ id: string; tier: string; until: number } | null>(null);
+  useEffect(() => {
+    const want = refocus.current;
+    if (!want) return;
+    if (Date.now() > want.until) {
+      refocus.current = null;
+      return;
+    }
+    if (items.find((i) => i.id === want.id)?.tier !== want.tier) return;
+    const chip = Array.from(
+      rootRef.current?.querySelectorAll<HTMLElement>('[data-chip]') ?? [],
+    ).find((el) => el.dataset.chip === want.id);
+    const btn = chip?.querySelector<HTMLElement>('.sr-room-move');
+    if (btn) {
+      btn.focus();
+      refocus.current = null;
+    }
+  });
 
   const move = (id: string, tier: string, index: number) => {
     const set = moveItem(view.state, id, tier, index);
@@ -124,7 +172,10 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
           key={it.id}
           item={it}
           tiers={tierOpts}
-          onMove={(to) => move(it.id, to, itemsIn(items, to).length)}
+          onMove={(to) => {
+            refocus.current = { id: it.id, tier: to, until: Date.now() + 3000 };
+            move(it.id, to, itemsIn(items, to).length);
+          }}
           onRemove={() => edit({ [`item.${it.id}`]: null })}
           onDropBefore={(dragged) => move(dragged, tier, idx)}
         />
@@ -196,7 +247,7 @@ function TierListEditor({ live, channelId }: { live: LiveRoom; channelId: string
   };
 
   return (
-    <div className="sr-tier">
+    <div className="sr-tier" ref={rootRef}>
       {tiers.length === 0 && (
         <button
           type="button"
