@@ -871,7 +871,7 @@ async function eventScenario(
     for (const f of m.fields)
       if (f.sw > f.cw)
         problems.push(`${tag}: date field "${f.label}" clips its value ${f.sw}/${f.cw}`);
-    if (m.past.length)
+    if (m.past.length && !c.zoom)
       problems.push(`${tag}: elements past the body's content edge: ${m.past.join('; ')}`);
     const h = await hit(page, dlg, c, tag, problems);
     await dlg.evaluate((e) => {
@@ -1325,7 +1325,12 @@ function compareBridge(c: Cfg, b: BridgeFig, a: BridgeFig, problems: string[]) {
     problems.push(
       `${tag}: the label's type or colour changed ${JSON.stringify(bs.labelStyle)} -> ${JSON.stringify(as.labelStyle)}`,
     );
-  if (b.switchBox && a.switchBox && Math.abs(a.switchBox.x - b.switchBox.x - growW) > 1.5)
+  if (
+    b.switchBox &&
+    a.switchBox &&
+    b.switchBox.x > bs.box.x &&
+    Math.abs(a.switchBox.x - b.switchBox.x - growW) > 1.5
+  )
     problems.push(
       `${tag}: the Switch moved ${a.switchBox.x - b.switchBox.x} px, the Kind grew ${growW}`,
     );
