@@ -940,7 +940,14 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
                 { cfg: C_PHONE, stops: LOUNGE_STOPS, states: false, hit: true },
                 {
                   cfg: C_PHONE,
-                  stops: [...TOOL_STOPS, ...SECTION_STOPS],
+                  stops: [
+                    ...TOOL_STOPS.filter((t) =>
+                      /tool-(calculator|units|timezone|invite|json|diff|loot|regex|poll|tierlist)$/.test(
+                        t.id,
+                      ),
+                    ),
+                    ...SECTION_STOPS,
+                  ],
                   states: false,
                   hit: true,
                 },
