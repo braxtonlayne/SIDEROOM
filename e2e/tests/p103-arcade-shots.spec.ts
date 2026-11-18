@@ -337,7 +337,7 @@ test('SEC-AUD-456 and 464: Start dialog rows on a phone, arcade.css without a se
             els.map((e) => ({ scrollH: e.scrollHeight, clientH: e.clientHeight })),
           );
         const dlgBox = await boxOf(dialog);
-        const facts = await selectFacts(pick, true);
+        const facts = await selectFacts(pick, which !== 'large');
         const sw = await sideways(page);
         await shoot(page, s.shot);
         const hit = await hits(page, dialog);
