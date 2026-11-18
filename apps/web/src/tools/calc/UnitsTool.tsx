@@ -162,7 +162,7 @@ export default function UnitsTool({ host }: ToolProps) {
             onChange={(e) => setValueText(e.target.value)}
           />
         </label>
-        <label className="sr-calc-field">
+        <label className="sr-calc-field sr-calc-unit-field">
           {t('tools.units.from')}
           <NativeSelect
             className="sr-calc-pick"
@@ -187,7 +187,7 @@ export default function UnitsTool({ host }: ToolProps) {
         >
           {'⇄'}
         </button>
-        <label className="sr-calc-field">
+        <label className="sr-calc-field sr-calc-unit-field">
           {t('tools.units.to')}
           <NativeSelect className="sr-calc-pick" value={to} onChange={(e) => setTo(e.target.value)}>
             {units.map((u) => (
