@@ -517,7 +517,33 @@ function cinemaDefs(w: World): PageDef[] {
     {
       key: 'cin-player',
       root: (p) => p.locator('body'),
-      open: go(`/cinema/watch/${w.titleId}`, (p) => p.waitForTimeout(3000)),
+      // The seeded title has no video, so the page shows its "back to the title" empty state. The play target and the
+      // playback grant are answered here (no media behind the grant) so the player draws its bars and control bar.
+      open: async (p: Page) => {
+        await p.route(
+          //api/v1/cinema/titles/[^/]+/play(?.*)?$/, (r) =>
+          json(r, {
+            title_id: w.titleId,
+            asset_id: 'p106asset',
+            title: 'p106 census title',
+            runtime_min: 100,
+            age_restricted: false,
+            markers: [],
+          }),
+        );
+        await p.route(
+          //api/v1/cinema/assets/[^/]+/playback(?.*)?$/, (r) =>
+          json(r, {
+            master_url: `${ORIGIN}/cdn/p106-master.m3u8`,
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            refresh_at: Math.floor(Date.now() / 1000) + 1800,
+            duration_secs: 6000,
+            subtitles: [],
+          }),
+        );
+        await p.goto(`/cinema/watch/${w.titleId}`, { waitUntil: 'domcontentloaded' });
+        await p.waitForTimeout(3500);
+      },
       before: async (p) => {
         await p.mouse.move(180, 400);
         await p.touchscreen.tap(180, 400).catch(() => undefined);
@@ -530,7 +556,10 @@ function cinemaDefs(w: World): PageDef[] {
       open: w.partyId
         ? go(`/cinema/party/${w.partyId}`, (p) => p.waitForTimeout(3000))
         : async () => false as const,
-      overlays: [{ key: 'people', open: tapButton(/people|participants|viewers|who/i) }],
+      overlays: [
+        { key: 'people-tab', open: tapTab(/^People/) },
+        { key: 'queue-tab', open: tapTab(/^Queue/) },
+      ],
     },
   ];
 }
