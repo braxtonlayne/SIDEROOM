@@ -1,7 +1,16 @@
 // People tab (WP-FE-005): host and controller badges, ready and buffering marks, speaking indicators from the
 // voice call when the party is bound to a voice channel the viewer is connected to, host actions, and the
 // host's party settings.
-import { Avatar, Badge, Button, DropdownMenu, Icon, Switch, type MenuEntry } from '@sideroom/ui';
+import {
+  Avatar,
+  Badge,
+  Button,
+  DropdownMenu,
+  Icon,
+  NativeSelect,
+  Switch,
+  type MenuEntry,
+} from '@sideroom/ui';
 import { useT } from '../i18n';
 import { useVoiceParticipants } from '../voice/hooks';
 import { CONTROL_LABEL, httpPartyApi } from './api';
@@ -139,7 +148,7 @@ function Settings() {
       <h3 className="wp-h">{t('watchparty.people.settings')}</h3>
       <label className="wp-field">
         <span>{t('watchparty.people.whoControls')}</span>
-        <select
+        <NativeSelect
           value={s.shared_control}
           onChange={(e) => patch({ shared_control: e.target.value as ControlMode })}
         >
@@ -148,11 +157,11 @@ function Settings() {
               {CONTROL_LABEL[m]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label className="wp-field">
         <span>{t('watchparty.people.whoQueues')}</span>
-        <select
+        <NativeSelect
           value={s.queue_policy}
           onChange={(e) => patch({ queue_policy: e.target.value as ControlMode })}
         >
@@ -161,7 +170,7 @@ function Settings() {
               {CONTROL_LABEL[m]}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <Switch
         label={t('watchparty.people.autoPause')}
