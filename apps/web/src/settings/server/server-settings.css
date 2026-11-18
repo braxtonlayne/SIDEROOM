@@ -797,3 +797,12 @@
     scroll-margin-block-start: 52px;
   }
 }
+
+/* SEC-AUD-451 (D-964): Members' table scrolls in its own wrapper above a phone, not the content column (at 1024 the column
+   scrolled sideways and the sidebar covered the heading and the search field). The stacked rows of a phone need no wrapper. */
+@media (min-width: 721px) {
+  .ss-table-scroll {
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+}
