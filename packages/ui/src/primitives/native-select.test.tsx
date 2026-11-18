@@ -86,6 +86,37 @@ describe('NativeSelect (D-950)', () => {
     expect(container.firstElementChild).toBe(box);
   });
 
+  it('fit="content" puts a class on the wrapper and the select, and is not a select attribute', () => {
+    const ref = createRef<HTMLSelectElement>();
+    const { container, rerender } = render(
+      <NativeSelect aria-label="Letter" className="extra" fit="content" ref={ref} data-x="1">
+        {options}
+      </NativeSelect>,
+    );
+    const box = screen.getByRole('combobox');
+    const wrap = container.firstElementChild as HTMLElement;
+    expect(wrap.className).toContain('wrapFit');
+    expect(box.className).toContain('selectFit');
+    expect(box.className).toContain('extra');
+    expect(box).not.toHaveAttribute('fit');
+    expect(box).toHaveAttribute('data-x', '1');
+    expect(ref.current).toBe(box);
+    rerender(<NativeSelect aria-label="Letter">{options}</NativeSelect>);
+    expect((container.firstElementChild as HTMLElement).className).not.toContain('wrapFit');
+    expect(screen.getByRole('combobox').className).not.toContain('selectFit');
+    expect(screen.getByRole('combobox')).not.toHaveAttribute('fit');
+  });
+
+  it('fit on a list box puts the class on the select only', () => {
+    const { container } = render(
+      <NativeSelect aria-label="Letters" multiple fit="content">
+        {options}
+      </NativeSelect>,
+    );
+    expect(container.firstElementChild).toBe(screen.getByRole('listbox'));
+    expect(screen.getByRole('listbox').className).toContain('selectFit');
+  });
+
   it('passes axe with a label', async () => {
     const { container } = render(
       <div>
