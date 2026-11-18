@@ -351,7 +351,14 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
           timeout: 30_000,
         });
         await expect(page.locator('.lng-root').first()).toBeVisible({ timeout: 60_000 });
-        fig['theme'] = await page.evaluate(() => document.documentElement.dataset['theme'] ?? null);
+        fig['theme'] = await page.evaluate(() => [
+          document.documentElement.getAttribute('data-theme'),
+          document.querySelector('[data-theme]')?.getAttribute('data-theme') ?? null,
+        ]);
+        if (!(fig['theme'] as (string | null)[]).includes(cfg.theme))
+          problems.push(
+            `${cfg.tag}: data-theme is ${JSON.stringify(fig['theme'])}, wanted ${cfg.theme}`,
+          );
 
         /* ---- the tier list ---- */
         await openTool(page, 'tier list', /tier list/i);
@@ -380,8 +387,9 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
         await drawer.getByRole('list', { name: 'S', exact: true }).scrollIntoViewIfNeeded();
         await shot(page, cfg, 'tier');
 
-        const opened = await openCollapsed(page, drawer);
-        const hitRows = await hitTestAll(page, drawer, touch ? {} : { reach: 'box' });
+        const tool = drawer.locator('.sr-room').first();
+        const opened = await openCollapsed(page, tool);
+        const hitRows = await hitTestAll(page, tool, touch ? {} : { reach: 'box' });
         const h = countRows(hitRows);
         fig['hit'] = { counts: h, fails: fails(hitRows), opened: opened.length };
         say(`${cfg.tag}: hit ${JSON.stringify(h)} fails ${JSON.stringify(fails(hitRows))}`);
@@ -439,7 +447,7 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
                 ? `${a.tagName.toLowerCase()}|${a.getAttribute('aria-label') ?? ''}|${a.closest('[data-chip]') ? 'chip' : ''}`
                 : 'none';
             });
-          await drawer.getByLabel('New tier', { exact: true }).focus();
+          await drawer.getByLabel('New row', { exact: true }).focus();
           await page.keyboard.press('Tab');
           await page.keyboard.press('Tab');
           walk['tabReaches'] = await active();
@@ -479,8 +487,9 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
             problems.push(`${cfg.tag}: focus after Escape is ${String(walk['escapeFocus'])}`);
 
           // drag: from the chip's text it moves; from the Move button it neither moves nor opens the menu
+          await drawer.getByRole('list', { name: 'S', exact: true }).scrollIntoViewIfNeeded();
           const textB = await chipOf(drawer, names[0]!).locator('.sr-room-chip-text').boundingBox();
-          const dropB = await drawer.getByRole('list', { name: 'C', exact: true }).boundingBox();
+          const dropB = await drawer.getByRole('list', { name: 'A', exact: true }).boundingBox();
           const drag: Record<string, unknown> = {};
           if (textB && dropB) {
             await page.mouse.move(textB.x + 4, textB.y + textB.height / 2);
@@ -494,7 +503,7 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
               .getAttribute('aria-label');
           }
           const mb = await chipOf(drawer, names[1]!).locator('.sr-room-move').boundingBox();
-          const dropA = await drawer.getByRole('list', { name: 'D', exact: true }).boundingBox();
+          const dropA = await drawer.getByRole('list', { name: 'S', exact: true }).boundingBox();
           if (mb && dropA) {
             await page.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2);
             await page.mouse.down();
@@ -509,7 +518,7 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
           }
           fig['drag'] = drag;
           say(`${cfg.tag}: drag ${JSON.stringify(drag)}`);
-          if (drag['fromText'] !== 'C')
+          if (drag['fromText'] !== 'A')
             problems.push(`${cfg.tag}: drag from the text did not move the chip`);
           if (drag['fromButtonStaysIn'] !== 'A')
             problems.push(`${cfg.tag}: a press on the button started a drag`);
@@ -535,6 +544,11 @@ test('Tier list Move menu button and the card field ground', async ({ browser })
         }
         const inv: Record<string, unknown> = { boxes };
         inv['input'] = await fieldFig(card.locator('input:not([type=checkbox])').first(), card);
+        if ((await card.locator('input[placeholder]').count()) > 0)
+          inv['placeholderInput'] = await fieldFig(
+            card.locator('input[placeholder]').first(),
+            card,
+          );
         if ((await card.locator('textarea').count()) > 0)
           inv['textarea'] = await fieldFig(card.locator('textarea').first(), card);
         if ((await card.locator('select').count()) > 0)
