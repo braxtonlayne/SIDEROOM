@@ -220,7 +220,13 @@ test(`p105 music: focus ring and action row of the music panel, ${PHASE}`, async
         const page = await ctx.newPage();
         page.setDefaultTimeout(15_000);
         await openPlayer(page);
-        const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+        const theme = await page.evaluate(
+          () =>
+            document
+              .querySelector('.sr-mlib')
+              ?.closest('[data-theme]')
+              ?.getAttribute('data-theme') ?? document.documentElement.getAttribute('data-theme'),
+        );
         say(`${c.tag} data-theme ${theme}`);
         if (theme !== c.main) problems.push(`${c.tag}: data-theme ${theme}, wanted ${c.main}`);
         const root = page.locator('.sr-mlib').first();
@@ -243,7 +249,7 @@ test(`p105 music: focus ring and action row of the music panel, ${PHASE}`, async
         const more = root.getByRole('button', { name: /^More for / }).first();
         await more.waitFor({ timeout: 25_000 });
         await more.click();
-        const group = root.getByRole('group', { name: /^More for / }).first();
+        const group = root.getByRole('group', { name: /^Actions for / }).first();
         const addSel = group.getByRole('combobox', { name: /^Add .* to a playlist/ });
         await addSel.waitFor({ timeout: 25_000 });
         await page.waitForTimeout(400);
