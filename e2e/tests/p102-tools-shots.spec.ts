@@ -539,7 +539,33 @@ function checkTheme(m: Measured, c: Cfg, tag: string, problems: string[]) {
     problems.push(`${tag}: data-theme is ${m.theme.html}/${m.theme.first}, wanted ${c.theme}`);
 }
 
+/** Boxes in the drawer's own coordinates: the drawer is centred, so a taller body moves the whole dialog. */
+const toRoot = (f: Figures): Figures => {
+  const r = f.root;
+  if (!r) return f;
+  const mv = (b: Box): Box => ({
+    ...b,
+    x: Math.round((b.x - r.x) * 10) / 10,
+    y: Math.round((b.y - r.y) * 10) / 10,
+  });
+  return {
+    ...f,
+    selects: f.selects.map((x) => ({ ...x, box: mv(x.box), label: x.label ? mv(x.label) : null })),
+    controls: f.controls.map((c) => ({ ...c, box: mv(c.box) })),
+  };
+};
+
 function compare(label: string, base: Figures, after: Figures, touch: boolean, problems: string[]) {
+  return compareRaw(label, toRoot(base), toRoot(after), touch, problems);
+}
+
+function compareRaw(
+  label: string,
+  base: Figures,
+  after: Figures,
+  touch: boolean,
+  problems: string[],
+) {
   const diffs: Record<string, unknown> = {};
   if (base.selects.length !== after.selects.length) {
     problems.push(`${label}: select count ${base.selects.length} -> ${after.selects.length}`);
