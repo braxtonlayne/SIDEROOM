@@ -159,6 +159,8 @@ interface Target {
   selects: number;
   /** Goes to the room channel (Poll, Tier list) instead of the guild's first one. */
   room?: boolean;
+  /** Which select is scrolled into view for the shot (the one the pod changes); default the first. */
+  shotSelect?: number;
   setup?: (c: Ctx) => Promise<void>;
 }
 
@@ -257,6 +259,7 @@ const TARGETS: Target[] = [
     pick: /poll builder/i,
     selects: 2,
     room: true,
+    shotSelect: 1,
     setup: async (c) => {
       await startRoom(c);
       await expect(c.drawer.locator('select')).toHaveCount(2, { timeout: 20_000 });
@@ -268,6 +271,7 @@ const TARGETS: Target[] = [
     pick: /tier list/i,
     selects: 3,
     room: true,
+    shotSelect: 1,
     setup: async (c) => {
       await startRoom(c);
       const rows = c.drawer.getByRole('button', { name: 'Add the rows S to D' });
@@ -1040,7 +1044,7 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
             say(
               `${tag}: selects ${JSON.stringify(m.selects.map((s) => [s.key, s.box.w, s.box.h]))}`,
             );
-            const h0 = await drawer.locator('select').first();
+            const h0 = drawer.locator('select').nth(t.shotSelect ?? 0);
             await h0.scrollIntoViewIfNeeded();
             await shot(page, `${t.id}-${cfg.tag}`);
             const fig: Figures = {
