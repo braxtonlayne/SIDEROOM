@@ -34,6 +34,15 @@
   color: var(--ui-text);
   font: inherit;
 }
+/* D-1024: the kit field's manners (rest border stays as the fallback above). */
+.sr-card input,
+.sr-card textarea {
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.sr-card input:hover,
+.sr-card textarea:hover {
+  border-color: var(--ui-text-faint);
+}
 /* SEC-AUD-489 (D-1000): the placeholder is the kit's own faint text colour, as the kit's Input states it (the browser's
  * default grey measured 4.61 / 2.74 / 3.46 on the three themes). */
 .sr-card input::placeholder,
@@ -61,6 +70,13 @@
   font: inherit;
   cursor: pointer;
   align-self: flex-start;
+}
+/* D-1022: 44px on a phone (the tools' own 720px phone width). */
+@media (max-width: 720px) {
+  .sr-card input,
+  .sr-card-btn {
+    min-block-size: 2.75rem;
+  }
 }
 .sr-card-btn:hover:not(:disabled) {
   background: var(--ui-accent-hover);

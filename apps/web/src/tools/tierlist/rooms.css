@@ -317,3 +317,37 @@
     min-block-size: calc(44px - 0.5rem - 2px);
   }
 }
+
+/* D-1024 (wave 107): the rooms' own fields take the kit field's manners at every width: the rest border one step darker
+ * (D-1018: the same 65), a hover border, and the ring (the ring rule above stays). The checkbox is no field box. */
+.sr-room input:not([type='checkbox']) {
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.sr-room input:not([type='checkbox']):hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+/* A tier's name field sits on a coloured head, and the focus colour is under 3:1 on every head (Lounge Light 1.00 to 1.25,
+ * Lounge Dark 1.00 to 1.76; info is the focus colour itself): a 1 px line of the page ground inside the ring and another
+ * outside it (the head's 4 px padding holds both with the 2 px ring and its 1 px offset) so the ring reads on any head. */
+.sr-room input.sr-tier-name:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--ui-bg),
+    0 0 0 4px var(--ui-bg);
+}
+
+/* D-1022 (wave 107): on a phone every control of a room is a 44 px tall target: the room bar (All boards, Title, Retry,
+ * Delete: RoomShell, tier list and poll builder), every room button, the poll answer's remove, the fields and the poll's
+ * checkbox row. Heights only. Wave 106's `.sr-tier` lines above reach the same controls and stay. The fields are
+ * content-box (0.25rem padding, 1px border), so 44 px is the box minus both and the width stays. */
+@media (max-width: 720px) {
+  .sr-room-btn,
+  .sr-room-x {
+    min-block-size: 44px;
+  }
+  .sr-room input:not([type='checkbox']) {
+    min-block-size: calc(44px - 0.5rem - 2px);
+  }
+  .sr-room-check {
+    min-block-size: 44px;
+  }
+}
