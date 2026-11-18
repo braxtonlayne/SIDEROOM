@@ -1,4 +1,4 @@
-import { Button, Switch } from '@sideroom/ui';
+import { Button, NativeSelect, Switch } from '@sideroom/ui';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { formatDateTime, useT } from '../../../i18n';
@@ -105,9 +105,12 @@ export function ConflictLog({ guildId }: { guildId: string }) {
       <h2 id="ss-bridge-conflicts">{t('settings.bridgeSync.conflicts.title')}</h2>
       <div className="ss-toolbar">
         <label className="ss-field-label">
-          {t('settings.bridgeSync.conflicts.filterKind')}
-          <select
-            className="ss-select"
+          <span className="ss-field-label-text">
+            {t('settings.bridgeSync.conflicts.filterKind')}
+          </span>
+          <NativeSelect
+            fit="content"
+            className="ss-field-pick"
             value={kind}
             onChange={(e) => setKind(e.target.value as api.ConflictKind | '')}
           >
@@ -117,7 +120,7 @@ export function ConflictLog({ guildId }: { guildId: string }) {
                 {kindText(k, t)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <Switch
           label={t('settings.bridgeSync.conflicts.showResolved')}
