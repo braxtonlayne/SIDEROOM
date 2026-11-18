@@ -1,5 +1,5 @@
 // Series page (LIB-SER-001, 002 partly, 003, 004): header, actions, edition selector and chapter list.
-import { Button, EmptyState, Icon, Notice, Skeleton, Tabs } from '@sideroom/ui';
+import { Button, EmptyState, Icon, NativeSelect, Notice, Skeleton, Tabs } from '@sideroom/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
@@ -179,7 +179,11 @@ function Header({
         {editions.length > 1 && (
           <label className="lib-select lib-edition">
             <span>{t('library.series.edition')}</span>
-            <select value={editionId} onChange={(e) => onEdition(e.target.value)}>
+            <NativeSelect
+              fit="content"
+              value={editionId}
+              onChange={(e) => onEdition(e.target.value)}
+            >
               {editions.map((e) => (
                 <option key={e.id} value={e.id}>
                   {t('library.series.editionOption', {
@@ -188,7 +192,7 @@ function Header({
                   })}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         )}
       </div>

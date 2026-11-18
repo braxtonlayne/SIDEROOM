@@ -734,15 +734,6 @@
   align-items: center;
   flex-wrap: wrap;
 }
-.lib-select select {
-  height: 36px;
-  padding: 0 10px;
-  background: var(--sr-bg-1);
-  color: var(--sr-text);
-  border: 1px solid var(--sr-line);
-  font: inherit;
-  font-size: 14px;
-}
 .lib-select-block {
   display: grid;
   gap: 6px;
@@ -1726,4 +1717,12 @@
 }
 .lib-sync-notice > span {
   flex: 1 1 14rem;
+}
+
+/* SEC-AUD-469, D-974: the Library's fields read at 14 px. The `.lib-select select` rule that gave a
+   select its type size by element name is gone (SEC-AUD-465, D-972); the kit's select inherits, so the
+   label that holds it sets the size, as `.lib-select-block` already does. */
+.lib-select,
+.lib-sort {
+  font-size: 14px;
 }
