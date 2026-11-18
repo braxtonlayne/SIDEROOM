@@ -20,4 +20,4 @@ Slot held 14:44 to 14:48 (`heavy.sh status` read "drill 14:44" before and "free"
 ## TYPECHECK: not needed
 
 ## PROCESSES
-Filled below at the end.
+At 14:56 (the brief's listing for p104-drill): five lines, four bash.exe and the listing's own powershell.exe; the bash.exe lines are the harness shells that run my commands (their command lines name the worktree), none started by me and nothing left to stop. `strays.sh p104-drill run-drill p104-cell-bin --ports 8850 8851 8852 9551 9552`: "strays: none found". Listeners on 8851, 8852, 9551, 9552: none. Runner (run-drill) stopped, no job queued or running, no sr_p104_d* database, memory sampler stopped. `heavy.sh status`: no hold in my name (it shows loungeshots 14:48 only).
