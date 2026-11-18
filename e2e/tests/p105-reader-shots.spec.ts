@@ -484,7 +484,7 @@ async function runEnd(page: Page, c: Cfg, ids: Ids, fig: Fig, problems: string[]
         ratios[k] = !p
           ? null
           : k === 'select'
-            ? textRatio(p.color, [e.stageBg, p.bg])
+            ? textRatio(p.color, [p.bg, e.stageBg])
             : textRatio(p.color, p.grounds.length ? p.grounds : [e.stageBg]);
       }
       fig[`end:${bg}`] = { ...e, ratios };
