@@ -271,8 +271,13 @@
 /* SEC-AUD-480 (D-994): on a phone the chip's Move button is a 44 x 44 target. The chip takes its height from the button
  * (its 1 px borders are covered by the button's own -1 px margin, so the chip is 44 px, not 46) and the tier rows follow. */
 @media (max-width: 720px) {
+  .sr-room-zone {
+    min-inline-size: 0;
+  }
   .sr-room-chip {
     padding-block: 0;
+    /* the wider phone chip (the 44 px button) never outgrows its row: the text (9rem cap kept) shortens instead */
+    max-inline-size: 100%;
   }
   .sr-room-move {
     inline-size: 44px;
