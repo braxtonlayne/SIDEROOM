@@ -1,4 +1,4 @@
-import { Button, EmptyState, Icon, NativeSelect } from '@sideroom/ui';
+import { Button, EmptyState, Icon } from '@sideroom/ui';
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
@@ -218,14 +218,10 @@ export function ForumView({ guildId, channel }: { guildId: string; channel: Chan
         />
         <label className="lng-forum-select">
           <span className="lng-muted">{t('lounge.forum.sort')}</span>
-          <NativeSelect
-            fit="content"
-            value={effSort}
-            onChange={(e) => setSort(e.target.value as ForumSort)}
-          >
+          <select value={effSort} onChange={(e) => setSort(e.target.value as ForumSort)}>
             <option value="activity">{t('lounge.forum.sortActivity')}</option>
             <option value="created">{t('lounge.forum.sortCreated')}</option>
-          </NativeSelect>
+          </select>
         </label>
         <div role="group" aria-label={t('lounge.forum.view')} className="lng-forum-views">
           {(['list', 'gallery'] as const).map((v) => (

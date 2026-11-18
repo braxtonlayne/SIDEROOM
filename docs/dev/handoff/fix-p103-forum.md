@@ -29,3 +29,6 @@ none (code builder).
 - SEC-AUD-462/465 (forum part): the forum Sort, the emoji picker's skin tone and the scrapbook shelf picker are the kit's `NativeSelect` with `fit="content"` (D-976); `scrapbook.css` is unchanged and the shelf row stays a flex row.
 - Changelog sentence: The forum's Sort, the emoji picker's skin tone and the scrapbook's shelf picker now use the kit select, sized to their text.
 - Owner questions: none.
+
+## Put back (FAULT from loungeshots)
+- `ForumView.tsx` Sort put back to raw (file equals `integration/phase103`'s text). Figures from loungeshots: Sort 162 px wide against the base's 109 (53 px over the 36 px limit); toolbar row 12 px taller at 1024 and 16 at 375; view buttons 53 px to the right. Cause: the kit's 16 px font against the raw 13.33 px; `forum.css` is not owned this wave. Prettier, eslint and `p13forumFiles.test.tsx` pass. The other two selects (ShelfPanel, EmojiPicker) stay moved.
