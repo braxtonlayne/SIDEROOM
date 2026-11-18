@@ -519,6 +519,16 @@ function compare(base: Figs, after: Figs, problems: string[]) {
     if (a.input && a.input.w < 1) problems.push(`${k}: folded input is ${a.input.w} wide`);
     if (a.title && b.title && a.title.w < b.title.w - 0.5)
       problems.push(`${k}: title narrower ${a.title.w} against base ${b.title.w}`);
+    // The base's tools may spill past the header's end (900 with the list open: the header is narrower than its tools).
+    // Then the tools' x are not comparable; the check is that they now sit inside the header.
+    if (b.tools && b.header && b.tools.x + b.tools.w > b.header.x + b.header.w + 1) {
+      say(
+        `${k}: base tools spilled past the header (${bx(b.tools)} in ${bx(b.header)}); after ${bx(a.tools)}`,
+      );
+      if (a.tools && a.header && a.tools.x + a.tools.w > a.header.x + a.header.w + 1)
+        problems.push(`${k}: tools still spill past the header: ${bx(a.tools)} in ${bx(a.header)}`);
+      continue;
+    }
     if (a.tools && b.tools && !near(a.tools.w, b.tools.w - delta, 1.5))
       problems.push(`${k}: tools ${a.tools.w} wide, expected ${b.tools.w - delta}`);
     if (a.tools && b.tools && !near(a.tools.x + a.tools.w, b.tools.x + b.tools.w))
