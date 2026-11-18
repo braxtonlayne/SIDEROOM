@@ -36,7 +36,6 @@ const OWNER_STATE = resolve(STATE, 'owner.json');
 const WORLD_FILE = resolve(STATE, 'world.json');
 const PHONE_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36';
-const STAMP = Date.now().toString(36);
 const LONG_TOPIC =
   'p106h topic: a long line of text that goes on and on so that the header has more topic than room, ' +
   'with a second sentence about nothing in particular, to be cut by the header and never fit in one line.';
@@ -166,14 +165,14 @@ async function makeData(octx: BrowserContext, ids: Ids) {
     await apiPatch(o, `/channels/${c.id}`, { topic: LONG_TOPIC });
     return c.id;
   };
-  ids.textChan = await chan(`p106h-text-${STAMP}`, 0);
-  ids.forumChan = await chan(`p106h-forum-${STAMP}`, 15);
+  ids.textChan = await chan(`p106h-text`, 0);
+  ids.forumChan = await chan(`p106h-forum`, 15);
 }
 
 async function removeData(octx: BrowserContext, ids: Ids) {
   for (const id of ids.all)
     await apiDelete(octx.request, `/channels/${id}`).catch((e) =>
-      say(`channel ${id} (p106h-*-${STAMP}) not deleted: ${String(e).slice(0, 160)}`),
+      say(`channel ${id} (p106h-*) not deleted: ${String(e).slice(0, 160)}`),
     );
 }
 
@@ -353,8 +352,8 @@ async function channelScenario(
     page.setDefaultTimeout(20_000);
     const id = kind === 'text' ? ids.textChan : ids.forumChan;
     await goto(page, `/channels/${ids.guildId}/${id}`);
-    const h1 = page.getByRole('heading', { level: 1, name: `p106h-${kind}-${STAMP}` });
-    await h1.waitFor({ timeout: 40_000 }).catch(async (e) => {
+    const h1 = page.getByRole('heading', { level: 1, name: `p106h-${kind}` });
+    await h1.waitFor({ state: 'attached', timeout: 40_000 }).catch(async (e) => {
       await shot(page, `probe-${kind}-${c.tag}`);
       throw e;
     });

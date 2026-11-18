@@ -1,5 +1,5 @@
 import { Avatar, Icon, Modal, Tooltip, type IconName } from '@sideroom/ui';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useT } from '../i18n';
 import { statusProps } from './phoneStatus';
 import { FollowButton } from './header/FollowButton';
@@ -72,7 +72,7 @@ function Soon({ icon, label }: { icon: IconName; label: string }) {
  * has focus (the stylesheet sets `--lng-search-folded` on the tools then). Escape closes the panel (SearchBox); this moves
  * focus off the field, to the tool before it, so the field folds again and the Tab order is not lost.
  */
-function foldSearchOnEscape(e: KeyboardEvent<HTMLDivElement>) {
+function foldSearchOnEscape(e: ReactKeyboardEvent<HTMLDivElement>) {
   if (e.key !== 'Escape' || !(e.target instanceof HTMLInputElement)) return;
   const tools = e.currentTarget;
   if (getComputedStyle(tools).getPropertyValue('--lng-search-folded').trim() !== '1') return;
