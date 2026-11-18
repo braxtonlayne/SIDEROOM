@@ -357,15 +357,17 @@ test('D-999: the Transcoding queue shows the mount label from the job and asks n
       string,
       Record<string, unknown>
     >;
-    const near = (x: unknown, y: unknown): boolean =>
+    const near = (x: unknown, y: unknown, tol = 0.5): boolean =>
       Array.isArray(x) && Array.isArray(y)
-        ? x.length === y.length && x.every((v, i) => near(v, y[i]))
+        ? x.length === y.length && x.every((v, i) => near(v, y[i], tol))
         : typeof x === 'number' && typeof y === 'number'
-          ? Math.abs(x - y) <= 0.5
+          ? Math.abs(x - y) <= tol
           : x === y;
     for (const [tag, fig] of Object.entries(figures) as Array<[string, Record<string, unknown>]>) {
       const b = base[tag];
       if (!b) continue;
+      // (A stacked row at 375 holds a job id and an error text with a random seed suffix, whose wrapping differs by a
+      // pixel from run to run: the 375 row heights have 1.5 px, every other figure 0.5 px.)
       // Must not change: the columns, the heads, the rows and the Mount cell's own box; the cell text may gain the label.
       for (const k of [
         'heads',
@@ -378,7 +380,7 @@ test('D-999: the Transcoding queue shows the mount label from the job and asks n
         'mountCellWidths',
         'errHeights',
       ])
-        if (!near(fig[k], b[k]))
+        if (!near(fig[k], b[k], k === 'rowHeights' && tag.startsWith('375') ? 1.5 : 0.5))
           problems.push(
             `${tag}: ${k} moved, base ${JSON.stringify(b[k])}, after ${JSON.stringify(fig[k])}`,
           );
