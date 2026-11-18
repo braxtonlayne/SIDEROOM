@@ -12,3 +12,27 @@ Started 14:13. Stack-free: no lock, no stack, no spec, no shots, no binaries, no
 
 Other `lng-forum-*` users, not reached by this change: `NewPostDialog.tsx:141` uses `lng-forum-chips`.
 Tests that render `ForumView`: `p13forumFiles.test.tsx`, `p10LoungeFe.test.tsx`, `p69Threads.test.tsx`.
+
+## Done (commits on `fix/p104-forum`)
+- `D-996 forum REACH table`; `D-996 ForumView.tsx (READY)`; `D-996 forum.css (ALL READY)`; this handoff. Finished about 14:17.
+- Diff in words: `ForumView.tsx` imports `NativeSelect` and the Sort is `<NativeSelect fit="content">` with the same `value`, `onChange` and the two options; the label and its span are untouched. `forum.css`: `.lng-forum-select` gains `font-size: 0.875rem;` and nothing else. No string, kit or other sheet changed.
+- Span size: `span.lng-muted` has no own size (`lounge.css:20` sets colour only), so it inherited 16px from `.lng-root` before and is 14px after (the Lounge control size). Not measured in a browser (code builder); loungeshots measures.
+- Tests (single files, unedited): `p13forumFiles.test.tsx` 1 passed, `p10LoungeFe.test.tsx` 12 passed, `p69Threads.test.tsx` 21 passed. None finds the select by tag inside the label. Base not run.
+
+## Who imports
+`ChannelView.tsx:24` imports `ForumView`; `ForumView.tsx:21` imports `forum.css`. ChannelView sits under `LoungeShell` under `routes/LoungeRoot`, loaded by `routes/lounge.tsx` as a lazy chunk (the Lounge chunk). Nothing first paint or a public page loads statically.
+
+## TYPECHECK
+`bash cli-agents/tc.sh run forum bash -c "cd .../p104-forum/apps/web && npx tsc --noEmit -p ."` 14:15 to 14:16, exit 0.
+Others (14:14): `prettier --check` on both files exit 0; `eslint src/lounge/forum/ForumView.tsx` exit 0; `node scripts/check-css-tokens.mjs` exit 0; `node scripts/i18n-audit.mjs --max 0` exit 0; `node scripts/check-doc-links.mjs` exit 0.
+
+## STACK-ROUND
+none (code builder).
+
+## PROCESSES
+Listing run at the end (see the reply); nothing of mine started a server. Vitest and tsc finished.
+
+## Text for the inventory
+- SEC-AUD-465 remainder: the forum Sort is the kit's `NativeSelect fit="content"` with the type set to 14px on `.lng-forum-select` (D-996, D-974); the toolbar row may grow to the kit field's height.
+- Changelog sentence: The forum's Sort now uses the kit select, sized to its text, at the Lounge's 14 px control size.
+- Owner questions: none.
