@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 102 - 2026-11-18
+
+- Staff: a failed transcode job's Logs now show why it failed, and the queue keeps the error to three lines. Admin > Arcade's buttons are full-size and spaced apart on a phone, and the soft shade at the edge of the Donations invoices table no longer leaves a thin line.
+- Server settings: Members sits beside the sidebar at tablet width and its table scrolls in its own box; the Command permissions rules show their names; the "select all" box on Members is a full-size touch target on a phone.
+- More drop-downs have the kit's look and a full touch size on a phone: the Lounge's notification, timeout, ban, status, event and poll dialogs, app commands, app modals and app menus, the Follow picker and search sort, Server settings, the Library sort and ratings, the Developers portal, the watch party settings, the Arcade, and the calculators and Tools drawer.
+
 ## Phase 101 - 2026-11-18
 
 - Staff on a phone: the Cinema transcoding queue reads as one block per job with full-size Logs, Cancel and Re-run buttons, and a failed job's error no longer stretches its row to one word a line.

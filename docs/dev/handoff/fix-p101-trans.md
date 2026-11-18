@@ -5,7 +5,7 @@ Branch `fix/p101-trans` (base `integration/phase101`). Files: `apps/web/src/admi
 ## Done
 - **SEC-AUD-444.** The queue table is `adm-table adm-table-stack`. Each `td` has `data-label` with the string its header already uses (`admin.transcoding.col.job|asset|mount|state|priority|worker|created`); the actions `td` has `data-actions` (no label, as `CatalogSection.tsx`). Still the direct child of `TableRegion`; buttons, sizes, variants and `aria-label`s unchanged.
 - **SEC-AUD-443.** The error `div` is `ss-meta adm-tx-error`. `admin.css`, one block at the very end under a comment naming SEC-AUD-443 and D-955: `.adm-tx-error { min-inline-size: 24ch; overflow-wrap: anywhere; }`, and inside `@media (max-width: 720px)` `min-inline-size: 0`.
-- **No clamp, on purpose.** Logs on the failed job does not show the error: the dialog's text is "Logs for job <id> / No log output was kept for this job. / Done" (the component renders the encoder and `log_tail` only; the seeded row has no log). A three-line clamp would hide the only place the whole error is. Proposed row below; not built.
+- **No clamp, on purpose (superseded in wave 102, D-962: the Logs dialog now shows the error and the State cell is clamped to three lines).** Logs on the failed job does not show the error: the dialog's text is "Logs for job <id> / No log output was kept for this job. / Done" (the component renders the encoder and `log_tail` only; the seeded row has no log). A three-line clamp would hide the only place the whole error is. Proposed row below; not built.
 - Why `24ch`: at 1024 and 900 the State cell grows to 232 px (error box 212 px wide); the seeded 184-character error is 7 lines and no line holds a single short word (shot read). It is a floor, not a width: the cell takes more if the table has it.
 - Commits: `ff89c3c5` (code), then the spec fix and this handoff (see `git log`).
 
@@ -62,7 +62,7 @@ Stack on 8782 / 5782 / 9482 as in the spec header, sweep world seeded, then from
 
 ## Closing texts
 - SEC-AUD-444: closed. The Transcoding queue is `adm-table-stack`: at 375 each job is a block, the actions are on their own line and every button is 44 px; the hit test over the section is 0 fails (base: 3, taker Cancel or Re-run); the wrapper no longer scrolls or takes a tab stop; the page does not scroll sideways. Between 721 and 1100 px the table still scrolls in its region (not this wave) and is now 839 px wide instead of 700.
-- SEC-AUD-443: closed for the width: the error text has a 24ch floor and breaks an unbroken name; the failed row is 157 px against 480 at 1024 and 900 (1.8x a plain row), 339 px stacked at 375. Not clamped, because Logs does not show the error (row proposed below).
+- SEC-AUD-443: closed for the width: the error text has a 24ch floor and breaks an unbroken name; the failed row is 157 px against 480 at 1024 and 900 (1.8x a plain row), 339 px stacked at 375. Not clamped in wave 101, because Logs did not show the error (row proposed below); since wave 102 (D-962) the dialog shows it and the cell is clamped to three lines.
 
 ## Proposed rows
 - (low) The Logs dialog of a failed transcode job does not show the job's `error`: `JobLogBody` renders the encoder and `log_tail` only, so a failed job without a log shows "No log output was kept for this job" and the reason is only in the table's State cell. Fix: show `j.error` above the log (one new string), then the State cell can clamp to three lines.
