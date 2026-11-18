@@ -129,6 +129,18 @@
   display: block;
   border-radius: 50%;
 }
+/* D-1022: on a phone the 40px avatar keeps its size and gets a 44px tap area (2px above and below). */
+@media (max-width: 720px) {
+  .lng-avatar-btn {
+    position: relative;
+  }
+  .lng-avatar-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -2px;
+    inset-inline: 0;
+  }
+}
 .lng-name-btn:hover {
   text-decoration: underline;
 }
