@@ -1,7 +1,16 @@
 // Admin > Donations > Invoices (DON-ADM-003): search, detail with transactions and audit trail, and manual
 // resolution. Staff never move funds from here: "refund noted" only records a refund the operator made in
 // their own wallet.
-import { Badge, Button, EmptyState, Modal, Notice, TextArea, TextInput } from '@sideroom/ui';
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Modal,
+  NativeSelect,
+  Notice,
+  TextArea,
+  TextInput,
+} from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import {
   PURPOSE_COPY,
@@ -186,11 +195,11 @@ function Detail({
       >
         <label>
           {t('admin.donations.invoices.resolution')}{' '}
-          <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="mark_paid">{t('admin.donations.invoices.markPaid')}</option>
             <option value="refund_noted">{t('admin.donations.invoices.refundNoted')}</option>
             <option value="dismiss">{t('admin.donations.invoices.dismiss')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <TextArea
           label={t('admin.donations.invoices.noteLabel')}
