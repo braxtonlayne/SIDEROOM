@@ -20,7 +20,8 @@ Who imports (git grep): `Commands`, `OAuth2`, `Media` are imported only by `deve
 ## Status of the work
 - All five moves are the diff: import line, `<select` to `<NativeSelect`, `className="dev-select"` removed where there was one, closing tag. Id, value, onChange, children untouched. Diffs read line by line.
 - Unit tests (unedited): `authorize.test.tsx`, `media.test.tsx`, `portal.test.tsx` in `apps/web/src/developers/__tests__/`: 64 passed (09:33). prettier: unchanged (clean). eslint on the four files: clean.
-- TYPECHECK, i18n audit, doc links: see the end of this file (updated when run).
+- TYPECHECK: `tc.sh run devs bash -c "cd .../p102-devs/apps/web && npx tsc --noEmit -p ."`, 09:34 to 09:37, no output (no errors; the exit shown was the pipe's tail, the output empty). i18n audit `node scripts/i18n-audit.mjs --max 0`: TOTAL 0, exit 0 (09:37). `node scripts/check-doc-links.mjs`: doc links ok, exit 0 (09:37).
+- STACK-ROUND: none (code builder). heavy.sh: not used, no hold in my name.
 
 ## Still raw (for the SEC-AUD-453 text)
 `Reference.tsx` Area filter (flex-wrap toolbar, would wrap under the search field). Everything else in my files moved (pending the shots builder's figures).
