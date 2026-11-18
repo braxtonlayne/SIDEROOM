@@ -59,3 +59,8 @@ The calculator family's nine dropdowns (Units, Currency, Percent, Programmer, Ti
 
 ## Owner questions
 None.
+
+## UPDATE after toolshots' FAULTS (10:36)
+- Put back to raw (commit f7a68f9e): Units From and To, Timezone Work starts and Work ends, Programmer Input base (text under the chevron at 375, from the `calc.css:26/54` end padding of 8 px). Now moved: Units Category, Currency From and To, Percent Calculation (4).
+- Moved (commit 562e68a3): LootTool "Tables from" and "Table" (cards changed `utl-dev.css:92` to `.ud-root > select`, so the raw ones collapsed; not visible on this branch, toolshots re-shoots Loot after integration). This supersedes "Left raw (2)" above.
+- prettier and eslint on the touched files: exit 0. TYPECHECK via tc.sh run calc, 10:35: exit 0. Unit tests `tools.test.tsx` + `dice.test.ts`: 38 passed (vitest ran this time).
