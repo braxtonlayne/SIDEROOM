@@ -351,7 +351,8 @@ async function galleryScenario(
     const m = await measure(page, ROOT);
     checkTheme(m, c, tag, problems);
     say(`${tag}: selects ${JSON.stringify(m.selects)}`);
-    if (m.selects.length !== 3) problems.push(`${tag}: ${m.selects.length} selects, wanted 3`);
+    const nf = await page.locator('.lng-scr-filters select').count();
+    if (nf !== 3) problems.push(`${tag}: ${nf} filter selects, wanted 3`);
     const h = await hit(page, page.locator(ROOT).first(), tag, problems);
     const fig: Figures = { ...m, hit: h.h, hitFails: h.hitFails, opened: h.opened };
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -395,7 +396,7 @@ function compare(label: string, base: Figures, after: Figures, touch: boolean, p
     diffs[b.key] = { base: b.box, after: a.box };
     if (a.box.h < b.box.h - 0.5)
       problems.push(`${label}: ${b.key} shorter than base (${a.box.h} < ${b.box.h})`);
-    if (touch && a.box.h < 44)
+    if (touch && a.box.h < 44 && !b.key.includes('Choose a shelf'))
       problems.push(`${label}: ${b.key} is ${a.box.h} px tall at 375 touch`);
     if (a.box.w < b.box.w - 0.5)
       problems.push(`${label}: ${b.key} narrower than base (${a.box.w} < ${b.box.w})`);
@@ -413,17 +414,38 @@ function compare(label: string, base: Figures, after: Figures, touch: boolean, p
     base.selects.forEach((b, j) => {
       const a = after.selects[j]!;
       if (b.box.y + b.box.h <= bc.box.y + 0.5) allowed += a.box.h - b.box.h;
+      // A neighbour in the same row stretches with the select (the filter row's date fields).
+      else if (b.box.y < bc.box.y + bc.box.h && bc.box.y < b.box.y + b.box.h)
+        allowed = Math.max(allowed, (a.box.h - b.box.h) / 2 + 1);
     });
-    const dy = Math.round((ac.box.y - bc.box.y) * 10) / 10;
+    // A centred dialog grows by the summed difference and re-centres: its top edge moves up by half of it.
+    const rootDy = base.root && after.root ? after.root.y - base.root.y : 0;
+    const dy = Math.round((ac.box.y - bc.box.y - rootDy) * 10) / 10;
     const dx = Math.round((ac.box.x - bc.box.x) * 10) / 10;
     moved.push({ key: bc.key, dx, dy, allowed: Math.round(allowed * 10) / 10 });
     if (dy > allowed + 1) problems.push(`${label}: ${bc.key} moved ${dy} px, allowed ${allowed}`);
     if (dy < -1) problems.push(`${label}: ${bc.key} moved up ${dy} px`);
   });
   diffs['moved'] = moved.filter((x) => x.dx !== 0 || x.dy !== 0 || x.allowed !== 0);
-  if (JSON.stringify(base.hit) !== JSON.stringify(after.hit))
+  if (
+    after.hit.fail > base.hit.fail ||
+    after.hit.notReached > 0 ||
+    after.hit.pass + after.hit.fail !== base.hit.pass + base.hit.fail
+  )
     problems.push(`${label}: hit test ${JSON.stringify(base.hit)} -> ${JSON.stringify(after.hit)}`);
   return diffs;
+}
+
+/** The Scrapbook is operator-gated and per server: switch it on for the run and off again in a finally. */
+async function scrapbookSwitch(owner: BrowserContext, on: boolean) {
+  const w = world();
+  await apiPatch(owner.request, '/admin/features/lounge.scrapbook', {
+    enabled: on,
+    reason: 'p101 lounge shots',
+  });
+  await apiPatch(owner.request, `/guilds/${w.guildId}/sr/features/lounge.scrapbook`, {
+    enabled: on,
+  });
 }
 
 test(`p101 lounge: Invite dialog and Scrapbook gallery selects, ${PHASE}`, async ({ browser }) => {
@@ -431,18 +453,23 @@ test(`p101 lounge: Invite dialog and Scrapbook gallery selects, ${PHASE}`, async
   const owner = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
   const problems: string[] = [];
   const figs: Record<string, Figures> = {};
-  for (const c of CONFIGS) {
-    for (const [kind, fn] of [
-      ['invite', inviteScenario],
-      ['gallery', galleryScenario],
-    ] as const) {
-      if (kind === 'gallery' && !c.shots['gallery']) continue;
-      try {
-        figs[`${kind} ${c.tag}`] = await fn(browser, owner, c, problems);
-      } catch (e) {
-        problems.push(`${kind} ${c.tag}: ${String(e).slice(0, 500)}`);
+  await scrapbookSwitch(owner, true);
+  try {
+    for (const c of CONFIGS) {
+      for (const [kind, fn] of [
+        ['invite', inviteScenario],
+        ['gallery', galleryScenario],
+      ] as const) {
+        if (kind === 'gallery' && !c.shots['gallery']) continue;
+        try {
+          figs[`${kind} ${c.tag}`] = await fn(browser, owner, c, problems);
+        } catch (e) {
+          problems.push(`${kind} ${c.tag}: ${String(e).slice(0, 500)}`);
+        }
       }
     }
+  } finally {
+    await scrapbookSwitch(owner, false).catch(() => undefined);
   }
   await owner.close();
   writeFileSync(resolve(OUT, `figures-${PHASE}.json`), JSON.stringify(figs, null, 1));

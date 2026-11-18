@@ -241,6 +241,7 @@ export function Filters({
       <label>
         {t('lounge.scrapbook.channel')}
         <NativeSelect
+          className="lng-scr-input"
           value={value.channelId ?? ''}
           onChange={(e) => set({ channelId: e.target.value })}
         >
@@ -254,7 +255,11 @@ export function Filters({
       </label>
       <label>
         {t('lounge.scrapbook.tag')}
-        <NativeSelect value={value.tag ?? ''} onChange={(e) => set({ tag: e.target.value })}>
+        <NativeSelect
+          className="lng-scr-input"
+          value={value.tag ?? ''}
+          onChange={(e) => set({ tag: e.target.value })}
+        >
           <option value="">{t('lounge.scrapbook.any')}</option>
           {(facets?.tags ?? []).map((x) => (
             <option key={x.tag} value={x.tag}>
@@ -266,6 +271,7 @@ export function Filters({
       <label>
         {t('lounge.scrapbook.member')}
         <NativeSelect
+          className="lng-scr-input"
           value={value.authorId ?? ''}
           onChange={(e) => set({ authorId: e.target.value })}
         >
