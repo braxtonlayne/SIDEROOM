@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { apiFetch } from '../../api/client';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useGuilds } from '../data';
 import { useMyExpressions, type ExternalEmoji } from './myExpressions';
@@ -302,7 +303,8 @@ export function EmojiPicker({
           onChange={(e) => setQ(e.target.value)}
           data-autofocus
         />
-        <select
+        <NativeSelect
+          fit="content"
           className="lng-emoji-tone"
           aria-label={t('lounge.emojiPicker.skinTone')}
           value={prefs.tone}
@@ -313,7 +315,7 @@ export function EmojiPicker({
               {sw}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="lng-emoji-body">
         {catTabs.length > 0 && (
