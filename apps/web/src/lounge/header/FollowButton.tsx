@@ -1,4 +1,4 @@
-import { Button, Icon, Modal, Notice, Tooltip } from '@sideroom/ui';
+import { Button, Icon, Modal, NativeSelect, Notice, Tooltip } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { ApiError, apiFetch } from '../../api/client';
 import { useT } from '../../i18n';
@@ -123,11 +123,7 @@ export function FollowButton({ channelId }: { channelId: string }) {
             {groups && (
               <label className="lng-follow-field">
                 <span>{t('lounge.followButton.channel')}</span>
-                <select
-                  className="lng-follow-select"
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value)}
-                >
+                <NativeSelect value={target} onChange={(e) => setTarget(e.target.value)}>
                   <option value="">{t('lounge.followButton.choose')}</option>
                   {groups.map((g) => (
                     <optgroup key={g.id} label={g.name}>
@@ -138,7 +134,7 @@ export function FollowButton({ channelId }: { channelId: string }) {
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             )}
           </>
