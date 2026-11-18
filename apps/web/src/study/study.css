@@ -301,28 +301,12 @@
 }
 /* Edit details: Note and Cover look like the Title field above them (UI kit label and control), not plain text and a
    tiny native select. */
-.stu-field > span {
+.stu-field > span:first-child {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ui-text-muted);
-}
-.stu-field > select {
-  inline-size: 100%;
-  box-sizing: border-box;
-  min-block-size: 40px;
-  padding-block: 8px;
-  padding-inline: 12px;
-  font: inherit;
-  color: var(--ui-text);
-  background: var(--ui-bg-raised);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius, 6px);
-}
-.stu-field > select:focus-visible {
-  outline: 2px solid var(--ui-focus);
-  outline-offset: 1px;
 }
 .stu-field > .stu-textarea {
   box-sizing: border-box;
