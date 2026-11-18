@@ -306,11 +306,14 @@
  * Heights only: no width, padding or colour changes. The chip's own controls keep wave 105's rules above. The poll builder
  * and the room bar (All boards, Title, Delete: RoomShell, shared with the poll builder) are outside `.sr-tier`. */
 @media (max-width: 720px) {
-  .sr-tier .sr-tier-name,
   .sr-tier .sr-tier-head .sr-room-x,
-  .sr-tier .sr-room-btn,
+  .sr-tier .sr-room-btn {
+    min-block-size: 44px;
+  }
+  /* the fields are content-box (the room input rule: 0.25rem padding, 1px border), so 44 px is the box minus both: the width stays */
+  .sr-tier .sr-tier-name,
   .sr-tier .sr-room-emoji,
   .sr-tier .sr-room-inline > input {
-    min-block-size: 44px;
+    min-block-size: calc(44px - 0.5rem - 2px);
   }
 }
