@@ -888,6 +888,13 @@ const SECTION_STOPS: Stop[] = [
     },
   },
   {
+    id: 'cinema-search',
+    open: async (page) => {
+      await visit(page, '/cinema/search');
+      return page.locator('body');
+    },
+  },
+  {
     id: 'emulator',
     open: async (page) => {
       await visit(page, '/games/emulator');
