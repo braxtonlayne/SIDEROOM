@@ -36,13 +36,13 @@ Reason, from reading the CSS (no stack, so no measurement; the shots builder may
 `git grep -n` finds each of the six files only in `apps/web/src/tools/registry.ts` as a dynamic `() => import('./calc/UnitsTool')` (lines 216, 266-321): each is its own lazy tool chunk, opened from the command palette or the Tools window. No static import from `main.tsx`, `router.tsx` or first paint, and no public page. `LootTool` is untouched. `TimezoneTool` also imports `../calc/hooks` and `../calc/calc.css`. `@sideroom/ui` is already in first paint's graph, so the import adds no new package to a chunk of its own beyond `NativeSelect`.
 
 ## TYPECHECK
-Not run yet (at the time of this commit). To run: `tc.sh run calc ...` once after the last edit.
+`bash C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents/tc.sh run calc bash -c "cd C:/Users/braxt/Desktop/SIDEROOM_wt/p102-calc/apps/web && npx tsc --noEmit -p ."`, 09:32 to 09:34, exit 0.
 
 ## Checks run
 - prettier `--check` on the five files: exit 0 (all matched files use Prettier code style).
 - eslint on the five files: exit 0.
 - Unit tests `src/tools/calc/__tests__/tools.test.tsx`: **not run**. Both attempts (`npx vitest run ...` and `pnpm --filter @sideroom/web exec vitest run ...`) were refused by the session's permission classifier. The test finds all seven of its selects by `getByLabelText`, which the wrapper span does not change.
-- `node scripts/i18n-audit.mjs --max 0`, `node scripts/check-doc-links.mjs`: see the end of this file.
+- `node scripts/i18n-audit.mjs --max 0`, `node scripts/check-doc-links.mjs`: both run 09:33 after the last edit: exit 0 (i18n TOTAL 0; doc links ok).
 
 ## STACK-ROUND
 none (code builder).
