@@ -806,3 +806,21 @@
     overflow-x: auto;
   }
 }
+
+/* SEC-AUD-450 (D-964): in a Command permissions rule row the name keeps a floor on its width and the kit's select (its
+   wrapper is 100 % wide) takes a basis of its own, so the name no longer shrinks to 0. Above a phone only; the phone keeps
+   its wrapped rows. */
+@media (min-width: 721px) {
+  .ss-row.ss-rule-row > .ss-grow {
+    flex: 1 1 12ch;
+    min-inline-size: 12ch;
+  }
+  .ss-row.ss-rule-row > .ss-grow > .ss-name {
+    min-inline-size: 12ch;
+  }
+  .ss-row.ss-rule-row > span {
+    flex: 0 1 220px;
+    inline-size: auto;
+    min-inline-size: 160px;
+  }
+}
