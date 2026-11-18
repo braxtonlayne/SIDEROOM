@@ -1,6 +1,6 @@
 // Rankings (LIB-BRW-002): the most read series of the week, the month, or all time, for everyone, for friends
 // or for people you know (G-96; the scoped ones count only members who share their reading, D-190).
-import { EmptyState, Icon, Notice, SegmentedControl, Skeleton } from '@sideroom/ui';
+import { EmptyState, Icon, NativeSelect, Notice, SegmentedControl, Skeleton } from '@sideroom/ui';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -50,14 +50,14 @@ export function RankingsPage() {
           />
           <label className="lib-select">
             <span className="lib-sr-only">{t('library.rankings.kind')}</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <NativeSelect fit="content" value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="">{t('library.rankings.allKinds')}</option>
               {KINDS.map((k) => (
                 <option key={k} value={k}>
                   {KIND_LABEL[k]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
       </div>
