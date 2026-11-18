@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { formatNumber, useT } from '../../i18n';
 import type { ToolProps } from '../registry';
 import type { PercentKind, PercentResult } from './engine';
@@ -126,13 +127,13 @@ export default function PercentTool({ host }: ToolProps) {
         <legend>{t('tools.percent.form')}</legend>
         <label className="sr-calc-field">
           {t('tools.percent.kind')}
-          <select value={kind} onChange={(e) => setKind(e.target.value as PercentKind)}>
+          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as PercentKind)}>
             {KINDS.map((k) => (
               <option key={k} value={k}>
                 {t(KIND_LABELS[k])}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <div className="sr-calc-convert">
           <label className="sr-calc-field">

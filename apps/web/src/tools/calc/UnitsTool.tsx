@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import type { ToolProps } from '../registry';
 import { errorKey, errorVars } from './errors';
@@ -134,13 +135,13 @@ export default function UnitsTool({ host }: ToolProps) {
 
       <label className="sr-calc-field">
         {t('tools.units.category')}
-        <select value={category} onChange={(e) => pickCategory(e.target.value as CategoryId)}>
+        <NativeSelect value={category} onChange={(e) => pickCategory(e.target.value as CategoryId)}>
           {(Object.keys(CATEGORY_KEYS) as CategoryId[]).map((c) => (
             <option key={c} value={c}>
               {t(CATEGORY_KEYS[c])}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       <div className="sr-calc-convert">
@@ -159,13 +160,13 @@ export default function UnitsTool({ host }: ToolProps) {
         </label>
         <label className="sr-calc-field">
           {t('tools.units.from')}
-          <select value={from} onChange={(e) => setFrom(e.target.value)}>
+          <NativeSelect value={from} onChange={(e) => setFrom(e.target.value)}>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <button
           type="button"
@@ -180,13 +181,13 @@ export default function UnitsTool({ host }: ToolProps) {
         </button>
         <label className="sr-calc-field">
           {t('tools.units.to')}
-          <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <NativeSelect value={to} onChange={(e) => setTo(e.target.value)}>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
 
