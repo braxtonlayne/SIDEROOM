@@ -35,7 +35,7 @@ import type { AdminStorageMount } from '../storage/api';
     (the State cell clamps its error text the same way: the text stays whole, the cell shows less). */
 const MOUNT_LABEL_STYLE: CSSProperties = {
   display: 'block',
-  maxInlineSize: '16ch',
+  maxInlineSize: '14ch',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
