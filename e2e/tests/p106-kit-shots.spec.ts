@@ -199,7 +199,10 @@ const hex = (c: Rgba) =>
 
 /** The 65% mix of --ui-border and --ui-text-faint, in sRGB, within 2 per channel of what the browser computed. */
 function isMix(computed: string, tk: Record<string, string>): boolean {
-  const n = (c: string) => (c.match(/[d.]+/g) ?? []).slice(0, 3).map(Number);
+  const n = (c: string) => {
+    const v = (c.match(/[0-9.]+/g) ?? []).slice(0, 3).map(Number);
+    return c.startsWith('color(') ? v.map((x) => x * 255) : v;
+  };
   const [c, b, t] = [n(computed), n(tk['--ui-border']!), n(tk['--ui-text-faint']!)];
   return c.length === 3 && c.every((v, i) => Math.abs(v - (b[i]! * 0.35 + t[i]! * 0.65)) <= 2);
 }
