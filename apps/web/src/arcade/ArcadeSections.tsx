@@ -1,4 +1,13 @@
-import { Button, EmptyState, Icon, Modal, Notice, Spinner, TextInput } from '@sideroom/ui';
+import {
+  Button,
+  EmptyState,
+  Icon,
+  Modal,
+  NativeSelect,
+  Notice,
+  Spinner,
+  TextInput,
+} from '@sideroom/ui';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useT } from '../i18n';
@@ -547,10 +556,10 @@ function ListCartridgeDialog({
         <div className="arc-form-row">
           <label className="arc-field">
             <span>{t('arcade.cartridges.kind')}</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value as 'game' | 'mod')}>
+            <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as 'game' | 'mod')}>
               <option value="game">{t('arcade.cartridges.kindGame')}</option>
               <option value="mod">{t('arcade.cartridges.kindMod')}</option>
-            </select>
+            </NativeSelect>
           </label>
         </div>
         <TextInput
@@ -691,13 +700,13 @@ export function CartridgesSection({
           {guilds.length > 1 && (
             <label className="arc-field arc-server-pick">
               <span>{t('arcade.cartridges.server')}</span>
-              <select value={guildId} onChange={(e) => setGuildId(e.target.value)}>
+              <NativeSelect value={guildId} onChange={(e) => setGuildId(e.target.value)}>
                 {guilds.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
           {loadFailed && <Notice variant="danger" title={t('arcade.cartridges.failed')} />}
