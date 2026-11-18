@@ -384,7 +384,12 @@ test('SEC-AUD-441: every Admin table wrapper that scrolls is a named keyboard st
         }
         const b = base?.find((x) => x.key === r.key);
         if (base && !b) notes.push(`[${s.key}] ${r.key}: not in the base`);
-        if (b) {
+        // The two live logs gain rows from the run itself (the walk opens pages that are logged), so their boxes
+        // are reported, not compared (commander, wave 100 integration re-shoot).
+        const live = /Platform audit log|Access log/.test(r.key);
+        if (b && live)
+          notes.push(`[${s.key}] ${r.key}: live log, boxes not compared with the base`);
+        if (b && !live) {
           const moved =
             JSON.stringify(b.heads) !== JSON.stringify(r.heads) ||
             JSON.stringify(b.cells) !== JSON.stringify(r.cells);
