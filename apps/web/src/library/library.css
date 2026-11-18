@@ -1028,12 +1028,11 @@
 .lib-reader-slider {
   flex: 1;
 }
-.lib-chapter-select select {
-  max-width: 220px;
-  height: 32px;
+.lib-chapter-select .lib-chapter-pick {
+  max-inline-size: 220px;
   background: #1c1d18;
   color: #ece6d6;
-  border: 1px solid #2a2b24;
+  border-color: #2a2b24;
 }
 .lib-scrub-thumb {
   position: absolute;
