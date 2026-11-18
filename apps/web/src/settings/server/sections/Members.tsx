@@ -305,6 +305,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           </label>
           <input
             id="ss-member-after"
+            className="ss-select"
             type="date"
             value={joinedAfter}
             max={joinedBefore || undefined}
@@ -320,6 +321,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
           </label>
           <input
             id="ss-member-before"
+            className="ss-select"
             type="date"
             value={joinedBefore}
             min={joinedAfter || undefined}

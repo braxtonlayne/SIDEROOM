@@ -236,6 +236,7 @@ function targets(ids: Ids): Target[] {
         if (disabled !== 'true' && (await mi.isEnabled())) {
           await mi.click();
           await page.waitForSelector(selectId, { timeout: 6000 });
+          await page.waitForTimeout(700); // the dialog's enter animation (a scale) settles
           return;
         }
       }
@@ -252,6 +253,7 @@ function targets(ids: Ids): Target[] {
     const bar = page.getByRole('toolbar', { name: 'Bulk actions' });
     await bar.getByRole('button', { name: button, exact: true }).click();
     await page.waitForSelector(selectId, { timeout: 6000 });
+    await page.waitForTimeout(700); // the dialog's enter animation (a scale) settles
   };
   const pickText = async (page: Page, c: Cfg) => {
     await goto(page, SECTION('channels'), ROW);
@@ -400,7 +402,8 @@ function targets(ids: Ids): Target[] {
     {
       key: 'audit-log',
       ids: ['ss-audit-user', 'ss-audit-action'],
-      scopeSel: 'main',
+      // The entries below the filter row are a live table (the log grows with every run): the filter row is the scope.
+      scopeSel: '.ss-toolbar',
       open: (page) => goto(page, SECTION('audit-log'), '#ss-audit-user'),
       kbd: {
         id: 'ss-audit-action',

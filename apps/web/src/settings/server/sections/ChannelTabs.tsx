@@ -591,6 +591,7 @@ export function ForumSettings({
         </label>
         <input
           id="ss-forum-reaction"
+          className="ss-select"
           value={reaction}
           maxLength={8}
           onChange={(e) => setReaction(e.target.value)}
