@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { APIRequestContext, BrowserContext, Page } from '@playwright/test';
 import { repoRoot } from '../support/cli';
 import { apiPatch, apiPost, apiPut, loginApi, registerUser, test } from '../support/fixtures';
+import { edgeStrips } from '../support/edge-strips';
 import { hitTestAll, openCollapsed } from '../support/hit-test';
 
 /**
@@ -302,6 +303,7 @@ test('D-953: Compare levels and the Invoices shade, left-to-right and right-to-l
   const ownerCtx = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
   const o = ownerCtx.request;
   const shots: string[] = [];
+  const stripClips: string[] = [];
   const findings: string[] = [];
   const specErrors: string[] = [];
   const log = (rec: unknown) => appendFileSync(jsonl, `${JSON.stringify(rec)}\n`);
@@ -370,14 +372,11 @@ test('D-953: Compare levels and the Invoices shade, left-to-right and right-to-l
       },
       [OFF_ID, css, off] as const,
     );
-  /** The two edge strips (16 px) of a box, as screenshots. */
+  /** The two edge strips (16 px) of a box, as screenshots, cut from the part inside the viewport (SEC-AUD-447, D-957). */
   const strips = async (page: Page, sel: string) => {
-    const b = (await page.locator(sel).first().boundingBox())!;
-    const clip = (x: number) => ({ x, y: b.y, width: 16, height: Math.min(b.height, 120) });
-    return {
-      l: await page.screenshot({ clip: clip(b.x) }),
-      r: await page.screenshot({ clip: clip(b.x + b.width - 16) }),
-    };
+    const { l, r, clip } = await edgeStrips(page, sel, { width: 16, maxHeight: 120 });
+    stripClips.push(`${sel} y ${clip.y} h ${clip.height} viewport h ${clip.viewportHeight}`);
+    return { l, r };
   };
   const shadeAt = async (page: Page, sel: string, css: string) => {
     await setRuleOff(page, css, true);
@@ -668,6 +667,7 @@ test('D-953: Compare levels and the Invoices shade, left-to-right and right-to-l
 
   await ownerCtx.close();
   console.log(`REPORT shots ${shots.length}: ${shots.join(', ')}`);
+  console.log(`REPORT strips ${JSON.stringify(stripClips)}`);
   console.log(`REPORT findings ${JSON.stringify(findings)}`);
   console.log(`REPORT specErrors ${JSON.stringify(specErrors)}`);
   writeFileSync(
