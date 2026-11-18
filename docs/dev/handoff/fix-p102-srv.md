@@ -11,7 +11,7 @@ Area theme: Server settings is a Lounge page (main theme: Lounge Light / Lounge 
 | `sections/Integrations.tsx:351` | `#ss-webhook-channel` ("Channel") | Integrations > Webhooks tab > create (or edit) a webhook: `WebhookDialog` modal. Needs >= 1 channel (the world has) | `div` in modal form |
 | `sections/CommunityWizard.tsx:263` | component `ChannelPick` select (id passed in) ("Choose a channel") | Community section: switch "Enable Community" on while it is off (`Community.tsx:216`) opens `CommunityWizard`; selects appear on the steps that pick channels. Needs Community off in the world (do not finish the wizard: Close) | `div` |
 | `sections/Community.tsx:91` (local `ChannelSelect`) | `#ss-rules-channel`, `#ss-updates-channel`, `#ss-safety-channel` (render sites `:228, :235, :242`, shown when Community is on) and `#ss-welcome-ch-<i>` (`:605`, welcome screen card, shown when a welcome channel row exists) | Community section. Rules/updates/safety render at `Community.tsx:228-248` in the overview form; welcome ones in the Welcome tab (add a channel row). Earlier unit: `p14communityMore.test.tsx` | `div` |
-| `bridge/ConflictLog.tsx:109` | filter "Kind" (no id; inside `<label class=ss-field-label>`) | Bridge section, only when bridge mode is `whole_guild`: `BridgeSection.tsx:87`. Earlier spec `p101-mod-shots` fakes `/bridge/status` with `page.route`; a real one is not available on a `memory:` stack. Label is in `.ss-toolbar` (flex, `align-items:flex-end`) beside a `Switch` | label is a flex item, block label |
+| `bridge/ConflictLog.tsx:109` | PUT BACK TO RAW (FAULT from pageshots, see below) | - | - |
 
 Also: the `Community.tsx` channel selects of the Community section need Community enabled (guild setting) to show the overview ones; if the world has it off, the spec fakes `GET .../community` or enables it through the API under its own data.
 
@@ -29,7 +29,7 @@ All five are in the lazy `ServerSettings` chunk (`routes/settingsServer.tsx` imp
 See `git log fix/p102-srv`: one commit per file, subject `SEC-AUD-453 <file> (READY)`.
 
 ## SEC-AUD-453 text for the commander
-Server settings: PruneDialog, Integrations, CommunityWizard, Community (ChannelSelect), ConflictLog moved to `NativeSelect`; no raw `<select>` remains in these five files.
+Server settings: PruneDialog, Integrations, CommunityWizard, Community (ChannelSelect) moved to `NativeSelect`. Still raw: ConflictLog Kind filter (see Put back to raw).
 
 ## Changelog sentence
 Server settings drop-downs (prune days, webhook channel, Community channels, bridge conflict filter) use the kit's select look with a full-size touch target on a phone.
@@ -41,7 +41,10 @@ None. Note for shots: the kit select is 100 % wide inside its wrapper like `.ss-
 `bash cli-agents/tc.sh run srv bash -c "cd .../p102-srv/apps/web && npx tsc --noEmit -p ."` at 09:36 on 2026-11-18: exit 0.
 
 ## FAULTS from pageshots
-None received yet (as of 09:36).
+One, handled: see "Put back to raw".
 
 ## Heavy lock
 Never taken (code builder). No stash touched. Nothing of mine is running.
+
+## Put back to raw
+`bridge/ConflictLog.tsx` (Kind filter), file restored to b308d5e2's text. pageshots figures: select 246x40 in the base, 222x40 after, at 1024 Light, 1024 Dark and 375; the wrapper stacks the label above the select, so the switch and the cards drop 15 px, and at 1024 the switch moves 78.6 px left; the text is smaller. Cause: the label is a shrink-to-fit flex item, so the wrapper span changes its layout. Not cured. prettier and eslint on the file: exit 0; no typecheck (file equals base). The other four moved selects stand.
