@@ -477,6 +477,23 @@
   font-weight: 500;
   text-decoration: none;
 }
+/* D-1022: on a phone the link (34 px) keeps its size and gets a 44 px tap area, 5 px above and below. Beside the
+   kit's 28 px Play button (an 8 px tap area) a wrapped row needs 13 px between the lines, so a foot that holds the
+   link has a 14 px row gap. */
+@media (max-width: 40rem) {
+  .arc-cta {
+    position: relative;
+  }
+  .arc-cta::after {
+    content: '';
+    position: absolute;
+    inset-block: -5px;
+    inset-inline: 0;
+  }
+  .arc-actions:has(> .arc-cta) {
+    row-gap: 14px;
+  }
+}
 .arc-cta:hover {
   background: var(--ui-bg-hover);
 }
