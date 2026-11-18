@@ -939,14 +939,14 @@ const EXPECT: Expect[] = [
   },
   {
     scenario: 'watch-theatre',
-    name: /:Speed$/,
+    name: /:Playback speed$/i,
     mode: 'content',
     file: 'watchparty/ControlBar.tsx',
     notNarrower: true,
   },
   {
     scenario: 'watch-speed',
-    name: /:Speed$/,
+    name: /:Playback speed$/i,
     mode: 'content',
     file: 'watchparty/ControlBar.tsx',
     notNarrower: true,
