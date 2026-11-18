@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { formatJson, parseJson } from './logic';
 import { CopyButton, Field, Problem, Root } from './parts';
@@ -34,12 +35,12 @@ export default function JsonTool() {
       </Field>
       <div className="ud-row">
         <Field label={t('tools.json.indent')}>
-          <select value={indent} onChange={(e) => setIndent(e.target.value as Indent)}>
+          <NativeSelect value={indent} onChange={(e) => setIndent(e.target.value as Indent)}>
             <option value="2">{t('tools.json.spaces', { n: 2 })}</option>
             <option value="4">{t('tools.json.spaces', { n: 4 })}</option>
             <option value="tab">{t('tools.json.tab')}</option>
             <option value="min">{t('tools.json.minify')}</option>
-          </select>
+          </NativeSelect>
         </Field>
         <label className="ud-field ud-field-narrow">
           <span>{t('tools.json.sortKeys')}</span>

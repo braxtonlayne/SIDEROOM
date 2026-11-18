@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { useStore } from '../../store';
 import { RoomShell } from '../tierlist/RoomShell';
@@ -99,7 +100,7 @@ function PollEditor({ live, channelId }: { live: LiveRoom; channelId: string }) 
       <div className="sr-room-inline">
         <label className="sr-room-field">
           <span>{t('tools.poll.duration')}</span>
-          <select
+          <NativeSelect
             value={draft.hours}
             onChange={(e) => edit(setHead(view.state, { hours: Number(e.target.value) }))}
           >
@@ -108,7 +109,7 @@ function PollEditor({ live, channelId }: { live: LiveRoom; channelId: string }) 
                 {h < 24 ? t('tools.poll.hours', { n: h }) : t('tools.poll.days', { n: h / 24 })}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <label className="sr-room-check">
           <input
