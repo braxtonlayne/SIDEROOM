@@ -600,13 +600,17 @@ function compareRaw(
   const moved: { key: string; dx: number; dy: number; allowed: number }[] = [];
   base.controls.forEach((bc, i) => {
     const ac = after.controls[i]!;
+    // The summed growth of the selects above it, plus the growth of the one beside it in its row (a bottom-aligned
+    // neighbour follows the row's whole growth).
     let allowed = 0;
+    let beside = 0;
     base.selects.forEach((b, j) => {
       const a = after.selects[j]!;
       if (b.box.y + b.box.h <= bc.box.y + 0.5) allowed += a.box.h - b.box.h;
       else if (b.box.y < bc.box.y + bc.box.h && bc.box.y < b.box.y + b.box.h)
-        allowed = Math.max(allowed, (a.box.h - b.box.h) / 2 + 1);
+        beside = Math.max(beside, a.box.h - b.box.h);
     });
+    allowed += beside;
     const dy = Math.round((ac.box.y - bc.box.y) * 10) / 10;
     const dx = Math.round((ac.box.x - bc.box.x) * 10) / 10;
     if (Math.abs(dy) > allowed + 0.5 || Math.abs(dx) > 1.5)
