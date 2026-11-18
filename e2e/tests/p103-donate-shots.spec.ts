@@ -217,7 +217,7 @@ test('SEC-AUD-465 item 8: Admin > Donations selects, base and after', async ({ b
   const notes: string[] = [];
   const flag = BASE ? notes : problems; // the base is measured, not judged
   let ids: string[] = [];
-  if (!BASE && existsSync(seedFile)) {
+  if (existsSync(seedFile)) {
     ids = (JSON.parse(readFileSync(seedFile, 'utf8')) as { ids: string[] }).ids;
     console.log(`REPORT seed read from seed.json: ${ids.join(',')}`);
   } else {
@@ -314,7 +314,7 @@ test('SEC-AUD-465 item 8: Admin > Donations selects, base and after', async ({ b
               flag.push(
                 `${PFX}${s.key} ${z.tag} ${id} "${q.name}": text-transform ${q.textTransform}`,
               );
-            if (q.fontSize !== '14px')
+            if (q.fontSize !== (id.endsWith('dialog') ? '16px' : '14px'))
               flag.push(`${PFX}${s.key} ${z.tag} ${id} "${q.name}": font-size ${q.fontSize}`);
             if (!q.textClear) flag.push(`${PFX}${s.key} ${z.tag} ${id} "${q.name}": text cut`);
             const want = z.phone ? 44 : 40;
@@ -408,7 +408,10 @@ test('SEC-AUD-465 item 8: Admin > Donations selects, base and after', async ({ b
               await page.waitForTimeout(600);
               const dlg = page.locator('[role="dialog"]').last();
               await measure('resolve-dialog', 'dialog');
-              await shoot(`resolve-dialog-${z.tag}`, z.tag === '1024' || z.tag === '375');
+              await shoot(
+                `resolve-dialog-${z.tag}`,
+                (z.tag === '1024' && s.key === 'light') || z.tag === '375',
+              );
               await hits('resolve-dialog', dlg);
               if (z.tag === '1024' && s.key === 'light') {
                 const sel = dlg.locator('select').first();
@@ -456,7 +459,10 @@ test('SEC-AUD-465 item 8: Admin > Donations selects, base and after', async ({ b
         await page.waitForTimeout(700);
         const gd = page.locator('[role="dialog"]').last();
         await measure('grant-dialog', 'dialog');
-        await shoot(`grant-dialog-${z.tag}`, z.tag === '1024' || z.tag === '375');
+        await shoot(
+          `grant-dialog-${z.tag}`,
+          (z.tag === '1024' && s.key === 'light') || z.tag === '375',
+        );
         await hits('grant-dialog', gd);
         if (z.tag === '1024' && s.key === 'light') {
           const sel = gd.locator('select').first();
