@@ -41,3 +41,6 @@
 
 ## Owner questions
 None. For loungeshots: measure Kind (was 246 to 222 px, label stacked, Switch moved 78.6 px) and Area in `.pkg-toolbar`; keyboard-test one of them.
+
+## Put back (FAULT from loungeshots)
+- `bridge/ConflictLog.tsx` Kind: back to raw `<select className="ss-select">`, file identical to `integration/phase103` (49ca8946). Cause: the label touched the select (about 1 px against 9 px) and the font fell from 14 px bold to 12 px; the base `.ss-select` rule gave the gap and size, and `server-settings.css` is members'. The "Done" and proposed-row text above for ConflictLog (SEC-AUD-462/465) no longer apply; Reference Area and the `developers.css` change stand. Prettier and eslint on the file: exit 0.
