@@ -414,7 +414,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
       {members.length > 0 && (
         <>
           <div className="ss-table-scroll">
-            <table className="ss-table ss-table-stack">
+            <table className="ss-table ss-table-stack ss-members-table">
               <caption className="ss-sub">
                 {done
                   ? t('settings.members.count', { count: filtered.length })
@@ -424,8 +424,7 @@ export function MembersSection({ guildId, viewer }: SectionProps) {
                 <tr>
                   <th scope="col">
                     <Checkbox
-                      label={null}
-                      aria-label={t('settings.members.selectAll')}
+                      label={t('settings.members.selectAll')}
                       checked={allOnPage}
                       indeterminate={!allOnPage && someOnPage}
                       onChange={(e) => toggleAll(e.target.checked)}
@@ -674,7 +673,7 @@ function MemberRow({
         <>
           <td data-label={t('settings.members.colJoined')}>{joinLabel(member, t)}</td>
           <td data-label={t('settings.members.colSignals')}>
-            <span className="ss-chips">
+            <span className="ss-chips ss-signal-chips">
               {(member.sr_signals ?? []).map((sig) => (
                 <span key={sig} className="ss-role-chip">
                   {t(

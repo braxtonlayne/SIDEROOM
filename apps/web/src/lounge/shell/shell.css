@@ -1,15 +1,4 @@
 /* Shell, sidebar and modal modules added in feat/p2-lounge-shell. Kept apart from lounge.css. */
-.lng-select {
-  height: 36px;
-  padding: 0 8px;
-  border: 1px solid var(--ui-border);
-  border-radius: 4px;
-  background: var(--bg-base-lowest);
-  color: var(--text-normal);
-  font-size: 14px;
-  text-transform: none;
-  font-weight: 400;
-}
 .lng-field-label {
   font-size: 12px;
   font-weight: 700;

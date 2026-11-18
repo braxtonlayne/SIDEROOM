@@ -20,6 +20,16 @@ import type { Locator, Page } from '@playwright/test';
  * An open menu (items are `role="menuitem"`, not buttons; D-941): add them with the `also` option:
  *   const rows = await hitTestAll(page, menu, { also: MENU_ITEM_SELECTOR });
  *
+ * Reach (wave 103, SEC-AUD-467, D-983). The default, `reach: 'touch'`, is the 44 px rule above: points 21 px from the
+ * centre. A control shorter than 44 px then "fails" at pointer widths (the Arcade's 28 px buttons at 1024) in the base
+ * and after alike, so such a count cannot show a regression. `reach: 'box'` puts the points just inside the control's
+ * own top and bottom edge (offset `min(21, floor(height / 2) - 1)`, never under 1): it asks "does another element take
+ * a point of my own box", not "am I 44 px tall". Use the default at 375 with touch, always (that is where D-856
+ * applies); use `'box'` at pointer widths (1024). A pass with `'box'` never shows a control is 44 px, and a fail with
+ * a taker named is a fault at either reach. Every result reports the offset used (`offset`) and the control's height
+ * (`box.height`), so a reader can tell the two reaches apart. A number is still accepted as `reach` (a fixed offset).
+ *   const rows = await hitTestAll(page, root, { reach: 'box' });
+ *
  * Plain Playwright and DOM; nothing is imported from a spec.
  */
 
@@ -62,6 +72,8 @@ export interface Box {
 
 export interface HitResult {
   box: Box;
+  /** Distance of the above/below points from the centre, as used (21 for 'touch'). */
+  offset: number;
   points: PointResult[];
   pass: boolean;
 }
@@ -71,8 +83,11 @@ export interface HitOptions {
   sides?: boolean;
   /** A selector: a node inside the control's closest match of it counts as the control's own. */
   wrapper?: string;
-  /** Distance of the points from the centre; 21 px is D-856. */
-  reach?: number;
+  /**
+   * `'touch'` (default): points 21 px from the centre, D-856, for 375 with touch. `'box'`: points just inside the
+   * control's own edges, `min(21, floor(height / 2) - 1)` px from the centre, for pointer widths. A number: that offset.
+   */
+  reach?: 'touch' | 'box' | number;
   /** A selector: nodes under the root that match it are tested as well as the built-in controls (D-941). */
   also?: string;
 }
@@ -138,6 +153,7 @@ async function settle(page: Page): Promise<void> {
 
 interface InPageResult {
   box: Box;
+  offset: number;
   points: PointResult[];
   vw: number;
   vh: number;
@@ -145,7 +161,7 @@ interface InPageResult {
 
 /**
  * Scrolls the control to the middle of the viewport, reads its box and returns what `elementFromPoint` gave at the
- * centre, `reach` px above and below (and left and right with `opts.sides`). Throws `ProbeError` when the locator
+ * centre, `offset` px above and below (`opts.reach`: 21 for 'touch', inside the box for 'box') (and left and right with `opts.sides`). Throws `ProbeError` when the locator
  * matches nothing, the box is empty or outside the viewport after scrolling, or a point returns null. A point taken by
  * another node is a real result: `pass: false`, the taker named.
  */
@@ -159,7 +175,7 @@ export async function hitTest(
   const r = await locator.first().evaluate(inPage, {
     sides: !!opts.sides,
     wrapper: opts.wrapper ?? null,
-    reach: opts.reach ?? 21,
+    reach: opts.reach ?? 'touch',
   });
   if (r.box.width <= 0 || r.box.height <= 0)
     throw new ProbeError(`empty box ${r.box.width}x${r.box.height}: ${locator.toString()}`);
@@ -179,19 +195,25 @@ export async function hitTest(
     throw new ProbeError(
       `the point ${gone.at} (${Math.round(gone.x)}, ${Math.round(gone.y)}) is off the page`,
     );
-  return { box: r.box, points: r.points, pass: r.points.every((p) => p.ok) };
+  return { box: r.box, offset: r.offset, points: r.points, pass: r.points.every((p) => p.ok) };
 }
 
 /** Runs in the page. Kept free of closures: Playwright serialises it. */
 function inPage(
   el: Element,
-  a: { sides: boolean; wrapper: string | null; reach: number },
+  a: { sides: boolean; wrapper: string | null; reach: 'touch' | 'box' | number },
 ): InPageResult {
   (el as HTMLElement).scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
   const b = el.getBoundingClientRect();
   const box = { x: b.left, y: b.top, width: b.width, height: b.height };
   const cx = b.left + b.width / 2;
   const cy = b.top + b.height / 2;
+  const offset =
+    typeof a.reach === 'number'
+      ? a.reach
+      : a.reach === 'box'
+        ? Math.max(1, Math.min(21, Math.floor(b.height / 2) - 1))
+        : 21;
   const own = (t: Element | null): Relation | null => {
     if (!t) return null;
     if (t === el) return 'control';
@@ -241,11 +263,11 @@ function inPage(
   };
   const spec: [PointName, number, number][] = [
     ['centre', cx, cy],
-    ['above', cx, cy - a.reach],
-    ['below', cx, cy + a.reach],
+    ['above', cx, cy - offset],
+    ['below', cx, cy + offset],
   ];
   if (a.sides) {
-    spec.push(['left', cx - a.reach, cy], ['right', cx + a.reach, cy]);
+    spec.push(['left', cx - offset, cy], ['right', cx + offset, cy]);
   }
   const points = spec.map(([at, x, y]) => {
     const t = document.elementFromPoint(x, y);
@@ -266,7 +288,7 @@ function inPage(
       ok: rel !== null,
     };
   });
-  return { box, points, vw: window.innerWidth, vh: window.innerHeight };
+  return { box, offset, points, vw: window.innerWidth, vh: window.innerHeight };
 }
 
 export interface ControlRow {

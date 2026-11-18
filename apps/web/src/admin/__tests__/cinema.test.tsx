@@ -721,7 +721,7 @@ describe('Cinema transcoding', () => {
     );
     openAdmin('cinema-transcoding');
     const table = await screen.findByRole('table', { name: /jobs/i });
-    expect(within(table).getByRole('columnheader', { name: 'Bucket' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Mount' })).toBeInTheDocument();
     expect(within(table).getByText('5550001')).toBeInTheDocument();
     expect(within(table).getByText(/mount_transcode/)).toBeInTheDocument();
   });

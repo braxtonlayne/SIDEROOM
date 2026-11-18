@@ -1,3 +1,4 @@
+import { NativeSelect } from '@sideroom/ui';
 import { useState, type ReactNode } from 'react';
 import { useT } from '../../i18n';
 import { formatDuration } from './format';
@@ -86,8 +87,8 @@ export function TrackList(p: TrackListProps) {
                 {t('music.lib.row.moreLikeThis')}
               </button>
               {p.playlists && p.playlists.length > 0 && p.onAddToPlaylist && (
-                <select
-                  className="sr-mlib-select"
+                <NativeSelect
+                  fit="content"
                   aria-label={t('music.lib.row.addToPlaylist', { title: tr.title })}
                   value=""
                   onChange={(e) => {
@@ -100,7 +101,7 @@ export function TrackList(p: TrackListProps) {
                       {pl.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               )}
             </div>
           )}

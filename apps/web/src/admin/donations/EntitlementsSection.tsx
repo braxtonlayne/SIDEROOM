@@ -1,6 +1,6 @@
 // Admin > Donations > Entitlements (DON-ADM-004): grants from invoices, staff and the legacy download table;
 // manual grant and revoke, each with a reason that goes to the access log.
-import { Badge, Button, EmptyState, Notice, TextInput } from '@sideroom/ui';
+import { Badge, Button, EmptyState, NativeSelect, Notice, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { t, useT } from '../../i18n';
 import { usd } from '../../support/api';
@@ -178,10 +178,10 @@ export function EntitlementsSection() {
       >
         <label>
           {t('admin.entitlements.kind')}{' '}
-          <select value={gKind} onChange={(e) => setGKind(e.target.value as typeof gKind)}>
+          <NativeSelect value={gKind} onChange={(e) => setGKind(e.target.value as typeof gKind)}>
             <option value="patron">{t('admin.entitlements.grantDialog.patronOption')}</option>
             <option value="server_pool">{t('admin.entitlements.grantDialog.poolOption')}</option>
-          </select>
+          </NativeSelect>
         </label>
         <TextInput
           label={

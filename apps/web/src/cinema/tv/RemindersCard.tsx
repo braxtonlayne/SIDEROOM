@@ -1,6 +1,7 @@
 // "My reminders" on the Live TV page (H-01): the lead-time choice (settings blob key `tv.reminder_lead_minutes`,
 // 0 to 120, default 5) and the pending reminders with Remove. Renders nothing when the server has no such route.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { NativeSelect } from '@sideroom/ui';
 import { apiFetch } from '../../api/client';
 import { formatDate, useT } from '../../i18n';
 import { isNotAvailable, listReminders, setReminder, tvKeys } from './api';
@@ -59,7 +60,8 @@ export function RemindersCard({ tz }: { tz: string | null }) {
       <h2 className="tv-pop-sub">{t('cinema.reminders.heading')}</h2>
       <label className="tv-reminders-lead">
         {t('cinema.reminders.lead')}
-        <select
+        <NativeSelect
+          fit="content"
           value={lead}
           disabled={saveLead.isPending}
           onChange={(e) => saveLead.mutate(Number(e.target.value))}
@@ -69,7 +71,7 @@ export function RemindersCard({ tz }: { tz: string | null }) {
               {t('cinema.reminders.minutes', { count: m })}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       {(saveLead.isError || remove.isError) && (
         <p role="alert" className="tv-pop-err">

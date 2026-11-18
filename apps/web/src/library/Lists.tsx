@@ -4,6 +4,7 @@ import {
   ConfirmDialog,
   EmptyState,
   Icon,
+  NativeSelect,
   Notice,
   Skeleton,
   TextArea,
@@ -50,13 +51,17 @@ function VisibilitySelect({
   return (
     <label className="lib-select">
       <span>{t('library.lists.visibility.label')}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value as ListVisibility)}>
+      <NativeSelect
+        fit="content"
+        value={value}
+        onChange={(e) => onChange(e.target.value as ListVisibility)}
+      >
         {VISIBILITY.map((v) => (
           <option key={v.value} value={v.value}>
             {t(v.labelKey)}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

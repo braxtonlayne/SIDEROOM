@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 103 - 2026-11-18
+
+- More drop-downs have the kit's look and a full touch size on a phone: the Lounge's emoji skin tone and shelf picker, the Library's edition, kind, sort, visibility and rating pickers, the Reader's chapter picker, the music panel, the watch party's speed and season, the Live TV reminder lead time, the Study cover picker, the API reference's Area filter, the Poll builder's Lasts, the Image studio, and the calculators and Time zones in Tools. The Library's drop-downs read at the same size as the controls beside them, and the kit's `NativeSelect` gains `fit="content"` for a select as wide as its longest option.
+- The Lounge search results' Sort select keeps its focus and value while the results reload, so the arrow keys reach every option in both directions. The new-event dialog no longer runs past its edge: the end date goes under the start date. The dialog Close button on a phone is a whole 44 px target, and the Arcade's Start dialog channel rows are 44 px tall on a phone.
+- Server settings: the Members table shows its Actions column without scrolling at tablet width, and the phone's "select all" box shows its label. Admin > Donations: the Resolve dialog's Resolution and the Grant dialog's Kind are the kit's select field. The Admin Transcoding queue names its storage column Mount instead of Bucket, and its table shows the same edge shade as the Invoices table where it scrolls sideways (721 to 1100 px).
+- For the team: the CI systemd smoke now ignores warnings from the runner's own units (systemd 259), commit `da0b0474`, PR #151.
+
 ## Phase 102 - 2026-11-18
 
 - Staff: a failed transcode job's Logs now show why it failed, and the queue keeps the error to three lines. Admin > Arcade's buttons are full-size and spaced apart on a phone, and the soft shade at the edge of the Donations invoices table no longer leaves a thin line.

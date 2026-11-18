@@ -113,12 +113,16 @@
   animation: none;
 }
 
-/* D-856: a 44 px close button on a phone. The negative margins keep the header as tall as it was. */
+/* D-856: a 44 px close button on a phone. The negative margins keep the header as tall as it was.
+   SEC-AUD-460: they also push the button's lower 6 px past the header into the body, which comes later and lay over it;
+   the button is raised above the body so the whole 44 px box is the button's. */
 @media (max-width: 720px) {
   .close {
     width: 44px;
     height: 44px;
     margin-block: -6px;
     margin-inline-end: -6px;
+    position: relative;
+    z-index: 1;
   }
 }

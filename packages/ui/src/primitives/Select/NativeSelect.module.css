@@ -55,6 +55,21 @@
   padding-inline-end: 12px;
 }
 
+/* D-971 fit="content": the wrapper is as wide as the longest option plus the padding and chevron (max-content), never
+   wider than its parent, and never stretched by a column flex or grid parent (an explicit inline size). The select
+   fills the wrapper, so the chevron stays inside the field; a percentage on the select alone would collapse in an
+   inline-flex label, which is why the wrapper carries the size. */
+.wrapFit {
+  display: inline-block;
+  inline-size: max-content;
+  max-inline-size: 100%;
+  vertical-align: middle;
+}
+.selectFit {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
 /* D-856: a 44 px field on a phone (the kit's own breakpoint, as Input and Select), and on any touch screen. */
 @media (max-width: 720px), (pointer: coarse) {
   .select:not(.listbox) {

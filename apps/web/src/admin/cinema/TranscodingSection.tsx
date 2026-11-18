@@ -393,14 +393,14 @@ function QueueTab() {
       {paged.items.length > 0 && (
         <TableRegion label={t('admin.transcoding.queue.table')}>
           <table
-            className="adm-table adm-table-stack"
+            className="adm-table adm-table-stack adm-tx-table"
             aria-label={t('admin.transcoding.queue.table')}
           >
             <thead>
               <tr>
                 <th scope="col">{t('admin.transcoding.col.job')}</th>
                 <th scope="col">{t('admin.transcoding.col.asset')}</th>
-                <th scope="col">{t('admin.transcoding.col.mount')}</th>
+                <th scope="col">{t('admin.transcoding.col.storageMount')}</th>
                 <th scope="col">{t('admin.transcoding.col.state')}</th>
                 <th scope="col">{t('admin.transcoding.col.priority')}</th>
                 <th scope="col">{t('admin.transcoding.col.worker')}</th>
@@ -420,7 +420,7 @@ function QueueTab() {
                   <td data-label={t('admin.transcoding.col.asset')}>
                     <span className="adm-mono">{j.asset_id}</span>
                   </td>
-                  <td data-label={t('admin.transcoding.col.mount')}>
+                  <td data-label={t('admin.transcoding.col.storageMount')}>
                     {j.mount_id ? <span className="adm-mono">{j.mount_id}</span> : null}
                   </td>
                   <td data-label={t('admin.transcoding.col.state')}>
