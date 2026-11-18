@@ -6,6 +6,7 @@ import {
   EmptyState,
   Icon,
   Modal,
+  NativeSelect,
   Notice,
   SegmentedControl,
   Skeleton,
@@ -89,9 +90,9 @@ export function RatingBlock({ seriesId }: { seriesId: string }) {
             { value: 'friends', label: t('library.social.rating.scopeFriends') },
           ]}
         />
-        <label className="lib-select lib-rate">
+        <label className="lib-select-block">
           <span>{t('library.social.rating.yours')}</span>
-          <select
+          <NativeSelect
             value={r.mine ?? ''}
             disabled={rate.isPending}
             onChange={(e) => rate.mutate(e.target.value === '' ? null : Number(e.target.value))}
@@ -102,7 +103,7 @@ export function RatingBlock({ seriesId }: { seriesId: string }) {
                 {s}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {r.global.count > 0 && (
@@ -335,9 +336,9 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
         maxLength={8000}
         onChange={(e) => setBody(e.target.value)}
       />
-      <label className="lib-select lib-rate">
+      <label className="lib-select-block">
         <span>{t('library.social.reviews.rating')}</span>
-        <select
+        <NativeSelect
           value={rating ?? ''}
           onChange={(e) => setRating(e.target.value === '' ? null : Number(e.target.value))}
         >
@@ -347,7 +348,7 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
               {s}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <Checkbox
         label={t('library.social.reviews.spoiler')}
@@ -456,9 +457,9 @@ export function ChapterRate({ chapterId }: { chapterId: string }) {
   const r = q.data;
   return (
     <div className="lib-chapter-rate">
-      <label className="lib-select lib-rate">
+      <label className="lib-select-block">
         <span>{t('library.social.chapterRate.label')}</span>
-        <select
+        <NativeSelect
           value={r?.mine ?? ''}
           disabled={!r || rate.isPending}
           onChange={(e) => rate.mutate(e.target.value === '' ? null : Number(e.target.value))}
@@ -469,7 +470,7 @@ export function ChapterRate({ chapterId }: { chapterId: string }) {
               {s}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       {r && r.count > 0 && (
         <span className="lib-muted">
