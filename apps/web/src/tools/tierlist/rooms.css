@@ -285,3 +285,9 @@
     margin-block: -1px;
   }
 }
+
+/* SEC-AUD-489 (D-1000): the room shells' inputs state the kit's placeholder colour, as the kit's Input does. */
+.sr-room input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
