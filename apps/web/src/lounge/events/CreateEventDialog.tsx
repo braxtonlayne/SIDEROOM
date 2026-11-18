@@ -1,4 +1,4 @@
-import { Button, Modal, TextArea, TextInput } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, TextArea, TextInput } from '@sideroom/ui';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { useT, type MessageKey } from '../../i18n';
@@ -162,9 +162,8 @@ export function CreateEventDialog({
             <label className="lng-field-label" htmlFor="event-channel">
               {t('lounge.createEvent.channel')}
             </label>
-            <select
+            <NativeSelect
               id="event-channel"
-              className="lng-select"
               value={chosen}
               onChange={(e) => setChannel(e.target.value)}
             >
@@ -176,7 +175,7 @@ export function CreateEventDialog({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         )}
         <TextInput

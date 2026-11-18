@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@sideroom/ui';
+import { Button, NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import {
   clearTarget,
@@ -143,7 +143,7 @@ export function ShelfPanel({ guildId }: { guildId: string }) {
         </p>
       )}
       <div className="lng-scr-actions">
-        <select
+        <NativeSelect
           className="lng-scr-input"
           aria-label={t('lounge.scrapbook.shelfPick')}
           value={pick}
@@ -155,7 +155,7 @@ export function ShelfPanel({ guildId }: { guildId: string }) {
               {m.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <Button onClick={() => void choose()} disabled={!pick}>
           {t('lounge.scrapbook.shelfSet')}
         </Button>
