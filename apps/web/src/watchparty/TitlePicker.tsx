@@ -1,6 +1,6 @@
 // Pick a title or an episode to watch together: a search box over the Cinema catalog and, for series, a season
 // and episode list. Plain state and effects (no query cache), so it also works inside the Lounge.
-import { Button, Spinner, TextInput } from '@sideroom/ui';
+import { Button, NativeSelect, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useId, useState } from 'react';
 import { getEpisodes, searchTitles } from '../cinema/api';
 import type { Episode, Title } from '../cinema/types';
@@ -179,7 +179,8 @@ function EpisodePicker({
         <strong>{title.title}</strong>
         <label className="wp-inline">
           <span className="wp-muted">{tr('watchparty.titlePicker.season')}</span>
-          <select
+          <NativeSelect
+            fit="content"
             value={season}
             onChange={(e) => setSeason(Number(e.target.value))}
             aria-label={tr('watchparty.titlePicker.season')}
@@ -189,7 +190,7 @@ function EpisodePicker({
                 {n}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       {eps === null && !failed && <Spinner label={tr('watchparty.titlePicker.loadingEpisodes')} />}
