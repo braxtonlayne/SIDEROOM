@@ -123,9 +123,9 @@ export function Browse({ search }: { search: BrowseSearch }) {
               options={KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
             />
             <div className="lib-browse-tools">
-              <label className="lib-select">
+              <label>
                 <span className="lib-sr-only">{t('library.browse.sortBy')}</span>
-                <select
+                <NativeSelect
                   value={search.sort ?? 'updated'}
                   onChange={(e) => go({ sort: e.target.value as SortKey })}
                 >
@@ -134,7 +134,7 @@ export function Browse({ search }: { search: BrowseSearch }) {
                       {t(s.labelKey)}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
               <button
                 type="button"
