@@ -118,6 +118,15 @@
   padding-inline: 2px;
   font-weight: 600;
 }
+/* D-1022: on a phone the Recently added pills (25 px) and the breadcrumb buttons (23 px) are 44 px tall: their rows
+   grow (a tap area would cover the row beside or under them). The drawn pill grows with it. The mounts and folder
+   buttons are not changed. */
+@media (max-width: 48rem) {
+  .stu-rail button,
+  .stu-crumbs button {
+    min-block-size: 44px;
+  }
+}
 .stu-crumbs button:hover,
 .stu-crumbs button:focus-visible {
   text-decoration: underline;
