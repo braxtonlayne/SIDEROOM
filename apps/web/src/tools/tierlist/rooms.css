@@ -15,8 +15,7 @@
   font-size: 0.75rem;
   color: var(--ui-text-muted);
 }
-.sr-room input,
-.sr-room select {
+.sr-room input {
   min-inline-size: 0;
   padding-block: 0.25rem;
   padding-inline: 0.5rem;
@@ -27,7 +26,7 @@
   font: inherit;
 }
 .sr-room input:focus-visible,
-.sr-room select:focus-visible,
+.sr-room-move:focus-visible,
 .sr-room button:focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 1px;
@@ -208,9 +207,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* SEC-AUD-464 (D-972): the chip's select stays a raw select (a 40 px kit field would make every chip 40 px tall),
+ * so it carries its own box by class; the sheet no longer styles a select by element name. */
 .sr-room-move {
+  min-inline-size: 0;
   max-inline-size: 5rem;
-  padding-block: 0 !important;
+  padding-block: 0;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font: inherit;
   font-size: 0.75rem;
 }
 .sr-room-img {
