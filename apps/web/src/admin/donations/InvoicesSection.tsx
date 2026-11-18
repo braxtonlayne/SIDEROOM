@@ -13,6 +13,7 @@ import {
 } from '../../support/api';
 import { useT } from '../../i18n';
 import { LoadMore, ReasonDialog, SectionHeader, StateBadge, fmtMs, usePaged } from '../ui';
+import { TableRegion } from '../TableRegion';
 import * as api from './api';
 import './donations.css';
 
@@ -290,12 +291,7 @@ export function InvoicesSection() {
         />
       )}
       {paged.items.length > 0 && (
-        <div
-          className="adm-table-wrap"
-          role="region"
-          aria-label={t('admin.donations.invoices.title')}
-          tabIndex={0}
-        >
+        <TableRegion label={t('admin.donations.invoices.title')}>
           <table className="adm-table adm-table-stack inv-table">
             <caption className="us-sr">{t('admin.donations.invoices.title')}</caption>
             <thead>
@@ -335,7 +331,7 @@ export function InvoicesSection() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
       {open && <Detail id={open} onClose={() => setOpen(null)} onChanged={paged.reload} />}

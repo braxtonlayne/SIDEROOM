@@ -12,6 +12,7 @@ import type { BugReportDetail, BugReportRow, BugStatus } from '../../bugreport/c
 import { setBugOpenCount } from '../../bugreport/openState';
 import { formatNumber, useT } from '../../i18n';
 import { Async, Loading, SectionHeader, fmtMs, useAdminViewer, useResource } from '../ui';
+import { TableRegion } from '../TableRegion';
 import './bugs.css';
 
 /**
@@ -119,7 +120,7 @@ function BugList({ onOpen }: { onOpen: (id: string) => void }) {
             />
           ) : (
             <>
-              <div className="adm-table-wrap">
+              <TableRegion label={t('admin.bugs.tableLabel')}>
                 <table className="adm-table adm-bug-table" aria-label={t('admin.bugs.tableLabel')}>
                   <thead>
                     <tr>
@@ -166,7 +167,7 @@ function BugList({ onOpen }: { onOpen: (id: string) => void }) {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableRegion>
               {moreError && (
                 <Notice variant="danger" role="alert">
                   {t('admin.bugs.loadMoreFailed')}
@@ -423,7 +424,7 @@ function BugDetailBody({
         {failed.length === 0 ? (
           <p className="ss-meta">{t('admin.bugs.none')}</p>
         ) : (
-          <div className="adm-table-wrap">
+          <TableRegion label={t('admin.bugs.failedLabel')}>
             <table className="adm-table" aria-label={t('admin.bugs.failedLabel')}>
               <thead>
                 <tr>
@@ -446,7 +447,7 @@ function BugDetailBody({
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
         )}
       </section>
 

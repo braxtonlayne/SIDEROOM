@@ -17,6 +17,7 @@ import {
   useAdminViewer,
   useResource,
 } from '../ui';
+import { TableRegion } from '../TableRegion';
 
 export interface TreeRow {
   node: api.InviteNode;
@@ -302,7 +303,7 @@ function ListView({
 }) {
   const t = useT();
   return (
-    <div className="adm-table-wrap">
+    <TableRegion label={t('admin.graph.listLabel')}>
       <table className="adm-table" aria-label={t('admin.graph.listLabel')}>
         <thead>
           <tr>
@@ -336,7 +337,7 @@ function ListView({
           ))}
         </tbody>
       </table>
-    </div>
+    </TableRegion>
   );
 }
 

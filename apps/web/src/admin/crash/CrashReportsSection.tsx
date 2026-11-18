@@ -11,6 +11,7 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { formatNumber, type MessageKey, useT } from '../../i18n';
 import { Async, Loading, SectionHeader, fmtMs, useResource } from '../ui';
 import * as api from './api';
+import { TableRegion } from '../TableRegion';
 import './crash.css';
 
 /**
@@ -176,7 +177,7 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
                     : {})}
                 />
               ) : (
-                <div className="adm-table-wrap">
+                <TableRegion label={t('admin.crash.tableLabel')}>
                   <table
                     className="adm-table adm-table-stack adm-crash-table"
                     aria-label={t('admin.crash.tableLabel')}
@@ -242,7 +243,7 @@ function CrashList({ onOpen }: { onOpen: (id: string) => void }) {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableRegion>
               )}
             </>
           )
@@ -331,7 +332,7 @@ function CrashDetailBody({ report, back }: { report: api.CrashDetail; back: Reac
         {frames.length === 0 ? (
           <p className="ss-meta">{t('admin.crash.noFrames')}</p>
         ) : (
-          <div className="adm-table-wrap">
+          <TableRegion label={t('admin.crash.framesLabel')}>
             <table className="adm-table" aria-label={t('admin.crash.framesLabel')}>
               <thead>
                 <tr>
@@ -354,7 +355,7 @@ function CrashDetailBody({ report, back }: { report: api.CrashDetail; back: Reac
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
         )}
       </section>
 
@@ -383,7 +384,7 @@ function CrashDetailBody({ report, back }: { report: api.CrashDetail; back: Reac
         {replay.length === 0 ? (
           <p className="ss-meta">{t('admin.crash.noReplay')}</p>
         ) : (
-          <div className="adm-table-wrap">
+          <TableRegion label={t('admin.crash.replayLabel')}>
             <table className="adm-table" aria-label={t('admin.crash.replayLabel')}>
               <thead>
                 <tr>
@@ -404,7 +405,7 @@ function CrashDetailBody({ report, back }: { report: api.CrashDetail; back: Reac
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableRegion>
         )}
       </section>
     </>

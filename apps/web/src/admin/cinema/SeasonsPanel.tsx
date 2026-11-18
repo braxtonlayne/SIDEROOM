@@ -7,6 +7,7 @@ import { useAdminViewer } from '../ui';
 import * as api from './api';
 import { ArtworkPicker } from './ArtworkPicker';
 import { Banner, intOrNull, useRun } from './hooks';
+import { TableRegion } from '../TableRegion';
 
 interface Props {
   detail: api.AdminTitleDetail;
@@ -254,7 +255,7 @@ function EpisodesTable({
     );
 
   return (
-    <div className="adm-table-wrap">
+    <TableRegion label={t('admin.seasonsPanel.ep.tableAria', { n: season.number })}>
       <Banner error={error} notice={notice} />
       <table
         className="adm-table"
@@ -407,7 +408,7 @@ function EpisodesTable({
           ).then(() => setRemove(null));
         }}
       />
-    </div>
+    </TableRegion>
   );
 }
 

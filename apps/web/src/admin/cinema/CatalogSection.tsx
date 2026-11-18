@@ -17,6 +17,7 @@ import { SectionHeader, LoadMore, useAdminViewer, usePaged } from '../ui';
 import * as api from './api';
 import { Banner, LoadProblem, useRun } from './hooks';
 import { TitleEditor } from './TitleEditor';
+import { TableRegion } from '../TableRegion';
 
 const ANY = '__any';
 const PAGE = 24;
@@ -187,7 +188,7 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
         />
       )}
       {view.length > 0 && (
-        <div className="adm-table-wrap">
+        <TableRegion label={t('admin.catalog.table')}>
           <table className="adm-table adm-table-stack" aria-label={t('admin.catalog.table')}>
             <thead>
               <tr>
@@ -287,7 +288,7 @@ function TitleList({ onOpen }: { onOpen: (id: string | 'new') => void }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableRegion>
       )}
       <LoadMore paged={paged} />
       <MergeDialog
