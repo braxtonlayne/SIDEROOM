@@ -1,0 +1,38 @@
+# fix-p102-reader (code builder, pod pages; SEC-AUD-453, D-958)
+
+Clock: started 09:30 (`date`), REACH and Reader move committed 09:35.
+
+## REACH table
+All five files are loaded only through `apps/web/src/library/routes.tsx` `lazyNamed(() => import(...))` (Lists, Rankings, Pages, SeriesPage, Reader): the Library lazy chunk. None is imported statically by first paint or a public page. Home.tsx imports only `./social` from Rankings' neighbours, not Rankings. Theme: Library shipped `sectionThemes.library = 'sideroom'`, once `'lounge-light'`. None sits in an inline-flex label (`lib-rate`).
+
+| # | File:line | Select | Page / how to open | Sheet rule now | Status |
+|---|---|---|---|---|---|
+| 1 | `library/reader/Reader.tsx:844` | chapter picker (label `lib-chapter-select`, sr-only name "library.reader.chapterSelect") | `/library/r/$chapterId/1`, a series with 2+ chapters (the component returns null under 2). Reader chrome (dark). | `library.css:1040` `.lib-chapter-select select` (max-width 220, height 32, hard-coded dark colours/border). Sets no padding, so the kit's end padding for the chevron stays. | **MOVED** (READY). Effective height 40 (min-block-size) / 44 coarse; kit chevron colour is `--ui-text-muted`: shots builder to check it reads on the dark chrome, and that the 220 px cap still holds (the cap is on the select inside a 100 % wrapper). Tests: `reader.test.tsx` 16/16 pass unedited. |
+| 2 | `library/SeriesPage.tsx:182` | Edition (`label.lib-select.lib-edition`) | `/library/s/$seriesId`, a series with 2+ editions | `library.css:737` `.lib-select select` | **LEFT RAW** |
+| 3 | `library/Rankings.tsx:53` | Kind (`label.lib-select`, sr-only name) | `/library/rankings` | `library.css:737` | **LEFT RAW** |
+| 4 | `library/Pages.tsx:186` | Sort (`label.lib-select`) | `/library/my` (My library) | `library.css:737` | **LEFT RAW** |
+| 5 | `library/Lists.tsx:53` | Who can see it (`label.lib-select`) | `/library/lists` (new-list form) | `library.css:737` | **LEFT RAW** |
+
+Why 2 to 5 stay raw: `library.css:737` `.lib-select select { height: 36px; padding: 0 10px; background: var(--sr-bg-1); border: ...; font-size: 14px }` has specificity (0,1,1), above the kit's `.select` (0,1,0). It would override the kit's end padding (36 px for the chevron: the text would run under the chevron), the colours and the font, and the sheet is the library builder's (D-966 covers library's four selects only and moves them to `lib-select-block`). Taking the class off the label would change layout, which "nothing else changes" forbids. Not measured (stack-free); the cascade is the reason. The cure is a sheet change (`.lib-select > select` narrowed or the labels moved to `lib-select-block`) for the next wave, in library's file.
+
+Found by class in tests: `e2e/tests/p78-library-shots.spec.ts:300` `.lib-select select` (Browse, not mine). Unit tests find mine by label text. No test finds `.lib-chapter-select`.
+
+## Done
+- `SEC-AUD-453 Reader.tsx (READY)`: chapter select -> `NativeSelect`, same value/onChange/children, class stays on the label; the diff is import + 2 tags.
+
+## Not done
+- Four selects left raw, above.
+
+## TYPECHECK
+(filled at the end)
+
+## STACK-ROUND
+none (code builder)
+
+## SEC-AUD-453 text
+Raw `<select>` still in reader's files: SeriesPage edition, Rankings kind, Pages sort, Lists visibility, all behind `library.css:737`.
+
+## Proposed rows / changelog / questions
+- Proposed row: SEC-AUD-455 `.lib-select select` (library.css:737) blocks the kit select for 4 selects in SeriesPage, Rankings, Pages, Lists.
+- Changelog: the Reader's chapter picker uses the kit's select.
+- Owner question: let the next wave narrow `.lib-select select` so the remaining four can move?
