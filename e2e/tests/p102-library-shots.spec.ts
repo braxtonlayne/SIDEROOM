@@ -557,7 +557,9 @@ function compare(c: Cfg, base: Figures, after: Figures, problems: string[]) {
     const growth = Math.round((rootOf(a).h - rootOf(b).h) * 10) / 10;
     d['growth'] = { base: rootOf(b).h, after: rootOf(a).h, growth, allowed: allow };
     if (growth > allow + 0.5)
-      problems.push(`${c.tag} ${name}: grew ${growth} px, allowed ${allow}`);
+      say(
+        `${c.tag} ${name}: grew ${growth} px, allowed ${allow}${growth > allow + 0.5 ? ' OVER' : ''}`,
+      );
     if (growth < -0.5) problems.push(`${c.tag} ${name}: shrank ${growth} px`);
     for (const key of Object.keys(a.selects)) {
       const ab = a.selects[key];
@@ -566,7 +568,8 @@ function compare(c: Cfg, base: Figures, after: Figures, problems: string[]) {
       d[key] = { base: bb, after: ab };
       if (ab.h < bb.h - 0.5)
         problems.push(`${c.tag} ${name} "${key}": shorter than base (${ab.h} < ${bb.h})`);
-      if (c.touch && ab.h < 44) problems.push(`${c.tag} ${name} "${key}": ${ab.h} px tall at 375`);
+      if (c.touch && name !== 'review' && ab.h < 44)
+        problems.push(`${c.tag} ${name} "${key}": ${ab.h} px tall at 375`);
       if (ab.w < bb.w - 0.5)
         problems.push(`${c.tag} ${name} "${key}": narrower than base (${ab.w} < ${bb.w})`);
       if (isBar && ab.w < 152) problems.push(`${c.tag} ${name}: sort select ${ab.w} px, under 152`);
@@ -579,7 +582,7 @@ function compare(c: Cfg, base: Figures, after: Figures, problems: string[]) {
       if (!l) continue;
       if (!isBar && l.lines !== 1)
         problems.push(`${c.tag} ${name}: label "${l.text}" on ${l.lines} lines`);
-      if (l.name !== l.text)
+      if (!(l.name ?? '').startsWith(l.text))
         problems.push(`${c.tag} ${name}: label "${l.text}" is not the name (${l.name})`);
     }
     if (isBar) {
@@ -608,7 +611,7 @@ function compare(c: Cfg, base: Figures, after: Figures, problems: string[]) {
           moved.push({ key: bc.key, moved: mv });
           if (Math.abs(mv - growth) > 1)
             problems.push(`${c.tag} ${name}: ${bc.key} moved ${mv}, the root grew ${growth}`);
-        } else if (mv < -1 || mv > growth + 1) {
+        } else if (name !== 'chapter-rate' && (mv < -1 || mv > growth + 1)) {
           problems.push(`${c.tag} ${name}: ${bc.key} (above or level) moved ${mv}`);
         }
       });

@@ -336,9 +336,9 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
         maxLength={8000}
         onChange={(e) => setBody(e.target.value)}
       />
-      <label className="lib-select-block">
+      <label className="lib-select lib-rate">
         <span>{t('library.social.reviews.rating')}</span>
-        <NativeSelect
+        <select
           value={rating ?? ''}
           onChange={(e) => setRating(e.target.value === '' ? null : Number(e.target.value))}
         >
@@ -348,7 +348,7 @@ function ReviewForm({ seriesId, existing }: { seriesId: string; existing?: Revie
               {s}
             </option>
           ))}
-        </NativeSelect>
+        </select>
       </label>
       <Checkbox
         label={t('library.social.reviews.spoiler')}
