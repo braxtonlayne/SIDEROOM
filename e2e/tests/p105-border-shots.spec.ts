@@ -276,6 +276,7 @@ async function measureFields(
       const loc = page.locator(`[data-p105b="${f.n}"]`).first();
       try {
         await loc.scrollIntoViewIfNeeded({ timeout: 2000 });
+        await loc.evaluate((e) => (e as HTMLElement).blur()); // a dialog autofocuses its first field: hover alone
         await loc.hover({ timeout: 3000, force: true });
         const hb = await loc.evaluate((e) => getComputedStyle(e).borderTopColor);
         const hv = borderVis(hb);
