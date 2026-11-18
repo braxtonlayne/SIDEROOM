@@ -893,6 +893,16 @@
 .lng-search input:focus-visible {
   outline: none;
 }
+/* D-1023: the pill (no border of its own) draws the ring the input does not, folded to an icon and open; the
+   placeholder is the kit's faint text at full opacity. */
+.lng-search:has(input:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-search input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
 
 /* D-1014 (SEC-AUD-495): when the header is short of room for its title and its tools, the search field folds to an icon
    the size of the other tool buttons; focusing it (or anything in its panel) opens it to full width over the title,
@@ -1520,6 +1530,22 @@
   color: var(--text-normal);
   font-size: 18px;
   box-sizing: border-box;
+}
+/* D-1024: the kit field's manners (the Drawer's copy in tools.css keeps its own ring and box). */
+.lng-switcher-input {
+  border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.lng-switcher-input:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-switcher-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-switcher-input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .lng-switcher-list {
   list-style: none;
@@ -2234,6 +2260,16 @@
     flex: 1 1 0;
     min-inline-size: 96px;
   }
+  /* D-1022 (A.1): the identity button keeps its 28px box and gets a 44px tap area (the header is 48px tall). */
+  .lng-header[data-dm] .lng-dm-identity {
+    position: relative;
+  }
+  .lng-header[data-dm] .lng-dm-identity::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
   .lng-header[data-dm] .lng-header-tools {
     margin-inline-start: 0;
     gap: 0;
@@ -2363,10 +2399,13 @@
   inline-size: 100%;
   min-inline-size: 0;
   block-size: 44px;
-  padding-inline: 12px;
+  padding-inline: 12px 0;
 }
 .lng-search-sheet .lng-search input {
+  box-sizing: border-box;
   min-inline-size: 0;
+  block-size: 100%;
+  padding-inline: 0 12px;
   font-size: 16px;
 }
 .lng-search-sheet .lng-search-panel {

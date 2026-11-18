@@ -123,9 +123,21 @@
   margin-block-end: 8px;
   padding: 6px 8px;
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: 6px;
   background: var(--bg-base-lower);
   color: var(--text-normal);
+}
+.lng-threads-search:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-threads-search:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-threads-search::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .lng-thread-nest {
   list-style: none;
