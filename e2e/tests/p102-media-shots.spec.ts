@@ -645,12 +645,15 @@ const SCENARIOS: Scenario[] = [
     files: ['watchparty/ControlBar.tsx'],
     family: 'section',
     section: 'cinema',
-    group: 'watch-theatre',
+    group: 'watch-speed',
     minSelects: 1,
-    async open(page) {
-      // Same page as watch-theatre, the control bar's own section.
+    async open(page, _c, ids) {
+      if (!ids.partyId) throw new Error('not reached: no party on the movie could be made');
+      await goto(page, `/cinema/party/${ids.partyId}`);
+      await page.locator('.wp-root').waitFor({ timeout: 40_000 });
       const bar = page.getByRole('combobox', { name: 'Speed' });
       await bar.waitFor(SIGNAL);
+      await settled(page);
       return page.locator('.wp-stage-wrap');
     },
     focus: (root) => root.getByRole('combobox', { name: 'Speed' }),
@@ -665,8 +668,12 @@ const SCENARIOS: Scenario[] = [
     group: 'watch-picker',
     minSelects: 1,
     async open(page, _c, ids) {
-      if (!ids.emptyPartyId) throw new Error('not reached: no empty party could be made');
-      await goto(page, `/cinema/party/${ids.emptyPartyId}`);
+      if (!ids.partyId || !ids.seriesId)
+        throw new Error('not reached: no party or series could be made');
+      await goto(page, `/cinema/party/${ids.partyId}`);
+      await page.locator('.wp-root').waitFor({ timeout: 40_000 });
+      await page.getByRole('tab', { name: /Queue/ }).click();
+      await page.getByRole('button', { name: 'Add to queue' }).first().click();
       const box = page.getByRole('textbox', { name: 'Search the cinema' });
       await box.waitFor({ timeout: 40_000 });
       await box.fill(ids.seriesName);
@@ -819,6 +826,9 @@ const SCENARIOS: Scenario[] = [
     async open(page, _c, ids) {
       if (!ids.newsCh) throw new Error('not reached: no announcement channel could be made');
       await goto(page, `/channels/${ids.guildId}/${ids.newsCh}`);
+      const more = page.getByRole('button', { name: /more actions/i }).first();
+      await more.waitFor({ state: 'visible', timeout: 6000 }).catch(() => undefined);
+      if (await more.isVisible().catch(() => false)) await more.click();
       await page.getByRole('button', { name: 'Follow' }).first().click({ timeout: 40_000 });
       const dlg = page.getByRole('dialog').last();
       await dlg.locator('select').first().waitFor(SIGNAL);
@@ -866,7 +876,7 @@ const SCENARIOS: Scenario[] = [
       return panel;
     },
     focus: (root) => root.locator('select').first(),
-    kbd: { pick: (root) => root.locator('select').first(), settleMs: 900 },
+    kbd: { pick: (root) => root.locator('select').first(), settleMs: 2200 },
   },
   {
     key: 'lounge-emoji',
