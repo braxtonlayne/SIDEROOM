@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import type { BrowserContext, Locator, Page, Route } from '@playwright/test';
 import { repoRoot } from '../support/cli';
 import { apiPatch, apiPost, expect, test } from '../support/fixtures';
-import { serveTone } from '../support/playerAudio';
 import { apiDelete } from '../support/world';
 
 /**
@@ -125,40 +124,24 @@ const TRACKS = [1, 2, 3].map((n) => ({
   genres: [],
   tags: [],
 }));
-const PLAY_TRACKS = [1, 2, 3].map((n) => ({
-  id: `p105m-p${n}`,
-  title: `Tone ${n}`,
-  artist: 'E2E',
-  src: `/e2e-tone-${n}.wav`,
-}));
-type PlayerWin = {
-  __srPlayerActions: { setSkin(k: string): void; play(t: unknown): void };
-  __srPlayer: { audio: HTMLAudioElement };
-};
 
 async function openPlayer(page: Page) {
-  await serveTone(page);
   await page.route('**/api/v1/music/library*', (r) =>
     r.request().method() === 'GET'
       ? json(r, { items: TRACKS, total: TRACKS.length })
       : r.fallback(),
   );
-  await page.route(/\/api\/v1\/music\/playlists\/[^/]+\/items$/, (r) =>
+  await page.route(
+    //api/v1/music/playlists/[^/]+/items$/, (r) =>
     r.request().method() === 'POST' ? json(r, {}) : r.fallback(),
   );
   await page.goto('/channels/@me', { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await page.waitForFunction(() => document.readyState === 'complete');
-  await page.mouse.click(2, 2);
-  await page.waitForFunction(() => (window as unknown as Partial<PlayerWin>).__srPlayerActions, {
-    timeout: 30_000,
-  });
-  await page.evaluate(
-    (t) => (window as unknown as PlayerWin).__srPlayerActions.play(t),
-    PLAY_TRACKS,
-  );
-  await page.waitForFunction(() => (window as unknown as Partial<PlayerWin>).__srPlayer);
-  await page.evaluate(() => (window as unknown as PlayerWin).__srPlayerActions.setSkin('library'));
-  await page.locator('.sr-ply[data-skin="library"]').waitFor({ timeout: 25_000 });
+  // a member opens the library from the guild rail (built mode has no test handle)
+  const rail = page.getByRole('button', { name: 'Music library', exact: true }).first();
+  await rail.waitFor({ timeout: 40_000 });
+  await rail.click();
+  await page.locator('#sr-mlib-tab-playlists').waitFor({ timeout: 25_000 });
   await page.waitForTimeout(1200);
 }
 
