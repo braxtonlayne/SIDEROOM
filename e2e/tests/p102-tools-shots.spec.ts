@@ -664,6 +664,20 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
     if (PHASE === 'after' && !baseFigs)
       say('no measure-base.json: figures recorded, nothing compared');
 
+    // Written after every configuration, so a stack that dies late keeps what it measured.
+    const outFile = resolve(OUT, `measure-${PHASE}.json`);
+    const prev =
+      ONLY && existsSync(outFile)
+        ? (JSON.parse(readFileSync(outFile, 'utf8')) as Record<string, Figures>)
+        : {};
+    const flush = () => {
+      writeFileSync(outFile, JSON.stringify({ ...prev, ...all }, null, 1));
+      if (PHASE === 'after')
+        writeFileSync(
+          resolve(OUT, 'report-after.json'),
+          JSON.stringify({ problems, unreached }, null, 1),
+        );
+    };
     for (const cfg of CONFIGS) {
       await setMain(owner, cfg.theme);
       const room = await apiPost<{ id: string }>(owner.request, `/guilds/${guildId}/channels`, {
@@ -741,19 +755,11 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
       } finally {
         if (errors.length) say(`page errors ${cfg.tag}: ${errors.join('; ')}`);
         await ctx.close();
+        flush();
       }
     }
-    const outFile = resolve(OUT, `measure-${PHASE}.json`);
-    const prev =
-      ONLY && existsSync(outFile)
-        ? (JSON.parse(readFileSync(outFile, 'utf8')) as Record<string, Figures>)
-        : {};
-    writeFileSync(outFile, JSON.stringify({ ...prev, ...all }, null, 1));
+    flush();
     if (PHASE === 'after' && baseFigs) {
-      writeFileSync(
-        resolve(OUT, 'report-after.json'),
-        JSON.stringify({ problems, unreached }, null, 1),
-      );
       for (const cfg of CONFIGS) for (const t of TARGETS) await pair(browser, `${t.id}-${cfg.tag}`);
     }
     say(
