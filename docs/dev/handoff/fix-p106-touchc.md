@@ -43,3 +43,5 @@ none.
 
 ## PROCESSES
 strays: none found
+
+Note from the integration: this branch's commit subjects say D-1021 by mistake; they name a census, not a decision. D-1021 is the kit Modal's focus on open (SEC-AUD-507).
