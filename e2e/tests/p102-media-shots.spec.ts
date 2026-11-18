@@ -34,7 +34,7 @@ import { apiDelete } from '../support/world';
  * Configs: the Lounge's (1024 Lounge Dark, 1024 Lounge Light, 375 touch Lounge Light) for the Lounge, the music
  * panel and the Stack skin; the sections' (1024 shipped, 375 touch shipped, 1024 light) for the Cinema (watch party),
  * Live TV and the Study (`sectionThemes` cinema / live-tv / library set explicitly and read back). `data-theme` is read
- * back from the page before each shot. `SR_P102_MEDIA_ONLY` is a regex on the scenario key (fix a spec error without
+ * back from the page before each shot. `SR_P102_MEDIA_ALL=1` adds the scenarios whose selects stay raw (equal in both phases, a check that nothing else moved). `SR_P102_MEDIA_ONLY` is a regex on the scenario key (fix a spec error without
  * running all).
  *
  * Local only (SR_P102_MEDIA_ON=1). SR_P102_MEDIA_OUT is the folder of the shots and the figures.
@@ -53,6 +53,7 @@ const PHASE = process.env.SR_P102_MEDIA_PHASE === 'base' ? 'base' : 'after';
 const OUT =
   process.env.SR_P102_MEDIA_OUT ??
   'C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p102-media';
+const ALL = process.env.SR_P102_MEDIA_ALL === '1';
 const ONLY = process.env.SR_P102_MEDIA_ONLY ? new RegExp(process.env.SR_P102_MEDIA_ONLY) : null;
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
 const STATE = resolve(repoRoot, 'e2e', '.state', 'sweep');
@@ -497,6 +498,8 @@ interface Scenario {
   family: Family;
   /** The section whose theme `data-theme` must show (section family). */
   section?: 'cinema' | 'library' | 'live-tv';
+  /** In the default set: its select is moved by a code builder. The others (left raw) run with SR_P102_MEDIA_ALL=1. */
+  core: boolean;
   /** Scenarios of one group share one page per config. */
   group: string;
   minSelects: number;
@@ -618,6 +621,7 @@ const dialogOf = (page: Page, name: string | RegExp) => page.getByRole('dialog',
 const SCENARIOS: Scenario[] = [
   {
     key: 'watch-theatre',
+    core: true,
     files: ['watchparty/PeoplePanel.tsx (x2)', 'watchparty/ControlBar.tsx'],
     family: 'section',
     section: 'cinema',
@@ -637,6 +641,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'watch-speed',
+    core: true,
     files: ['watchparty/ControlBar.tsx'],
     family: 'section',
     section: 'cinema',
@@ -653,6 +658,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'watch-picker',
+    core: true,
     files: ['watchparty/TitlePicker.tsx'],
     family: 'section',
     section: 'cinema',
@@ -676,6 +682,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'watch-start',
+    core: true,
     files: ['watchparty/StartPartyDialog.tsx'],
     family: 'section',
     section: 'cinema',
@@ -696,6 +703,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'tv-reminders',
+    core: false,
     files: ['cinema/tv/RemindersCard.tsx'],
     family: 'section',
     section: 'live-tv',
@@ -720,6 +728,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'study-edit',
+    core: false,
     files: ['study/StudyDialogs.tsx'],
     family: 'section',
     section: 'library',
@@ -741,6 +750,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'music-playlists',
+    core: false,
     files: ['music/panel/sections.tsx (Playlists, whose)'],
     family: 'lounge',
     group: 'music',
@@ -751,6 +761,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'music-eq',
+    core: false,
     files: ['music/panel/sections.tsx (Equalizer, preset)'],
     family: 'lounge',
     group: 'music',
@@ -761,6 +772,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'music-tracks',
+    core: true,
     files: ['music/panel/TrackList.tsx'],
     family: 'lounge',
     group: 'music',
@@ -771,19 +783,20 @@ const SCENARIOS: Scenario[] = [
       const more = root.getByRole('button', { name: /^More for / }).first();
       await more.waitFor(SIGNAL);
       await more.click();
-      await root.getByRole('combobox', { name: /^Add to playlist/ }).waitFor(SIGNAL);
+      await root.getByRole('combobox', { name: /^Add .* to a playlist/ }).waitFor(SIGNAL);
       await page.waitForTimeout(400);
       return root;
     },
-    focus: (root) => root.getByRole('combobox', { name: /^Add to playlist/ }).first(),
+    focus: (root) => root.getByRole('combobox', { name: /^Add .* to a playlist/ }).first(),
     kbd: {
-      pick: (root) => root.getByRole('combobox', { name: /^Add to playlist/ }).first(),
+      pick: (root) => root.getByRole('combobox', { name: /^Add .* to a playlist/ }).first(),
       noChange: true,
       settleMs: 600,
     },
   },
   {
     key: 'stack-eq',
+    core: false,
     files: ['player/skins/backdrop/StackSkin.tsx'],
     family: 'lounge',
     group: 'stack',
@@ -798,6 +811,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'lounge-follow',
+    core: true,
     files: ['lounge/header/FollowButton.tsx'],
     family: 'lounge',
     group: 'follow',
@@ -816,6 +830,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'lounge-forum',
+    core: false,
     files: ['lounge/forum/ForumView.tsx'],
     family: 'lounge',
     group: 'forum',
@@ -832,6 +847,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'lounge-search',
+    core: true,
     files: ['lounge/SearchBox.tsx'],
     family: 'lounge',
     group: 'search',
@@ -854,6 +870,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     key: 'lounge-emoji',
+    core: false,
     files: ['lounge/components/EmojiPicker.tsx'],
     family: 'lounge',
     group: 'emoji',
@@ -1058,7 +1075,9 @@ test(`p102 media: 15 selects of the watch party, music, Study, Live TV, Stack sk
   const ids = await makeData(owner.request, notes);
   try {
     for (const c of CONFIGS) {
-      const list = SCENARIOS.filter((s) => s.family === c.family && (!ONLY || ONLY.test(s.key)));
+      const list = SCENARIOS.filter(
+        (s) => s.family === c.family && (ALL || s.core) && (!ONLY || ONLY.test(s.key)),
+      );
       if (!list.length) continue;
       await setPrefs(owner, c);
       const ctx = await newContext(browser, owner, c);
