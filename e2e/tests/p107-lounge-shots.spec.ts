@@ -255,7 +255,7 @@ const slug = (s: string) => s.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
 async function measure(page: Page, pageName: string, bp: number, touch: boolean, root: Locator) {
   const reach: HitOptions = touch ? {} : { reach: 'box' };
   for (const n of BOXES) {
-    const got = await page
+    const got = await root
       .locator(n.sel)
       .evaluateAll(
         (els, max) =>
@@ -289,7 +289,7 @@ async function measure(page: Page, pageName: string, bp: number, touch: boolean,
       );
   }
   for (const n of ACCEPTED) {
-    const loc = page.locator(n.sel);
+    const loc = root.locator(n.sel);
     const count = await loc.count();
     let failing = 0;
     for (let i = 0; i < Math.min(count, 12); i++) {
@@ -310,7 +310,7 @@ async function measure(page: Page, pageName: string, bp: number, touch: boolean,
     rows.push({ kind: 'count', page: pageName, bp, key: `accepted:${n.id}`, count, failing });
   }
   for (const n of NAMED) {
-    const loc = page.locator(n.sel);
+    const loc = root.locator(n.sel);
     const count = Math.min(await loc.count(), n.max ?? 20);
     for (let i = 0; i < count; i++) {
       const one = loc.nth(i);
@@ -598,7 +598,14 @@ async function openInlineEdit(page: Page): Promise<boolean> {
 }
 
 /** One page of the text channel at one width: the page, its overlays, the inline edit, and (desktop) the fields. */
-async function channelAt(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg, tag: string) {
+async function channelAt(
+  browser: Browser,
+  owner: BrowserContext,
+  w: World,
+  cfg: Cfg,
+  tag: string,
+  roomId: string | null,
+) {
   const { ctx, page } = await newPage(browser, owner, cfg);
   const touch = cfg.touch;
   const bp = cfg.w;
@@ -606,7 +613,9 @@ async function channelAt(browser: Browser, owner: BrowserContext, w: World, cfg:
   try {
     const url = `/channels/${w.guildId}/${w.channelId}`;
     await go(page, url, page.getByRole('log'));
-    const dt = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+    const dt = await page.evaluate(
+      () => document.querySelector('[data-theme]')?.getAttribute('data-theme') ?? null,
+    );
     say(`${tag}: data-theme ${dt}`);
     if (!touch) {
       await fieldStates(page, composerField(page), cfg.theme, `channel@${bp}`);
@@ -671,7 +680,7 @@ async function channelAt(browser: Browser, owner: BrowserContext, w: World, cfg:
     }
     // The inline edit.
     try {
-      await go(page, url, page.getByRole('log'));
+      await go(page, `/channels/${w.guildId}/${roomId ?? w.channelId}`, page.getByRole('log'));
       if (await openInlineEdit(page)) {
         await fieldStates(
           page,
@@ -680,13 +689,7 @@ async function channelAt(browser: Browser, owner: BrowserContext, w: World, cfg:
           `inline-edit@${bp}`,
         );
         if (touch || cfg.theme === 'lounge-light') {
-          await measure(
-            page,
-            'inline-edit',
-            bp,
-            touch,
-            page.locator('.lng-inline-textarea').locator('xpath=..'),
-          );
+          await measure(page, 'inline-edit', bp, touch, main(page));
           await shot(page, 'inline-edit', suffix);
           covered.push(`inline-edit @${bp}`);
         }
@@ -708,12 +711,33 @@ async function channelAt(browser: Browser, owner: BrowserContext, w: World, cfg:
 }
 
 async function part1(browser: Browser, owner: BrowserContext, w: World) {
-  await setTheme(owner, 'lounge-light');
-  await channelAt(browser, owner, w, PHONE, 'channel-375');
-  await channelAt(browser, owner, w, DESK_L, 'channel-1024-light');
-  await setTheme(owner, 'lounge-dark');
-  await channelAt(browser, owner, w, DESK_D, 'channel-1024-dark');
-  await setTheme(owner, 'lounge-light');
+  let roomId: string | null = null;
+  try {
+    const room = await apiPost<{ id: string }>(owner.request, `/guilds/${w.guildId}/channels`, {
+      name: `p107lounge-room-${STAMP}`,
+      type: 0,
+    });
+    roomId = room.id;
+    await sleep(800);
+    await apiPost(owner.request, `/channels/${room.id}/messages`, {
+      content: 'p107 lounge message to edit',
+    });
+  } catch (e) {
+    notes.push(`edit room not made: ${msg(e)}`);
+  }
+  try {
+    await setTheme(owner, 'lounge-light');
+    await channelAt(browser, owner, w, PHONE, 'channel-375', roomId);
+    await channelAt(browser, owner, w, DESK_L, 'channel-1024-light', roomId);
+    await setTheme(owner, 'lounge-dark');
+    await channelAt(browser, owner, w, DESK_D, 'channel-1024-dark', roomId);
+    await setTheme(owner, 'lounge-light');
+  } finally {
+    if (roomId)
+      await apiDelete(owner.request, `/channels/${roomId}`).catch((e) =>
+        notes.push(`room ${roomId} (p107lounge-room-${STAMP}) not deleted: ${msg(e)}`),
+      );
+  }
 }
 
 async function part2(browser: Browser, owner: BrowserContext, w: World) {
