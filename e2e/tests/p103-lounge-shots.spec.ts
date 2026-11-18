@@ -426,6 +426,7 @@ interface SelectFig {
   labelLines: number;
   labelText: string;
   stacked: boolean;
+  labelGap: number | null;
   fontSize: string;
   selectedText: string;
   textW: number;
@@ -490,6 +491,7 @@ async function measure(scope: Locator): Promise<Measured> {
       let labelText = '';
       const tops = new Set<number>();
       let textBottom = -1;
+      let textRightMax = -1;
       if (label) {
         const w = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
         for (let t = w.nextNode(); t; t = w.nextNode()) {
@@ -502,6 +504,7 @@ async function measure(scope: Locator): Promise<Measured> {
             if (r.width > 0 && r.height > 0) {
               tops.add(Math.round(r.top));
               textBottom = Math.max(textBottom, r.bottom);
+              textRightMax = Math.max(textRightMax, r.right);
             }
         }
       }
@@ -529,6 +532,7 @@ async function measure(scope: Locator): Promise<Measured> {
         options: s.options.length,
         labelLines: tops.size,
         labelText: labelText.trim(),
+        labelGap: label && textRightMax >= 0 ? rnd(sr.left - textRightMax) : null,
         stacked: label ? textBottom >= 0 && textBottom <= sr.top + 1 : false,
         fontSize: cs.fontSize,
         selectedText,
@@ -842,6 +846,10 @@ function compare(c: Cfg, base: Figures, after: Figures, verdicts: Verdict[], not
           reasons.push(`inline size ${as.box.w} is more than 36 px over the base's ${bs.box.w}`);
         if (as.stacked && !bs.stacked)
           reasons.push('the label text is newly stacked above the select');
+        if (as.labelGap !== null && bs.labelGap !== null && as.labelGap < 4 && bs.labelGap >= 4)
+          reasons.push(
+            `the label text touches the select: gap ${as.labelGap} px against the base's ${bs.labelGap}`,
+          );
         if (as.labelLines > bs.labelLines)
           reasons.push(`label wraps: ${as.labelLines} lines against ${bs.labelLines}`);
         if (as.fontSize !== bs.fontSize)
