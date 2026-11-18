@@ -90,7 +90,11 @@ export default function CurrencyTool({ host }: ToolProps) {
       <div className="sr-calc-convert">
         <label className="sr-calc-field">
           {t('tools.currency.from')}
-          <NativeSelect value={safeFrom} onChange={(e) => set([e.target.value, safeTo])}>
+          <NativeSelect
+            className="sr-calc-pick"
+            value={safeFrom}
+            onChange={(e) => set([e.target.value, safeTo])}
+          >
             {codes.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -108,7 +112,11 @@ export default function CurrencyTool({ host }: ToolProps) {
         </button>
         <label className="sr-calc-field">
           {t('tools.currency.to')}
-          <NativeSelect value={safeTo} onChange={(e) => set([safeFrom, e.target.value])}>
+          <NativeSelect
+            className="sr-calc-pick"
+            value={safeTo}
+            onChange={(e) => set([safeFrom, e.target.value])}
+          >
             {codes.map((c) => (
               <option key={c} value={c}>
                 {c}

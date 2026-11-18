@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import type { ToolProps } from '../registry';
 import { errorKey, errorVars } from './errors';
@@ -89,13 +90,17 @@ export default function ProgrammerTool({ host }: ToolProps) {
         </label>
         <label className="sr-calc-field">
           {t('tools.programmer.inputBase')}
-          <select value={base} onChange={(e) => setBase(Number(e.target.value))}>
+          <NativeSelect
+            className="sr-calc-pick"
+            value={base}
+            onChange={(e) => setBase(Number(e.target.value))}
+          >
             {BASES.map((b) => (
               <option key={b.base} value={b.base}>
                 {t(b.key)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
 

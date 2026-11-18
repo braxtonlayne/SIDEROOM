@@ -135,7 +135,11 @@ export default function UnitsTool({ host }: ToolProps) {
 
       <label className="sr-calc-field">
         {t('tools.units.category')}
-        <NativeSelect value={category} onChange={(e) => pickCategory(e.target.value as CategoryId)}>
+        <NativeSelect
+          className="sr-calc-pick"
+          value={category}
+          onChange={(e) => pickCategory(e.target.value as CategoryId)}
+        >
           {(Object.keys(CATEGORY_KEYS) as CategoryId[]).map((c) => (
             <option key={c} value={c}>
               {t(CATEGORY_KEYS[c])}
@@ -158,15 +162,19 @@ export default function UnitsTool({ host }: ToolProps) {
             onChange={(e) => setValueText(e.target.value)}
           />
         </label>
-        <label className="sr-calc-field">
+        <label className="sr-calc-field sr-calc-unit-field">
           {t('tools.units.from')}
-          <select value={from} onChange={(e) => setFrom(e.target.value)}>
+          <NativeSelect
+            className="sr-calc-pick"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          >
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <button
           type="button"
@@ -179,15 +187,15 @@ export default function UnitsTool({ host }: ToolProps) {
         >
           {'⇄'}
         </button>
-        <label className="sr-calc-field">
+        <label className="sr-calc-field sr-calc-unit-field">
           {t('tools.units.to')}
-          <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <NativeSelect className="sr-calc-pick" value={to} onChange={(e) => setTo(e.target.value)}>
             {units.map((u) => (
               <option key={u.id} value={u.id}>
                 {label(u.id, u.symbol)}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
 
