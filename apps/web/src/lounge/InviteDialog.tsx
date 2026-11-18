@@ -1,4 +1,4 @@
-import { Button, Modal, Switch } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, Switch } from '@sideroom/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../api/client';
 import { useStreamer } from '../settings/user/prefs';
@@ -142,19 +142,19 @@ export function InviteDialog({
       <div className="lng-form">
         <label className="lng-field">
           <span>{t('lounge.inviteDialog.inviteToChannel')}</span>
-          <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+          <NativeSelect value={channelId} onChange={(e) => setChannelId(e.target.value)}>
             {textChannels.map((c) => (
               <option key={c.id} value={c.id}>
                 #{c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {channelId && <InviteFriends channelId={channelId} options={explicit} />}
         <div className="lng-field-row">
           <label className="lng-field">
             <span>{t('lounge.inviteDialog.expireAfter')}</span>
-            <select
+            <NativeSelect
               value={maxAge}
               onChange={(e) => {
                 setMaxAge(Number(e.target.value));
@@ -166,11 +166,11 @@ export function InviteDialog({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="lng-field">
             <span>{t('lounge.inviteDialog.maxUses')}</span>
-            <select
+            <NativeSelect
               value={maxUses}
               onChange={(e) => {
                 setMaxUses(Number(e.target.value));
@@ -182,7 +182,7 @@ export function InviteDialog({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
         <Switch
