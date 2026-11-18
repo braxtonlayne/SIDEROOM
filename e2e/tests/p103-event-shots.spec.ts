@@ -316,8 +316,7 @@ async function fillLarge(dlg: Locator) {
   await dlg.getByText('Somewhere else', { exact: true }).click();
   await dlg.getByRole('textbox', { name: 'Location', exact: true }).fill('L'.repeat(100));
   await dlg
-    .getByLabel('Name')
-    .first()
+    .getByRole('textbox', { name: 'Event topic', exact: true })
     .fill('Event-name-without-any-break-'.repeat(4).slice(0, 100));
   await dlg
     .getByRole('textbox', { name: 'Description (optional)', exact: true })
