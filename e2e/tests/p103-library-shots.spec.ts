@@ -1043,6 +1043,13 @@ function compare(c: Cfg, base: Store, after: Store, problems: string[]) {
         problems.push(
           `${tag}: the text "${a.selectedText}" runs into the chevron (clear ${a.clear})`,
         );
+      // the selected text must fit the select's text area (an ellipsis means it is cut)
+      const room = r1(a.box.w - 2 - a.padStart - a.padEnd - a.textW);
+      d['textRoom'] = room;
+      if (room < -0.05)
+        problems.push(
+          `${tag}: the text "${a.selectedText}" (${a.textW} px at ${a.fontSize}) is cut: the text area is ${r1(a.box.w - 2 - a.padStart - a.padEnd)} px (the base's text was ${b.textW} px at ${b.fontSize})`,
+        );
       if (a.box.w > b.box.w + 36 + 0.5)
         problems.push(`${tag}: ${a.box.w} px wide, base ${b.box.w}: more than 36 px wider`);
       if (def.key === 'reader-chapter') {
