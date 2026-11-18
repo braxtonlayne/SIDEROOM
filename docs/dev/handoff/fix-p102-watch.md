@@ -35,14 +35,16 @@ Base commit `b308d5e2`. All five moved (READY commits `0e58f4d1`, `1d040fe9`, `8
 2. Inline-flex labels (#1, #5): the select's box can come out narrower than the base's (shrink-to-fit with a 100 % child). If narrower than the base, or the label wraps, those two go back to raw.
 
 ## Text for SEC-AUD-453
-The watch party's five selects (the speed in the control bar, the two People settings, "Where to watch" in the Start dialog, "Season" in the title picker) moved to `NativeSelect` (D-958), pending the pod's after-round. `watchparty.css:412-419` (`.wp-field select, .wp-inline select`) was not edited (not mine) and still styles them by element name: it should become `.wp-field > select` and go with the last raw select (D-967), by the sheet's owner. Anything put back to raw is listed below.
+Three of the watch party's five selects (the two People settings and "Where to watch" in the Start dialog) moved to `NativeSelect` (D-958); the speed (ControlBar) and "Season" (TitlePicker) stay raw (inline-flex labels, figures below). `watchparty.css:412-419` (`.wp-field select, .wp-inline select`) was not edited (not mine) and still styles them by element name: it should become `.wp-field > select` and go with the last raw select (D-967), by the sheet's owner. Anything put back to raw is listed below.
 
-## Put back to raw
-None yet.
+## Put back to raw (mediashots FAULTS, commit "SEC-AUD-453 ControlBar, TitlePicker put back to raw (FAULT)"; both files equal b308d5e2)
+- `ControlBar.tsx` Speed: 72 px wide in the base, 58 after; the control bar row re-centred. The inline-flex label risk (#1) came true.
+- `TitlePicker.tsx` Season: 46 px wide in the base, 18 after, with the chevron over the word "Season". Same cause (#5).
+- Moved and kept (passed): `PeoplePanel.tsx` (2 selects), `StartPartyDialog.tsx` (1). So 3 of 5 moved, 2 left raw.
 
 ## Proposed rows and sentence
 - Proposed inventory row: "Watch party sheet `watchparty.css:412-419` styles `select` by element name (`.wp-field select, .wp-inline select`) and replaces the kit's end padding; remove it now that the party's selects are `NativeSelect` (D-967)."
-- Changelog sentence: "The watch party's drop-downs (playback speed, who controls and who queues, where to watch, the season) have the kit's look and a full touch size on a phone."
+- Changelog sentence: "The watch party's drop-downs (who controls, who queues, where to watch) have the kit's look and a full touch size on a phone."
 
 ## Owner questions
 None.
