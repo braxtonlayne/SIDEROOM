@@ -1,3 +1,4 @@
+import { NativeSelect } from '@sideroom/ui';
 import { useRouterState } from '@tanstack/react-router';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
@@ -153,24 +154,24 @@ export default function InviteTool({ host }: ToolProps) {
     <form className="sr-card" data-host={host} onSubmit={(e) => void submit(e)} noValidate>
       <label className="sr-card-field">
         <span>{t('tools.invite.channel')}</span>
-        <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+        <NativeSelect value={channelId} onChange={(e) => setChannelId(e.target.value)}>
           <option value="">{t('tools.invite.pickChannel')}</option>
           {options.map((c) => (
             <option key={c.id} value={c.id}>
               {channelLabel(c)}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label className="sr-card-field">
         <span>{t('tools.invite.kind')}</span>
-        <select value={kind} onChange={(e) => setKind(e.target.value as InviteCard['kind'])}>
+        <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as InviteCard['kind'])}>
           {KINDS.map((k) => (
             <option key={k} value={k}>
               {t(KIND_KEYS[k])}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
       <label className="sr-card-field">
         <span>{t('tools.invite.title')}</span>
@@ -192,13 +193,13 @@ export default function InviteTool({ host }: ToolProps) {
         )}
         <label className="sr-card-field">
           <span>{t('tools.invite.zone')}</span>
-          <select value={zone} onChange={(e) => setZone(e.target.value)}>
+          <NativeSelect value={zone} onChange={(e) => setZone(e.target.value)}>
             {zones.map((z) => (
               <option key={z} value={z}>
                 {z}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
       <div className="sr-card-row">

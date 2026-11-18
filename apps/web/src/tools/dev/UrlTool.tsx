@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { NativeSelect } from '@sideroom/ui';
 import { useT } from '../../i18n';
 import { type UrlMode, urlDecode, urlEncode, urlParams } from './logic';
 import { CopyButton, Field, Problem, Root } from './parts';
@@ -38,10 +39,10 @@ export default function UrlTool() {
           {t('tools.url.decode')}
         </button>
         <Field label={t('tools.url.scope')}>
-          <select value={kind} onChange={(e) => setKind(e.target.value as UrlMode)}>
+          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value as UrlMode)}>
             <option value="component">{t('tools.url.component')}</option>
             <option value="full">{t('tools.url.full')}</option>
-          </select>
+          </NativeSelect>
         </Field>
       </div>
       <Field label={t('tools.url.input')}>
