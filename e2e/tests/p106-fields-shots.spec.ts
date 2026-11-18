@@ -129,6 +129,17 @@ interface Raw {
   stack: { bg: string; image: boolean; tag: string }[];
   tokens: Record<string, string>;
   rules: RuleRead[];
+  wrap: {
+    tag: string;
+    cls: string;
+    borderColor: string;
+    borderWidth: string;
+    borderStyle: string;
+    bg: string;
+    stack: { bg: string; image: boolean; tag: string }[];
+    rules: RuleRead[];
+    box: { w: number; h: number };
+  } | null;
   kit: boolean;
 }
 
@@ -207,16 +218,53 @@ async function readFields(root: Locator): Promise<Raw[]> {
       if (cs.visibility === 'hidden' || cs.opacity === '0') continue;
       f.setAttribute('data-p106f', String(n));
       const ph = f.matches('input, textarea') ? getComputedStyle(f, '::placeholder').color : null;
-      const stack: { bg: string; image: boolean; tag: string }[] = [];
-      for (let a = f.parentElement; a; a = a.parentElement) {
-        const acs = getComputedStyle(a);
-        const c = acs.backgroundColor;
-        const image = acs.backgroundImage !== 'none';
-        if (c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') {
-          stack.push({ bg: c, image, tag: a.tagName.toLowerCase() });
-          if (/^rgb\(/.test(c) || /, 1\)$/.test(c)) break;
-        } else if (image)
-          stack.push({ bg: 'rgba(0, 0, 0, 0)', image, tag: a.tagName.toLowerCase() });
+      const stackOf = (node: Element) => {
+        const st: { bg: string; image: boolean; tag: string }[] = [];
+        for (let a = node.parentElement; a; a = a.parentElement) {
+          const acs = getComputedStyle(a);
+          const c = acs.backgroundColor;
+          const image = acs.backgroundImage !== 'none';
+          if (c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') {
+            st.push({ bg: c, image, tag: a.tagName.toLowerCase() });
+            if (/^rgb\(/.test(c) || /, 1\)$/.test(c)) break;
+          } else if (image)
+            st.push({ bg: 'rgba(0, 0, 0, 0)', image, tag: a.tagName.toLowerCase() });
+        }
+        return st;
+      };
+      const stack = stackOf(f);
+      // A field with no border of its own: the wrapper that draws the visible box (a border or a ground, about its size).
+      let wrap: unknown = null;
+      if (cs.borderTopStyle === 'none' || parseFloat(cs.borderTopWidth) === 0) {
+        let a = f.parentElement;
+        for (let k = 0; k < 3 && a && a !== el; k++, a = a.parentElement) {
+          const acs = getComputedStyle(a);
+          const ar = a.getBoundingClientRect();
+          const hb = acs.borderTopStyle !== 'none' && parseFloat(acs.borderTopWidth) > 0;
+          const hbg =
+            acs.backgroundColor !== 'rgba(0, 0, 0, 0)' && acs.backgroundColor !== 'transparent';
+          if (
+            (hb || hbg) &&
+            ar.width <= r.width + 220 &&
+            ar.height <= r.height + 60 &&
+            ar.left <= r.left + 1 &&
+            ar.top <= r.top + 1
+          ) {
+            a.setAttribute('data-p106w', String(n));
+            wrap = {
+              tag: a.tagName.toLowerCase(),
+              cls: (typeof a.className === 'string' ? a.className : '').trim().slice(0, 80),
+              borderColor: acs.borderTopColor,
+              borderWidth: acs.borderTopWidth,
+              borderStyle: acs.borderTopStyle,
+              bg: acs.backgroundColor,
+              stack: stackOf(a),
+              rules: rulesOf(a),
+              box: { w: Math.round(ar.width), h: Math.round(ar.height * 10) / 10 },
+            };
+            break;
+          }
+        }
       }
       const lab = f.id ? document.querySelector('label[for="' + f.id + '"]') : f.closest('label');
       let labText = '';
@@ -265,6 +313,7 @@ async function readFields(root: Locator): Promise<Raw[]> {
         stack,
         tokens: tok,
         rules: rulesOf(f),
+        wrap,
         kit,
       });
       n++;
@@ -318,6 +367,18 @@ interface Fig {
     ringOutside: number | null;
     borderOutside: number;
   } | null;
+  wrap: {
+    tag: string;
+    cls: string;
+    rules: string[];
+    border: string;
+    hasBorder: boolean;
+    ground: string;
+    outside: string;
+    box: { w: number; h: number };
+    ratios: { borderOutside: number | null; borderGround: number | null; groundOutside: number };
+    focusIndicator: string;
+  } | null;
   hit?: { status: string; height: number; takers: string } | null;
 }
 
@@ -329,6 +390,7 @@ async function measure(
   states: boolean,
   hit: boolean,
 ): Promise<Fig[]> {
+  await page.waitForTimeout(500);
   const raws = await readFields(root);
   const figs: Fig[] = [];
   const stated = new Set<string>();
@@ -378,7 +440,35 @@ async function measure(
       box: f.box,
       hover: null,
       focus: null,
+      wrap: null,
     };
+    if (f.wrap) {
+      const wo = flatten(f.wrap.stack);
+      const wg = over(parseColor(f.wrap.bg), wo);
+      const wb = f.wrap.borderStyle !== 'none' && parseFloat(f.wrap.borderWidth) > 0;
+      const wbv = wb ? over(parseColor(f.wrap.borderColor), wg) : null;
+      fig.wrap = {
+        tag: f.wrap.tag,
+        cls: f.wrap.cls,
+        rules: f.wrap.rules.map(
+          (r) =>
+            `${r.sel} {${Object.entries(r.props)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join('; ')}}`,
+        ),
+        border: wb ? hex(wbv!) : 'none',
+        hasBorder: wb,
+        ground: hex(wg),
+        outside: hex(wo),
+        box: f.wrap.box,
+        ratios: {
+          borderOutside: wbv ? r2(ratio(wbv, wo)) : null,
+          borderGround: wbv ? r2(ratio(wbv, wg)) : null,
+          groundOutside: r2(ratio(wg, wo)),
+        },
+        focusIndicator: 'not read',
+      };
+    }
     const gk = `${cfg.tag}|${stop}|${groupKey}|${f.kit}`;
     const loc = page.locator(`[data-p106f="${f.n}"]`).first();
     if (states && !stated.has(gk)) {
@@ -388,6 +478,13 @@ async function measure(
         await loc.evaluate((e) => (e as HTMLElement).blur());
         await page.mouse.move(2, 2);
         const rest = await loc.evaluate((e) => getComputedStyle(e).borderTopColor);
+        const wloc = page.locator(`[data-p106w="${f.n}"]`).first();
+        const snap = () =>
+          wloc.evaluate((e) => {
+            const cs = getComputedStyle(e);
+            return `${cs.outlineStyle}|${cs.outlineWidth}|${cs.outlineColor}|${cs.boxShadow}|${cs.borderTopColor}`;
+          });
+        const wRest = f.wrap ? await snap() : '';
         await loc.hover({ timeout: 3000, force: true });
         const hb = await loc.evaluate((e) => getComputedStyle(e).borderTopColor);
         fig.hover = {
@@ -418,6 +515,21 @@ async function measure(
           ringOutside: ring ? r2(ratio(over(parseColor(fc.outline), outside), outside)) : null,
           borderOutside: hasBorder ? r2(ratio(borderVis(fc.border), outside)) : 0,
         };
+        if (f.wrap && fig.wrap) {
+          const wNow = await snap();
+          const [os, ow, oc, bs, bc] = wNow.split('|');
+          const [, , oc0, bs0, bc0] = wRest.split('|');
+          fig.wrap.focusIndicator =
+            wNow === wRest
+              ? 'none'
+              : os !== 'none' && parseFloat(ow!) > 0 && oc !== oc0
+                ? `outline ${ow} ${oc}`
+                : bs !== bs0
+                  ? `box-shadow ${bs}`
+                  : bc !== bc0
+                    ? `border ${bc}`
+                    : 'none';
+        }
         await loc.blur();
       } catch (e) {
         say(`${stop}: hover/focus of ${f.tag} "${f.name}" not read: ${msg(e)}`);
@@ -536,6 +648,7 @@ interface Env {
   g: string;
   c: string;
   room: string;
+  forum: string;
 }
 interface Stop {
   id: string;
@@ -634,6 +747,53 @@ const LOUNGE_STOPS: Stop[] = [
       return page.getByRole('dialog', { name: 'Drawer', exact: true });
     },
     close: closeTool,
+  },
+  {
+    id: 'forum',
+    open: async (page, env) => {
+      await visit(page, `/channels/${env.g}/${env.forum}`);
+      await page.getByRole('searchbox', { name: /search posts/i }).waitFor({ timeout: 40_000 });
+      return page.locator('body');
+    },
+  },
+  {
+    id: 'forum-new-post',
+    open: async (page, env) => {
+      await visit(page, `/channels/${env.g}/${env.forum}`);
+      await page
+        .getByRole('button', { name: /new post/i })
+        .first()
+        .click({ timeout: 15_000 });
+      await page.waitForTimeout(700);
+      return page.getByRole('dialog').first();
+    },
+    close: esc,
+  },
+  {
+    id: 'inline-edit',
+    open: async (page, env) => {
+      await goChannel(page, env, true);
+      const box = page.getByRole('textbox').last();
+      await box.click();
+      await page.keyboard.press('ArrowUp');
+      await page.waitForTimeout(700);
+      return page.locator('body');
+    },
+    close: esc,
+  },
+  {
+    id: 'members-popout',
+    open: async (page, env) => {
+      await goChannel(page, env);
+      await page
+        .getByRole('button', { name: /^p106 fields message|member/i })
+        .first()
+        .click({ timeout: 8000 })
+        .catch(() => undefined);
+      await page.waitForTimeout(700);
+      return page.locator('body');
+    },
+    close: esc,
   },
   {
     id: 'scrapbook',
@@ -760,7 +920,8 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
   const figs: Fig[] = [];
   const themeRead: Record<string, string | null> = {};
   let roomId = '';
-  const env: Env = { g: w.guildId, c: w.channelId, room: '' };
+  const env: Env = { g: w.guildId, c: w.channelId, room: '', forum: '' };
+  let forumId = '';
 
   const plan: { cfg: Cfg; stops: Stop[]; states: boolean; hit: boolean }[] =
     PART === 1
@@ -787,6 +948,15 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
     });
     roomId = room.id;
     env.room = room.id;
+    await apiPost(owner.request, `/channels/${room.id}/messages`, {
+      content: 'p106 fields message',
+    });
+    const forum = await apiPost<{ id: string }>(owner.request, `/guilds/${w.guildId}/channels`, {
+      name: `p106-fields-forum-${Date.now().toString(36)}`,
+      type: 15,
+    });
+    forumId = forum.id;
+    env.forum = forum.id;
 
     for (const p of plan) {
       const { ctx, page } = await newPage(browser, owner, p.cfg);
@@ -820,6 +990,7 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
     }
   } finally {
     if (roomId) await owner.request.delete(`/api/v1/channels/${roomId}`).catch(() => undefined);
+    if (forumId) await owner.request.delete(`/api/v1/channels/${forumId}`).catch(() => undefined);
     await apiPatch(owner.request, '/users/@me/settings', {
       settings: { user_prefs: { theme: 'lounge-editorial', zoom: 100, sectionThemes: {} } },
     }).catch(() => undefined);
