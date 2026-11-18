@@ -123,7 +123,7 @@ export function Browse({ search }: { search: BrowseSearch }) {
               options={KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }))}
             />
             <div className="lib-browse-tools">
-              <label>
+              <label className="lib-sort">
                 <span className="lib-sr-only">{t('library.browse.sortBy')}</span>
                 <NativeSelect
                   value={search.sort ?? 'updated'}
