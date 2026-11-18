@@ -73,3 +73,13 @@
   max-inline-size: 100%;
   object-fit: contain;
 }
+
+/* D-1022: on a phone the cells and the category buttons are 44px tall (the picker scrolls more; its width is kept). */
+@media (max-width: 720px) {
+  .lng-emoji .lng-emoji-btn {
+    height: 44px;
+  }
+  .lng-emoji-cat {
+    block-size: 44px;
+  }
+}
