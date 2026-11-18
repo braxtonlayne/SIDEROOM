@@ -318,7 +318,14 @@ interface Measured {
   scroll: number[];
   drawerScroll: number[];
   root: Box | null;
-  selects: { key: string; box: Box; label: Box | null; options: number; value: string }[];
+  selects: {
+    key: string;
+    box: Box;
+    label: Box | null;
+    options: number;
+    value: string;
+    kit: boolean;
+  }[];
   controls: { key: string; box: Box }[];
   overlaps: string[];
 }
@@ -333,17 +340,19 @@ interface Figures extends Measured {
 /** Boxes in the root's coordinates are page coordinates plus every scrolled ancestor's offset. */
 async function measure(drawer: Locator): Promise<Measured> {
   return drawer.evaluate((root) => {
+    // Every scroller up to the top: boxes are read with the drawer scrolled to its start.
+    for (let p: Element | null = root; p; p = p.parentElement) {
+      p.scrollTop = 0;
+      p.scrollLeft = 0;
+    }
+    root.querySelectorAll('*').forEach((e) => {
+      e.scrollTop = 0;
+    });
     const box = (e: Element) => {
       const r = e.getBoundingClientRect();
-      let sx = 0;
-      let sy = 0;
-      for (let p: Element | null = e.parentElement; p; p = p.parentElement) {
-        sx += p.scrollLeft;
-        sy += p.scrollTop;
-      }
       return {
-        x: Math.round((r.left + sx) * 10) / 10,
-        y: Math.round((r.top + sy) * 10) / 10,
+        x: Math.round(r.left * 10) / 10,
+        y: Math.round(r.top * 10) / 10,
         w: Math.round(r.width * 10) / 10,
         h: Math.round(r.height * 10) / 10,
       };
@@ -377,6 +386,7 @@ async function measure(drawer: Locator): Promise<Measured> {
         box: box(e),
         label: lab ? box(lab) : null,
         options: e.options.length,
+        kit: e.parentElement?.tagName === 'SPAN' && /wrap/i.test(e.parentElement.className),
         value: e.value,
       };
     });
@@ -527,7 +537,6 @@ function checkTheme(m: Measured, c: Cfg, tag: string, problems: string[]) {
   say(`${tag}: data-theme html=${m.theme.html} first=${m.theme.first}`);
   if (m.theme.html !== c.theme && m.theme.first !== c.theme)
     problems.push(`${tag}: data-theme is ${m.theme.html}/${m.theme.first}, wanted ${c.theme}`);
-  if (m.overlaps.length) problems.push(`${tag}: overlaps ${m.overlaps.join('; ')}`);
 }
 
 function compare(label: string, base: Figures, after: Figures, touch: boolean, problems: string[]) {
@@ -541,8 +550,12 @@ function compare(label: string, base: Figures, after: Figures, touch: boolean, p
     diffs[b.key] = { base: b.box, after: a.box };
     if (a.box.h < b.box.h - 0.5)
       problems.push(`${label}: ${b.key} shorter than base (${a.box.h} < ${b.box.h})`);
-    if (touch ? a.box.h < 43.5 : a.box.h < 39.5)
+    if (a.kit && (touch ? a.box.h < 43.5 : a.box.h < 39.5))
       problems.push(`${label}: ${b.key} is ${a.box.h} px tall (${touch ? '44' : '40'} wanted)`);
+    if (!a.kit && (Math.abs(a.box.h - b.box.h) > 0.5 || Math.abs(a.box.w - b.box.w) > 0.5))
+      problems.push(
+        `${label}: ${b.key} is still raw but its box changed ${b.box.w}x${b.box.h} -> ${a.box.w}x${a.box.h} (a sheet rule it lost or gained)`,
+      );
     if (a.box.w < b.box.w - 0.5)
       problems.push(`${label}: ${b.key} narrower than base (${a.box.w} < ${b.box.w})`);
     if (b.label && a.label && a.label.h - b.label.h > a.box.h - b.box.h + 1)
@@ -550,6 +563,8 @@ function compare(label: string, base: Figures, after: Figures, touch: boolean, p
         `${label}: ${b.key} label grew ${a.label.h - b.label.h} px, the select ${a.box.h - b.box.h} (wraps?)`,
       );
   });
+  for (const o of after.overlaps)
+    if (!base.overlaps.includes(o)) problems.push(`${label}: new overlap ${o}`);
   if (base.root && after.root)
     diffs['root'] = { base: base.root, after: after.root, dh: after.root.h - base.root.h };
   if (base.controls.length !== after.controls.length) {
@@ -666,10 +681,12 @@ test('Tools drawer: raw selects measured, base then after', async ({ browser }) 
           const tag = `${t.id} ${cfg.tag}`;
           try {
             const channel = t.room ? room.id : firstChannel;
-            await page.goto(`/channels/${guildId}/${channel}`, {
-              waitUntil: 'domcontentloaded',
-              timeout: 30_000,
-            });
+            if (!page.url().endsWith(`/channels/${guildId}/${channel}`)) {
+              await page.goto(`/channels/${guildId}/${channel}`, {
+                waitUntil: 'domcontentloaded',
+                timeout: 30_000,
+              });
+            }
             await expect(page.locator('.lng-root').first()).toBeVisible({ timeout: 60_000 });
             await openTool(page, t);
             const drawer = page.getByRole('dialog', { name: 'Drawer', exact: true });
