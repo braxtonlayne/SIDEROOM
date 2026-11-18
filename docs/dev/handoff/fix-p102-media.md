@@ -23,6 +23,8 @@ Chunks: all five files are lazy. `git grep` importers: `TrackList` <- `sections.
 The moved TrackList select sits in a flex-wrap row: the kit wrapper is `inline-size:100%`, so it will likely take its own full-width line below the buttons (neighbours do not move; the select grows wider and a line taller). If that exceeds the rule's tolerances, put it back raw (3 lines: the tag, its close and the import).
 
 ## TYPECHECK
-Not yet run (see end of file when run).
+`tc.sh run media ... tsc --noEmit -p .` at 09:35: exit 0 (once, after the last edit). prettier --check, eslint (TrackList.tsx), `panel.test.tsx` (15/15), `i18n-audit --max 0`, `check-doc-links`: all exit 0, 09:32 to 09:35.
+
+SEC-AUD-453 text: still raw in my files: sections.tsx x2, StudyDialogs, RemindersCard (flex label or sheet rule), StackSkin (skin). Changelog: the music library track row's "add to playlist" menu uses the kit select. Owner question: may the kit take an `inline-size:auto` option for selects in flex labels (would free 3 of these)?
 
 ## STACK-ROUND: none (code builder)
