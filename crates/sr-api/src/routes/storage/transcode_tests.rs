@@ -169,6 +169,22 @@ async fn env(worker_for_members: bool) -> Env {
 }
 
 impl Env {
+    async fn get(&self, path: &str) -> (StatusCode, Value) {
+        let req = Request::builder()
+            .method(Method::GET)
+            .uri(format!("/api/v1{path}"))
+            .header("cookie", format!("sr_session={}", self.token))
+            .body(Body::empty())
+            .unwrap();
+        let resp = self.app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        (
+            status,
+            serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        )
+    }
+
     async fn post(&self, path: &str, body: Value) -> (StatusCode, Value) {
         let req = Request::builder()
             .method(Method::POST)
@@ -232,4 +248,21 @@ async fn an_owner_queues_with_their_own_worker_token_when_the_operator_does_not_
         .await;
     assert_eq!(st, StatusCode::ACCEPTED, "{body}");
     assert_eq!(body["operator_worker"], json!(true), "{body}");
+}
+
+#[tokio::test]
+async fn the_owners_conversion_list_carries_each_jobs_mount_label_and_nothing_else_of_the_mount() {
+    // D-999: the stub lists two jobs for mount 900: one with the mount's label, one with no mount.
+    let e = env(false).await;
+    let (st, body) = e.get(&format!("/storage/mounts/{MOUNT}/transcode")).await;
+    assert_eq!(st, StatusCode::OK, "{body}");
+    assert_eq!(body[0]["mount_label"], "Ada films", "{body}");
+    assert!(body[1].get("mount_label").is_none(), "{body}");
+    let keys: Vec<&String> = body[0].as_object().unwrap().keys().collect();
+    for k in ["bucket", "endpoint", "owner_id", "owner_kind", "access_key_id"] {
+        assert!(!keys.iter().any(|x| x.as_str() == k), "{k} leaked: {body}");
+    }
+    // A mount that is not the stub's canned one lists nothing.
+    let (st, body) = e.get(&format!("/storage/mounts/{BARE}/transcode")).await;
+    assert_eq!((st, body), (StatusCode::OK, json!([])));
 }

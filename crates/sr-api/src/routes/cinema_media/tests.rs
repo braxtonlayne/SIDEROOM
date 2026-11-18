@@ -299,8 +299,13 @@ impl MediaRepository for Stub {
     async fn expire_slots(&self, _: i64, _: u32) -> MediaResult<Vec<Asset>> {
         Ok(vec![])
     }
-    async fn list_jobs(&self, _: &JobQuery) -> MediaResult<Vec<JobSummary>> {
-        Ok(vec![])
+    async fn list_jobs(&self, q: &JobQuery) -> MediaResult<Vec<JobSummary>> {
+        // D-999: one asset (the admin list) or one mount (the member list) has two canned jobs; the rest list empty.
+        if q.asset_id == Some(CANNED_JOBS_ASSET) || q.mount_id == Some(CANNED_JOBS_MOUNT) {
+            Ok(canned_jobs())
+        } else {
+            Ok(vec![])
+        }
     }
     async fn job_detail(&self, _: i64) -> MediaResult<Option<JobDetail>> {
         Ok(None)
@@ -445,6 +450,39 @@ impl DownloadRepository for Stub {
 }
 
 pub(crate) struct NoQueue;
+
+/// The asset and the mount whose job lists the [`Stub`] fills (D-999).
+pub(crate) const CANNED_JOBS_ASSET: i64 = 7701;
+pub(crate) const CANNED_JOBS_MOUNT: i64 = 900;
+
+/// Two jobs: one in a mount whose label is known, one with no mount (so no label).
+pub(crate) fn canned_jobs() -> Vec<JobSummary> {
+    let job = |id: &str, mount_id: Option<i64>, mount_label: Option<&str>| JobSummary {
+        job_id: id.to_owned(),
+        asset_id: CANNED_JOBS_ASSET,
+        kind: if mount_id.is_some() {
+            JobKind::MountTranscode
+        } else {
+            JobKind::Ladder
+        },
+        mount_id,
+        mount_label: mount_label.map(str::to_owned),
+        state: JobState::Queued,
+        priority: 0,
+        attempt: 0,
+        worker_id: None,
+        cancel_requested: false,
+        progress: None,
+        error: None,
+        created_at_ms: 1,
+        started_at_ms: None,
+        finished_at_ms: None,
+    };
+    vec![
+        job("11", Some(CANNED_JOBS_MOUNT), Some("Ada films")),
+        job("12", None, None),
+    ]
+}
 
 /// A media service over [`Stub`] (in-memory storage, a fixed runner, no probe queue).
 pub(crate) fn stub_media_service(stub: Arc<Stub>) -> MediaService {
@@ -856,6 +894,30 @@ async fn tokens_show_the_secret_once_and_creation_is_logged() {
         )
         .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_job_row_carries_its_mounts_label_and_a_job_without_a_mount_carries_none() {
+    // D-999: the label only, from the job itself; a job with no mount (or a gone one) has no `mount_label` key.
+    let e = env_with(true).await;
+    let (s, jobs) = e
+        .call(
+            Some(TRANSCODER),
+            Method::GET,
+            &format!("/admin/transcode/jobs?asset_id={CANNED_JOBS_ASSET}"),
+            None,
+        )
+        .await;
+    assert_eq!(s, StatusCode::OK, "{jobs}");
+    assert_eq!(jobs[0]["mount_id"], "900", "{jobs}");
+    assert_eq!(jobs[0]["mount_label"], "Ada films", "{jobs}");
+    assert!(jobs[1].get("mount_label").is_none(), "{jobs}");
+    assert!(jobs[1].get("mount_id").is_none(), "{jobs}");
+    // Nothing else of the mount rides on the row.
+    let keys: Vec<&String> = jobs[0].as_object().unwrap().keys().collect();
+    for k in ["bucket", "endpoint", "owner_id", "owner_kind", "access_key_id"] {
+        assert!(!keys.iter().any(|x| x.as_str() == k), "{k} leaked: {jobs}");
+    }
 }
 
 #[tokio::test]

@@ -2727,3 +2727,63 @@ async fn the_day_counts_are_per_worker() {
     let b = f.view(1).await;
     assert_eq!((b.jobs_done_24h, b.jobs_failed_24h), (1, 2));
 }
+
+#[tokio::test]
+#[ignore = "needs SR_TEST_DATABASE_URL"]
+async fn a_job_lists_its_mounts_label_and_none_when_the_mount_is_gone_or_the_job_has_none() {
+    // D-999: a LEFT lookup, so a job whose mount is gone still lists; the label and nothing else.
+    let w = world(probe_ok()).await;
+    let (live, deleted, missing) = (next_id(), next_id(), next_id());
+    for (id, label, gone) in [(live, "p106 live", false), (deleted, "p106 gone", true)] {
+        sqlx::query(
+            "INSERT INTO storage_mounts (id, owner_kind, owner_id, label, provider, endpoint, bucket, access_key_id, secret_key_enc, deleted_at) \
+             VALUES ($1, 'user', 1, $2, 's3', 'https://example.invalid', 'b', 'k', '\x00', CASE WHEN $3 THEN now() END)",
+        )
+        .bind(id)
+        .bind(label)
+        .bind(gone)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+    }
+    let mut ids = Vec::new();
+    for mount in [Some(live), Some(deleted), Some(missing), None] {
+        let id = next_id();
+        let (kind, spec) = if mount.is_some() {
+            ("mount_transcode", "'{}'::jsonb")
+        } else {
+            ("remux", "'{}'::jsonb")
+        };
+        sqlx::query(&format!(
+            "INSERT INTO transcode_jobs (id, asset_id, kind, spec, source_key, source_size, source_ext, mount_id) \
+             VALUES ($1, 0, '{kind}', {spec}, 'a.mkv', 1, 'mkv', $2)"
+        ))
+        .bind(id)
+        .bind(mount)
+        .execute(&w.pool)
+        .await
+        .unwrap();
+        ids.push(id.to_string());
+    }
+    let q = JobQuery {
+        limit: 200,
+        ..JobQuery::default()
+    };
+    let rows = w.svc.jobs(q).await.unwrap();
+    let label_of = |job: &str| {
+        let r = rows.iter().find(|r| r.job_id == job).expect("job listed");
+        r.mount_label.clone()
+    };
+    assert_eq!(label_of(&ids[0]).as_deref(), Some("p106 live"));
+    assert_eq!(label_of(&ids[1]), None, "a soft-deleted mount has no label");
+    assert_eq!(label_of(&ids[2]), None, "a mount that never existed");
+    assert_eq!(label_of(&ids[3]), None, "a job with no mount");
+    // Detail shares the columns.
+    let d = w
+        .repo
+        .job_detail(ids[0].parse().unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(d.job.mount_label.as_deref(), Some("p106 live"));
+}
