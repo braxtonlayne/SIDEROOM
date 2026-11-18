@@ -43,6 +43,19 @@
   content: '→ ';
   content: '→ ' / '';
 }
+/* D-1022: on a phone the back link (19 px) keeps its size and gets a 44 px tap area, 13 px above and below, inside
+   the page's 32 px top padding and the head's 8 px gap (the title under it is not a control). */
+@media (max-width: 40rem) {
+  .emu-back {
+    position: relative;
+  }
+  .emu-back::after {
+    content: '';
+    position: absolute;
+    inset-block: -13px;
+    inset-inline: 0;
+  }
+}
 .emu-back:hover {
   color: var(--ui-text);
   text-decoration: underline;
@@ -69,6 +82,22 @@
   background: var(--ui-bg-raised, var(--ui-bg));
   color: var(--ui-text);
   font: inherit;
+}
+/* D-1024 (field 17): the kit field's manners, copied from Input.module.css; 44 px on a phone (D-1022). */
+.emu-search {
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.emu-search:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.emu-search::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
+@media (max-width: 40rem) {
+  .emu-search {
+    min-block-size: 44px;
+  }
 }
 .emu-search:focus-visible {
   outline: 2px solid var(--ui-focus);
