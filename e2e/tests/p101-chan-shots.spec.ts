@@ -561,6 +561,13 @@ function compare(
     problems.push(`${tag}: control count ${base.controls.length} -> ${after.controls.length}`);
     return diffs;
   }
+  // A select is wider by the kit's end padding (a flex row hands that width to its neighbours): sideways moves up to that growth are the select's own.
+  let growth = 0;
+  for (const id of t.ids) {
+    const b = base.selects[id];
+    const a = after.selects[id];
+    if (b && a && a.w > b.w) growth += a.w - b.w;
+  }
   const moved: { key: string; moved: number; allowed: number }[] = [];
   base.controls.forEach((bc, i) => {
     const ac = after.controls[i]!;
@@ -574,7 +581,8 @@ function compare(
     moved.push({ key: bc.key, moved: mv, allowed: Math.round(allowed * 10) / 10 });
     if (mv > allowed + 1) problems.push(`${tag}: ${bc.key} moved ${mv} px, allowed ${allowed}`);
     if (mv < -1) problems.push(`${tag}: ${bc.key} moved up ${mv} px`);
-    if (Math.abs(ac.box.x - bc.box.x) > 1) problems.push(`${tag}: ${bc.key} moved sideways`);
+    if (Math.abs(ac.box.x - bc.box.x) > growth + 1)
+      problems.push(`${tag}: ${bc.key} moved sideways`);
   });
   diffs['moved'] = moved.filter((x) => x.moved !== 0 || x.allowed !== 0);
   if (JSON.stringify(base.hit) !== JSON.stringify(after.hit))
