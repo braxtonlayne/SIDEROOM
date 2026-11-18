@@ -854,7 +854,8 @@
   align-items: center;
   gap: 4px;
   margin-inline-start: auto;
-  /* XC-VIS-002: the tools never shrink or spill over the member list; the title gives way instead. */
+  /* XC-VIS-002 (amended by D-1014): the tools never shrink or spill over the member list; the title gives way instead.
+     The one exception is the search field, which folds to its icon when the header is short of room (below). */
   flex: none;
 }
 .lng-header {
@@ -891,6 +892,74 @@
 }
 .lng-search input:focus-visible {
   outline: none;
+}
+
+/* D-1014 (SEC-AUD-495): when the header is short of room for its title and its tools, the search field folds to an icon
+   the size of the other tool buttons; focusing it (or anything in its panel) opens it to full width over the title,
+   anchored at the same end, so the panel under it does not move. Pointer widths only (the phone header is its own
+   layout). The input stays in the page, whole size and invisible, so a click, Tab and a fill all reach it. The header
+   becomes a size container: it is already a box of fixed height whose width comes from its parent, so nothing moves;
+   containment makes it a stacking context, so it gets the z-index the search panel needs to stay above the messages. */
+@media (min-width: 769px) {
+  .lng-header {
+    container: lng-header / inline-size;
+    position: relative;
+    z-index: 3;
+  }
+  @container lng-header (max-width: 639.98px) {
+    .lng-header-tools {
+      --lng-search-folded: 1;
+    }
+    .lng-header .lng-search-wrap {
+      flex: none;
+      inline-size: 28px;
+      block-size: 24px;
+    }
+    .lng-header .lng-search-wrap > .lng-search {
+      position: absolute;
+      inset-inline-end: 0;
+      inset-block-start: 50%;
+      transform: translateY(-50%);
+      box-sizing: border-box;
+      inline-size: 28px;
+      height: 28px;
+      padding: 0;
+      justify-content: center;
+      background: transparent;
+      color: var(--interactive-normal);
+    }
+    .lng-header .lng-search-wrap > .lng-search:hover {
+      color: var(--interactive-hover);
+      background: var(--ui-bg-hover);
+    }
+    .lng-header .lng-search-wrap > .lng-search svg {
+      pointer-events: none;
+    }
+    .lng-header .lng-search-wrap > .lng-search input {
+      position: absolute;
+      inset: 0;
+      block-size: 100%;
+      padding: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .lng-header .lng-search-wrap:focus-within > .lng-search {
+      box-sizing: content-box;
+      inline-size: 144px;
+      height: 24px;
+      padding: 0 6px;
+      justify-content: flex-start;
+      background: var(--bg-base-lowest);
+      color: var(--text-muted);
+    }
+    .lng-header .lng-search-wrap:focus-within > .lng-search input {
+      position: static;
+      inset: auto;
+      block-size: auto;
+      opacity: 1;
+      cursor: text;
+    }
+  }
 }
 
 /* ---------- messages ---------- */
