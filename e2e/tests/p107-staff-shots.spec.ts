@@ -724,10 +724,22 @@ const NAMED: Record<string, (r: RowFig) => boolean> = {
   'server-overview': (r) => r.state === 'shell: sections list',
   'admin-dashboard': (r) => r.state === 'shell: sections list',
   friends: (r) => /dismiss/i.test(r.name),
-  'lib-browse': (r) => /chip|dropdown/i.test(r.path) || /^(close|room selection)/i.test(r.name),
-  'lib-me': (r) => /chip|dropdown/i.test(r.path) || /^(close|room selection)/i.test(r.name),
-  study: (r) => /chip|dropdown/i.test(r.path) || /^(close|room selection)/i.test(r.name),
-  'cin-browse': (r) => /chip|dropdown/i.test(r.path) || /^(close|room selection)/i.test(r.name),
+  'lib-browse': (r) =>
+    /_chip_|dropdown|_select_/i.test(r.path) ||
+    /_close_/.test(r.path) ||
+    /^room selection/i.test(r.name),
+  'lib-me': (r) =>
+    /_chip_|dropdown|_select_/i.test(r.path) ||
+    /_close_/.test(r.path) ||
+    /^room selection/i.test(r.name),
+  study: (r) =>
+    /_chip_|dropdown|_select_/i.test(r.path) ||
+    /_close_/.test(r.path) ||
+    /^room selection/i.test(r.name),
+  'cin-browse': (r) =>
+    /_chip_|dropdown|_select_/i.test(r.path) ||
+    /_close_/.test(r.path) ||
+    /^room selection/i.test(r.name),
   'server-roles': (r) => /default permissions/i.test(r.name),
   'server-channel-permissions': (r) => /chip/i.test(r.path),
   'server-watch-library': (r) => r.tag === 'a',
