@@ -81,7 +81,7 @@ function measureRow(arg: { id: string; error: string | null }) {
       display: getComputedStyle(c).display,
     };
   });
-  const errEl = tr.querySelector<HTMLElement>('.ss-meta:not(:first-child), .adm-tx-error');
+  const errEl = tr.children[3]?.querySelector<HTMLElement>('.ss-meta:last-child') ?? null;
   let err: null | {
     box: number[];
     lines: number;
@@ -284,27 +284,18 @@ test('D-955: the Transcoding queue, measured and shot', async ({ browser }) => {
           `REPORT ${PHASE} Logs dialog on the failed job: whole error in text ${whole}; first words ${partial}; text: ${text.slice(0, 300)}`,
         );
         log({ phase: PHASE, logsDialog: { whole, partial, text: text.slice(0, 400) } });
-        await page.keyboard.press('Escape');
-        await dlg
-          .waitFor({ state: 'hidden', timeout: 5000 })
-          .catch(() => notes.push('Logs dialog did not close on Escape'));
+        await closeDlg(page, notes, 'Logs');
         if (PHASE === 'after') {
           const dQ = await open(queued, /^Cancel|cancel/i);
           console.log(
             `REPORT after Cancel dialog shows: ${((await dQ.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 120)}`,
           );
-          await page.keyboard.press('Escape');
-          await dQ
-            .waitFor({ state: 'hidden', timeout: 5000 })
-            .catch(() => notes.push('Cancel dialog did not close on Escape'));
+          await closeDlg(page, notes, 'Cancel');
           const dF = await open(failed, /re-?run/i);
           console.log(
             `REPORT after Re-run dialog shows: ${((await dF.textContent()) ?? '').replace(/\s+/g, ' ').slice(0, 120)}`,
           );
-          await page.keyboard.press('Escape');
-          await dF
-            .waitFor({ state: 'hidden', timeout: 5000 })
-            .catch(() => notes.push('Re-run dialog did not close on Escape'));
+          await closeDlg(page, notes, 'Re-run');
           // nothing was confirmed: the three rows are still there
           for (const j of [queued, running, failed]) await expect(rowOf(page, j.id)).toHaveCount(1);
         }
@@ -342,3 +333,18 @@ test('D-955: the Transcoding queue, measured and shot', async ({ browser }) => {
   console.log(`REPORT shots ${shots.length}: ${shots.join(', ')}`);
   for (const n of notes) console.log(`REPORT note ${n}`);
 });
+/** Close the open dialog without confirming: Escape, else its Done / Cancel button; a note says which one worked. */
+async function closeDlg(page: Page, notes: string[], what: string) {
+  const open = page.getByRole('dialog');
+  const base = 1; // the Admin shell is itself a dialog
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  if ((await open.count()) <= base) return;
+  notes.push(`${what} dialog did not close on Escape; closed with its button`);
+  await open
+    .last()
+    .getByRole('button', { name: /^(Done|Cancel)$/ })
+    .first()
+    .click();
+  await expect(open).toHaveCount(base);
+}
