@@ -1,4 +1,4 @@
-import { Button, Modal, Notice, Spinner, TextInput } from '@sideroom/ui';
+import { Button, Modal, NativeSelect, Notice, Spinner, TextInput } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { shelfObjectUrl } from './objectUrl';
@@ -196,14 +196,14 @@ export function NoteEditor({
         </label>
         <label className="stu-field">
           <span>{t('study.edit.fieldCover')}</span>
-          <select value={cover} onChange={(e) => setCover(e.target.value)}>
+          <NativeSelect value={cover} onChange={(e) => setCover(e.target.value)}>
             <option value="">{t('study.edit.coverOwn')}</option>
             {choices.map((k) => (
               <option key={k} value={k}>
                 {k.split('/').pop()}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {error && <Notice variant="danger">{error}</Notice>}
       </div>
