@@ -1736,3 +1736,17 @@ label.lib-chapter-select {
 .lib-select:not(.lib-rate) > span:first-child:not(.lib-sr-only) {
   margin-inline-end: 8px;
 }
+
+/* D-998 (SEC-AUD-472): at 375 the reader's top bar holds the back arrow, the title, the chapter picker (up to 220 px)
+   and four buttons, and was wider than the viewport, so the last two fell off the edge. On a phone the title gives way
+   first (its basis is 0, it cuts with an ellipsis), then the picker: it may shrink from its 220 px cap down to 96 px,
+   the select cutting its own text with the kit's padding and the chevron staying at the field's end. */
+@media (max-width: 480px) {
+  .lib-reader-top .lib-reader-title {
+    min-inline-size: 0;
+  }
+  .lib-reader-top label.lib-chapter-select {
+    flex: 0 1 auto;
+    min-inline-size: 96px;
+  }
+}
