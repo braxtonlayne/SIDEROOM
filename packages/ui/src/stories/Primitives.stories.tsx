@@ -13,6 +13,7 @@ import { Tabs } from '../primitives/Tabs/Tabs';
 import { ContextMenu, DropdownMenu } from '../primitives/Menu/Menu';
 import { Popover, Tooltip } from '../primitives/Overlay/Overlay';
 import { Combobox, MultiSelect, Select } from '../primitives/Select/Select';
+import { NativeSelect } from '../primitives/Select/NativeSelect';
 import { ScrollArea, VirtualList } from '../primitives/Scroll/ScrollArea';
 import { Skeleton, Spinner } from '../primitives/Loading/Spinner';
 import { ErrorBoundary } from '../primitives/State/State';
@@ -178,6 +179,13 @@ export const SelectsAndTabs = () => (
       ]}
     />
   </div>
+);
+
+export const NativeSelectBasic = () => (
+  <NativeSelect aria-label="Letter">
+    <option>Alpha</option>
+    <option>Beta</option>
+  </NativeSelect>
 );
 
 export const ScrollAndVirtual = () => (

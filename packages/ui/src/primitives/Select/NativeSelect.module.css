@@ -55,7 +55,8 @@
   padding-inline-end: 12px;
 }
 
-@media (pointer: coarse) {
+/* D-856: a 44 px field on a phone (the kit's own breakpoint, as Input and Select), and on any touch screen. */
+@media (max-width: 720px), (pointer: coarse) {
   .select:not(.listbox) {
     min-block-size: 44px;
   }
