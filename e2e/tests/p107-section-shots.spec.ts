@@ -1205,7 +1205,10 @@ function compare() {
       .map((t) => `${t.at}:${t.tag}${t.name ? ` "${t.name}"` : ''}`)
       .join(', ');
     const id = `${r.page} [${r.state}] ${r.tag} "${r.name}" ${r.box ? `${r.box.w}x${r.box.h}` : ''}`;
-    if (r.status === 'fail' && isNamed) {
+    if (r.status === 'fail' && /lib-chip-list/.test(r.path)) {
+      // accepted by the library builder (16 px tag in a text-line row, 8 px gap): listed, not a problem
+      notThisPod.push(`ACCEPTED by library: ${id} (${takers})`);
+    } else if (r.status === 'fail' && isNamed) {
       fails.named++;
       problems.push(`${id}: a named control still fails at 375 (${takers}) <- ${r.path}`);
     } else if (r.status === 'fail' && b?.status === 'pass')
