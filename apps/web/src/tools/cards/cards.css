@@ -30,7 +30,7 @@
   padding-inline: 0.5rem;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
-  background: var(--ui-bg);
+  background: var(--ui-bg-raised);
   color: var(--ui-text);
   font: inherit;
 }
