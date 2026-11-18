@@ -65,3 +65,11 @@ Added `labelGap` (select left minus the label text's right edge) and the rule "l
 
 ## Proposed rows
 Only the two faults above (numbered by the commander from SEC-AUD-470). The 1024 hit-test fails equal to the base are SEC-AUD-467's.
+
+## ROUND 2 (13:25 to 13:30) and FAULTS: final state
+- Cures: forum put the Sort back to raw and pages put Kind back to raw with `ss-select` (both files equal the base's text). I merged both branches again (no conflicts) and set `moved: []` for `forum-sort` and `bridge-conflicts` in the spec.
+- STACK-ROUND 2: `acquire` 13:25 (queued from 12:26; `status` showed `loungeshots 13:25`), fresh database, seed exit 0 with 0 FAIL, base phase (the pod's four still-changed app files put back to `49ca8946`'s text, then restored; no stash) exit 0, after phase exit 0 with `problems: []`, 39 verdicts and 0 broken, stack stopped by PID tree, ports free, `release` 13:30. `status` after release and cleanup: `free`. Database `sr_p103_loungeshots_ui` dropped, `p103-loungeshots-bin` deleted. e2e `tsc` exit 0 and prettier clean after the last spec edit (12:26).
+- The re-run base has `labelGap` figures, so the label-gap rule ran: no select breaks it.
+- **FAULT 1 (forum Sort): fixed by the put-back** (not a re-shot cure but an exact return to the base's text; the 375 comparison picture was opened: base and after identical, raw 13.33 px select, toolbar unchanged).
+- **FAULT 2 (Kind): fixed by the put-back** (1024 comparison picture opened: base and after identical, "SHOW" label gap as in base).
+- Moved selects still passing in round 2 (re-measured): emoji skin tone (72 px, search field 185 px at 1024 and 375, swatch clear of the chevron), shelf picker (165 x 40, "Use this shelf" on its line), API reference Area (186 x 40). Dependants (Gallery filters, Commands, OAuth2, Rich Presence, authorize page) equal to base. No FAULT is open. No kit fault: no select that should fill its column came out narrow.
