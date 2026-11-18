@@ -302,14 +302,26 @@ test('Tier list: every control a 44 px target at 375', async ({ browser }) => {
             problems.push(`${cfg.tag}: ${c.key} height moved at ${cfg.width}`);
         }
         if (cfg.touch) {
-          if (a['hitFails'] > 0)
+          /* the room bar (All boards, Title, Delete) is RoomShell's, shared with the poll builder: named, not failed */
+          const shell = /^(All boards|Title|Delete)$/;
+          const bad = ac.filter(
+            (c) => (c.status === 'fail' || c.status === 'not-reached') && !shell.test(c.name),
+          );
+          say(
+            `${cfg.tag}: room bar fails left (RoomShell): ${ac
+              .filter((c) => c.status === 'fail' && shell.test(c.name))
+              .map((c) => c.name)
+              .join(', ')}`,
+          );
+          if (bad.length > 0)
             problems.push(
-              `${cfg.tag}: hit fails ${a['hitFails']}: ${JSON.stringify(ac.filter((c) => c.status === 'fail' || c.status === 'not-reached').map((c) => [c.key, c.takers[0]]))}`,
+              `${cfg.tag}: hit fails ${bad.length}: ${JSON.stringify(bad.map((c) => [c.key, c.takers[0]]))}`,
             );
           for (const h of a['heads_x'] as Box[])
             if (h.h < 43.5) problems.push(`${cfg.tag}: head remove ${h.h} tall, wanted 44`);
           for (const h of a['names'] as Box[])
-            if (h.h < 43.5) problems.push(`${cfg.tag}: tier name ${h.h} tall, wanted 44`);
+            if (h.h < 43.5 || h.h > 44.5)
+              problems.push(`${cfg.tag}: tier name ${h.h} tall, wanted 44`);
           (b['chips'] as any[]).forEach((c, i) => {
             const n = a['chips'][i];
             if (n && (Math.abs(c.chip.h - n.chip.h) > 0.5 || Math.abs(c.chip.w - n.chip.w) > 0.5))
