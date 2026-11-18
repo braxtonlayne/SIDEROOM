@@ -978,9 +978,17 @@
   color: #ece6d6;
 }
 /* The reader's bars are dark under every theme; under a Lounge theme the kit parts on them (page label, slider) read
-   the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. */
+   the theme's text tokens, which on a light theme are dark on dark. They state the Side Room values here. D-998: so
+   does the end card, which sits on the same dark stage (the black and the grey ones; the white and the sepia stages
+   are light, and the theme's own dark text reads on them). */
 .lib-root:not([data-theme^='sideroom'])
-  :is(.lib-reader-top, .lib-reader-bottom, .lib-sync-notice, .lib-pdf .lib-pdf-bar) {
+  :is(
+    .lib-reader-top,
+    .lib-reader-bottom,
+    .lib-sync-notice,
+    .lib-pdf .lib-pdf-bar,
+    .lib-reader:not([data-bg='white'], [data-bg='sepia']) .lib-endcard
+  ) {
   --ui-text: #ece6d6;
   --ui-text-muted: #a9a493;
   --ui-text-faint: #918d7e;
