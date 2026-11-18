@@ -300,3 +300,17 @@
     margin-block: -1px;
   }
 }
+
+/* D-1016 (wave 106): on a phone every control of the tier list editor (`.sr-tier`) is a 44 px tall target: the tier's name
+ * field and remove button, and the controls under the board (the new-row and item fields, the emoji field, the buttons).
+ * Heights only: no width, padding or colour changes. The chip's own controls keep wave 105's rules above. The poll builder
+ * and the room bar (All boards, Title, Delete: RoomShell, shared with the poll builder) are outside `.sr-tier`. */
+@media (max-width: 720px) {
+  .sr-tier .sr-tier-name,
+  .sr-tier .sr-tier-head .sr-room-x,
+  .sr-tier .sr-room-btn,
+  .sr-tier .sr-room-emoji,
+  .sr-tier .sr-room-inline > input {
+    min-block-size: 44px;
+  }
+}
