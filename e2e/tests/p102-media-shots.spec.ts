@@ -616,6 +616,16 @@ async function fakeStudy(page: Page) {
   await page.route('https://bucket.invalid/**', (r) => r.fulfill({ status: 404 }));
 }
 
+/** A second visit finds the host out of the party ("You are not in this party any more"): rejoin. */
+async function ensureIn(page: Page) {
+  const rejoin = page.getByRole('button', { name: 'Rejoin the party' });
+  await rejoin.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
+  if (await rejoin.isVisible().catch(() => false)) {
+    await rejoin.click();
+    await page.waitForTimeout(1500);
+  }
+}
+
 const dialogOf = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name }).last();
 
 const SCENARIOS: Scenario[] = [
@@ -631,6 +641,7 @@ const SCENARIOS: Scenario[] = [
       if (!ids.partyId) throw new Error('not reached: no party on the movie could be made');
       await goto(page, `/cinema/party/${ids.partyId}`);
       await page.locator('.wp-root').waitFor({ timeout: 40_000 });
+      await ensureIn(page);
       await page.getByRole('tab', { name: 'People' }).click();
       await page.locator('.wp-settings select').first().waitFor(SIGNAL);
       await settled(page);
@@ -651,6 +662,7 @@ const SCENARIOS: Scenario[] = [
       if (!ids.partyId) throw new Error('not reached: no party on the movie could be made');
       await goto(page, `/cinema/party/${ids.partyId}`);
       await page.locator('.wp-root').waitFor({ timeout: 40_000 });
+      await ensureIn(page);
       const bar = page.getByRole('combobox', { name: 'Speed' });
       await bar.waitFor(SIGNAL);
       await settled(page);
@@ -672,6 +684,7 @@ const SCENARIOS: Scenario[] = [
         throw new Error('not reached: no party or series could be made');
       await goto(page, `/cinema/party/${ids.partyId}`);
       await page.locator('.wp-root').waitFor({ timeout: 40_000 });
+      await ensureIn(page);
       await page.getByRole('tab', { name: /Queue/ }).click();
       await page.getByRole('button', { name: 'Add to queue' }).first().click();
       const box = page.getByRole('textbox', { name: 'Search the cinema' });
