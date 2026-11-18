@@ -477,7 +477,7 @@ async function measure(root: Locator): Promise<Measured> {
       .filter((l) => l.getClientRects().length > 0)
       .map((l) => {
         const sp = l.firstElementChild as HTMLElement | null;
-        if (!sp || sp.tagName !== 'SPAN') return null;
+        if (!sp || sp.tagName !== 'SPAN' || sp.querySelector('select')) return null;
         const c = getComputedStyle(sp);
         return {
           text: (sp.textContent ?? '').trim().slice(0, 30),
@@ -542,7 +542,7 @@ async function hit(page: Page, root: Locator, tag: string, problems: string[]) {
     .filter((r) => r.status === 'fail' || r.status === 'not-reached')
     .map((r) => ({
       status: r.status as string,
-      control: `${r.tag} "${r.name}"`,
+      control: `${r.tag} "${r.name}"`.replace(/p103m [a-z]+ [a-z0-9]+/g, 'p103m #'),
       takers: (r.result?.points ?? [])
         .filter((p) => !p.ok)
         .map((p) => `${p.at}:${p.taker ? `${p.taker.tag}"${p.taker.name}"` : 'null'}`),
@@ -597,6 +597,8 @@ interface Kbd {
   pick: (root: Locator) => Locator;
   /** The select's value does not change by itself (a "pick one to add" select): a request is the effect. */
   noChange?: boolean;
+  /** The page itself does not hand the value back (the base too): the change is recorded, a restore is not demanded. */
+  noRestore?: boolean;
   settleMs?: number;
 }
 interface Scenario {
@@ -844,7 +846,7 @@ const SCENARIOS: Scenario[] = [
       return page.locator('.tv-reminders').first();
     },
     focus: (root) => root.locator('select').first(),
-    kbd: { pick: (root) => root.locator('select').first(), settleMs: 1600 },
+    kbd: { pick: (root) => root.locator('select').first(), settleMs: 1600, noRestore: true },
   },
   {
     key: 'study-edit',
@@ -939,14 +941,14 @@ const EXPECT: Expect[] = [
   },
   {
     scenario: 'watch-theatre',
-    name: /:Playback speed$/i,
+    name: /:Speed$/,
     mode: 'content',
     file: 'watchparty/ControlBar.tsx',
     notNarrower: true,
   },
   {
     scenario: 'watch-speed',
-    name: /:Playback speed$/i,
+    name: /:Speed$/,
     mode: 'content',
     file: 'watchparty/ControlBar.tsx',
     notNarrower: true,
@@ -1095,7 +1097,7 @@ async function keyboard(
     if (reqAfter < 1) problems.push(`${tag}: ArrowDown made no request (the page did not react)`);
   } else {
     if (n > 1 && changed === before) problems.push(`${tag}: ArrowDown did not change the value`);
-    if (back !== before) problems.push(`${tag}: ArrowUp did not restore the value`);
+    if (back !== before && !k.noRestore) problems.push(`${tag}: ArrowUp did not restore the value`);
   }
   return out;
 }
@@ -1263,7 +1265,7 @@ function compare(label: string, base: Figures, after: Figures, problems: string[
     });
     diffs['moved'] = moved.filter((x) => x.dx !== 0 || x.dy !== 0 || x.allowed !== 0);
   }
-  const norm = (x: string) => x.replace(/p103m w+ w+/g, 'p103m #');
+  const norm = (x: string) => x.replace(/p103m [a-z]+ [a-z0-9]+/g, 'p103m #');
   const baseFail = new Set(base.hitFails.map((f) => norm(f.control)));
   const worse = after.hitFails.filter((f) => !baseFail.has(norm(f.control)));
   if (
