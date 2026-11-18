@@ -56,7 +56,12 @@ import { ThreadPane } from './threads/ThreadPane';
 import { useThreadRoute } from './threads/useThreadRoute';
 import { useShellBoot } from './shell/useShellBoot';
 import { ShortcutSheet } from './ShortcutSheet';
-import { isDrawerShortcut, isPlayerShortcut, matchCustomShortcut } from './shortcuts';
+import {
+  isDrawerShortcut,
+  isPlayerShortcut,
+  matchCustomShortcut,
+  yieldsToSelect,
+} from './shortcuts';
 import { usePrefsStore } from '../settings/user/prefs';
 import { RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, useLoungeUi } from './store';
 import { UserPanel } from './UserPanel';
@@ -84,6 +89,9 @@ function useLoungeShortcuts(h: { toggleSheet: () => void; openSettings: () => vo
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // D-995: a focused select keeps ArrowUp / ArrowDown (Alt+ArrowDown opens its list), whatever the shortcut or keybind.
+      // First, so nothing is prevented before it and no other key pays more than this test.
+      if (yieldsToSelect(e, e.target)) return;
       const id = matchCustomShortcut(e, usePrefsStore.getState().prefs.keybinds);
       // The player host, the drawer gate and the bug reporter gate own their keys.
       if (!id || isPlayerShortcut(id) || isDrawerShortcut(id) || id === 'bugReport') return;
