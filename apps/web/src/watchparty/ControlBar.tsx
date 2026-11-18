@@ -1,7 +1,7 @@
 // The theatre's control bar (WP-FE-003): the host and controllers drive playback through the server; everybody
 // else sees the same bar with the playback controls disabled and a "Request control" button. Volume, captions
 // and full screen are always the viewer's own.
-import { Icon } from '@sideroom/ui';
+import { Icon, NativeSelect } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { useT } from '../i18n';
 import { formatClock } from '../cinema/player/model';
@@ -128,7 +128,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
       {!live && (
         <label className="wp-inline">
           <span className="wp-sr-only">{tr('watchparty.controls.speed')}</span>
-          <select
+          <NativeSelect
             aria-label={tr('watchparty.controls.speed')}
             value={String(pb.rate)}
             disabled={!can}
@@ -140,7 +140,7 @@ export function ControlBar({ onFullscreen, canFullscreen, onShare }: ControlBarP
                 {r}×
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       )}
 
