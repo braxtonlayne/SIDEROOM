@@ -134,3 +134,14 @@
   font: inherit;
   resize: vertical;
 }
+
+/* SEC-AUD-491 (D-1006): on a phone the toolbar's search field (29px) and view buttons (28px) were under 44px, and the
+   point 21px above or below their centre was taken by .lng-forum-tools. They get a real 44px box (the toolbar wraps
+   on a phone already). Pointer widths are untouched. */
+.lng-root[data-mobile] .lng-forum-search {
+  min-block-size: 44px;
+}
+.lng-root[data-mobile] .lng-forum-views .lng-icon-btn {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+}
