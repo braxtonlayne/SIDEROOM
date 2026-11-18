@@ -1,18 +1,20 @@
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { repoRoot } from '../support/cli';
-import { apiPatch, expect, test } from '../support/fixtures';
+import { DATABASE_URL, repoRoot } from '../support/cli';
+import { apiPatch, apiPost, expect, test } from '../support/fixtures';
 import { hitTestAll, openCollapsed } from '../support/hit-test';
 import { seedTranscodingRow } from '../support/p100-seed';
 
 /**
  * D-991 (wave 104, mount): Admin > Cinema > Transcoding > Queue shows each job's mount by its label and then its id.
- * Rows: the three jobs of `seedTranscodingRow()` (queued, running, failed; all `mount_id` 1, the instance mount),
- * picked by the ids it returns (D-942) and removed in a `finally`.
+ * Rows: the three jobs of `seedTranscodingRow()` (queued, running, failed; all `mount_id` 1, the instance mount, which a
+ * stack on `memory:` storage never lists), picked by the ids it returns (D-942) and removed in a `finally`. The spec
+ * then makes TWO REAL MOUNTS through the API under its own names (a user mount of the Owner, "p104 films" and a
+ * 60-character label) and points the queued job at the first and the running job at the second with one `UPDATE`
+ * of `transcode_jobs.mount_id` (no list is faked). The failed job stays on mount 1, which the list does not hold.
  * Step 1 (logged): the `mount_id` of every job in the page's own jobs response, and the mounts list the page's own
  * credentials get from `GET /admin/storage/mounts?limit=50`.
- * Variants: `real` = the stack's own list as it is; `short` / `long` = THE LIST IS FAKED with `page.route`: the real
- * list with the label of mount 1 replaced by "p104 films" / a 60-character label. Faked variants say so in the log.
  * PHASE `base` (TranscodingSection.tsx put back to the base's text) or `after`. Needs the sweep world, a stack with
  * `SR_ADMIN_REQUIRE_REAUTH=0`, `psql` and `DATABASE_URL` (see `p100-seed.ts`).
  *
@@ -36,17 +38,44 @@ const LONG = 'p104 films: the long label of a mount that someone gave a very lon
   60,
 );
 
+/** One statement on the stack's Postgres (`-c`, stdin closed); the password goes by PGPASSWORD, never printed. */
+function psql(sql: string): void {
+  const u = new URL(DATABASE_URL);
+  const win = 'C:/Program Files/PostgreSQL/17/bin/psql.exe';
+  execFileSync(
+    process.env.PSQL ?? (existsSync(win) ? win : 'psql'),
+    [
+      '-X',
+      '-q',
+      '-h',
+      u.hostname,
+      '-p',
+      u.port || '5432',
+      '-U',
+      decodeURIComponent(u.username),
+      '-d',
+      u.pathname.slice(1),
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      sql,
+    ],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, PGPASSWORD: decodeURIComponent(u.password) },
+    },
+  );
+}
+
 test.skip(!ON, 'local visual check only');
 test.setTimeout(420_000);
 
-type Variant = 'real' | 'short' | 'long';
 const RUNS: ReadonlyArray<{
   key: string;
   theme: string;
   w: number;
   h: number;
   phone: boolean;
-  variants: Variant[];
 }> = [
   {
     key: '1024',
@@ -54,11 +83,10 @@ const RUNS: ReadonlyArray<{
     w: 1024,
     h: 768,
     phone: false,
-    variants: ['real', 'short', 'long'],
   },
-  { key: '1024', theme: 'lounge-dark', w: 1024, h: 768, phone: false, variants: ['real'] },
-  { key: '900', theme: 'lounge-light', w: 900, h: 768, phone: false, variants: ['real', 'long'] },
-  { key: '375', theme: 'lounge-light', w: 375, h: 812, phone: true, variants: ['real', 'long'] },
+  { key: '1024', theme: 'lounge-dark', w: 1024, h: 768, phone: false },
+  { key: '900', theme: 'lounge-light', w: 900, h: 768, phone: false },
+  { key: '375', theme: 'lounge-light', w: 375, h: 812, phone: true },
 ];
 
 /** Runs in the page. */
@@ -103,7 +131,9 @@ function measure(ids: string[]) {
     mainClient: main.clientWidth,
     docSideways: de.scrollWidth - de.clientWidth,
     rows,
-    alerts: document.querySelectorAll('[role="alert"],[role="alertdialog"],[role="dialog"]').length,
+    alerts: Array.from(document.querySelectorAll('[role="alert"],[role="alertdialog"]')).map(
+      (a) => `${a.tagName}.${a.className}:${(a.textContent ?? '').slice(0, 40)}`,
+    ),
   };
 }
 
@@ -119,11 +149,33 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
   const shots: string[] = [];
   const tx = seedTranscodingRow();
   const ids = tx.jobs.map((j) => j.id);
+  const mounts: Array<{ id: string }> = [];
+  const makeMount = async (label: string) => {
+    const m = await apiPost<{ id: string }>(o, '/users/@me/storage/mounts', {
+      label,
+      provider: 's3',
+      region: 'us-east-1',
+      bucket: 'p104-mount',
+      prefix: '',
+      path_style: false,
+      access_key_id: 'p104mountkey',
+      secret_access_key: 'p104mountsecret-not-real',
+    });
+    mounts.push(m);
+    return m;
+  };
   console.log(
     `REPORT phase ${PHASE}; suffix ${tx.suffix}: ${tx.jobs.map((j) => `${j.id}/${j.state}`).join(', ')}`,
   );
 
   try {
+    const m1 = await makeMount(SHORT);
+    const m2 = await makeMount(LONG);
+    psql(`UPDATE transcode_jobs SET mount_id = ${m1.id} WHERE id = ${ids[0]}`);
+    psql(`UPDATE transcode_jobs SET mount_id = ${m2.id} WHERE id = ${ids[1]}`);
+    console.log(
+      `REPORT mounts made: ${m1.id} (${SHORT}), ${m2.id} (${LONG.length} chars); failed job stays on 1`,
+    );
     for (const s of RUNS) {
       const prefs = {
         theme: s.theme,
@@ -131,8 +183,7 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
         sectionThemes: { cinema: 'sideroom', library: 'sideroom', arcade: 'lounge-editorial' },
       };
       await apiPatch(o, '/users/@me/settings', { settings: { user_prefs: prefs } });
-      for (const variant of s.variants) {
-        if (PHASE === 'base' && variant !== 'real') continue;
+      {
         if (PHASE === 'base' && s.theme === 'lounge-dark') continue;
         const ctx = await browser.newContext({
           baseURL: ORIGIN,
@@ -153,41 +204,11 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
         }, prefs);
         const page = await ctx.newPage();
         page.setDefaultTimeout(10_000);
-        const tag = `${s.key}-${s.theme}-${variant}`;
+        const tag = `${s.key}-${s.theme}`;
         let mountReqs = 0;
-        if (variant !== 'real') {
-          await page.route('**/api/v1/admin/storage/mounts?*', async (route) => {
-            mountReqs++;
-            const res = await route.fetch();
-            const rows = (await res.json()) as Array<Record<string, unknown>>;
-            const label = variant === 'short' ? SHORT : LONG;
-            const out = rows.some((r) => r.id === '1')
-              ? rows.map((r) => (r.id === '1' ? { ...r, label } : r))
-              : [
-                  {
-                    id: '1',
-                    owner_kind: 'platform',
-                    owner_id: '0',
-                    owner_name: '',
-                    label,
-                    provider: 's3',
-                    bucket: 'b',
-                    status: 'active',
-                    key_hint: '',
-                    created_at_ms: 0,
-                    delisted_at_ms: null,
-                    delist_reason: '',
-                    delisted_objects: 0,
-                  },
-                  ...rows,
-                ];
-            await route.fulfill({ response: res, json: out });
-          });
-        } else {
-          page.on('request', (r) => {
-            if (r.url().includes('/admin/storage/mounts')) mountReqs++;
-          });
-        }
+        page.on('request', (r) => {
+          if (r.url().includes('/admin/storage/mounts')) mountReqs++;
+        });
         const jobsResp = page.waitForResponse(
           (r) => r.url().includes('/admin/transcode/jobs') && r.request().method() === 'GET',
         );
@@ -204,7 +225,8 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
         await page.locator('.adm-table-wrap table').first().waitFor({ timeout: 10_000 });
         await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => undefined);
         await page.waitForTimeout(600);
-        if (variant === 'real' && s.key === '1024' && s.theme === 'lounge-light') {
+        const reqsAtLoad = mountReqs;
+        if (s.key === '1024' && s.theme === 'lounge-light') {
           const list = await page.evaluate(async () => {
             const r = await fetch('/api/v1/admin/storage/mounts?limit=50', {
               credentials: 'include',
@@ -227,40 +249,38 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
         );
         expect(theme, 'data-theme read back').toBe(s.theme);
         const m = await page.evaluate(measure, ids);
-        const faked = variant !== 'real';
-        log({ phase: PHASE, tag, faked, mountReqs, ...m });
-        console.log(
-          `REPORT ${tag}${faked ? ' (LIST FAKED)' : ''} mountReqs ${mountReqs} ${JSON.stringify(m)}`,
-        );
+        log({ phase: PHASE, tag, mountReqs: reqsAtLoad, ...m });
+        console.log(`REPORT ${tag} mountReqs ${mountReqs} ${JSON.stringify(m)}`);
         if (m.mainScroll > m.mainClient)
           problems.push(`${tag}: main scrolls sideways ${m.mainScroll}/${m.mainClient}`);
         if (m.docSideways > 0) problems.push(`${tag}: document scrolls sideways`);
-        if (m.alerts !== 0) problems.push(`${tag}: ${m.alerts} alert/dialog nodes on the page`);
+        // An empty live region (the shell's) is always there; an alert with text is a toast or an error banner.
+        const alertsNow = m.alerts.filter((x) => !x.endsWith(':'));
+        if (alertsNow.length) problems.push(`${tag}: alert with text ${JSON.stringify(alertsNow)}`);
         if (PHASE === 'after') {
-          if (mountReqs !== 1)
-            problems.push(`${tag}: ${mountReqs} mount list requests, expected 1`);
-          const expectLabel = variant === 'short' ? SHORT : variant === 'long' ? LONG : null;
-          for (const r of m.rows) {
-            if (expectLabel) expect(r.cellText, `${tag} cell text`).toBe(`${expectLabel} 1`);
-            else expect(r.cellText!.endsWith('1'), `${tag} cell ends with the id`).toBe(true);
-          }
+          // The page's own fetch is not counted (it runs only at 1024 light, after the count is read); dev mode's
+          // StrictMode runs the section's effect twice, so 1 or 2 requests are the one ask.
+          if (reqsAtLoad < 1 || reqsAtLoad > 2)
+            problems.push(`${tag}: ${reqsAtLoad} mount list requests`);
+          const want = [`${SHORT} ${mounts[0]!.id}`, `${LONG} ${mounts[1]!.id}`, '1'];
+          const got = ids.map((id) => m.rows.find((r) => r.id === id)!.cellText);
+          expect(got, `${tag} the three Mount cells (queued, running, failed)`).toEqual(want);
         }
         if (!s.phone && m.wrapRole !== 'region')
           problems.push(`${tag}: the wrapper is not the keyboard region`);
 
-        const name =
+        const names =
           PHASE === 'base'
-            ? s.key === '1024'
-              ? 'base-queue-1024-lounge-light.png'
-              : null
-            : variant === 'long'
-              ? s.key === '1024'
-                ? 'queue-1024-long-label.png'
-                : null
-              : variant === 'short'
-                ? 'queue-1024-short-label.png'
-                : `queue-${s.key}-${s.theme}.png`;
-        if (name) {
+            ? s.key === '1024' && s.theme === 'lounge-light'
+              ? ['base-queue-1024-lounge-light.png']
+              : []
+            : [
+                `queue-${s.key}-${s.theme}.png`,
+                ...(s.key === '1024' && s.theme === 'lounge-light'
+                  ? ['queue-1024-long-label.png']
+                  : []),
+              ];
+        for (const name of names) {
           await page.evaluate(() => window.scrollTo(0, 0));
           await page.locator('.adm-table-wrap').evaluate((w) => {
             w.scrollIntoView({ block: 'start' });
@@ -293,6 +313,14 @@ test('D-991: the Transcoding queue shows the mount by its label and then its id'
       }
     }
   } finally {
+    if (mounts.length) {
+      try {
+        psql(`DELETE FROM storage_mounts WHERE id IN (${mounts.map((m) => m.id).join(',')})`);
+        console.log(`REPORT mounts removed: ${mounts.map((m) => m.id).join(', ')}`);
+      } catch (e) {
+        console.log(`REPORT note could not remove the mounts: ${String(e).slice(0, 120)}`);
+      }
+    }
     try {
       tx.remove();
     } catch (e) {
