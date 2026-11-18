@@ -70,6 +70,7 @@ interface Ids {
 interface Row {
   page: string;
   state: string;
+  reach: string;
   name: string;
   tag: string;
   role: string | null;
@@ -255,20 +256,24 @@ async function record(
   root: Locator,
   pageKey: string,
   state: string,
-  opts: { menu?: boolean } = {},
+  opts: { menu?: boolean; reach?: 'touch' | 'box' } = {},
 ) {
   if ((await root.count()) === 0) {
     notCovered.push({ page: pageKey, state, note: 'the root was not found' });
     return;
   }
   const opened = await openCollapsed(page, root);
-  const res = await hitTestAll(page, root, opts.menu ? { also: MENU_ITEM_SELECTOR } : {});
+  const res = await hitTestAll(page, root, {
+    ...(opts.menu ? { also: MENU_ITEM_SELECTOR } : {}),
+    ...(opts.reach ? { reach: opts.reach } : {}),
+  });
   let nr = 0;
   for (const r of res) {
     if (r.status === 'not-reached') nr++;
     rows.push({
       page: pageKey,
       state,
+      reach: opts.reach ?? 'touch',
       name: r.name,
       tag: r.tag,
       role: r.role,
@@ -376,7 +381,15 @@ async function measurePage(browser: Browser, owner: BrowserContext, def: PageDef
     const target = (await root.count()) > 0 ? root : page.locator('body');
     await record(page, target, key, 'page');
     if (def.chrome)
-      await record(page, page.locator('header:not(main header), nav:not(main nav)'), key, 'chrome');
+      // The section bar sits at the very top of the page: a point 21 px above its centre is off the page, so the touch
+      // reach cannot be used there (not-reached). Its rows are measured with the box reach and say so.
+      await record(
+        page,
+        page.locator('header:not(main header), nav:not(main nav)'),
+        key,
+        'chrome',
+        { reach: 'box' },
+      );
     for (const ov of def.overlays ?? []) {
       try {
         await def.open(page);
