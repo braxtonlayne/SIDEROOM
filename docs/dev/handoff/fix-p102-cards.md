@@ -56,3 +56,7 @@ None. Open follow-up: remove `select` from the `utl-dev.css` field rule once the
 `bash cli-agents/tc.sh run cards bash -c "cd .../p102-cards/apps/web && npx tsc --noEmit -p ."` ran 09:32 to 09:38, exit 0 (no code edit after it; the commit after only added this file).
 `node scripts/i18n-audit.mjs --max 0`: TOTAL 0, exit 0 (09:38). `node scripts/check-doc-links.mjs`: ok, exit 0.
 Lock: `heavy.sh status` at 09:36 showed only "settings"; I hold nothing and never called acquire.
+
+## FAULT from toolshots (put back)
+`poll/PollBuilderTool.tsx` Lasts (Duration) select: 62 px wide against 82 in the base at both sizes, text touching the chevron, the checkbox beside it 20 px left. Put back to raw (the base's text). So 7 of the 8 selects stay moved; the Poll builder one is raw. `utl-dev.css` `.ud-root > select` kept (calc moves LootTool's two selects to match).
+Re-run after the fault (10:37): web typecheck via tc.sh exit 0; prettier, eslint exit 0; cards + toolsUi tests 35 passed.
