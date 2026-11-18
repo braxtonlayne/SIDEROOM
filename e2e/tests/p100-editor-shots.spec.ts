@@ -32,6 +32,8 @@ const OUT =
   'C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p100-editor';
 const TAG = process.env.SR_P100_EDITOR_TAG === 'base' ? 'base' : 'after';
 const OTHER = TAG === 'base' ? 'after' : 'base';
+/** How many channel rows the server has at least (default 8; the spec makes `p100-editor-<n>` channels up to it). */
+const ROWS = Number(process.env.SR_P100_EDITOR_ROWS ?? '8');
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
 const STATE = resolve(repoRoot, 'e2e', '.state', 'sweep');
 const WORLD_FILE = resolve(STATE, 'world.json');
@@ -196,7 +198,7 @@ test('D-951: the channel editor on a phone', async ({ browser }) => {
   const list = (await (await o.get(`/api/v1/guilds/${world.guildId}/channels`)).json()) as {
     id: string;
   }[];
-  for (let n = list.length; n < 8; n++) {
+  for (let n = list.length; n < ROWS; n++) {
     await apiPost(o, `/guilds/${world.guildId}/channels`, { name: `p100-editor-${n}`, type: 0 });
   }
 
@@ -272,7 +274,18 @@ test('D-951: the channel editor on a phone', async ({ browser }) => {
           check('375 back button is shown', last.backShown);
           const box = await back.boundingBox();
           log('375 back box', box);
-          check('375 back button at least 44 px tall', (box?.height ?? 0) >= 44);
+          // D-856: the kit draws a small button as is and gives it a 44 px tall target from a pseudo-element.
+          const target = await back.evaluate((el) =>
+            parseFloat(getComputedStyle(el, '::after').height),
+          );
+          log('375 back target (::after) height', target);
+          check('375 back button target at least 44 px tall', target >= 44);
+          const covered = await back.evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            return !!at && (at === el || el.contains(at));
+          });
+          check('375 back button is in view and not covered after a pick', covered);
           const hit = await hitTest(page, back, { sides: true });
           check('375 back button passes the hit test', hit.pass);
           await shoot(page, 'channels-375-back-lounge-light');
