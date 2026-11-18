@@ -594,22 +594,13 @@
   white-space: normal;
 }
 
-/* XC-VIS-002: a few admin filters (Entitlements, Invoices) are plain <label>text <select> pairs; they rendered as
-   tiny browser-default selects next to the styled ones. Same look as .ss-select, label and control on one line. */
-.ss-root .ss-toolbar > label:has(> select) {
+/* D-1002 (SEC-AUD-492): a toolbar label that holds a select is laid out by a class on the label, never by what it contains
+   (the kit's NativeSelect puts a span between label and select). Entitlements' Kind; the Invoices filters have .inv-field. */
+.ss-root .ss-toolbar > label.adm-toolbar-field {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 0.875rem;
-}
-.ss-root .ss-toolbar select:not([class]) {
-  min-height: 40px;
-  padding: 8px 12px;
-  background: var(--ui-bg-raised);
-  color: var(--ui-text);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  font: inherit;
 }
 .ss-root .ss-toolbar > label:has(> input[type='checkbox']) {
   display: inline-flex;
@@ -736,7 +727,6 @@ label.ss-field {
     align-items: center;
     min-block-size: 44px;
   }
-  .ss-root .ss-toolbar select:not([class]),
   .ss-root .ss-toolbar > label:has(> input[type='checkbox']) {
     min-height: 44px;
   }
