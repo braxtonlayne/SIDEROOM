@@ -6,6 +6,7 @@ import {
   EmptyState,
   FilterChips,
   Icon,
+  NativeSelect,
   Notice,
   SegmentedControl,
   Skeleton,
@@ -452,9 +453,9 @@ function FilterDrawer({
           onChange={(n) => setDraft((d) => ({ ...d, genres: n.genres, exclude: n.exclude }))}
         />
         <TagField value={draft.tags ?? ''} onChange={(tags) => setDraft((d) => ({ ...d, tags }))} />
-        <label className="lib-select lib-select-block">
+        <label className="lib-select-block">
           <span>{t('library.browse.status')}</span>
-          <select
+          <NativeSelect
             value={draft.status ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value }))}
           >
@@ -464,7 +465,7 @@ function FilterDrawer({
                 {STATUS_LABEL[s]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <TextInput
           label={t('library.browse.language')}
@@ -479,9 +480,9 @@ function FilterDrawer({
           />
           <TextInput label={t('library.browse.yearTo')} inputMode="numeric" {...field('year_to')} />
         </div>
-        <label className="lib-select lib-select-block">
+        <label className="lib-select-block">
           <span>{t('library.browse.ratingMin')}</span>
-          <select
+          <NativeSelect
             value={draft.rating_min ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, rating_min: e.target.value }))}
           >
@@ -491,11 +492,11 @@ function FilterDrawer({
                 {t('library.browse.ratingAtLeast', { n })}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
-        <label className="lib-select lib-select-block">
+        <label className="lib-select-block">
           <span>{t('library.browse.ageRestricted')}</span>
-          <select
+          <NativeSelect
             value={draft.age ?? ageDefault}
             onChange={(e) => setDraft((d) => ({ ...d, age: e.target.value }))}
           >
@@ -504,7 +505,7 @@ function FilterDrawer({
                 {t(AGE_LABEL[a])}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
     </Drawer>
