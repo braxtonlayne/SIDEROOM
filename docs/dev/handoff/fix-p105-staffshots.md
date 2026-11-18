@@ -37,3 +37,6 @@ strays: none found
 
 ## Commander's command
 bash C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents/job.sh submit integ shoot after --wt lanes --dist C:/Users/braxt/Desktop/SIDEROOM_wt/p105-integ/apps/web/dist --env SR_P105_STAFF_ON=1 --env SR_P105_STAFF_PHASE=after --env SR_P105_STAFF_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p105-staff -- tests/p105-staff-shots.spec.ts
+
+## FAULT 1 ended: cure holds (16:0x)
+Donate's cure 2a860621 (`.inv-field .inv-pick { padding-inline-end: 32px }`) merged; build 0053 rc 0; after shoot 0057 rc 0, problems-after.json is `[]`. State 270, Purpose 145, Search x 771 / width 397 at 1280, as base. Shots invoices-1280-light and invoices-1024-light opened: selects keep the kit chevron, rows and Search field as base. strays: none found.
