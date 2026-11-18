@@ -38,3 +38,12 @@ All six files are under `apps/web/src/library/`, routed from the Library's lazy 
 - SEC-AUD-469: the Library's field type size comes from the label (`.lib-select`, `.lib-sort`, 14 px), not from a select rule.
 - Changelog: The Library's last five native selects now use the kit select, and the Library sets its field type size on the label instead of on every select.
 - Owner questions: none.
+
+## Checks (own tree, after the last edit, kit merged: `fit` prop present)
+- Kit READY merged into my branch (`git merge fix/p103-kit`), 11:58.
+- TYPECHECK: `tc.sh run shelves ... tsc --noEmit -p .` exit 0 (about 12:00).
+- prettier --check on the six .tsx and library.css: clean. eslint (web package's own) on the six .tsx: exit 0.
+- vitest single files, unedited: library.test.tsx 18/18, p13.test.tsx 10/10, p20polish.test.tsx 4/4.
+- `check-css-tokens.mjs` exit 0; `i18n-audit.mjs --max 0` exit 0; `check-doc-links.mjs` exit 0.
+- Not run: stack, shots, spec (libshots').
+- Lock: no heavy lock taken; scratch databases and binaries: none made.
