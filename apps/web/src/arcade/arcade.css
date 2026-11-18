@@ -1067,3 +1067,18 @@
     animation: none;
   }
 }
+
+/* SEC-AUD-449, D-963: in Admin > Arcade at phone width every button of a list entry (Feature, Release, Remove) is a
+   44 px touch target and the controls are at least 8 px apart in both directions, so a tap on one cannot land on
+   its neighbour. Above the phone width nothing changes. */
+@media (max-width: 40rem) {
+  .arc-admin-list button {
+    min-block-size: 44px;
+  }
+  .arc-admin-list .arc-release {
+    gap: 8px;
+  }
+  .arc-admin-list > li + li {
+    margin-block-start: 8px;
+  }
+}
