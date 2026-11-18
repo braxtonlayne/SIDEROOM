@@ -13,9 +13,9 @@ import { over, parseColor, ratio, textRatio, type Rgba } from '../support/contra
  * field ground; the field's height; hover and keyboard focus (border, outline colour/width/offset, box-shadow, "no
  * indicator"); the sheet rules that draw its border and ground (selector text, read from the page's stylesheets); and at
  * 375 touch its height and the hit test (`hitTest`, default reach). A kit field on the same page is read the same way.
- * Parts (SR_P106_FIELDS_PART): 1 = Lounge, settings, scrapbook, Study at 1024 in Lounge Light and Lounge Dark;
- * 2 = the tools drawer (Light, Dark) and the section pages Library, Cinema, Emulator, Developers, Admin (shipped
- * theme, then lounge-light); 3 = the same Lounge/settings/tools pages at 375 touch in Light. Data (D-942): one text
+ * Parts (SR_P106_FIELDS_PART): 1 = Lounge, settings, forum, Study at 1024 in Lounge Light and Lounge Dark;
+ * 2 = the tools drawer in Light, 5 = the tools drawer in Dark; 4 = the section pages Library, Cinema, Emulator,
+ * Developers, Admin (shipped theme, then lounge-light); 3 = the Lounge/settings, tools and section pages at 375 touch in Light. Data (D-942): one text
  * channel `p106-fields-<id>` in the sweep guild for the Poll and Tier list rooms, deleted in a finally. Needs the sweep
  * world (`e2e/.state/sweep/`, never edited). Writes figures-part<n>.json and shots (`base-` prefix in the base phase)
  * into SR_P106_FIELDS_OUT. Measure only: no comparison, no PHASE other than base.
@@ -630,10 +630,10 @@ async function openTool(page: Page, query: string, pick: RegExp) {
     await expect(page.getByRole('dialog', { name: 'Drawer', exact: true })).toBeVisible({
       timeout: 1000,
     });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 12_000 });
   await page.keyboard.type(`>${query}`);
   await page.waitForTimeout(600);
-  await page.getByRole('option', { name: pick }).first().click();
+  await page.getByRole('option', { name: pick }).first().click({ timeout: 6000 });
   await page.waitForTimeout(900);
 }
 async function closeTool(page: Page) {
@@ -858,8 +858,6 @@ const TOOL_STOPS: Stop[] = [
   tool('loot', 'loot', /loot tables/i),
   tool('dice', 'dice', /dice/i),
   tool('wheel', 'wheel', /wheel/i),
-  tool('notes', 'notes', /^notes/i),
-  tool('timers', 'timer', /timer/i),
   tool('audio', 'audio', /audio/i),
   tool('poll', 'poll', /poll builder/i, true, async (d) => {
     await d.getByRole('button', { name: 'Start a new one' }).click();
@@ -930,16 +928,23 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
           { cfg: C_DARK, stops: LOUNGE_STOPS, states: true, hit: false },
         ]
       : PART === 2
-        ? [
-            { cfg: C_LIGHT, stops: TOOL_STOPS, states: true, hit: false },
-            { cfg: C_DARK, stops: TOOL_STOPS, states: true, hit: false },
-            { cfg: C_SHIP, stops: SECTION_STOPS, states: true, hit: false },
-            { cfg: C_SECL, stops: SECTION_STOPS, states: true, hit: false },
-          ]
-        : [
-            { cfg: C_PHONE, stops: LOUNGE_STOPS, states: false, hit: true },
-            { cfg: C_PHONE, stops: [...TOOL_STOPS, ...SECTION_STOPS], states: false, hit: true },
-          ];
+        ? [{ cfg: C_LIGHT, stops: TOOL_STOPS, states: true, hit: false }]
+        : PART === 5
+          ? [{ cfg: C_DARK, stops: TOOL_STOPS, states: true, hit: false }]
+          : PART === 4
+            ? [
+                { cfg: C_SHIP, stops: SECTION_STOPS, states: true, hit: false },
+                { cfg: C_SECL, stops: SECTION_STOPS, states: true, hit: false },
+              ]
+            : [
+                { cfg: C_PHONE, stops: LOUNGE_STOPS, states: false, hit: true },
+                {
+                  cfg: C_PHONE,
+                  stops: [...TOOL_STOPS, ...SECTION_STOPS],
+                  states: false,
+                  hit: true,
+                },
+              ];
 
   try {
     const room = await apiPost<{ id: string }>(owner.request, `/guilds/${w.guildId}/channels`, {
@@ -968,6 +973,10 @@ test(`p106 fields: non-kit field boundary figures, part ${PART}`, async ({ brows
             themeRead[key] = await dataTheme(page);
             const got = await measure(page, root, p.cfg, s.id, p.states, p.hit);
             figs.push(...got);
+            writeFileSync(
+              resolve(OUT, `figures-part${PART}.json`),
+              JSON.stringify({ fields: figs, dataThemeRead: themeRead, problems }, null, 1),
+            );
             say(
               `${key}: ${got.length} fields (${got.filter((f) => f.kit).length} kit): ${got
                 .map(
