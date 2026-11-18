@@ -361,7 +361,7 @@ const tapTab = (name: RegExp) => async (page: Page) => {
   if (!(await b.isVisible({ timeout: 6000 }).catch(() => false))) return null;
   await b.click();
   await settle(page, 2500);
-  return mainOf(page);
+  return (await mainOf(page).count()) > 0 ? mainOf(page) : page.locator('body');
 };
 
 async function measurePage(browser: Browser, owner: BrowserContext, def: PageDef, light: boolean) {
