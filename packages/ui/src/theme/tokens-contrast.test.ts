@@ -210,3 +210,64 @@ describe('token set: high contrast', () => {
       );
   });
 });
+
+/**
+ * D-1018 (SEC-AUD-476): a kit field's resting border is `color-mix(in srgb, var(--ui-border), var(--ui-text-faint) N%)`,
+ * one N for every theme. N is the smallest multiple of 5 at which the mix reaches 3:1 against the field's own ground
+ * (`--ui-bg-raised`) and against every ground a kit field sits on (`--ui-bg`, `--ui-bg-raised`, the kit Modal's
+ * `--ui-bg-overlay`), in every theme. Hover stays `--ui-text-faint`, so it must remain a visible step above rest.
+ */
+const FIELD_BORDER_FAINT_PERCENT = 65;
+const FIELD_GROUNDS = ['--ui-bg', '--ui-bg-raised', '--ui-bg-overlay'];
+
+function mixSrgb(a: string, b: string, percentOfB: number): string {
+  const p = percentOfB / 100;
+  const ch = (hex: string, i: number) => parseInt(hex.slice(i, i + 2), 16);
+  const out = [1, 3, 5].map((i) => Math.round(ch(a, i) * (1 - p) + ch(b, i) * p));
+  return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function worstRatio(percent: number): { id: ThemeId; ground: string; ratio: number } {
+  let worst = { id: ids[0]!, ground: '', ratio: Infinity };
+  for (const id of ids) {
+    const t = effective(id, false);
+    const border = mixSrgb(t['--ui-border']!, t['--ui-text-faint']!, percent);
+    for (const g of FIELD_GROUNDS) {
+      if (!has(t, g)) continue;
+      const ratio = contrastRatio(border, t[g]!);
+      if (ratio < worst.ratio) worst = { id, ground: g, ratio };
+    }
+  }
+  return worst;
+}
+
+describe('kit field resting border (D-1018)', () => {
+  it('N is the smallest multiple of 5 that reaches 3:1 everywhere, and is at most 80', () => {
+    let n = 0;
+    for (let p = 5; p <= 80; p += 5) {
+      if (worstRatio(p).ratio >= 3) {
+        n = p;
+        break;
+      }
+    }
+    expect(n, JSON.stringify(worstRatio(80))).toBeGreaterThan(0);
+    expect(n).toBe(FIELD_BORDER_FAINT_PERCENT);
+  });
+
+  it.each(ids)(
+    '%s: the mix reaches 3:1 on every field ground, and hover is still a step above',
+    (id) => {
+      const t = effective(id, false);
+      const border = mixSrgb(t['--ui-border']!, t['--ui-text-faint']!, FIELD_BORDER_FAINT_PERCENT);
+      for (const g of FIELD_GROUNDS) {
+        if (!has(t, g)) continue;
+        const rest = contrastRatio(border, t[g]!);
+        expect(rest, `${id} ${g}`).toBeGreaterThanOrEqual(3);
+        expect(
+          contrastRatio(t['--ui-text-faint']!, t[g]!),
+          `${id} hover on ${g}`,
+        ).toBeGreaterThanOrEqual(rest * 1.25);
+      }
+    },
+  );
+});
