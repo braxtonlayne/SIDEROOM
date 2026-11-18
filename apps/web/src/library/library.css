@@ -217,6 +217,20 @@
   cursor: pointer;
   text-decoration: none;
 }
+/* D-1022: on a phone the sort direction (36 px, in a Browse toolbar row the 44 px sort select sets) keeps its drawn
+   size and gets a 44 px tap area: 4 px above and below, inside the row's 8 px gaps. The reader's bars have their own
+   rule below (D-1001); the other icon buttons are not changed. */
+@media (max-width: 48rem) {
+  .lib-browse-tools .lib-icon-btn {
+    position: relative;
+  }
+  .lib-browse-tools .lib-icon-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -4px;
+    inset-inline: 0;
+  }
+}
 .lib-icon-btn:hover:not(:disabled) {
   color: var(--sr-text);
   background: var(--sr-bg-2);
@@ -256,6 +270,28 @@
   color: var(--sr-text);
   font: inherit;
   font-size: 14px;
+}
+/* D-1024 (field 16): the kit field's manners on the underline field. It keeps its size and shape (a bottom line, no
+   box); the line takes the kit's resting colour, the hover and the ring, and the placeholder the faint text. On a
+   phone it is 44 px tall (D-1022); the top bar grows with it by 4 px. */
+.lib-search-input {
+  border-bottom-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.lib-search-input:hover:not(:disabled) {
+  border-bottom-color: var(--ui-text-faint);
+}
+.lib-search-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lib-search-input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
+@media (max-width: 48rem) {
+  .lib-search-input {
+    height: 44px;
+  }
 }
 .lib-search-list {
   position: absolute;
@@ -336,6 +372,20 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* D-1022: on a phone the chapters head's order toggle (a standalone 21 px text button) keeps its size and gets a
+   44 px tap area, 12 px above and below, inside the head's 16 px margins. The other `.lib-linklike` buttons sit in
+   running text and are not changed. */
+@media (max-width: 48rem) {
+  .lib-chapters-head > .lib-linklike {
+    position: relative;
+  }
+  .lib-chapters-head > .lib-linklike::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
+}
 .lib-page-head {
   display: flex;
   align-items: center;
@@ -359,6 +409,33 @@
   font-size: 14px;
   text-decoration: none;
   cursor: pointer;
+}
+/* D-1022: on a phone the button (40 px) keeps its size and gets a 44 px tap area, 2 px above and below, inside the
+   12 px gaps of `.lib-actions` and the empty states' own space. */
+@media (max-width: 48rem) {
+  .lib-frame .lib-btn {
+    position: relative;
+  }
+  .lib-frame .lib-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -2px;
+    inset-inline: 0;
+  }
+  /* The two bare links of an empty library (rule in storage/shelves/shelves.css): 20 px text links, a 44 px tap area
+     each (12 px above and below). Wrapped, their rows are 24 px apart so the two areas do not overlap. */
+  .lib-frame .shv-empty-links {
+    row-gap: 24px;
+  }
+  .lib-frame .shv-empty-links a {
+    position: relative;
+  }
+  .lib-frame .shv-empty-links a::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
 }
 .lib-btn:hover:not(:disabled) {
   background: var(--sr-bg-2);
@@ -615,6 +692,20 @@
   color: var(--sr-text-2);
   text-decoration: none;
   font-size: 14px;
+}
+/* D-1022: on a phone the chip (38 px) keeps its size and gets a 44 px tap area, 3 px above and below, inside the
+   12 px gaps of `.lib-genre-chips`; the last line's lower 3 px no longer fall to the "Add a genre" label under it.
+   The filters drawer is a portal, so this is the media query (= the kit's 768 px, `data-mobile`) and not the frame. */
+@media (max-width: 48rem) {
+  .lib-genre-chip {
+    position: relative;
+  }
+  .lib-genre-chip::after {
+    content: '';
+    position: absolute;
+    inset-block: -3px;
+    inset-inline: 0;
+  }
 }
 .lib-genre-chip:hover {
   color: var(--sr-gold);
