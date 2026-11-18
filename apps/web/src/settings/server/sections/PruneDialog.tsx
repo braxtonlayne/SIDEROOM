@@ -1,4 +1,4 @@
-import { Button, Checkbox, Modal } from '@sideroom/ui';
+import { Button, Checkbox, Modal, NativeSelect } from '@sideroom/ui';
 import { useEffect, useState } from 'react';
 import { t as translate, useT } from '../../../i18n';
 import * as api from '../api';
@@ -82,9 +82,8 @@ export function PruneDialog({
           <label className="ss-field-label" htmlFor="ss-prune-days">
             {t('settings.prune.inactiveFor')}
           </label>
-          <select
+          <NativeSelect
             id="ss-prune-days"
-            className="ss-select"
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
           >
@@ -93,7 +92,7 @@ export function PruneDialog({
                 {t('settings.prune.days', { days: d })}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
         {pickable.length > 0 && (
           <fieldset className="ss-fieldset">
