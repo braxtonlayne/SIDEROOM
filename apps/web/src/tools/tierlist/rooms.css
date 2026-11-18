@@ -291,3 +291,12 @@
   color: var(--ui-text-faint);
   opacity: 1;
 }
+
+/* SEC-AUD-490 (D-1000): on a phone the chip's remove button is a 44 px tall target. Width is unchanged; the chip is 44 px
+ * already (the Move button's rule above), and the -1 px margin keeps the button inside the chip's borders as Move's does. */
+@media (max-width: 720px) {
+  .sr-room-chip .sr-room-x {
+    min-block-size: 44px;
+    margin-block: -1px;
+  }
+}
