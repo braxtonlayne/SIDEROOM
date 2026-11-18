@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import { NativeSelect } from '@sideroom/ui';
 import { formatDateTime, useT } from '../../i18n';
 import type { ToolProps } from '../registry';
 import { useCopy } from '../calc/hooks';
@@ -106,7 +105,7 @@ export default function TimezoneTool({ host }: ToolProps) {
         </label>
         <label className="sr-calc-field">
           {t('tools.timezone.workStart')}
-          <NativeSelect
+          <select
             value={opts.workStart}
             onChange={(e) =>
               setOpts({ ...opts, workStart: Math.min(Number(e.target.value), opts.workEnd - 1) })
@@ -117,11 +116,11 @@ export default function TimezoneTool({ host }: ToolProps) {
                 {h}:00
               </option>
             ))}
-          </NativeSelect>
+          </select>
         </label>
         <label className="sr-calc-field">
           {t('tools.timezone.workEnd')}
-          <NativeSelect
+          <select
             value={opts.workEnd}
             onChange={(e) =>
               setOpts({ ...opts, workEnd: Math.max(Number(e.target.value), opts.workStart + 1) })
@@ -132,7 +131,7 @@ export default function TimezoneTool({ host }: ToolProps) {
                 {h}:00
               </option>
             ))}
-          </NativeSelect>
+          </select>
         </label>
         <label className="sr-calc-check">
           <input
