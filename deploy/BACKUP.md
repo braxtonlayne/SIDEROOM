@@ -7,7 +7,7 @@ Doc 12 section 5 sets the policy. This page is the how-to. Everything here is pl
 | What | How | Where it lives |
 |---|---|---|
 | Postgres | `pg_dump` custom format, one file per run, with a `.json` manifest (SHA-256, size, migration count) | `deploy/scripts/backup.sh` |
-| Object storage (attachments, avatars, library pages) | Garage: both the data folder and the metadata folder (`garage-data` and `garage-meta` volumes on Compose; stop Garage or use Garage's own metadata snapshot first). A copy of the data folder alone cannot be restored. | same script, when `SR_BACKUP_REPOSITORY` and `SR_BACKUP_OBJECTS_DIR` are set |
+| Object storage (attachments, avatars, library pages) | Garage: both the data folder and the metadata folder (`garage-data` and `garage-meta` volumes on Compose; stop Garage or use Garage's own metadata snapshot first). A copy of the data folder alone cannot be restored. | same script, when `SR_BACKUP_REPOSITORY`, `SR_BACKUP_OBJECTS_DIR` (Garage's `data_dir`) and `SR_BACKUP_OBJECTS_META_DIR` (its `metadata_dir`) are set; both folders go into one snapshot, and the script refuses to run with only one of the two. If your bucket is your own R2 or S3 and not Garage, the provider is the backup and none of this applies |
 | HLS renditions | Not backed up. They are rebuilt from originals by re-transcoding | n/a |
 | Members' and servers' own buckets (BYOS mounts), including shelves, emulator saves and prompt packs | Not backed up by the instance. Only the instance bucket (mount 1) is in the object snapshot; each owner backs up their own bucket | n/a |
 | `server.secret_key` and `config.toml` | **You** copy these, encrypted, next to the dumps. Without the key the TOTP secrets in the dump are unreadable | n/a |
@@ -50,6 +50,7 @@ then start a Postgres on that data directory (`pg_ctl -D <dir> start`, or point 
    SR_BACKUP_KEEP=14,8,12
    # Optional object snapshots to a Storage Box:
    # SR_BACKUP_OBJECTS_DIR=/var/lib/garage/data
+   # SR_BACKUP_OBJECTS_META_DIR=/var/lib/garage/meta
    # SR_BACKUP_REPOSITORY=sftp:u123@u123.your-storagebox.de:/sideroom
    # RUSTIC_PASSWORD_FILE=/etc/sideroom/rustic.pass
    ```
@@ -139,11 +140,13 @@ systemctl start sr-server
 
 `restore.sh` refuses a non-empty database unless `SR_RESTORE_FORCE=1`, and refuses a dump whose checksum does not match its manifest.
 
-Object storage: `rustic -r <repo> restore latest --target /var/lib/garage/data` (with Garage stopped), then start Garage. Orphaned objects are harmless; missing ones show as broken attachments, so restore objects from the same night as the dump.
+Object storage (Garage): restore **both** folders from the same snapshot, with Garage stopped, then start Garage. The snapshot keeps absolute paths, so restore it to a scratch folder and move the two folders into place: `restic -r <repo> restore latest --target /restore` (rustic: `rustic -r <repo> restore latest /restore`; the flag shapes are to be confirmed against the version you installed), stop Garage, then put `/restore<SR_BACKUP_OBJECTS_DIR>` back at the data folder and `/restore<SR_BACKUP_OBJECTS_META_DIR>` back at the metadata folder, and start Garage. On Compose the two folders are the `garage-data` and `garage-meta` volumes (mounted at `/var/lib/garage/data` and `/var/lib/garage/meta` in `prod.yml`); `docker volume inspect <project>_garage-data` prints each one's path on the host. `sr-cli reindex` is not needed for objects: Garage's metadata is the index, and it comes back with the snapshot. Orphaned objects are harmless; missing ones show as broken attachments, so restore objects from the same night as the dump.
+
+**Taking the copy.** The Garage config shipped here (`deploy/compose/garage/garage.prod.toml.example`) uses the `lmdb` metadata engine and sets no automatic metadata snapshot, so a copy of a running Garage can be torn. Stop Garage for the copy (`docker compose -f prod.yml stop garage`, run `backup.sh`, start it again). Garage's own metadata snapshot, to copy instead of the live folder, is to be confirmed against the version in `prod.yml` (v1.0.1) before you rely on it.
 
 ## The restore drill
 
-A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer (`sideroom-restore-drill.timer`, or `sideroom-restore-drill-compose.timer` on the Compose route) runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit). A successful drill touches `restore-drill.ok` in the backup folder, and a backup that snapshotted the objects touches `snapshot.ok`; Admin > System shows their times next to the newest dump (`GET /admin/system`, `backups`).
+A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer (`sideroom-restore-drill.timer`, or `sideroom-restore-drill-compose.timer` on the Compose route) runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit). When the object backup is configured (the three variables above), the drill ends by restoring the latest object snapshot into a scratch folder and failing unless the metadata folder is in it and non-empty and the data folder holds at least one block; it starts no Garage. `.github/workflows/storage.yml` ("Object backup keeps data and metadata together") proves the other half in CI: one object put, both folders copied, wiped and restored with a real Garage started again and the object compared byte for byte (a `tar` of both folders stands in for rustic or restic there). A successful drill touches `restore-drill.ok` in the backup folder, and a backup that snapshotted the objects touches `snapshot.ok`; Admin > System shows their times next to the newest dump (`GET /admin/system`, `backups`).
 
 ## Secrets rotation
 
