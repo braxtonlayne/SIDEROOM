@@ -133,6 +133,9 @@ async function readFields(page: Page, rootSel: string) {
 async function auditPart(browser: Browser, owner: BrowserContext) {
   const w = world();
   for (const mode of ['light', 'dark'] as const) {
+    await apiPatch(owner.request, '/users/@me/settings', {
+      settings: { user_prefs: { theme: `lounge-${mode}`, zoom: 100 } },
+    });
     const { ctx, page } = await newPage(browser, owner, 1024, 768, false, `lounge-${mode}`);
     try {
       for (const [id, url, root] of [
@@ -274,10 +277,10 @@ async function drawerPart(browser: Browser, owner: BrowserContext) {
         say(`DRAWER ${tag} first: ${JSON.stringify(before)} primary-reach ${JSON.stringify(reachBefore)}`);
 
         // Swipe up by touch over the tool body; then measure again.
-        const box = await drawerOf(page).boundingBox();
+        const box = await drawerOf(page).locator('.sr-tl-view-body').boundingBox();
         const x = (box?.x ?? 0) + (box?.width ?? 300) / 2;
-        const yMid = Math.min(vh - 30, (box?.y ?? 0) + (box?.height ?? 400) - 60);
-        await swipeUp(page, x, yMid, Math.max(40, yMid - 400));
+        const y0 = Math.min(vh - 30, (box?.y ?? 0) + (box?.height ?? 300) - 15);
+        await swipeUp(page, x, y0, Math.max(40, y0 - 250));
         const afterSwipe = await measureDrawer(page, vh);
         const reachSwipe = await reachable(page, '.ud-btn-primary');
         say(`DRAWER ${tag} after swipe: ${JSON.stringify(afterSwipe)} primary-reach ${JSON.stringify(reachSwipe)}`);
