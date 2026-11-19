@@ -1758,3 +1758,150 @@ fn the_storage_workflow_object_backup_step_calls_things_that_exist() {
         assert!(dev.contains(m), "dev.yml's garage does not mount {m}");
     }
 }
+
+/// The `SR_<NAME>_FILE=<path>` examples and the `/run/secrets` paths a page writes, as (token, path).
+fn secret_file_examples(page: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for w in page.split_whitespace() {
+        let w = w.trim_matches(|c: char| "`()*,;.".contains(c));
+        if let Some((_, path)) = w.split_once("_FILE=") {
+            out.push(path.trim_matches('`').to_owned());
+        } else if w.starts_with("/run/secrets") {
+            out.push(w.to_owned());
+        }
+    }
+    out
+}
+
+/// SEC-AUD-575 (a): the server sees one operator-owned secrets folder, read-only, whose host side lies outside
+/// `deploy/`. Caught by: the base service, which mounted no secrets folder (a `_FILE` path could not be read inside the
+/// container), and by a read-write mount or a default inside the repository (an upgrade replaces `deploy/`).
+#[test]
+fn the_compose_server_mounts_the_operator_secrets_folder_read_only_from_outside_deploy() {
+    let c = compose();
+    let mounts: Vec<String> = c.services["sr-server"]
+        .section("volumes")
+        .iter()
+        .map(|v| v.trim_start_matches("- ").to_owned())
+        .filter(|v| v.contains("/run/secrets"))
+        .collect();
+    assert_eq!(
+        mounts.len(),
+        1,
+        "sr-server needs exactly one secrets mount: {mounts:?}"
+    );
+    let m = &mounts[0];
+    assert!(
+        m.ends_with(":/run/secrets/sideroom:ro"),
+        "the secrets mount must be read-only at /run/secrets/sideroom: {m}"
+    );
+    let default = substitutions(m)
+        .into_iter()
+        .find(|(n, d, _)| n == "SR_SECRETS_DIR" && d.is_some())
+        .and_then(|(_, d, _)| d)
+        .unwrap_or_else(|| panic!("the host side has no ${{SR_SECRETS_DIR:-default}}: {m}"));
+    assert!(
+        default.starts_with('/')
+            && !default.contains("/deploy/")
+            && !default.starts_with("/opt/sideroom"),
+        "the default host folder must lie outside deploy/ ({default})"
+    );
+    for (name, s) in &c.services {
+        if name != "sr-server" {
+            assert!(
+                !s.section("volumes")
+                    .iter()
+                    .any(|v| v.contains("/run/secrets")),
+                "{name} mounts the secrets folder; only sr-server reads it"
+            );
+        }
+    }
+}
+
+/// SEC-AUD-575 (b): every `_FILE` example in the Compose paragraphs lies under the mount's container folder. Caught
+/// by: a page that sends the operator to a path the container cannot see (the server stops at start).
+#[test]
+fn the_secret_file_examples_in_the_pages_lie_under_the_mounted_folder() {
+    for page in ["deploy/OPERATOR.md", "docs/12-deployment-and-operations.md"] {
+        let text = read(page);
+        let examples = secret_file_examples(&text);
+        assert!(!examples.is_empty(), "{page} shows no _FILE example");
+        for p in &examples {
+            assert!(
+                p.starts_with("/run/secrets/sideroom"),
+                "{page}: {p} is not under /run/secrets/sideroom, the folder prod.yml mounts"
+            );
+        }
+        assert!(
+            !text.contains("mounts no secrets"),
+            "{page} still says the stack mounts no secrets folder"
+        );
+    }
+}
+
+/// SEC-AUD-576: the installer names a minimum Compose version, and it is not below what `prod.yml` needs
+/// (`required: false` on an `env_file` entry, Compose 2.24). Caught by: the base installer, which named none (an older
+/// Compose stopped with a schema error), and by a lowered minimum.
+#[test]
+fn the_installer_names_a_compose_minimum_that_prod_yml_needs() {
+    let install = read("deploy/install.sh");
+    let num = |name: &str| -> u32 {
+        install
+            .lines()
+            .find_map(|l| l.strip_prefix(&format!("{name}=")))
+            .unwrap_or_else(|| panic!("install.sh does not set {name}"))
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("{name} is not a number"))
+    };
+    let (major, minor) = (num("MIN_COMPOSE_MAJOR"), num("MIN_COMPOSE_MINOR"));
+    if read("deploy/compose/prod.yml").contains("required: false") {
+        assert!(
+            (major, minor) >= (2, 24),
+            "prod.yml uses `required: false` (Compose 2.24) but install.sh accepts {major}.{minor}"
+        );
+    }
+    let refusal = install
+        .lines()
+        .position(|l| l.contains("die ") && l.contains("is too old"))
+        .expect("install.sh never refuses an old Compose");
+    let first_secret = install
+        .lines()
+        .position(|l| l.trim_start().starts_with("postgres_password=$(rand_hex"))
+        .expect("install.sh no longer makes the Postgres password");
+    assert!(
+        refusal < first_secret,
+        "the Compose refusal must come before the first secret is generated"
+    );
+}
+
+/// SEC-AUD-577: the smoke reruns the installer on the running stack and greps for the very sentences `install.sh`
+/// prints. Caught by: the base smoke (no rerun), and a reworded warning that would leave the grep matching nothing, so
+/// the step failed only in CI.
+#[test]
+fn the_smoke_reruns_the_installer_and_greps_for_what_it_prints() {
+    let smoke = read("deploy/scripts/prod-smoke.sh");
+    let install = read("deploy/install.sh");
+    let rerun = shell_fn_body(&smoke, "rerun_install");
+    assert!(
+        shell_fn_body(&smoke, "stage_migrate")
+            .lines()
+            .any(|l| l.trim() == "rerun_install"),
+        "stage_migrate never calls rerun_install"
+    );
+    assert!(
+        rerun.contains("install.sh") && rerun.contains("--yes") && rerun.contains("SR_IMAGE="),
+        "rerun_install does not run install.sh --yes with another SR_IMAGE"
+    );
+    // The smoke builds the sentence with $other where install.sh prints $SR_IMAGE.
+    assert!(
+        rerun.contains("grep -F \"the value given now ($other) is ignored\"")
+            && install.contains("the value given now ($SR_IMAGE) is ignored"),
+        "the ignored-image warning differs between install.sh and the smoke's grep"
+    );
+    assert!(
+        rerun.contains("grep -F \"cannot be shown again\"")
+            && install.contains("cannot be shown again"),
+        "the 'cannot be shown again' sentence differs between install.sh and the smoke's grep"
+    );
+}
