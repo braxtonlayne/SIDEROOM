@@ -679,3 +679,114 @@ test('sr-cli preflight runs last, after sr-server is healthy, and only strict mo
   const bad = sandbox();
   assert.notEqual(run(bad, ['--yes'], { SR_INSTALL_PREFLIGHT: 'maybe' }).status, 0);
 });
+
+test('the example image is refused before anything is written, with what to type (D-1041, SEC-AUD-568)', () => {
+  const installer = readFileSync(join(root, 'deploy', 'install.sh'), 'utf8');
+  const refused = /^PLACEHOLDER_IMAGE_OWNER=(\S+)$/m.exec(installer)?.[1];
+  const example = envOf(join(root, 'deploy', 'compose', '.env.prod.example')).SR_IMAGE;
+  assert.ok(refused && example, 'both found');
+  // The example shows the refused owner and the real tag form, with its v.
+  assert.ok(
+    example.includes(refused),
+    'the example no longer holds the placeholder the installer refuses',
+  );
+  assert.match(example, /:v\d+\.\d+\.\d+$/);
+  for (const args of [['--yes'], ['--yes', '--no-start']]) {
+    const sb = sandbox();
+    const r = run(sb, args, { SR_IMAGE: example });
+    assert.notEqual(r.status, 0, args.join(' '));
+    assert.match(r.out, /SR_IMAGE is the example's placeholder/);
+    assert.match(r.out, /ghcr\.io\/<owner>\/sideroom-server:<tag>/);
+    assert.match(r.out, /leading v/);
+    assert.ok(!existsSync(sb.env) && !existsSync(sb.garage), 'a secret file was written');
+    assert.ok(!existsSync(sb.log) || !/ (pull|up|run)/.test(readFileSync(sb.log, 'utf8')));
+  }
+  // With no answer at all the default is the placeholder: refused too.
+  const none = sandbox();
+  const rn = run(none, ['--yes', '--no-start'], { SR_IMAGE: '' });
+  assert.notEqual(rn.status, 0);
+  assert.ok(!existsSync(none.env));
+  // A real reference passes (the other cases use one).
+  assert.equal(
+    run(sandbox(), ['--yes', '--no-start'], { SR_IMAGE: 'ghcr.io/acme/sideroom-server:v1.2.3' })
+      .status,
+    0,
+  );
+});
+
+test('on a rerun an SR_IMAGE given now is warned about, never applied or silent (D-1041)', () => {
+  const sb = sandbox();
+  assert.equal(run(sb, ['--yes', '--no-start']).status, 0);
+  const env = readFileSync(sb.env, 'utf8');
+  const other = 'ghcr.io/acme/sideroom-server:v9.9.9';
+  const r = run(sb, ['--yes', '--no-start'], { SR_IMAGE: other });
+  assert.equal(r.status, 0, r.out);
+  assert.ok(r.out.includes('ghcr.io/acme/sideroom-server:1.2.3'), 'names the stored image');
+  assert.ok(r.out.includes(other), 'names the one given now');
+  assert.match(r.out, /edit SR_IMAGE in .*\.env\.prod and run this script again/);
+  assert.equal(readFileSync(sb.env, 'utf8'), env, 'the stored file is not rewritten');
+  // The same image, or none, says nothing.
+  for (const same of [answers.SR_IMAGE, '']) {
+    const q = run(sb, ['--yes', '--no-start'], { SR_IMAGE: same });
+    assert.equal(q.status, 0, q.out);
+    assert.doesNotMatch(q.out, /SR_IMAGE is/);
+  }
+  // A stored placeholder (a file from an older installer) stops the rerun with where to edit.
+  writeFileSync(
+    sb.env,
+    env.replace(/^SR_IMAGE=.*$/m, "SR_IMAGE='ghcr.io/example-owner/sideroom-server:0.0.0'"),
+  );
+  const bad = run(sb, ['--yes', '--no-start'], { SR_IMAGE: '' });
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.out, /placeholder/);
+  assert.match(bad.out, /Edit SR_IMAGE in .*\.env\.prod/);
+});
+
+test('the generated Owner password and the link are shown as soon as the Owner exists, and again at the end (D-1041)', () => {
+  const sb = sandbox();
+  // The fake docker prints the link the way sr-cli does, and the starter-pack step fails after the Owner is made.
+  // Both go into the second `case` of the stub (the first one only decides the Owner step's exit status).
+  const dockerPath = join(sb.bin, 'docker');
+  const link =
+    'echo "One-time login link (valid 1h, single use):"; echo "https://chat.example.org/login/link?token=abc"';
+  const withLines = (seed) =>
+    readFileSync(dockerPath, 'utf8').replace(
+      '  *"node id"*)',
+      [
+        `  *" bootstrap --owner-username"*) ${link} ;;`,
+        `  *"package seed"*) ${seed} ;;`,
+        '  *"node id"*)',
+      ].join('\n'),
+    );
+  const original = readFileSync(dockerPath, 'utf8');
+  writeFileSync(dockerPath, withLines('echo "seed failed" >&2; exit 1'));
+  const packs = join(sb.dir, 'packages', 'starter-packs', 'side-room-words');
+  mkdirSync(packs, { recursive: true });
+  writeFileSync(join(packs, 'pack.json'), '{}');
+  const first = run(sb, ['--yes'], { SR_OWNER_PASSWORD: '' });
+  assert.notEqual(first.status, 0, 'the starter pack step fails after the Owner is made');
+  const shown = /Owner password \(generated now[^)]*\): ([0-9a-f]{24})/.exec(first.out);
+  assert.ok(shown, `the password was not printed at the Owner step:\n${first.out}`);
+  assert.match(first.out, /login\/link\?token=abc/);
+  assert.match(first.out, /good for one hour/);
+  // Rerun: the Owner exists; neither is shown again, and the recovery is named.
+  sb.stub('owner-done');
+  writeFileSync(dockerPath, original);
+  const again = run(sb, ['--yes'], { SR_OWNER_PASSWORD: '' });
+  assert.equal(again.status, 0, again.out);
+  assert.match(again.out, /cannot be shown again/);
+  assert.match(again.out, /Forgot password/);
+  assert.ok(!again.out.includes(shown[1]), 'the old password was printed again');
+  // A password the operator gave is never echoed.
+  const given = sandbox();
+  const rg = run(given, ['--yes']);
+  assert.equal(rg.status, 0, rg.out);
+  assert.ok(!rg.out.includes(answers.SR_OWNER_PASSWORD));
+  // The script keeps no log of its own: nothing is piped to tee or redirected to a file with the secret.
+  const text = readFileSync(join(root, 'deploy', 'install.sh'), 'utf8');
+  const code = text
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('#'))
+    .join('\n');
+  assert.doesNotMatch(code, /\btee\b|\bexec\s+>/, 'install.sh must not tee or redirect its output');
+});

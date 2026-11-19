@@ -24,7 +24,20 @@ Point the public hostname (and the TURN hostname, if separate) at the host.
 
 ## 3. Install
 
-Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run the installer. It asks for the domain, the mail server, the ingest folder and the Owner account, and generates every secret. It also takes `SR_INSTALL_EMU_CORES=yes` (fetch the emulator cores by pinned URL and SHA-256, [EMULATOR.md](EMULATOR.md); the default is no, and the Games page needs them) and `SR_PAYMENTS_ELECTRS=yes` (the self-hosted `electrs` profile; owner checklist section 2).
+**What must exist first.** The release: push the version tag and wait for the Release workflow to finish green, then check that the release lists `sideroom-<tag>-web.tar.gz` in `SHA256SUMS` and that the image `ghcr.io/<owner>/sideroom-server:<tag>` (the tag includes its leading `v`, the owner is lower case) can be pulled. If the package is private, the owner runs `docker login ghcr.io` and types the token.
+
+**Get the files onto the server.** The release has no `deploy/` bundle, and the web tarball holds only the web build. Take `deploy/` and `packages/` from the tag with git, and put them beside the web folder, because the backup units expect `/opt/sideroom/deploy` and the installer looks for the starter packs at `deploy/../packages`:
+
+```
+git clone --branch <tag> --depth 1 <repo-url> /opt/sideroom-src
+mkdir -p /opt/sideroom
+cp -a /opt/sideroom-src/deploy /opt/sideroom/deploy
+cp -a /opt/sideroom-src/packages /opt/sideroom/packages
+```
+
+Copy them; do not link `/opt/sideroom/deploy` to the clone. `install.sh` finds its folder with `cd` and `pwd`, so through a link `deploy/../packages` is read as `/opt/sideroom/packages` (POSIX `cd` resolves `..` by the path as typed), not as the clone's `packages`, and the starter-pack step would stop the installer. Then unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`): `tar -xzf sideroom-<tag>-web.tar.gz -C /opt/sideroom` after `sha256sum -c`, and `test -f /opt/sideroom/web/app/csp.txt`.
+
+**The installer.** It asks for the domain, the image, the mail server, the ingest folder and the Owner account, and generates every secret. The image question is the full reference `ghcr.io/<owner>/sideroom-server:<tag>`: its default is the example's placeholder, and the installer refuses the placeholder before it writes or starts anything, saying what to type. If a run stops at the pull, edit `SR_IMAGE` in `deploy/compose/.env.prod` and run the installer again: an `SR_IMAGE` given to the rerun is not applied, the installer says so and names both values. The generated Owner password (when you did not type one) and the one-time sign-in link are printed as soon as the Owner exists, and the password again at the end; the link is good for one hour and is not shown again, so open it at once. If the script stops after that point, the rerun cannot show either again: use "Forgot password" on the sign-in page with the Owner's email. It also takes `SR_INSTALL_EMU_CORES=yes` (fetch the emulator cores by pinned URL and SHA-256, [EMULATOR.md](EMULATOR.md); the default is no, and the Games page needs them) and `SR_PAYMENTS_ELECTRS=yes` (the self-hosted `electrs` profile; owner checklist section 2).
 
 - **Command.** `deploy/install.sh` (or `deploy/install.sh --yes` with the answers in the environment; see the script header). If it stops part way, run it again: it resumes with the files it already wrote (INSTALL.md, "Running it again").
 - **Done when.** The script ends without an error, `dc ps` shows every service running, and `curl -fsS https://chat.example.org/healthz` answers. Back up `deploy/compose/.env.prod` now: `SR_SECRET_KEY` decrypts every stored TOTP secret and seals the Web Push key.
