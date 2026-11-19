@@ -29,9 +29,21 @@
   min-width: 160px;
   padding: 6px 10px;
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: 6px;
   background: var(--bg-base-lower);
   color: var(--text-normal);
+}
+.lng-forum-search:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-forum-search:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-forum-search::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .lng-forum-select {
   display: inline-flex;
@@ -128,11 +140,23 @@
   box-sizing: border-box;
   padding: 8px;
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: 6px;
   background: var(--bg-base-lower);
   color: var(--text-normal);
   font: inherit;
   resize: vertical;
+}
+.lng-post-textarea:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-post-textarea:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-post-textarea::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 
 /* SEC-AUD-491 (D-1006): on a phone the toolbar's search field (29px) and view buttons (28px) were under 44px, and the

@@ -484,6 +484,20 @@
   letter-spacing: 0.02em;
   cursor: pointer;
 }
+/* D-1022: on a phone a category head is a 44px row, and the add button keeps its 28px box with a 44px tap area
+   that stays inside that row. */
+.lng-root[data-mobile] .lng-category-btn {
+  min-block-size: 44px;
+}
+.lng-root[data-mobile] .lng-category-head .lng-icon-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-category-head .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
+}
 .lng-category-btn:hover {
   color: var(--interactive-hover);
 }
@@ -514,6 +528,10 @@
   text-decoration: none;
   cursor: pointer;
   box-sizing: border-box;
+}
+/* D-1022: a channel row is 44px tall on a phone (the text and icons do not change). */
+.lng-root[data-mobile] .lng-channel {
+  min-block-size: 44px;
 }
 .lng-channel:hover {
   background: var(--ui-bg-hover);
@@ -607,6 +625,10 @@
   text-overflow: ellipsis;
   cursor: pointer;
 }
+/* D-1022: the find box is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-find {
+  height: 44px;
+}
 .lng-home-nav {
   display: flex;
   flex-direction: column;
@@ -631,6 +653,10 @@
   font: inherit;
   text-align: start;
 }
+/* D-1022: a Home list row is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-nav-item {
+  height: 44px;
+}
 .lng-nav-item > span:not([class]) {
   flex: 1;
   min-width: 0;
@@ -648,6 +674,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 8px 4px 18px;
+}
+/* D-1022: the Create DM button gets a 44px tap area; the head keeps 8px under it so the area never takes the first
+   conversation's top edge. */
+.lng-root[data-mobile] .lng-dm-head {
+  padding-block-end: 8px;
+}
+.lng-root[data-mobile] .lng-dm-head .lng-icon-btn {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-dm-head .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
 }
 .lng-dm-head h2 {
   margin: 0;
@@ -749,6 +789,24 @@
 .lng-user-panel .lng-device-arrow {
   inline-size: 14px;
   min-inline-size: 14px;
+}
+/* D-1022: inside the 52px panel the five controls and the name keep their boxes and get 44px tall tap areas (the
+   chevrons keep their 14px width). */
+.lng-root[data-mobile] .lng-user-panel .lng-icon-btn,
+.lng-root[data-mobile] .lng-user-id {
+  position: relative;
+}
+.lng-root[data-mobile] .lng-user-panel .lng-icon-btn::after {
+  content: '';
+  position: absolute;
+  inset-block: -8px;
+  inset-inline: 0;
+}
+.lng-root[data-mobile] .lng-user-id::after {
+  content: '';
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0;
 }
 .lng-user-id {
   display: flex;
@@ -892,6 +950,16 @@
 }
 .lng-search input:focus-visible {
   outline: none;
+}
+/* D-1023: the pill (no border of its own) draws the ring the input does not, folded to an icon and open; the
+   placeholder is the kit's faint text at full opacity. */
+.lng-search:has(input:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-search input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 
 /* D-1014 (SEC-AUD-495): when the header is short of room for its title and its tools, the search field folds to an icon
@@ -1435,6 +1503,10 @@
   text-align: start;
   cursor: pointer;
 }
+/* D-1022: a member row is 44px tall on a phone. */
+.lng-root[data-mobile] .lng-member {
+  height: 44px;
+}
 .lng-member:hover {
   background: var(--ui-bg-hover);
   --ui-status-ring: var(--ui-bg-hover);
@@ -1520,6 +1592,22 @@
   color: var(--text-normal);
   font-size: 18px;
   box-sizing: border-box;
+}
+/* D-1024: the kit field's manners (the Drawer's copy in tools.css keeps its own ring and box). */
+.lng-switcher-input {
+  border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.lng-switcher-input:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+.lng-switcher-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lng-switcher-input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
 }
 .lng-switcher-list {
   list-style: none;
@@ -2234,6 +2322,16 @@
     flex: 1 1 0;
     min-inline-size: 96px;
   }
+  /* D-1022 (A.1): the identity button keeps its 28px box and gets a 44px tap area (the header is 48px tall). */
+  .lng-header[data-dm] .lng-dm-identity {
+    position: relative;
+  }
+  .lng-header[data-dm] .lng-dm-identity::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
   .lng-header[data-dm] .lng-header-tools {
     margin-inline-start: 0;
     gap: 0;
@@ -2363,10 +2461,13 @@
   inline-size: 100%;
   min-inline-size: 0;
   block-size: 44px;
-  padding-inline: 12px;
+  padding-inline: 12px 0;
 }
 .lng-search-sheet .lng-search input {
+  box-sizing: border-box;
   min-inline-size: 0;
+  block-size: 100%;
+  padding-inline: 0 12px;
   font-size: 16px;
 }
 .lng-search-sheet .lng-search-panel {
