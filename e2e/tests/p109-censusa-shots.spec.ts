@@ -610,8 +610,8 @@ async function openFriends(page: Page, tab?: string) {
   if (tab)
     await tap(
       page
-        .getByRole('tab', { name: tab, exact: true })
-        .or(page.getByRole('button', { name: tab, exact: true })),
+        .getByRole('tab', { name: new RegExp(`^${tab}`) })
+        .or(page.getByRole('button', { name: new RegExp(`^${tab}`) })),
     );
   await settle(page, 2000);
 }
