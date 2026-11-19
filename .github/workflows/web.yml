@@ -39,6 +39,10 @@ jobs:
       # XC-PERF-002: first-load JavaScript per section stays inside the gzip budgets in scripts/bundle-budget.json.
       - name: Bundle budget
         run: node scripts/check-bundle-budget.mjs
+      # VOX-CLI-002 (D-1049): the Silero model and the one plain onnxruntime wasm ship as pinned static files, nothing of the
+      # detector is named by first paint, a public page or the service worker, and no CDN URL loads the runtime.
+      - name: VAD assets
+        run: node scripts/check-vad-assets.mjs
       # SEC-ENT-004 (D-385): a visitor without a login gets only the code their page needs. Per public surface: the
       # budget, the allowed modules, no app identifier, no preload or import() outside /entrance/, no source map; the
       # plain-HTML pages carry no script. The output lists every surface with "ok".
