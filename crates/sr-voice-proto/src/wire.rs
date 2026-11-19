@@ -260,6 +260,23 @@ mod redacted_debug_tests {
     }
 
     #[test]
+    fn ready_debug_hides_its_secrets() {
+        let v = Ready {
+            session_id: "session-a".to_owned(),
+            resume_token: "TEST-SECRET-NOT-REAL".to_owned(),
+            heartbeat_interval: 13_750,
+            user_id: UserId::new(7),
+            channel_id: ChannelId::new(8),
+            guild_id: None,
+            participants: Vec::new(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+        assert!(s.contains("session-a"), "{s}");
+    }
+
+    #[test]
     fn resume_debug_hides_its_secrets() {
         let v = Resume {
             session_id: "x".to_owned(),

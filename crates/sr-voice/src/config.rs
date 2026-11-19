@@ -93,3 +93,21 @@ impl Default for SfuConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    use super::*;
+
+    #[test]
+    fn sfu_config_debug_hides_its_secret() {
+        let v = SfuConfig {
+            token_secret: b"TEST-SECRET-NOT-REAL".to_vec(),
+            ..SfuConfig::default()
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(!s.contains("84, 69, 83, 84"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+        assert!(s.contains("udp_port_min"), "{s}");
+    }
+}

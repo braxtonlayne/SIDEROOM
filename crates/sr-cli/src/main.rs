@@ -29,7 +29,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Subcommand)]
 pub enum Command {
     /// Apply pending database migrations.
     Migrate,
@@ -156,6 +156,100 @@ pub enum Command {
         #[arg(long, requires = "scale")]
         scale_titles: Option<u32>,
     },
+}
+
+/// Shows a secret argument as `Some("<redacted>")` or `None`, never its value (SEC-AUD-557, D-1033).
+struct RedactedArg<'a>(&'a Option<String>);
+
+impl std::fmt::Debug for RedactedArg<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            Some(_) => f.write_str("Some(\"<redacted>\")"),
+            None => f.write_str("None"),
+        }
+    }
+}
+
+/// `owner_password` and the seed `password` are secrets an operator types, so `Command` has no derived
+/// `Debug`: every other field prints as the derive would.
+impl std::fmt::Debug for Command {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Migrate => f.write_str("Migrate"),
+            Self::Bootstrap {
+                owner_username,
+                owner_email,
+                owner_password,
+            } => f
+                .debug_struct("Bootstrap")
+                .field("owner_username", owner_username)
+                .field("owner_email", owner_email)
+                .field("owner_password", &RedactedArg(owner_password))
+                .finish(),
+            Self::Invite(c) => f.debug_tuple("Invite").field(c).finish(),
+            Self::Staff(c) => f.debug_tuple("Staff").field(c).finish(),
+            Self::VerifyAccessLog => f.write_str("VerifyAccessLog"),
+            Self::User(c) => f.debug_tuple("User").field(c).finish(),
+            Self::Tv(c) => f.debug_tuple("Tv").field(c).finish(),
+            Self::RotateSecretKey => f.write_str("RotateSecretKey"),
+            Self::Storage(c) => f.debug_tuple("Storage").field(c).finish(),
+            Self::Emu(c) => f.debug_tuple("Emu").field(c).finish(),
+            Self::Arcade(c) => f.debug_tuple("Arcade").field(c).finish(),
+            Self::Moderation(c) => f.debug_tuple("Moderation").field(c).finish(),
+            Self::Package(c) => f.debug_tuple("Package").field(c).finish(),
+            Self::Backup { dir } => f.debug_struct("Backup").field("dir", dir).finish(),
+            Self::Restore { file, force } => f
+                .debug_struct("Restore")
+                .field("file", file)
+                .field("force", force)
+                .finish(),
+            Self::Preflight {
+                send_to,
+                alert_test,
+                insecure_tls,
+                json,
+            } => f
+                .debug_struct("Preflight")
+                .field("send_to", send_to)
+                .field("alert_test", alert_test)
+                .field("insecure_tls", insecure_tls)
+                .field("json", json)
+                .finish(),
+            Self::Reindex => f.write_str("Reindex"),
+            Self::Upgrade {
+                dry_run,
+                no_backup,
+                backup_dir,
+            } => f
+                .debug_struct("Upgrade")
+                .field("dry_run", dry_run)
+                .field("no_backup", no_backup)
+                .field("backup_dir", backup_dir)
+                .finish(),
+            Self::Seed {
+                password,
+                force,
+                scale,
+                seed_name,
+                scale_accounts,
+                scale_guilds,
+                scale_messages,
+                scale_chapters,
+                scale_titles,
+            } => f
+                .debug_struct("Seed")
+                .field("password", &RedactedArg(password))
+                .field("force", force)
+                .field("scale", scale)
+                .field("seed_name", seed_name)
+                .field("scale_accounts", scale_accounts)
+                .field("scale_guilds", scale_guilds)
+                .field("scale_messages", scale_messages)
+                .field("scale_chapters", scale_chapters)
+                .field("scale_titles", scale_titles)
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -383,6 +477,31 @@ mod tests {
     #[test]
     fn cli_definition_is_valid() {
         Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn command_debug_hides_passwords() {
+        let c = Cli::try_parse_from([
+            "sr-cli",
+            "bootstrap",
+            "--owner-username",
+            "owner",
+            "--owner-email",
+            "owner@example.test",
+            "--owner-password",
+            "TEST-SECRET-NOT-REAL",
+        ])
+        .unwrap();
+        let s = format!("{c:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+        assert!(s.contains("owner@example.test"), "{s}");
+
+        let c =
+            Cli::try_parse_from(["sr-cli", "seed", "--password", "TEST-SECRET-NOT-REAL"]).unwrap();
+        let s = format!("{c:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 
     #[test]

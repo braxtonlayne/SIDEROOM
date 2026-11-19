@@ -1163,3 +1163,28 @@ mod tests {
         assert!(probe_failure(&ProbeError::TimedOut, "ffprobe").contains("timed out"));
     }
 }
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    use super::*;
+
+    #[test]
+    fn created_token_debug_hides_its_secret() {
+        let v = CreatedToken {
+            token: WorkerToken {
+                id: 1,
+                name: "worker-a".to_owned(),
+                scope: "instance".to_owned(),
+                created_by: None,
+                created_at_ms: 0,
+                last_used_at_ms: None,
+                revoked_at_ms: None,
+            },
+            secret: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+        assert!(s.contains("worker-a"), "{s}");
+    }
+}

@@ -17,7 +17,7 @@ sr-library-rules = { path = "../sr-library-rules" }
 sr-reader = { path = "../sr-reader" }
 sr-review = { path = "../sr-review" }
 sr-storage = { path = "../sr-storage" }
-tantivy = "0.26"
+tantivy = "0.27"
 tempfile = "3"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "fs", "io-util"] }

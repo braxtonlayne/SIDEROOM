@@ -8,7 +8,7 @@ publish.workspace = true
 sr-chat = { path = "../sr-chat" }
 sr-core = { path = "../sr-core", default-features = false }
 sr-markdown = { path = "../sr-markdown" }
-tantivy = "0.26"
+tantivy = "0.27"
 moka = { workspace = true, features = ["sync"] }
 thiserror.workspace = true
 

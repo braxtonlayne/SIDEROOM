@@ -1117,8 +1117,15 @@
   margin-top: var(--lng-message-gap, 16px);
   padding-top: 2px;
 }
-.lng-msg:hover,
-.lng-msg:focus-within {
+/* D-1035 (SEC-AUD-560): the row's tint, like its toolbar, belongs to a real pointer (`hover: hover`) and to the
+   keyboard (`:focus-visible`): a tap's `:hover` and `:focus-within` left the row tinted on a phone. */
+@media (hover: hover) {
+  .lng-msg:hover {
+    background: var(--ui-bg-hover);
+  }
+}
+.lng-msg:focus-visible,
+.lng-msg:has(:focus-visible) {
   background: var(--ui-bg-hover);
 }
 .lng-msg-main {
