@@ -10,7 +10,8 @@
  */
 import { micConstraints, toMicError, type AudioDeps } from './deps';
 import { SOUND_CLIP_SECONDS } from './soundPlayer';
-import { getVoiceSettings, useVoiceSettings } from './settings';
+import { useVoiceSession } from './session';
+import { effectiveInputMode, getVoiceSettings, useVoiceSettings } from './settings';
 import { rmsDb, SILENCE_DB, VadEngineHost, type VadDetector, type VadTapRole } from './vad';
 
 export interface MicOptions {
@@ -34,7 +35,11 @@ export const METER_INTERVAL_MS = 30;
 export const vadHost = new VadEngineHost({
   wanted: () => {
     const s = getVoiceSettings();
-    return s.vadEngine === 'silero' && s.inputMode === 'vad';
+    // The EFFECTIVE mode: a channel that forces Push to Talk never starts the detector.
+    return (
+      s.vadEngine === 'silero' &&
+      effectiveInputMode(s, useVoiceSession.getState().pttForced) === 'vad'
+    );
   },
   engine: () => getVoiceSettings().vadEngine,
   load: () => import('./silero/sileroVad').then((m): VadDetector => m.createSileroVad()),
