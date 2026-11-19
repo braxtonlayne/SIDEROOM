@@ -29,6 +29,8 @@ describe('Settings > Voice & Video > Voice detection (D-1048)', () => {
     openSettings('voice');
     const g = await group();
     expect(within(g).getAllByRole('radio')).toHaveLength(2);
+    // in a row of its own, so it is not stretched across the card
+    expect(g.closest('.us-row-field')).not.toBeNull();
     expect(within(g).getByRole('radio', { name: 'Silero (on-device model)' })).toBeInTheDocument();
     expect(within(g).getByRole('radio', { name: 'Standard' })).toBeChecked();
     expect(screen.queryByTestId('vad-engine-status')).toBeNull();
