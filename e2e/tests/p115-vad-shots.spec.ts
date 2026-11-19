@@ -179,7 +179,7 @@ async function chooseEngine(page: Page, which: 'silero' | 'standard') {
   const r = which === 'silero' ? silero(page) : standard(page);
   await engineGroup(page)
     .locator('label')
-    .filter({ hasText: which === 'silero' ? /Silero/ : /^s*Standards*$/ })
+    .filter({ hasText: which === 'silero' ? /Silero/ : /Standard/ })
     .click();
   await expectChecked(r);
 }
