@@ -668,6 +668,16 @@
   .lng-friends .lng-friend-row > [data-ui-dropdown] {
     flex: none;
   }
+  /* D-1022 (SEC-AUD-547): the 28px icon buttons get a 44px tap area (8px above and below; the row's 10px padding holds it). */
+  .lng-friends .lng-friend-row .lng-icon-btn {
+    position: relative;
+  }
+  .lng-friends .lng-friend-row .lng-icon-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
   .lng-friends .lng-friend-msg {
     position: absolute;
     inline-size: 1px;
