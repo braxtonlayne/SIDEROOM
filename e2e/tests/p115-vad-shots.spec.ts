@@ -177,7 +177,10 @@ async function openVoiceSettings(page: Page) {
 /** Chooses the detector in the settings, as a member does. */
 async function chooseEngine(page: Page, which: 'silero' | 'standard') {
   const r = which === 'silero' ? silero(page) : standard(page);
-  await r.click();
+  await engineGroup(page)
+    .locator('label')
+    .filter({ hasText: which === 'silero' ? /Silero/ : /^s*Standards*$/ })
+    .click();
   await expectChecked(r);
 }
 async function expectChecked(r: Locator) {
@@ -364,7 +367,7 @@ async function part1(browser: Browser) {
         per[cfg.key] = entry;
         continue;
       }
-      const options = await engineGroup(page).getByRole('radio').allInnerTexts();
+      const options = await engineGroup(page).locator('label').allInnerTexts();
       entry.options = options.map((o) => o.trim());
       if (
         options.length !== 2 ||
@@ -438,7 +441,7 @@ async function part1(browser: Browser) {
       // The rest of the card, with Standard chosen, where it was in the base.
       if (cfg.key === '1280-light') {
         await page.keyboard.press('Escape').catch(() => undefined);
-        await standard(page).click();
+        await chooseEngine(page, 'standard');
         await page.waitForTimeout(300);
         const back = await controlBoxes(card(page));
         entry.standardAgainBoxes = back;
