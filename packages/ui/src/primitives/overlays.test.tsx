@@ -53,7 +53,8 @@ describe('Modal initial focus (D-1021)', () => {
     expect(screen.getByLabelText('Two')).toHaveFocus();
   });
   it('honours data-autofocus and initialFocusRef over a field', () => {
-    const ref = { current: null as HTMLElement | null };
+    // React 19's RefObject<HTMLElement> holds a non-null current; the button's ref callback fills it before Modal reads it.
+    const ref: { current: HTMLElement } = { current: null as unknown as HTMLElement };
     const { unmount } = render(
       <Modal open title="T" onClose={() => {}}>
         <input aria-label="One" />
@@ -66,7 +67,13 @@ describe('Modal initial focus (D-1021)', () => {
       return (
         <Modal open title="T" onClose={() => {}} initialFocusRef={ref}>
           <input aria-label="One" />
-          <button ref={(el) => (ref.current = el)}>Ref me</button>
+          <button
+            ref={(el) => {
+              if (el) ref.current = el;
+            }}
+          >
+            Ref me
+          </button>
         </Modal>
       );
     }
