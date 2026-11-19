@@ -397,4 +397,13 @@
   .sr-calc-check {
     min-block-size: 2.75rem;
   }
+  /* SEC-AUD-524: the percent examples (not the calculator's history), the bit buttons (width kept) and the hour cells are 44 px tall. */
+  .sr-calc-examples .sr-calc-hist-btn,
+  .sr-calc-bit,
+  .sr-tz-pick {
+    min-block-size: 2.75rem;
+  }
+  .sr-calc-examples {
+    max-block-size: none;
+  }
 }
