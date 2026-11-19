@@ -241,7 +241,13 @@ test('wave 110 sections: Arcade and Study bars, Library Home head and footer', a
           const footLinks = await footer.locator('a').evaluateAll((els) =>
             els.map((e) => {
               const r = e.getBoundingClientRect();
-              return { name: (e.textContent ?? '').trim(), x: r.x, y: r.y, w: r.width, h: r.height };
+              return {
+                name: (e.textContent ?? '').trim(),
+                x: r.x,
+                y: r.y,
+                w: r.width,
+                h: r.height,
+              };
             }),
           );
           const fb = await boxOf(footer);
@@ -324,7 +330,8 @@ test('wave 110 sections: Arcade and Study bars, Library Home head and footer', a
         say(
           `${key}: bar height ${b.bar?.height} -> ${a.bar?.height} (+${grow}); scroll ${b.scroll} -> ${a.scroll}`,
         );
-        if (grow > maxGrow || grow < 0) problems.push(`${key}: the bar grew ${grow} px (max ${maxGrow})`);
+        if (grow > maxGrow || grow < 0)
+          problems.push(`${key}: the bar grew ${grow} px (max ${maxGrow})`);
         if (a.scroll[0] > a.scroll[1] + 1)
           problems.push(`${key}: the bar scrolls vertically ${a.scroll}`);
         for (const r of a.rows as RowFig[])
@@ -338,17 +345,22 @@ test('wave 110 sections: Arcade and Study bars, Library Home head and footer', a
           `library-home-375: gap ${bl.gap} -> ${al.gap}; head ${bl.head?.height} -> ${al.head?.height}; footer ${bl.footer?.height} -> ${al.footer?.height}; doc ${bl.docHeight} -> ${al.docHeight}`,
         );
         if (al.gap == null || al.gap < 8)
-          problems.push(`library-home-375: gap between the control and "See rankings" is ${al.gap}`);
+          problems.push(
+            `library-home-375: gap between the control and "See rankings" is ${al.gap}`,
+          );
         if ((al.head?.height ?? 0) - (bl.head?.height ?? 0) > 16)
           problems.push('library-home-375: the head grew more than 16 px');
         for (const r of [...al.mainRows, ...al.footRows] as RowFig[])
           if (r.status !== 'pass' && r.status !== 'skipped')
             problems.push(`library-home-375 "${r.name}": ${r.status} ${r.fails.join('; ')}`);
         const sizes = (f: any) =>
-          [...f.mainRows, ...f.footRows].map((r: RowFig) => `${r.name}|${r.box?.width}x${r.box?.height}`);
+          [...f.mainRows, ...f.footRows].map(
+            (r: RowFig) => `${r.name}|${r.box?.width}x${r.box?.height}`,
+          );
         const bs = sizes(bl);
         for (const s of sizes(al))
-          if (!bs.includes(s)) problems.push(`library-home-375: drawn size changed or new control ${s}`);
+          if (!bs.includes(s))
+            problems.push(`library-home-375: drawn size changed or new control ${s}`);
       }
       const bc = base['cinema-home-375'];
       const ac = figures['cinema-home-375'];
