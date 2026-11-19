@@ -475,13 +475,16 @@ async function readSelects(page: Page, root: Locator, pageName: string, c: Cfg) 
     await page.mouse.move(2, 2);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await page.waitForTimeout(80);
-    const rest = await read(f);
+    // the kit Select draws its box on the wrapper around its trigger button (the ring is :focus-within): read the wrapper
+    const isTrigger = (await f.evaluate((e) => e.tagName.toLowerCase())) === 'button';
+    const tgt = isTrigger ? f.locator('xpath=..') : f;
+    const rest = await read(tgt);
     if (!rest.visible) continue;
     let hover: string | null = null;
     try {
       await f.hover({ timeout: 3000 });
       await page.waitForTimeout(120);
-      hover = (await read(f)).borderColor;
+      hover = (await read(tgt)).borderColor;
     } catch {
       /* covered */
     }
@@ -489,7 +492,7 @@ async function readSelects(page: Page, root: Locator, pageName: string, c: Cfg) 
     await page.keyboard.press('Tab').catch(() => undefined);
     await f.focus().catch(() => undefined);
     await page.waitForTimeout(150);
-    const foc = await read(f);
+    const foc = await read(tgt);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     const fig: SelectFig = {
       page: pageName,
