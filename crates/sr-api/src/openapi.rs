@@ -69,10 +69,18 @@ pub struct CurrentUser {
 }
 
 /// Body of `GET /sr/csrf`.
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct CsrfToken {
     /// Value for the `X-SR-CSRF` header.
     pub token: String,
+}
+
+impl std::fmt::Debug for CsrfToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CsrfToken")
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 struct Security;
@@ -230,4 +238,20 @@ pub async fn csrf_token(
     Ok(Json(CsrfToken {
         token: crate::auth::csrf::token_for(raw),
     }))
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn csrf_token_debug_hides_its_secrets() {
+        let v = CsrfToken {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

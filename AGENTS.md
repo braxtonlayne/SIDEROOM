@@ -42,7 +42,7 @@ This file is the entry point for any agent assigned work on SIDE ROOM. Read it f
 2. **Frontend is TypeScript + React.** Use the shared UI kit in `packages/ui`. Use Rust/WASM (`crates/*-wasm`) for parsing, crypto, validation, and heavy compute. Logic shared with the backend must come from the same Rust crate, never a reimplementation.
 3. **Discord parity is the default.** If a spec is silent on a chat behavior, match current Discord behavior and note it in the PR. Exceptions are in the decisions log.
 4. **Everything is a feature module.** New functionality registers through the feature registry (`11-extensibility…` §2) so it can be toggled and configured from a settings menu without new UI plumbing.
-5. **No secrets in code, no telemetry to third parties.** The platform never phones home.
+5. **No secrets in code, no telemetry to third parties.** The platform never phones home. **No type that holds a secret derives `Debug` (D-1033):** give it a hand-written `Debug` that prints `<redacted>` (or hold the value in the `Secret` type) and add a `{:?}` test that proves the value does not appear.
 6. **The Board does not exist.** The landing mockups show a fourth section called "The Board." It was cut. Do not build it, link to it, or reserve routes for it.
 7. **IDs and API shapes match Discord** wherever practical (snowflakes, permission bits, gateway opcodes, JSON field names). This keeps bots easy to port. See `05-api-and-gateway.md`.
 

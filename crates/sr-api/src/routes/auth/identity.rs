@@ -47,7 +47,7 @@ fn context(account: &AccountRecord) -> Vec<String> {
 }
 
 /// Body for `POST /sr/auth/password`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct ChangePasswordBody {
     /// The password in use now.
     current_password: String,
@@ -61,6 +61,17 @@ pub struct ChangePasswordBody {
     /// passkey, unless this session passed a second-factor check in the last 15 minutes.
     #[serde(default)]
     mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for ChangePasswordBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChangePasswordBody")
+            .field("current_password", &"<redacted>")
+            .field("new_password", &"<redacted>")
+            .field("revoke_other_sessions", &self.revoke_other_sessions)
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 fn yes() -> bool {
@@ -145,12 +156,21 @@ pub async fn change_password(
 }
 
 /// Body for `PUT /sr/auth/username`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct ChangeUsernameBody {
     /// 2 to 32 characters of `a-z 0-9 _ .` (case-insensitive), not reserved.
     username: String,
     /// Current password.
     password: String,
+}
+
+impl std::fmt::Debug for ChangeUsernameBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChangeUsernameBody")
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `PUT /sr/auth/username {username, password}`: change the login name. Same rules as
@@ -233,7 +253,7 @@ pub struct MfaProof {
 }
 
 /// Body for `POST /sr/auth/email/change`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct ChangeEmailBody {
     new_email: String,
     /// Current password.
@@ -242,6 +262,16 @@ pub struct ChangeEmailBody {
     /// unless this session passed a second-factor check in the last 15 minutes.
     #[serde(default)]
     mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for ChangeEmailBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChangeEmailBody")
+            .field("new_email", &self.new_email)
+            .field("password", &"<redacted>")
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// A second-factor check counts for this long (D-167).
@@ -321,10 +351,18 @@ fn invalid_link() -> AuthRouteError {
 }
 
 /// Body for `POST /sr/auth/email/cancel`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct CancelEmailChangeBody {
     /// The token from the "This wasn't me" link.
     token: String,
+}
+
+impl std::fmt::Debug for CancelEmailChangeBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CancelEmailChangeBody")
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/email/cancel {token}`: the "This wasn't me" link of an email-change
@@ -575,7 +613,7 @@ impl AuthService {
 }
 
 /// Body for `POST /sr/auth/account/delete`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct DeleteAccountBody {
     /// Current password.
     password: String,
@@ -585,6 +623,16 @@ pub struct DeleteAccountBody {
     /// unless this session passed a second-factor check in the last 15 minutes.
     #[serde(default)]
     mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for DeleteAccountBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeleteAccountBody")
+            .field("password", &"<redacted>")
+            .field("username", &self.username)
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/account/delete {password, username, mfa?}`: delete the signed-in
@@ -806,4 +854,61 @@ pub(super) async fn staff_mfa_prove(
         code: code.to_owned(),
     };
     require_second_factor(svc, now, &account, session, Some(&proof)).await
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn change_password_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<ChangePasswordBody>("{\"current_password\":\"TEST-SECRET-NOT-REAL\",\"new_password\":\"TEST-SECRET-NOT-REAL\",\"revoke_other_sessions\":false}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn change_username_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<ChangeUsernameBody>(
+            "{\"username\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn change_email_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<ChangeEmailBody>(
+            "{\"new_email\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn cancel_email_change_body_debug_hides_its_secrets() {
+        let v =
+            serde_json::from_str::<CancelEmailChangeBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}")
+                .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn delete_account_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<DeleteAccountBody>(
+            "{\"password\":\"TEST-SECRET-NOT-REAL\",\"username\":\"x\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

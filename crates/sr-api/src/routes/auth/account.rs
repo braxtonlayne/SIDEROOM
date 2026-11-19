@@ -105,10 +105,19 @@ pub async fn forgot(
 }
 
 /// Body for `/sr/auth/reset`.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct ResetBody {
     token: String,
     password: String,
+}
+
+impl std::fmt::Debug for ResetBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResetBody")
+            .field("token", &"<redacted>")
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/reset {token, password}`: set a new password with a
@@ -160,9 +169,17 @@ pub async fn reset(
 }
 
 /// Body for `/sr/auth/verify-email`.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct VerifyBody {
     token: String,
+}
+
+impl std::fmt::Debug for VerifyBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifyBody")
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/verify-email {token}`: confirm the address. No login needed.
@@ -319,10 +336,18 @@ pub async fn get_age_confirmation(
 }
 
 /// Body of `DELETE /users/@me/age-confirmation`.
-#[derive(Debug, Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct ResetAgeBody {
     /// The current password (re-authentication).
     current_password: String,
+}
+
+impl std::fmt::Debug for ResetAgeBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResetAgeBody")
+            .field("current_password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `DELETE /users/@me/age-confirmation`: forget the answer, so the age gate asks again
@@ -349,4 +374,39 @@ pub async fn reset_age_confirmation(
     svc.notify_user_update(p.user_id, serde_json::json!({ "age_confirmed": null }))
         .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn reset_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<ResetBody>(
+            "{\"token\":\"TEST-SECRET-NOT-REAL\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn verify_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<VerifyBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn reset_age_body_debug_hides_its_secrets() {
+        let v =
+            serde_json::from_str::<ResetAgeBody>("{\"current_password\":\"TEST-SECRET-NOT-REAL\"}")
+                .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

@@ -161,13 +161,22 @@ pub async fn verify(
 }
 
 /// Body for actions that re-confirm the password (and, D-573, the second factor).
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct PasswordBody {
     pub(super) password: String,
     /// Second factor, when the account has one and this session has not passed a check in
     /// the last 15 minutes (D-167, D-573).
     #[serde(default)]
     pub(super) mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for PasswordBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PasswordBody")
+            .field("password", &"<redacted>")
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// `DELETE /sr/auth/totp {password, mfa?}`: disable two-factor and drop the
@@ -197,4 +206,19 @@ pub async fn disable(
     svc.notify_security(account.id, "The authenticator app was removed")
         .await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn password_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<PasswordBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}")
+            .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

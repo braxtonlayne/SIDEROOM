@@ -129,7 +129,7 @@ pub struct PreviewQuery {
 }
 
 /// Body of `POST /sr/users/@me/messages/delete-all`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 #[schema(as = MessagesSelfDeleteBody)]
 pub struct DeleteAllBody {
     /// The account's username, typed to confirm (case-insensitive).
@@ -146,6 +146,19 @@ pub struct DeleteAllBody {
     /// Only messages older than this (Unix milliseconds).
     #[serde(default)]
     before_ms: Option<i64>,
+}
+
+impl std::fmt::Debug for DeleteAllBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DeleteAllBody")
+            .field("confirm_username", &self.confirm_username)
+            .field("password", &"<redacted>")
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .field("servers", &self.servers)
+            .field("dms", &self.dms)
+            .field("before_ms", &self.before_ms)
+            .finish()
+    }
 }
 
 fn internal(e: String) -> crate::error::HttpError {
@@ -271,3 +284,17 @@ pub async fn delete_all(
     components(schemas(RunObject, PreviewObject, DeleteAllBody))
 )]
 pub struct SelfDeleteApiDoc;
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn delete_all_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<DeleteAllBody>("{\"confirm_username\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\",\"servers\":false,\"dms\":false}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+}

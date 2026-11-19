@@ -152,7 +152,7 @@ pub struct BridgeStatusObject {
 }
 
 /// Body of `PUT /guilds/{id}/bridge/token`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct TokenBody {
     /// The bot token of the owner's own Discord application. Sealed on arrival, shown nowhere.
     pub token: String,
@@ -162,6 +162,16 @@ pub struct TokenBody {
     /// 'selective' (default). 'whole_guild' is reserved for a later wave and refused with a 400.
     #[serde(default)]
     pub mode: Option<String>,
+}
+
+impl std::fmt::Debug for TokenBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenBody")
+            .field("token", &"<redacted>")
+            .field("discord_guild_id", &self.discord_guild_id)
+            .field("mode", &self.mode)
+            .finish()
+    }
 }
 
 /// What a teardown did.
@@ -719,4 +729,18 @@ pub struct BridgeApiDoc;
 /// The OpenAPI fragment of the bridge routes.
 pub fn openapi() -> utoipa::openapi::OpenApi {
     <BridgeApiDoc as utoipa::OpenApi>::openapi()
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn token_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<TokenBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

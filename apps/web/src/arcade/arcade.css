@@ -979,6 +979,21 @@
   .arc-roombar-link {
     padding-block: 8px;
   }
+  /* D-1022 (SEC-AUD-543): the three links (33 px with the 1 px border) get a 44 px tap area; 6 px each way reaches the points
+     (the area is measured from the padding box: 32 px, centre 16.5 px). The bar's block padding grows 4 to 5 px so the area
+     lies inside the bar's scroll box (the bar is overflow-x: auto, which clips and would scroll a taller area). */
+  .arc-roombar-link {
+    position: relative;
+  }
+  .arc-roombar-link::after {
+    content: '';
+    position: absolute;
+    inset-block: -6px;
+    inset-inline: 0;
+  }
+  .arc-roombar {
+    padding-block: 5px;
+  }
   .arc-tabs {
     flex-wrap: nowrap;
   }

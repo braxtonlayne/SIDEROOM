@@ -29,7 +29,7 @@ use sr_core::{ApiError, ErrorCode};
 use std::sync::Arc;
 
 /// Request body (matches `RegisterRequest` in `apps/web/src/api/entrance.ts`).
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct RegisterBody {
     code: String,
     email: String,
@@ -43,6 +43,20 @@ pub struct RegisterBody {
     /// platform's minimum (`platform.compliance` `accounts.minimum_age`, default 13).
     #[serde(default)]
     confirmed_min_age: Option<u8>,
+}
+
+impl std::fmt::Debug for RegisterBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RegisterBody")
+            .field("code", &self.code)
+            .field("email", &self.email)
+            .field("username", &self.username)
+            .field("display_name", &self.display_name)
+            .field("password", &"<redacted>")
+            .field("accepted_house_notes", &self.accepted_house_notes)
+            .field("confirmed_min_age", &self.confirmed_min_age)
+            .finish()
+    }
 }
 
 fn closed() -> AuthRouteError {
@@ -309,4 +323,18 @@ pub(super) async fn send_verification(
         .send(mail::verify_email(email, &link, &locale))
         .await
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn register_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<RegisterBody>("{\"code\":\"x\",\"email\":\"x\",\"username\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\",\"accepted_house_notes\":false}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

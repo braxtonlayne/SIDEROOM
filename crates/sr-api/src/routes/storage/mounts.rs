@@ -167,11 +167,14 @@ pub struct MountObject {
     pub label: String,
     /// `s3`, `r2`, `b2`, `minio`, `wasabi` or `garage`.
     pub provider: String,
+    /// The service URL. Only in the answers about the caller's own mounts (`/users/@me/...`); a server's mounts,
+    /// read by whoever manages the server, leave it out (D-1034).
     pub endpoint: Option<String>,
     pub region: Option<String>,
     pub bucket: String,
     pub prefix: String,
     pub path_style: bool,
+    /// Masked: `…` and the last four characters (D-1034). The whole id is never sent back.
     pub access_key_id: String,
     /// The last four characters of the access key id.
     pub key_hint: String,
@@ -186,9 +189,19 @@ pub struct MountObject {
     pub created_at: String,
 }
 
+/// `…` and the last four characters of an access key id (all of it when it has four or fewer).
+pub(crate) fn mask_key_id(id: &str) -> String {
+    let n = id.chars().count();
+    if n <= 4 {
+        return id.to_owned();
+    }
+    let tail: String = id.chars().skip(n - 4).collect();
+    format!("…{tail}")
+}
+
 impl MountObject {
-    /// The wire view of a mount.
-    pub fn of(m: &Mount) -> Self {
+    /// The wire view of a mount. `own`: the caller's own mount (the personal routes), which alone shows the endpoint.
+    pub fn of(m: &Mount, own: bool) -> Self {
         Self {
             id: m.id.to_string(),
             owner_kind: m.owner.kind().to_owned(),
@@ -198,12 +211,12 @@ impl MountObject {
             },
             label: m.label.clone(),
             provider: m.provider.as_str().to_owned(),
-            endpoint: Some(m.endpoint.clone()),
+            endpoint: own.then(|| m.endpoint.clone()),
             region: Some(m.region.clone()),
             bucket: m.bucket.clone(),
             prefix: m.prefix.clone(),
             path_style: m.path_style,
-            access_key_id: m.access_key_id.clone(),
+            access_key_id: mask_key_id(&m.access_key_id),
             key_hint: m.key_hint.clone(),
             status: m.status.as_str().to_owned(),
             cors_ok_at: m.cors_ok_at.map(iso),
@@ -218,7 +231,7 @@ impl MountObject {
 }
 
 /// Connect a bucket. `secret_access_key` is write-only.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct CreateMountBody {
     pub label: String,
     pub provider: String,
@@ -233,9 +246,25 @@ pub struct CreateMountBody {
     pub secret_access_key: String,
 }
 
+impl std::fmt::Debug for CreateMountBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreateMountBody")
+            .field("label", &self.label)
+            .field("provider", &self.provider)
+            .field("endpoint", &self.endpoint)
+            .field("region", &self.region)
+            .field("bucket", &self.bucket)
+            .field("prefix", &self.prefix)
+            .field("path_style", &self.path_style)
+            .field("access_key_id", &self.access_key_id)
+            .field("secret_access_key", &"<redacted>")
+            .finish()
+    }
+}
+
 /// Change a mount: any create field, plus `status` (`active` or `disabled`). A new `secret_access_key`
 /// re-seals the credential; a new `access_key_id` needs one with it.
-#[derive(Debug, Default, Deserialize, ToSchema)]
+#[derive(Default, Deserialize, ToSchema)]
 pub struct PatchMountBody {
     pub label: Option<String>,
     pub provider: Option<String>,
@@ -247,6 +276,26 @@ pub struct PatchMountBody {
     pub access_key_id: Option<String>,
     pub secret_access_key: Option<String>,
     pub status: Option<String>,
+}
+
+impl std::fmt::Debug for PatchMountBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PatchMountBody")
+            .field("label", &self.label)
+            .field("provider", &self.provider)
+            .field("endpoint", &self.endpoint)
+            .field("region", &self.region)
+            .field("bucket", &self.bucket)
+            .field("prefix", &self.prefix)
+            .field("path_style", &self.path_style)
+            .field("access_key_id", &self.access_key_id)
+            .field(
+                "secret_access_key",
+                &self.secret_access_key.as_ref().map(|_| "<redacted>"),
+            )
+            .field("status", &self.status)
+            .finish()
+    }
 }
 
 // ------------------------------------------------------------------ plumbing
@@ -292,6 +341,7 @@ fn member(p: &Principal) -> MsgResult<UserId> {
 }
 
 /// Whose mounts a request touches, after the caller was checked.
+#[derive(Clone, Copy)]
 pub(crate) enum Scope {
     User(i64),
     Guild(i64),
@@ -506,7 +556,11 @@ async fn list(deps: &MountsDeps, scope: Scope) -> MsgResult<Json<Vec<MountObject
         .for_owner(scope.owner())
         .await
         .map_err(repo_failure)?;
-    Ok(Json(rows.iter().map(MountObject::of).collect()))
+    Ok(Json(
+        rows.iter()
+            .map(|m| MountObject::of(m, matches!(scope, Scope::User(_))))
+            .collect(),
+    ))
 }
 
 /// The cap for a new mount: the setting when the admin service is wired, else the deps' default.
@@ -568,7 +622,10 @@ async fn create(
         .await
         .map_err(repo_failure)?;
     notify(deps, mount.id, mount.owner, "created").await;
-    Ok((StatusCode::CREATED, Json(MountObject::of(&mount))))
+    Ok((
+        StatusCode::CREATED,
+        Json(MountObject::of(&mount, matches!(scope, Scope::User(_)))),
+    ))
 }
 
 async fn patch(
@@ -698,7 +755,10 @@ async fn patch(
         .await
         .map_err(repo_failure)?
         .unwrap_or(updated);
-    Ok(Json(MountObject::of(&fresh)))
+    Ok(Json(MountObject::of(
+        &fresh,
+        matches!(scope, Scope::User(_)),
+    )))
 }
 
 async fn remove(deps: &MountsDeps, scope: Scope, mount_id: &str) -> MsgResult<StatusCode> {

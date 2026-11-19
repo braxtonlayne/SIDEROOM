@@ -24,7 +24,7 @@ OPTIONS:
     -h, --help             This text
 ";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Cli {
     pub server: Option<String>,
     pub token: Option<String>,
@@ -35,6 +35,22 @@ pub struct Cli {
     pub force_cpu: bool,
     pub check: bool,
     pub help: bool,
+}
+
+impl std::fmt::Debug for Cli {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cli")
+            .field("server", &self.server)
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .field("concurrency", &self.concurrency)
+            .field("work_dir", &self.work_dir)
+            .field("ffmpeg", &self.ffmpeg)
+            .field("name", &self.name)
+            .field("force_cpu", &self.force_cpu)
+            .field("check", &self.check)
+            .field("help", &self.help)
+            .finish()
+    }
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -243,5 +259,29 @@ mod tests {
             ),
             Err(CliError::InsecureServer)
         );
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn cli_debug_hides_its_secrets() {
+        let v = Cli {
+            server: None,
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            concurrency: 0,
+            work_dir: std::path::PathBuf::new(),
+            ffmpeg: "x".to_owned(),
+            name: "x".to_owned(),
+            force_cpu: false,
+            check: false,
+            help: false,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

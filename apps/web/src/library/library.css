@@ -479,6 +479,14 @@
   gap: 12px 24px;
   margin-bottom: 20px;
 }
+/* D-1022 (SEC-AUD-553): a wrapped head keeps its control and its link apart on a phone: the segmented control's tap area
+   reaches 7 px under it, "See rankings" (23 px) takes one from 11.5 px above it, and baseline alignment already adds 4 px
+   to the 12 px gap, so 15 px of row gap leaves 19 px and the two zones no longer overlap. */
+@media (max-width: 48rem) {
+  .lib-section-head {
+    row-gap: 15px;
+  }
+}
 .lib-section-title {
   display: flex;
   align-items: baseline;
@@ -814,6 +822,22 @@
 .lib-footer-links a {
   color: var(--sr-text-2);
   text-decoration: none;
+}
+/* D-1022 (SEC-AUD-554): the footer links are standalone links: on a phone each (16 px) gets a 44 px tap area, and the rows sit
+   28 px apart (a 44 px pitch) so one row's area never covers the next row's centre line. */
+@media (max-width: 48rem) {
+  .lib-footer-links {
+    row-gap: 28px;
+  }
+  .lib-footer-links a {
+    position: relative;
+  }
+  .lib-footer-links a::after {
+    content: '';
+    position: absolute;
+    inset-block: -14px;
+    inset-inline: 0;
+  }
 }
 
 /* ---------- browse ---------- */

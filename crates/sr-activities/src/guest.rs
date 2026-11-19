@@ -43,7 +43,7 @@ pub const MAX_GUESTS_PER_LOBBY: i64 = 16;
 pub const MAX_LINKS_PER_INSTANCE: i64 = 5;
 
 /// A response to creating a guest link.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[schema(as = ArcadeGuestLinkCreated)]
 pub struct GuestLinkCreated {
     /// 64 hex digits, shown once. The page is `/play/<lobby_token>#key=<key>`; the client adds the key.
@@ -52,8 +52,17 @@ pub struct GuestLinkCreated {
     pub expires_at: String,
 }
 
+impl std::fmt::Debug for GuestLinkCreated {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GuestLinkCreated")
+            .field("lobby_token", &"<redacted>")
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
+}
+
 /// A response to a guest joining.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[schema(as = ArcadeGuestJoined)]
 pub struct GuestJoined {
     /// `srg_` plus 64 hex digits. Sent as the `hello` of the guest socket; no REST route accepts it.
@@ -78,6 +87,22 @@ pub struct GuestJoined {
     /// where the game's frame is `<application_id>.activities.<host>`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame_path: Option<String>,
+}
+
+impl std::fmt::Debug for GuestJoined {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GuestJoined")
+            .field("guest_token", &"<redacted>")
+            .field("callsign", &self.callsign)
+            .field("expires_at", &self.expires_at)
+            .field("topic", &self.topic)
+            .field("socket_path", &self.socket_path)
+            .field("application_id", &self.application_id)
+            .field("application_name", &self.application_name)
+            .field("capabilities", &self.capabilities)
+            .field("frame_path", &self.frame_path)
+            .finish()
+    }
 }
 
 /// What the guest socket learns about a guest session or a member seat when it checks a credential.
@@ -182,5 +207,40 @@ mod tests {
         assert_eq!(digest("a").len(), 32);
         assert_ne!(digest("a"), digest("b"));
         assert_eq!(digest("a"), lobby_id("a").to_vec());
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn guest_link_created_debug_hides_its_secrets() {
+        let v = GuestLinkCreated {
+            lobby_token: "TEST-SECRET-NOT-REAL".to_owned(),
+            expires_at: "x".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn guest_joined_debug_hides_its_secrets() {
+        let v = GuestJoined {
+            guest_token: "TEST-SECRET-NOT-REAL".to_owned(),
+            callsign: "x".to_owned(),
+            expires_at: "x".to_owned(),
+            topic: "x".to_owned(),
+            socket_path: "x".to_owned(),
+            application_id: "x".to_owned(),
+            application_name: "x".to_owned(),
+            capabilities: Vec::new(),
+            frame_path: None,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

@@ -1053,3 +1053,76 @@ async fn who_may_mount_limits_who_can_connect_a_bucket() {
         StatusCode::FORBIDDEN
     );
 }
+
+// ---------------------------------------------------------------- D-1033 / D-1034
+
+#[test]
+fn the_mount_bodies_print_no_secret() {
+    use super::mounts::{CreateMountBody, PatchMountBody};
+    let create: CreateMountBody =
+        serde_json::from_value(create_body("Debug")).expect("a create body");
+    let s = format!("{create:?}");
+    assert!(!s.contains(SECRET), "{s}");
+    assert!(s.contains("<redacted>"), "{s}");
+    let patch: PatchMountBody = serde_json::from_value(
+        json!({"access_key_id": "NEWKEYID9999", "secret_access_key": SECRET}),
+    )
+    .expect("a patch body");
+    let s = format!("{patch:?}");
+    assert!(!s.contains(SECRET), "{s}");
+    assert!(s.contains("<redacted>"), "{s}");
+}
+
+#[test]
+fn a_key_id_is_masked_to_its_last_four() {
+    use super::mounts::mask_key_id;
+    assert_eq!(mask_key_id("TESTKEYIDFORMOUNT0001"), "…0001");
+    assert_eq!(mask_key_id("GK0123456789abcd"), "…abcd");
+    assert_eq!(mask_key_id("abcd"), "abcd");
+}
+
+#[tokio::test]
+async fn the_lists_mask_the_key_id_and_only_your_own_show_the_endpoint() {
+    let e = env().await;
+    let base = "/users/@me/storage/mounts";
+    let (st, created, t) = e
+        .call(Some(MEMBER), Method::POST, base, Some(create_body("Own")))
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{created}");
+    assert_eq!(created["access_key_id"], "…abcd");
+    assert_eq!(created["endpoint"], "http://127.0.0.1:3900");
+    assert!(!t.contains("GK0123456789abcd"), "{t}");
+    let (_, list, t) = e.call(Some(MEMBER), Method::GET, base, None).await;
+    assert_eq!(list[0]["access_key_id"], "…abcd");
+    assert_eq!(list[0]["key_hint"], "abcd");
+    assert_eq!(list[0]["endpoint"], "http://127.0.0.1:3900");
+    assert!(!t.contains("GK0123456789abcd"), "{t}");
+    let id = list[0]["id"].as_str().unwrap().to_owned();
+    let (_, patched, t) = e
+        .call(
+            Some(MEMBER),
+            Method::PATCH,
+            &format!("{base}/{id}"),
+            Some(json!({"label": "Renamed"})),
+        )
+        .await;
+    assert_eq!(patched["access_key_id"], "…abcd");
+    assert!(!t.contains("GK0123456789abcd"), "{t}");
+
+    // The server's list, read by whoever manages the server: masked, and no endpoint.
+    let gbase = format!("/guilds/{}/storage/mounts", e.guild);
+    let (st, g, t) = e
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &gbase,
+            Some(create_body("Shared")),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CREATED, "{g}");
+    assert!(g["endpoint"].is_null(), "{g}");
+    let (_, glist, t2) = e.call(Some(OWNER), Method::GET, &gbase, None).await;
+    assert_eq!(glist[0]["access_key_id"], "…abcd");
+    assert!(glist[0]["endpoint"].is_null(), "{glist}");
+    assert!(!t.contains("GK0123456789abcd") && !t2.contains("GK0123456789abcd"));
+}

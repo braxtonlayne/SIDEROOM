@@ -24803,11 +24803,16 @@ export interface components {
         MountFormat: "hls" | "mp4";
         /** @description A storage mount. The secret access key is never returned. */
         MountObject: {
+            /** @description Masked: `…` and the last four characters (D-1034). The whole id is never sent back. */
             access_key_id: string;
             bucket: string;
             /** @description When the CORS check last passed (ISO 8601); presigning is refused until it has. */
             cors_ok_at?: string | null;
             created_at: string;
+            /**
+             * @description The service URL. Only in the answers about the caller's own mounts (`/users/@me/...`); a server's mounts,
+             *     read by whoever manages the server, leave it out (D-1034).
+             */
             endpoint?: string | null;
             /** @description Snowflake. */
             id: string;

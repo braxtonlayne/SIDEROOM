@@ -204,6 +204,17 @@ fn unsupported(r: &S3Reply) -> bool {
     matches!(r.status, 501 | 405) || r.code().as_deref() == Some("NotImplemented")
 }
 
+/// The key may not read the bucket's CORS configuration (HTTP 403, or the S3 codes `AccessDenied` /
+/// `AccessDeniedException`). Cloudflare R2 tokens scoped to object read/write answer so, yet the bucket's rule can
+/// be in place: only a live preflight can tell (D-1032).
+fn denied(r: &S3Reply) -> bool {
+    r.status == 403
+        || matches!(
+            r.code().as_deref(),
+            Some("AccessDenied" | "AccessDeniedException")
+        )
+}
+
 /// Read the bucket's CORS rules and compare them with the required rule for `origin`.
 pub async fn check(admin: &S3Admin, provider: Provider, origin: &str) -> crate::Result<CorsReport> {
     let origin = normalize_origin(origin)?;
@@ -217,6 +228,12 @@ pub async fn check(admin: &S3Admin, provider: Provider, origin: &str) -> crate::
     if unsupported(&reply) {
         return Ok(manual_or_verified(admin, provider, &origin).await);
     }
+    if denied(&reply) && preflight_passes(admin, &origin).await {
+        return Ok(verified_report(
+            &origin,
+            "the key may not read the bucket's CORS rules",
+        ));
+    }
     Err(crate::StorageError::Backend(format!(
         "reading the bucket's CORS rules failed: {}",
         reply.reason()
@@ -226,25 +243,32 @@ pub async fn check(admin: &S3Admin, provider: Provider, origin: &str) -> crate::
 /// For a service without the CORS API: if a live preflight already succeeds, the rule is in place (the owner
 /// set it by hand); otherwise the provider's steps.
 async fn manual_or_verified(admin: &S3Admin, provider: Provider, origin: &str) -> CorsReport {
-    let allowed = admin
+    if preflight_passes(admin, origin).await {
+        return verified_report(origin, "this service has no CORS API");
+    }
+    manual_report(provider, origin)
+}
+
+/// A live preflight that answers success with an allow-origin header for `origin` (or `*`). A refused or failed
+/// preflight, and one that cannot run at all, is `false`: never "ok".
+async fn preflight_passes(admin: &S3Admin, origin: &str) -> bool {
+    admin
         .preflight_allows(
             crate::probe::PROBE_NAME,
             origin,
             std::time::Duration::from_secs(5),
         )
         .await
-        .unwrap_or(false);
-    if allowed {
-        return CorsReport {
-            state: CorsState::Ok,
-            required: vec![required_rule(origin).describe()],
-            found: vec![
-                "Verified with a live preflight request; this service has no CORS API.".to_owned(),
-            ],
-            manual_steps: None,
-        };
+        .unwrap_or(false)
+}
+
+fn verified_report(origin: &str, why: &str) -> CorsReport {
+    CorsReport {
+        state: CorsState::Ok,
+        required: vec![required_rule(origin).describe()],
+        found: vec![format!("Verified with a live preflight request; {why}.")],
+        manual_steps: None,
     }
-    manual_report(provider, origin)
 }
 
 fn manual_report(provider: Provider, origin: &str) -> CorsReport {

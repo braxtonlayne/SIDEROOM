@@ -96,15 +96,32 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Identify {
     pub token: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+impl std::fmt::Debug for Identify {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Identify")
+            .field("token", &"<redacted>")
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resume {
     pub session_id: String,
     pub resume_token: String,
+}
+
+impl std::fmt::Debug for Resume {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resume")
+            .field("session_id", &self.session_id)
+            .field("resume_token", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -157,7 +174,7 @@ pub struct ParticipantInfo {
 }
 
 /// S->C, answers IDENTIFY (READY) and RESUME (RESUMED).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Ready {
     pub session_id: String,
     /// Secret for RESUME on this session. Never log it.
@@ -169,6 +186,20 @@ pub struct Ready {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub guild_id: Option<GuildId>,
     pub participants: Vec<ParticipantInfo>,
+}
+
+impl std::fmt::Debug for Ready {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ready")
+            .field("session_id", &self.session_id)
+            .field("resume_token", &"<redacted>")
+            .field("heartbeat_interval", &self.heartbeat_interval)
+            .field("user_id", &self.user_id)
+            .field("channel_id", &self.channel_id)
+            .field("guild_id", &self.guild_id)
+            .field("participants", &self.participants)
+            .finish()
+    }
 }
 
 #[cfg(test)]
@@ -210,5 +241,32 @@ mod tests {
         let m: Message = serde_json::from_str(r#"{"op":2}"#).unwrap();
         assert_eq!(m.d, Value::Null);
         assert!(m.data::<Heartbeat>().is_err());
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn identify_debug_hides_its_secrets() {
+        let v = Identify {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn resume_debug_hides_its_secrets() {
+        let v = Resume {
+            session_id: "x".to_owned(),
+            resume_token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

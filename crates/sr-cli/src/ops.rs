@@ -21,7 +21,7 @@ use std::{
 };
 
 /// Connection settings split out of a `postgres://` URL, for the libpq environment variables.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PgEnv {
     pub host: String,
     pub port: u16,
@@ -29,6 +29,19 @@ pub struct PgEnv {
     pub password: Option<String>,
     pub database: String,
     pub sslmode: Option<String>,
+}
+
+impl std::fmt::Debug for PgEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PgEnv")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("user", &self.user)
+            .field("password", &self.password.as_ref().map(|_| "<redacted>"))
+            .field("database", &self.database)
+            .field("sslmode", &self.sslmode)
+            .finish()
+    }
 }
 
 impl PgEnv {
@@ -883,5 +896,26 @@ mod preflight_tests {
                 send_to: Some(_)
             }
         ));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn pg_env_debug_hides_its_secrets() {
+        let v = PgEnv {
+            host: "x".to_owned(),
+            port: 0,
+            user: "x".to_owned(),
+            password: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            database: "x".to_owned(),
+            sslmode: None,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

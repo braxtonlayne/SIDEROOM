@@ -125,7 +125,7 @@ pub mod interaction_type {
     pub const MODAL_SUBMIT: u8 = 5;
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Interaction {
     pub id: Id,
     #[serde(default)]
@@ -146,6 +146,23 @@ pub struct Interaction {
     pub message: Option<Value>,
     #[serde(default)]
     pub app_permissions: Option<String>,
+}
+
+impl std::fmt::Debug for Interaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Interaction")
+            .field("id", &self.id)
+            .field("application_id", &self.application_id)
+            .field("kind", &self.kind)
+            .field("data", &self.data)
+            .field("guild_id", &self.guild_id)
+            .field("channel_id", &self.channel_id)
+            .field("member", &self.member)
+            .field("token", &"<redacted>")
+            .field("message", &self.message)
+            .field("app_permissions", &self.app_permissions)
+            .finish()
+    }
 }
 
 impl Interaction {
@@ -181,3 +198,28 @@ pub enum CallbackType {
 
 /// Message flag: only the invoking user sees the response.
 pub const FLAG_EPHEMERAL: u64 = 64;
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn interaction_debug_hides_its_secrets() {
+        let v = Interaction {
+            id: Default::default(),
+            application_id: Default::default(),
+            kind: 0,
+            data: Default::default(),
+            guild_id: None,
+            channel_id: None,
+            member: None,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            message: None,
+            app_permissions: None,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+}

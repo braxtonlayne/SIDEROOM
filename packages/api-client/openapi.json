@@ -106344,7 +106344,8 @@
         ],
         "properties": {
           "access_key_id": {
-            "type": "string"
+            "type": "string",
+            "description": "Masked: `…` and the last four characters (D-1034). The whole id is never sent back."
           },
           "bucket": {
             "type": "string"
@@ -106363,7 +106364,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The service URL. Only in the answers about the caller's own mounts (`/users/@me/...`); a server's mounts,\nread by whoever manages the server, leave it out (D-1034)."
           },
           "id": {
             "type": "string",

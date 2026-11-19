@@ -756,8 +756,8 @@
   }
 }
 
-/* SEC-AUD-361 (c) (D-865): a select is 44 px tall on a phone. .ss-select is shared with Admin (Accounts, Limits & settings,
-   the platform audit log): the same size there. (d): Compare levels keeps its first column at about 9rem so a label takes
+/* SEC-AUD-361 (c) (D-865): a select is 44 px tall on a phone. .ss-select is used by three elements, all in Server settings
+   (Members' two selects and the forum reaction input in Channel tabs); Admin does not use it. (d): Compare levels keeps its first column at about 9rem so a label takes
    two lines at most; the table scrolls inside its card (D-848, a table of figures), the tab does not. */
 @media (max-width: 720px) {
   .ss-select {

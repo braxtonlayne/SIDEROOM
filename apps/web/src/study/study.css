@@ -291,6 +291,22 @@
   color: var(--ui-text);
   text-decoration: underline;
 }
+/* D-1022 (SEC-AUD-544): on a phone each of the six links (20 px) gets a 44 px tap area, and the two rows of the wrapped bar
+   sit 24 px apart (a 44 px pitch) so one row's area never covers the other row's centre line. The bar grows 16 px. */
+@media (max-width: 48rem) {
+  .stu-bar {
+    row-gap: 24px;
+  }
+  .stu-bar-link {
+    position: relative;
+  }
+  .stu-bar-link::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
+}
 
 /* The load error and its Try again button on one line (wrapping on phones). */
 .stu-error {

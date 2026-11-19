@@ -169,6 +169,29 @@
   white-space: nowrap;
   color: var(--text-link, var(--brand));
 }
+.lng-attach-file .lng-icon-btn {
+  /* SEC-AUD-548: the flex card squeezed the download icon to 20px wide; it keeps its own 28px. */
+  flex: none;
+}
+/* D-1022 (SEC-AUD-548): on a phone the download icon gets a tap area (28px + 8px each way = 44px); the name link, which
+   clips its text (overflow: hidden would clip an ::after), gets 11px of padding each way with a matching negative margin,
+   so the card does not grow, and sits above the size line it overlaps. */
+@media (max-width: 720px) {
+  .lng-attach-file .lng-icon-btn {
+    position: relative;
+  }
+  .lng-attach-file .lng-icon-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
+  .lng-attach-file a.lng-file-name {
+    position: relative;
+    padding-block: 11px;
+    margin-block: -11px;
+  }
+}
 .lng-file-preview {
   max-height: 240px;
   margin: 4px 0 0;
@@ -265,6 +288,23 @@
   gap: 12px;
   padding-top: 8px;
 }
+/* D-1022 (SEC-AUD-549): on a phone the bar wraps, and its row gap (24px) keeps two lines' 44px tap areas apart;
+   the bar's links get a tap area (20px + 12px each way), scoped to the bar. */
+@media (max-width: 720px) {
+  .lng-lightbox-bar {
+    flex-wrap: wrap;
+    row-gap: 24px;
+  }
+  .lng-lightbox-bar .lng-link-btn {
+    position: relative;
+  }
+  .lng-lightbox-bar .lng-link-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
+}
 
 /* embeds */
 .lng-embeds {
@@ -311,6 +351,17 @@
 }
 .lng-embed-title a {
   color: var(--text-link, var(--brand));
+}
+/* D-1022 (SEC-AUD-542): on a phone the title link is a solid block 44px tall (an inline link wrapped over lines has the
+   lines' union for a box, and its hit points fall between them). It shrinks to its text; the card is not changed. */
+@media (max-width: 720px) {
+  .lng-embed-title a {
+    display: flex;
+    align-items: center;
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    min-block-size: 44px;
+  }
 }
 .lng-embed-desc {
   margin-top: 8px;
@@ -525,6 +576,13 @@
 .lng-forward-row .lng-muted {
   margin-inline-start: auto;
   font-size: 12px;
+}
+/* D-1022 (SEC-AUD-546): on a phone each destination's label is 44px tall (the list keeps its max-height and scrolls). */
+@media (max-width: 720px) {
+  .lng-forward-row {
+    box-sizing: border-box;
+    min-block-size: 44px;
+  }
 }
 
 /* inline edit */
