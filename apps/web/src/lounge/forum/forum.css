@@ -158,6 +158,13 @@
   color: var(--ui-text-faint);
   opacity: 1;
 }
+/* D-1022 (SEC-AUD-527): on a phone the New Post box is at least 44px tall (A.2; a textarea taller than that keeps its
+   own height). The dialog is portaled, so the kit's phone breakpoint rather than .lng-root[data-mobile]. */
+@media (max-width: 768px) {
+  .lng-post-textarea {
+    min-block-size: 44px;
+  }
+}
 
 /* SEC-AUD-491 (D-1006): on a phone the toolbar's search field (29px) and view buttons (28px) were under 44px, and the
    point 21px above or below their centre was taken by .lng-forum-tools. They get a real 44px box (the toolbar wraps
