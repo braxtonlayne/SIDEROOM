@@ -13,7 +13,7 @@ Status: the shipped files boot on a CI runner (`prod-smoke.yml`, RDY-OPS-001), b
 Doc 12 section 8 is the list: UFW with only 22/tcp, 80/tcp, 443/tcp and 443/udp open, plus, when voice is on, 50000-50099/udp, and, when the `turn` profile is on, 3478 udp+tcp, 5349/tcp and 49152-49999/udp, SSH keys only, unattended upgrades, fail2ban, disk encryption where the provider supports it, a separate Postgres role per service (optional hardening, not set up by the shipped files), secret files at mode 0600. Install Docker with the compose plugin. Docker publishes the ports of `prod.yml` around UFW's rules, so `ufw status` is not proof of what is reachable; check from outside with a port scan.
 
 - **Command.** `sudo ufw status verbose`; `docker compose version`.
-- **Done when.** The firewall shows only the listed ports, password SSH login is refused, and `docker compose version` prints a version.
+- **Done when.** The firewall shows only the listed ports, password SSH login is refused, and `docker compose version` prints 2.24 or newer.
 
 ## 2. DNS
 
@@ -77,7 +77,7 @@ A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)). On the Compose 
 
 Sign in as the Owner (the one-time link printed by `bootstrap` is single use and valid for one hour, so open it right away) and open the setup checklist on the Admin dashboard.
 
-- **Discord row (Compose).** It goes green after the Discord client id and secret are in the server's env file (`/etc/sideroom/server.env`, OPERATOR.md "Voice (configuration file or environment, not Admin)": the owner types the secret there) and the server is recreated with `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d sr-server`; otherwise mark the row waived.
+- **Discord row (Compose).** It goes green after the Discord client id is in the server's env file (`/etc/sideroom/server.env`) as `SR_DISCORD__CLIENT_ID`, `SR_DISCORD__CLIENT_SECRET_FILE` is set there to `/run/secrets/sideroom/discord_client_secret`, and the owner has typed the secret into `/etc/sideroom/secrets/discord_client_secret` (owner 65532, mode 0400; OPERATOR.md "Voice (configuration file or environment, not Admin)"), and the server is recreated with `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d sr-server`; otherwise mark the row waived.
 - **Done when.** Every row of the checklist (object storage, wallet, limits, second staff member, SMTP, Discord, voice and TURN) is green or consciously waived: limits goes green only after you change a value, and the staff row needs a second appointment. Separately: the storage and email test buttons on Admin > System have been pressed, and the Owner has turned on a second factor.
 
 ## 8. Lawyer settings
