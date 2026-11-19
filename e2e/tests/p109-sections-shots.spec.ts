@@ -116,6 +116,8 @@ async function newPage(browser: Browser, owner: BrowserContext, wide: boolean) {
 
 async function shot(page: Page, name: string) {
   mkdirSync(OUT, { recursive: true });
+  // The bars' shots show the top of the page (the hit test scrolled controls into view).
+  if (name.startsWith('bar-')) await page.evaluate(() => window.scrollTo(0, 0));
   const sideways = await page.evaluate(() => [
     document.documentElement.scrollWidth,
     document.documentElement.clientWidth,
