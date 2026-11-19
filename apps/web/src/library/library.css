@@ -89,7 +89,7 @@
 .lib-frame[data-mobile] .lib-sectionbar-link::after {
   content: '';
   position: absolute;
-  inset-block-end: -4px;
+  inset-block: 0 -4px;
   inset-inline: 0;
 }
 .lib-sectionbar-link[aria-current='page'] {

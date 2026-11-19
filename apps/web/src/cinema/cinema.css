@@ -152,7 +152,7 @@
   .cin-frame[data-mobile] .cin-sectionbar-link::after {
     content: '';
     position: absolute;
-    inset-block-end: -4px;
+    inset-block: 0 -4px;
     inset-inline: 0;
   }
 }
