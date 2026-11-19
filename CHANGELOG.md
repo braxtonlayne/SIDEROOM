@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 115 - 2026-11-19
+
+- Voice Activity mode has an optional second detector: a small speech model that runs on your own device (Silero). It is off by default; choose it under Settings, Voice & Video, "Voice detection". Nothing is sent anywhere, and it downloads about 18 MB the first time you join a call or press "Let's check" with it chosen. If it cannot start, the call uses the standard detector and says so, and the next call tries again.
+- With the model chosen, the sensitivity controls do not apply (the model decides) and it needs two quick speech-like moments in a row to open your microphone, about a thirtieth of a second more than the standard detector. Push to Talk is unchanged and never loads it.
+- For the operator: the model and its runtime are self-hosted files of the app (no CDN, same Content Security Policy), loaded only for members who turn it on; the runtime adds 16 permissive packages to the notices. The wasm is 14.8 MB, so check that your proxy compresses it.
+- For the team: proven in Chromium on the wave's own build (the fallback, the encrypted call, nothing loaded early); speech is not proven by a committed test, and Firefox, Safari and phones are hand checks on deployment day. The first-paint entry grew 1,448 B gzip (218,390 to 219,838 B on the official build) for the host wiring; no detector code loads early (SEC-AUD-592 slims it). Row VOX-CLI-002 awaits the tick after CI; the open rows are SEC-AUD-584 to 592.
+
 ## Phase 114 - 2026-11-19
 
 - Object backups now keep Garage's metadata together with its data, and the backup script refuses a data-only copy, because that copy could not be restored. The weekly drill checks the object snapshot too when the object backup is set up.

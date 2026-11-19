@@ -36,6 +36,7 @@ import {
 import { streamerState } from '../settings/user/prefs';
 import { CuePlayer, cueEnabled, type Cue } from './sounds';
 import { VadGate } from './vad';
+import { vadHost } from './mic';
 import { e2eeDeclared, e2eOptOut } from './e2ee/support';
 import type { E2eeRuntime, E2eeStartContext, E2eeStarter } from './e2ee/runtime';
 import { VIDEO_PUBLISH } from './protocol';
@@ -158,6 +159,9 @@ export class VoiceController {
   private mutedBeforeDeaf = false;
   private vad: VadGate;
   private vadOpen = false;
+  /** The fallback notice (D-1051) is shown once per call. */
+  private vadNoticed = false;
+  private offVad: (() => void) | null = null;
   private roster = new Set<string>();
   private cues: CuePlayer;
   private ptt: PttController;
@@ -199,6 +203,7 @@ export class VoiceController {
     this.offSettings ??= useVoiceSettings.subscribe((st, prev) => {
       if (st.settings !== prev.settings) this.applySettings(st.settings, prev.settings);
     });
+    this.offVad ??= vadHost.subscribe(() => this.onVadChange());
     this.applyKeys();
     return () => this.stop();
   }
@@ -208,6 +213,8 @@ export class VoiceController {
     this.keys.detach();
     this.offSettings?.();
     this.offSettings = null;
+    this.offVad?.();
+    this.offVad = null;
     this.leave(false);
   }
 
@@ -290,6 +297,7 @@ export class VoiceController {
     this.roster.clear();
     this.vad.reset();
     this.vadOpen = false;
+    this.vadNoticed = false;
     this.stopCaptures();
     resetSession({ selfMute, selfDeaf });
     this.applyPtt();
@@ -347,6 +355,7 @@ export class VoiceController {
     if (useVoiceSession.getState().pttForced === forced) return;
     patchSession({ pttForced: forced });
     if (this.target) this.target = { ...this.target, pttForced: forced };
+    vadHost.refresh();
     this.applyPtt();
     this.recompute();
   }
@@ -950,6 +959,7 @@ export class VoiceController {
     engine.setMusicVolume?.(s.musicVolume);
     if (s.musicMuted) engine.setMusicMuted?.(true);
     this.vad.configure({ auto: s.autoSensitivity, thresholdDb: s.thresholdDb });
+    vadHost.resetBlock(); // a new attempt at a call tries the detector again (D-1051)
     this.recompute();
     void engine
       .connect({
@@ -1115,11 +1125,29 @@ export class VoiceController {
 
   private onLevelReading(db: number): void {
     for (const cb of [...this.levelListeners]) cb(db);
-    const open = this.vad.process(db, this.deps.now());
+    this.updateVadOpen(this.vad.process(db, this.deps.now()));
+  }
+
+  /**
+   * The energy gate's verdict, or the Silero detector's while it is ready (D-1050). While it loads, after a fallback
+   * and with the Standard engine, the energy gate decides exactly as before, so the microphone is never dead.
+   */
+  private updateVadOpen(energyOpen: boolean): void {
+    const open = vadHost.drives ? vadHost.open : energyOpen;
     if (open !== this.vadOpen) {
       this.vadOpen = open;
       this.recompute();
     }
+  }
+
+  /** The detector's state or verdict changed. */
+  private onVadChange(): void {
+    if (!this.target) return;
+    if (vadHost.state === 'fallback' && vadHost.role === 'call' && !this.vadNoticed) {
+      this.vadNoticed = true;
+      patchSession({ notice: t('voice.vad.fallbackNotice') });
+    }
+    this.updateVadOpen(this.vad.isOpen);
   }
 
   private onEngineFatal(e: VoiceError): void {
@@ -1343,6 +1371,7 @@ const mutedFlags = () => {
 };
 
 const micOptions = (s: VoiceSettings) => ({
+  vadRole: 'call' as const,
   deviceId: s.inputDeviceId,
   echoCancellation: s.echoCancellation,
   autoGainControl: s.autoGainControl,
