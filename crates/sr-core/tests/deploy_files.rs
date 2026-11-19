@@ -1031,12 +1031,17 @@ fn every_shipped_route_overrides_the_relative_default_search_folder() {
     assert_eq!(json["search"]["dir"], compose_dir.as_str());
 }
 
-/// First `#` line of a unit file.
-fn first_comment(body: &str) -> String {
-    body.lines()
-        .find(|l| l.trim_start().starts_with('#'))
-        .unwrap_or("")
-        .to_lowercase()
+/// The route a unit file names in its first line (`# Route: Compose route ...` / `# Route: plain-binary ...`).
+fn unit_route(body: &str) -> Option<&'static str> {
+    let first = body.lines().next()?.to_lowercase();
+    let after = first.strip_prefix("# route:")?.trim_start().to_owned();
+    if after.starts_with("compose") {
+        Some("compose")
+    } else if after.starts_with("plain-binary") {
+        Some("plain-binary")
+    } else {
+        None
+    }
 }
 
 /// SEC-AUD-567: GO-LIVE told a Compose operator to enable host-form backup units that call tools and a database a
@@ -1092,7 +1097,7 @@ fn the_compose_form_backup_units_run_inside_the_postgres_container() {
             .unwrap_or_else(|| panic!("{name}: compose file {file} is not under /opt/sideroom"));
         assert!(root().join(rel).exists(), "{name}: {rel} does not exist");
         assert!(
-            exec.contains(" exec -T postgres "),
+            exec.contains(" exec -T ") && exec.contains(" postgres sh -c "),
             "{name} must exec in the postgres service"
         );
         let mut scripts = 0;
@@ -1142,13 +1147,10 @@ fn every_backup_unit_names_its_route_and_it_is_true() {
             continue;
         }
         let body = fs::read_to_string(&p).unwrap();
-        let c = first_comment(&body);
-        let compose_route = c.contains("compose route");
-        let plain_route = c.contains("plain-binary");
-        assert!(
-            compose_route ^ plain_route,
-            "{name}: the first comment must name exactly one route: {c:?}"
-        );
+        let route = unit_route(&body).unwrap_or_else(|| {
+            panic!("{name}: line 1 must be `# Route: Compose ...` or `# Route: plain-binary ...`")
+        });
+        let compose_route = route == "compose";
         let service_body = if let Some(stem) = name.strip_suffix(".timer") {
             fs::read_to_string(dir.join(format!("{stem}.service"))).unwrap()
         } else {
@@ -1157,7 +1159,7 @@ fn every_backup_unit_names_its_route_and_it_is_true() {
         let uses_compose = service_body.contains("docker compose");
         assert_eq!(
             compose_route, uses_compose,
-            "{name} says {c:?} but its service {} docker compose",
+            "{name} says {route:?} but its service {} docker compose",
             if uses_compose { "uses" } else { "does not use" }
         );
         seen += 1;
@@ -1421,8 +1423,8 @@ fn the_release_notes_start_at_a_version_tag_are_capped_and_are_what_the_release_
         .find("--match 'v*'")
         .expect("git describe must match only v* tags");
     assert!(
-        job.contains("100000") || job.contains("100 000"),
-        "the notes need a cap of 100 000 characters"
+        job.contains("99900") || job.contains("100000"),
+        "the notes need a cap below GitHub's 125 000 characters"
     );
     let create = job
         .find("gh release create")
@@ -1437,7 +1439,8 @@ fn the_release_notes_start_at_a_version_tag_are_capped_and_are_what_the_release_
     assert!(
         before.contains(&format!(">{file}"))
             || before.contains(&format!("> {file}"))
-            || before.contains(&format!("> \"{file}\"")),
+            || before.contains(&format!("> \"{file}\""))
+            || before.contains(&format!("mv notes.capped {file}")),
         "the notes step never writes {file}"
     );
     assert!(
