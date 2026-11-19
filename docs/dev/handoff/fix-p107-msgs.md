@@ -39,3 +39,8 @@ Owner questions: none.
 
 ## PROCESSES
 strays: none started by me (no process was started).
+
+## Cure round (19:35, D-1022 msg.css cure)
+- Reaction pill area inset-block -11px (1px border: 44px total). Row gap back to the base 4px; wrapped lines' tap areas overlap: accepted. Row margin-top 8 stays (+4 per message with reactions).
+- Standalone link buttons (`.lng-welcome-actions`, `.lng-dm-empty`): A.2 instead of A.1 (`display:inline-flex; align-items:center; min-block-size:44px`), ::after dropped; moves only those rows, +24px, phone only.
+- Checks: prettier, check-css-tokens, textLink.test.ts (8 passed): exit 0.

@@ -19,19 +19,14 @@
 .lng-link-btn:hover {
   text-decoration: underline;
 }
-/* D-1022: on a phone the two standalone uses (the welcome's "Edit Channel", the empty DM list's request link) get a 44px
-   tap area that keeps the drawn size. Links inside message text and the other .lng-link-btn uses are not changed. */
+/* D-1022: on a phone the two standalone uses (the welcome's "Edit Channel", the empty DM list's request link) grow to 44px:
+   a tap area does not fit there (the date divider paints over it). Other .lng-link-btn uses are not changed. */
 @media (max-width: 720px) {
   .lng-welcome-actions .lng-link-btn,
   .lng-dm-empty .lng-link-btn {
-    position: relative;
-  }
-  .lng-welcome-actions .lng-link-btn::after,
-  .lng-dm-empty .lng-link-btn::after {
-    content: '';
-    position: absolute;
-    inset-block: -12px;
-    inset-inline: 0;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 44px;
   }
 }
 .lng-danger {
@@ -964,16 +959,15 @@
   opacity: 1;
 }
 /* D-1022: on a phone each pill keeps its 24px box and gets a 44px tap area. The row sits 8px (was 4) under the thread chip
-   so the area stops short of the chip's centre line, and wrapped lines are 20px apart so two lines' areas do not meet. */
+   so the area stops short of the chip's centre line, and wrapped lines keep the 4px gap, so their tap areas overlap (accepted). */
 @media (max-width: 720px) {
   .lng-root .lng-reactions {
     margin-top: 8px;
-    row-gap: 20px;
   }
   .lng-reaction:not([data-burst])::after {
     content: '';
     position: absolute;
-    inset-block: -10px;
+    inset-block: -11px;
     inset-inline: 0;
   }
 }
