@@ -19,7 +19,7 @@ export interface ModalProps {
   /** Close on Escape (default true). */
   closeOnEscape?: boolean;
   footer?: ReactNode;
-  /** Element to focus first; defaults to the first focusable element, else the dialog. */
+  /** Element to focus first; else the control that asked for focus, the first field, the first control but Close, Close. */
   initialFocusRef?: React.RefObject<HTMLElement>;
   className?: string;
   children?: ReactNode;
@@ -51,7 +51,7 @@ export function Modal({
     lockScroll: true,
     onEscape: closeOnEscape ? () => onCloseRef.current() : undefined,
   });
-  useFocusTrap({ open, containerRef: dialogRef, isTopmost, initialFocusRef });
+  useFocusTrap({ open, containerRef: dialogRef, isTopmost, initialFocusRef, preferFields: true });
 
   if (!open || !portalTarget) return null;
 
@@ -79,7 +79,13 @@ export function Modal({
           <h2 id={titleId} className={styles.title}>
             {title}
           </h2>
-          <button type="button" className={styles.close} aria-label={ui.close} onClick={onClose}>
+          <button
+            type="button"
+            className={styles.close}
+            aria-label={ui.close}
+            data-sr-close=""
+            onClick={onClose}
+          >
             <span aria-hidden="true">×</span>
           </button>
         </div>
