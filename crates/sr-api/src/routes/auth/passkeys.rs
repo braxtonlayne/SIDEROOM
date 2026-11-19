@@ -995,7 +995,7 @@ pub async fn remove(
 }
 
 /// Documentation stand-in for [`PasswordBody`].
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct PasswordBodyDoc {
     /// The current password.
     #[allow(dead_code)]
@@ -1004,6 +1004,15 @@ pub struct PasswordBodyDoc {
     /// second-factor check in the last 15 minutes.
     #[allow(dead_code)]
     mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for PasswordBodyDoc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PasswordBodyDoc")
+            .field("password", &"<redacted>")
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// OpenAPI fragment for the passkey routes.
@@ -1035,3 +1044,18 @@ pub struct PasswordBodyDoc {
     ))
 )]
 pub struct PasskeysApiDoc;
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn password_body_doc_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<PasswordBodyDoc>("{\"password\":\"TEST-SECRET-NOT-REAL\"}")
+            .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+}

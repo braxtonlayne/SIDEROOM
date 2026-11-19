@@ -112,10 +112,19 @@ pub struct DiscordChannel {
 }
 
 /// A webhook the bridge created.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CreatedWebhook {
     pub id: i64,
     pub token: String,
+}
+
+impl std::fmt::Debug for CreatedWebhook {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreatedWebhook")
+            .field("id", &self.id)
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 /// What a posted message needs on the Discord side.
@@ -577,5 +586,22 @@ mod tests {
         }
         .body();
         assert_eq!(b["allowed_mentions"], json!({"parse": [], "users": ["77"]}));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn created_webhook_debug_hides_its_secrets() {
+        let v = CreatedWebhook {
+            id: 0,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

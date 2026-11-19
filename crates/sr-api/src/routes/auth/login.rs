@@ -54,10 +54,19 @@ fn second_factor_methods(has_totp: bool, has_passkey: bool) -> Vec<&'static str>
 }
 
 /// Request body for login.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct LoginBody {
     login: String,
     password: String,
+}
+
+impl std::fmt::Debug for LoginBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoginBody")
+            .field("login", &self.login)
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Username-or-email plus password. On success sets the session cookie and
@@ -260,9 +269,17 @@ async fn is_trusted(
 }
 
 /// Request body for the one-time Owner login link (open question 43).
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct LoginLinkBody {
     token: String,
+}
+
+impl std::fmt::Debug for LoginLinkBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoginLinkBody")
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/login-link {token}`: exchange the one-time link printed by
@@ -547,5 +564,31 @@ impl AuthService {
                 Err(no_match())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn login_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<LoginBody>(
+            "{\"login\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn login_link_body_debug_hides_its_secrets() {
+        let v =
+            serde_json::from_str::<LoginLinkBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

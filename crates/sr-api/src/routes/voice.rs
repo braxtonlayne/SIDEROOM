@@ -73,13 +73,24 @@ pub enum VoiceError {
 }
 
 /// TURN credentials, coturn REST style.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, ToSchema)]
+#[derive(Clone, PartialEq, Eq, Serialize, ToSchema)]
 pub struct TurnCredentialsObject {
     pub username: String,
     pub password: String,
     /// Seconds until the credentials expire.
     pub ttl: u64,
     pub uris: Vec<String>,
+}
+
+impl std::fmt::Debug for TurnCredentialsObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TurnCredentialsObject")
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .field("ttl", &self.ttl)
+            .field("uris", &self.uris)
+            .finish()
+    }
 }
 
 /// A stage instance, in Discord's shape.
@@ -745,5 +756,24 @@ mod tests {
         let paths = doc["paths"].as_object().unwrap();
         assert!(paths.contains_key("/sr/voice/turn"));
         assert!(paths.contains_key("/guilds/{guild_id}/voice-states/{user_id}"));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn turn_credentials_object_debug_hides_its_secrets() {
+        let v = TurnCredentialsObject {
+            username: "x".to_owned(),
+            password: "TEST-SECRET-NOT-REAL".to_owned(),
+            ttl: 0,
+            uris: Vec::new(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

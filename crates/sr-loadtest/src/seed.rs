@@ -20,7 +20,7 @@ use sr_db::{
 use std::sync::Arc;
 
 /// One virtual user.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Participant {
     pub user_id: i64,
     /// The raw session token (the `sr_session` cookie value).
@@ -29,6 +29,17 @@ pub struct Participant {
     pub csrf: String,
     /// Index into [`Seeded::guilds`].
     pub guild: usize,
+}
+
+impl std::fmt::Debug for Participant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Participant")
+            .field("user_id", &self.user_id)
+            .field("token", &"<redacted>")
+            .field("csrf", &"<redacted>")
+            .field("guild", &self.guild)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -291,5 +302,24 @@ mod tests {
             a.chars()
                 .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
         );
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn participant_debug_hides_its_secrets() {
+        let v = Participant {
+            user_id: 0,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            csrf: "TEST-SECRET-NOT-REAL".to_owned(),
+            guild: 0,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

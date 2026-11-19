@@ -65,7 +65,7 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Clone, Serialize, ToSchema)]
 pub struct WebhookObject {
     pub id: String,
     /// 1 incoming, 2 channel follower, 3 application.
@@ -83,6 +83,22 @@ pub struct WebhookObject {
     /// Execution path, only when the token is known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+}
+
+impl std::fmt::Debug for WebhookObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebhookObject")
+            .field("id", &self.id)
+            .field("kind", &self.kind)
+            .field("guild_id", &self.guild_id)
+            .field("channel_id", &self.channel_id)
+            .field("user", &self.user)
+            .field("name", &self.name)
+            .field("avatar", &self.avatar)
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .field("url", &self.url)
+            .finish()
+    }
 }
 
 impl WebhookObject {
@@ -852,5 +868,29 @@ mod display_tests {
         }
         let long = format!("https://x.example/{}", "a".repeat(600));
         assert!(webhook_display("H", None, Some(&long)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn webhook_object_debug_hides_its_secrets() {
+        let v = WebhookObject {
+            id: "x".to_owned(),
+            kind: 0,
+            guild_id: "x".to_owned(),
+            channel_id: "x".to_owned(),
+            user: None,
+            name: "x".to_owned(),
+            avatar: None,
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            url: None,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

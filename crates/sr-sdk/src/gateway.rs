@@ -118,7 +118,7 @@ pub struct Dispatch {
     pub data: Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ShardConfig {
     pub token: String,
     pub intents: u64,
@@ -130,6 +130,20 @@ pub struct ShardConfig {
     pub max_backoff: Duration,
     /// Hosts a `resume_gateway_url` may point at (D-234). Always holds the host of `url`.
     pub allowed_hosts: Vec<String>,
+}
+
+impl std::fmt::Debug for ShardConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShardConfig")
+            .field("token", &"<redacted>")
+            .field("intents", &self.intents)
+            .field("shard", &self.shard)
+            .field("url", &self.url)
+            .field("min_backoff", &self.min_backoff)
+            .field("max_backoff", &self.max_backoff)
+            .field("allowed_hosts", &self.allowed_hosts)
+            .finish()
+    }
 }
 
 /// The lower-case host of a `ws(s)://` or `http(s)://` URL, without user info or port.
@@ -1019,5 +1033,27 @@ mod address_rule_tests {
         assert_eq!(sent[0]["op"], 2);
         assert_eq!(sent[1]["op"], 8);
         h.abort();
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn shard_config_debug_hides_its_secrets() {
+        let v = ShardConfig {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            intents: 0,
+            shard: (0, 0),
+            url: "x".to_owned(),
+            min_backoff: std::time::Duration::ZERO,
+            max_backoff: std::time::Duration::ZERO,
+            allowed_hosts: Vec::new(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

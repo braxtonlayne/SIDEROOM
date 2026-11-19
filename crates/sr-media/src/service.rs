@@ -140,11 +140,20 @@ pub struct CompleteUploadRequest {
     pub parts: Vec<PartDone>,
 }
 
-#[derive(Debug, Clone, Serialize, ToSchema)]
+#[derive(Clone, Serialize, ToSchema)]
 pub struct CreatedToken {
     pub token: WorkerToken,
     /// The secret. It is shown once and only its SHA-256 is stored.
     pub secret: String,
+}
+
+impl std::fmt::Debug for CreatedToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CreatedToken")
+            .field("token", &self.token)
+            .field("secret", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

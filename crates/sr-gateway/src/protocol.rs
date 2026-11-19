@@ -174,7 +174,7 @@ impl Payload {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct Identify {
     pub token: String,
     #[serde(default)]
@@ -188,11 +188,33 @@ pub struct Identify {
     pub shard: Option<Vec<u32>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+impl std::fmt::Debug for Identify {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Identify")
+            .field("token", &"<redacted>")
+            .field("intents", &self.intents)
+            .field("properties", &self.properties)
+            .field("presence", &self.presence)
+            .field("shard", &self.shard)
+            .finish()
+    }
+}
+
+#[derive(Clone, Deserialize)]
 pub struct Resume {
     pub token: String,
     pub session_id: String,
     pub seq: u64,
+}
+
+impl std::fmt::Debug for Resume {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Resume")
+            .field("token", &"<redacted>")
+            .field("session_id", &self.session_id)
+            .field("seq", &self.seq)
+            .finish()
+    }
 }
 
 /// Client-set presence (op 3) and also the stored form.
@@ -320,5 +342,32 @@ mod tests {
         .expect("serenity's IDENTIFY decodes");
         assert_eq!(id.shard, Some(vec![0, 1]));
         assert_eq!(id.presence.and_then(|p| p.since), Some(1_700_000_000_000));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn identify_debug_hides_its_secrets() {
+        let v =
+            serde_json::from_str::<Identify>("{\"token\":\"TEST-SECRET-NOT-REAL\",\"intents\":0}")
+                .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn resume_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<Resume>(
+            "{\"token\":\"TEST-SECRET-NOT-REAL\",\"session_id\":\"x\",\"seq\":0}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

@@ -48,7 +48,7 @@ impl fmt::Debug for TotpSecret {
 }
 
 /// Everything the enrolment screen needs.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TotpEnrollment {
     /// The secret to persist (pending until the first code is confirmed).
     pub secret: TotpSecret,
@@ -56,6 +56,16 @@ pub struct TotpEnrollment {
     pub otpauth_uri: String,
     /// Base32 secret for manual entry.
     pub manual_entry_key: String,
+}
+
+impl std::fmt::Debug for TotpEnrollment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TotpEnrollment")
+            .field("secret", &"<redacted>")
+            .field("otpauth_uri", &"<redacted>")
+            .field("manual_entry_key", &"<redacted>")
+            .finish()
+    }
 }
 
 fn build(secret: &TotpSecret, issuer: &str, account: &str) -> Result<Totp, AuthError> {
@@ -121,6 +131,15 @@ mod tests {
 
     fn fixture() -> TotpSecret {
         TotpSecret::from_bytes(b"12345678901234567890").unwrap()
+    }
+
+    #[test]
+    fn totp_enrollment_debug_hides_its_secrets() {
+        let e = enroll("SIDE ROOM", "sam@example.com").unwrap();
+        let s = format!("{e:?}");
+        assert!(!s.contains(&e.manual_entry_key), "{s}");
+        assert!(!s.contains("otpauth://"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 
     #[test]

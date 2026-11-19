@@ -210,13 +210,23 @@ pub async fn reviewed(a: Actor, Path(hold_id): Path<String>) -> ApiResult<Status
 // ---- appeals -----------------------------------------------------------------------------------------------
 
 /// Body of an appeal from the ban screen.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct AppealBody {
     /// Username or email of the banned account.
     pub login: String,
     pub password: String,
     /// Up to 2000 characters.
     pub message: String,
+}
+
+impl std::fmt::Debug for AppealBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppealBody")
+            .field("login", &self.login)
+            .field("password", &"<redacted>")
+            .field("message", &self.message)
+            .finish()
+    }
 }
 
 fn auth_err(e: AuthRouteError) -> HttpError {
@@ -425,4 +435,21 @@ pub async fn retain(
     )
     .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn appeal_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<AppealBody>(
+            "{\"login\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\",\"message\":\"x\"}",
+        )
+        .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

@@ -12,7 +12,7 @@ pub const MAX_UDP_SOCKETS: usize = 256;
 /// and they are accepted before any token is shown, so the count must be bounded.
 pub const MAX_TCP_CONNECTIONS: usize = 4096;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SfuConfig {
     /// Interface the media sockets bind to.
     pub bind_ip: IpAddr,
@@ -48,6 +48,28 @@ pub struct SfuConfig {
     /// picks half the available cores, at least 1 and at most 8; the effective number never
     /// exceeds the bound socket count.
     pub shards: usize,
+}
+
+impl std::fmt::Debug for SfuConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SfuConfig")
+            .field("bind_ip", &self.bind_ip)
+            .field("udp_port_min", &self.udp_port_min)
+            .field("udp_port_max", &self.udp_port_max)
+            .field("tcp_port", &self.tcp_port)
+            .field("announce_ips", &self.announce_ips)
+            .field("max_participants", &self.max_participants)
+            .field("max_room_size", &self.max_room_size)
+            .field("resume_window", &self.resume_window)
+            .field("heartbeat_interval", &self.heartbeat_interval)
+            .field("token_secret", &"<redacted>")
+            .field("egress_budget_mbps", &self.egress_budget_mbps)
+            .field("video_bwe", &self.video_bwe)
+            .field("datachannel_kbps", &self.datachannel_kbps)
+            .field("datachannel_gate", &self.datachannel_gate)
+            .field("shards", &self.shards)
+            .finish()
+    }
 }
 
 impl Default for SfuConfig {

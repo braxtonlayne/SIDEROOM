@@ -13,7 +13,7 @@ use sr_core::UserId;
 pub const DEFAULT_TTL_SECS: u64 = 3600;
 
 /// `[voice.turn]`-shaped settings, independent of the config crate.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct TurnConfig {
     /// `stun:` / `turn:` / `turns:` URLs handed to clients, e.g. `turn:turn.example.org:3478?transport=udp`.
     pub urls: Vec<String>,
@@ -22,8 +22,18 @@ pub struct TurnConfig {
     pub ttl_secs: u64,
 }
 
+impl std::fmt::Debug for TurnConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TurnConfig")
+            .field("urls", &self.urls)
+            .field("secret", &"<redacted>")
+            .field("ttl_secs", &self.ttl_secs)
+            .finish()
+    }
+}
+
 /// Body of `GET /sr/voice/turn`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TurnCredentials {
     pub username: String,
     pub password: String,
@@ -31,14 +41,38 @@ pub struct TurnCredentials {
     pub uris: Vec<String>,
 }
 
+impl std::fmt::Debug for TurnCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TurnCredentials")
+            .field("username", &self.username)
+            .field("password", &"<redacted>")
+            .field("ttl", &self.ttl)
+            .field("uris", &self.uris)
+            .finish()
+    }
+}
+
 /// WebRTC `RTCIceServer`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IceServer {
     pub urls: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub username: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub credential: Option<String>,
+}
+
+impl std::fmt::Debug for IceServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IceServer")
+            .field("urls", &self.urls)
+            .field("username", &self.username)
+            .field(
+                "credential",
+                &self.credential.as_ref().map(|_| "<redacted>"),
+            )
+            .finish()
+    }
 }
 
 fn is_stun(url: &str) -> bool {
@@ -153,5 +187,48 @@ mod tests {
         assert_eq!(s.len(), 2);
         assert!(s[0].credential.is_none());
         assert_eq!(s[1].username.as_deref(), Some("4600:42"));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn turn_config_debug_hides_its_secrets() {
+        let v = TurnConfig {
+            urls: Vec::new(),
+            secret: "TEST-SECRET-NOT-REAL".to_owned(),
+            ttl_secs: 0,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn turn_credentials_debug_hides_its_secrets() {
+        let v = TurnCredentials {
+            username: "x".to_owned(),
+            password: "TEST-SECRET-NOT-REAL".to_owned(),
+            ttl: 0,
+            uris: Vec::new(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn ice_server_debug_hides_its_secrets() {
+        let v = IceServer {
+            urls: Vec::new(),
+            username: None,
+            credential: Some("TEST-SECRET-NOT-REAL".to_owned()),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

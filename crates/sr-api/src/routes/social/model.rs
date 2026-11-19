@@ -276,9 +276,17 @@ pub struct AckBody {
     pub manual: Option<bool>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct AckResponse {
     pub token: Option<String>,
+}
+
+impl std::fmt::Debug for AckResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AckResponse")
+            .field("token", &self.token.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -773,5 +781,21 @@ mod catalogue_tests {
             "stars": 5,
         }));
         assert_eq!(cleaned, json!({"followers": 3, "repos": 8, "stars": 5}));
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn ack_response_debug_hides_its_secrets() {
+        let v = AckResponse {
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

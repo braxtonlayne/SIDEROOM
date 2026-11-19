@@ -61,7 +61,7 @@ const TOKEN_URL: &str = "https://discord.com/api/oauth2/token";
 const USER_URL: &str = "https://discord.com/api/users/@me";
 
 /// Discord OAuth settings, from `[discord]` plus the public URL.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct DiscordSettings {
     /// OAuth application id.
     pub client_id: String,
@@ -69,6 +69,16 @@ pub struct DiscordSettings {
     pub client_secret: String,
     /// Registered redirect URI (`<public_url>/api/v1/sr/auth/discord/callback`).
     pub redirect_uri: String,
+}
+
+impl std::fmt::Debug for DiscordSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiscordSettings")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"<redacted>")
+            .field("redirect_uri", &self.redirect_uri)
+            .finish()
+    }
 }
 
 type DiscordClient =
@@ -539,7 +549,7 @@ pub struct DiscordLinkStart {
 }
 
 /// Body of the link call.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct DiscordLinkBody {
     /// The account password (re-authentication).
     password: String,
@@ -547,6 +557,15 @@ pub struct DiscordLinkBody {
     /// passkey, unless this session passed a second-factor check in the last 15 minutes.
     #[serde(default)]
     mfa: Option<MfaProof>,
+}
+
+impl std::fmt::Debug for DiscordLinkBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DiscordLinkBody")
+            .field("password", &"<redacted>")
+            .field("mfa", &self.mfa.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/discord/link {password, mfa?}`: start linking a Discord identity to the
@@ -607,10 +626,18 @@ pub async fn link_start(
 }
 
 /// Body of the unlink call.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Deserialize, ToSchema)]
 pub struct UnlinkBody {
     /// The account password (re-authentication).
     password: String,
+}
+
+impl std::fmt::Debug for UnlinkBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UnlinkBody")
+            .field("password", &"<redacted>")
+            .finish()
+    }
 }
 
 /// `POST /sr/auth/discord/unlink {password}`: detach the Discord identity from the account.
@@ -703,5 +730,41 @@ mod tests {
             redirect_uri: "https://chat.example.org/api/v1/sr/auth/discord/callback".into(),
         };
         assert!(DiscordOAuth::new(&s).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn discord_settings_debug_hides_its_secrets() {
+        let v = DiscordSettings {
+            client_id: "x".to_owned(),
+            client_secret: "TEST-SECRET-NOT-REAL".to_owned(),
+            redirect_uri: "x".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn discord_link_body_debug_hides_its_secrets() {
+        let v = serde_json::from_str::<DiscordLinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}")
+            .unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
+
+    #[test]
+    fn unlink_body_debug_hides_its_secrets() {
+        let v =
+            serde_json::from_str::<UnlinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
     }
 }

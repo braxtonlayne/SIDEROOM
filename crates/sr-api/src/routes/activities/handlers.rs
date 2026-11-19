@@ -536,12 +536,20 @@ pub async fn join(
 }
 
 /// The proxy token of the caller in a running Activity (ARC-SBX-001, D-399).
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 pub struct ProxyTokenResponse {
     /// 64 hex digits. The app shell hands it to the sandboxed frame in `ready`; the game sends it as
     /// `X-SR-Activity-Token` on writes under its URL mappings, which reach the proxy with `Origin: null`. Valid
     /// while the instance runs and the caller has not left it; minting again replaces the previous one.
     pub token: String,
+}
+
+impl std::fmt::Debug for ProxyTokenResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyTokenResponse")
+            .field("token", &"<redacted>")
+            .finish()
+    }
 }
 
 /// Mint the caller's proxy token for an Activity they take part in (ARC-SBX-001, D-399).
@@ -791,4 +799,20 @@ pub async fn guest_join(
             .map(sr_activities::rules::activity_path);
     }
     Ok(Json(joined))
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn proxy_token_response_debug_hides_its_secrets() {
+        let v = ProxyTokenResponse {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }

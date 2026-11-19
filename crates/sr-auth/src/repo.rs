@@ -69,7 +69,7 @@ pub trait SessionRepository: Send + Sync {
 }
 
 /// Stored TOTP state.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TotpRecord {
     /// Owning account.
     pub user_id: i64,
@@ -79,6 +79,17 @@ pub struct TotpRecord {
     pub confirmed: bool,
     /// Highest step already consumed (replay protection).
     pub last_used_step: Option<u64>,
+}
+
+impl std::fmt::Debug for TotpRecord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TotpRecord")
+            .field("user_id", &self.user_id)
+            .field("secret", &"<redacted>")
+            .field("confirmed", &self.confirmed)
+            .field("last_used_step", &self.last_used_step)
+            .finish()
+    }
 }
 
 /// TOTP persistence (ENT-AUTH-008).
@@ -213,4 +224,24 @@ pub trait EmailTokenRepository: Send + Sync {
         hash: &TokenHash,
         now: i64,
     ) -> impl Future<Output = Result<Option<i64>, Self::Error>> + Send;
+}
+
+#[cfg(test)]
+mod redacted_debug_tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn totp_record_debug_hides_its_secrets() {
+        let v = TotpRecord {
+            user_id: 0,
+            secret: b"TEST-SECRET-NOT-REAL".to_vec(),
+            confirmed: false,
+            last_used_step: None,
+        };
+        let s = format!("{v:?}");
+        assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
+        assert!(!s.contains("84, 69, 83, 84"), "{s}");
+        assert!(s.contains("<redacted>"), "{s}");
+    }
 }
