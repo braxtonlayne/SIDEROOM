@@ -323,9 +323,11 @@ export async function seedSweepExtras(i: SweepExtrasIn, log: string[]): Promise<
     if (asker && ownerId) {
       x.askerId = asker.id;
       x.askerName = asker.name;
-      await step('x: pending friend request to the Owner', () =>
-        apiPut(asker.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 }),
-      );
+      // A group DM needs friends only, so the requester is a friend until the group exists (below).
+      await step('x: requester befriends the Owner (for the group DM)', async () => {
+        await apiPut(o, `/users/@me/relationships/${asker.id}`, { type: 1 });
+        await apiPut(asker.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 });
+      });
     }
 
     // (2) a group DM of the three.
@@ -347,6 +349,13 @@ export async function seedSweepExtras(i: SweepExtrasIn, log: string[]): Promise<
           content: 'Count me in.',
         });
         return ch.id;
+      });
+    }
+    // Then the requester is removed as a friend and asks again: the Owner's Pending tab shows Accept; the group stays.
+    if (asker && ownerId) {
+      await step('x: pending friend request to the Owner', async () => {
+        await apiDelete(o, `/users/@me/relationships/${asker.id}`);
+        await apiPut(asker.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 });
       });
     }
   } finally {
