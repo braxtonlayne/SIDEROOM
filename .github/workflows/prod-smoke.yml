@@ -215,10 +215,14 @@ jobs:
       # /opt/sideroom, /etc/sideroom) and starts the unit UNCHANGED as a system service on the runner's own systemd; it
       # passes only when /healthz answers and /var/lib/sideroom/search exists, owned by sideroom. It does not read
       # inputs.systemd_user_fallback: there is no fallback for it, and it fails if the runner has no system manager.
+      # Its own database (SEC-AUD-582): the server.env it writes has a new secret key, and the push keys the user-service
+      # step sealed under the old one in `sideroom` do not open under it ("push crypto error: sealed blob does not open").
       - name: Plain-binary install, unit unchanged, started as a systemd system service (hardening on)
         env:
-          SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom?sslmode=disable
-        run: deploy/scripts/smoke-systemd.sh system-service
+          SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom_system?sslmode=disable
+        run: |
+          PGPASSWORD=sideroom_ci psql -h 127.0.0.1 -U sideroom -d sideroom -v ON_ERROR_STOP=1 -c 'CREATE DATABASE sideroom_system'
+          deploy/scripts/smoke-systemd.sh system-service
 
   # RDY-OBS-001: the alert rules parse and type-check. Standalone (no `needs`), so it runs alongside the jobs above.
   # Downloads one pinned Prometheus release on the runner (owner-approved in wave 24, CI only) and runs promtool.

@@ -1905,3 +1905,36 @@ fn the_smoke_reruns_the_installer_and_greps_for_what_it_prints() {
         "the 'cannot be shown again' sentence differs between install.sh and the smoke's grep"
     );
 }
+
+/// SEC-AUD-581: garage/bootstrap.sh decides whether the node already has a layout by grepping `garage status`, which
+/// prints a node id cut to 16 hex digits. Caught by: the full id from `garage node id -q` never matched, so install.sh's
+/// rerun assigned again and `layout apply --version 1` failed with "Invalid new layout version".
+#[test]
+fn the_garage_bootstrap_greps_status_for_the_short_node_id() {
+    let boot = read("deploy/compose/garage/bootstrap.sh");
+    assert!(
+        boot.contains("grep -q \"${NODE_ID:0:16}.*dc1\""),
+        "bootstrap.sh no longer greps garage status for the 16-digit node id"
+    );
+    assert!(
+        !boot.contains("grep -q \"$NODE_ID.*dc1\""),
+        "bootstrap.sh greps garage status for the full node id, which it never prints"
+    );
+}
+
+/// SEC-AUD-582: the system-service step writes a server.env with a new secret key, so it must not reuse the database the
+/// user-service step sealed push keys into. Caught by: both on `sideroom`, the server exited with "sealed blob does not
+/// open" and never answered /healthz.
+#[test]
+fn the_system_service_smoke_has_its_own_database() {
+    let wf = read(".github/workflows/prod-smoke.yml");
+    let step = wf
+        .split("- name: Plain-binary install, unit unchanged, started as a systemd system service")
+        .nth(1)
+        .expect("prod-smoke.yml has no system-service step");
+    let step = step.split("\n      - ").next().unwrap_or(step);
+    assert!(
+        step.contains("CREATE DATABASE sideroom_system") && step.contains("/sideroom_system?"),
+        "the system-service step does not create and use its own database"
+    );
+}
