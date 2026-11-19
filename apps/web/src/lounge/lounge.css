@@ -1387,6 +1387,12 @@
   color: var(--ui-text-faint);
   opacity: 1;
 }
+/* D-1022 (SEC-AUD-522): the inline edit's own placeholder, by its own two-class selector (the shared rule above did not
+   reach it in wave 107's run). */
+.lng-textarea.lng-inline-textarea::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
 .lng-textarea:focus-visible {
   outline: none;
 }
