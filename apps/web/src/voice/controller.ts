@@ -355,6 +355,7 @@ export class VoiceController {
     if (useVoiceSession.getState().pttForced === forced) return;
     patchSession({ pttForced: forced });
     if (this.target) this.target = { ...this.target, pttForced: forced };
+    vadHost.refresh();
     this.applyPtt();
     this.recompute();
   }

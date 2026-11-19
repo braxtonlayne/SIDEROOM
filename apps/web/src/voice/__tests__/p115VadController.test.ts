@@ -255,6 +255,34 @@ describe('the Silero detector beside the energy gate (D-1050, D-1051)', () => {
     expect(sess().notice).toBeNull();
   });
 
+  it('a call forced to Push to Talk never starts the client, and it starts when the force is lifted', async () => {
+    const flags = { loads: 0 };
+    const h = harness();
+    h.c.start();
+    // the real host: count how many times it asks for the detector's code
+    const host = vadHost as unknown as { o: { load(): Promise<unknown> } };
+    const real = host.o.load;
+    host.o.load = () => {
+      flags.loads++;
+      return new Promise(() => undefined);
+    };
+    const owner = {};
+    try {
+      joinAndServe(h, { ...target, pttForced: true } as typeof target);
+      h.last().ok();
+      await Promise.resolve();
+      vadHost.setTap(owner, 'call', {} as AudioContext, {} as AudioNode);
+      expect(sess().pttForced).toBe(true);
+      expect(flags.loads).toBe(0);
+      expect(vadHost.state).toBe('idle');
+      h.c.setPttForced(false);
+      expect(flags.loads).toBe(1);
+    } finally {
+      host.o.load = real;
+      vadHost.clearTap(owner);
+    }
+  });
+
   it('Push to Talk is not touched: the detector never opens the microphone', async () => {
     const h = harness();
     h.c.start();

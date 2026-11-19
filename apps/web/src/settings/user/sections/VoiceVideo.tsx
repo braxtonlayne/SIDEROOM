@@ -239,15 +239,18 @@ export function VoiceVideoSection() {
         />
         {!ptt && (
           <div className="us-form-stack">
-            <SegmentedControl
-              label={t('settings.voice.vadEngine')}
-              value={settings.vadEngine}
-              onValueChange={(v) => update({ vadEngine: v === 'silero' ? 'silero' : 'energy' })}
-              options={[
-                { value: 'energy', label: t('settings.voice.vadEngineStandard') },
-                { value: 'silero', label: t('settings.voice.vadEngineSilero') },
-              ]}
-            />
+            {/* A row, so the bar keeps its own width like the Input mode bar above (a flex column would stretch it). */}
+            <div className="us-row-field">
+              <SegmentedControl
+                label={t('settings.voice.vadEngine')}
+                value={settings.vadEngine}
+                onValueChange={(v) => update({ vadEngine: v === 'silero' ? 'silero' : 'energy' })}
+                options={[
+                  { value: 'energy', label: t('settings.voice.vadEngineStandard') },
+                  { value: 'silero', label: t('settings.voice.vadEngineSilero') },
+                ]}
+              />
+            </div>
             {silero && (
               <>
                 <p className="us-muted">{t('settings.voice.vadEngineHint')}</p>
