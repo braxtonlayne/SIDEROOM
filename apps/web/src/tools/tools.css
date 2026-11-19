@@ -19,11 +19,15 @@
   padding-block: 0;
   padding-inline: 0.75rem;
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: var(--ui-radius);
   background: var(--ui-bg);
   color: var(--ui-text);
   font-size: 1.125rem;
   box-sizing: border-box;
+}
+.sr-tl-drawer .lng-switcher-input:hover {
+  border-color: var(--ui-text-faint);
 }
 .sr-tl-drawer .lng-switcher-list {
   list-style: none;
@@ -112,10 +116,13 @@
 .sr-tl-btn:focus-visible,
 .sr-tl-icon-btn:focus-visible,
 .sr-tl-rail-btn:focus-visible,
-.sr-tl-gadget-head:focus-visible,
-.sr-tl-drawer .lng-switcher-input:focus-visible {
+.sr-tl-gadget-head:focus-visible {
   outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
+}
+.sr-tl-drawer .lng-switcher-input:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
 }
 .sr-tl-panel {
   min-block-size: 8rem;
