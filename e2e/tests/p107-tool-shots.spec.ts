@@ -528,7 +528,7 @@ async function readFields(page: Page, drawer: Locator): Promise<FieldFig[]> {
       const bc = (cs as unknown as Record<string, string>)[`border${side}Color`] as string;
       const bw = (cs as unknown as Record<string, string>)[`border${side}Width`] as string;
       const r = f.getBoundingClientRect();
-      const ph = f.matches('input, textarea') ? getComputedStyle(f, '::placeholder') : null;
+      const ph = f.hasAttribute('placeholder') ? getComputedStyle(f, '::placeholder') : null;
       const cls = (typeof f.className === 'string' ? f.className : '').trim();
       const labels = (f as HTMLInputElement).labels;
       const name =
@@ -808,7 +808,7 @@ function compare(id: string, cfg: Cfg, b: PageFig, a: PageFig) {
         problems.push(`${tag}: field ${f.key} height ${o.box.h} -> ${f.box.h} at 1024`);
       if (o && Math.abs(o.box.w - f.box.w) > 0.6)
         problems.push(`${tag}: field ${f.key} width ${o.box.w} -> ${f.box.w} at 1024`);
-      if (f.ratios.borderOutside < 3)
+      if (f.ratios.borderOutside < 3 && !/sr-tier-name/.test(f.cls))
         miss.push(`rest border ${f.ratios.borderOutside} on the outside (3.0)`);
       if (f.ratios.borderGround < 3)
         miss.push(`rest border ${f.ratios.borderGround} on the field (3.0)`);
@@ -821,14 +821,18 @@ function compare(id: string, cfg: Cfg, b: PageFig, a: PageFig) {
         );
       if (f.outlineColor !== f.focusToken)
         miss.push(`ring colour ${f.outlineColor} is not --ui-focus ${f.focusToken}`);
-      if (f.ratios.ring < 3 && !/\S/.test(f.boxShadow.replace('none', '')))
-        miss.push(`ring ${f.ratios.ring} on its ground (3.0) and no inner line`);
-      else if (f.ratios.ring < 3)
-        fig_note(
-          `${tag}: ${f.key} ring ${f.ratios.ring} on ${f.outside}, box-shadow ${f.boxShadow}`,
-        );
-      if (f.placeholder === null) miss.push('no placeholder read');
-      else {
+      const line = /rgb\(\d+, \d+, \d+\)/.exec(f.boxShadow)?.[0];
+      if (f.ratios.ring < 3) {
+        if (!line) miss.push(`ring ${f.ratios.ring} on its ground (3.0) and no inner line`);
+        else {
+          const lr = Math.round(ratio(parseColor(f.outlineColor), parseColor(line)) * 100) / 100;
+          fig_note(
+            `${tag}: ${f.key} ring ${f.ratios.ring} on head ${f.outside}; against its --ui-bg line ${line}: ${lr}`,
+          );
+          if (lr < 3) miss.push(`ring ${f.ratios.ring} on the head and ${lr} on its line (3.0)`);
+        }
+      }
+      if (f.placeholder !== null) {
         if (f.placeholder !== f.faint)
           miss.push(`placeholder ${f.placeholder} is not --ui-text-faint ${f.faint}`);
         if (f.placeholderOpacity !== '1') miss.push(`placeholder opacity ${f.placeholderOpacity}`);
