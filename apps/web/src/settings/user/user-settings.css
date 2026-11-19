@@ -320,13 +320,28 @@
   box-sizing: border-box;
   padding: 7px 10px;
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: var(--ui-radius);
   background: var(--ui-bg);
   color: var(--ui-text);
   font: inherit;
 }
+.us-search-input::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
+.us-search-input:hover {
+  border-color: var(--ui-text-faint);
+}
 .us-search-input:focus-visible {
   outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+/* D-1022: 44 px tall on a phone (the kit's 720 px). */
+@media (max-width: 720px) {
+  .us-search-input {
+    min-block-size: 44px;
+  }
 }
 .us-search-results {
   display: flex;

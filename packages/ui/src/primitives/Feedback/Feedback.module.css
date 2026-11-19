@@ -114,3 +114,18 @@
 :global([data-reduced-motion='true']) .toastItem {
   animation: none;
 }
+
+/* D-1022: on a phone the dismiss keeps its 24 px box and gets a 44 px tall tap area from a pseudo-element. */
+@media (max-width: 720px) {
+  .dismiss {
+    position: relative;
+  }
+  .dismiss::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
