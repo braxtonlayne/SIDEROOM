@@ -344,15 +344,23 @@ test('wave 109 sections: section bars, arrow links, empty links, spoiler comment
           await note.scrollIntoViewIfNeeded();
           const line = p.locator('p.cin-spoiler').first();
           const item = p.locator('li, article').filter({ has: line }).last();
+          const itemHandle = await item.elementHandle();
           const lineBefore = rb(await line.boundingBox());
           const itemBefore = rb(await item.boundingBox());
           const m = await measureRoot(p, 'cinema-comment-375', item, () => true);
           await shot(p, 'cinema-comment-375');
           await line.getByRole('button', { name: /Show spoiler/ }).click();
           await p.waitForTimeout(600);
-          const body = item.locator('p.cin-post-body').first();
-          const bodyAfter = rb(await body.boundingBox());
-          const itemAfter = rb(await item.boundingBox());
+          const afterBoxes = await itemHandle!.evaluate((el) => {
+            const b = el.querySelector('p.cin-post-body')?.getBoundingClientRect();
+            const i = el.getBoundingClientRect();
+            return {
+              body: b ? { x: b.x, y: b.y, width: b.width, height: b.height } : null,
+              item: { x: i.x, y: i.y, width: i.width, height: i.height },
+            };
+          });
+          const bodyAfter = rb(afterBoxes.body);
+          const itemAfter = rb(afterBoxes.item);
           await shot(p, 'cinema-comment-revealed-375');
           const grow = lineBefore && bodyAfter ? r1(lineBefore.height - bodyAfter.height) : null;
           say(
