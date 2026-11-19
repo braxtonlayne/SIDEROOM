@@ -15,6 +15,17 @@ Worktree `C:\Users\braxt\Desktop\SIDEROOM_wt\visual-sweep`, branch `fix/visual-s
 
 ## How to run the sweep
 
+**Two ways; use the one that fits.** (1) **Built mode through a job** (since wave 105, D-1004; `docs/dev/job-runner.md`): the way for a builder's
+specs and the commander's re-shoot. You never start a server, Vite or Playwright yourself: `bash cli-agents/job.sh submit <name> build`, wait, then
+`shoot base` or `shoot after --env SR_..._ON=1 -- tests/<spec>.spec.ts`, and `wait <id> 100`. The runner clones the wave's already seeded sweep world into a fresh
+database, serves a built bundle on its own port, runs the spec, and drops the database. `shoot base` serves the wave's base bundle, `shoot after` your own build
+(a tree edited after its build is refused with `stale build`, rc 3). The spec reads only `SR_E2E_BASE_URL`, imports no `/src/...` module, never seeds,
+and compares in the `after` phase only when `figures-base.json` is there. A web typecheck costs about 3.3 GB and a cell about 1 GB; waiting was longer than running in
+wave 105 (median 81 s), so submit fewer, fuller jobs. (2) **The dev stack below**: for the sweep spec itself (`page-sweep.spec.ts`, which seeds the world the runner
+clones) and for work no job class covers. A `shoot --fresh` job runs that seed inside a cell.
+
+Dev stack (way 2):
+
 Stack: `sr-server` on 127.0.0.1:8080 with `SR_DATABASE__URL` (own scratch DB), `SR_SERVER__PUBLIC_URL=http://localhost:5173`,
 `SR_STORAGE__ENDPOINT=memory:`, **and `SR_ADMIN_REQUIRE_REAUTH=0`**; Playwright starts the Vite dev server (`VITE_SR_E2E=1`).
 The last one is for a development host only: the server keeps its second-factor window on by default, and the seed's
