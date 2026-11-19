@@ -26,7 +26,7 @@ sr-review = { path = "../sr-review" }
 sr-media = { path = "../sr-media" }
 sr-payments = { path = "../sr-payments" }
 sr-storage = { path = "../sr-storage" }
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 sha2 = "0.11"
 zip = { version = "9.0.2", default-features = false, features = ["deflate-flate2"] }
 

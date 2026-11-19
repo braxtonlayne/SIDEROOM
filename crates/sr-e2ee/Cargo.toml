@@ -9,7 +9,7 @@ description = "Voice/video end-to-end encryption: MLS key agreement (openmls), t
 # RustCrypto only (docs/03). `aes-gcm` without default features: no getrandom, so the crate
 # builds for wasm32 unchanged; callers pass randomness in.
 aes = "0.8.4"
-aes-gcm = { version = "0.10.3", default-features = false, features = ["aes"] }
+aes-gcm = { version = "0.11.1", default-features = false, features = ["aes"] }
 ctr = "0.9.2"
 hkdf = "0.12.4"
 openmls = "0.9.1"
