@@ -487,7 +487,7 @@
   .arc-cta::after {
     content: '';
     position: absolute;
-    inset-block: -5px;
+    inset-block: -6px;
     inset-inline: 0;
   }
   .arc-actions:has(> .arc-cta) {

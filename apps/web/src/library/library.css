@@ -419,7 +419,7 @@
   .lib-frame .lib-btn::after {
     content: '';
     position: absolute;
-    inset-block: -2px;
+    inset-block: -3px;
     inset-inline: 0;
   }
   /* The two bare links of an empty library (rule in storage/shelves/shelves.css): 20 px text links, a 44 px tap area
@@ -703,7 +703,7 @@
   .lib-genre-chip::after {
     content: '';
     position: absolute;
-    inset-block: -3px;
+    inset-block: -4px;
     inset-inline: 0;
   }
 }
