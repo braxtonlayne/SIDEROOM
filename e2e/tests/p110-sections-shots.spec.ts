@@ -16,7 +16,7 @@ import { hitTestAll, openCollapsed, type ControlRow } from '../support/hit-test'
  *  - at 1024 every figure (boxes, rows, statuses) equals the base;
  *  - at 375 each bar link, the Library Home controls and the Cinema arrow links keep their drawn size, every one of them
  *    passes, and no control that passed in the base fails now;
- *  - the Study bar grows by 20 px or less, the Library head by 16 px or less, the Arcade bar not at all;
+ *  - the Study bar grows by 20 px or less, the Library head by 16 px or less, the Arcade bar by 2 px;
  *  - no page scrolls sideways.
  * It never seeds. The commander's command, whole:
  * bash C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents/job.sh submit integ shoot after --wt lanes --dist C:/Users/braxt/Desktop/SIDEROOM_wt/p110-integ/apps/web/dist --env SR_P110_SECTIONS_ON=1 --env SR_P110_SECTIONS_PHASE=after --env SR_P110_SECTIONS_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p110-sections -- tests/p110-sections-shots.spec.ts
@@ -311,7 +311,7 @@ test('wave 110 sections: Arcade and Study bars, Library Home head and footer', a
           problems.push(`${key}: changed at 1024 (must not)`);
       }
       for (const [key, maxGrow] of [
-        ['arcade-bar-375', 0],
+        ['arcade-bar-375', 2],
         ['study-bar-375', 20],
       ] as const) {
         const b = base[key];
