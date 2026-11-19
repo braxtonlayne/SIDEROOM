@@ -24,6 +24,7 @@ RUN set -eux; \
     install -D "target/$target/release/sr-cli" /out/sr-cli
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.source="https://github.com/braxtonlayne/SIDEROOM"
 COPY --from=build /out/sr-server /usr/local/bin/sr-server
 # The operator tool ships in the image too, so a compose install runs it with
 # `docker compose run --rm --entrypoint /usr/local/bin/sr-cli sr-server migrate` and needs no host binary.

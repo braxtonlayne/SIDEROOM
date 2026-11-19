@@ -26,7 +26,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild
-      - run: cargo zigbuild --release --target ${{ matrix.target }} -p sr-server -p sr-voice -p sr-transcoder -p sr-cli
+      - run: cargo zigbuild --locked --release --target ${{ matrix.target }} -p sr-server -p sr-voice -p sr-transcoder -p sr-cli
       - name: Package
         run: |
           d=dist/${{ matrix.target }}
@@ -121,11 +121,31 @@ jobs:
           path: release
       - name: Checksums
         run: cd release && sha256sum *.tar.gz > SHA256SUMS
-      - name: Changelog from commits since previous tag
+      # SEC-AUD-561 (D-1043): the notes are at most 100 000 characters (GitHub refuses a longer body, and then no release
+      # page is made although the images are pushed) and start at the previous `v*` tag, never at another kind of tag.
+      # The first release has no earlier `v*` tag: its notes are the top section of CHANGELOG.md, not the whole history.
+      # This step cannot fail: every command that could is guarded, and an empty result becomes a one-line body.
+      - name: Release notes from the previous v tag
         run: |
-          prev=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
-          if [ -n "$prev" ]; then range="$prev..$GITHUB_REF_NAME"; else range="$GITHUB_REF_NAME"; fi
-          git log --pretty='- %s (%h)' "$range" > CHANGELOG.md
+          tag="$GITHUB_REF_NAME"
+          # The previous release tag, `v*` only (a tag of another kind, such as p27-day1, is never a range start).
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "${tag}^" 2>/dev/null || true)
+          if [ -n "$prev" ]; then
+            # A later release: the commit subjects since the previous release.
+            git log --pretty='- %s (%h)' "$prev..$tag" > notes.full || true
+          else
+            # The first release: the top section of CHANGELOG.md (from its first `## ` heading to the next one).
+            awk '/^## /{n++} n==1' CHANGELOG.md > notes.full || true
+            echo "" >> notes.full
+            echo "Full history: the commit log of this tag." >> notes.full
+          fi
+          # The cap: whole lines only, 99 900 characters at most, then the line that says so (100 000 in all).
+          awk -v max=99900 '{ n += length($0) + 1; if (n > max) { cut = 1; exit } print } END { if (cut) print "(notes cut at 100 000 characters)" }' notes.full > notes.capped || true
+          # Nothing at all (an empty range, a failed command): one line, so the release page is still made.
+          if [ ! -s notes.capped ]; then echo "Release $tag." > notes.capped; fi
+          mv notes.capped CHANGELOG.md
+          rm -f notes.full
+          echo "release notes: $(wc -m < CHANGELOG.md) characters"
       # SEC-AUD-031: the release is made with the runner's own GitHub CLI, not a third-party action on a mutable
       # tag running with `contents: write`. A re-run replaces the assets of the release the first run made.
       - name: Publish the release

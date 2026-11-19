@@ -17,6 +17,7 @@ RUN set -eux; \
     install -D "target/$target/release/sr-transcoder" /out/sr-transcoder
 
 FROM debian:bookworm-slim
+LABEL org.opencontainers.image.source="https://github.com/braxtonlayne/SIDEROOM"
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home --home-dir /work sideroom \
