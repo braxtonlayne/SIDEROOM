@@ -759,6 +759,20 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
     } catch (e) {
       notes.push(`forum not made: ${msg(e)}`);
     }
+    // The Home list first, while the world's message request is still waiting ("1 message request is waiting").
+    for (const cfg of [PHONE, DESK_L]) {
+      const { ctx, page } = await newPage(browser, owner, cfg);
+      try {
+        await go(page, '/channels/@me', page.locator('.lng-left'));
+        await measure(page, 'home-list', cfg.w, cfg.touch, page.locator('.lng-left'));
+        await shot(page, 'home-list', cfg.touch ? '375' : `${cfg.w}-light`);
+        covered.push(`home-list @${cfg.w}`);
+      } catch (e) {
+        notes.push(`home-list @${cfg.w}: ${msg(e)}`);
+      } finally {
+        await ctx.close();
+      }
+    }
     for (const cfg of [PHONE, DESK_L]) {
       const touch = cfg.touch;
       const bp = cfg.w;
@@ -825,15 +839,6 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
           }
         } catch (e) {
           notes.push(`inbox @${bp}: ${msg(e)}`);
-        }
-        // The Home list ("1 message request is waiting"); a phone shows the list pane alone.
-        try {
-          await go(page, '/channels/@me', page.locator('.lng-left'));
-          await measure(page, 'home-list', bp, touch, page.locator('.lng-left'));
-          await shot(page, 'home-list', suffix);
-          covered.push(`home-list @${bp}`);
-        } catch (e) {
-          notes.push(`home-list @${bp}: ${msg(e)}`);
         }
       } finally {
         await ctx.close();
