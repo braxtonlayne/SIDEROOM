@@ -1529,3 +1529,106 @@ fn every_image_carries_the_source_label_in_its_last_stage() {
     }
     assert!(n >= 4, "only {n} Dockerfiles found");
 }
+
+/// Body of the shell function `name` in `script`: the lines after its `name() {` line up to the next line that is
+/// just `}`.
+fn shell_fn_body(script: &str, name: &str) -> String {
+    let header = format!("{name}() {{");
+    let mut lines = script.lines().skip_while(|l| !l.starts_with(&header));
+    assert!(lines.next().is_some(), "the script has no function {name}");
+    lines
+        .take_while(|l| *l != "}")
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The function a `mode) function ;;` line of a script's final `case` runs.
+fn shell_mode_function(script: &str, mode: &str) -> String {
+    let prefix = format!("{mode}) ");
+    script
+        .lines()
+        .find_map(|l| l.trim_start().strip_prefix(&prefix))
+        .and_then(|rest| rest.split_whitespace().next())
+        .unwrap_or_else(|| panic!("the script has no `{mode})` mode"))
+        .to_owned()
+}
+
+/// The lines of one job of a workflow (header to the next job), read without a YAML parser.
+fn workflow_job(wf: &str, job: &str) -> String {
+    let header = format!("  {job}:");
+    let mut lines = wf.lines().skip_while(|l| *l != header);
+    assert!(lines.next().is_some(), "the workflow has no job {job}");
+    lines
+        .take_while(|l| {
+            l.trim().is_empty() || l.starts_with("   ") || l.trim_start().starts_with('#')
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Shell statements of `body` with `\` continuations joined and comment lines dropped.
+fn shell_statements(body: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for l in body.lines().map(str::trim) {
+        if l.starts_with('#') {
+            continue;
+        }
+        cur.push_str(l.trim_end_matches('\\'));
+        cur.push(' ');
+        if !l.ends_with('\\') {
+            out.push(std::mem::take(&mut cur));
+        }
+    }
+    out
+}
+
+/// SEC-AUD-578 (a, b): the CI systemd job also starts the server unit as a system service, and that mode leaves the
+/// unit's own hardening alone. Caught by: the base job, which has only `verify` and `user-service`; and by any later
+/// edit that makes the new mode `sed` out `ProtectSystem`, `StateDirectory`, `ReadWritePaths` or `WorkingDirectory`
+/// (a run that deletes the hardening proves nothing about the unit).
+#[test]
+fn the_systemd_job_runs_the_server_unit_as_a_system_service_with_its_hardening_on() {
+    let wf = read(".github/workflows/prod-smoke.yml");
+    let job = workflow_job(&wf, "systemd");
+    assert!(
+        job.lines().any(|l| !l.trim_start().starts_with('#')
+            && l.contains("deploy/scripts/smoke-systemd.sh system-service")),
+        "the systemd job never runs smoke-systemd.sh system-service"
+    );
+    let script = read("deploy/scripts/smoke-systemd.sh");
+    let func = shell_mode_function(&script, "system-service");
+    let body = shell_fn_body(&script, &func);
+    assert!(!body.trim().is_empty(), "{func} is empty");
+    // The unit must really carry the four settings, or this case guards nothing.
+    let unit = read("deploy/systemd/sr-server.service");
+    let keys = [
+        "ProtectSystem",
+        "StateDirectory",
+        "ReadWritePaths",
+        "WorkingDirectory",
+    ];
+    for k in keys {
+        assert!(
+            unit.lines().any(|l| l.starts_with(&format!("{k}="))),
+            "sr-server.service no longer sets {k}"
+        );
+    }
+    for st in shell_statements(&body) {
+        let edits = st.contains("sed ") || st.contains("grep -v") || st.contains("awk ");
+        for k in keys {
+            assert!(
+                !(edits && st.contains(k)),
+                "{func} rewrites or drops {k} of the unit: {st}"
+            );
+        }
+    }
+    // The mode starts the unit through systemd as a system service (not --user).
+    let started = shell_statements(&body)
+        .iter()
+        .any(|st| st.contains("systemctl") && st.contains("start") && !st.contains("--user"));
+    assert!(
+        started,
+        "{func} never starts a unit with `systemctl start` (system manager)"
+    );
+}
