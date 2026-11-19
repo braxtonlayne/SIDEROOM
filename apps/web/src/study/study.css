@@ -48,6 +48,14 @@
   color: inherit;
   cursor: pointer;
 }
+/* D-1022: on a phone each entry of the side list (a Study area or a friend's or server's mount, about 31 px) is 44 px
+   tall: they are stacked in one list, so the row grows (a tap area would cover the next entry's centre line). The
+   hover and current fills grow with it. Nothing changes at pointer widths. */
+@media (max-width: 48rem) {
+  .stu-entry {
+    min-block-size: 44px;
+  }
+}
 .stu-entry:hover {
   background: var(--ui-bg-hover);
 }
