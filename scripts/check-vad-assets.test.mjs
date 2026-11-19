@@ -120,6 +120,14 @@ test('(c) the lazy chunk may name them', () => {
   );
 });
 
+test('(d) another library naming a CDN is not the runtime', () => {
+  const body = 'const R=`https://unpkg.com/@ffmpeg/core@1/dist/umd/ffmpeg-core.js`';
+  assert.deepEqual(
+    run((d) => put(d, 'app/worker-9.js', body)),
+    [],
+  );
+});
+
 test('(d) a CDN URL for the runtime in any JavaScript fails', () => {
   for (const url of [
     'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/',

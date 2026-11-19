@@ -19,7 +19,10 @@ const VENDOR = join(here, '..', 'apps', 'web', 'vendor', 'silero-vad');
 
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 const MARKERS = ['ort-wasm', 'silero_vad', 'onnxruntime'];
-const CDN = /cdn\.jsdelivr\.net|unpkg\.com|onnxruntime[\w.-]*\.(?:com|net|org|io|ai|dev|app)\b/i;
+// A CDN URL for the runtime: a jsdelivr or unpkg URL that names onnxruntime, or onnxruntime followed by a host.
+// (Another library may name a CDN as an overridden default, as ffmpeg's worker does; that is not the runtime.)
+const CDN =
+  /(?:cdn\.jsdelivr\.net|unpkg\.com)[^\s"'`]*onnxruntime|onnxruntime[\w.-]*\.(?:com|net|org|io|ai|dev|app)\b/i;
 
 /** Every file under dir, as posix paths relative to it. */
 function walk(dir, base = '') {
