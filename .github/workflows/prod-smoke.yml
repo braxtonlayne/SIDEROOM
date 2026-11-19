@@ -210,6 +210,15 @@ jobs:
           SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom?sslmode=disable
           SMOKE_SYSTEMD_USER_FALLBACK: ${{ inputs.systemd_user_fallback && '1' || '0' }}
         run: deploy/scripts/smoke-systemd.sh user-service
+      # SEC-AUD-578 / D-1047: the user-service step above deletes the unit's sandbox lines, so it cannot see a fault that only
+      # the sandbox shows (SEC-AUD-566). This step installs as INSTALL.md's plain-binary section says (sideroom user,
+      # /opt/sideroom, /etc/sideroom) and starts the unit UNCHANGED as a system service on the runner's own systemd; it
+      # passes only when /healthz answers and /var/lib/sideroom/search exists, owned by sideroom. It does not read
+      # inputs.systemd_user_fallback: there is no fallback for it, and it fails if the runner has no system manager.
+      - name: Plain-binary install, unit unchanged, started as a systemd system service (hardening on)
+        env:
+          SMOKE_DATABASE_URL: postgres://sideroom:sideroom_ci@127.0.0.1:5432/sideroom?sslmode=disable
+        run: deploy/scripts/smoke-systemd.sh system-service
 
   # RDY-OBS-001: the alert rules parse and type-check. Standalone (no `needs`), so it runs alongside the jobs above.
   # Downloads one pinned Prometheus release on the runner (owner-approved in wave 24, CI only) and runs promtool.
