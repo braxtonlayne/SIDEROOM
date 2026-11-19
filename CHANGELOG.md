@@ -13,7 +13,7 @@ what the operator now has to know. Keep each wave to a handful of lines.
 - On a phone, a message you tapped no longer keeps its grey hover tint after the buttons are gone. A mouse still tints the row on hover and the keyboard on focus; a row you clicked with a mouse loses its tint once the pointer leaves it. Edited, replied-to, mentioned and jumped-to messages keep their colour.
 - Search now runs on tantivy 0.27, which closes the three zstd advisories; existing search indexes open without a reindex.
 - The command-line tool no longer prints the owner or seed password in debug output, and the other types that hold a secret are all covered by tests.
-- For the team: wave 111 ran its Rust work one cargo at a time at `-j 2` (D-1036). The four sr-db Postgres tests that rebuild the search index are proven by CI, not locally. The open row is SEC-AUD-558 (the redaction tests, read from CI).
+- For the team: wave 111 ran its Rust work one cargo at a time at `-j 2` (D-1036). The four sr-db Postgres tests that rebuild the search index are proven by CI, not locally. SEC-AUD-558 is closed: the redaction tests that need cmake pass in CI.
 
 ## Phase 110 - 2026-11-18
 
