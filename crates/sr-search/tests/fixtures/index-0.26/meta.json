@@ -1,0 +1,137 @@
+{
+  "index_settings": {
+    "docstore_compression": "lz4",
+    "docstore_blocksize": 16384
+  },
+  "segments": [
+    {
+      "segment_id": "234f3504-b9c4-4ca9-ae7b-11b86f6a9767",
+      "max_doc": 26,
+      "deletes": null
+    },
+    {
+      "segment_id": "069f1f20-128d-4c2a-821b-c015cb4db8de",
+      "max_doc": 1,
+      "deletes": null
+    },
+    {
+      "segment_id": "b079f9d5-ec1a-4592-aac0-96340e095343",
+      "max_doc": 1,
+      "deletes": null
+    },
+    {
+      "segment_id": "2d92f54c-df41-47b4-b703-cda4f2c12a43",
+      "max_doc": 1,
+      "deletes": null
+    }
+  ],
+  "schema": [
+    {
+      "name": "id",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "channel_id",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "guild_id",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "author_id",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "author_type",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "content",
+      "type": "text",
+      "options": {
+        "indexing": {
+          "record": "position",
+          "fieldnorms": true,
+          "tokenizer": "default"
+        },
+        "stored": true,
+        "fast": false
+      }
+    },
+    {
+      "name": "has",
+      "type": "text",
+      "options": {
+        "indexing": {
+          "record": "basic",
+          "fieldnorms": true,
+          "tokenizer": "raw"
+        },
+        "stored": false,
+        "fast": false
+      }
+    },
+    {
+      "name": "ts",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "pinned",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": true,
+        "stored": true
+      }
+    },
+    {
+      "name": "mention",
+      "type": "u64",
+      "options": {
+        "indexed": true,
+        "fieldnorms": false,
+        "fast": false,
+        "stored": false
+      }
+    }
+  ],
+  "opstamp": 128
+}

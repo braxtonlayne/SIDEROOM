@@ -12,7 +12,7 @@ serde_json.workspace = true
 sr-core = { path = "../sr-core", default-features = false }
 sr-review = { path = "../sr-review" }
 sr-storage = { path = "../sr-storage" }
-tantivy = "0.26"
+tantivy = "0.27"
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync"] }
 tracing = "0.1"
