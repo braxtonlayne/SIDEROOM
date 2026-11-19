@@ -49,6 +49,8 @@ case "$*" in
     ;;
 esac
 case "$*" in
+  # docker compose version (and --short): the text of the file compose-version next to this stub, else a current version.
+  "compose version"*) if [ -f "$here/compose-version" ]; then cat "$here/compose-version"; else echo "2.29.1"; fi ;;
   *"node id"*) echo "abc123def@127.0.0.1:3901" ;;
   *"/garage status"*) echo "abc123def  host  dc1  1G" ;;
   *"ps -q sr-server"*) echo "c0ffee" ;;
@@ -542,6 +544,7 @@ test('the full run brings the stack up in dependency order and keeps the Owner p
     calls.every(
       (c) =>
         c === 'compose version' ||
+        c === 'compose version --short' ||
         c.startsWith('inspect') ||
         !c.startsWith('compose') ||
         c.includes('--env-file'),
@@ -789,4 +792,131 @@ test('the generated Owner password and the link are shown as soon as the Owner e
     .filter((l) => !l.trim().startsWith('#'))
     .join('\n');
   assert.doesNotMatch(code, /\btee\b|\bexec\s+>/, 'install.sh must not tee or redirect its output');
+});
+
+// D-1046, SEC-AUD-576: the installer names the oldest Compose prod.yml works on and stops, before it writes anything,
+// on an older one; a version string it cannot read is a warning, not a stop.
+test('the Compose version is checked before anything is written (D-1046, SEC-AUD-576)', () => {
+  const prod = readFileSync(join(root, 'deploy', 'compose', 'prod.yml'), 'utf8');
+  const script = readFileSync(join(root, 'deploy', 'install.sh'), 'utf8');
+  const major = /^MIN_COMPOSE_MAJOR=(\d+)$/m.exec(script)?.[1];
+  const minor = /^MIN_COMPOSE_MINOR=(\d+)$/m.exec(script)?.[1];
+  assert.equal(`${major}.${minor}`, '2.24', 'required: false on env_file needs 2.24');
+  assert.match(prod, /required: false/, 'the key the minimum exists for');
+
+  const old = ['2.23.3', 'v2.20.0', '1.29.2', '2.23.9-desktop.1', 'Docker Compose version v2.0.1'];
+  for (const v of old) {
+    const sb = sandbox();
+    writeFileSync(join(sb.bin, 'compose-version'), `${v}\n`);
+    const r = run(sb, ['--yes', '--no-start']);
+    assert.notEqual(r.status, 0, v);
+    assert.match(r.out, /Docker Compose \d+\.\d+ is too old: this stack needs 2\.24 or newer/, v);
+    assert.match(r.out, /Nothing was written or started/, v);
+    assert.ok(!existsSync(sb.env), `${v} left an env file behind`);
+  }
+  for (const v of [
+    '2.24.0',
+    'v2.24.5',
+    '2.24.5-desktop.1',
+    '2.29.1+azure',
+    '3.0.0',
+    'Docker Compose version v2.38.2',
+  ]) {
+    const sb = sandbox();
+    writeFileSync(join(sb.bin, 'compose-version'), `${v}\n`);
+    const r = run(sb, ['--yes', '--no-start'], {
+      SR_SERVER_ENV_FILE: shPath(join(sb.dir, 'etc', 'server.env')),
+      SR_SECRETS_DIR: shPath(join(sb.dir, 'etc', 'secrets')),
+    });
+    assert.equal(r.status, 0, `${v}: ${r.out}`);
+    assert.doesNotMatch(r.out, /could not read the Docker Compose version/, v);
+  }
+});
+
+test('a Compose version the installer cannot read is a warning, and the run goes on (D-1046)', () => {
+  for (const v of ['dev', '', 'unknown-build']) {
+    const sb = sandbox();
+    writeFileSync(join(sb.bin, 'compose-version'), `${v}\n`);
+    const r = run(sb, ['--yes', '--no-start'], {
+      SR_SERVER_ENV_FILE: shPath(join(sb.dir, 'etc', 'server.env')),
+      SR_SECRETS_DIR: shPath(join(sb.dir, 'etc', 'secrets')),
+    });
+    assert.equal(r.status, 0, `'${v}': ${r.out}`);
+    assert.match(r.out, /warning: could not read the Docker Compose version/, v);
+    assert.match(r.out, /needs Compose 2\.24 or newer/, v);
+    assert.ok(existsSync(sb.env), `'${v}' wrote nothing`);
+  }
+});
+
+test('an empty server env file (0600) and the secrets folder (0700) are created, and never touched when they exist (D-1046, SEC-AUD-576)', () => {
+  const sb = sandbox();
+  const serverEnv = join(sb.dir, 'etc', 'server.env');
+  const secrets = join(sb.dir, 'etc', 'secrets');
+  const paths = { SR_SERVER_ENV_FILE: shPath(serverEnv), SR_SECRETS_DIR: shPath(secrets) };
+  const r = run(sb, ['--yes', '--no-start'], paths);
+  assert.equal(r.status, 0, r.out);
+  assert.ok(existsSync(serverEnv) && statSync(serverEnv).isFile(), 'the env file was created');
+  assert.equal(readFileSync(serverEnv, 'utf8'), '', 'it is empty');
+  assert.ok(statSync(secrets).isDirectory(), 'the folder was created');
+  if (process.platform !== 'win32') {
+    assert.equal(statSync(serverEnv).mode & 0o777, 0o600);
+    assert.equal(statSync(secrets).mode & 0o777, 0o700);
+  }
+  assert.match(r.out, /created the empty server env file/);
+  assert.match(r.out, /created the secrets folder/);
+
+  // What an operator put there stays: a rerun neither empties the file nor says it created anything.
+  writeFileSync(serverEnv, 'SR_LOG__FILTER=debug\n');
+  writeFileSync(join(secrets, 'discord_client_secret'), 'typed-by-the-owner\n');
+  const again = run(sb, ['--yes', '--no-start'], paths);
+  assert.equal(again.status, 0, again.out);
+  assert.equal(readFileSync(serverEnv, 'utf8'), 'SR_LOG__FILTER=debug\n');
+  assert.equal(
+    readFileSync(join(secrets, 'discord_client_secret'), 'utf8'),
+    'typed-by-the-owner\n',
+  );
+  assert.doesNotMatch(again.out, /created the (empty server env file|secrets folder)/);
+
+  // Run as someone who cannot create them (a path under a plain file): a warning that names the fix, not a stop.
+  const blocked = sandbox();
+  const plain = join(blocked.dir, 'plain-file');
+  writeFileSync(plain, 'x');
+  const b = run(blocked, ['--yes', '--no-start'], {
+    SR_SERVER_ENV_FILE: shPath(join(plain, 'server.env')),
+    SR_SECRETS_DIR: shPath(join(plain, 'secrets')),
+  });
+  assert.equal(b.status, 0, b.out);
+  assert.match(b.out, /warning: could not create .*server\.env/);
+  assert.match(b.out, /warning: could not create .*secrets/);
+  assert.ok(existsSync(blocked.env), 'the install itself went on');
+
+  // A relative path is refused, naming the variable.
+  const rel = run(sandbox(), ['--yes', '--no-start'], { SR_SECRETS_DIR: 'secrets' });
+  assert.notEqual(rel.status, 0);
+  assert.match(rel.out, /SR_SECRETS_DIR must be an absolute path/);
+});
+
+test('on a rerun the paths stored in .env.prod count, and the secrets mount in prod.yml is read-only (D-1046)', () => {
+  const sb = sandbox();
+  const serverEnv = join(sb.dir, 'kept', 'server.env');
+  const secrets = join(sb.dir, 'kept', 'secrets');
+  assert.equal(
+    run(sb, ['--yes', '--no-start'], { SR_SERVER_ENV_FILE: '', SR_SECRETS_DIR: '' }).status,
+    0,
+  );
+  const stored = readFileSync(sb.env, 'utf8');
+  writeFileSync(
+    sb.env,
+    `${stored}SR_SERVER_ENV_FILE='${shPath(serverEnv)}'\nSR_SECRETS_DIR='${shPath(secrets)}'\n`,
+  );
+  const r = run(sb, ['--yes', '--no-start']);
+  assert.equal(r.status, 0, r.out);
+  assert.ok(existsSync(serverEnv), 'the env file named in .env.prod was created');
+  assert.ok(existsSync(secrets), 'the folder named in .env.prod was created');
+
+  const prod = readFileSync(join(root, 'deploy', 'compose', 'prod.yml'), 'utf8');
+  assert.match(
+    prod,
+    /^\s+- \$\{SR_SECRETS_DIR:-\/etc\/sideroom\/secrets\}:\/run\/secrets\/sideroom:ro$/m,
+  );
 });
