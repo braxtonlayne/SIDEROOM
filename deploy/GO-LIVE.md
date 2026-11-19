@@ -38,15 +38,22 @@ Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run t
 
 ## 5. Backups verified by a restore
 
-A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)).
+A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)). On the Compose route (what `install.sh` builds) the client tools, the database and the `pg-backups` volume are all inside the Postgres container, so every step below runs there with `dc` (the host needs nothing but Docker). The plain-binary route is the last bullet.
 
-- **Commands.**
-  1. Take a dump: `deploy/scripts/backup.sh` (or `sr-cli backup`).
-  2. Restore it into a scratch database: `createdb sideroom_restored`, then `deploy/scripts/restore.sh <dump> <url-of-that-database>`.
-  3. Run the drill: `deploy/scripts/restore-drill.sh`.
-  4. Enable the schedule: copy `deploy/systemd/sideroom-backup.*`, `sideroom-basebackup.*` and `sideroom-restore-drill.*` to `/etc/systemd/system/` and `systemctl enable --now` the three timers.
-  5. Set the Storage Box repository in `/etc/sideroom/backup.env` (`SR_BACKUP_REPOSITORY`) so the copies leave the host.
-- **Done when.** The restore into the scratch database succeeds and `restore-drill.sh` exits 0 and touches `restore-drill.ok`; Admin > System shows the last backup and its verification; a copy of the dump exists off the host. Drop the scratch database afterwards.
+- **Commands (Compose route, run from `/opt/sideroom`).**
+  1. Take a dump inside the Postgres container:
+     `dc exec -T -u postgres postgres sh -c 'SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_BACKUP_DIR_MODE=750 sh /opt/sideroom/scripts/backup.sh'`
+     It prints `wrote sideroom-<stamp>.dump (... bytes, ... migrations)` and `backup complete`. The file is `/var/backups/sideroom/db/sideroom-<stamp>.dump` with a `.dump.json` manifest beside it; `dc exec -T postgres ls -1 /var/backups/sideroom/db` lists it.
+  2. Restore it into a scratch database (use the file name from step 1):
+     `dc exec -T postgres psql -X -U sideroom -d postgres -c 'create database sideroom_restored'`
+     `dc exec -T -u postgres postgres sh -c "sh /opt/sideroom/scripts/restore.sh /var/backups/sideroom/db/sideroom-<stamp>.dump postgres://sideroom@/sideroom_restored"`
+  3. Run the drill:
+     `dc exec -T -u postgres postgres sh -c 'SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom sh /opt/sideroom/scripts/restore-drill.sh'`
+  4. Tell the server where the backups are: Admin > Limits & settings, group `alerts`, set `ops.backup_dir` to `/var/backups/sideroom` (the folder as sr-server sees the `pg-backups` volume, read-only). With it empty the Admin backup alert is off.
+  5. Enable the schedule. Copy `deploy/systemd/sideroom-backup-compose.*`, `sideroom-restore-drill-compose.*` and `sideroom-basebackup.*` to `/etc/systemd/system/`, run `systemctl daemon-reload`, then `systemctl enable --now sideroom-backup-compose.timer sideroom-restore-drill-compose.timer sideroom-basebackup.timer`. Each unit runs the command of step 1, step 3 or the base backup with `docker compose ... exec` and needs no password. Do **not** enable `sideroom-backup.timer` or `sideroom-restore-drill.timer` here: they are the plain-binary route's and fail every night on Compose.
+  6. Get the copies off the host. The dumps live in the `pg-backups` volume (`/var/lib/docker/volumes/<project>_pg-backups/_data` on the host). Install rustic or restic on the host yourself and copy that folder to the Storage Box on a schedule of your own; the owner types the Storage Box address, the SFTP key and the repository password, nobody else. The Compose units do not read `/etc/sideroom/backup.env` and the container has neither tool, so `SR_BACKUP_REPOSITORY` is not used on this route. Garage's metadata folder is not in an object snapshot: copy `garage-meta` as well.
+- **Done when.** Step 2's restore succeeds, `restore-drill.sh` exits 0 and touches `restore-drill.ok`, Admin > System shows the last backup and its verification (after step 4), and a copy of the dump exists off the host. Drop the scratch database afterwards: `dc exec -T postgres psql -X -U sideroom -d postgres -c 'drop database sideroom_restored'`.
+- **Plain-binary route** (the systemd layout of [INSTALL.md](INSTALL.md), with `pg_dump` on the host). Dump with `deploy/scripts/backup.sh` (or `sr-cli backup`), restore with `createdb` and `deploy/scripts/restore.sh <dump> <url>`, drill with `deploy/scripts/restore-drill.sh`, and enable `sideroom-backup.timer` and `sideroom-restore-drill.timer` as in BACKUP.md "One-off setup" (the settings, including `SR_BACKUP_REPOSITORY` for the Storage Box, go in `/etc/sideroom/backup.env`). `sideroom-basebackup.timer` is Compose-only: it execs into the Postgres container and no host form ships, so leave it off on this route.
 
 ## 6. Monitoring and the alert test
 

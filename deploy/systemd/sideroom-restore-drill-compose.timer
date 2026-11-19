@@ -1,0 +1,10 @@
+# Route: Compose route. The plain-binary route uses sideroom-restore-drill.timer.
+[Unit]
+Description=Run the SIDE ROOM restore drill on the Compose stack every Sunday
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

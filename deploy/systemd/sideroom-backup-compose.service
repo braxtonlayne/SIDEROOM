@@ -1,0 +1,15 @@
+# Route: Compose route (it execs into the postgres container). The plain-binary route uses sideroom-backup.service.
+[Unit]
+Description=SIDE ROOM nightly backup on the Compose stack (Postgres dump inside the postgres container)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sideroom
+# The command of deploy/scripts/prod-smoke.sh (stage_backups, step 1). It runs as the postgres user inside the
+# postgres container of deploy/compose/prod.yml, over the local socket (trust), so no password is involved. The dump
+# lands in the pg-backups volume, which sr-server reads (Admin > System). Copy it off the host (BACKUP.md).
+ExecStart=/usr/bin/docker compose -f /opt/sideroom/deploy/compose/prod.yml --env-file /opt/sideroom/deploy/compose/.env.prod exec -T -u postgres postgres sh -c "SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_BACKUP_DIR_MODE=750 sh /opt/sideroom/scripts/backup.sh"
+Nice=10
+IOSchedulingClass=idle

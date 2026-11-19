@@ -1,3 +1,4 @@
+# Route: plain-binary (systemd) route. The Compose route uses sideroom-restore-drill-compose.timer.
 [Unit]
 Description=Run the SIDE ROOM restore drill every Sunday
 
