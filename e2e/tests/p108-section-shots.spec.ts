@@ -926,7 +926,14 @@ function part2Defs(w: World): PageDef[] {
     {
       key: 'study',
       named: {
-        page: ['.stu-rail', '.stu-crumbs', '.stu-crumbs button', '.stu-folder', '.stu-open'],
+        page: [
+          '.stu-rail',
+          '.stu-crumbs',
+          '.stu-crumbs button',
+          '.stu-folder',
+          '.stu-open',
+          '.stu-entry',
+        ],
       },
       chrome: true,
       open: go('/study', (p) =>
@@ -1210,6 +1217,7 @@ const ALLOW: Record<string, { cw?: number; ch?: number; ph?: number; min44?: boo
   // library (D-1022): the Study's file rows to 44 px on a phone and the list longer by that
   '.stu-folder': { ch: 44, ph: 44 },
   '.stu-open': { ch: 44, ph: 44 },
+  '.stu-entry': { ch: 44, ph: 44 },
   '.lib-search-input': { ch: 4.5, ph: 4.5, min44: true },
   '.lib-topbar': { ch: 4.5 },
   '.lib-browse-tools': { ch: 4.5 },
@@ -1229,7 +1237,7 @@ const ALLOW: Record<string, { cw?: number; ch?: number; ph?: number; min44?: boo
 };
 const ROWS_UNCHECKED_PARENT = new Set([...ROW_SELS]);
 const NAMED_RE =
-  /(lib-genre-chip|lib-btn|lib-icon-btn|lib-chip-list|lib-linklike|shv-empty-links|lib-search-input|stu-rail|stu-crumbs|stu-folder|stu-open|cin-qa|cin-link-btn|cin-post-actions|wp-btn|wp-vol|wp-controls|cpl-btn)/;
+  /(lib-genre-chip|lib-btn|lib-icon-btn|lib-chip-list|lib-linklike|shv-empty-links|lib-search-input|stu-rail|stu-crumbs|stu-folder|stu-open|stu-entry|cin-qa|cin-link-btn|cin-post-actions|wp-btn|wp-vol|wp-controls|cpl-btn)/;
 /** The kit's chips, the chip dropdown's two buttons and the Drawer close (builder chips): the path has the stripped module class. */
 const CHIP_RE = /\._(chip|chips|dropdown|select|close)( |$)/;
 const CONTROL_TAGS = new Set(['button', 'a', 'input', 'select', 'textarea', 'label', 'summary']);
