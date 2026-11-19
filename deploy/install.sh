@@ -188,6 +188,9 @@ if [ "$resume" = "1" ]; then
   if [ -n "${SR_IMAGE:-}" ] && [ "$SR_IMAGE" != "$stored_image" ]; then
     echo "warning: SR_IMAGE is $stored_image in $env_file; the value given now ($SR_IMAGE) is ignored. To change the image, edit SR_IMAGE in $env_file and run this script again." >&2
   fi
+  # Really ignored (SEC-AUD-583): Compose takes SR_IMAGE from the environment before the env file, so an exported value
+  # given now would otherwise be the image `sr_cli migrate` pulls and runs.
+  SR_IMAGE=$stored_image
   refuse_placeholder_image "$stored_image" "Edit SR_IMAGE in $env_file, then run this script again."
 else
   ask SR_DOMAIN "Public hostname (DNS must already point at this host)" ""

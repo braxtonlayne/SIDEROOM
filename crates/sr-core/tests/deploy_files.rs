@@ -1938,3 +1938,24 @@ fn the_system_service_smoke_has_its_own_database() {
         "the system-service step does not create and use its own database"
     );
 }
+
+/// SEC-AUD-583: on a rerun install.sh warns that an SR_IMAGE given now is ignored, and must then really ignore it:
+/// Compose reads SR_IMAGE from the environment before the env file. Caught by: PR #162's production smoke, where the
+/// rerun with SR_IMAGE=registry.invalid/... tried to pull that image for `sr-cli migrate`.
+#[test]
+fn the_installer_rerun_puts_the_stored_image_back() {
+    let install = read("deploy/install.sh");
+    let warn = install
+        .find("the value given now ($SR_IMAGE) is ignored")
+        .expect("install.sh no longer warns about an ignored SR_IMAGE");
+    let after = &install[warn..];
+    let end = after
+        .find("\nelse\n")
+        .expect("the rerun branch has no else");
+    assert!(
+        after[..end]
+            .lines()
+            .any(|l| l.trim() == "SR_IMAGE=$stored_image"),
+        "the rerun branch warns but leaves the SR_IMAGE given now in force"
+    );
+}
