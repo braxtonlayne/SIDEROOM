@@ -139,6 +139,15 @@
   color: var(--ui-text-faint);
   opacity: 1;
 }
+/* D-1022 (SEC-AUD-527): on a phone the popover's three tabs (32px) and its search field (29px) are 44px tall (A.2). The
+   popover already scrolls (max-height, overflow auto), so it grows by the difference and never past its cap. The kit's
+   own phone breakpoint, because the popover is portaled and may sit outside .lng-root. Pointer widths are untouched. */
+@media (max-width: 768px) {
+  .lng-threads-tabs button,
+  .lng-threads-search {
+    min-block-size: 44px;
+  }
+}
 .lng-thread-nest {
   list-style: none;
   margin: 0;
