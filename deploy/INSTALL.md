@@ -65,6 +65,9 @@ metrics_bind = "127.0.0.1:9100"          # /internal/metrics; keep it loopback (
 trust_forwarded_for = true               # only behind your reverse proxy (see section 6)
 shutdown_grace_secs = 25
 
+[search]
+dir = "/var/lib/sideroom/search"        # absolute; the built-in default is the relative data/search (see the systemd table below)
+
 [storage]
 endpoint = "https://s3.example.org"
 region = "garage"
@@ -143,7 +146,8 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 | `/opt/sideroom/web` | the web build of the same release (`sideroom-<tag>-web.tar.gz`, the built `apps/web/dist`), readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
 | `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
 | `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
-| `/var/lib/sideroom` | the server's state and search index (`StateDirectory=sideroom` creates it) |
+| `/var/lib/sideroom` | the server's state (`StateDirectory=sideroom` creates it, owned by `sideroom`); the unit's working directory |
+| `/var/lib/sideroom/search` | the search indexes (messages, `library/`, `cinema/`). The unit sets `SR_SEARCH__DIR` to it and the server creates the folder at start. The built-in default is the relative `data/search`, which the read-only root cannot create |
 
 1. **Create the service user and copy the binaries and the web build:**
 

@@ -31,7 +31,7 @@ dc="docker compose -f prod.yml --env-file .env.prod"
    ```
 
    The old server keeps running during this; the previous binary tolerates the new schema by the one-version rule.
-7. Restart: `$dc up -d sr-server` or `systemctl restart sr-server`. The server drains for up to 25 s, then jobs for another 25 s, so allow a minute. With the `monitoring` profile on, also run `$dc up -d prometheus`: Prometheus lives in the server container's network namespace and must follow a recreated server.
+7. Restart: `$dc up -d sr-server` or `systemctl restart sr-server`. The server drains for up to 25 s, then jobs for another 25 s, so allow a minute. The search index is on the `search-index` volume (Compose) or in `/var/lib/sideroom/search` (systemd) and survives an upgrade; an install made before this release kept it inside the old container, so after the first upgrade run `sr-cli reindex` once (it queues the job; the server does the work). With the `monitoring` profile on, also run `$dc up -d prometheus`: Prometheus lives in the server container's network namespace and must follow a recreated server.
 8. Check readiness, the Grafana overview, and the error ratio for ten minutes. Caddy answers `/readyz` with 404 (it lists dependency errors; the shipped `Caddyfile.prod` has a `handle /readyz` block for this), so ask the server itself: `$dc exec sr-server /usr/local/bin/sr-server healthcheck` (exit 0 = ready; `$dc ps` shows the same probe as the container health), or `curl -fsS http://127.0.0.1:8080/readyz` on a plain-binary install. `https://<domain>/healthz` through Caddy must answer too.
 
 ## Rolling back
