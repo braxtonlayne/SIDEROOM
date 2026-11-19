@@ -75,8 +75,10 @@
   outline: none;
 }
 
-/* D-1022: on a phone a chip keeps its 36 px box and gets a 44 px tall tap area from a pseudo-element. It reaches 4 px
-   above and below, inside the 12 px row gap, so no row grows and no neighbour's centre line is covered. The dropdown's
+/* D-1022: on a phone a chip keeps its 36 px box and gets a 46 px tall tap area from a pseudo-element: 1 px more than the 44
+   the hit test asks for on each side (an exactly-44 area loses the edge pixel when a chip sits on a fraction of a pixel),
+   centred on its padding box so its 1 px border does not shift it. It reaches 5 px
+   above and below the border box, inside the 12 px row gap (2 px clear), so no row grows and no neighbour's centre line is covered. The dropdown's
    trigger and chevron (the Select's two buttons, side by side) each get the same, centred on their own box, so the
    dropdown's drawn box does not change. */
 @media (max-width: 720px) {
@@ -90,7 +92,7 @@
     position: absolute;
     inset-inline: 0;
     top: 50%;
-    height: 44px;
+    height: 46px;
     transform: translateY(-50%);
   }
 }
