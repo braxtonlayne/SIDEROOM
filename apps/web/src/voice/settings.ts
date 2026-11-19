@@ -8,6 +8,8 @@ import { DEFAULT_THRESHOLD_DB, THRESHOLD_RANGE } from './vad';
 import { sameKeybind, sanitizeKeybind, type Keybind } from './keybind';
 
 export type InputMode = 'vad' | 'ptt';
+/** Which detector decides "am I speaking" in Voice Activity mode (D-1048): the energy gate, or the Silero model. */
+export type VadEngine = 'energy' | 'silero';
 export type KeybindAction = 'ptt' | 'toggleMute' | 'toggleDeafen' | 'disconnect';
 
 export const KEYBIND_ACTIONS: { id: KeybindAction; label: string; description: string }[] = [
@@ -30,6 +32,8 @@ export interface VoiceSettings {
   outputVolume: number;
   inputMode: InputMode;
   autoSensitivity: boolean;
+  /** Voice-activity detector (D-1048). Silero runs on this device and downloads its model the first time. */
+  vadEngine: VadEngine;
   /** Manual voice-activity threshold, dBFS. */
   thresholdDb: number;
   /** Milliseconds the mic stays open after the PTT key is released, 0..2000. */
@@ -76,6 +80,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   outputVolume: 100,
   inputMode: 'vad',
   autoSensitivity: true,
+  vadEngine: 'energy',
   thresholdDb: DEFAULT_THRESHOLD_DB,
   pttReleaseMs: 200,
   echoCancellation: true,
@@ -135,6 +140,7 @@ export function sanitizeVoiceSettings(raw: unknown): VoiceSettings {
     outputVolume: clamp(r.outputVolume, VOLUME_RANGE[0], VOLUME_RANGE[1], d.outputVolume),
     inputMode: r.inputMode === 'ptt' ? 'ptt' : 'vad',
     autoSensitivity: bool(r.autoSensitivity, d.autoSensitivity),
+    vadEngine: r.vadEngine === 'silero' ? 'silero' : 'energy',
     thresholdDb: clamp(r.thresholdDb, THRESHOLD_RANGE[0], THRESHOLD_RANGE[1], d.thresholdDb),
     pttReleaseMs: clamp(r.pttReleaseMs, PTT_RELEASE_RANGE[0], PTT_RELEASE_RANGE[1], d.pttReleaseMs),
     echoCancellation: bool(r.echoCancellation, d.echoCancellation),
@@ -229,7 +235,13 @@ export const useVoiceSettings = create<VoiceSettingsState>()(
     }),
     {
       name: 'sr.voice.settings',
-      version: 1,
+      // 2: vadEngine (D-1048). Stores written before it have none, and the sanitiser gives them 'energy'.
+      version: 2,
+      migrate: (persisted) => ({
+        settings: sanitizeVoiceSettings(
+          (persisted as { settings?: unknown } | undefined)?.settings,
+        ),
+      }),
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({ settings: s.settings }),
       merge: (persisted, current) => ({

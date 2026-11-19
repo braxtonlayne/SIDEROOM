@@ -10,7 +10,8 @@
  */
 import { micConstraints, toMicError, type AudioDeps } from './deps';
 import { SOUND_CLIP_SECONDS } from './soundPlayer';
-import { rmsDb, SILENCE_DB } from './vad';
+import { getVoiceSettings, useVoiceSettings } from './settings';
+import { rmsDb, SILENCE_DB, VadEngineHost, type VadDetector, type VadTapRole } from './vad';
 
 export interface MicOptions {
   deviceId: string;
@@ -18,9 +19,41 @@ export interface MicOptions {
   autoGainControl: boolean;
   /** Percent 0..200. */
   inputVolume: number;
+  /** 'call' for the microphone of a call (it wins the detector over the settings test, the default). */
+  vadRole?: VadTapRole;
 }
 
 export const METER_INTERVAL_MS = 30;
+
+/**
+ * D-1048, D-1050: the one place the optional Silero detector is started and stopped. A microphone graph registers
+ * its tap (the context and the source node, before any gain: the same signal the energy gate's analyser reads) and
+ * the host starts the detector only when the member chose Silero and voice activity is the input mode. The
+ * detector's code is reached through a dynamic import, so with the Standard engine none of it is ever fetched.
+ */
+export const vadHost = new VadEngineHost({
+  wanted: () => {
+    const s = getVoiceSettings();
+    return s.vadEngine === 'silero' && s.inputMode === 'vad';
+  },
+  engine: () => getVoiceSettings().vadEngine,
+  load: () => import('./silero/sileroVad').then((m): VadDetector => m.createSileroVad()),
+  now: () => performance.now(),
+});
+useVoiceSettings.subscribe((st, prev) => {
+  if (
+    st.settings.vadEngine !== prev.settings.vadEngine ||
+    st.settings.inputMode !== prev.settings.inputMode
+  )
+    vadHost.refresh();
+});
+// Browser tests only (built with VITE_SR_E2E): the detector's figures, read by the end-to-end specs.
+if (import.meta.env.VITE_SR_E2E && typeof window !== 'undefined') {
+  Object.defineProperty(window, '__srVadStats', {
+    configurable: true,
+    get: () => vadHost.snapshot(),
+  });
+}
 
 export class MicPipeline {
   private stream: MediaStream | null = null;
@@ -109,6 +142,7 @@ export class MicPipeline {
       this.gateGain.connect(this.dest);
       this.out = this.dest.stream.getAudioTracks()[0] ?? raw;
       void ctx.resume?.();
+      vadHost.setTap(this, o.vadRole ?? 'test', ctx, this.source);
     } else {
       this.out = raw;
     }
@@ -177,6 +211,7 @@ export class MicPipeline {
   }
 
   stop(): void {
+    vadHost.clearTap(this);
     clearInterval(this.timer);
     this.timer = undefined;
     this.stream?.getAudioTracks().forEach((t) => t.removeEventListener('ended', this.onEnded));
