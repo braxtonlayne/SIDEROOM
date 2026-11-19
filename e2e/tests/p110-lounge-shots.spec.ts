@@ -383,6 +383,7 @@ async function scenToolbar(browser: Browser, owner: BrowserContext, w: World, cf
       fig.covered.push('375 tap on a message');
 
       // 1b. A tap on the seeded spoiler (first line of its message), after a tap that, in the base, brought the toolbar.
+      await go(page, url, page.getByRole('log'));
       await spoiled()
         .first()
         .evaluate((e) => e.setAttribute('data-p110s', '1'));
