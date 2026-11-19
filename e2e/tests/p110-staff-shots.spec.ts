@@ -16,7 +16,8 @@ import { apiPatch, expect, test } from '../support/fixtures';
 const ON = process.env.SR_P110_STAFF_ON === '1';
 const PHASE = process.env.SR_P110_STAFF_PHASE === 'after' ? 'after' : 'base';
 const OUT =
-  process.env.SR_P110_STAFF_OUT ?? 'C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p110-staff';
+  process.env.SR_P110_STAFF_OUT ??
+  'C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p110-staff';
 const ORIGIN = new URL(process.env.SR_E2E_BASE_URL ?? 'http://localhost:5173').origin;
 const STATE = resolve(repoRoot, 'e2e', '.state', 'sweep');
 const OWNER_STATE = resolve(STATE, 'owner.json');
@@ -29,7 +30,8 @@ test.setTimeout(300_000);
 
 const say = (s: string) => console.log(`REPORT ${s}`);
 const msg = (e: unknown) => String(e).replace(/\s+/g, ' ').slice(0, 220);
-const world = () => JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as { guildId: string; channelId: string };
+const world = () =>
+  JSON.parse(readFileSync(WORLD_FILE, 'utf8')) as { guildId: string; channelId: string };
 const figs: Record<string, unknown> = {};
 const problems: string[] = [];
 const notCovered: string[] = [];
@@ -94,7 +96,9 @@ async function readFields(page: Page, rootSel: string) {
       let e: Element | null = el;
       for (let i = 0; e && i < 4; i++, e = e.parentElement) {
         const cs = getComputedStyle(e);
-        chain.push(`${e.tagName.toLowerCase()}.${String(e.className).slice(0, 40)} bg=${cs.backgroundColor}`);
+        chain.push(
+          `${e.tagName.toLowerCase()}.${String(e.className).slice(0, 40)} bg=${cs.backgroundColor}`,
+        );
       }
       return chain;
     };
@@ -179,7 +183,9 @@ async function openTool(page: Page, query: string, pick: RegExp) {
 async function measureDrawer(page: Page, vh: number) {
   return page.evaluate((viewH) => {
     const rd = (n: number) => Math.round(n * 10) / 10;
-    const dlg = document.querySelector('[role=dialog][aria-label="Drawer"], .sr-tl-drawer') as HTMLElement | null;
+    const dlg = document.querySelector(
+      '[role=dialog][aria-label="Drawer"], .sr-tl-drawer',
+    ) as HTMLElement | null;
     const dialog = (document.querySelector('.sr-tl-drawer') as HTMLElement | null) ?? dlg;
     if (!dialog) return { missing: true };
     const rb = dialog.getBoundingClientRect();
@@ -206,14 +212,25 @@ async function measureDrawer(page: Page, vh: number) {
       return { top: rd(r.top), bottom: rd(r.bottom), inView: r.top >= 0 && r.bottom <= viewH };
     };
     return {
-      dialogBox: { x: rd(rb.left), y: rd(rb.top), w: rd(rb.width), h: rd(rb.height), bottom: rd(rb.bottom) },
+      dialogBox: {
+        x: rd(rb.left),
+        y: rd(rb.top),
+        w: rd(rb.width),
+        h: rd(rb.height),
+        bottom: rd(rb.bottom),
+      },
       chain,
       primary: pos('.ud-btn-primary'),
       outs: Array.from(dialog.querySelectorAll('.ud-out, [role=status], output, .ud-result'))
         .filter((e) => e.getClientRects().length)
         .map((e) => {
           const r = e.getBoundingClientRect();
-          return { cls: String(e.className).slice(0, 30), top: rd(r.top), bottom: rd(r.bottom), inView: r.bottom <= viewH };
+          return {
+            cls: String(e.className).slice(0, 30),
+            top: rd(r.top),
+            bottom: rd(r.bottom),
+            inView: r.bottom <= viewH,
+          };
         }),
     };
   }, vh);
@@ -226,7 +243,10 @@ async function swipeUp(page: Page, x: number, y0: number, y1: number) {
     const pt = (y: number) => [{ x, y, id: 1 }];
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(y0) });
     for (let i = 1; i <= 10; i++) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(y0 + ((y1 - y0) * i) / 10) });
+      await cdp.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: pt(y0 + ((y1 - y0) * i) / 10),
+      });
       await page.waitForTimeout(16);
     }
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
@@ -260,7 +280,10 @@ async function drawerPart(browser: Browser, owner: BrowserContext) {
       const { ctx, page } = await newPage(browser, owner, 375, vh, true, 'lounge-light');
       const tag = `${tool.id}-${vh}`;
       try {
-        await page.goto(`/channels/${w.guildId}/${w.channelId}`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+        await page.goto(`/channels/${w.guildId}/${w.channelId}`, {
+          waitUntil: 'domcontentloaded',
+          timeout: 45_000,
+        });
         await expect(page.locator('.lng-root').first()).toBeVisible({ timeout: 60_000 });
         await settle(page, 4000);
         await openTool(page, tool.query, tool.pick);
@@ -274,7 +297,9 @@ async function drawerPart(browser: Browser, owner: BrowserContext) {
         const before = await measureDrawer(page, vh);
         const reachBefore = await reachable(page, '.ud-btn-primary');
         if (vh === 812) await shot(page, tool.id === 'dice' ? 'dice-rolled-375' : 'wheel-375');
-        say(`DRAWER ${tag} first: ${JSON.stringify(before)} primary-reach ${JSON.stringify(reachBefore)}`);
+        say(
+          `DRAWER ${tag} first: ${JSON.stringify(before)} primary-reach ${JSON.stringify(reachBefore)}`,
+        );
 
         // Swipe up by touch over the tool body; then measure again.
         const box = await drawerOf(page).locator('.sr-tl-view-body').boundingBox();
@@ -283,7 +308,9 @@ async function drawerPart(browser: Browser, owner: BrowserContext) {
         await swipeUp(page, x, y0, Math.max(40, y0 - 250));
         const afterSwipe = await measureDrawer(page, vh);
         const reachSwipe = await reachable(page, '.ud-btn-primary');
-        say(`DRAWER ${tag} after swipe: ${JSON.stringify(afterSwipe)} primary-reach ${JSON.stringify(reachSwipe)}`);
+        say(
+          `DRAWER ${tag} after swipe: ${JSON.stringify(afterSwipe)} primary-reach ${JSON.stringify(reachSwipe)}`,
+        );
 
         // scrollTop on every scrollable ancestor, read back.
         const st = await page.evaluate(() => {
@@ -310,9 +337,20 @@ async function drawerPart(browser: Browser, owner: BrowserContext) {
         await page.waitForTimeout(300);
         const afterTop = await measureDrawer(page, vh);
         const reachTop = await reachable(page, '.ud-btn-primary');
-        say(`DRAWER ${tag} scrollTop: ${JSON.stringify(st)} then ${JSON.stringify(afterTop)} primary-reach ${JSON.stringify(reachTop)}`);
-        if (vh === 812) await shot(page, tool.id === 'dice' ? 'dice-rolled-scrolled-375' : 'wheel-scrolled-375');
-        figs[`drawer-${tag}`] = { before, reachBefore, afterSwipe, reachSwipe, scrollTop: st, afterTop, reachTop };
+        say(
+          `DRAWER ${tag} scrollTop: ${JSON.stringify(st)} then ${JSON.stringify(afterTop)} primary-reach ${JSON.stringify(reachTop)}`,
+        );
+        if (vh === 812)
+          await shot(page, tool.id === 'dice' ? 'dice-rolled-scrolled-375' : 'wheel-scrolled-375');
+        figs[`drawer-${tag}`] = {
+          before,
+          reachBefore,
+          afterSwipe,
+          reachSwipe,
+          scrollTop: st,
+          afterTop,
+          reachTop,
+        };
       } catch (e) {
         notCovered.push(`drawer ${tag}: ${msg(e)}`);
         say(`NOT COVERED drawer ${tag}: ${msg(e)}`);
@@ -347,7 +385,9 @@ test(`staff ${PHASE}`, async ({ browser }) => {
       const b = base.figs[k]?.before?.dialogBox;
       const a = (v as { before?: { dialogBox?: unknown } }).before?.dialogBox;
       if (b && JSON.stringify(a) !== JSON.stringify(b))
-        problems.push(`${k}: the drawer's box changed ${JSON.stringify(b)} -> ${JSON.stringify(a)}`);
+        problems.push(
+          `${k}: the drawer's box changed ${JSON.stringify(b)} -> ${JSON.stringify(a)}`,
+        );
     }
     writeFileSync(file, JSON.stringify({ figs, problems, notCovered }, null, 1));
   }
