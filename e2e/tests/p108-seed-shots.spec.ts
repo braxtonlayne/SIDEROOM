@@ -168,8 +168,8 @@ test(`wave 108 seed: the sweep world's additions, ${PHASE}`, async ({ browser })
         if (!has(x.askerId, 3)) throw new Error('the request is not type 3 (incoming)');
         await go(page, '/channels/@me');
         await page
-          .getByRole('button', { name: /^Friends$/ })
-          .or(page.getByRole('link', { name: /^Friends$/ }))
+          .getByRole('button', { name: /^Friends/ })
+          .or(page.getByRole('link', { name: /^Friends/ }))
           .first()
           .click();
         await page.locator('section.lng-friends').first().waitFor({ timeout: 10_000 });
@@ -198,9 +198,12 @@ test(`wave 108 seed: the sweep world's additions, ${PHASE}`, async ({ browser })
       // (2) The group DM.
       await check('group dm', async () => {
         if (!x.groupDmId) throw new Error('no group DM id recorded');
-        const ch = await apiGet<{ type: number; recipients?: unknown[] }>(
-          `/channels/${x.groupDmId}`,
-        );
+        const all =
+          await apiGet<{ id: string; type: number; recipients?: unknown[] }[]>(
+            '/users/@me/channels',
+          );
+        const ch = all.find((c) => c.id === x.groupDmId);
+        if (!ch) throw new Error('the group DM is not in /users/@me/channels');
         figures.groupDmType = ch.type;
         figures.groupDmRecipients = ch.recipients?.length ?? null;
         if (ch.type !== 3) throw new Error(`channel type ${ch.type}, wanted 3 (group DM)`);
@@ -320,8 +323,11 @@ test(`wave 108 seed: the sweep world's additions, ${PHASE}`, async ({ browser })
   if (!channels.some((c) => c.id === w.voiceChannelId))
     problems.push('the voice channel is missing');
   figures.channelNames = names;
-  if (msgs.length !== 11)
-    problems.push(`seeded channel messages: ${msgs.length}, the base seed leaves 11`);
+  // The base seed leaves 11 posted messages (8 + the a11y world's 3) plus the server's own join notices; none of ours is here.
+  const ours = await apiGet<{ content: string }[]>(`/channels/${w.channelId}/messages?limit=100`);
+  if (ours.length < 11) problems.push(`seeded channel messages: ${ours.length}, fewer than 11`);
+  if (ours.some((m) => /Which snack|ending of the film|Sweep X/.test(m.content)))
+    problems.push('a message of the extras landed in the seeded channel');
   figures.problems = problems;
   mkdirSync(OUT, { recursive: true });
   writeFileSync(resolve(OUT, `figures-${PHASE}.json`), JSON.stringify(figures, null, 1));
