@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 108 - 2026-11-18
+
+- On a phone, more small controls take a tap reliably: reaction pills under a message, the Save and Cancel of a message edit, "Jump to original", the Threads popover's tabs and search, the New Post box, the percent examples, the programmer's bit buttons, the time-zone hours, the Encode, Decode, Start and Reset buttons of the developer tools, the Study's folder pills and the Cinema search's footer links. The filter chips and drawer close buttons have a little more reach. A message with reactions is about 11 px taller on a phone.
+- The tool drawer's search field has the same border, hover and focus ring as the other fields.
+- For the team: the runner's scripts and a page about them are in the repository (`scripts/dev/runner/`, copied from the running copy at `cd62e67`; `cli-agents/` was not changed after the copy). The hit test now judges controls at the top and bottom of the screen, and the sweep world holds a friend, a request, a group DM, a wrapped reactions line, spoilers and a Library list. Twelve builders ran on two lanes without memory trouble. The open rows are SEC-AUD-529 to 538.
+
 ## Phase 107 - 2026-11-18
 
 - On a phone, buttons, list rows, settings rows, emoji, tool fields and filter chips across the app are easier to hit: the Lounge's channel and Home lists, user panel, composer, emoji picker, inbox and Friends header, the settings drawer, the calculator and converters, Invite card, tier list and poll, and the Library, Study, Cinema and Live TV. Drop-down lists have 44 px rows, and the wrong-neighbour taps in the settings drawer and the emoji picker are gone. A few small controls are still short and come next.
