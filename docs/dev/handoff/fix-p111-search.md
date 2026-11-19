@@ -35,3 +35,10 @@ Clock: started 00:43; cargo window 00:49 to 01:04 (acquire/release via heavy.sh;
 
 ## FINDERS: none (no app file changed). PROCESSES: strays: none found. Rust checks not run: prettier on Cargo files (n/a); vitest/eslint left to the commander.
 Changelog: Search now runs on tantivy 0.27, which closes the three zstd advisories; existing search indexes open without a reindex.
+
+## SHOOT (Step 3), added 01:20
+- JOBS: 0350-search-shoot, class shoot base (with `--bin p111-search-bin`), submitted 1795069140, started 1795069145, ended 1795069186, rc 0 (about 41 s run, 5 s wait). `bash $J wait` returned 0 on the first call.
+- The new 0.27 server opened the 0.26.2 search folder read-write with no reindex and no admin call: seeded word "Welcome" found (2 hits, API and panel); new word `p111smwn5u19h` posted and found (1 hit); Cinema search for "A11y" returned the seeded title; Library search 200, empty (the sweep world has no series). problems: [].
+- Shots (opened after the job ended): channel-seeded-word.png (Lounge, search panel "2 RESULTS" with Welcome highlighted in two messages); channel-new-word.png (panel "1 RESULT", the new word highlighted, the message visible below); cinema-search.png (Cinema "Results for A11y", 1 title card "A11y Film mwn4go6g"); library-browse.png (Library Browse, "Nothing here yet", empty world as expected).
+- The recorded run for DEP-FU-001's "opens read-write without search.reindex" item: PASS. The docs sentence stands as written.
+- sr-db Postgres reindex_all tests still NOT RUN (see above).
