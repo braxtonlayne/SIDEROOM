@@ -624,7 +624,9 @@
     height: auto;
     min-height: var(--lounge-header, 48px);
     row-gap: 0;
-    padding-block: 0;
+    /* D-1022 (SEC-AUD-525): 4px above the first line, so the Back and New Group DM tap areas (8px above a 28px button
+       in a 44px line) end inside the header instead of on its top edge, where the section bar took the point. */
+    padding-block: 4px 0;
   }
   .lng-friends .lng-header-title {
     flex: 1;
