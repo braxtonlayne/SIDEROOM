@@ -1615,7 +1615,8 @@ fn the_systemd_job_runs_the_server_unit_as_a_system_service_with_its_hardening_o
         );
     }
     for st in shell_statements(&body) {
-        let edits = st.contains("sed ") || st.contains("grep -v") || st.contains("awk ");
+        // Reading a setting (`sed -n 's/^Key=//p'`) is not an edit.
+        let edits = (st.contains("sed ") && !st.contains("sed -n")) || st.contains("grep -v");
         for k in keys {
             assert!(
                 !(edits && st.contains(k)),
@@ -1623,12 +1624,137 @@ fn the_systemd_job_runs_the_server_unit_as_a_system_service_with_its_hardening_o
             );
         }
     }
-    // The mode starts the unit through systemd as a system service (not --user).
-    let started = shell_statements(&body)
-        .iter()
-        .any(|st| st.contains("systemctl") && st.contains("start") && !st.contains("--user"));
+    // The unit goes in as shipped: copied, then compared with the repository's file.
+    let statements = shell_statements(&body);
     assert!(
-        started,
-        "{func} never starts a unit with `systemctl start` (system manager)"
+        statements
+            .iter()
+            .any(|st| st.contains("install -m 644")
+                && st.contains("deploy/systemd/sr-server.service")),
+        "{func} does not install deploy/systemd/sr-server.service with `install -m 644`"
     );
+    assert!(
+        statements.iter().any(|st| st.contains("cmp -s")),
+        "{func} never compares the installed unit with the repository's"
+    );
+}
+
+/// SEC-AUD-578 (c): the mode that strips the hardening says so, in the comment above it, and points at the mode that
+/// does not (D-1044). Caught by: the base, whose comment sat inside the function and promised nothing about what the
+/// run cannot prove.
+#[test]
+fn the_user_service_mode_says_what_it_cannot_prove() {
+    let script = read("deploy/scripts/smoke-systemd.sh");
+    let lines: Vec<&str> = script.lines().collect();
+    let at = lines
+        .iter()
+        .position(|l| l.starts_with("stage_user_service() {"))
+        .expect("smoke-systemd.sh has no stage_user_service");
+    let comment: String = lines[..at]
+        .iter()
+        .rev()
+        .take_while(|l| l.starts_with('#'))
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n");
+    for needle in [
+        "CANNOT PROVE",
+        "StateDirectory=",
+        "ReadWritePaths=",
+        "ProtectSystem=",
+        "system-service",
+    ] {
+        assert!(
+            comment.contains(needle),
+            "the comment above stage_user_service lacks {needle:?}: {comment}"
+        );
+    }
+}
+
+/// SEC-AUD-573 (a): an object backup of Garage's data folder alone cannot be restored, so `backup.sh` refuses it before
+/// it does any work, and the page names both variables. Caught by: the base script, which snapshotted
+/// `SR_BACKUP_OBJECTS_DIR` alone and had no second variable.
+#[test]
+fn backup_sh_refuses_a_data_only_object_backup_and_the_page_names_both_folders() {
+    let script = read("deploy/scripts/backup.sh");
+    let lines: Vec<&str> = script.lines().collect();
+    let need = lines
+        .iter()
+        .position(|l| l.starts_with("need pg_dump"))
+        .expect("backup.sh no longer runs `need pg_dump`");
+    let refusal = lines
+        .iter()
+        .position(|l| {
+            !l.trim_start().starts_with('#')
+                && l.contains("die ")
+                && l.contains("SR_BACKUP_OBJECTS_DIR")
+                && l.contains("SR_BACKUP_OBJECTS_META_DIR")
+        })
+        .expect(
+            "backup.sh has no `die` naming SR_BACKUP_OBJECTS_DIR and SR_BACKUP_OBJECTS_META_DIR",
+        );
+    assert!(
+        refusal < need,
+        "the refusal (line {}) must come before `need pg_dump` (line {})",
+        refusal + 1,
+        need + 1
+    );
+    let page = read("deploy/BACKUP.md");
+    for v in ["SR_BACKUP_OBJECTS_DIR", "SR_BACKUP_OBJECTS_META_DIR"] {
+        assert!(page.contains(v), "BACKUP.md does not name {v}");
+    }
+}
+
+/// SEC-AUD-573 (b): the folders `BACKUP.md` tells a Compose operator to copy are the ones Garage uses and the ones the
+/// volumes are mounted at. Caught by: a page that names a path no volume is mounted at.
+#[test]
+fn the_garage_folders_the_backup_page_names_are_the_mounted_volumes() {
+    let page = read("deploy/BACKUP.md");
+    let c = compose();
+    let mounts = c.services["garage"].section("volumes");
+    let prod_toml = read("deploy/compose/garage/garage.prod.toml.example");
+    for (volume, path, key) in [
+        ("garage-data", "/var/lib/garage/data", "data_dir"),
+        ("garage-meta", "/var/lib/garage/meta", "metadata_dir"),
+    ] {
+        assert!(
+            mounts
+                .iter()
+                .any(|m| m.trim_start_matches("- ") == format!("{volume}:{path}")),
+            "prod.yml's garage does not mount {volume} at {path}"
+        );
+        assert!(
+            page.contains(volume) && page.contains(path),
+            "BACKUP.md does not name {volume} and {path}"
+        );
+        assert!(
+            prod_toml
+                .lines()
+                .any(|l| l.starts_with(key) && l.contains(&format!("\"{path}\""))),
+            "garage.prod.toml.example: {key} is not {path}"
+        );
+    }
+}
+
+/// SEC-AUD-573 (c): the storage workflow's proof of the object backup points at files that exist, and the dev Garage it
+/// stops and copies has the same two volumes. Caught by: the proof pointing at a renamed script or volume.
+#[test]
+fn the_storage_workflow_object_backup_step_calls_things_that_exist() {
+    let wf = read(".github/workflows/storage.yml");
+    let at = wf
+        .find("Object backup keeps data and metadata together")
+        .expect("storage.yml lost its object backup step");
+    let step = &wf[at..];
+    let step = &step[..step.find("\n      - name:").unwrap_or(step.len())];
+    for f in ["deploy/scripts/backup.sh", "deploy/compose/dev.yml"] {
+        assert!(step.contains(f), "the step does not use {f}");
+        assert!(root().join(f).exists(), "{f} is missing");
+    }
+    let dev = read("deploy/compose/dev.yml");
+    for m in [
+        "garage-meta:/var/lib/garage/meta",
+        "garage-data:/var/lib/garage/data",
+    ] {
+        assert!(dev.contains(m), "dev.yml's garage does not mount {m}");
+    }
 }
