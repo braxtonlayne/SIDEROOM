@@ -127,9 +127,9 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 
 **Voice (configuration file or environment, not Admin)**
 
-`voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress".
+`voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress". On the Docker Compose route these, and every other `SR_*` setting that `deploy/compose/prod.yml` does not list (Discord sign-in, `connections.*`, `gif.api_key`, `lookup.tmdb_api_key`, `server.metrics_token`, `log.filter`), go in the server's own env file, `/etc/sideroom/server.env` (another path: `SR_SERVER_ENV_FILE` in `.env.prod`). Create it as root, mode 0600, and keep it out of `deploy/`: `sudo install -d -m 0755 /etc/sideroom && sudo install -m 0600 /dev/null /etc/sideroom/server.env`. One `KEY=value` per line, for example `SR_DISCORD__CLIENT_ID=` followed by the application's client id, `SR_DISCORD__CLIENT_SECRET=` followed by the secret (the owner types it, nobody else; put the value in single quotes if it holds a `$`) and `SR_LOG__FILTER=info,sr_server=debug`. The server reads the file when its container is created, so run `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d sr-server` afterwards. The file is optional (the stack starts without it), an upgrade never replaces it (UPGRADE.md step 3 replaces `deploy/` only), and a key that `prod.yml` already lists keeps the value from `.env.prod`, so change those there. A `SR_*_FILE` secret form needs a file mounted into the container, which `prod.yml` does not do: on this route write the secret into the 0600 env file itself.
 
-**Gateway (configuration file or environment, not Admin)**
+**Gateway (configuration file or environment, not Admin; on Compose, the server env file above)**
 
 | Key | Default | Meaning |
 |---|---|---|
