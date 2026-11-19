@@ -2,7 +2,7 @@
  * D-1050: a streaming area-average resampler to 16 kHz mono, and the framer behind the worklet.
  *
  * Each output sample is the mean of the input span it covers (fractional edges weighted). That is a box low-pass
- * filter plus decimation: it keeps the energy below 8 kHz that the detector reads and averages away most of what
+ * filter plus decimation: it keeps the energy below 8 kHz that the detector reads and lessens (does not remove) what
  * would otherwise fold back as aliasing, which a plain linear pick would not. A detector listens to the 100 Hz to
  * 4 kHz speech band, so this is enough; it is not an audio-quality resampler and its output is never played or sent.
  * Pure and allocation-free per call (the frame buffer is handed on and replaced by the caller of `push`).

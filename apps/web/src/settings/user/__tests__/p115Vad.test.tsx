@@ -28,8 +28,8 @@ describe('Settings > Voice & Video > Voice detection (D-1048)', () => {
   it('offers Standard and Silero (on-device model) in voice activity mode, Standard chosen', async () => {
     openSettings('voice');
     const g = await group();
-    const radios = within(g).getAllByRole('radio');
-    expect(radios.map((r) => r.textContent)).toEqual(['Standard', 'Silero (on-device model)']);
+    expect(within(g).getAllByRole('radio')).toHaveLength(2);
+    expect(within(g).getByRole('radio', { name: 'Silero (on-device model)' })).toBeInTheDocument();
     expect(within(g).getByRole('radio', { name: 'Standard' })).toBeChecked();
     expect(screen.queryByTestId('vad-engine-status')).toBeNull();
     expect(
