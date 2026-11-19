@@ -798,6 +798,7 @@ async function part2(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
     }
 
     // 5. The spoiler, before and after the reveal.
+    await go(page, url, page.getByRole('log'));
     const sart = page.locator('article.lng-msg').filter({
       has: page.getByRole('button', { name: 'Spoiler, click to reveal' }),
     });
@@ -809,11 +810,16 @@ async function part2(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
       await shot(page, cfg, 'spoiler-before');
       covered.push(`${cfg.tag} spoiler / before reveal`);
       try {
-        await sart
+        const sb = page.locator('[data-p109s="1"]').getByRole('button', {
+          name: 'Spoiler, click to reveal',
+        });
+        await sb
           .first()
-          .getByRole('button', { name: 'Spoiler, click to reveal' })
-          .first()
-          .click({ timeout: 5000 });
+          .click({ timeout: 3000 })
+          .catch(async (e) => {
+            notes.push(`${cfg.tag} spoiler: a real tap failed (${msg(e)}); clicked by script`);
+            await sb.first().evaluate((x) => (x as HTMLElement).click());
+          });
         await page.waitForTimeout(500);
         await census(page, cfg, 'spoiler', 'after reveal', page.locator('[data-p109s="1"]'));
         await shot(page, cfg, 'spoiler-after');
