@@ -146,6 +146,23 @@
   gap: 16px;
   justify-content: center;
 }
+/* D-1022 (SEC-AUD-532): wherever the empty-shelf state shows (Cinema Discover, Library Browse), on a phone each bare link
+   (20 px of text) keeps its size and gets a 44 px tap area, 12 px above and below. Wrapped, their rows are 24 px apart
+   so the two areas do not overlap. (This was `.lib-frame`-scoped in library.css; the Cinema got none.) */
+@media (max-width: 48rem) {
+  .shv-empty-links {
+    row-gap: 24px;
+  }
+  .shv-empty-links a {
+    position: relative;
+  }
+  .shv-empty-links a::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
+}
 
 /* An item's header: the lines sit 12px apart (the paragraphs' default margins made 60px gaps), aligned to the top. */
 .shv-item-head {
