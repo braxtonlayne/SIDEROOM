@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use sr_core::{ChannelId, GuildId, MessageId, UserId};
-use sr_search::{AuthorType, IndexedMessage, MessageEvent, SearchRequest};
 use sr_search::{Access, MessageIndex};
+use sr_search::{AuthorType, IndexedMessage, MessageEvent, SearchRequest};
 
 /// The seeded channel the fixture's messages were posted in.
 const CHANNEL: u64 = 116_774_645_906_018_307;
@@ -55,7 +55,10 @@ fn an_index_written_by_tantivy_0_26_opens_read_write() {
     idx.apply(&MessageEvent::Created(msg)).unwrap();
     assert_eq!(idx.num_docs(), before + 1);
     assert_eq!(hits(&idx, "zonkwrit"), 1);
-    assert!(hits(&idx, "welcome") >= 1, "old documents still found after the write");
+    assert!(
+        hits(&idx, "welcome") >= 1,
+        "old documents still found after the write"
+    );
     drop(idx);
 
     let again = MessageIndex::open_in_dir(dir.path()).unwrap();

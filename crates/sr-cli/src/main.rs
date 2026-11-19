@@ -497,7 +497,8 @@ mod tests {
         assert!(s.contains("<redacted>"), "{s}");
         assert!(s.contains("owner@example.test"), "{s}");
 
-        let c = Cli::try_parse_from(["sr-cli", "seed", "--password", "TEST-SECRET-NOT-REAL"]).unwrap();
+        let c =
+            Cli::try_parse_from(["sr-cli", "seed", "--password", "TEST-SECRET-NOT-REAL"]).unwrap();
         let s = format!("{c:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
