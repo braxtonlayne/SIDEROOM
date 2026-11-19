@@ -113,3 +113,11 @@ Added an optional on-device voice detector (the Silero model, off by default) as
 ## PROCESSES
 
 `strays: none found`. No file outside my row was edited (`vite.config.ts`, `hooks.ts`, `engine.ts` untouched; the settings-test path works through `mic.ts` alone).
+
+## Addendum (Fable's answer to owner question 2)
+
+The detector now starts only when the EFFECTIVE input mode is voice activity. `mic.ts` `wanted()` uses `effectiveInputMode(settings, session.pttForced)` instead of the raw setting, and `VoiceController.setPttForced` calls `vadHost.refresh()` so a change of the force starts or stops it. A call forced to Push to Talk, or a member on Push to Talk, never loads the client, downloads nothing and runs no model. Question 2 of the owner questions above is therefore closed (cured, not accepted).
+
+- Commit `8ba847278`. New unit test in `voice/__tests__/p115VadController.test.ts`: "a call forced to Push to Talk never starts the client, and it starts when the force is lifted" (engine silero; zero loads while forced; one load after `setPttForced(false)`).
+- Jobs: 0367-vad-vitest rc 0 (7 files, 126 tests: the new and old controller, host, engine, hooks, settings voice tests); 0369-vad-tsc rc 0. (0365 cancelled and replaced after a scope fix in the test; 0368 was never created.)
+- The settings card's download line is unchanged ("about 18 MB"); the measured figure is to come from vadshots.
