@@ -351,7 +351,7 @@ async function readField(loc: Locator, n: number): Promise<RawField | null> {
     const probe = document.createElement('span');
     probe.style.cssText =
       'color: var(--ui-text-faint); outline-color: var(--ui-focus); border: 1px solid; border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);';
-    document.body.appendChild(probe);
+    (el.parentElement ?? document.body).appendChild(probe);
     const pc = cs(probe);
     const contract = {
       faint: pc.color,
@@ -560,8 +560,8 @@ async function openFriends(page: Page, tab?: string) {
   await go(page, '/channels/@me', page.locator('.lng-left'));
   await tap(
     page
-      .getByRole('button', { name: /^Friends$/ })
-      .or(page.getByRole('link', { name: /^Friends$/ })),
+      .getByRole('button', { name: /^Friendsd*$/ })
+      .or(page.getByRole('link', { name: /^Friendsd*$/ })),
   );
   await page.locator('section.lng-friends').first().waitFor({ timeout: 10_000 });
   await settle(page, 2500);
@@ -650,7 +650,8 @@ async function part1(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
         'member pane',
         async () => {
           await openMore(page);
-          await tap(page.getByRole('button', { name: 'Member List' }));
+          const mb = page.getByRole('button', { name: 'Member List' });
+          if ((await mb.first().getAttribute('aria-pressed')) !== 'true') await tap(mb);
         },
         () => page.locator('aside.lng-right'),
         { reload: url },
@@ -661,7 +662,7 @@ async function part1(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
         'group-dm',
         'identity (group panel)',
         async () => {
-          await tap(page.getByRole('button', { name: /Open group/i }));
+          await tap(page.getByRole('button', { name: /Show members of/i }));
         },
         () => page.locator('aside.lng-right').or(dialog(page)),
         { reload: url },
