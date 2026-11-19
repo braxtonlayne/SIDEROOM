@@ -66,7 +66,7 @@ fn admin(ep: &str) -> S3Admin {
         ep,
         "shelf",
         "auto",
-        "AKIATESTTESTTEST0001",
+        "TESTKEYIDFORMOUNT0001",
         "test-secret-not-real",
     )
     .unwrap()

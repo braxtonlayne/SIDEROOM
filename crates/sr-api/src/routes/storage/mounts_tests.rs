@@ -1076,7 +1076,7 @@ fn the_mount_bodies_print_no_secret() {
 #[test]
 fn a_key_id_is_masked_to_its_last_four() {
     use super::mounts::mask_key_id;
-    assert_eq!(mask_key_id("AKIATESTTESTTEST0001"), "…0001");
+    assert_eq!(mask_key_id("TESTKEYIDFORMOUNT0001"), "…0001");
     assert_eq!(mask_key_id("GK0123456789abcd"), "…abcd");
     assert_eq!(mask_key_id("abcd"), "abcd");
 }

@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 110 - 2026-11-18
+
+- On a phone, more small controls take a tap reliably: the title link of a link preview, the destinations in the Forward dialog, the name and download links of a file card, the links in the image viewer's bar (the bar now wraps onto more lines), the Friends buttons, the Arcade and Study bars (the Study bar is 16 px taller), Library Home's "See rankings" and the Library footer links (20 px taller). The Forward dialog's two fields fill the dialog.
+- On a phone or tablet, a tap on a message no longer pops up the row of hover buttons; hold the message for its menu. A mouse still shows them on hover and the keyboard on focus, even in a narrow window.
+- Bring-your-own storage: a bucket whose key may not read CORS settings now passes the check when a live preflight succeeds. Mount lists show only the last four characters of a key id, and the endpoint only to the mount's owner. Request types that carry a secret no longer print it in debug output.
+- For the team: the tool drawer's Dice detail and Wheel Spin are reached by scrolling the tool body (not a fault), and the author name in a message head is exempt from the 44 px rule because the avatar beside it does the same thing. The R2 run still waits for a real server. The open rows are SEC-AUD-557 to 560.
+
 ## Phase 109 - 2026-11-18
 
 - On a phone the links across the top of the Library, the Cinema and the Lounge Home, the Cinema's "Explore all" links, the empty-shelf links and the message edit box take a tap reliably. The Lounge's top bar is 44 px tall on a phone and the rooms under it start 16 px lower; the Library and Cinema bars have 4 px more room below their links. The Arcade and Study bars, the hover buttons of a message on a phone and a few other small controls are measured and still to be cured.

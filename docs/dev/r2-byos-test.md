@@ -2,6 +2,8 @@
 
 > **Postponed until deployment (owner, 2026-11-18).** This test runs only once SIDE ROOM is on a real server. The origin (`http://localhost:8860`), the local stack and the clean-up steps below were written for a local cell and must be rewritten for that host before the test is used. The no-credential rules hold as written.
 
+Since D-1032, an Object Read & Write token scoped to the one bucket is enough: the CORS check falls back to a live preflight when the token may not read the bucket's CORS rules, so no Admin token is needed.
+
 For the owner and the commander. One page. **No agent ever handles a key**: the owner types the keys into the app's own form, in their own browser, on the local stack. The spec (`e2e/tests/r2-byos.spec.ts`) holds no credential and must never be given one.
 
 ## What the test is for
