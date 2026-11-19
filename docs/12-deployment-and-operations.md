@@ -160,6 +160,7 @@ Shipped: `deploy/scripts/backup.sh`, `restore.sh` and `restore-drill.sh`; WAL ar
 ## 6. Upgrades
 
 Semantic-versioned releases. `sr-cli upgrade` checks, takes a pre-upgrade DB snapshot (skippable with `--no-backup`) and runs migrations (`--dry-run` shows what would be applied); restarting the service is the operator's step. Migrations are forward-only and must be backward-compatible with the previous release's binaries for one version (expand/contract), so rollbacks are safe.
+Search indexes (D-1037): upgrading the search library does not need a reindex. The 0.27 release of the search library (tantivy) reads and writes index format 7, which 0.26.2 wrote, so the existing `search` folder is opened as it is and no `search.reindex` or other admin step is needed; `crates/sr-search/tests/index_0_26.rs` opens a copy of a 0.26.2 index, reads it and writes to it. Only a release that changes the index format would say otherwise in its upgrade notes.
 
 ## 7. Monitoring
 

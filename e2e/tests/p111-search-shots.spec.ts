@@ -112,17 +112,21 @@ test('p111 search: the tantivy 0.27 server reads and writes the 0.26.2 index, no
       // (a) the old index, read by the new code.
       const seeded = await channelHits(r, w.channelId, SEEDED_WORD);
       figs.seededHits = seeded;
-      if (seeded < 1) problems.push(`(a) the seeded word "${SEEDED_WORD}" is not found (${seeded})`);
+      if (seeded < 1)
+        problems.push(`(a) the seeded word "${SEEDED_WORD}" is not found (${seeded})`);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       let panel = await uiSearch(page, SEEDED_WORD);
       figs.seededPanelHits = await panel.locator('.lng-search-hit').count();
-      if (!figs.seededPanelHits) problems.push('(a) the results panel shows no hit for the seeded word');
+      if (!figs.seededPanelHits)
+        problems.push('(a) the results panel shows no hit for the seeded word');
       await page.screenshot({ path: resolve(OUT, 'channel-seeded-word.png') });
 
       // (b) the old index, written by the new code: a new message, found.
       for (let tries = 0; ; tries++) {
         try {
-          await apiPost(r, `/channels/${w.channelId}/messages`, { content: `${WORD} written by 0.27` });
+          await apiPost(r, `/channels/${w.channelId}/messages`, {
+            content: `${WORD} written by 0.27`,
+          });
           break;
         } catch (e) {
           if (tries > 2 || !String(e).includes('429')) throw e;
@@ -135,14 +139,12 @@ test('p111 search: the tantivy 0.27 server reads and writes the 0.26.2 index, no
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       panel = await uiSearch(page, WORD);
       figs.freshPanelHits = await panel.locator('.lng-search-hit').count();
-      if (!figs.freshPanelHits) problems.push('(b) the results panel shows no hit for the new word');
+      if (!figs.freshPanelHits)
+        problems.push('(b) the results panel shows no hit for the new word');
       await page.screenshot({ path: resolve(OUT, 'channel-new-word.png') });
 
       // (c) Cinema: the seeded title, found by the first word of its name.
-      const t = await apiGetJson<{ title: { title: string } }>(
-        r,
-        `/cinema/titles/${w.titleId}`,
-      );
+      const t = await apiGetJson<{ title: { title: string } }>(r, `/cinema/titles/${w.titleId}`);
       const name = t.title.title;
       const first = name.split(/\s+/)[0] ?? name;
       figs.cinemaTitle = name;
