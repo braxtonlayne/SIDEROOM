@@ -105,6 +105,8 @@ interface CtxOpts {
   theme?: string;
   /** The device-local voice settings written before the first load, only when the store is still empty. */
   voice?: Record<string, unknown>;
+  /** Block the app's service worker (it would answer the requests a route is meant to catch). */
+  blockSw?: boolean;
 }
 
 async function newCtx(browser: Browser, opts: CtxOpts = {}): Promise<BrowserContext> {
@@ -113,6 +115,7 @@ async function newCtx(browser: Browser, opts: CtxOpts = {}): Promise<BrowserCont
     storageState: OWNER_STATE,
     viewport: opts.size ?? DESKTOP,
     permissions: ['microphone'],
+    ...(opts.blockSw ? { serviceWorkers: 'block' as const } : {}),
     ...(opts.touch ? { userAgent: PHONE_UA, isMobile: true, hasTouch: true } : {}),
   });
   await ctx.addInitScript(
@@ -346,6 +349,7 @@ async function part1(browser: Browser) {
       const hasControl = (await engineGroup(page).count()) > 0;
       const stdBoxes = await controlBoxes(card(page));
       const entry: Record<string, unknown> = { hasControl, theme: root, standardBoxes: stdBoxes };
+      per[cfg.key] = entry;
       entry.cardBox = await card(page).evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height };
@@ -440,12 +444,13 @@ async function part1(browser: Browser) {
 
       // The rest of the card, with Standard chosen, where it was in the base.
       if (cfg.key === '1280-light') {
-        await page.keyboard.press('Escape').catch(() => undefined);
         await chooseEngine(page, 'standard');
         await page.waitForTimeout(300);
         const back = await controlBoxes(card(page));
         entry.standardAgainBoxes = back;
-        const same = JSON.stringify(back) === JSON.stringify(stdBoxes);
+        const rel = (l: ControlBox[]) =>
+          l.map((x) => [x.name, x.x, x.width, x.height, round(x.y - (l[0]?.y ?? 0))].join());
+        const same = JSON.stringify(rel(back)) === JSON.stringify(rel(stdBoxes));
         if (!same)
           problem(
             '1280-light: choosing Silero and back to Standard did not restore the card (boxes differ)',
@@ -465,13 +470,20 @@ async function part1(browser: Browser) {
     const baseFile = resolve(OUT, 'figures-base.json');
     if (existsSync(baseFile)) {
       const base = JSON.parse(readFileSync(baseFile, 'utf8')) as {
-        configs?: Record<string, { standardBoxes?: ControlBox[] }>;
+        figures?: {
+          configs?: Record<string, { standardBoxes?: ControlBox[]; cardBox?: { y: number } }>;
+        };
       };
       for (const cfg of configs) {
-        const b = base.configs?.[cfg.key]?.standardBoxes;
-        const a = (per[cfg.key] as { standardBoxes?: ControlBox[] } | undefined)?.standardBoxes;
+        const bEntry = base.figures?.configs?.[cfg.key];
+        const b = bEntry?.standardBoxes;
+        const aEntry = per[cfg.key] as
+          { standardBoxes?: ControlBox[]; cardBox?: { y: number } } | undefined;
+        const a = aEntry?.standardBoxes;
         if (!b || !a) continue;
         const moved: string[] = [];
+        const bTop = bEntry?.cardBox?.y ?? 0;
+        const aTop = aEntry?.cardBox?.y ?? 0;
         for (const bb of b) {
           const m = a.find(
             (x) => x.name === bb.name && x.tag === bb.tag && Math.abs(x.y - bb.y) < 400 && true,
@@ -483,7 +495,7 @@ async function part1(browser: Browser) {
             continue;
           }
           const dx = round(match.x - bb.x);
-          const dy = round(match.y - bb.y);
+          const dy = round(match.y - aTop - (bb.y - bTop));
           const dw = round(match.width - bb.width);
           const dh = round(match.height - bb.height);
           if (dx || dy || dw || dh) moved.push(`"${bb.name}" dx ${dx} dy ${dy} dw ${dw} dh ${dh}`);
@@ -695,6 +707,8 @@ interface Seen {
   at: number;
   bytes?: number;
   decoded?: number;
+  /** True when the request was made by the page's service worker (the worker's own fetch of a request the page made). */
+  sw?: boolean;
 }
 
 async function part2(browser: Browser, w: World) {
@@ -710,7 +724,13 @@ async function part2(browser: Browser, w: World) {
   ctx.on('request', (req: Request) => {
     const u = req.url();
     if (u.startsWith('data:') || u.startsWith('blob:')) return;
-    const seen: Seen = { url: u, origin: new URL(u).origin, stage, at: Date.now() - t0 };
+    const seen: Seen = {
+      url: u,
+      origin: new URL(u).origin,
+      stage,
+      at: Date.now() - t0,
+      sw: !!req.serviceWorker(),
+    };
     all.push(seen);
     if (isVadFile(u))
       sizes.push(
@@ -799,7 +819,8 @@ async function part2(browser: Browser, w: World) {
     figures.statusAfterMicTest = state;
     if (state !== 'ready') problem(`mic test with Silero: status is "${state}", not ready`);
     await Promise.all(sizes);
-    const files = all.filter((s) => isVadFile(s.url));
+    const files = all.filter((s) => isVadFile(s.url) && !s.sw);
+    figures.serviceWorkerCopies = all.filter((s) => isVadFile(s.url) && s.sw);
     const table: Record<string, Seen[]> = { model: [], wasm: [], runtime: [] };
     for (const f of files) {
       const path = f.url.split('?')[0] ?? f.url;
@@ -1017,7 +1038,7 @@ async function part3(browser: Browser, w: World) {
 // ---- Part 4: falling back ----------------------------------------------------------------------------------------
 
 async function part4(browser: Browser, w: World) {
-  const ctx = await newCtx(browser, { voice: BEEP_VOICE });
+  const ctx = await newCtx(browser, { voice: BEEP_VOICE, blockSw: true });
   const voice = await voiceChannelOf(ctx, w);
   const page = await ctx.newPage();
   page.setDefaultTimeout(20_000);
