@@ -138,6 +138,24 @@
   padding: 11px 0;
   border-bottom: 1px solid transparent;
 }
+/* D-1022 (SEC-AUD-530): the same cure as the Library's bar. On a phone each link keeps its size and gets a tap area
+   4 px below its border (inset 5 px from the link's padding box; 43.5 px from the top of the screen); the bar scrolls inside itself, which clips a tap area at the
+   bar's padding box, so the bar gets 4 px of padding below the links (content-box height 40 px): the links do not
+   move, the content under the bar moves down 4 px. (One media block holds the bar's padding and the link's area.) */
+@media (max-width: 48rem) {
+  .cin-frame[data-mobile] header.cin-sectionbar {
+    padding-block-end: 4px;
+  }
+  .cin-frame[data-mobile] .cin-sectionbar-link {
+    position: relative;
+  }
+  .cin-frame[data-mobile] .cin-sectionbar-link::after {
+    content: '';
+    position: absolute;
+    inset-block: 0 -5px;
+    inset-inline: 0;
+  }
+}
 .cin-sectionbar-link[aria-current='page'] {
   color: var(--sr-gold);
   border-bottom-color: var(--sr-gold);
