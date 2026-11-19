@@ -77,6 +77,7 @@ A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)). On the Compose 
 
 Sign in as the Owner (the one-time link printed by `bootstrap` is single use and valid for one hour, so open it right away) and open the setup checklist on the Admin dashboard.
 
+- **Discord row (Compose).** It goes green after the Discord client id and secret are in the server's env file (`/etc/sideroom/server.env`, OPERATOR.md "Voice (configuration file or environment, not Admin)": the owner types the secret there) and the server is recreated with `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d sr-server`; otherwise mark the row waived.
 - **Done when.** Every row of the checklist (object storage, wallet, limits, second staff member, SMTP, Discord, voice and TURN) is green or consciously waived: limits goes green only after you change a value, and the staff row needs a second appointment. Separately: the storage and email test buttons on Admin > System have been pressed, and the Owner has turned on a second factor.
 
 ## 8. Lawyer settings

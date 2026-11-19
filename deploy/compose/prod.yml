@@ -82,6 +82,13 @@ services:
       postgres: { condition: service_healthy }
       garage: { condition: service_started }
       search-init: { condition: service_completed_successfully }
+    # The operator's own server settings (D-1042, SEC-AUD-569): any SR_* key the loader knows that the list below does
+    # not carry (Discord sign-in, connections, GIF and lookup keys, log filter, ...). Optional: absent is fine. It lives
+    # outside deploy/ so that replacing deploy/ at an upgrade keeps it. The list below wins where both set a key.
+    # required: false needs Docker Compose 2.24 or newer.
+    env_file:
+      - path: ${SR_SERVER_ENV_FILE:-/etc/sideroom/server.env}
+        required: false
     environment:
       SR_SERVER__BIND: 0.0.0.0:8080
       SR_SERVER__PUBLIC_URL: https://${SR_DOMAIN:?set SR_DOMAIN in .env.prod}
