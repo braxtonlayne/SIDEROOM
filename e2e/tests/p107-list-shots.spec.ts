@@ -193,7 +193,7 @@ const SAME375 = [
   '.rng-btn',
 ];
 const NAMED =
-  /lng-(channel|category-btn|category-head|find|nav-item|member|user-|split|dm-identity|search-sheet|forum-search)|rng-btn|rng-tray/;
+  /lng-(channel|category-btn|category-head|find|nav-item|member|user-|split|dm-identity|search-sheet|forum-search)|lng-searchb|rng-btn|rng-tray/;
 
 async function boxSnap(page: Page, label: string) {
   const got = await page.evaluate((sels) => {
