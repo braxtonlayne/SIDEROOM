@@ -223,13 +223,13 @@ async function measureDrawer(page: Page, vh: number) {
 async function swipeUp(page: Page, x: number, y0: number, y1: number) {
   const cdp = await page.context().newCDPSession(page);
   try {
-    await cdp.send('Input.synthesizeScrollGesture', {
-      x,
-      y: y0,
-      yDistance: y0 - y1,
-      gestureSourceType: 'touch',
-      speed: 800,
-    });
+    const pt = (y: number) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(y0) });
+    for (let i = 1; i <= 10; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(y0 + ((y1 - y0) * i) / 10) });
+      await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   } finally {
     await cdp.detach().catch(() => undefined);
   }
