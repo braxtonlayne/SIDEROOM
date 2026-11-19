@@ -58,10 +58,7 @@ const STAMP = String(Date.now()).slice(-6);
 /** The three names of the feature's files (brief 5c: the names contain `silero_vad` and `ort-wasm`). */
 const MODEL_RE = /silero_vad/i;
 const WASM_RE = /ort-wasm/i;
-const RUNTIME_RE = new RegExp(
-  process.env.SR_P115_VAD_RUNTIME ?? '(^|[/_.-])(ort|onnxruntime)([._-]|$)',
-  'i',
-);
+const RUNTIME_RE = new RegExp(process.env.SR_P115_VAD_RUNTIME ?? 'ort.wasm.bundle', 'i');
 const isVadFile = (u: string) =>
   MODEL_RE.test(u) || WASM_RE.test(u) || RUNTIME_RE.test(u.split('?')[0] ?? u);
 
@@ -1025,7 +1022,7 @@ async function part4(browser: Browser, w: World) {
   const notice = (p: Page) =>
     p
       .locator('[role=status],[role=alert]')
-      .filter({ hasText: /silero|voice detection|detector|standard/i });
+      .filter({ hasText: /Silero voice detector could not start/i });
   try {
     // The loading state: the model is delayed, the microphone test shows `loading`.
     await openVoiceSettings(page);
