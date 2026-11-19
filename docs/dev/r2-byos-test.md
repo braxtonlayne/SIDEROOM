@@ -1,6 +1,6 @@
 # The R2 test of "bring your own storage" (D-1029): a runbook
 
-> **Postponed until deployment (owner, 2026-11-18).** This test runs only once SIDE ROOM is on a real server. The origin (`http://localhost:8860`), the local stack and the clean-up steps below were written for a local cell and must be rewritten for that host before the test is used. The no-credential rules hold as written.
+> **Written for a local cell, never run; for use on a deployed server.** This page and its spec (`e2e/tests/r2-byos.spec.ts`) were written in wave 109 for a local cell and have not been run. Live tests wait for a deployed server (the owner's rule, 2026-11-18). Before use, the origin (below it is `http://localhost:8860`), the stack's start and the clean-up steps are rewritten for that host. The no-credential rules hold unchanged: no agent ever handles a key, and the owner types the keys into the app's own form. An object-scoped token is enough (D-1032). The order of the checks on the day is in [deployment-day-checks.md](deployment-day-checks.md).
 
 Since D-1032, an Object Read & Write token scoped to the one bucket is enough: the CORS check falls back to a live preflight when the token may not read the bucket's CORS rules, so no Admin token is needed.
 
