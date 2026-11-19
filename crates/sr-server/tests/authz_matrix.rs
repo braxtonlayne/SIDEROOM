@@ -4473,7 +4473,7 @@ fn judge(exp: Exp, r: &Resp, soft: bool) -> (&'static str, String) {
 
 /// Tables a background job or any request moves (the job runner, sessions, the access log, the payment
 /// watcher cursor), so that they say nothing about one refused call.
-const NOISY: [&str; 18] = [
+const NOISY: [&str; 19] = [
     "payment_watcher",
     "staff_access_log",
     "sessions",
@@ -4497,6 +4497,10 @@ const NOISY: [&str; 18] = [
     // The invites.prune job (sr-server invites_jobs.rs) first runs 60 s after start and writes its pass record;
     // only the job writes this table, never a route (wave 46: it landed inside the admin group, 3 runs of 3).
     "invite_prune_runs",
+    // The storage.index job (sr-db index_repo.rs begin/finish) writes its run record when the runner picks the
+    // job up; a route only queues the job (into `jobs`, above), never writes this table (CI run 44465124856:
+    // a run queued earlier in the world landed inside the SettingsMax group).
+    "storage_index_runs",
 ];
 
 /// Columns stamped by authentication itself (a bot token's last use, a session's last sight).
