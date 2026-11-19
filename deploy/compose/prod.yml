@@ -57,6 +57,15 @@ services:
       - wal-archive:/var/lib/postgresql/wal-archive
       - pg-backups:/var/backups/sideroom
 
+  # The search index lives on a named volume so it survives a recreated container and an upgrade (D-1039, SEC-AUD-570).
+  # The volume is created root-owned and sr-server runs as uid 65532 (distroless nonroot), so give it to that user first.
+  search-init:
+    image: postgres:17
+    user: root
+    command: ["sh", "-c", "chown 65532:65532 /var/lib/sideroom/search && chmod 700 /var/lib/sideroom/search"]
+    volumes:
+      - search-index:/var/lib/sideroom/search
+
   garage:
     <<: *restart
     image: dxflrs/garage:v1.0.1
@@ -72,6 +81,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       garage: { condition: service_started }
+      search-init: { condition: service_completed_successfully }
     environment:
       SR_SERVER__BIND: 0.0.0.0:8080
       SR_SERVER__PUBLIC_URL: https://${SR_DOMAIN:?set SR_DOMAIN in .env.prod}
@@ -105,6 +115,8 @@ services:
       # The built web app, mounted read-only below: sr-server serves /app and /app/* from it to a signed-in session only
       # (D-385). It refuses to start when this is set and app/csp.txt is missing. Caddy serves the public files only.
       SR_WEB__ROOT: /srv/web
+      # The search indexes (messages, library/, cinema/), on the search-index volume below.
+      SR_SEARCH__DIR: /var/lib/sideroom/search
       # Gateway sockets one client address may hold before they IDENTIFY (D-556); raise it when many members share
       # one address (a NAT).
       SR_GATEWAY__MAX_UNIDENTIFIED_PER_IP: ${SR_GATEWAY_MAX_UNIDENTIFIED_PER_IP:-32}
@@ -139,6 +151,7 @@ services:
     # Group 999 is the postgres group of the postgres:17 image: it lets the server read the backup folder below.
     group_add: ["999"]
     volumes:
+      - search-index:/var/lib/sideroom/search
       # Optional, read-only: the folder named above. The ledger never moves or deletes files here.
       - ${SR_INGEST_DIR:-/srv/sideroom/ingest}:/srv/sideroom/ingest:ro
       # Read-only view of the backups the postgres container writes (backup.sh, basebackup.sh). Set the platform
@@ -259,6 +272,7 @@ volumes:
   pgdata:
   wal-archive:
   pg-backups:
+  search-index:
   garage-meta:
   garage-data:
   caddy-data:
