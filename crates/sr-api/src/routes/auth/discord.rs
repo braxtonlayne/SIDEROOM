@@ -740,7 +740,11 @@ mod redacted_debug_tests {
 
     #[test]
     fn discord_settings_debug_hides_its_secrets() {
-        let v = DiscordSettings { client_id: "x".to_owned(), client_secret: "TEST-SECRET-NOT-REAL".to_owned(), redirect_uri: "x".to_owned() };
+        let v = DiscordSettings {
+            client_id: "x".to_owned(),
+            client_secret: "TEST-SECRET-NOT-REAL".to_owned(),
+            redirect_uri: "x".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -748,7 +752,8 @@ mod redacted_debug_tests {
 
     #[test]
     fn discord_link_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<DiscordLinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v = serde_json::from_str::<DiscordLinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}")
+            .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -756,7 +761,8 @@ mod redacted_debug_tests {
 
     #[test]
     fn unlink_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<UnlinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v =
+            serde_json::from_str::<UnlinkBody>("{\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

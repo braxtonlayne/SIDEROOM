@@ -871,7 +871,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn change_username_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<ChangeUsernameBody>("{\"username\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v = serde_json::from_str::<ChangeUsernameBody>(
+            "{\"username\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -879,7 +882,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn change_email_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<ChangeEmailBody>("{\"new_email\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v = serde_json::from_str::<ChangeEmailBody>(
+            "{\"new_email\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -887,7 +893,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn cancel_email_change_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<CancelEmailChangeBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v =
+            serde_json::from_str::<CancelEmailChangeBody>("{\"token\":\"TEST-SECRET-NOT-REAL\"}")
+                .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -895,7 +903,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn delete_account_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<DeleteAccountBody>("{\"password\":\"TEST-SECRET-NOT-REAL\",\"username\":\"x\"}").unwrap();
+        let v = serde_json::from_str::<DeleteAccountBody>(
+            "{\"password\":\"TEST-SECRET-NOT-REAL\",\"username\":\"x\"}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

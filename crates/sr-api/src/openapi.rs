@@ -247,7 +247,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn csrf_token_debug_hides_its_secrets() {
-        let v = CsrfToken { token: "TEST-SECRET-NOT-REAL".to_owned() };
+        let v = CsrfToken {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

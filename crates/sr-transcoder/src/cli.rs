@@ -269,7 +269,17 @@ mod redacted_debug_tests {
 
     #[test]
     fn cli_debug_hides_its_secrets() {
-        let v = Cli { server: None, token: Some("TEST-SECRET-NOT-REAL".to_owned()), concurrency: 0, work_dir: std::path::PathBuf::new(), ffmpeg: "x".to_owned(), name: "x".to_owned(), force_cpu: false, check: false, help: false };
+        let v = Cli {
+            server: None,
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            concurrency: 0,
+            work_dir: std::path::PathBuf::new(),
+            ffmpeg: "x".to_owned(),
+            name: "x".to_owned(),
+            force_cpu: false,
+            check: false,
+            help: false,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

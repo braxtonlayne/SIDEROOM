@@ -878,7 +878,17 @@ mod redacted_debug_tests {
 
     #[test]
     fn webhook_object_debug_hides_its_secrets() {
-        let v = WebhookObject { id: "x".to_owned(), kind: 0, guild_id: "x".to_owned(), channel_id: "x".to_owned(), user: None, name: "x".to_owned(), avatar: None, token: Some("TEST-SECRET-NOT-REAL".to_owned()), url: None };
+        let v = WebhookObject {
+            id: "x".to_owned(),
+            kind: 0,
+            guild_id: "x".to_owned(),
+            channel_id: "x".to_owned(),
+            user: None,
+            name: "x".to_owned(),
+            avatar: None,
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            url: None,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

@@ -352,7 +352,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn identify_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<Identify>("{\"token\":\"TEST-SECRET-NOT-REAL\",\"intents\":0}").unwrap();
+        let v =
+            serde_json::from_str::<Identify>("{\"token\":\"TEST-SECRET-NOT-REAL\",\"intents\":0}")
+                .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -360,7 +362,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn resume_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<Resume>("{\"token\":\"TEST-SECRET-NOT-REAL\",\"session_id\":\"x\",\"seq\":0}").unwrap();
+        let v = serde_json::from_str::<Resume>(
+            "{\"token\":\"TEST-SECRET-NOT-REAL\",\"session_id\":\"x\",\"seq\":0}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

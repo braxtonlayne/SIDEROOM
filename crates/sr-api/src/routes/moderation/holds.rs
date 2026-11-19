@@ -444,7 +444,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn appeal_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<AppealBody>("{\"login\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\",\"message\":\"x\"}").unwrap();
+        let v = serde_json::from_str::<AppealBody>(
+            "{\"login\":\"x\",\"password\":\"TEST-SECRET-NOT-REAL\",\"message\":\"x\"}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

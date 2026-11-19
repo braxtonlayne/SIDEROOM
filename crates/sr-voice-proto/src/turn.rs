@@ -67,7 +67,10 @@ impl std::fmt::Debug for IceServer {
         f.debug_struct("IceServer")
             .field("urls", &self.urls)
             .field("username", &self.username)
-            .field("credential", &self.credential.as_ref().map(|_| "<redacted>"))
+            .field(
+                "credential",
+                &self.credential.as_ref().map(|_| "<redacted>"),
+            )
             .finish()
     }
 }
@@ -194,7 +197,11 @@ mod redacted_debug_tests {
 
     #[test]
     fn turn_config_debug_hides_its_secrets() {
-        let v = TurnConfig { urls: Vec::new(), secret: "TEST-SECRET-NOT-REAL".to_owned(), ttl_secs: 0 };
+        let v = TurnConfig {
+            urls: Vec::new(),
+            secret: "TEST-SECRET-NOT-REAL".to_owned(),
+            ttl_secs: 0,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -202,7 +209,12 @@ mod redacted_debug_tests {
 
     #[test]
     fn turn_credentials_debug_hides_its_secrets() {
-        let v = TurnCredentials { username: "x".to_owned(), password: "TEST-SECRET-NOT-REAL".to_owned(), ttl: 0, uris: Vec::new() };
+        let v = TurnCredentials {
+            username: "x".to_owned(),
+            password: "TEST-SECRET-NOT-REAL".to_owned(),
+            ttl: 0,
+            uris: Vec::new(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -210,7 +222,11 @@ mod redacted_debug_tests {
 
     #[test]
     fn ice_server_debug_hides_its_secrets() {
-        let v = IceServer { urls: Vec::new(), username: None, credential: Some("TEST-SECRET-NOT-REAL".to_owned()) };
+        let v = IceServer {
+            urls: Vec::new(),
+            username: None,
+            credential: Some("TEST-SECRET-NOT-REAL".to_owned()),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

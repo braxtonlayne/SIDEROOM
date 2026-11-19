@@ -206,7 +206,18 @@ mod redacted_debug_tests {
 
     #[test]
     fn interaction_debug_hides_its_secrets() {
-        let v = Interaction { id: Default::default(), application_id: Default::default(), kind: 0, data: Default::default(), guild_id: None, channel_id: None, member: None, token: "TEST-SECRET-NOT-REAL".to_owned(), message: None, app_permissions: None };
+        let v = Interaction {
+            id: Default::default(),
+            application_id: Default::default(),
+            kind: 0,
+            data: Default::default(),
+            guild_id: None,
+            channel_id: None,
+            member: None,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            message: None,
+            app_permissions: None,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

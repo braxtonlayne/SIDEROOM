@@ -791,7 +791,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn ack_response_debug_hides_its_secrets() {
-        let v = AckResponse { token: Some("TEST-SECRET-NOT-REAL".to_owned()) };
+        let v = AckResponse {
+            token: Some("TEST-SECRET-NOT-REAL".to_owned()),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

@@ -906,7 +906,14 @@ mod redacted_debug_tests {
 
     #[test]
     fn pg_env_debug_hides_its_secrets() {
-        let v = PgEnv { host: "x".to_owned(), port: 0, user: "x".to_owned(), password: Some("TEST-SECRET-NOT-REAL".to_owned()), database: "x".to_owned(), sslmode: None };
+        let v = PgEnv {
+            host: "x".to_owned(),
+            port: 0,
+            user: "x".to_owned(),
+            password: Some("TEST-SECRET-NOT-REAL".to_owned()),
+            database: "x".to_owned(),
+            sslmode: None,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

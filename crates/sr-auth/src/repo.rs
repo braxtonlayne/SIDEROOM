@@ -233,7 +233,12 @@ mod redacted_debug_tests {
 
     #[test]
     fn totp_record_debug_hides_its_secrets() {
-        let v = TotpRecord { user_id: 0, secret: b"TEST-SECRET-NOT-REAL".to_vec(), confirmed: false, last_used_step: None };
+        let v = TotpRecord {
+            user_id: 0,
+            secret: b"TEST-SECRET-NOT-REAL".to_vec(),
+            confirmed: false,
+            last_used_step: None,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(!s.contains("84, 69, 83, 84"), "{s}");

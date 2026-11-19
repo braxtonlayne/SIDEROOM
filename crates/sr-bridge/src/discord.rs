@@ -596,7 +596,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn created_webhook_debug_hides_its_secrets() {
-        let v = CreatedWebhook { id: 0, token: "TEST-SECRET-NOT-REAL".to_owned() };
+        let v = CreatedWebhook {
+            id: 0,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

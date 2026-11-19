@@ -808,7 +808,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn proxy_token_response_debug_hides_its_secrets() {
-        let v = ProxyTokenResponse { token: "TEST-SECRET-NOT-REAL".to_owned() };
+        let v = ProxyTokenResponse {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

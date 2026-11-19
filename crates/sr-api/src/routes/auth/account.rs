@@ -383,7 +383,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn reset_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<ResetBody>("{\"token\":\"TEST-SECRET-NOT-REAL\",\"password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v = serde_json::from_str::<ResetBody>(
+            "{\"token\":\"TEST-SECRET-NOT-REAL\",\"password\":\"TEST-SECRET-NOT-REAL\"}",
+        )
+        .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -399,7 +402,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn reset_age_body_debug_hides_its_secrets() {
-        let v = serde_json::from_str::<ResetAgeBody>("{\"current_password\":\"TEST-SECRET-NOT-REAL\"}").unwrap();
+        let v =
+            serde_json::from_str::<ResetAgeBody>("{\"current_password\":\"TEST-SECRET-NOT-REAL\"}")
+                .unwrap();
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

@@ -251,7 +251,9 @@ mod redacted_debug_tests {
 
     #[test]
     fn identify_debug_hides_its_secrets() {
-        let v = Identify { token: "TEST-SECRET-NOT-REAL".to_owned() };
+        let v = Identify {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -259,7 +261,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn resume_debug_hides_its_secrets() {
-        let v = Resume { session_id: "x".to_owned(), resume_token: "TEST-SECRET-NOT-REAL".to_owned() };
+        let v = Resume {
+            session_id: "x".to_owned(),
+            resume_token: "TEST-SECRET-NOT-REAL".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

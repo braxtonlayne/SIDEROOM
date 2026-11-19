@@ -1064,9 +1064,10 @@ fn the_mount_bodies_print_no_secret() {
     let s = format!("{create:?}");
     assert!(!s.contains(SECRET), "{s}");
     assert!(s.contains("<redacted>"), "{s}");
-    let patch: PatchMountBody =
-        serde_json::from_value(json!({"access_key_id": "NEWKEYID9999", "secret_access_key": SECRET}))
-            .expect("a patch body");
+    let patch: PatchMountBody = serde_json::from_value(
+        json!({"access_key_id": "NEWKEYID9999", "secret_access_key": SECRET}),
+    )
+    .expect("a patch body");
     let s = format!("{patch:?}");
     assert!(!s.contains(SECRET), "{s}");
     assert!(s.contains("<redacted>"), "{s}");
@@ -1111,7 +1112,12 @@ async fn the_lists_mask_the_key_id_and_only_your_own_show_the_endpoint() {
     // The server's list, read by whoever manages the server: masked, and no endpoint.
     let gbase = format!("/guilds/{}/storage/mounts", e.guild);
     let (st, g, t) = e
-        .call(Some(OWNER), Method::POST, &gbase, Some(create_body("Shared")))
+        .call(
+            Some(OWNER),
+            Method::POST,
+            &gbase,
+            Some(create_body("Shared")),
+        )
         .await;
     assert_eq!(st, StatusCode::CREATED, "{g}");
     assert!(g["endpoint"].is_null(), "{g}");

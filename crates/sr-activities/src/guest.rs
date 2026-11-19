@@ -217,7 +217,10 @@ mod redacted_debug_tests {
 
     #[test]
     fn guest_link_created_debug_hides_its_secrets() {
-        let v = GuestLinkCreated { lobby_token: "TEST-SECRET-NOT-REAL".to_owned(), expires_at: "x".to_owned() };
+        let v = GuestLinkCreated {
+            lobby_token: "TEST-SECRET-NOT-REAL".to_owned(),
+            expires_at: "x".to_owned(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
@@ -225,7 +228,17 @@ mod redacted_debug_tests {
 
     #[test]
     fn guest_joined_debug_hides_its_secrets() {
-        let v = GuestJoined { guest_token: "TEST-SECRET-NOT-REAL".to_owned(), callsign: "x".to_owned(), expires_at: "x".to_owned(), topic: "x".to_owned(), socket_path: "x".to_owned(), application_id: "x".to_owned(), application_name: "x".to_owned(), capabilities: Vec::new(), frame_path: None };
+        let v = GuestJoined {
+            guest_token: "TEST-SECRET-NOT-REAL".to_owned(),
+            callsign: "x".to_owned(),
+            expires_at: "x".to_owned(),
+            topic: "x".to_owned(),
+            socket_path: "x".to_owned(),
+            application_id: "x".to_owned(),
+            application_name: "x".to_owned(),
+            capabilities: Vec::new(),
+            frame_path: None,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

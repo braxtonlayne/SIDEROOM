@@ -341,6 +341,7 @@ fn member(p: &Principal) -> MsgResult<UserId> {
 }
 
 /// Whose mounts a request touches, after the caller was checked.
+#[derive(Clone, Copy)]
 pub(crate) enum Scope {
     User(i64),
     Guild(i64),
@@ -555,9 +556,11 @@ async fn list(deps: &MountsDeps, scope: Scope) -> MsgResult<Json<Vec<MountObject
         .for_owner(scope.owner())
         .await
         .map_err(repo_failure)?;
-    Ok(Json(rows.iter()
+    Ok(Json(
+        rows.iter()
             .map(|m| MountObject::of(m, matches!(scope, Scope::User(_))))
-            .collect()))
+            .collect(),
+    ))
 }
 
 /// The cap for a new mount: the setting when the admin service is wired, else the deps' default.
@@ -619,10 +622,10 @@ async fn create(
         .await
         .map_err(repo_failure)?;
     notify(deps, mount.id, mount.owner, "created").await;
-    Ok((StatusCode::CREATED, Json(MountObject::of(
-            &mount,
-            matches!(scope, Scope::User(_)),
-        ))))
+    Ok((
+        StatusCode::CREATED,
+        Json(MountObject::of(&mount, matches!(scope, Scope::User(_)))),
+    ))
 }
 
 async fn patch(

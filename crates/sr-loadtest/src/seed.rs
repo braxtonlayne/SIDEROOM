@@ -312,7 +312,12 @@ mod redacted_debug_tests {
 
     #[test]
     fn participant_debug_hides_its_secrets() {
-        let v = Participant { user_id: 0, token: "TEST-SECRET-NOT-REAL".to_owned(), csrf: "TEST-SECRET-NOT-REAL".to_owned(), guild: 0 };
+        let v = Participant {
+            user_id: 0,
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            csrf: "TEST-SECRET-NOT-REAL".to_owned(),
+            guild: 0,
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");

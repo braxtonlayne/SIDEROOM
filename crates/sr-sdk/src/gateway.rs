@@ -1043,7 +1043,15 @@ mod redacted_debug_tests {
 
     #[test]
     fn shard_config_debug_hides_its_secrets() {
-        let v = ShardConfig { token: "TEST-SECRET-NOT-REAL".to_owned(), intents: 0, shard: (0, 0), url: "x".to_owned(), min_backoff: std::time::Duration::ZERO, max_backoff: std::time::Duration::ZERO, allowed_hosts: Vec::new() };
+        let v = ShardConfig {
+            token: "TEST-SECRET-NOT-REAL".to_owned(),
+            intents: 0,
+            shard: (0, 0),
+            url: "x".to_owned(),
+            min_backoff: std::time::Duration::ZERO,
+            max_backoff: std::time::Duration::ZERO,
+            allowed_hosts: Vec::new(),
+        };
         let s = format!("{v:?}");
         assert!(!s.contains("TEST-SECRET-NOT-REAL"), "{s}");
         assert!(s.contains("<redacted>"), "{s}");
