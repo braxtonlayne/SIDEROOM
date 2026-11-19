@@ -24,7 +24,7 @@ function setup(probs: number[], clock = { t: 0 }) {
       calls.push({
         input: Float32Array.from(f.input!.data as Float32Array),
         state: Float32Array.from(f.state!.data as Float32Array),
-        sr: (f.sr!.data as BigInt64Array)[0]!,
+        sr: (f.sr!.data as unknown as BigInt64Array)[0]!,
         dims: { input: f.input!.dims, state: f.state!.dims, sr: f.sr!.dims },
       });
       const p = probs[n++];
