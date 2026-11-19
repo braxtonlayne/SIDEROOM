@@ -23,9 +23,10 @@ import { over, parseColor, ratio, type Rgba } from '../support/contrast';
  * `p108lounge-forum-<stamp>` with one post (part 2), made through the API and removed in a `finally`. The world's DM is a
  * message request and is NEVER accepted here, so the Home list keeps "No conversations yet." and its request link.
  *
- * Pages entered both ways (375): the Home list from the tab bar (a channel, then "Home") and by URL (/channels/@me);
- * the Friends page by URL (/channels/@me, then "Friends") and from the tab bar (a channel, "Home", "Friends"). The app
- * has no friends URL: /channels/@me is where the Friends link lives.
+ * Pages entered both ways (375): the Home list by URL (/channels/@me) and from the tab bar (/channels/@me, "Friends", then
+ * the tab bar's "Home", which shows the Home list again); the Friends page by URL (/channels/@me, "Friends") and from the
+ * tab bar (that same round trip, then "Friends" again). The app has no friends URL. From a channel the tab bar's Home
+ * shows the server's channel list, not the Home list: not used.
  * Not measured (the seed has no such row): a wrapped reactions line (two lines of pills).
  *
  * Parts (SR_P108_LOUNGE_PART): 1 = the text channel (page, inline edit with the textarea emptied, cancel and save, the
@@ -772,7 +773,7 @@ async function threadsPopover(page: Page, url: string) {
 /** The forum's New Post dialog. */
 async function newPostDialog(page: Page, furl: string) {
   await go(page, furl, page.getByRole('combobox', { name: 'Sort by' }));
-  await tap(page.locator('.lng-post-btn'));
+  await tap(page.getByRole('button', { name: /new post|create post/i }));
   await page.getByRole('dialog').last().waitFor({ timeout: 8000 });
   await settle(page, 3000);
   await page.waitForTimeout(1200); // the dialog scales open
@@ -815,38 +816,23 @@ async function part2(browser: Browser, owner: BrowserContext, w: World) {
         } catch (e) {
           notes.push(`home-list-url @${bp}: ${msg(e)}`);
         }
-        if (touch) {
-          try {
-            await go(page, curl, page.getByRole('log'));
-            await tap(tabHome(page));
-            await settle(page, 2500);
-            await page.locator('.lng-left').first().waitFor({ timeout: 8000 });
-            await measure(page, 'home-list-tab', bp, touch, left(page));
-            await shot(page, 'home-list-tab', suffix);
-            covered.push(`home-list-tab @${bp}`);
-          } catch (e) {
-            notes.push(`home-list-tab @${bp}: ${msg(e)}`);
-          }
-        }
-        // The Friends page: by URL (/channels/@me, then "Friends"), and (phone) from the tab bar.
+        // The Friends page: by URL (/channels/@me, then "Friends"), and (phone) from the tab bar: Friends, the tab bar's
+        // Home (back to the Home list: measured as home-list-tab), Friends again.
         const entries: ('url' | 'tab')[] = touch ? ['url', 'tab'] : ['url'];
         for (const how of entries) {
           try {
-            if (how === 'url') await go(page, '/channels/@me', page.locator('.lng-left'));
-            else {
-              await go(page, curl, page.getByRole('log'));
+            await go(page, '/channels/@me', page.locator('.lng-left'));
+            await tap(friendsLink(page));
+            await settle(page, 2000);
+            if (how === 'tab') {
               await tap(tabHome(page));
-              await settle(page, 2000);
-            }
-            if (
-              !(await page
-                .locator('section.lng-friends')
-                .first()
-                .isVisible()
-                .catch(() => false))
-            )
+              await settle(page, 2500);
+              await measure(page, 'home-list-tab', bp, touch, left(page));
+              await shot(page, 'home-list-tab', suffix);
+              covered.push(`home-list-tab @${bp}`);
               await tap(friendsLink(page));
-            await settle(page, 2500);
+              await settle(page, 2500);
+            }
             await page.locator('section.lng-friends').first().waitFor({ timeout: 8000 });
             await measure(page, `friends-${how}`, bp, touch, page.locator('section.lng-friends'));
             await shot(page, `friends-${how}`, suffix);
