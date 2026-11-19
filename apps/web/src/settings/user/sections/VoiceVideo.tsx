@@ -1,7 +1,8 @@
 import { Button, Notice, SegmentedControl, Select, Slider, Switch } from '@sideroom/ui';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { useT } from '../../../i18n';
 import { RemoteAudio } from '../../../voice/playback';
+import { vadHost } from '../../../voice/mic';
 import { useAudioDevices, useCameras, useMicPermission, useMicTest } from '../../../voice/hooks';
 import { CameraPreview } from '../../../lounge/voice/CameraPreview';
 import { SHARE_PRESETS, presetLabel } from '../../../voice/video';
@@ -74,6 +75,17 @@ export function VoiceVideoSection() {
     autoGainControl: settings.autoGainControl,
     inputVolume: settings.inputVolume,
   });
+  const engineState = useSyncExternalStore(
+    (cb) => vadHost.subscribe(cb),
+    () => vadHost.state,
+  );
+  const silero = settings.vadEngine === 'silero';
+  const engineText = {
+    idle: t('settings.voice.vadStatus.idle'),
+    loading: t('settings.voice.vadStatus.loading'),
+    ready: t('settings.voice.vadStatus.ready'),
+    fallback: t('settings.voice.vadStatus.fallback'),
+  };
   const cues = useMemo(() => new CuePlayer(() => browserAudioDeps.createAudioContext()), []);
   const canPickOutput = RemoteAudio.canSelectOutput();
   const { cameras, refresh: refreshCameras } = useCameras();
@@ -227,9 +239,28 @@ export function VoiceVideoSection() {
         />
         {!ptt && (
           <div className="us-form-stack">
+            <SegmentedControl
+              label={t('settings.voice.vadEngine')}
+              value={settings.vadEngine}
+              onValueChange={(v) => update({ vadEngine: v === 'silero' ? 'silero' : 'energy' })}
+              options={[
+                { value: 'energy', label: t('settings.voice.vadEngineStandard') },
+                { value: 'silero', label: t('settings.voice.vadEngineSilero') },
+              ]}
+            />
+            {silero && (
+              <>
+                <p className="us-muted">{t('settings.voice.vadEngineHint')}</p>
+                <p className="us-muted" data-testid="vad-engine-status" data-state={engineState}>
+                  {engineText[engineState]}
+                </p>
+                <p className="us-muted">{t('settings.voice.vadEngineModelDecides')}</p>
+              </>
+            )}
             <Switch
               label={t('settings.voice.autoSensitivity')}
               checked={settings.autoSensitivity}
+              disabled={silero}
               onChange={(e) => update({ autoSensitivity: e.target.checked })}
             />
             <Slider
@@ -238,7 +269,7 @@ export function VoiceVideoSection() {
               max={THRESHOLD_RANGE[1]}
               step={1}
               value={settings.thresholdDb}
-              disabled={settings.autoSensitivity}
+              disabled={silero || settings.autoSensitivity}
               showValue
               formatValue={(v) => `${v} dB`}
               onValueChange={(v) => update({ thresholdDb: v })}
