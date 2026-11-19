@@ -109,7 +109,7 @@ async function guildMenuItem(page: Page, w: World, item: string | RegExp): Promi
     name: string;
   };
   const sidebar = page.getByTestId('channel-sidebar').first();
-  await sidebar.getByRole('button', { name: guild.name }).first().click();
+  await sidebar.getByRole('button', { name: guild.name }).first().click({ timeout: 8000 });
   return page.getByRole('menuitem', { name: item });
 }
 
@@ -230,7 +230,7 @@ test(`p107 kitjs: modal first focus and select rows, ${PHASE}`, async ({ browser
           return b;
         });
         await dialogFigures(page, 'createEvent:click', /Create Event/, async () => {
-          await (await guildMenuItem(page, w, 'Create Event')).click();
+          await (await guildMenuItem(page, w, 'Create Event')).click({ timeout: 8000 });
           return null;
         });
         await goChannels(page, w, false);
@@ -239,7 +239,7 @@ test(`p107 kitjs: modal first focus and select rows, ${PHASE}`, async ({ browser
           'confirm:leaveServer',
           /Leave/,
           async () => {
-            await (await guildMenuItem(page, w, /^Leave/)).click();
+            await (await guildMenuItem(page, w, /^Leave/)).click({ timeout: 8000 });
             return null;
           },
           'confirm-open-1024',
@@ -265,7 +265,7 @@ test(`p107 kitjs: modal first focus and select rows, ${PHASE}`, async ({ browser
           'createEvent:375',
           /Create Event/,
           async () => {
-            await (await guildMenuItem(page, w, 'Create Event')).click();
+            await (await guildMenuItem(page, w, 'Create Event')).click({ timeout: 8000 });
             return null;
           },
           'create-event-open-375',
