@@ -281,7 +281,10 @@ test(`wave 108 seed: the sweep world's additions, ${PHASE}`, async ({ browser })
           .first()
           .click();
         await seen(page, /This contains spoilers/, 'the spoiler note on the comment');
-        await page.getByText(/This contains spoilers/).first().scrollIntoViewIfNeeded();
+        await page
+          .getByText(/This contains spoilers/)
+          .first()
+          .scrollIntoViewIfNeeded();
         await shot(page, 'cinema-comment-spoiler');
       });
 
