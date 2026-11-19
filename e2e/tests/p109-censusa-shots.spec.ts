@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Browser, BrowserContext, Locator, Page, Route } from '@playwright/test';
 import { repoRoot } from '../support/cli';
@@ -140,11 +140,9 @@ async function newPage(browser: Browser, owner: BrowserContext, cfg: Cfg, decora
 
 /** As the sweep does (`page-sweep.spec.ts`): the `[files]` message gets an image and a file; their bytes are served here. */
 const PNG = (() => {
-  // A 1 x 1 PNG: the census measures controls, not the picture.
-  return Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-    'base64',
-  );
+  const dir = resolve(repoRoot, 'apps', 'web', 'public', 'icons');
+  const f = existsSync(dir) ? readdirSync(dir).find((n) => n.endsWith('.png')) : undefined;
+  return f ? readFileSync(resolve(dir, f)) : Buffer.alloc(0);
 })();
 async function decorate(page: Page) {
   await page.route(/\/api\/v1\/channels\/\d+\/messages(\?.*)?$/, async (route: Route) => {
@@ -419,15 +417,20 @@ async function measureFields(page: Page, cfg: Cfg, where: string, root: Locator)
         await page.mouse.move(2, 2);
         await page.keyboard.press('Shift');
         await el.focus({ timeout: 2000 });
-        ring = await box.evaluate((e) => {
-          const own = getComputedStyle(e);
-          const inner = e.querySelector('[data-p109e]');
-          const i = inner ? getComputedStyle(inner) : own;
+        ring = await el.evaluate((e0) => {
           const pick = (c: CSSStyleDeclaration) =>
             c.outlineStyle !== 'none' && parseFloat(c.outlineWidth) > 0
               ? `${c.outlineWidth} ${c.outlineStyle} ${c.outlineColor} offset ${c.outlineOffset}`
               : '';
-          return pick(own) || pick(i) || 'none';
+          let e: Element | null = e0;
+          for (let i = 0; i < 5 && e; i++, e = e.parentElement) {
+            const r = pick(getComputedStyle(e));
+            if (r)
+              return i === 0
+                ? r
+                : `${r} (on ancestor ${e.tagName.toLowerCase()}.${String((e as HTMLElement).className).split(/s+/)[0] ?? ''})`;
+          }
+          return 'none';
         });
         await el.blur();
       } catch (e) {
@@ -437,7 +440,7 @@ async function measureFields(page: Page, cfg: Cfg, where: string, root: Locator)
       const ringOk =
         ring.startsWith('2px solid') &&
         ring.includes(f.contract.focus) &&
-        ring.endsWith('offset 1px');
+        ring.includes('offset 1px');
       fields.push({
         cfg: cfg.tag,
         where,
