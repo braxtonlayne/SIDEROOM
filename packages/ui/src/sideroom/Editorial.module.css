@@ -54,14 +54,14 @@
 /* D-1022 (SEC-AUD-531): on a phone the link (19 to 23 px tall, with its 1 px bottom border) keeps its drawn size and gets
    a tap area exactly 44 px tall, centred on the link whatever its height (the area is measured from the padding box,
    which leaves out the border: the centre of the border box is 0.5 px below the centre of the padding box). Only the
-   reach the points need, no more. The one link that stands directly under a segmented control (Library Home, "See
-   rankings") is left out: its 44 px area and the control's own points overlap, so the area would take the control's
-   points (the page's head needs a row gap first). The kit's own phone breakpoint. */
+   reach the points need, no more. The link that stands directly under a segmented control (Library Home, "See rankings")
+   has it too since wave 110: the page's head keeps a row gap (library.css) so the two zones do not overlap. The kit's own
+   phone breakpoint. */
 @media (max-width: 720px) {
-  .arrowLink:not([role='radiogroup'] + .arrowLink) {
+  .arrowLink {
     position: relative;
   }
-  .arrowLink:not([role='radiogroup'] + .arrowLink)::after {
+  .arrowLink::after {
     content: '';
     position: absolute;
     inset-block-start: calc(50% - 21.5px);
