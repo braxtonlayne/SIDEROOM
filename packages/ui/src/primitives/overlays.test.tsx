@@ -46,6 +46,7 @@ describe('Modal initial focus (D-1021)', () => {
     render(
       <Modal open title="T" onClose={() => {}}>
         <input aria-label="One" />
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- D-1021: this test proves Modal keeps an autoFocus field. */}
         <input aria-label="Two" autoFocus />
       </Modal>,
     );
