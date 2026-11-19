@@ -953,6 +953,23 @@
     inset-block: -7.5px;
     inset-inline: 0;
   }
+  /* D-1022 (SEC-AUD-526): the same text button standing alone. Search's footer links (about 30 px high, 12 px of grid gap
+     above, nothing below) keep their drawn size and reach 8 px each way. The spoiler's reveal button sits 6 px above the
+     comment's action line, whose own reach would paint over a tap area, so it grows to 44 px (that line is about 16 px
+     taller until it is revealed). */
+  .cin-search-foot .cin-link-btn {
+    position: relative;
+  }
+  .cin-search-foot .cin-link-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
+  .cin-spoiler .cin-link-btn {
+    min-block-size: 44px;
+    vertical-align: middle;
+  }
   /* A longer language scrolls the links inside the bar instead of widening the page (RDY-I18N-002). The whole bar
      scrolls as one: two navs each scrolling on their own squeezed each other ("The Arca" cut off next to
      "Shelves", XC-VIS-001). */
