@@ -870,6 +870,7 @@ async function desktop(
         await tap(page.getByRole('button', { name: /new post|create post/i }));
         const ta = page.locator('.lng-post-textarea');
         await ta.first().waitFor({ timeout: 6000 });
+        await page.waitForTimeout(900);
         await boxSnap(page, 'new-post');
         await readField(page, 'post-textarea', theme, ta, ta);
         await shot(page, `new-post-1024-${tag}`);
@@ -1005,7 +1006,16 @@ function compare(base: PartData, after: PartData, problems: string[]) {
       const a = aBoxes[i]!;
       const b = bBoxes[i]!;
       if (phone) {
-        if (SAME375.includes(sel)) {
+        if (
+          sel === '.rng-btn' ||
+          (sel.startsWith('header.lng-header') && /^(friends|home-list)/.test(k))
+        ) {
+          // Rows above grow, so the ring moves down; the Friends header is cured to 44 px (its tools move 8 px down).
+          if (!near(a.w, b.w) || (sel === '.rng-btn' && !near(a.h, b.h)))
+            problems.push(`size changed: ${k}[${i}] base ${bx(b)} after ${bx(a)}`);
+          if (sel !== '.rng-btn')
+            info.push(`Friends header ${k}[${i}] base ${bx(b)} after ${bx(a)}`);
+        } else if (SAME375.includes(sel)) {
           if (!near(a.x, b.x) || !near(a.y, b.y) || !near(a.w, b.w) || !near(a.h, b.h))
             problems.push(`must not change at 375: ${k}[${i}] base ${bx(b)} after ${bx(a)}`);
         } else if (isRow || isHead) {
@@ -1076,9 +1086,12 @@ function compare(base: PartData, after: PartData, problems: string[]) {
         `ring is ${f.outline.style} ${f.outline.width} ${f.outline.color} offset ${f.outline.offset}, wanted solid 2px ${f.expected.ring} offset 1px`,
       );
     if (f.ratios.ring < 3) P(`ring contrast ${f.ratios.ring} (3.0 or more)`);
-    if (!colorsEqual(f.phColor, f.expected.faint) || Number(f.phOpacity) !== 1)
+    if (f.id === 'post-textarea') {
+      info.push(`${tag}: the textarea has no placeholder attribute, placeholder not read`);
+    } else if (!colorsEqual(f.phColor, f.expected.faint) || Number(f.phOpacity) !== 1)
       P(`placeholder is ${f.phColor} opacity ${f.phOpacity}, wanted ${f.expected.faint} at 1`);
-    if (f.ratios.placeholder < 4.5) P(`placeholder contrast ${f.ratios.placeholder} (4.5 or more)`);
+    if (f.id !== 'post-textarea' && f.ratios.placeholder < 4.5)
+      P(`placeholder contrast ${f.ratios.placeholder} (4.5 or more)`);
     if (isHeader) {
       if (f.borderWidth !== '0px') P(`the pill has a border (${f.borderWidth}); it keeps none`);
       if (f.innerOutline !== '' && !f.innerOutline.startsWith('none'))
