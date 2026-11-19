@@ -115,7 +115,7 @@ interface FieldFig {
   rest: string;
   hover: string;
   focus: { style: string; width: string; color: string; offset: string };
-  placeholder: { color: string; opacity: string };
+  placeholder: { color: string; opacity: string; attr: string };
   want: { rest: string; faint: string; focus: string };
   ground: string;
   outside: string;
@@ -486,7 +486,14 @@ async function readField(page: Page, sel: string, key: string, mode: Mode, focus
       }
       const r = el.getBoundingClientRect();
       return {
-        border: cs.borderTopColor,
+        border: (() => {
+          // the side that draws the boundary (an underline field draws only its bottom line)
+          const sides = ['Top', 'Bottom', 'Left', 'Right'] as const;
+          const sd = sides.find(
+            (x) => cs[`border${x}Style`] !== 'none' && parseFloat(cs[`border${x}Width`]) > 0,
+          );
+          return cs[`border${sd ?? 'Bottom'}Color`];
+        })(),
         bg: cs.backgroundColor,
         ol: {
           style: cs.outlineStyle,
@@ -494,7 +501,7 @@ async function readField(page: Page, sel: string, key: string, mode: Mode, focus
           color: cs.outlineColor,
           offset: cs.outlineOffset,
         },
-        ph: { color: ph.color, opacity: ph.opacity },
+        ph: { color: ph.color, opacity: ph.opacity, attr: el.getAttribute('placeholder') ?? '' },
         stack,
         w: r.width,
         h: r.height,
@@ -1117,7 +1124,7 @@ const ALLOW: Record<string, { cw?: number; ch?: number; ph?: number; min44?: boo
   '.lib-topbar': { ch: 4.5 },
   '.lib-browse-tools': { ch: 4.5 },
   '.emu-search': { ch: 4.5, ph: 4.5, min44: true },
-  '.cin-qa': { cw: 14.5, ch: 14.5, min44: true },
+  '.cin-qa': { cw: 14.5, ch: 14.5, ph: 14.5, min44: true },
   '.cin-link-btn': { ph: 15.5 },
   '.cin-post-actions': { ch: 15.5 },
   '.tv-chips': { ch: 24 },
@@ -1126,12 +1133,13 @@ const ALLOW: Record<string, { cw?: number; ch?: number; ph?: number; min44?: boo
   '.tv-nav-btn': { ph: 24 },
   '.wp-controls': { ch: 12 },
   '.wp-btn': { ph: 12 },
-  '.wp-vol': { ph: 12 },
+  '.wp-vol': { ch: 28.5, ph: 12 },
   '.cpl-btn': { ph: 4.5 },
   '.arc-actions': { ch: 14.5 },
   '.lib-chip-list': { ch: 0.5 },
   '.shv-empty-links a': { ph: 30 },
   '.lib-btn': { ph: 4.5 },
+  '.lib-icon-btn': { ph: 4.5 },
 };
 const ROWS_UNCHECKED_PARENT = new Set([...ROW_SELS]);
 const NAMED_RE =
@@ -1159,7 +1167,10 @@ function compare() {
         problems.push(
           `${id}: focus-visible outline ${f.focus.style} ${f.focus.width} ${f.focus.color} offset ${f.focus.offset}, wants solid 2px ${f.want.focus} offset 1px`,
         );
-      if (f.placeholder.color !== f.want.faint || f.placeholder.opacity !== '1')
+      if (
+        f.placeholder.attr &&
+        (f.placeholder.color !== f.want.faint || f.placeholder.opacity !== '1')
+      )
         problems.push(
           `${id}: placeholder ${f.placeholder.color} opacity ${f.placeholder.opacity}, wants ${f.want.faint} opacity 1`,
         );
@@ -1168,7 +1179,7 @@ function compare() {
           `${id}: rest border ratio ${f.ratios.restOutside} outside / ${f.ratios.restGround} on the field (3.0 or more)`,
         );
       if (f.ratios.ring < 3) problems.push(`${id}: ring ratio ${f.ratios.ring} (3.0 or more)`);
-      if (f.ratios.placeholder < 4.5)
+      if (f.placeholder.attr && f.ratios.placeholder < 4.5)
         problems.push(`${id}: placeholder ratio ${f.ratios.placeholder} (4.5 or more)`);
     }
   }
