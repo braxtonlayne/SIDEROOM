@@ -549,6 +549,47 @@ async function openMsgMenu(page: Page, cfg: Cfg, art: Locator) {
   await page.getByRole('menu').last().waitFor({ timeout: 4000 });
 }
 
+/**
+ * A message's hover toolbar (`.lng-msg-tools`): shown by `:hover` or `:focus-within`, so a tap on a phone (sticky hover)
+ * and a pointer hover show it. The page is reloaded first so no earlier state leaks in.
+ */
+async function toolbarState(
+  page: Page,
+  cfg: Cfg,
+  pageName: string,
+  url: string,
+  pick: (p: Page) => Locator,
+) {
+  try {
+    await go(page, url, page.getByRole('log'));
+    const art = pick(page).first();
+    await art.scrollIntoViewIfNeeded({ timeout: 5000 });
+    const time = art.locator('time').first();
+    const b = (await time.count()) > 0 ? await time.boundingBox() : await art.boundingBox();
+    if (!b) throw new Error('no box');
+    if (cfg.touch) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+    else await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(600);
+    const tools = art.locator('.lng-msg-tools');
+    if (
+      !(await tools
+        .first()
+        .isVisible()
+        .catch(() => false))
+    ) {
+      notes.push(
+        `${cfg.tag} ${pageName} toolbar: not shown after ${cfg.touch ? 'a tap' : 'a hover'}`,
+      );
+      return;
+    }
+    await census(page, cfg, pageName, 'message toolbar (after a tap or hover)', tools);
+    await shot(page, cfg, `${pageName}-toolbar`);
+    covered.push(`${cfg.tag} ${pageName} / message toolbar`);
+  } catch (e) {
+    notes.push(`${cfg.tag} ${pageName} toolbar: failed (${msg(e)})`);
+  }
+}
+
 const main = (page: Page) => page.locator('#lounge-main');
 const dialog = (page: Page) => page.getByRole('dialog').last();
 
@@ -699,6 +740,10 @@ async function part1(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
         { also: MENU_ITEM_SELECTOR },
       );
     }
+    if (ex)
+      await toolbarState(page, cfg, 'group-dm', `/channels/@me/${ex.groupDmId}`, (p) =>
+        p.locator('article.lng-msg').last(),
+      );
   } finally {
     await ctx.close();
   }
@@ -825,7 +870,9 @@ async function part2(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
           .first()
           .click({ timeout: 3000 })
           .catch(async (e) => {
-            notes.push(`${cfg.tag} spoiler: a real tap failed (${msg(e)}); clicked by script`);
+            notes.push(
+              `${cfg.tag} spoiler: a real tap failed (${String(e).slice(0, 700)}); clicked by script`,
+            );
             await sb.first().evaluate((x) => (x as HTMLElement).click());
           });
         await page.waitForTimeout(500);
@@ -862,6 +909,16 @@ async function part2(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
       },
       () => dialog(page),
       { fields: true },
+    );
+    await toolbarState(
+      page,
+      cfg,
+      'reactions',
+      `/channels/${w.guildId}/${ex.extrasChannelId}`,
+      (p) => p.locator('article.lng-msg').filter({ has: p.locator('.lng-reactions') }),
+    );
+    await toolbarState(page, cfg, 'spoiler', `/channels/${w.guildId}/${ex.extrasChannelId}`, (p) =>
+      p.locator('article.lng-msg').last(),
     );
   } finally {
     await ctx.close();
@@ -936,6 +993,11 @@ async function part3(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
         { fields: true },
       );
     }
+    await toolbarState(page, cfg, 'attachments', `/channels/${w.guildId}/${w.channelId}`, (p) =>
+      p
+        .locator('article.lng-msg')
+        .filter({ has: p.locator('.lng-attachments, .lng-attach-file, .lng-tile') }),
+    );
   } finally {
     await ctx.close();
   }
