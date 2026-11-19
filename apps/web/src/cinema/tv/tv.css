@@ -755,7 +755,12 @@
   .tv-agenda-tune {
     position: relative;
   }
-  .tv-chip::after,
+  .tv-chip::after {
+    content: '';
+    position: absolute;
+    inset-block: -5px; /* the 1px border: insets measure from the padding box */
+    inset-inline: 0;
+  }
   .tv-nav-btn::after,
   .tv-agenda-tune::after {
     content: '';
