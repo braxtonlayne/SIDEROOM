@@ -845,3 +845,687 @@ fn voice_is_switchable_from_the_env_file_with_an_optional_turn_profile() {
     assert_eq!(turn.scalar("profiles").as_deref(), Some("[turn]"));
     assert!(read("deploy/compose/coturn/turnserver.prod.conf.example").contains("use-auth-secret"));
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 113 (D-1039..D-1043): cases for SEC-AUD-561, 563, 564 and 566..570. Each says which row it guards and what it
+// would have caught on the tree before the wave.
+// ---------------------------------------------------------------------------------------------------------------
+
+/// Every value of `Key=` lines in a unit file (comment lines never match).
+fn unit_values(body: &str, key: &str) -> Vec<String> {
+    let prefix = format!("{key}=");
+    body.lines()
+        .filter_map(|l| l.strip_prefix(&prefix))
+        .map(|v| v.trim().to_owned())
+        .collect()
+}
+
+/// `Environment=NAME=value` pairs of a unit file (quotes around the pair or the value are dropped).
+fn unit_env(body: &str) -> BTreeMap<String, String> {
+    unit_values(body, "Environment")
+        .iter()
+        .flat_map(|v| v.split_whitespace().map(str::to_owned).collect::<Vec<_>>())
+        .filter_map(|pair| {
+            let pair = pair.trim_matches('"').to_owned();
+            pair.split_once('=')
+                .map(|(k, v)| (k.to_owned(), v.trim_matches('"').to_owned()))
+        })
+        .collect()
+}
+
+fn is_under(path: &str, base: &str) -> bool {
+    path == base || path.starts_with(&format!("{}/", base.trim_end_matches('/')))
+}
+
+/// The folders a hardened unit may write: its `ReadWritePaths` and its `StateDirectory` under `/var/lib`.
+fn unit_writable(body: &str) -> Vec<String> {
+    let mut out: Vec<String> = unit_values(body, "ReadWritePaths")
+        .iter()
+        .flat_map(|v| v.split_whitespace().map(str::to_owned).collect::<Vec<_>>())
+        .collect();
+    for s in unit_values(body, "StateDirectory") {
+        for d in s.split_whitespace() {
+            out.push(format!("/var/lib/{d}"));
+        }
+    }
+    out
+}
+
+/// `SR_SEARCH__DIR` of the systemd unit.
+fn systemd_search_dir() -> String {
+    unit_env(&read("deploy/systemd/sr-server.service"))
+        .get("SR_SEARCH__DIR")
+        .cloned()
+        .expect("sr-server.service sets no SR_SEARCH__DIR")
+}
+
+/// `SR_SEARCH__DIR` of the Compose `sr-server` service.
+fn compose_search_dir() -> String {
+    compose().services["sr-server"]
+        .section("environment")
+        .iter()
+        .find_map(|l| l.strip_prefix("SR_SEARCH__DIR:"))
+        .map(|v| v.trim().trim_matches('"').to_owned())
+        .expect("prod.yml's sr-server sets no SR_SEARCH__DIR")
+}
+
+/// SEC-AUD-566: `search.dir` defaults to the relative `data/search`; the unit's root is read-only and it had no working
+/// directory, so the index could not be opened and the server stopped at start. Caught by: the unit without
+/// `SR_SEARCH__DIR` (the base `sr-server.service` has none, and no `WorkingDirectory=` either).
+#[test]
+fn the_systemd_server_names_a_search_folder_it_may_write() {
+    let unit = read("deploy/systemd/sr-server.service");
+    let dir = systemd_search_dir();
+    assert!(
+        dir.starts_with('/'),
+        "SR_SEARCH__DIR must be absolute: {dir}"
+    );
+    let writable = unit_writable(&unit);
+    assert!(
+        writable.iter().any(|w| is_under(&dir, w)),
+        "{dir} is under no ReadWritePaths or StateDirectory of the unit: {writable:?}"
+    );
+    let wd = unit_values(&unit, "WorkingDirectory");
+    assert_eq!(wd.len(), 1, "the unit needs one WorkingDirectory: {wd:?}");
+    assert!(
+        wd[0].starts_with('/') && writable.iter().any(|w| is_under(&wd[0], w)),
+        "WorkingDirectory {} must be a folder the unit may write: {writable:?}",
+        wd[0]
+    );
+    // The fix must not be bought by dropping the sandbox.
+    assert_eq!(unit_values(&unit, "ProtectSystem"), ["strict"]);
+    // INSTALL.md's config template (the systemd smoke stage derives its config from it) says the same folder.
+    let install = read("deploy/INSTALL.md");
+    let block = install
+        .split("```toml\n[server]\nbind = \"127.0.0.1:8080\"")
+        .nth(1)
+        .and_then(|b| b.split("```").next())
+        .expect("INSTALL.md lost its config template");
+    assert!(
+        block.contains("[search]") && block.contains(&format!("dir = \"{dir}\"")),
+        "INSTALL.md's template lacks [search] dir = \"{dir}\""
+    );
+}
+
+/// SEC-AUD-570: on Compose the index lived in the container's writable layer. Caught by: the base `sr-server` service,
+/// which has no `SR_SEARCH__DIR`, no volume for it and no init step.
+#[test]
+fn the_compose_server_keeps_its_search_index_on_a_volume_it_can_write() {
+    let c = compose();
+    let server = &c.services["sr-server"];
+    let dir = compose_search_dir();
+    assert!(
+        dir.starts_with('/'),
+        "SR_SEARCH__DIR must be absolute: {dir}"
+    );
+    let vol = server
+        .section("volumes")
+        .iter()
+        .find_map(|v| {
+            let spec = v.trim_start_matches("- ");
+            let mut p = spec.split(':');
+            let (src, dst) = (p.next()?, p.next()?);
+            (dst == dir).then(|| (src.to_owned(), p.next().map(str::to_owned)))
+        })
+        .unwrap_or_else(|| panic!("sr-server mounts nothing at {dir}"));
+    assert!(
+        vol.1.as_deref() != Some("ro"),
+        "the search folder must be writable"
+    );
+    assert!(
+        !vol.0.starts_with(['/', '.', '$']),
+        "the search folder is a named volume, not a bind mount: {}",
+        vol.0
+    );
+    assert!(
+        c.volumes.contains(&vol.0),
+        "volume {} is not declared",
+        vol.0
+    );
+    // An init service gives the volume to the uid the image runs as (distroless `nonroot`, 65532), as
+    // wal-archive-init does for postgres, and the server waits for it.
+    assert!(read("deploy/docker/server.Dockerfile").contains("distroless/static-debian12:nonroot"));
+    let (init_name, _) = c
+        .services
+        .iter()
+        .find(|(n, s)| {
+            n.as_str() != "sr-server"
+                && s.section("volumes").iter().any(|v| {
+                    v.trim_start_matches("- ")
+                        .starts_with(&format!("{}:{dir}", vol.0))
+                })
+                && {
+                    let cmd = s.section("command").join(" ");
+                    cmd.contains("chown") && cmd.contains("65532") && cmd.contains(&dir)
+                }
+        })
+        .unwrap_or_else(|| panic!("no init service chowns {dir} to 65532"));
+    assert!(
+        server.section("depends_on").iter().any(|d| {
+            d.contains(init_name.as_str()) && d.contains("service_completed_successfully")
+        }),
+        "sr-server must wait for {init_name} to complete"
+    );
+}
+
+/// SEC-AUD-566/570 from the code's side: while the loader's own default is a relative path, every shipped route must
+/// override it with an absolute one, and the variable must reach `search.dir`. Caught by: the whole bug, which was
+/// that the default was relative and no route said otherwise.
+#[test]
+fn every_shipped_route_overrides_the_relative_default_search_folder() {
+    let default = Config::default().search.dir;
+    assert!(
+        !default.starts_with('/'),
+        "the default became absolute: this case can be relaxed ({default})"
+    );
+    let systemd = systemd_search_dir();
+    let compose_dir = compose_search_dir();
+    for (route, dir) in [("systemd", &systemd), ("compose", &compose_dir)] {
+        assert!(
+            dir.starts_with('/'),
+            "{route}: search.dir must be absolute ({dir})"
+        );
+    }
+    // The variable name is the loader's: SR_SEARCH__DIR lands on search.dir.
+    let json = config_json(&[("SR_SEARCH__DIR".to_owned(), compose_dir.clone())]);
+    assert_eq!(json["search"]["dir"], compose_dir.as_str());
+}
+
+/// The route a unit file names in its first line (`# Route: Compose route ...` / `# Route: plain-binary ...`).
+fn unit_route(body: &str) -> Option<&'static str> {
+    let first = body.lines().next()?.to_lowercase();
+    let after = first.strip_prefix("# route:")?.trim_start().to_owned();
+    if after.starts_with("compose") {
+        Some("compose")
+    } else if after.starts_with("plain-binary") {
+        Some("plain-binary")
+    } else {
+        None
+    }
+}
+
+/// SEC-AUD-567: GO-LIVE told a Compose operator to enable host-form backup units that call tools and a database a
+/// Compose host does not have. Caught by: the base tree, which has no `-compose` units and no route comments.
+#[test]
+fn the_compose_form_backup_units_run_inside_the_postgres_container() {
+    let c = compose();
+    let backups_mount = c.services["postgres"]
+        .section("volumes")
+        .iter()
+        .find_map(|v| {
+            let spec = v.trim_start_matches("- ");
+            let mut p = spec.split(':');
+            (p.next()? == "pg-backups").then(|| p.next().map(str::to_owned))?
+        })
+        .expect("the postgres service does not mount pg-backups");
+    let dir = root().join("deploy/systemd");
+    for stem in [
+        "sideroom-backup-compose",
+        "sideroom-restore-drill-compose",
+        "sideroom-basebackup",
+    ] {
+        for ext in ["service", "timer"] {
+            assert!(
+                dir.join(format!("{stem}.{ext}")).exists(),
+                "{stem}.{ext} is missing"
+            );
+        }
+    }
+    let mut checked = 0;
+    for e in fs::read_dir(&dir).unwrap() {
+        let p = e.unwrap().path();
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        if !name.ends_with(".service") {
+            continue;
+        }
+        let body = fs::read_to_string(&p).unwrap();
+        let Some(exec) = unit_values(&body, "ExecStart")
+            .into_iter()
+            .find(|x| x.contains("docker compose"))
+        else {
+            continue;
+        };
+        checked += 1;
+        let toks: Vec<&str> = exec.split_whitespace().collect();
+        let file = toks
+            .iter()
+            .position(|t| *t == "-f")
+            .and_then(|i| toks.get(i + 1))
+            .unwrap_or_else(|| panic!("{name}: no -f compose file"));
+        let rel = file
+            .strip_prefix("/opt/sideroom/")
+            .unwrap_or_else(|| panic!("{name}: compose file {file} is not under /opt/sideroom"));
+        assert!(root().join(rel).exists(), "{name}: {rel} does not exist");
+        assert!(
+            exec.contains(" exec -T ") && exec.contains(" postgres sh -c "),
+            "{name} must exec in the postgres service"
+        );
+        let mut scripts = 0;
+        for t in exec.split_whitespace() {
+            let t = t.trim_matches('"');
+            if let Some(base) = t.strip_prefix("/opt/sideroom/scripts/") {
+                scripts += 1;
+                assert!(
+                    root().join("deploy/scripts").join(base).exists(),
+                    "{name}: script {base} does not exist"
+                );
+            }
+        }
+        assert!(scripts >= 1, "{name} runs no shipped script: {exec}");
+        // Where it writes is where the pg-backups volume is mounted in that service.
+        if let Some(i) = exec.find("SR_BACKUP_DIR=") {
+            let v = exec[i + "SR_BACKUP_DIR=".len()..]
+                .split(|ch: char| ch.is_whitespace() || ch == '"')
+                .next()
+                .unwrap();
+            assert_eq!(
+                v, backups_mount,
+                "{name} writes {v}, but pg-backups is mounted at {backups_mount}"
+            );
+        }
+        // No secret in a unit: the database URL is the passwordless socket form.
+        if let Some(i) = exec.find("postgres://") {
+            let userinfo = exec[i + 11..].split('@').next().unwrap();
+            assert!(
+                !userinfo.contains(':'),
+                "{name}: a password in the database URL"
+            );
+        }
+    }
+    assert!(checked >= 3, "only {checked} Compose-form units found");
+}
+
+/// SEC-AUD-567: every unit file says in its first comment which route it is for, and the comment is true.
+#[test]
+fn every_backup_unit_names_its_route_and_it_is_true() {
+    let dir = root().join("deploy/systemd");
+    let mut seen = 0;
+    for e in fs::read_dir(&dir).unwrap() {
+        let p = e.unwrap().path();
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        if !name.starts_with("sideroom-") {
+            continue;
+        }
+        let body = fs::read_to_string(&p).unwrap();
+        let route = unit_route(&body).unwrap_or_else(|| {
+            panic!("{name}: line 1 must be `# Route: Compose ...` or `# Route: plain-binary ...`")
+        });
+        let compose_route = route == "compose";
+        let service_body = if let Some(stem) = name.strip_suffix(".timer") {
+            fs::read_to_string(dir.join(format!("{stem}.service"))).unwrap()
+        } else {
+            body.clone()
+        };
+        let uses_compose = service_body.contains("docker compose");
+        assert_eq!(
+            compose_route,
+            uses_compose,
+            "{name} says {route:?} but its service {} docker compose",
+            if uses_compose { "uses" } else { "does not use" }
+        );
+        seen += 1;
+    }
+    assert!(seen >= 10, "only {seen} sideroom-* unit files");
+}
+
+/// `sideroom-NAME.service` / `.timer` names a text mentions.
+fn unit_names_in(text: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let mut rest = text;
+    while let Some(i) = rest.find("sideroom-") {
+        let tail = &rest[i..];
+        let end = tail
+            .find(|c: char| !(c.is_ascii_lowercase() || c == '-'))
+            .unwrap_or(tail.len());
+        let stem = &tail[..end];
+        let after = &tail[end..];
+        if stem.len() > "sideroom-".len() && !stem.ends_with('-') {
+            for ext in [".service", ".timer"] {
+                if after.starts_with(ext) {
+                    out.insert(format!("{stem}{ext}"));
+                }
+            }
+        }
+        rest = &tail["sideroom-".len()..];
+    }
+    out
+}
+
+/// SEC-AUD-567: a page that names a unit that does not exist sends the operator to `systemctl enable` an error.
+/// Caught by: GO-LIVE section 5 naming `sideroom-backup-compose.timer` before the unit existed.
+#[test]
+fn the_pages_name_only_units_that_exist() {
+    let dir = root().join("deploy/systemd");
+    for page in [
+        "deploy/GO-LIVE.md",
+        "deploy/BACKUP.md",
+        "deploy/OPERATOR.md",
+        "deploy/RUNBOOK.md",
+        "deploy/UPGRADE.md",
+        "deploy/INSTALL.md",
+    ] {
+        for n in unit_names_in(&read(page)) {
+            assert!(
+                dir.join(&n).exists(),
+                "{page} names {n}, which is not in deploy/systemd/"
+            );
+        }
+    }
+    let golive = read("deploy/GO-LIVE.md");
+    for t in [
+        "sideroom-backup-compose.timer",
+        "sideroom-restore-drill-compose.timer",
+        "sideroom-basebackup.timer",
+        "sideroom-backup.timer",
+        "sideroom-restore-drill.timer",
+    ] {
+        assert!(golive.contains(t), "GO-LIVE.md never names {t}");
+    }
+}
+
+/// SEC-AUD-568: the example's `SR_IMAGE` was `...:0.0.0` while the release publishes `v0.1.0`-style tags, and the
+/// installer would take the placeholder as it stood. Caught by: the base example (`sideroom-server:0.0.0`, no `v`) and
+/// by a refusal string that drifted from the example's owner.
+#[test]
+fn the_example_image_has_the_real_tag_form_and_the_installer_refuses_its_owner() {
+    let env = env_file("deploy/compose/.env.prod.example");
+    let image = &env["SR_IMAGE"];
+    let tag = image.rsplit_once(':').map(|(_, t)| t).expect("no tag");
+    assert!(
+        tag.starts_with('v') && tag[1..].starts_with(|c: char| c.is_ascii_digit()),
+        "the example tag must carry its v (the release tags are v*): {image}"
+    );
+    let owner = image
+        .strip_prefix("ghcr.io/")
+        .and_then(|r| r.split('/').next())
+        .expect("ghcr.io/<owner>/...");
+    let install = read("deploy/install.sh");
+    let refused = install
+        .lines()
+        .find_map(|l| l.strip_prefix("PLACEHOLDER_IMAGE_OWNER="))
+        .expect("install.sh lost its PLACEHOLDER_IMAGE_OWNER= line")
+        .trim()
+        .trim_matches('"');
+    assert_eq!(
+        refused, owner,
+        "the owner install.sh refuses and the example's owner are out of step"
+    );
+    // The tag is v<major>.<minor>.<patch>.
+    let parts: Vec<&str> = tag[1..].split('.').collect();
+    assert!(
+        parts.len() == 3
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())),
+        "the example tag must look like v1.2.3: {tag}"
+    );
+}
+
+/// SEC-AUD-568: the refusal comes before the first secret is generated or written, so a refused run leaves nothing
+/// behind. Caught by: the base installer, which has no refusal at all.
+#[test]
+fn the_installer_refuses_the_placeholder_before_it_writes_a_secret() {
+    let install = read("deploy/install.sh");
+    let lines: Vec<&str> = install.lines().collect();
+    let code = |l: &&str| !l.trim_start().starts_with('#');
+    let refusal = lines
+        .iter()
+        .position(|l| {
+            code(l)
+                && l.trim_start()
+                    .starts_with("refuse_placeholder_image \"$SR_IMAGE\"")
+        })
+        .expect("install.sh never refuses the image given by the operator");
+    for (what, needle) in [
+        ("the first fill of the env template", "fill \"$tmp\""),
+        ("the first write of garage.prod.toml", "write_garage"),
+        ("the Postgres password", "postgres_password=$(rand_hex"),
+    ] {
+        let at = lines
+            .iter()
+            .position(|l| code(l) && l.trim_start().starts_with(needle))
+            .unwrap_or_else(|| panic!("install.sh no longer has {what} where this case looks"));
+        assert!(
+            refusal < at,
+            "the refusal (line {}) must come before {what} (line {})",
+            refusal + 1,
+            at + 1
+        );
+    }
+    // A rerun checks the stored image too, and the refusal really stops the script.
+    assert!(
+        lines
+            .iter()
+            .any(|l| code(l) && l.contains("refuse_placeholder_image \"$stored_image\"")),
+        "the resume branch does not check the stored image"
+    );
+    let def = lines
+        .iter()
+        .position(|l| l.starts_with("refuse_placeholder_image()"))
+        .expect("refuse_placeholder_image is not defined");
+    assert!(
+        lines[def..(def + 12).min(lines.len())]
+            .iter()
+            .any(|l| l.contains("die")),
+        "refuse_placeholder_image does not die"
+    );
+    // The first sign-in secrets go to the operator's terminal only.
+    assert!(
+        !lines
+            .iter()
+            .any(|l| code(l) && l.split_whitespace().any(|w| w == "tee")),
+        "install.sh must not tee its output (it prints the Owner password)"
+    );
+}
+
+/// (name, value) pairs of the fixed `sr-server` environment, expanded from the env example, minus the variables the
+/// config loader does not read (see the loader test).
+fn fixed_server_pairs() -> Vec<(String, String)> {
+    let env = env_file("deploy/compose/.env.prod.example");
+    compose().services["sr-server"]
+        .section("environment")
+        .iter()
+        .map(|l| {
+            let (k, v) = l.split_once(':').expect("KEY: value");
+            (
+                k.trim().to_owned(),
+                expand(v.trim().trim_matches('"'), &env),
+            )
+        })
+        .filter(|(k, _)| {
+            !(k.starts_with("SR_PAYMENTS_")
+                || k == "SR_PEERTUBE_HOSTS"
+                || k == "SR_MEDIA_HOSTS"
+                || k.starts_with("SR_CSP_"))
+        })
+        .collect()
+}
+
+/// `SR_A__B=v` pairs through the real loader (as the first loader test does), returned as JSON.
+fn config_json(pairs: &[(String, String)]) -> serde_json::Value {
+    let mut tables: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for (k, v) in pairs {
+        let path = k.strip_prefix("SR_").unwrap().to_lowercase();
+        let (table, key) = path.rsplit_once("__").expect("SR_<SECTION>__<KEY>");
+        let lit = if v == "true" || v == "false" || v.parse::<i64>().is_ok() {
+            v.clone()
+        } else {
+            format!("{v:?}")
+        };
+        tables
+            .entry(table.replace("__", "."))
+            .or_default()
+            .push((key.to_owned(), lit));
+    }
+    let mut toml = String::new();
+    for (t, kv) in &tables {
+        toml.push_str(&format!("[{t}]\n"));
+        for (k, v) in kv {
+            toml.push_str(&format!("{k} = {v}\n"));
+        }
+    }
+    use figment::providers::Format;
+    let f = Config::figment(None).merge(figment::providers::Toml::string(&toml));
+    let cfg =
+        Config::from_figment(&f).unwrap_or_else(|e| panic!("not a valid config: {e}\n{toml}"));
+    serde_json::to_value(&cfg).unwrap()
+}
+
+/// SEC-AUD-569 (a): the server reads one optional operator-owned env file kept outside `deploy/`, so replacing
+/// `deploy/` at an upgrade cannot lose it and a missing file cannot stop the stack. Caught by: the base service, which
+/// had no `env_file` at all.
+#[test]
+fn the_compose_server_reads_an_optional_operator_env_file_outside_deploy() {
+    let c = compose();
+    let ef = c.services["sr-server"].section("env_file").join(" ");
+    assert!(!ef.is_empty(), "sr-server has no env_file");
+    assert!(
+        ef.contains("required: false"),
+        "the env file must be optional (the smoke runs without it): {ef}"
+    );
+    let default = substitutions(&ef)
+        .into_iter()
+        .find(|(n, d, _)| n == "SR_SERVER_ENV_FILE" && d.is_some())
+        .and_then(|(_, d, _)| d)
+        .unwrap_or_else(|| panic!("env_file path has no ${{SR_SERVER_ENV_FILE:-default}}: {ef}"));
+    assert!(
+        default.starts_with('/')
+            && !default.contains("/deploy/")
+            && !default.starts_with("/opt/sideroom"),
+        "the default path must lie outside deploy/ ({default})"
+    );
+    let example = read("deploy/compose/.env.prod.example");
+    assert!(
+        example.lines().any(|l| l
+            .trim_start_matches("# ")
+            .starts_with("SR_SERVER_ENV_FILE=")),
+        ".env.prod.example does not document SR_SERVER_ENV_FILE"
+    );
+    // The installer's values are never replaced by it: the variable stays commented out in the example.
+    assert!(!env_file("deploy/compose/.env.prod.example").contains_key("SR_SERVER_ENV_FILE"));
+}
+
+/// SEC-AUD-569 (b, c): Discord sign-in and the log filter, set only in the operator's file, reach the real config; a
+/// key in both files takes the `environment:` value (compose's rule), so the file cannot break what the installer set.
+/// Caught by: the base stack, where neither key could be set at all.
+#[test]
+fn an_operator_env_file_reaches_the_config_and_the_fixed_list_wins() {
+    let fixed = fixed_server_pairs();
+    let operator: Vec<(String, String)> = [
+        ("SR_DISCORD__CLIENT_ID", "example-client-id"),
+        ("SR_LOG__FILTER", "sr_server=debug,info"),
+        ("SR_SERVER__PUBLIC_URL", "https://attacker.example"),
+    ]
+    .iter()
+    .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+    .collect();
+    // Compose's merge: env_file first, then environment: on top.
+    let mut merged: BTreeMap<String, String> = operator.iter().cloned().collect();
+    for (k, v) in &fixed {
+        merged.insert(k.clone(), v.clone());
+    }
+    let pairs: Vec<(String, String)> = merged.into_iter().collect();
+    let json = config_json(&pairs);
+    assert_eq!(json["discord"]["client_id"], "example-client-id");
+    assert_eq!(json["log"]["filter"], "sr_server=debug,info");
+    assert_eq!(
+        json["server"]["public_url"], "https://chat.example.org",
+        "environment: must win over the operator's file"
+    );
+    // The fixed list sets none of the operator's keys, except the one it must keep (public_url).
+    for k in ["SR_DISCORD__CLIENT_ID", "SR_LOG__FILTER"] {
+        assert!(!fixed.iter().any(|(f, _)| f == k), "prod.yml fixes {k}");
+    }
+    assert!(fixed.iter().any(|(f, _)| f == "SR_SERVER__PUBLIC_URL"));
+    // The secret goes in as the _FILE form, which the loader knows.
+    assert!(sr_core::config::SECRET_FILE_KEYS.contains(&"discord.client_secret"));
+    assert_eq!(
+        sr_core::config::secret_file_var("discord.client_secret"),
+        "SR_DISCORD__CLIENT_SECRET_FILE"
+    );
+}
+
+/// The publish job of `release.yml`.
+fn release_publish_job() -> String {
+    let wf = read(".github/workflows/release.yml");
+    let i = wf
+        .find("\n  publish:")
+        .expect("release.yml lost its publish job");
+    wf[i..].to_owned()
+}
+
+/// SEC-AUD-561: the first release's notes were every commit since `p27-day1` (about 265 000 characters, over GitHub's
+/// limit), so the release page would never have been made. Caught by: the base step, which described any tag, had no
+/// cap and wrote `CHANGELOG.md` from the whole range.
+#[test]
+fn the_release_notes_start_at_a_version_tag_are_capped_and_are_what_the_release_reads() {
+    let job = release_publish_job();
+    let matched = job
+        .find("--match 'v*'")
+        .expect("git describe must match only v* tags");
+    assert!(
+        job.contains("99900") || job.contains("100000"),
+        "the notes need a cap below GitHub's 125 000 characters"
+    );
+    let create = job
+        .find("gh release create")
+        .expect("publish never runs gh release create");
+    let line = job[create..].lines().next().unwrap();
+    let file = line
+        .split_whitespace()
+        .skip_while(|t| *t != "--notes-file")
+        .nth(1)
+        .expect("gh release create has no --notes-file");
+    let before = &job[..create];
+    assert!(
+        before.contains(&format!(">{file}"))
+            || before.contains(&format!("> {file}"))
+            || before.contains(&format!("> \"{file}\""))
+            || before.contains(&format!("mv notes.capped {file}")),
+        "the notes step never writes {file}"
+    );
+    assert!(
+        matched < create,
+        "the notes step must come before the release is created"
+    );
+}
+
+/// SEC-AUD-564: the release binaries were built without `--locked`, unlike the images. Caught by: the base line
+/// `cargo zigbuild --release --target ...`.
+#[test]
+fn the_release_binaries_are_built_from_the_lockfile() {
+    let wf = read(".github/workflows/release.yml");
+    let lines: Vec<&str> = wf
+        .lines()
+        .filter(|l| l.contains("cargo zigbuild"))
+        .collect();
+    assert!(!lines.is_empty(), "release.yml builds no binaries");
+    for l in lines {
+        assert!(l.contains("--locked"), "not built --locked: {l}");
+    }
+}
+
+/// SEC-AUD-563: an image with no source label cannot be linked to its repository by the registry. Caught by: every
+/// Dockerfile in the base tree (none has a `LABEL`).
+#[test]
+fn every_image_carries_the_source_label_in_its_last_stage() {
+    let mut n = 0;
+    for e in fs::read_dir(root().join("deploy/docker")).unwrap() {
+        let p = e.unwrap().path();
+        if p.extension().is_none_or(|x| x != "Dockerfile") {
+            continue;
+        }
+        let body = fs::read_to_string(&p).unwrap();
+        let last = body.rfind("\nFROM ").expect("a Dockerfile without FROM");
+        let stage = &body[last..];
+        assert!(
+            stage
+                .lines()
+                .any(|l| l.starts_with("LABEL") && l.contains("org.opencontainers.image.source=")),
+            "{}: the last stage has no org.opencontainers.image.source label",
+            p.display()
+        );
+        n += 1;
+    }
+    assert!(n >= 4, "only {n} Dockerfiles found");
+}

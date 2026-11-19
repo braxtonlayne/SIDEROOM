@@ -8,6 +8,23 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 113 - 2026-11-19
+
+- The systemd server now starts: its unit names the search folder (`/var/lib/sideroom/search`) and has a working directory.
+- Compose keeps the message search index on a volume, so an upgrade no longer empties search. An old Compose install runs `sr-cli reindex` once after its first upgrade.
+- Compose has its own backup units: the nightly dump and the weekly restore drill run inside the Postgres container, and the deployment guide's backup section now gives those commands.
+- The installer refuses the example image placeholder before it writes anything, warns when a rerun is given an image it will not use, and shows the Owner's generated password as soon as the Owner exists. The example image shows the tag with its `v`.
+- Compose can read an optional operator env file, `/etc/sideroom/server.env`, for settings such as Discord sign-in. It survives an upgrade and needs Compose 2.24 or newer.
+- Release notes are capped at 100 000 characters and start at the last `v` tag (the first release uses the top changelog section). The images carry the source label, and the binary archives are built from the lock file.
+- For the team: all of this is proven by CI on the wave's pull request (`deploy_files.rs`, `prod-smoke`, `release-dry-run`), not on a server. Rows SEC-AUD-561, 563, 564 and 566 to 570 await the tick after CI; the open rows are SEC-AUD-575 to 578.
+
+## Phase 112 - 2026-11-19
+
+- The voice soak, the ten-member test of a long call, now plays music in the call by default, so the stereo music line is checked under the same load as the voices.
+- A new page, `docs/dev/deployment-day-checks.md`, lists in order the checks that only a real server can answer: bring-your-own storage on R2, a call across two networks, Safari voice and music, the payment walk and the playbooks. Safari and Firefox music are checked by hand on deployment day (D-1038).
+- The deployment pages are corrected where they disagreed with the files: the firewall ports, the health check, the upgrade and restore steps, the release image tag and the transcoder image that is not published.
+- For the team: a review of the deployment path and of the first release found blockers, now rows SEC-AUD-561, 566, 567 and 568 for wave 113 (the release notes that are too long for GitHub, the systemd search folder, the Compose backup steps and the installer's image default). The open rows are SEC-AUD-561 to 574.
+
 ## Phase 111 - 2026-11-19
 
 - On a phone, a message you tapped no longer keeps its grey hover tint after the buttons are gone. A mouse still tints the row on hover and the keyboard on focus; a row you clicked with a mouse loses its tint once the pointer leaves it. Edited, replied-to, mentioned and jumped-to messages keep their colour.

@@ -2,7 +2,7 @@ name: Voice soak
 
 # RDY-VOX-002: N Chromium contexts in one E2EE voice channel for D minutes, each muting, unmuting, turning the
 # camera on and off and reconnecting once (e2e/tests/voice-soak.spec.ts); with the music input one member also plays
-# a stereo tone. Dispatch only: it competes for CPU and its pass criterion is "no failure", not latency. The
+# a stereo tone (on by default since wave 112). Dispatch only: it competes for CPU and its pass criterion is "no failure", not latency. The
 # defaults are the wave-22 gate (ten members, ten minutes);
 # the phase 2 gate (ten people, two hours) is this workflow with minutes=120. Nothing here pushes or commits.
 on:
@@ -25,8 +25,8 @@ on:
         default: true
         type: boolean
       music:
-        description: One member plays a generated stereo tone as its music track; the others must receive it as stereo Opus (MUS-JB-001)
-        default: false
+        description: One member plays a generated stereo tone as its music track; the others must receive it as stereo Opus (MUS-JB-001). On by default so one dispatch proves MUS-JB-001, SEC-ENT-004 and RDY-VOX-002; untick it for the plain soak
+        default: true
         type: boolean
 
 concurrency:

@@ -1,3 +1,4 @@
+# Route: plain-binary (systemd) route. The Compose route uses sideroom-backup-compose.service.
 [Unit]
 Description=SIDE ROOM nightly backup (Postgres dump and object snapshot)
 After=network-online.target postgresql.service

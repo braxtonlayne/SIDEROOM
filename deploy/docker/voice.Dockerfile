@@ -15,6 +15,7 @@ RUN set -eux; \
     install -D "target/$target/release/sr-voice" /out/sr-voice
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.source="https://github.com/braxtonlayne/SIDEROOM"
 COPY --from=build /out/sr-voice /usr/local/bin/sr-voice
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/sr-voice"]

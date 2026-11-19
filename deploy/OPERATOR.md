@@ -43,7 +43,7 @@ Five minutes a day, once the box is past its first fortnight.
 **Monthly**
 
 - Read the release notes and upgrade ([UPGRADE.md](UPGRADE.md)). Run `sr-cli upgrade --dry-run` first.
-- Do a real restore into a scratch database, not only the drill: `createdb`, `deploy/scripts/restore.sh <dump> <url>`, look at the newest message, drop it. A backup nobody has restored is a hope.
+- Do a real restore into a scratch database, not only the drill: on the plain-binary route `createdb`, `deploy/scripts/restore.sh <dump> <url>`; on the Compose route the container form of [GO-LIVE.md](GO-LIVE.md) section 5 step 2 ([BACKUP.md](BACKUP.md), "On the Compose stack"). Look at the newest message, drop it. A backup nobody has restored is a hope.
 - `sr-cli verify-access-log` and `sr-cli preflight`; read every warning.
 - Admin > Staff & roles: everyone with a role still needs it. Admin > Invites and the account cap (`accounts.cap`) against the gauge on the Dashboard.
 - Disk growth: compare the Disk space card with last month; extend before `alerts.disk_percent` fires, not after.
@@ -127,9 +127,9 @@ Every module of the feature phase has a platform switch (and, where it makes sen
 
 **Voice (configuration file or environment, not Admin)**
 
-`voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress".
+`voice.egress_budget_mbps` (`SR_VOICE__EGRESS_BUDGET_MBPS`), `voice.max_participants` and `voice.max_room_size`; see the playbook "Voice egress". On the Docker Compose route these, and every other `SR_*` setting that `deploy/compose/prod.yml` does not list (Discord sign-in, `connections.*`, `gif.api_key`, `lookup.tmdb_api_key`, `server.metrics_token`, `log.filter`), go in the server's own env file, `/etc/sideroom/server.env` (another path: `SR_SERVER_ENV_FILE` in `.env.prod`). Create it as root, mode 0600, and keep it out of `deploy/`: `sudo install -d -m 0755 /etc/sideroom && sudo install -m 0600 /dev/null /etc/sideroom/server.env`. One `KEY=value` per line, for example `SR_DISCORD__CLIENT_ID=` followed by the application's client id, `SR_DISCORD__CLIENT_SECRET=` followed by the secret (the owner types it, nobody else; put the value in single quotes if it holds a `$`) and `SR_LOG__FILTER=info,sr_server=debug`. The server reads the file when its container is created, so run `docker compose -f deploy/compose/prod.yml --env-file deploy/compose/.env.prod up -d sr-server` afterwards. The file is optional (the stack starts without it), an upgrade never replaces it (UPGRADE.md step 3 replaces `deploy/` only), and a key that `prod.yml` already lists keeps the value from `.env.prod`, so change those there. A `SR_*_FILE` secret form needs a file mounted into the container, which `prod.yml` does not do: on this route write the secret into the 0600 env file itself.
 
-**Gateway (configuration file or environment, not Admin)**
+**Gateway (configuration file or environment, not Admin; on Compose, the server env file above)**
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -156,7 +156,7 @@ Everything below is also a switch in Admin > Features (see "Module switches" abo
 | `abuse.storage_tests_per_hour` | 20 | Connection tests of a mount per member per hour. |
 | `byos.require_client_remux`, `byos.client_convert_max_mib`, `byos.worker_for_members` | off, 2048, off | The browser converter: ask for a remux before upload, the largest file it accepts, and whether the operator's transcoder workers convert members' videos inside their own buckets. |
 
-The operator's own bucket is mount 1 (seeded from `storage.*` at first start); attach it to a server or detach it with `POST /admin/storage/mounts/1/attach` and `/detach` (the OPERATOR permission, audited). The daily job `storage.cors_recheck` (id 134) re-checks every mount's CORS rule; `storage.index` (id 1450) refreshes the per-mount indexes. A mount whose CORS check has not passed serves nothing. The runbook for a member whose bucket fails is the connect screen's test table; the operator never holds a member's bucket keys in the clear (they are sealed under `server.secret_key`, and `sr-cli rotate-secret-key` re-seals them).
+The operator's own bucket is mount 1 (seeded from `storage.*` at first start); attach it to a server or detach it with `POST /admin/storage/mounts/1/attach` and `/detach` (the OPERATOR permission, audited). The daily job `storage.cors_recheck` (id 134) re-checks every mount's CORS rule; `storage.index` (id 1450) refreshes the per-mount indexes. A mount whose CORS check has not passed serves nothing. The check reads the bucket's CORS rules; if the provider refuses that read (a token with Object Read and Write only gets a 403 from some providers), the check falls back to a live browser-style preflight, and the mount passes only if that answers with the allow-origin header (D-1032). The mounts list shows each access key id as an ellipsis and its last four characters, and the endpoint only to the mount's owner (D-1034). The runbook for a member whose bucket fails is the connect screen's test table; the operator never holds a member's bucket keys in the clear (they are sealed under `server.secret_key`, and `sr-cli rotate-secret-key` re-seals them).
 
 **Response types of bucket links (D-629, D-637, D-641 to D-645; no setting)**
 

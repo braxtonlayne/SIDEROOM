@@ -13,6 +13,10 @@ EnvironmentFile=/etc/sideroom/server.env
 # The built apps/web/dist, read-only: the server serves /app and /app/* from it to a signed-in session only (D-385).
 # The server refuses to start when the folder has no app/csp.txt. A different path goes in server.env.
 Environment=SR_WEB__ROOT=/opt/sideroom/web
+# The search indexes (messages, plus library/ and cinema/ below it). The built-in default is the relative data/search, which a
+# read-only root cannot create (D-1039, SEC-AUD-566). The folder is under the StateDirectory and ReadWritePaths below.
+Environment=SR_SEARCH__DIR=/var/lib/sideroom/search
+WorkingDirectory=/var/lib/sideroom
 ExecStart=/opt/sideroom/bin/sr-server serve
 Restart=on-failure
 RestartSec=3
@@ -20,7 +24,7 @@ RestartSec=3
 TimeoutStopSec=60
 KillSignal=SIGTERM
 
-# Sandbox: the server needs the network and nothing else on disk (search index dir is the exception).
+# Sandbox: the server needs the network and nothing else on disk (/var/lib/sideroom, with the search index in it, is the exception).
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

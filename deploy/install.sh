@@ -12,6 +12,8 @@
 # Run it again after a run that did not finish (a failed pull, a wrong Owner password, a missing web build) and it
 # RESUMES (D-747): the two files are read, not rewritten, no secret is generated or changed, and every step runs again
 # (each is safe to repeat; only the Owner account is detected as done). With --force it starts over instead.
+# The image must be a real reference: the example's placeholder (example-owner) is refused before anything is written
+# (D-1041). On a rerun an SR_IMAGE given now that differs from the stored one is warned about, not applied.
 #
 #   --yes        take every answer from the environment or the default; never prompt
 #   --force      write new files with NEW secrets, for a machine whose data volumes are gone. The files it replaces
@@ -46,6 +48,10 @@ garage_file=$compose_dir/garage/garage.prod.toml
 # keeps the two equal). The installer checks it BEFORE it writes a file; the longer strength rule stays in sr-cli.
 MIN_OWNER_PASSWORD=10
 
+# The owner part of the example image in .env.prod.example. That reference does not exist, so the installer refuses
+# any image that contains it (D-1041); a test keeps this line and the example in step.
+PLACEHOLDER_IMAGE_OWNER=example-owner
+
 die() { echo "error: $*" >&2; exit 1; }
 # A run that stops (a refused answer, a failed step) leaves no half-written temporary file behind.
 trap 'rm -f "$env_file.new" "$env_file.new.part" "$garage_file.new"' EXIT
@@ -59,7 +65,7 @@ for arg in "$@"; do
     --yes|--non-interactive) yes=1 ;;
     --force) force=1 ;;
     --no-start) start=0 ;;
-    -h|--help) sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,39p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown option $arg (try --help)" ;;
   esac
 done
@@ -106,6 +112,15 @@ read_env() {
   printf '%s' "$_line"
 }
 
+# Stop with what to type when the image is the example's placeholder. Nothing is written or started before this runs.
+refuse_placeholder_image() {
+  case $1 in
+    *"$PLACEHOLDER_IMAGE_OWNER"*)
+      die "SR_IMAGE is the example's placeholder ('$1'), which does not exist. Give the real reference: ghcr.io/<owner>/sideroom-server:<tag>, with the owner in lower case and the tag with its leading v (for example :v0.1.0). The release must exist first: push the version tag, wait for the Release workflow to finish green, and check that the image can be pulled (deploy/GO-LIVE.md section 3). Nothing was written or started. $2"
+      ;;
+  esac
+}
+
 # Take KEY from the env file of the earlier run; an answer given now that differs is ignored, said once.
 adopt() {
   grep -q "^$1=" "$env_file" || die "$env_file has no $1 line: it was not written by this installer. Fix it by hand, or pass --force on a machine whose data volumes are gone."
@@ -149,6 +164,12 @@ if [ "$resume" = "1" ]; then
   adopt SR_INGEST_DIR
   adopt SR_INGEST_ROOTS
   ingest_roots=$SR_INGEST_ROOTS
+  # The image of the earlier run wins too (D-747), but an answer given now is not dropped without a word (D-1041).
+  stored_image=$(read_env SR_IMAGE)
+  if [ -n "${SR_IMAGE:-}" ] && [ "$SR_IMAGE" != "$stored_image" ]; then
+    echo "warning: SR_IMAGE is $stored_image in $env_file; the value given now ($SR_IMAGE) is ignored. To change the image, edit SR_IMAGE in $env_file and run this script again." >&2
+  fi
+  refuse_placeholder_image "$stored_image" "Edit SR_IMAGE in $env_file, then run this script again."
 else
   ask SR_DOMAIN "Public hostname (DNS must already point at this host)" ""
   ask SR_IMAGE "Server image" "$(sed -n 's/^SR_IMAGE=//p' "$compose_dir/.env.prod.example")"
@@ -193,6 +214,7 @@ if [ "$resume" != "1" ]; then
     *) die "SMTP_TLS must be starttls, tls or none (got '$SMTP_TLS')" ;;
   esac
   case ${SR_IMAGE:-} in ''|*' '*) die "SR_IMAGE must be an image reference" ;; esac
+  refuse_placeholder_image "$SR_IMAGE" "Nothing else was checked."
   # Local ingest folder: mounted read-only at /srv/sideroom/ingest; "none" turns local folders off.
   if [ "$SR_INGEST_DIR" = "none" ]; then
     SR_INGEST_DIR=/srv/sideroom/ingest
@@ -424,6 +446,16 @@ if [ "$owner_rc" != "0" ]; then
       ;;
     *) die "sr-cli bootstrap failed (see above); fix the cause and run this script again: it resumes" ;;
   esac
+fi
+if [ "$owner_rc" = "0" ]; then
+  # The Owner exists now: show the way in at once, so a later step that stops the script does not lose it (D-1041).
+  # This goes to the terminal only; the script writes no log file and pipes nothing to tee.
+  if [ -n "$generated_password" ]; then
+    echo "Owner password (generated now, shown again at the end; change it after signing in): $generated_password"
+  fi
+  echo "The one-time sign-in link above is good for one hour and works once. If this script stops later, it is not shown again: use 'Forgot password' on the sign-in page with the Owner's email."
+else
+  echo "The Owner's generated password (if there was one) and the one-time sign-in link of the first run cannot be shown again. To sign in: open the sign-in page, choose 'Forgot password' and give the Owner's email ($SR_OWNER_EMAIL); the mail goes through the SMTP server of this install." >&2
 fi
 
 # Starter packs that ship with the release (packages/starter-packs/<name>, D-289): installed as approved
