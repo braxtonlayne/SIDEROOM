@@ -1236,8 +1236,16 @@
   top: 2px;
 }
 /* The toolbar stays shown while its "More" menu is open, so Escape returns focus to it (SEC-AUD-365, D-870). */
-.lng-msg:hover .lng-msg-tools,
-.lng-msg:focus-within .lng-msg-tools,
+/* D-1035 (SEC-AUD-545): a tap never shows it. `:hover` counts only where hover is real (a phone reports
+   `hover: none`; a laptop with a touch screen reports `hover: hover` and keeps it), and the focus rule is the
+   keyboard's (`:focus-visible`): a tap's focus on the row or a button in it was `:focus-within` and showed it. */
+@media (hover: hover) {
+  .lng-msg:hover .lng-msg-tools {
+    display: flex;
+  }
+}
+.lng-msg:focus-visible .lng-msg-tools,
+.lng-msg:has(:focus-visible) .lng-msg-tools,
 .lng-msg:has(.lng-msg-tools [aria-expanded='true']) .lng-msg-tools {
   display: flex;
 }
@@ -1503,6 +1511,12 @@
   .lng-emoji-search {
     height: 44px;
   }
+}
+/* SEC-AUD-552: in the forward dialog the two fields (before and after the destinations list) fill the dialog's
+   line; the pickers' own search keeps its width. */
+.lng-emoji-search:has(+ .lng-forward-list),
+.lng-forward-list + .lng-emoji-search {
+  inline-size: 100%;
 }
 .lng-emoji-scroll {
   max-height: 240px;
