@@ -144,8 +144,8 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 |---|---|
 | `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries: unpack `sideroom-<tag>-<arch>-unknown-linux-musl.tar.gz` from the release (check it against `SHA256SUMS`; the programs are in the folder named for the target), or take them out of the server image with `docker cp`, or build them, mode 0755 |
 | `/opt/sideroom/web` | the web build of the same release (`sideroom-<tag>-web.tar.gz`, the built `apps/web/dist`), readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
-| `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
-| `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |
+| `/etc/sideroom/config.toml` | the template of section 4, edited for your host (mode 0640, owned by root, group `sideroom`, so the service can read it). The folder `/etc/sideroom` is mode 0750, owned by root, group `sideroom` |
+| `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below); systemd reads it before it drops privileges, so `sideroom` need not |
 | `/var/lib/sideroom` | the server's state (`StateDirectory=sideroom` creates it, owned by `sideroom`); the unit's working directory |
 | `/var/lib/sideroom/search` | the search indexes (messages, `library/`, `cinema/`). The unit sets `SR_SEARCH__DIR` to it and the server creates the folder at start. The built-in default is the relative `data/search`, which the read-only root cannot create |
 
@@ -158,7 +158,7 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
    install -d -m 755 /opt/sideroom
    tar -xzf sideroom-<tag>-web.tar.gz -C /opt/sideroom   # the release's built apps/web/dist, as /opt/sideroom/web
    test -f /opt/sideroom/web/app/csp.txt
-   install -d -m 700 /etc/sideroom
+   install -d -m 750 -o root -g sideroom /etc/sideroom
    ```
 
 2. **Write `/etc/sideroom/config.toml`** from section 4.
@@ -196,7 +196,7 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 
 6. **Run the preflight** with the same environment: `/opt/sideroom/bin/sr-cli preflight` prints the table (`deploy/RUNBOOK.md`); fix every FAIL row before the first invite ([GO-LIVE.md](GO-LIVE.md)).
 
-On this route the backup units are `sideroom-backup` and `sideroom-restore-drill` with their timers (`sideroom-basebackup` and the `-compose` units are for the Compose route); [BACKUP.md](BACKUP.md) describes them. Put the reverse proxy in front as in step 6. The smoke runs this route as a systemd *user* service, so it drops the lines of the unit that need root (`User=`, `ProtectSystem=` and the like) and moves the paths under a prefix; on a real host use the unit as shipped.
+On this route the backup units are `sideroom-backup` and `sideroom-restore-drill` with their timers (`sideroom-basebackup` and the `-compose` units are for the Compose route); [BACKUP.md](BACKUP.md) describes them. Put the reverse proxy in front as in step 6. CI runs this route twice: as a systemd system service with the unit as shipped (`deploy/scripts/smoke-systemd.sh system-service`), and as a user service with the sandbox lines dropped (`user-service`). On a real host use the unit as shipped.
 
 ## 6. Reverse proxy and client IP
 

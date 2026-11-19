@@ -7,6 +7,10 @@
 #                     drops its own database; the one named in the URL is only used to connect.
 #   SR_BACKUP_DIR     where backup.sh writes                                   (default ./backups)
 #   SR_DRILL_MAX_AGE_HOURS  fail when the newest backup is older than this     (default 36)
+#   SR_BACKUP_REPOSITORY, SR_BACKUP_OBJECTS_DIR, SR_BACKUP_OBJECTS_META_DIR, RUSTIC_PASSWORD_FILE
+#                     when the first three are all set (the object backup is configured), a last step
+#                     restores the latest object snapshot into a scratch folder and checks it holds both
+#                     Garage's metadata and at least one block (D-1045). It starts nothing.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/lib.sh"
@@ -26,7 +30,11 @@ log "newest backup: $(basename "$dump") (${age_h}h old)"
 
 pg_env_from_url "$SR_DATABASE_URL"
 drill="sr_restore_drill_$$"
-cleanup() { dropdb --if-exists "$drill" >/dev/null 2>&1 || true; }
+scratch=
+cleanup() {
+  dropdb --if-exists "$drill" >/dev/null 2>&1 || true
+  if [ -n "$scratch" ]; then rm -rf -- "$scratch"; fi
+}
 trap cleanup EXIT INT TERM
 
 createdb "$drill"
@@ -41,5 +49,33 @@ tables=$(q "select count(*) from information_schema.tables where table_schema='p
 failed=$(q "select count(*) from _sqlx_migrations where success = false")
 [ "$failed" = "0" ] || die "$failed failed migrations in the restored database"
 log "drill ok: $migrations migrations, $tables tables"
+# D-1045: the object backup restores, with its metadata. Only when it is configured.
+if [ -n "${SR_BACKUP_REPOSITORY:-}" ] && [ -n "${SR_BACKUP_OBJECTS_DIR:-}" ] && [ -n "${SR_BACKUP_OBJECTS_META_DIR:-}" ]; then
+  if command -v rustic >/dev/null 2>&1; then
+    tool=rustic
+  elif command -v restic >/dev/null 2>&1; then
+    tool=restic
+  else
+    die "the object backup is configured but neither rustic nor restic is installed"
+  fi
+  scratch=$(mktemp -d)
+  log "restoring the latest object snapshot into a scratch folder with $tool"
+  pw=
+  if [ -n "${RUSTIC_PASSWORD_FILE:-}" ]; then pw="-p $RUSTIC_PASSWORD_FILE"; fi
+  # Flag shapes differ (to be confirmed against the installed version): restic takes --target, rustic a destination.
+  if [ "$tool" = rustic ]; then
+    # shellcheck disable=SC2086
+    rustic -r "$SR_BACKUP_REPOSITORY" $pw restore latest "$scratch"
+  else
+    # shellcheck disable=SC2086
+    restic -r "$SR_BACKUP_REPOSITORY" $pw restore latest --target "$scratch"
+  fi
+  # Snapshots keep absolute paths, so each folder lands under the scratch folder at its own path.
+  meta="$scratch$SR_BACKUP_OBJECTS_META_DIR"
+  data="$scratch$SR_BACKUP_OBJECTS_DIR"
+  [ -d "$meta" ] && [ -n "$(find "$meta" -mindepth 1 -print -quit)" ] || die "the object snapshot has no metadata content under $SR_BACKUP_OBJECTS_META_DIR: a data-only snapshot cannot be restored"
+  [ -d "$data" ] && [ -n "$(find "$data" -type f -print -quit)" ] || die "the object snapshot holds no block under $SR_BACKUP_OBJECTS_DIR"
+  log "object drill ok: metadata and at least one block restored"
+fi
 # Marker the System page reads (K-10): its modification time is the last successful restore check.
 date -u +%s >"$(dirname "$dump")/../restore-drill.ok"

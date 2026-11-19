@@ -36,7 +36,7 @@
 # The built web app must already be in $SR_WEB_DIR (apps/web/dist: it holds app/csp.txt): the server refuses to start
 # without it, so the installer stops before it writes or starts anything when the file is missing.
 #
-# Needs Docker with the compose plugin and a source of randomness (openssl, or /dev/urandom with od).
+# Needs Docker with the compose plugin, version 2.24 or newer, and a source of randomness (openssl, or /dev/urandom with od).
 set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -51,6 +51,11 @@ MIN_OWNER_PASSWORD=10
 # The owner part of the example image in .env.prod.example. That reference does not exist, so the installer refuses
 # any image that contains it (D-1041); a test keeps this line and the example in step.
 PLACEHOLDER_IMAGE_OWNER=example-owner
+
+# The oldest Docker Compose this stack starts on: 2.24 is the first to accept `required: false` on an env_file entry, which
+# prod.yml uses for the operator's server env file (D-1042). A test keeps this line and prod.yml in step.
+MIN_COMPOSE_MAJOR=2
+MIN_COMPOSE_MINOR=24
 
 die() { echo "error: $*" >&2; exit 1; }
 # A run that stops (a refused answer, a failed step) leaves no half-written temporary file behind.
@@ -79,6 +84,20 @@ esac
 if [ "${SR_INSTALL_SKIP_CHECKS:-0}" != "1" ]; then
   command -v docker >/dev/null 2>&1 || die "docker is not installed (https://docs.docker.com/engine/install/)"
   docker compose version >/dev/null 2>&1 || die "the docker compose plugin is missing (docker compose version failed)"
+  # prod.yml marks the operator env file `required: false`, which Compose reads from 2.24 on (D-1046, SEC-AUD-576). An older
+  # one stops the stack with a parse error. Version strings handled: 2.24.5, v2.24.5, 2.24.5-desktop.1, 2.29.1+azure and the
+  # long form "Docker Compose version v2.24.5". Anything else (a vendor build) is warned about and the run goes on.
+  _cv=$(docker compose version --short 2>/dev/null || docker compose version 2>/dev/null || true)
+  _cv=$(printf '%s\n' "$_cv" | sed -n 's/^[^0-9]*\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p' | head -n 1)
+  if [ -z "$_cv" ]; then
+    echo "warning: could not read the Docker Compose version (docker compose version printed nothing I know). This stack needs Compose $MIN_COMPOSE_MAJOR.$MIN_COMPOSE_MINOR or newer; check it with: docker compose version" >&2
+  else
+    _cv_major=${_cv% *}
+    _cv_minor=${_cv#* }
+    if [ "$_cv_major" -lt "$MIN_COMPOSE_MAJOR" ] || { [ "$_cv_major" = "$MIN_COMPOSE_MAJOR" ] && [ "$_cv_minor" -lt "$MIN_COMPOSE_MINOR" ]; }; then
+      die "Docker Compose $_cv_major.$_cv_minor is too old: this stack needs $MIN_COMPOSE_MAJOR.$MIN_COMPOSE_MINOR or newer (deploy/compose/prod.yml uses 'required: false' on env_file). Update the compose plugin (https://docs.docker.com/compose/install/), then run this script again. Nothing was written or started."
+    fi
+  fi
 fi
 if command -v openssl >/dev/null 2>&1; then
   rand_hex() { openssl rand -hex "$1"; }
@@ -169,6 +188,9 @@ if [ "$resume" = "1" ]; then
   if [ -n "${SR_IMAGE:-}" ] && [ "$SR_IMAGE" != "$stored_image" ]; then
     echo "warning: SR_IMAGE is $stored_image in $env_file; the value given now ($SR_IMAGE) is ignored. To change the image, edit SR_IMAGE in $env_file and run this script again." >&2
   fi
+  # Really ignored (SEC-AUD-583): Compose takes SR_IMAGE from the environment before the env file, so an exported value
+  # given now would otherwise be the image `sr_cli migrate` pulls and runs.
+  SR_IMAGE=$stored_image
   refuse_placeholder_image "$stored_image" "Edit SR_IMAGE in $env_file, then run this script again."
 else
   ask SR_DOMAIN "Public hostname (DNS must already point at this host)" ""
@@ -369,6 +391,42 @@ if [ -n "$ingest_roots" ] && [ ! -d "$SR_INGEST_DIR" ]; then
     say "created $SR_INGEST_DIR (read-only inside the container; put files under $SR_INGEST_DIR/library/)"
   else
     echo "warning: could not create $SR_INGEST_DIR; create it before starting the stack (mkdir -p), or compose creates it root-owned." >&2
+  fi
+fi
+
+# The operator's own files (D-1046, SEC-AUD-576): an empty server env file (mode 0600) and the secrets folder (mode 0700,
+# given to uid 65532, the user sr-server runs as, when this runs as root). prod.yml reads the first if it exists and mounts
+# the second read-only; creating both here means a Compose that does not know `required: false`, or the operator's own
+# way of starting the stack, finds them. A file or folder that exists is never touched. The paths follow the variables
+# prod.yml reads (on a rerun, the value in .env.prod counts too); a run that cannot create them (not root) warns and goes on.
+server_env=${SR_SERVER_ENV_FILE:-}
+secrets_dir=${SR_SECRETS_DIR:-}
+if [ -f "$env_file" ]; then
+  [ -n "$server_env" ] || server_env=$(read_env SR_SERVER_ENV_FILE)
+  [ -n "$secrets_dir" ] || secrets_dir=$(read_env SR_SECRETS_DIR)
+fi
+server_env=${server_env:-/etc/sideroom/server.env}
+secrets_dir=${secrets_dir:-/etc/sideroom/secrets}
+case $server_env in /*) ;; *) die "SR_SERVER_ENV_FILE must be an absolute path (got '$server_env')" ;; esac
+case $secrets_dir in /*) ;; *) die "SR_SECRETS_DIR must be an absolute path (got '$secrets_dir')" ;; esac
+if [ ! -e "$server_env" ]; then
+  if (umask 022; mkdir -p "$(dirname "$server_env")") 2>/dev/null && (umask 077; : >"$server_env") 2>/dev/null; then
+    chmod 600 "$server_env" 2>/dev/null || true
+    say "created the empty server env file $server_env (mode 0600; settings the stack does not list go there, deploy/OPERATOR.md)"
+  else
+    echo "warning: could not create $server_env (run as root, or create it: sudo install -m 0600 /dev/null $server_env). The stack starts without it on Compose $MIN_COMPOSE_MAJOR.$MIN_COMPOSE_MINOR or newer." >&2
+  fi
+fi
+if [ ! -e "$secrets_dir" ]; then
+  if (umask 022; mkdir -p "$(dirname "$secrets_dir")") 2>/dev/null && mkdir -m 0700 "$secrets_dir" 2>/dev/null; then
+    if [ "$(id -u)" = "0" ]; then
+      chown 65532:65532 "$secrets_dir" 2>/dev/null || echo "warning: could not give $secrets_dir to uid 65532 (the server's user); run: chown 65532:65532 $secrets_dir" >&2
+    else
+      echo "warning: created $secrets_dir (mode 0700) as uid $(id -u); the server runs as uid 65532 and can read a secret file there only if that user owns the folder: sudo chown 65532:65532 $secrets_dir" >&2
+    fi
+    say "created the secrets folder $secrets_dir (mode 0700, read-only inside the server container at /run/secrets/sideroom)"
+  else
+    echo "warning: could not create $secrets_dir (run as root, or: sudo install -d -m 0700 -o 65532 -g 65532 $secrets_dir). Compose creates a missing folder root-owned and empty." >&2
   fi
 fi
 

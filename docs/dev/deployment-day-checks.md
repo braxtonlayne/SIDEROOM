@@ -104,13 +104,20 @@ Needs a real Safari (a Mac, or an iPhone) and a second member in the same call o
 
 Watch these first on the day; they are the faults wave 113 fixed on paper only.
 
-- A real systemd start of `sr-server` with the hardening on (`ProtectSystem=strict`, read-only root): the index opens under `/var/lib/sideroom/search` (SEC-AUD-566).
+- The systemd start of `sr-server` with the hardening on is now done by CI's `system-service` step (SEC-AUD-566, 578; once that step is green). What stays for the day is the same start on the real host, with the real `/etc/sideroom` (0750 root:sideroom, `config.toml` 0640, `server.env` 0600) and the real reverse proxy.
 - A real timer firing: `sideroom-backup-compose`, `sideroom-restore-drill-compose`, `sideroom-basebackup`; the dump lands in `pg-backups` and Admin > System shows it (SEC-AUD-567).
 - A search after a container recreate, and after an upgrade of an old Compose install (`sr-cli reindex` once) (SEC-AUD-570).
 - Compose's env merge on a real engine (`environment:` over `env_file:`), and `required: false` needing Compose 2.24 or newer (SEC-AUD-569, 576).
 - GitHub's real notes limit and `gh release create` itself; the first tag is the test (SEC-AUD-561).
 - The ghcr packages' visibility, and the source label linking the images to the repository (SEC-AUD-563).
 - The installer's first sign-in printout on a real terminal (SEC-AUD-568).
+
+## What no case and no CI job proves (wave 114)
+
+- A real container reading a secret file owned by uid 65532 at mode 0400 through `/run/secrets/sideroom`: CI mounts an empty folder and checks only the mount's flags (SEC-AUD-575). Test it with the Discord secret before the first invite.
+- The `/etc/sideroom` defaults of `install.sh` (the env file and the secrets folder, which need root): CI runs the installer as an ordinary user with paths under a scratch folder (SEC-AUD-576).
+- Garage v1.0.1's safe-copy method: the pages say stop Garage for the copy and mark Garage's own metadata snapshot "to be confirmed" (SEC-AUD-573). Take one object backup and restore it to a scratch folder before relying on it.
+- A real rustic or restic run: CI stands in `tar` for the snapshot tool, and the `restore` flag shapes differ between the two tools (SEC-AUD-573). The object backup on Compose has no scheduled route yet (SEC-AUD-579).
 
 ## The record
 

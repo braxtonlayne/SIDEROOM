@@ -5,7 +5,11 @@
 #   SR_DATABASE_URL        postgres://user:pass@host:5432/sideroom?sslmode=require   (required)
 #   SR_BACKUP_DIR          where dumps are written                                    (default ./backups)
 #   SR_BACKUP_KEEP         "daily,weekly,monthly" counts to keep                      (default 14,8,12)
-#   SR_BACKUP_OBJECTS_DIR  directory holding Garage data; snapshotted when a repository is set
+#   SR_BACKUP_OBJECTS_DIR  directory holding Garage's blocks (data_dir); snapshotted when a repository is set
+#   SR_BACKUP_OBJECTS_META_DIR  directory holding Garage's metadata (metadata_dir). REQUIRED with
+#                          SR_BACKUP_OBJECTS_DIR (D-1045): blocks without the metadata are not a restorable bucket,
+#                          so a data-only object backup is refused. Both go into ONE snapshot. Stop Garage for the
+#                          copy (BACKUP.md), or point this at a folder Garage snapshotted its metadata into.
 #   SR_BACKUP_REPOSITORY   rustic/restic repository (for example sftp:u123@u123.your-storagebox.de:/sideroom)
 #   RUSTIC_PASSWORD_FILE   password file for the repository (never pass the password on the command line)
 #   SR_BACKUP_DIR_MODE     mode of the backup folders (default 700; the Compose stack uses 750 so sr-server can
@@ -19,6 +23,13 @@ here=$(cd "$(dirname "$0")" && pwd)
 : "${SR_DATABASE_URL:?set SR_DATABASE_URL}"
 dir=${SR_BACKUP_DIR:-./backups}
 keep=${SR_BACKUP_KEEP:-14,8,12}
+# D-1045: refuse a data-only (or metadata-only) object backup before any work is done.
+if [ -n "${SR_BACKUP_OBJECTS_DIR:-}" ] && [ -z "${SR_BACKUP_OBJECTS_META_DIR:-}" ]; then
+  die "SR_BACKUP_OBJECTS_DIR is set but SR_BACKUP_OBJECTS_META_DIR is not: a copy of Garage's data folder without its metadata folder cannot be restored. Set both (see BACKUP.md), or unset SR_BACKUP_OBJECTS_DIR"
+fi
+if [ -z "${SR_BACKUP_OBJECTS_DIR:-}" ] && [ -n "${SR_BACKUP_OBJECTS_META_DIR:-}" ]; then
+  die "SR_BACKUP_OBJECTS_META_DIR is set but SR_BACKUP_OBJECTS_DIR is not: set both (see BACKUP.md)"
+fi
 need pg_dump
 need psql
 pg_env_from_url "$SR_DATABASE_URL"
@@ -55,11 +66,13 @@ if [ -n "${SR_BACKUP_REPOSITORY:-}" ] && [ -n "${SR_BACKUP_OBJECTS_DIR:-}" ]; th
   else
     die "SR_BACKUP_REPOSITORY is set but neither rustic nor restic is installed"
   fi
-  log "snapshotting objects with $tool"
+  [ -d "$SR_BACKUP_OBJECTS_DIR" ] || die "SR_BACKUP_OBJECTS_DIR is not a directory: $SR_BACKUP_OBJECTS_DIR"
+  [ -d "$SR_BACKUP_OBJECTS_META_DIR" ] || die "SR_BACKUP_OBJECTS_META_DIR is not a directory: $SR_BACKUP_OBJECTS_META_DIR"
+  log "snapshotting objects (data and metadata, one snapshot) with $tool"
   if [ -n "${RUSTIC_PASSWORD_FILE:-}" ]; then
-    "$tool" -r "$SR_BACKUP_REPOSITORY" -p "$RUSTIC_PASSWORD_FILE" backup "$SR_BACKUP_OBJECTS_DIR" --tag sideroom-objects
+    "$tool" -r "$SR_BACKUP_REPOSITORY" -p "$RUSTIC_PASSWORD_FILE" backup "$SR_BACKUP_OBJECTS_DIR" "$SR_BACKUP_OBJECTS_META_DIR" --tag sideroom-objects
   else
-    "$tool" -r "$SR_BACKUP_REPOSITORY" backup "$SR_BACKUP_OBJECTS_DIR" --tag sideroom-objects
+    "$tool" -r "$SR_BACKUP_REPOSITORY" backup "$SR_BACKUP_OBJECTS_DIR" "$SR_BACKUP_OBJECTS_META_DIR" --tag sideroom-objects
   fi
   # Marker the System page reads (K-10): its modification time is the last object snapshot.
   date -u +%s >"$dir/snapshot.ok"
