@@ -958,6 +958,13 @@ function part2Defs(w: World): PageDef[] {
       open: go('/study', (p) => p.waitForTimeout(6000)),
     },
     {
+      // The Cinema home: rows of cards with the quick actions.
+      key: 'cin-home',
+      chrome: true,
+      named: { page: ['.cin-qa'] },
+      open: go('/cinema', (p) => p.waitForTimeout(2500)),
+    },
+    {
       key: 'cin-browse',
       chrome: true,
       named: { page: ['.cin-qa'], search: ['.cin-link-btn'] },
@@ -975,7 +982,8 @@ function part2Defs(w: World): PageDef[] {
             await input.waitFor({ state: 'visible', timeout: 5000 });
             await input.fill('ab');
             await p.waitForTimeout(900);
-            return dialogRoot(p, 3000);
+            const dlg = p.getByRole('dialog').last();
+            return (await dlg.isVisible().catch(() => false)) ? dlg : null;
           },
         },
       ],
