@@ -117,6 +117,16 @@
     clip: rect(0 0 0 0);
   }
 }
+/* D-1022 + D-1025 (SEC-AUD-530): on a phone the bar is 44px tall inside (its border is extra) and each room link fills
+   it, so the link is 44px on screen from the top edge. A tap area would run over the rail's Home link and the find box. */
+.lng-root[data-mobile] .lng-sectionbar {
+  height: 44px;
+}
+.lng-root[data-mobile] .lng-sectionbar-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+}
 .lng-titlestrip {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -1392,6 +1402,10 @@
 .lng-textarea.lng-inline-textarea::placeholder {
   color: var(--ui-text-faint);
   opacity: 1;
+}
+/* D-1022 (SEC-AUD-534): on a phone the inline edit's own textarea is 44px tall at least (its message row grows with it). */
+.lng-root[data-mobile] .lng-textarea.lng-inline-textarea {
+  min-block-size: 44px;
 }
 .lng-textarea:focus-visible {
   outline: none;
