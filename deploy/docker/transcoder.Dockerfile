@@ -20,7 +20,7 @@ RUN set -eux; \
     cargo build --release --locked --target "$target" -p sr-transcoder; \
     install -D "target/$target/release/sr-transcoder" /out/sr-transcoder
 
-FROM nvidia/cuda:12.6.3-base-ubuntu24.04
+FROM nvidia/cuda:13.5.0-base-ubuntu24.04
 LABEL org.opencontainers.image.source="https://github.com/braxtonlayne/SIDEROOM"
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
