@@ -1,5 +1,7 @@
 # The R2 test of "bring your own storage" (D-1029): a runbook
 
+> **Postponed until deployment (owner, 2026-11-18).** This test runs only once SIDE ROOM is on a real server. The origin (`http://localhost:8860`), the local stack and the clean-up steps below were written for a local cell and must be rewritten for that host before the test is used. The no-credential rules hold as written.
+
 For the owner and the commander. One page. **No agent ever handles a key**: the owner types the keys into the app's own form, in their own browser, on the local stack. The spec (`e2e/tests/r2-byos.spec.ts`) holds no credential and must never be given one.
 
 ## What the test is for
