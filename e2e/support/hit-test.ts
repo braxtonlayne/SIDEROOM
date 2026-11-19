@@ -35,6 +35,19 @@ import type { Locator, Page } from '@playwright/test';
  * `label`); its own text; `placeholder`; `title`. Folded to single spaces, 40 characters. The name never changes a
  * status, a taker or a count.
  *
+ * Edge rule (wave 108, D-1025). A test point that lies outside the viewport (above its top, below its bottom, or off its
+ * sides) cannot be tapped, so it is not tested: the point is recorded with `edge: 'top' | 'bottom' | 'left' | 'right'`
+ * (no taker, `ok: true`) and counts neither for nor against the control. A control passes when every point inside the
+ * viewport passes and at least one is inside (the centre always is: a centre outside the viewport, both the above and
+ * the below point outside it, or a point inside the viewport that returns null, is `not-reached`, as before). Before
+ * D-1025 a point off the page made the whole control `not-reached`, so a control at the very top or bottom of the screen
+ * (the section bars' links) could never be judged. A control under 44 px tall with a point outside gets a third point,
+ * `span`, at the far side of a 44 px span measured from the edge inward (y = 43 at the top edge, `innerHeight - 44` at the
+ * bottom edge; x likewise at the left and right edge, with `sides`): a 20 px link at the top edge is tested at its
+ * centre, at centre + 21 and at 43 px from the edge, so it cannot pass by hiding half its target off screen. A result
+ * and a row carry `edge` (the side the above/below/left/right point fell off, else null). With `reach: 'box'` the points
+ * lie inside the box, so none is outside.
+ *
  * Plain Playwright and DOM; nothing is imported from a spec.
  */
 
@@ -46,7 +59,9 @@ export class ProbeError extends Error {
   }
 }
 
-export type PointName = 'centre' | 'above' | 'below' | 'left' | 'right';
+export type PointName = 'centre' | 'above' | 'below' | 'left' | 'right' | 'span';
+/** The side of the viewport a test point fell off (D-1025). */
+export type EdgeName = 'top' | 'bottom' | 'left' | 'right';
 export type Relation = 'control' | 'inside' | 'wrapper' | 'label';
 
 /** What `elementFromPoint` gave. */
@@ -61,11 +76,14 @@ export interface PointResult {
   at: PointName;
   x: number;
   y: number;
-  /** null: the point is not on the page (a probe error, thrown before a result is returned). */
+  /** null: the point is not on the page (a probe error, thrown before a result is returned), or `edge` is set. */
   taker: Taker | null;
   /** Which part of the control took the point; null when another node took it. */
   relation: Relation | null;
+  /** True when no other node took the point; also true for a point outside the viewport (`edge`, not tested). */
   ok: boolean;
+  /** D-1025: the point lies outside the viewport on this side, so it was not tested (no taker, `ok: true`). */
+  edge: EdgeName | null;
 }
 
 export interface Box {
@@ -81,6 +99,8 @@ export interface HitResult {
   offset: number;
   points: PointResult[];
   pass: boolean;
+  /** D-1025: the side a test point fell off (the first of above, below, left, right that did), else null. */
+  edge: EdgeName | null;
 }
 
 export interface HitOptions {
@@ -195,12 +215,26 @@ export async function hitTest(
     throw new ProbeError(
       `the centre returns no element (a closed container, or not on the page): ${locator.toString()}`,
     );
-  const gone = r.points.find((p) => !p.taker);
+  // D-1025: a point outside the viewport is not tested; with both the above and the below point outside there is nothing to judge.
+  const up = r.points.find((p) => p.at === 'above');
+  const down = r.points.find((p) => p.at === 'below');
+  if (up?.edge && down?.edge)
+    throw new ProbeError(
+      `both the above (${Math.round(up.y)}) and the below (${Math.round(down.y)}) point are outside the ${r.vw}x${r.vh} viewport`,
+    );
+  const gone = r.points.find((p) => !p.taker && !p.edge);
   if (gone)
     throw new ProbeError(
       `the point ${gone.at} (${Math.round(gone.x)}, ${Math.round(gone.y)}) is off the page`,
     );
-  return { box: r.box, offset: r.offset, points: r.points, pass: r.points.every((p) => p.ok) };
+  const edge = r.points.find((p) => p.at !== 'span' && p.edge)?.edge ?? null;
+  return {
+    box: r.box,
+    offset: r.offset,
+    points: r.points,
+    pass: r.points.every((p) => p.edge !== null || p.ok),
+    edge,
+  };
 }
 
 /** Runs in the page. Kept free of closures: Playwright serialises it. */
@@ -289,7 +323,26 @@ function inPage(
   if (a.sides) {
     spec.push(['left', cx - offset, cy], ['right', cx + offset, cy]);
   }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const edgeOf = (x: number, y: number): EdgeName | null =>
+    y < 0 ? 'top' : y >= vh ? 'bottom' : x < 0 ? 'left' : x >= vw ? 'right' : null;
+  // D-1025: a control under 44 px with a point outside the viewport also gets the far end of a 44 px span from the edge.
+  const out = (at: PointName) => {
+    const q = spec.find((s) => s[0] === at);
+    return q ? edgeOf(q[1], q[2]) : null;
+  };
+  if (b.height < 44) {
+    if (out('above') === 'top') spec.push(['span', cx, 43]);
+    if (out('below') === 'bottom') spec.push(['span', cx, vh - 44]);
+  }
+  if (a.sides && b.width < 44) {
+    if (out('left') === 'left') spec.push(['span', 43, cy]);
+    if (out('right') === 'right') spec.push(['span', vw - 44, cy]);
+  }
   const points = spec.map(([at, x, y]) => {
+    const edge = edgeOf(x, y);
+    if (edge) return { at, x, y, taker: null, relation: null, ok: true, edge };
     const t = document.elementFromPoint(x, y);
     const rel = own(t);
     return {
@@ -306,9 +359,10 @@ function inPage(
         : null,
       relation: rel,
       ok: rel !== null,
+      edge: null,
     };
   });
-  return { box, offset, points, vw: window.innerWidth, vh: window.innerHeight };
+  return { box, offset, points, vw, vh };
 }
 
 export interface ControlRow {
@@ -322,6 +376,8 @@ export interface ControlRow {
   status: 'pass' | 'fail' | 'not-reached' | 'skipped';
   reason?: string;
   result?: HitResult;
+  /** D-1025: the side a test point fell off (`result.edge`), else null; null for a row with no result. */
+  edge: EdgeName | null;
 }
 
 export const CONTROL_SELECTOR = [
@@ -427,6 +483,7 @@ export async function hitTestAll(
     });
     const base = {
       index: i,
+      edge: null,
       tag: info.tag,
       role: info.role,
       type: info.type,
@@ -451,7 +508,7 @@ export async function hitTestAll(
     }
     try {
       const result = await hitTest(page, loc, opts);
-      rows.push({ ...base, status: result.pass ? 'pass' : 'fail', result });
+      rows.push({ ...base, status: result.pass ? 'pass' : 'fail', result, edge: result.edge });
     } catch (e) {
       if (!(e instanceof ProbeError)) throw e;
       rows.push({ ...base, status: 'not-reached', reason: e.message.slice(0, 300) });
