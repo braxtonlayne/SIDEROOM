@@ -1,3 +1,4 @@
+# Route: Compose route (it execs into the postgres container). No host form of the base backup ships.
 [Unit]
 Description=SIDE ROOM base backup for point-in-time recovery (WAL archiving starting point)
 After=docker.service

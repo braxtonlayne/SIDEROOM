@@ -43,7 +43,7 @@ Five minutes a day, once the box is past its first fortnight.
 **Monthly**
 
 - Read the release notes and upgrade ([UPGRADE.md](UPGRADE.md)). Run `sr-cli upgrade --dry-run` first.
-- Do a real restore into a scratch database, not only the drill: `createdb`, `deploy/scripts/restore.sh <dump> <url>`, look at the newest message, drop it. A backup nobody has restored is a hope.
+- Do a real restore into a scratch database, not only the drill: on the plain-binary route `createdb`, `deploy/scripts/restore.sh <dump> <url>`; on the Compose route the container form of [GO-LIVE.md](GO-LIVE.md) section 5 step 2 ([BACKUP.md](BACKUP.md), "On the Compose stack"). Look at the newest message, drop it. A backup nobody has restored is a hope.
 - `sr-cli verify-access-log` and `sr-cli preflight`; read every warning.
 - Admin > Staff & roles: everyone with a role still needs it. Admin > Invites and the account cap (`accounts.cap`) against the gauge on the Dashboard.
 - Disk growth: compare the Disk space card with last month; extend before `alerts.disk_percent` fires, not after.

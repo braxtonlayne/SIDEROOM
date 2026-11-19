@@ -25,7 +25,7 @@ The nightly dump alone gives a recovery point of up to 24 hours. With WAL archiv
 | `pitr-restore.sh` | unpacks a base backup into an empty data directory and writes the recovery settings (`restore_command`, `recovery_target_time`, promote at the target) |
 | `wal-drill.sh` | proves all of it on a scratch cluster: 300 rows in three batches, recover to between batch two and three, expect exactly 200 rows on a new timeline |
 
-Enable the nightly base backup on the host: copy `deploy/systemd/sideroom-basebackup.*` to `/etc/systemd/system/` and `systemctl enable --now sideroom-basebackup.timer`. The unit runs the script inside the postgres container over the local socket, so no password is involved.
+Enable the nightly base backup on the host: copy `deploy/systemd/sideroom-basebackup.*` to `/etc/systemd/system/` and `systemctl enable --now sideroom-basebackup.timer`. The unit is for the Compose route only (no host form ships): it runs the script inside the postgres container over the local socket, so no password is involved.
 
 To recover (stop `sr-server` and the old Postgres first):
 
@@ -58,7 +58,7 @@ then start a Postgres on that data directory (`pg_ctl -D <dir> start`, or point 
 3. Copy `deploy/systemd/sideroom-backup.*` and `sideroom-restore-drill.*` to `/etc/systemd/system/`, then
    `systemctl enable --now sideroom-backup.timer sideroom-restore-drill.timer`.
 
-With Docker Compose, run the same script from the host against the published or exec'd Postgres: `docker compose exec -T postgres pg_dump ...` also works, but the scripts expect a reachable `SR_DATABASE_URL`. The simplest route is to publish Postgres on `127.0.0.1` for the backup user only.
+These two units are for the plain-binary route: they run the script on the host as `sideroom` and need `pg_dump` there. On the Compose route use `sideroom-backup-compose.*` and `sideroom-restore-drill-compose.*` instead (next section); do not enable the host-form pair there, it fails every night.
 
 ## From the command line
 
@@ -74,7 +74,9 @@ dc="docker compose -f prod.yml --env-file .env.prod"
 $dc exec -T -u postgres postgres sh -c 'SR_DATABASE_URL=postgres://sideroom@/sideroom SR_BACKUP_DIR=/var/backups/sideroom SR_BACKUP_DIR_MODE=750 sh /opt/sideroom/scripts/backup.sh'
 ```
 
-(The URL has no host and no password: the container's own socket is trusted. The same shape is in `deploy/systemd/sideroom-basebackup.service`.) Copy `/var/lib/docker/volumes/<project>_pg-backups/_data` off the host, or `docker cp` from the container.
+(The URL has no host and no password: the container's own socket is trusted. The same shape is in `deploy/systemd/sideroom-basebackup.service`.)
+
+The release ships the schedule for this route as three units, each with its timer, to copy to `/etc/systemd/system/` (then `systemctl daemon-reload`): `sideroom-backup-compose.*` (the dump above, nightly at 03:15), `sideroom-restore-drill-compose.*` (the drill, with `restore-drill.sh` run the same way, Sundays at 05:00) and `sideroom-basebackup.*` (the base backup, nightly at 02:30). Enable the three timers with `systemctl enable --now sideroom-backup-compose.timer sideroom-restore-drill-compose.timer sideroom-basebackup.timer`. Their `ExecStart` lines are the commands of `deploy/scripts/prod-smoke.sh` (`backups` stage). The host-form `sideroom-backup.*` and `sideroom-restore-drill.*` belong to the plain-binary route above; the first comment line of every unit file names its route. Copy `/var/lib/docker/volumes/<project>_pg-backups/_data` off the host, or `docker cp` from the container.
 
 **Admin > System shows the last backup.** sr-server mounts the `pg-backups` volume read-only at the same path and is in the postgres group (`group_add: ["999"]`), and the folder is mode 750 (`SR_BACKUP_DIR_MODE=750`, which `backup.sh` and `basebackup.sh` honour; the default stays 700). Point the platform setting at it once, in Admin > Limits (group `alerts`) or with `PATCH /admin/settings`:
 
@@ -141,7 +143,7 @@ Object storage: `rustic -r <repo> restore latest --target /var/lib/garage/data` 
 
 ## The restore drill
 
-A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit). A successful drill touches `restore-drill.ok` in the backup folder, and a backup that snapshotted the objects touches `snapshot.ok`; Admin > System shows their times next to the newest dump (`GET /admin/system`, `backups`).
+A backup nobody has restored is a hope. `deploy/scripts/restore-drill.sh` restores the newest dump into a throwaway database, checks that migrations and tables are present and that none failed, and drops the database. It fails when the newest backup is more than 36 hours old (`SR_DRILL_MAX_AGE_HOURS`). The systemd timer (`sideroom-restore-drill.timer`, or `sideroom-restore-drill-compose.timer` on the Compose route) runs it every Sunday; `.github/workflows/backup-drill.yml` runs the same scripts weekly against a migrated, seeded CI database so the scripts themselves cannot rot. Wire the service's failure to your alerting (for example `OnFailure=` with an email unit). A successful drill touches `restore-drill.ok` in the backup folder, and a backup that snapshotted the objects touches `snapshot.ok`; Admin > System shows their times next to the newest dump (`GET /admin/system`, `backups`).
 
 ## Secrets rotation
 

@@ -1,3 +1,4 @@
+# Route: plain-binary (systemd) route. The Compose route uses sideroom-backup-compose.timer.
 [Unit]
 Description=Run the SIDE ROOM backup every night
 

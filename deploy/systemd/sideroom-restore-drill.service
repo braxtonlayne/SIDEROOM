@@ -1,3 +1,4 @@
+# Route: plain-binary (systemd) route. The Compose route uses sideroom-restore-drill-compose.service.
 [Unit]
 Description=SIDE ROOM restore drill (restore the newest backup into a throwaway database)
 After=network-online.target postgresql.service sideroom-backup.service
