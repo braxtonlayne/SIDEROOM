@@ -1158,7 +1158,8 @@ fn every_backup_unit_names_its_route_and_it_is_true() {
         };
         let uses_compose = service_body.contains("docker compose");
         assert_eq!(
-            compose_route, uses_compose,
+            compose_route,
+            uses_compose,
             "{name} says {route:?} but its service {} docker compose",
             if uses_compose { "uses" } else { "does not use" }
         );
@@ -1269,7 +1270,11 @@ fn the_installer_refuses_the_placeholder_before_it_writes_a_secret() {
     let code = |l: &&str| !l.trim_start().starts_with('#');
     let refusal = lines
         .iter()
-        .position(|l| code(l) && l.trim_start().starts_with("refuse_placeholder_image \"$SR_IMAGE\""))
+        .position(|l| {
+            code(l)
+                && l.trim_start()
+                    .starts_with("refuse_placeholder_image \"$SR_IMAGE\"")
+        })
         .expect("install.sh never refuses the image given by the operator");
     for (what, needle) in [
         ("the first fill of the env template", "fill \"$tmp\""),
@@ -1306,7 +1311,9 @@ fn the_installer_refuses_the_placeholder_before_it_writes_a_secret() {
     );
     // The first sign-in secrets go to the operator's terminal only.
     assert!(
-        !lines.iter().any(|l| code(l) && l.split_whitespace().any(|w| w == "tee")),
+        !lines
+            .iter()
+            .any(|l| code(l) && l.split_whitespace().any(|w| w == "tee")),
         "install.sh must not tee its output (it prints the Owner password)"
     );
 }
@@ -1389,9 +1396,9 @@ fn the_compose_server_reads_an_optional_operator_env_file_outside_deploy() {
     );
     let example = read("deploy/compose/.env.prod.example");
     assert!(
-        example
-            .lines()
-            .any(|l| l.trim_start_matches("# ").starts_with("SR_SERVER_ENV_FILE=")),
+        example.lines().any(|l| l
+            .trim_start_matches("# ")
+            .starts_with("SR_SERVER_ENV_FILE=")),
         ".env.prod.example does not document SR_SERVER_ENV_FILE"
     );
     // The installer's values are never replaced by it: the variable stays commented out in the example.
@@ -1488,7 +1495,10 @@ fn the_release_notes_start_at_a_version_tag_are_capped_and_are_what_the_release_
 #[test]
 fn the_release_binaries_are_built_from_the_lockfile() {
     let wf = read(".github/workflows/release.yml");
-    let lines: Vec<&str> = wf.lines().filter(|l| l.contains("cargo zigbuild")).collect();
+    let lines: Vec<&str> = wf
+        .lines()
+        .filter(|l| l.contains("cargo zigbuild"))
+        .collect();
     assert!(!lines.is_empty(), "release.yml builds no binaries");
     for l in lines {
         assert!(l.contains("--locked"), "not built --locked: {l}");
@@ -1509,8 +1519,9 @@ fn every_image_carries_the_source_label_in_its_last_stage() {
         let last = body.rfind("\nFROM ").expect("a Dockerfile without FROM");
         let stage = &body[last..];
         assert!(
-            stage.lines().any(|l| l.starts_with("LABEL")
-                && l.contains("org.opencontainers.image.source=")),
+            stage
+                .lines()
+                .any(|l| l.starts_with("LABEL") && l.contains("org.opencontainers.image.source=")),
             "{}: the last stage has no org.opencontainers.image.source label",
             p.display()
         );
