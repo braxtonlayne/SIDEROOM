@@ -12,7 +12,7 @@ Started 01:54 (2026-11-19, before T), page and top note written by about 02:00; 
 
 ## FINDERS
 `git grep -n "r2-byos-test"` across docs, deploy, e2e, .github: only `docs/01-decisions-log.md:1470` (D-1029) and the comment in `e2e/tests/r2-byos.spec.ts:16`. My top-note change breaks neither. Pages that should link the new one (not mine):
-- `deploy/GO-LIVE.md`, after the "Reference pages" sentence in the intro: "The tests that wait for a real server (R2, two-network voice, Safari, the payment walk, the playbooks) are listed in order in [docs/dev/deployment-day-checks.md](../docs/dev/deployment-day-checks.md)."
+- `deploy/GO-LIVE.md`, after the "Reference pages" sentence in the intro: "The tests that wait for a real server (R2, two-network voice, Safari, the payment walk, the playbooks) are listed in order in `docs/dev/deployment-day-checks.md` (link: ../docs/dev/deployment-day-checks.md from deploy/)."
 - `docs/dev/owner-checklist.md`: a row "Run the deployment-day checks (`docs/dev/deployment-day-checks.md`) after GO-LIVE section 7 and before the first invites; have a Mac or iPhone and a second person with a phone ready."
 - `docs/12-deployment-and-operations.md` section 5 (after the D-1037 search sentence): "After a restore the search folder (`search.dir`) is not part of the database; if search is empty or stale, run `sr-cli reindex` (it queues `search.reindex`)."
 
