@@ -8,6 +8,11 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 109 - 2026-11-18
+
+- On a phone the links across the top of the Library, the Cinema and the Lounge Home, the Cinema's "Explore all" links, the empty-shelf links and the message edit box take a tap reliably. The Lounge's top bar is 44 px tall on a phone and the rooms under it start 16 px lower; the Library and Cinema bars have 4 px more room below their links. The Arcade and Study bars, the hover buttons of a message on a phone and a few other small controls are measured and still to be cured.
+- For the team: the second census measured the Lounge's Friends, group DM, reactions, spoilers and dialogs, the Library list, Admin and the rest of the tools. A spec and a runbook now exist for testing bring-your-own storage against a real R2 bucket; the owner postponed the run until the platform is on a real server (D-1029), and no cell gets an object store (D-1030). Reading the storage code found three fixes for wave 110: the CORS check on a 403, a secret that must never print in a log, and a mounts list that shows too much of the key (D-1032 to D-1034). The open rows are SEC-AUD-539 to 556.
+
 ## Phase 108 - 2026-11-18
 
 - On a phone, more small controls take a tap reliably: reaction pills under a message, the Save and Cancel of a message edit, "Jump to original", the Threads popover's tabs and search, the New Post box, the percent examples, the programmer's bit buttons, the time-zone hours, the Encode, Decode, Start and Reset buttons of the developer tools, the Study's folder pills and the Cinema search's footer links. The filter chips and drawer close buttons have a little more reach. A message with reactions is about 11 px taller on a phone.

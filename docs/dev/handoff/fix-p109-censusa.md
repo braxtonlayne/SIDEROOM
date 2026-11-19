@@ -109,3 +109,5 @@ Should a tap on a message show the hover toolbar on a phone? Default (Discord-li
 
 ## PROCESSES
 `strays.sh p109-censusa`: strays: none found (22:13). No job of mine is queued or running.
+
+> Note (integration): `D-1030` in this builder's commit subjects is a placeholder; the real decision numbers of wave 109 are D-1029 to D-1035 (D-1030 is the no-object-store decision).

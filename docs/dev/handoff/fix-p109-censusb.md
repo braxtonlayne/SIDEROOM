@@ -75,3 +75,5 @@ None. (Default taken: the Study bar's two rows get a row gap rather than shrinki
 
 ## PROCESSES
 strays: none found (22:05)
+
+> Note (integration): `D-1030` in this builder's commit subjects is a placeholder; the real decision numbers of wave 109 are D-1029 to D-1035 (D-1030 is the no-object-store decision).
