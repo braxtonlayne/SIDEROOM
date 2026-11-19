@@ -35,6 +35,28 @@
   min-inline-size: 0;
   box-sizing: border-box;
 }
+/* D-1024: the kit field's manners (rest border stays as the fallback above). */
+.sr-calc-input,
+.sr-calc input[type='date'],
+.sr-calc input[type='text'] {
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
+}
+.sr-calc-input:hover,
+.sr-calc input[type='date']:hover,
+.sr-calc input[type='text']:hover {
+  border-color: var(--ui-text-faint);
+}
+.sr-calc-input:focus-visible,
+.sr-calc input[type='date']:focus-visible,
+.sr-calc input[type='text']:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.sr-calc-input::placeholder,
+.sr-calc input[type='text']::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
 .sr-calc-input {
   flex: 1;
   inline-size: 100%;
@@ -359,4 +381,20 @@
 /* SEC-AUD-463 FAULT cure: only the Units From and To fields need more, to hold "Kilometre (km)" clear of the chevron. */
 .sr-calc-field.sr-calc-unit-field:has(select) {
   min-inline-size: 9.25rem;
+}
+
+/*
+ * D-1022: the 44px target on a phone (the tools' own 720px phone width, as rooms.css). The keys and the one-line
+ * fields grow; the Deg / Rad buttons grow with their group; the checkbox rows get a 44px label so the points
+ * land in the label. History, bit buttons and everything at pointer widths are unchanged.
+ */
+@media (max-width: 720px) {
+  .sr-calc-key,
+  .sr-calc-input,
+  .sr-calc input[type='date'],
+  .sr-calc input[type='text'],
+  .sr-calc-seg-btn,
+  .sr-calc-check {
+    min-block-size: 2.75rem;
+  }
 }

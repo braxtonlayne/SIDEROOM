@@ -19,6 +19,14 @@
   align-items: flex-end;
   gap: 0.375rem;
 }
+/* D-1022: wrapped rows of small buttons keep their 44 px tap areas apart on a phone. */
+@media (max-width: 720px) {
+  .sr-st-bar,
+  .sr-st-row,
+  .sr-st-panel {
+    row-gap: 16px;
+  }
+}
 .sr-st-spacer {
   flex: 1;
 }
