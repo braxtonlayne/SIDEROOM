@@ -560,8 +560,8 @@ async function openFriends(page: Page, tab?: string) {
   await go(page, '/channels/@me', page.locator('.lng-left'));
   await tap(
     page
-      .getByRole('button', { name: /^Friendsd*$/ })
-      .or(page.getByRole('link', { name: /^Friendsd*$/ })),
+      .getByRole('button', { name: /^Friends[0-9]*$/ })
+      .or(page.getByRole('link', { name: /^Friends[0-9]*$/ })),
   );
   await page.locator('section.lng-friends').first().waitFor({ timeout: 10_000 });
   await settle(page, 2500);
