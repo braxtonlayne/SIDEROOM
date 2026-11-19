@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Combobox, MultiSelect, Select, type SelectOption } from './Select/Select';
 
 const fruit: SelectOption[] = [
@@ -135,5 +135,49 @@ describe('MultiSelect', () => {
     await userEvent.click(screen.getByRole('combobox'));
     await userEvent.keyboard('{Backspace}');
     expect(screen.queryByRole('button', { name: 'Remove Apple' })).toBeNull();
+  });
+});
+
+describe('Select row height (D-1022)', () => {
+  const orig = window.matchMedia;
+  const phone = (on: boolean) => {
+    window.matchMedia = ((q: string) => ({
+      matches: on && q.includes('720px'),
+      media: q,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      onchange: null,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  };
+  const open = async (rowHeight?: number) => {
+    render(<Select aria-label="F" options={fruit} rowHeight={rowHeight} />);
+    const box = screen.getByRole('combobox', { name: 'F' });
+    box.focus();
+    await userEvent.keyboard('{ArrowDown}');
+    return screen.getByRole('listbox');
+  };
+  const rows = () => screen.getAllByRole('option').map((o) => (o as HTMLElement).style.height);
+  afterEach(() => {
+    window.matchMedia = orig;
+  });
+  it('is 36 at pointer widths', async () => {
+    phone(false);
+    const list = await open();
+    expect(rows()[0]).toBe('36px');
+    expect(list.style.height).toBe('144px');
+  });
+  it('is 44 on a phone, list height agrees; a smaller caller height becomes 44, a larger one stays', async () => {
+    phone(true);
+    const list = await open();
+    expect(rows()[0]).toBe('44px');
+    expect(list.style.height).toBe('176px');
+  });
+  it('keeps a caller height of 44 or more on a phone', async () => {
+    phone(true);
+    await open(52);
+    expect(rows()[0]).toBe('52px');
   });
 });

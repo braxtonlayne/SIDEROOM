@@ -120,6 +120,12 @@
 .ss-toolbar > * {
   min-width: 0;
 }
+/* D-1022: the Members bulk bar's small buttons keep their 44 px tap areas apart when the bar wraps on a phone. */
+@media (max-width: 720px) {
+  .ss-toolbar[role='toolbar'] {
+    row-gap: 16px;
+  }
+}
 .ss-search {
   flex: 1;
   min-width: 180px;
@@ -144,6 +150,13 @@
   border: 1px solid var(--ui-border);
   border-radius: 999px;
   font-size: 0.75rem;
+}
+/* D-1022: the role chips of Channels > Permissions are buttons: 44 px tall on a phone (the wrapped rows' 4 px gap cannot hold a
+   tap area, so the chip grows). The Members chips are spans and keep their box. */
+@media (max-width: 720px) {
+  button.ss-role-chip {
+    min-block-size: 44px;
+  }
 }
 .ss-split {
   display: grid;
@@ -225,10 +238,14 @@
   background: var(--ui-bg-raised);
   color: var(--ui-text);
   border: 1px solid var(--ui-border);
+  border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: var(--ui-radius);
   font: inherit;
   width: 100%;
   box-sizing: border-box;
+}
+.ss-select:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
 }
 .ss-select:focus-visible {
   outline: 2px solid var(--ui-focus);
@@ -592,6 +609,18 @@
   color: var(--text-link, var(--ui-accent));
   align-self: flex-start;
 }
+/* D-1022: on a phone the card's links get a 44 px tap area (the card's 12 px gap above and 16 px padding below hold it). */
+@media (max-width: 720px) {
+  .ss-card > a {
+    position: relative;
+  }
+  .ss-card > a::after {
+    content: '';
+    position: absolute;
+    inset-block: -12px;
+    inset-inline: 0;
+  }
+}
 
 /* Extensions > Server look: the colour picker, its Save and Clear buttons and the search below ran together. */
 .pkg-look {
@@ -613,7 +642,8 @@
 /* SEC-AUD-350 (D-854, D-846): the small controls of server settings reach 44 px on a phone. The channel and role name
    buttons keep their row's height (padding against a negative margin); the badge grid wraps instead of overflowing. */
 @media (max-width: 720px) {
-  .ss-row > button.ss-name {
+  .ss-row > button.ss-name,
+  .ss-row > .ss-grow > button.ss-name {
     padding-block: 12px;
     margin-block: -12px;
   }

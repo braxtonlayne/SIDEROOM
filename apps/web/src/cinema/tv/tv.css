@@ -747,6 +747,33 @@
     align-items: flex-start;
     flex-direction: column;
   }
+  /* D-1022: 44 px tap areas on a phone. The controls keep their drawn size; the 8 px gaps of the wrapped rows hold the
+     4 px each way, and the channel head's 10 px padding holds the 8 px of the favourite star. */
+  .tv-chip,
+  .tv-nav-btn,
+  .tv-fav,
+  .tv-agenda-tune {
+    position: relative;
+  }
+  .tv-chip::after {
+    content: '';
+    position: absolute;
+    inset-block: -5px; /* the 1px border: insets measure from the padding box */
+    inset-inline: 0;
+  }
+  .tv-nav-btn::after,
+  .tv-agenda-tune::after {
+    content: '';
+    position: absolute;
+    inset-block: -4px;
+    inset-inline: 0;
+  }
+  .tv-fav::after {
+    content: '';
+    position: absolute;
+    inset-block: -8px;
+    inset-inline: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .tv-scroller {

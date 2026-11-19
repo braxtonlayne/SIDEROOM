@@ -31,6 +31,90 @@ function ModalHarness({ onClose = () => {} }: { onClose?: () => void }) {
   );
 }
 
+describe('Modal initial focus (D-1021)', () => {
+  const closeBtn = () => screen.getByRole('button', { name: /close/i });
+  it('goes to the first field, not Close', () => {
+    render(
+      <Modal open title="T" onClose={() => {}} footer={<button>Save</button>}>
+        <a href="#x">link</a>
+        <input aria-label="Name" />
+      </Modal>,
+    );
+    expect(screen.getByLabelText('Name')).toHaveFocus();
+  });
+  it('keeps a field that asked for focus (autoFocus)', () => {
+    render(
+      <Modal open title="T" onClose={() => {}}>
+        <input aria-label="One" />
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- D-1021: this test proves Modal keeps an autoFocus field. */}
+        <input aria-label="Two" autoFocus />
+      </Modal>,
+    );
+    expect(screen.getByLabelText('Two')).toHaveFocus();
+  });
+  it('honours data-autofocus and initialFocusRef over a field', () => {
+    // React 19's RefObject<HTMLElement> holds a non-null current; the button's ref callback fills it before Modal reads it.
+    const ref: { current: HTMLElement } = { current: null as unknown as HTMLElement };
+    const { unmount } = render(
+      <Modal open title="T" onClose={() => {}}>
+        <input aria-label="One" />
+        <button data-autofocus="">Pick me</button>
+      </Modal>,
+    );
+    expect(screen.getByRole('button', { name: 'Pick me' })).toHaveFocus();
+    unmount();
+    function Ref() {
+      return (
+        <Modal open title="T" onClose={() => {}} initialFocusRef={ref}>
+          <input aria-label="One" />
+          <button
+            ref={(el) => {
+              if (el) ref.current = el;
+            }}
+          >
+            Ref me
+          </button>
+        </Modal>
+      );
+    }
+    render(<Ref />);
+    expect(screen.getByRole('button', { name: 'Ref me' })).toHaveFocus();
+  });
+  it('without a field goes to the first control that is not Close, else Close', () => {
+    const { unmount } = render(
+      <Modal open title="T" onClose={() => {}} footer={<button>Save</button>}>
+        <p>Nothing to type</p>
+      </Modal>,
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus();
+    unmount();
+    render(
+      <Modal open title="T" onClose={() => {}}>
+        <p>Only text</p>
+      </Modal>,
+    );
+    expect(closeBtn()).toHaveFocus();
+  });
+  it('keeps the trap, Escape and the return of focus', async () => {
+    const onClose = vi.fn();
+    render(<ModalHarness onClose={onClose} />);
+    const opener = screen.getByText('Open');
+    await userEvent.click(opener);
+    expect(screen.getByLabelText('Name')).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
+    await userEvent.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalled();
+    expect(opener).toHaveFocus();
+  });
+  it('a destructive confirm starts on Cancel', () => {
+    render(<ConfirmDialog open danger title="Delete?" onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  });
+});
+
 describe('Modal', () => {
   it('renders an accessible dialog and moves focus inside', async () => {
     render(<ModalHarness />);

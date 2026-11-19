@@ -864,3 +864,14 @@ label.ss-field {
     background-repeat: no-repeat;
   }
 }
+
+/* D-1022: on a phone the small chip buttons of Bans' figures keep their 44 px tap areas apart when a row wraps, and the
+   daypart's last select keeps 8 px between it and "Remove daypart" under it (Live TV channel form). */
+@media (max-width: 720px) {
+  .adm-dash-section > .adm-actions[role='group'] {
+    row-gap: 16px;
+  }
+  .adm-cin-daypart > .adm-cin-grid:last-of-type {
+    margin-block-end: 8px;
+  }
+}

@@ -77,19 +77,26 @@ interface OptionListProps {
   onHover: (index: number) => void;
 }
 
+const PHONE_ROW_HEIGHT = 44;
+
 function OptionList({
   listId,
   options,
   active,
   isSelected,
   multiple,
-  rowHeight,
+  rowHeight: rowHeightProp,
   maxHeight,
   label,
   labelledBy,
   onPick,
   onHover,
 }: OptionListProps) {
+  // D-1022: on a phone (the kit's own 720 px breakpoint, read once when the list opens) a row is at least 44 px tall.
+  const [phone] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 720px)').matches,
+  );
+  const rowHeight = phone ? Math.max(rowHeightProp, PHONE_ROW_HEIGHT) : rowHeightProp;
   const scroller = useRef<HTMLDivElement>(null);
   const height = Math.min(maxHeight, options.length * rowHeight);
   const v = useVirtualizer({

@@ -8,6 +8,12 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 107 - 2026-11-18
+
+- On a phone, buttons, list rows, settings rows, emoji, tool fields and filter chips across the app are easier to hit: the Lounge's channel and Home lists, user panel, composer, emoji picker, inbox and Friends header, the settings drawer, the calculator and converters, Invite card, tier list and poll, and the Library, Study, Cinema and Live TV. Drop-down lists have 44 px rows, and the wrong-neighbour taps in the settings drawer and the emoji picker are gone. A few small controls are still short and come next.
+- Everywhere: the header search, the composer and the message edit box show when they have keyboard focus; the app's own text fields have a visible edge, a hover and a readable placeholder like the standard ones; a new dialog opens with the cursor in its first field.
+- For the team: the job runner's new version (hold reasons) ran this wave with eighteen builders, memory allowed one or two test servers at a time, and the open leftovers are SEC-AUD-518 to 529.
+
 ## Phase 106 - 2026-11-18
 
 - Form fields (text boxes, text areas and drop-downs) have a firmer outline at rest in every theme, so you can see where a field begins and ends. In the Lounge a channel's header folds its search field to an icon when it is short of room, so the channel name can be read; focusing the icon opens the field. In the player the music panel's selects show the same focus ring and look as selects elsewhere. Tier list controls are full-size touch targets on a phone.

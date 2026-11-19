@@ -74,3 +74,23 @@
 .select:focus-visible {
   outline: none;
 }
+
+/* D-1022: on a phone a chip keeps its 36 px box and gets a 44 px tall tap area from a pseudo-element. It reaches 4 px
+   above and below, inside the 12 px row gap, so no row grows and no neighbour's centre line is covered. The dropdown's
+   trigger and chevron (the Select's two buttons, side by side) each get the same, centred on their own box, so the
+   dropdown's drawn box does not change. */
+@media (max-width: 720px) {
+  .chip,
+  .select > button {
+    position: relative;
+  }
+  .chip::after,
+  .select > button::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}

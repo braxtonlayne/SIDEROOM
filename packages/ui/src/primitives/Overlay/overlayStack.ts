@@ -74,12 +74,47 @@ export function useOverlayStack({
   return { isTopmost };
 }
 
+const FIELD =
+  'input:not([disabled]):not([type="hidden"]):not([hidden]), textarea:not([disabled]):not([hidden]), select:not([disabled]):not([hidden]), [contenteditable]:not([contenteditable="false"])';
+
+function isHidden(el: HTMLElement): boolean {
+  return !!el.closest('[hidden]') || el.getAttribute('aria-hidden') === 'true';
+}
+
+/** D-1021: the control that asked for focus. The one React already focused (`autoFocus`) wins, else `[autofocus]`. */
+function askedForFocus(container: HTMLElement | null | undefined): HTMLElement | null {
+  if (!container) return null;
+  const active = document.activeElement as HTMLElement | null;
+  if (
+    active &&
+    active !== container &&
+    container.contains(active) &&
+    !active.hasAttribute('data-sr-close')
+  ) {
+    return active;
+  }
+  return container.querySelector<HTMLElement>('[autofocus]');
+}
+
+function firstNonClose(container: HTMLElement | null | undefined): HTMLElement | null {
+  if (!container) return null;
+  for (const el of container.querySelectorAll<HTMLElement>(FOCUSABLE)) {
+    if (!el.hasAttribute('data-sr-close') && !isHidden(el)) return el;
+  }
+  return null;
+}
+
 export interface FocusTrapOptions {
   open: boolean;
   containerRef: RefObject<HTMLElement | null>;
   isTopmost: () => boolean;
   /** Element to focus on open; defaults to `[data-autofocus]`, the first focusable, else the container. */
   initialFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * D-1021 (Modal): focus goes to what the dialog asked for, else its first field, else its first control that is not
+   * the `[data-sr-close]` button, else Close. Off (Drawer), the old order holds: `[data-autofocus]`, first focusable.
+   */
+  preferFields?: boolean;
 }
 
 /** Moves focus into an overlay on open, wraps Tab inside it, and restores focus on close. */
@@ -88,6 +123,7 @@ export function useFocusTrap({
   containerRef,
   isTopmost,
   initialFocusRef,
+  preferFields = false,
 }: FocusTrapOptions): void {
   useEffect(() => {
     if (!open) return;
@@ -97,7 +133,10 @@ export function useFocusTrap({
       initialFocusRef?.current ??
       // One query per priority: a selector list returns the first match in document order, so the header's close
       // button would beat a later `[data-autofocus]` field.
+      (preferFields ? askedForFocus(container) : null) ??
       container?.querySelector<HTMLElement>('[data-autofocus]') ??
+      (preferFields ? container?.querySelector<HTMLElement>(FIELD) : null) ??
+      (preferFields ? firstNonClose(container) : null) ??
       container?.querySelector<HTMLElement>(FOCUSABLE) ??
       container;
     target?.focus();
