@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 115 - 2026-11-19
+
+- Voice Activity mode has an optional second detector: a small speech model that runs on your own device (Silero). It is off by default; choose it under Settings, Voice & Video, "Voice detection". Nothing is sent anywhere, and it downloads about 18 MB the first time you join a call or press "Let's check" with it chosen. If it cannot start, the call uses the standard detector and says so, and the next call tries again.
+- With the model chosen, the sensitivity controls do not apply (the model decides) and it needs two quick speech-like moments in a row to open your microphone, about a thirtieth of a second more than the standard detector. Push to Talk is unchanged and never loads it.
+- For the operator: the model and its runtime are self-hosted files of the app (no CDN, same Content Security Policy), loaded only for members who turn it on; the runtime adds 16 permissive packages to the notices. The wasm is 14.8 MB, so check that your proxy compresses it.
+- For the team: proven in Chromium on the wave's own build (the fallback, the encrypted call, nothing loaded early); speech is not proven by a committed test, and Firefox, Safari and phones are hand checks on deployment day. Row VOX-CLI-002 awaits the tick after CI; the open rows are SEC-AUD-584 to 591.
+
 ## Phase 113 - 2026-11-19
 
 - The systemd server now starts: its unit names the search folder (`/var/lib/sideroom/search`) and has a working directory.
