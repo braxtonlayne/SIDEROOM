@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { APIRequestContext } from '@playwright/test';
 import { DATABASE_URL } from './cli';
-import { apiPost } from './fixtures';
+import { apiPatch, apiPost, apiPut, loginApi, registerUser } from './fixtures';
 import { apiDelete } from './world';
 
 /**
@@ -190,4 +190,234 @@ export async function seedActivityTier(
       await apiDelete(owner, `/admin/arcade/coming-soon/${card.id}`);
     },
   };
+}
+
+// ---- wave 108 (D-1026): what the sweep world gained for the second census ----------------------------------------
+
+/** The ids a spec finds in `world.json` under the key `extras` (D-1026). Every name carries `sweep-x-`/`Sweep X` and a random suffix. */
+export interface SweepExtras {
+  /** A second account, an accepted friend of the Owner. */
+  friendId: string | null;
+  friendName: string | null;
+  /** A third account whose friend request to the Owner is still pending (the Owner sees Accept). */
+  askerId: string | null;
+  askerName: string | null;
+  /** The group DM of the Owner and the two new accounts, with a name and one message from each. */
+  groupDmId: string | null;
+  groupDmName: string | null;
+  /** A text channel beside the seeded one (so no message is added to the seeded channel). */
+  extrasChannelId: string | null;
+  extrasChannelName: string | null;
+  /** In that channel: a message with 14 reactions (wraps to two lines at 375), and one with a ||spoiler||. */
+  reactionsMessageId: string | null;
+  spoilerMessageId: string | null;
+  /** A comment with the spoiler tag on the world's Cinema title. */
+  spoilerCommentId: string | null;
+  spoilerCommentTitleId: string | null;
+  /** A private Library list with nothing in it, so its page shows the empty-state links. */
+  listId: string | null;
+  listName: string | null;
+  /** What this seed does not make, with the reason (kept in the world so a census can say it). */
+  notSeeded: string[];
+}
+
+export interface SweepExtrasIn {
+  browser: import('@playwright/test').Browser;
+  /** The Owner's and the member's request contexts (both signed in). */
+  owner: APIRequestContext;
+  member: APIRequestContext;
+  guildId: string;
+  titleId: string;
+  origin: string;
+}
+
+const REACTION_EMOJI = [
+  '👍',
+  '❤️',
+  '😂',
+  '🎉',
+  '🔥',
+  '👀',
+  '🙏',
+  '😮',
+  '😢',
+  '🚀',
+  '💯',
+  '✅',
+  '🌟',
+  '🍿',
+];
+
+/**
+ * D-1026: the data the censuses of wave 106 could not see. Each step prints its own `ok` or `FAIL` line into `log`; a
+ * step the API refuses is a FAIL with the status, never skipped. Nothing existing is changed: new accounts, a new text
+ * channel, a new group DM, one more comment and one new list. The accounts are two (the seed already registers one: three
+ * a minute against the limit of five; `registerUser` waits out a 429).
+ */
+export async function seedSweepExtras(i: SweepExtrasIn, log: string[]): Promise<SweepExtras> {
+  const t0 = Date.now();
+  const sfx = suffix();
+  const x: SweepExtras = {
+    friendId: null,
+    friendName: null,
+    askerId: null,
+    askerName: null,
+    groupDmId: null,
+    groupDmName: null,
+    extrasChannelId: null,
+    extrasChannelName: null,
+    reactionsMessageId: null,
+    spoilerMessageId: null,
+    spoilerCommentId: null,
+    spoilerCommentTitleId: null,
+    listId: null,
+    listName: null,
+    notSeeded: [],
+  };
+  const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | null> => {
+    try {
+      const v = await fn();
+      log.push(`ok   ${name}`);
+      return v;
+    } catch (e) {
+      log.push(`FAIL ${name}: ${String(e).slice(0, 240)}`);
+      return null;
+    }
+  };
+  const sleep = (ms: number) => new Promise((ok) => setTimeout(ok, ms));
+  const o = i.owner;
+  const ownerId = await step('x: owner id', async () => {
+    const r = await o.get('/api/v1/users/@me');
+    return ((await r.json()) as { id: string }).id;
+  });
+  const react = (r: APIRequestContext, channel: string, message: string, emoji: string) =>
+    apiPut(
+      r,
+      `/channels/${channel}/messages/${message}/reactions/${encodeURIComponent(emoji)}/@me`,
+    );
+
+  // (1) two accounts: one accepted friend, one pending request to the Owner.
+  const account = async (label: string, display: string) => {
+    const anon = await i.browser.newContext({ baseURL: i.origin });
+    try {
+      const u = await registerUser(anon.request, label);
+      const ctx = await i.browser.newContext({ baseURL: i.origin });
+      await loginApi(ctx.request, u);
+      await apiPatch(ctx.request, '/users/@me', { global_name: display });
+      return { id: u.id, name: display, ctx };
+    } finally {
+      await anon.close();
+    }
+  };
+  const friend = await step('x: friend account', () => account('sweepfriend', 'Marlow'));
+  const asker = await step('x: requester account', () => account('sweepasker', 'Tess'));
+  try {
+    if (friend && ownerId) {
+      x.friendId = friend.id;
+      x.friendName = friend.name;
+      await step('x: accepted friend', async () => {
+        await apiPut(o, `/users/@me/relationships/${friend.id}`, { type: 1 });
+        await apiPut(friend.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 });
+      });
+    }
+    if (asker && ownerId) {
+      x.askerId = asker.id;
+      x.askerName = asker.name;
+      await step('x: pending friend request to the Owner', () =>
+        apiPut(asker.ctx.request, `/users/@me/relationships/${ownerId}`, { type: 1 }),
+      );
+    }
+
+    // (2) a group DM of the three.
+    if (friend && asker) {
+      x.groupDmName = `Sweep X crew ${sfx}`;
+      x.groupDmId = await step('x: group dm', async () => {
+        const ch = await apiPost<{ id: string }>(o, '/users/@me/channels', {
+          recipients: [friend.id, asker.id],
+        });
+        await apiPatch(o, `/channels/${ch.id}`, { name: x.groupDmName });
+        await sleep(1200);
+        await apiPost(o, `/channels/${ch.id}/messages`, { content: 'Welcome to the crew chat.' });
+        await sleep(1200);
+        await apiPost(friend.ctx.request, `/channels/${ch.id}/messages`, {
+          content: 'Friday still on? I can bring snacks.',
+        });
+        await sleep(1200);
+        await apiPost(asker.ctx.request, `/channels/${ch.id}/messages`, {
+          content: 'Count me in.',
+        });
+        return ch.id;
+      });
+    }
+  } finally {
+    await friend?.ctx.close();
+    await asker?.ctx.close();
+  }
+
+  // (3) a text channel beside the seeded one: a message with 14 reactions and one with a spoiler.
+  x.extrasChannelName = `sweep-x-${sfx}`;
+  const ch = await step('x: extras channel', () =>
+    apiPost<{ id: string }>(o, `/guilds/${i.guildId}/channels`, {
+      name: x.extrasChannelName,
+      type: 0,
+    }),
+  );
+  if (ch) {
+    x.extrasChannelId = ch.id;
+    await sleep(1200);
+    x.reactionsMessageId = await step('x: message with 14 reactions', async () => {
+      const m = await apiPost<{ id: string }>(o, `/channels/${ch.id}/messages`, {
+        content: 'Which snack should we get? Vote with a reaction.',
+      });
+      for (const e of REACTION_EMOJI) {
+        await react(o, ch.id, m.id, e);
+        await sleep(250);
+      }
+      // The member adds to three of them, so the pills carry different counts.
+      for (const e of REACTION_EMOJI.slice(0, 3)) {
+        await react(i.member, ch.id, m.id, e);
+        await sleep(250);
+      }
+      return m.id;
+    });
+    await sleep(1200);
+    const sm = await step('x: message with a spoiler', () =>
+      apiPost<{ id: string }>(o, `/channels/${ch.id}/messages`, {
+        content: 'The ending of the film: ||it was the harbour all along||.',
+      }),
+    );
+    x.spoilerMessageId = sm?.id ?? null;
+  }
+  x.notSeeded.push(
+    "attachments and images on a message: an upload needs an object in storage and this stack's storage is `memory:` (presigned PUTs are fake `memory://` URLs; message create heads the object and refuses a missing one)",
+  );
+
+  // (4) a Cinema comment with a spoiler, from the member, on the world's title.
+  const c = await step('x: cinema comment with a spoiler', () =>
+    apiPost<{ id: string }>(i.member, `/cinema/titles/${i.titleId}/comments`, {
+      body: `Sweep X ${sfx}: the twist at the harbour is the best part.`,
+      spoiler: true,
+    }),
+  );
+  if (c) {
+    x.spoilerCommentId = c.id;
+    x.spoilerCommentTitleId = i.titleId;
+  }
+
+  // (5) a Library list (the world had none). A Study file needs an uploaded object: not seedable.
+  x.listName = `Sweep X night picks ${sfx}`;
+  const l = await step('x: library list', () =>
+    apiPost<{ id: string }>(o, '/library/lists', { name: x.listName, visibility: 'private' }),
+  );
+  x.listId = l?.id ?? null;
+  x.notSeeded.push(
+    'a Study file: files are objects on a storage shelf (a bucket); none can be written on `memory:` storage',
+    'a call in progress: needs a media server (LiveKit) setting',
+    'a playable video (player control bar): needs a media file in storage',
+    'a Live TV channel on the air: needs scheduled programs with playable media',
+    'a bucket for the tier image picker: needs a storage bucket setting',
+    'the epub and pdf readers: need a Library upload (a file in storage)',
+  );
+  log.push(`ok   x: extras took ${Math.round((Date.now() - t0) / 1000)} s`);
+  return x;
 }
