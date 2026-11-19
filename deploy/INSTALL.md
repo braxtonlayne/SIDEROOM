@@ -196,7 +196,7 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 
 6. **Run the preflight** with the same environment: `/opt/sideroom/bin/sr-cli preflight` prints the table (`deploy/RUNBOOK.md`); fix every FAIL row before the first invite ([GO-LIVE.md](GO-LIVE.md)).
 
-The backup units (`sideroom-backup`, `sideroom-basebackup`, `sideroom-restore-drill`, with their timers) are described in [BACKUP.md](BACKUP.md). Put the reverse proxy in front as in step 6. The smoke runs this route as a systemd *user* service, so it drops the lines of the unit that need root (`User=`, `ProtectSystem=` and the like) and moves the paths under a prefix; on a real host use the unit as shipped.
+On this route the backup units are `sideroom-backup` and `sideroom-restore-drill` with their timers (`sideroom-basebackup` and the `-compose` units are for the Compose route); [BACKUP.md](BACKUP.md) describes them. Put the reverse proxy in front as in step 6. The smoke runs this route as a systemd *user* service, so it drops the lines of the unit that need root (`User=`, `ProtectSystem=` and the like) and moves the paths under a prefix; on a real host use the unit as shipped.
 
 ## 6. Reverse proxy and client IP
 

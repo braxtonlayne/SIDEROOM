@@ -100,6 +100,18 @@ Needs a real Safari (a Mac, or an iPhone) and a second member in the same call o
 | `#restore-from-backup` | |
 | `#a-member-reports-csam` | |
 
+## What no case and no CI job proves (wave 113)
+
+Watch these first on the day; they are the faults wave 113 fixed on paper only.
+
+- A real systemd start of `sr-server` with the hardening on (`ProtectSystem=strict`, read-only root): the index opens under `/var/lib/sideroom/search` (SEC-AUD-566).
+- A real timer firing: `sideroom-backup-compose`, `sideroom-restore-drill-compose`, `sideroom-basebackup`; the dump lands in `pg-backups` and Admin > System shows it (SEC-AUD-567).
+- A search after a container recreate, and after an upgrade of an old Compose install (`sr-cli reindex` once) (SEC-AUD-570).
+- Compose's env merge on a real engine (`environment:` over `env_file:`), and `required: false` needing Compose 2.24 or newer (SEC-AUD-569, 576).
+- GitHub's real notes limit and `gh release create` itself; the first tag is the test (SEC-AUD-561).
+- The ghcr packages' visibility, and the source label linking the images to the repository (SEC-AUD-563).
+- The installer's first sign-in printout on a real terminal (SEC-AUD-568).
+
 ## The record
 
 | Check | Row | Done on (date) | By | Result |

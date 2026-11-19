@@ -188,7 +188,7 @@ _Raised by:_ WAL files piling up in the `wal-archive` volume, a Postgres log ful
 
 ## Restore drill failed
 
-_Raised by:_ the `RestoreDrillFailed` rule (`sr_restore_check_last_success_timestamp_seconds` older than 8 days, or 0 when no drill marker exists yet), the `sideroom-restore-drill.service` unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
+_Raised by:_ the `RestoreDrillFailed` rule (`sr_restore_check_last_success_timestamp_seconds` older than 8 days, or 0 when no drill marker exists yet), the `sideroom-restore-drill-compose.service` (Compose route) or `sideroom-restore-drill.service` (plain-binary route) unit failing (wire it to `OnFailure=`, see BACKUP.md), a failed `drill` or `wal-drill` job in the weekly `backup-drill.yml` workflow, or the restore-check line of the Admin > System Backups card going stale.
 
 1. `journalctl -u sideroom-restore-drill-compose.service -n 100` on the Compose route (`sideroom-restore-drill.service` on the plain-binary route). The script says which check failed: no dump, dump older than `SR_DRILL_MAX_AGE_HOURS` (default 36), checksum mismatch, a migration without success, a missing table.
 2. Old dump: this is Backup missing or stale; fix that first. Checksum mismatch: the file or its manifest is damaged; the next backup replaces it, and copies off the host should be compared.
