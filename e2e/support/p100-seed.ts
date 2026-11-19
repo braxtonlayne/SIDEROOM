@@ -337,7 +337,7 @@ export async function seedSweepExtras(i: SweepExtrasIn, log: string[]): Promise<
         const ch = await apiPost<{ id: string }>(o, '/users/@me/channels', {
           recipients: [friend.id, asker.id],
         });
-        await apiPatch(o, `/channels/${ch.id}`, { name: x.groupDmName });
+        await apiPatch(o, `/users/@me/channels/${ch.id}`, { name: x.groupDmName });
         await sleep(1200);
         await apiPost(o, `/channels/${ch.id}/messages`, { content: 'Welcome to the crew chat.' });
         await sleep(1200);
