@@ -143,6 +143,8 @@ interface Named {
   /** a selector of the control's own label or wrapper (the input is tested alone, its label counts as it) */
   wrapper?: string;
   max?: number;
+  /** measured only on pages whose name matches */
+  only?: RegExp;
 }
 /** The named controls, tested one by one by `hitTest`. Which builder: lounge, shell. */
 const NAMED: Named[] = [
@@ -154,7 +156,7 @@ const NAMED: Named[] = [
   { id: 'threads-search', sel: '.lng-threads-search' },
   { id: 'threads-item', sel: '.lng-threads-list button', max: 4 },
   { id: 'post-textarea', sel: '.lng-post-textarea' },
-  { id: 'friends-button', sel: '.lng-friends .lng-header button' },
+  { id: 'friends-button', sel: 'header.lng-header button', only: /^friends/ },
   { id: 'thread-chip', sel: '.lng-thread-chip', max: 6 },
   { id: 'composer-button', sel: '.lng-composer .lng-icon-btn' },
   { id: 'avatar', sel: 'button.lng-avatar-btn', max: 12 },
@@ -209,8 +211,8 @@ const BOXES: Named[] = [
   { id: 'threads-list', sel: '.lng-threads-list', max: 1 },
   { id: 'threads-item', sel: '.lng-threads-list button', max: 4 },
   { id: 'post-textarea', sel: '.lng-post-textarea', max: 1 },
-  { id: 'friends-header', sel: '.lng-friends .lng-header', max: 1 },
-  { id: 'friends-button', sel: '.lng-friends .lng-header button' },
+  { id: 'friends-header', sel: 'header.lng-header', max: 1, only: /^friends/ },
+  { id: 'friends-button', sel: 'header.lng-header button', only: /^friends/ },
   { id: 'friends-tabs', sel: '.lng-friends-tabs', max: 1 },
   { id: 'friends-body', sel: '.lng-friends-body', max: 1 },
 ];
@@ -289,6 +291,7 @@ async function shot(page: Page, name: string, suffix: string) {
 async function measure(page: Page, pageName: string, bp: number, touch: boolean, root: Locator) {
   const reach: HitOptions = touch ? {} : { reach: 'box' };
   for (const n of BOXES) {
+    if (n.only && !n.only.test(pageName)) continue;
     const got = await root
       .locator(n.sel)
       .evaluateAll(
@@ -344,6 +347,7 @@ async function measure(page: Page, pageName: string, bp: number, touch: boolean,
     rows.push({ kind: 'count', page: pageName, bp, key: `accepted:${n.id}`, count, failing });
   }
   for (const n of NAMED) {
+    if (n.only && !n.only.test(pageName)) continue;
     const loc = root.locator(n.sel);
     const count = Math.min(await loc.count(), n.max ?? 20);
     for (let i = 0; i < count; i++) {
