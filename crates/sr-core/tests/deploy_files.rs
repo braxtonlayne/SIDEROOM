@@ -1239,11 +1239,24 @@ fn the_example_image_has_the_real_tag_form_and_the_installer_refuses_its_owner()
         .and_then(|r| r.split('/').next())
         .expect("ghcr.io/<owner>/...");
     let install = read("deploy/install.sh");
+    let refused = install
+        .lines()
+        .find_map(|l| l.strip_prefix("PLACEHOLDER_IMAGE_OWNER="))
+        .expect("install.sh lost its PLACEHOLDER_IMAGE_OWNER= line")
+        .trim()
+        .trim_matches('"');
+    assert_eq!(
+        refused, owner,
+        "the owner install.sh refuses and the example's owner are out of step"
+    );
+    // The tag is v<major>.<minor>.<patch>.
+    let parts: Vec<&str> = tag[1..].split('.').collect();
     assert!(
-        install
-            .lines()
-            .any(|l| !l.trim_start().starts_with('#') && l.contains(owner)),
-        "install.sh refuses nothing named {owner}: the refusal and the example are out of step"
+        parts.len() == 3
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())),
+        "the example tag must look like v1.2.3: {tag}"
     );
 }
 
@@ -1251,29 +1264,50 @@ fn the_example_image_has_the_real_tag_form_and_the_installer_refuses_its_owner()
 /// behind. Caught by: the base installer, which has no refusal at all.
 #[test]
 fn the_installer_refuses_the_placeholder_before_it_writes_a_secret() {
-    let owner = "example-owner";
     let install = read("deploy/install.sh");
     let lines: Vec<&str> = install.lines().collect();
+    let code = |l: &&str| !l.trim_start().starts_with('#');
     let refusal = lines
         .iter()
-        .position(|l| !l.trim_start().starts_with('#') && l.contains(owner))
-        .expect("install.sh has no refusal of the placeholder image");
-    let first_secret = lines
-        .iter()
-        .position(|l| l.contains("postgres_password=$(rand_hex"))
-        .expect("install.sh no longer generates the Postgres password where this case looks");
-    assert!(
-        refusal < first_secret,
-        "the refusal (line {}) must come before the first secret (line {})",
-        refusal + 1,
-        first_secret + 1
-    );
-    let end = (refusal + 4).min(lines.len());
-    assert!(
-        lines[refusal..end]
+        .position(|l| code(l) && l.trim_start().starts_with("refuse_placeholder_image \"$SR_IMAGE\""))
+        .expect("install.sh never refuses the image given by the operator");
+    for (what, needle) in [
+        ("the first fill of the env template", "fill \"$tmp\""),
+        ("the first write of garage.prod.toml", "write_garage"),
+        ("the Postgres password", "postgres_password=$(rand_hex"),
+    ] {
+        let at = lines
             .iter()
-            .any(|l| l.contains("die") || l.contains("exit")),
-        "the line naming {owner} is not a refusal"
+            .position(|l| code(l) && l.trim_start().starts_with(needle))
+            .unwrap_or_else(|| panic!("install.sh no longer has {what} where this case looks"));
+        assert!(
+            refusal < at,
+            "the refusal (line {}) must come before {what} (line {})",
+            refusal + 1,
+            at + 1
+        );
+    }
+    // A rerun checks the stored image too, and the refusal really stops the script.
+    assert!(
+        lines
+            .iter()
+            .any(|l| code(l) && l.contains("refuse_placeholder_image \"$stored_image\"")),
+        "the resume branch does not check the stored image"
+    );
+    let def = lines
+        .iter()
+        .position(|l| l.starts_with("refuse_placeholder_image()"))
+        .expect("refuse_placeholder_image is not defined");
+    assert!(
+        lines[def..(def + 12).min(lines.len())]
+            .iter()
+            .any(|l| l.contains("die")),
+        "refuse_placeholder_image does not die"
+    );
+    // The first sign-in secrets go to the operator's terminal only.
+    assert!(
+        !lines.iter().any(|l| code(l) && l.split_whitespace().any(|w| w == "tee")),
+        "install.sh must not tee its output (it prints the Owner password)"
     );
 }
 
