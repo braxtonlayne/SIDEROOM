@@ -1392,7 +1392,7 @@
 .lng-emoji-search {
   box-sizing: border-box;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 7px;
   border: 1px solid var(--ui-border);
   border-color: color-mix(in srgb, var(--ui-border), var(--ui-text-faint) 65%);
   border-radius: 4px;
