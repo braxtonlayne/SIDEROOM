@@ -221,6 +221,12 @@ async function scenTouch(browser: Browser, owner: BrowserContext, w: World, them
   try {
     const url = `/channels/${w.guildId}/${ex.extrasChannelId}`;
     await go(page, url);
+    val(
+      `${k}|data-theme`,
+      await page.evaluate(
+        () => document.documentElement.dataset.theme ?? document.body.dataset.theme ?? null,
+      ),
+    );
     const reacted = articles(page)
       .filter({ has: page.locator('.lng-reactions') })
       .first();
@@ -390,7 +396,13 @@ test(`wave 111 tint: the message row's tint on touch, ${PHASE}`, async ({ browse
       settings: { user_prefs: { theme: 'lounge-light', zoom: 100 } },
     });
     await scenTouch(browser, ownerCtx, w, 'light');
+    await apiPatch(ownerCtx.request, '/users/@me/settings', {
+      settings: { user_prefs: { theme: 'lounge-dark', zoom: 100 } },
+    });
     await scenTouch(browser, ownerCtx, w, 'dark');
+    await apiPatch(ownerCtx.request, '/users/@me/settings', {
+      settings: { user_prefs: { theme: 'lounge-light', zoom: 100 } },
+    });
     await scenMention(browser, ownerCtx, w, C375, meId);
     await scenHover(browser, ownerCtx, w);
     await scenMention(browser, ownerCtx, w, C1024, meId);
