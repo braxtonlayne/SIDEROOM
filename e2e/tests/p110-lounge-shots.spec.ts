@@ -702,6 +702,7 @@ async function scenAttach(browser: Browser, owner: BrowserContext, w: World, cfg
     await rec(cfg, 'fc.name', fcard.locator('.lng-file-name'));
     await rec(cfg, 'fc.dl', fcard.locator('.lng-icon-btn'));
     await rec(cfg, 'fc.meta', fcard.locator('.lng-file-meta'));
+    await rec(cfg, 'fc.size', fcard.locator('.lng-file-meta .lng-muted'));
     await hits(page, cfg, 'filecard', fcard);
     await fcard.scrollIntoViewIfNeeded();
     await shot(page, cfg, 'filecard');
