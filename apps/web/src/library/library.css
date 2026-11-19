@@ -75,7 +75,7 @@
   border-bottom: 1px solid transparent;
 }
 /* D-1022 (SEC-AUD-530): on a phone each link (39 px, 0.5 to 39.5 px from the top edge of the screen) keeps its size
-   and gets a tap area that reaches 4 px below it (43.5 px from the top; 44 asked, nothing lies above). The bar scrolls
+   and gets a tap area that reaches 5 px below its padding box, 4 px below the link with its 1 px border (43.5 px from the top; 44 asked, nothing lies above). The bar scrolls
    inside itself, which clips a tap area at the bar's padding box, so the bar gets 4 px of padding below the links (its
    height is content-box 40 px): the links do not move, the content under the bar moves down 4 px. The element
    selector outranks the phone rule `.lib-frame[data-mobile] .lib-sectionbar` further down, whose padding shorthand
@@ -89,7 +89,7 @@
 .lib-frame[data-mobile] .lib-sectionbar-link::after {
   content: '';
   position: absolute;
-  inset-block: 0 -4px;
+  inset-block: 0 -5px;
   inset-inline: 0;
 }
 .lib-sectionbar-link[aria-current='page'] {
