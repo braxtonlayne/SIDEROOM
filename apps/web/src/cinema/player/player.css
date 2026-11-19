@@ -191,6 +191,18 @@
   color: #ece6d6;
   cursor: pointer;
 }
+/* D-1022: on a phone the top bar's button (40 px) reaches 2 px each way; the control bar is not touched. */
+@media (max-width: 768px) {
+  .cpl-top > .cpl-btn {
+    position: relative;
+  }
+  .cpl-top > .cpl-btn::after {
+    content: '';
+    position: absolute;
+    inset-block: -2px;
+    inset-inline: 0;
+  }
+}
 .cpl-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
 }
