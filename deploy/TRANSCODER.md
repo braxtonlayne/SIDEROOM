@@ -18,8 +18,8 @@ no inbound ports, no VPN and no database access.
 
 | Image | Dockerfile | FFmpeg | Use |
 |---|---|---|---|
-| `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda` | `deploy/docker/transcoder.Dockerfile` | `h264_nvenc` + `libx264` | Any NVIDIA GPU box. Falls back to libx264 if no GPU is visible |
-| `ghcr.io/<owner>/sideroom-transcoder:<ver>-cpu` | `deploy/docker/transcoder-cpu.Dockerfile` | `libx264` | No GPU. Slow (10 to 20 times slower than NVENC) but works |
+| `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda` (`<ver>` is the release tag, its leading v included) | `deploy/docker/transcoder.Dockerfile` | `h264_nvenc` + `libx264` | Any NVIDIA GPU box. Falls back to libx264 if no GPU is visible |
+| `...:<ver>-cpu` is built locally with the second command below; the release publishes only the `-cuda` image. | `deploy/docker/transcoder-cpu.Dockerfile` | `libx264` | No GPU. Slow (10 to 20 times slower than NVENC) but works |
 
 Both bundle a static `sr-transcoder` binary and the distribution's FFmpeg. Each build checks
 that FFmpeg has `libx264` (and `h264_nvenc` for CUDA), `zscale` and `tonemap`; HDR sources need
@@ -47,7 +47,7 @@ docker run -d --name sr-transcoder --restart unless-stopped --gpus all \
 # CPU only
 docker run -d --name sr-transcoder --restart unless-stopped \
   -v /srv/sr-work:/work -v /srv/sr-token:/run/token:ro \
-  ghcr.io/<owner>/sideroom-transcoder:<ver>-cpu \
+  sideroom-transcoder:cpu \
   --server https://sideroom.example --token-file /run/token --concurrency 1
 ```
 

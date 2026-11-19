@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 112 - 2026-11-19
+
+- The voice soak, the ten-member test of a long call, now plays music in the call by default, so the stereo music line is checked under the same load as the voices.
+- A new page, `docs/dev/deployment-day-checks.md`, lists in order the checks that only a real server can answer: bring-your-own storage on R2, a call across two networks, Safari voice and music, the payment walk and the playbooks. Safari and Firefox music are checked by hand on deployment day (D-1038).
+- The deployment pages are corrected where they disagreed with the files: the firewall ports, the health check, the upgrade and restore steps, the release image tag and the transcoder image that is not published.
+- For the team: a review of the deployment path and of the first release found blockers, now rows SEC-AUD-561, 566, 567 and 568 for wave 113 (the release notes that are too long for GitHub, the systemd search folder, the Compose backup steps and the installer's image default). The open rows are SEC-AUD-561 to 574.
+
 ## Phase 111 - 2026-11-19
 
 - On a phone, a message you tapped no longer keeps its grey hover tint after the buttons are gone. A mouse still tints the row on hover and the keyboard on focus; a row you clicked with a mouse loses its tint once the pointer leaves it. Edited, replied-to, mentioned and jumped-to messages keep their colour.

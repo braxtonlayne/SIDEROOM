@@ -85,7 +85,7 @@ Limits that are product settings (upload size, invite caps) are stored in the da
 
 **Voice, Activities and PeerTube on the Compose route.** All three are off by default and switched on from `.env.prod`; `prod.yml` passes them to `sr-server`.
 
-- Voice: the SFU runs inside `sr-server`. Set `SR_VOICE_ENABLED=true` and `SR_VOICE_ANNOUNCE_IPS` to the host's public IP (comma-separated for several), and open UDP 50000-50099 on the firewall (Compose publishes that range). Members whose network blocks direct UDP need the TURN relay: copy `deploy/compose/coturn/turnserver.prod.conf.example` to `turnserver.prod.conf` and fill it in, put the certificate and key for port 5349 in `SR_TURN_TLS_DIR`, set `SR_VOICE_TURN_URLS` and `SR_VOICE_TURN_SECRET` (the `static-auth-secret`), open 3478 udp+tcp, 5349 tcp and 49152-49999 udp, and start with `--profile turn`.
+- Voice: the SFU runs inside `sr-server`. Set `SR_VOICE_ENABLED=true` and `SR_VOICE_ANNOUNCE_IPS` to the host's public IP (comma-separated for several), and open UDP 50000-50099 on the firewall (Compose publishes that range). Members whose network blocks direct UDP need the TURN relay: copy `deploy/compose/coturn/turnserver.prod.conf.example` to `turnserver.prod.conf` and fill it in, put the certificate and key for port 5349 in `SR_TURN_TLS_DIR` (Caddy does not write them there: copy `<host>.crt` as `fullchain.pem` and `<host>.key` as `privkey.pem` from the `caddy-data` volume (mode 0600, readable by coturn), and repeat after every renewal; or serve TURN on 3478 only and drop the `turns:` URL), set `SR_VOICE_TURN_URLS` and `SR_VOICE_TURN_SECRET` (the `static-auth-secret`), open 3478 udp+tcp, 5349 tcp and 49152-49999 udp, and start with `--profile turn`.
 - Activities and the Arcade's house games: `SR_ACTIVITIES_ENABLED=true`, plus the web build and Caddy changes in doc 12 "Switching Activities on".
 - PeerTube "Play here" and Watch Together: `SR_PEERTUBE_HOSTS` (comma-separated host names), and build the web app with the same list. When an instance serves its files or HLS segments from another host (object storage, a CDN), list that host in `SR_MEDIA_HOSTS` for both as well; without it, parties of that instance's videos are refused with a clear reason.
 
@@ -97,7 +97,9 @@ Limits that are product settings (upload size, invite caps) are stored in the da
    docker build -f deploy/docker/server.Dockerfile -t sideroom-server .
    ```
 
-   The image is a static musl binary on distroless. Or use the release image.
+   The image is a static musl binary on distroless. Or use the release image `ghcr.io/<owner>/sideroom-server:<tag>`.
+
+The image tag is the release tag with its leading v (for example `:v0.1.0`). There is no `latest` tag; write the tag you mean in `SR_IMAGE`.
 
 2. **Write the configuration** (section 4) and export the secrets (section 3).
 
@@ -137,7 +139,7 @@ The same steps without Compose, as `deploy/scripts/smoke-systemd.sh user-service
 
 | Path | What goes there |
 |---|---|
-| `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries (take them out of the server image with `docker cp`, or build them), mode 0755 |
+| `/opt/sideroom/bin/sr-server`, `/opt/sideroom/bin/sr-cli` | the static musl binaries: unpack `sideroom-<tag>-<arch>-unknown-linux-musl.tar.gz` from the release (check it against `SHA256SUMS`; the programs are in the folder named for the target), or take them out of the server image with `docker cp`, or build them, mode 0755 |
 | `/opt/sideroom/web` | the web build of the same release (`sideroom-<tag>-web.tar.gz`, the built `apps/web/dist`), readable by `sideroom`. The unit sets `SR_WEB__ROOT` to it and the server refuses to start when `app/csp.txt` is missing there (D-385, step 6 above); another path goes in `server.env` |
 | `/etc/sideroom/config.toml` | the template of section 4, edited for your host (folder mode 0700) |
 | `/etc/sideroom/server.env` | the secrets, mode 0600, owned by root (below) |

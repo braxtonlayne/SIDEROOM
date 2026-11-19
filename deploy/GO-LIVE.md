@@ -1,6 +1,6 @@
 # Go-live checklist
 
-The steps from an empty server to the first invites, in order. Each step names the command and what "done" looks like. Do not skip ahead: every step assumes the ones before it are done. The owner-side actions (accounts, GitHub, downloads) are in [docs/dev/owner-checklist.md](../docs/dev/owner-checklist.md); the questions for a lawyer are in [docs/legal/lawyer-brief.md](../docs/legal/lawyer-brief.md). Reference pages: [INSTALL.md](INSTALL.md), [BACKUP.md](BACKUP.md), [RUNBOOK.md](RUNBOOK.md), [UPGRADE.md](UPGRADE.md).
+The steps from an empty server to the first invites, in order. Each step names the command and what "done" looks like. Do not skip ahead: every step assumes the ones before it are done. The owner-side actions (accounts, GitHub, downloads) are in [docs/dev/owner-checklist.md](../docs/dev/owner-checklist.md); the questions for a lawyer are in [docs/legal/lawyer-brief.md](../docs/legal/lawyer-brief.md). Reference pages: [INSTALL.md](INSTALL.md), [BACKUP.md](BACKUP.md), [RUNBOOK.md](RUNBOOK.md), [UPGRADE.md](UPGRADE.md). The tests that wait for a real server (R2, two-network voice, Safari, the payment walk, the playbooks) are listed in order in `docs/dev/deployment-day-checks.md` (link: ../docs/dev/deployment-day-checks.md from deploy/).
 
 After go-live, the operator handbook is [OPERATOR.md](OPERATOR.md): the map of every deploy page and the daily, weekly and monthly checks.
 
@@ -10,7 +10,7 @@ Status: the shipped files boot on a CI runner (`prod-smoke.yml`, RDY-OPS-001), b
 
 ## 1. Provision and harden the host
 
-Doc 12 section 8 is the list: UFW with only 22, 80, 443, 3478, 5349 and the voice ports open, SSH keys only, unattended upgrades, fail2ban, disk encryption where the provider supports it, a separate Postgres role per service, secret files at mode 0600. Install Docker with the compose plugin.
+Doc 12 section 8 is the list: UFW with only 22/tcp, 80/tcp, 443/tcp and 443/udp open, plus, when voice is on, 50000-50099/udp, and, when the `turn` profile is on, 3478 udp+tcp, 5349/tcp and 49152-49999/udp, SSH keys only, unattended upgrades, fail2ban, disk encryption where the provider supports it, a separate Postgres role per service (optional hardening, not set up by the shipped files), secret files at mode 0600. Install Docker with the compose plugin. Docker publishes the ports of `prod.yml` around UFW's rules, so `ufw status` is not proof of what is reachable; check from outside with a port scan.
 
 - **Command.** `sudo ufw status verbose`; `docker compose version`.
 - **Done when.** The firewall shows only the listed ports, password SSH login is refused, and `docker compose version` prints a version.
@@ -34,7 +34,7 @@ Unpack the web build into `SR_WEB_DIR` (default `/opt/sideroom/web`), then run t
 `sr-cli preflight` (item RDY-OPS-004) checks the database and migrations, storage, SMTP, the public URL and its headers, TURN, disk space, clock skew, secret-file modes and, when they are on, payments and the voice node. `install.sh` runs it as its last step (`SR_INSTALL_PREFLIGHT=warn` prints the table and reports a FAIL row without failing the install; `strict` exits 3 on one; `skip` leaves it out).
 
 - **Command.** `sr-cli preflight`
-- **Done when.** The table has no row marked fail and the exit code is 0. Read every warn: each one says in a sentence what to do. The same table is on Admin > System (the Preflight card, `POST /admin/system/preflight`, RDY-OPS-005). A quick manual check is `curl -fsS https://<host>/readyz` plus the "Integrations" tiles on Admin > System.
+- **Done when.** The table has no row marked fail and the exit code is 0. Read every warn: each one says in a sentence what to do. The same table is on Admin > System (the Preflight card, `POST /admin/system/preflight`, RDY-OPS-005). A quick manual check is `curl -fsS https://<host>/healthz` (liveness) and, from the host, `dc exec sr-server /usr/local/bin/sr-server healthcheck` (readiness: exit 0) plus the Integrations tiles on Admin > System.
 
 ## 5. Backups verified by a restore
 
@@ -51,13 +51,13 @@ A backup nobody has restored is a hope ([BACKUP.md](BACKUP.md)).
 ## 6. Monitoring and the alert test
 
 - **Commands.** `dc --profile monitoring up -d`; then `sr-cli preflight --alert-test` (item RDY-OPS-006).
-- **Done when.** Prometheus and Grafana are up (the dashboards in `deploy/monitoring/grafana` load, no panel says "no data" for a metric the server exports), and a test card naming the host and the time appears in the Staff Server `#alerts` channel (and the mail arrives, if `alerts.email_to_owner` is on). The Admin > System "Send a test email to me" button checks mail alone; the health job's alert settings are `alerts.*` ([RUNBOOK.md](RUNBOOK.md)).
+- **Done when.** Prometheus and Grafana are up (the dashboards in `deploy/monitoring/grafana` load, no panel says "no data" for a metric the server exports), and a test card naming the host and the time appears in the Staff Server `#alerts` channel (and the mail arrives, if `alerts.email_to_owner` is on). The Admin > System "Send a test email to me" button checks mail alone; the health job's alert settings are `alerts.*` ([RUNBOOK.md](RUNBOOK.md)). The Prometheus rules in `deploy/monitoring/alerts.yml` are shown in Grafana only; no Alertmanager is installed. The alerts that reach you are the cards in `#alerts` and the optional mail to the Owner; the test above proves exactly that.
 
 ## 7. The Setup checklist
 
 Sign in as the Owner (the one-time link printed by `bootstrap` is single use and valid for one hour, so open it right away) and open the setup checklist on the Admin dashboard.
 
-- **Done when.** Every row of the checklist is green or consciously waived: storage test, email test, Discord sign-in (needs the redirect URI of the owner checklist, section 1), voice and TURN, wallet or the donations-off choice, default limits, staff. The Owner has turned on a second factor.
+- **Done when.** Every row of the checklist (object storage, wallet, limits, second staff member, SMTP, Discord, voice and TURN) is green or consciously waived: limits goes green only after you change a value, and the staff row needs a second appointment. Separately: the storage and email test buttons on Admin > System have been pressed, and the Owner has turned on a second factor.
 
 ## 8. Lawyer settings
 

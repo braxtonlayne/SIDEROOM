@@ -7,7 +7,7 @@ Doc 12 section 5 sets the policy. This page is the how-to. Everything here is pl
 | What | How | Where it lives |
 |---|---|---|
 | Postgres | `pg_dump` custom format, one file per run, with a `.json` manifest (SHA-256, size, migration count) | `deploy/scripts/backup.sh` |
-| Object storage (attachments, avatars, library pages) | `rustic` or `restic` snapshot of the Garage data directory | same script, when `SR_BACKUP_REPOSITORY` and `SR_BACKUP_OBJECTS_DIR` are set |
+| Object storage (attachments, avatars, library pages) | Garage: both the data folder and the metadata folder (`garage-data` and `garage-meta` volumes on Compose; stop Garage or use Garage's own metadata snapshot first). A copy of the data folder alone cannot be restored. | same script, when `SR_BACKUP_REPOSITORY` and `SR_BACKUP_OBJECTS_DIR` are set |
 | HLS renditions | Not backed up. They are rebuilt from originals by re-transcoding | n/a |
 | Members' and servers' own buckets (BYOS mounts), including shelves, emulator saves and prompt packs | Not backed up by the instance. Only the instance bucket (mount 1) is in the object snapshot; each owner backs up their own bucket | n/a |
 | `server.secret_key` and `config.toml` | **You** copy these, encrypted, next to the dumps. Without the key the TOTP secrets in the dump are unreadable | n/a |
@@ -132,6 +132,8 @@ SR_RESTORE_FORCE=1 deploy/scripts/restore.sh <dump> <url-of-the-live-database>
 sr-cli migrate
 systemctl start sr-server
 ```
+
+5. Rebuild the message search index: `sr-cli reindex` (it queues the job; the running server does the work, and search returns partial results until it finishes). The index is not part of any backup; it is derived from the database.
 
 `restore.sh` refuses a non-empty database unless `SR_RESTORE_FORCE=1`, and refuses a dump whose checksum does not match its manifest.
 

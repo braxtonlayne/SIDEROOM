@@ -15,7 +15,7 @@ Hetzner AX42 (Ubuntu 24.04 LTS)
 └── backups → Hetzner Storage Box (restic/rustic over SFTP)
 ```
 
-Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd units with static binaries (`deploy/systemd/`). The operator picks either.
+Everything ships as **Docker Compose** (`deploy/compose/`) **and** as systemd units with static binaries (`deploy/systemd/`). The operator picks either. Addresses shown are for the systemd route; on the Compose route sr-server, Postgres and Garage have no published port.
 
 **Who serves what (D-385, entrance isolation).** The built web app (`apps/web/dist`) is two builds in one folder: the public surfaces (a shell per surface under `/entrance/`: landing, sign-in, invite, plus plain-HTML legal and error pages) and the app (`app.html` and `/app/*`). Caddy serves the public files and proxies every other path, `/app` included, to `sr-server`, which serves the app only to a request with a valid session (`[web] root`, `SR_WEB__ROOT`): `302 /login?next=` for a page, an empty `401` for a file, the same whether the path exists or not. There is no `try_files` fallback in the Caddyfile. A single-binary install without a proxy sets `[web] serve_public = true` and `sr-server` serves the public files too (CI does, with `SR_E2E_WEB=server`). Proof on every wave: `scripts/check-entrance-isolation.mjs` (Web job), `e2e/tests/entrance-isolation.spec.ts` (E2E `built-bundle` job and prod-smoke through Caddy), `crates/sr-server/tests/web_gate.rs` (Rust job); design in [dev/entrance-isolation.md](dev/entrance-isolation.md).
 
@@ -81,7 +81,7 @@ The crate test `crates/sr-db/tests/secret_columns.rs` scans every migration and 
 **Rotation.**
 
 - `server.secret_key` (TOTP encryption): generate a new key (`openssl rand -hex 32`), move the old one to `server.secret_key_previous`, restart, then run `sr-cli rotate-secret-key` to re-encrypt every TOTP secret, every sealed interactions signing seed and every storage mount secret (each is re-sealed under the current key, so a mount whose secret still needs the old key makes the command fail with a hint instead of losing it). After it reports zero remaining, remove the old key from `server.secret_key_previous`.
-- `database.url` password: create the new password in Postgres, update the secret file, restart, then drop the old password. Use a separate Postgres role per service so each rotates independently.
+- `database.url` password: create the new password in Postgres, update the secret file, restart, then drop the old password. Use a separate Postgres role per service (optional hardening, not set up by the shipped files) so each rotates independently.
 - `storage.*` keys: create a second key pair at the provider, switch the secret files, restart, delete the old pair.
 - `voice.token_secret`: the gateway and every SFU must share it. Change it on all nodes and restart them together; open voice sessions reconnect and fetch new join tokens. `voice.turn.secret` must match coturn's `static-auth-secret`; change both and restart coturn then the server.
 - `smtp.password`, `discord.client_secret`: rotate at the provider, update the file, restart.
@@ -133,7 +133,7 @@ How the rules read in practice:
 
 ## 4. Transcode workers
 
-- `sr-transcoder` is a single static binary plus FFmpeg (with NVENC) in a Docker image `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda`.
+- `sr-transcoder` is a single static binary plus FFmpeg (with NVENC) in a Docker image `ghcr.io/<owner>/sideroom-transcoder:<ver>-cuda` (`<ver>` is the release tag, its leading v included).
 - Run it on a rented GPU box (Vast.ai, RunPod, Hetzner GEX) or any home PC:
   `sr-transcoder --server https://<host> --token <worker-token> --concurrency 2`
 - Workers authenticate with a worker token created in Admin → Transcoding. They claim jobs over HTTPS, download originals with signed URLs, encode, and upload renditions with presigned multipart PUTs. **No inbound ports are needed on the worker.**
@@ -161,7 +161,7 @@ Shipped: `deploy/scripts/backup.sh`, `restore.sh` and `restore-drill.sh`; WAL ar
 
 Semantic-versioned releases. `sr-cli upgrade` checks, takes a pre-upgrade DB snapshot (skippable with `--no-backup`) and runs migrations (`--dry-run` shows what would be applied); restarting the service is the operator's step. Migrations are forward-only and must be backward-compatible with the previous release's binaries for one version (expand/contract), so rollbacks are safe.
 
-Search indexes (D-1037): upgrading the search library does not need a reindex. The 0.27 release of the search library (tantivy) reads and writes index format 7, which 0.26.2 wrote, so the existing `search` folder is opened as it is and no `search.reindex` or other admin step is needed; `crates/sr-search/tests/index_0_26.rs` opens a copy of a 0.26.2 index, reads it and writes to it. Only a release that changes the index format would say otherwise in its upgrade notes.
+Search indexes (D-1037): upgrading the search library does not need a reindex. The 0.27 release of the search library (tantivy) reads and writes index format 7, which 0.26.2 wrote, so the existing `search` folder is opened as it is and no `search.reindex` or other admin step is needed; `crates/sr-search/tests/index_0_26.rs` opens a copy of a 0.26.2 index, reads it and writes to it. Only a release that changes the index format would say otherwise in its upgrade notes. After a restore the search folder (`search.dir`) is not part of the database; if search is empty or stale, run `sr-cli reindex` (it queues `search.reindex`).
 
 ## 7. Monitoring
 
@@ -173,7 +173,7 @@ Search indexes (D-1037): upgrading the search library does not need a reindex. T
 
 ## 8. Security hardening checklist
 
-UFW (only 22/80/443/3478/5349/voice ports open), SSH keys only, unattended-upgrades, fail2ban (or `sr-server`'s own login throttling), LUKS disk encryption where the provider supports it, a separate Postgres role per service, and secrets with file mode 0600.
+UFW (only 22/tcp, 80/tcp, 443/tcp and 443/udp open, plus, when voice is on, 50000-50099/udp, and, when the `turn` profile is on, 3478 udp+tcp, 5349/tcp and 49152-49999/udp), SSH keys only, unattended-upgrades, fail2ban (or `sr-server`'s own login throttling), LUKS disk encryption where the provider supports it, a separate Postgres role per service (optional hardening, not set up by the shipped files), and secrets with file mode 0600.
 
 ## 9. Operator obligations note
 
