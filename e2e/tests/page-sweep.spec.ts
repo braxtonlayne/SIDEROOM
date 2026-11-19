@@ -15,6 +15,7 @@ import {
   test,
 } from '../support/fixtures';
 import { apiDelete, buildWorld, dropServer, soloServer } from '../support/world';
+import { seedSweepExtras, type SweepExtras } from '../support/p100-seed';
 import { setStudySurfacesWith } from '../support/studySwitches';
 
 /**
@@ -70,6 +71,8 @@ interface SweepWorld {
   inviteCode: string | null;
   memberName: string;
   seedLog: string[];
+  /** D-1026: the second census's data (absent in a world seeded before wave 108). */
+  extras?: SweepExtras;
 }
 
 interface Row {
@@ -1365,7 +1368,22 @@ test.describe('visual sweep @sweep', () => {
     // The storefront surfaces are off by default (D-400); the sweep shows them once, like their own specs do.
     const ctx = await browser.newContext({ baseURL: ORIGIN, storageState: OWNER_STATE });
     await setStudySurfacesWith(ctx.request, true);
+    // D-1026: the data the wave-106 censuses could not see, beside the old data, under the new key `extras`.
+    const mctx = await browser.newContext({ baseURL: ORIGIN, storageState: MEMBER_STATE });
+    const extras = await seedSweepExtras(
+      {
+        browser,
+        owner: ctx.request,
+        member: mctx.request,
+        guildId: world.guildId,
+        titleId: world.titleId,
+        origin: ORIGIN,
+      },
+      world.seedLog,
+    );
+    await mctx.close();
     await ctx.close();
+    writeFileSync(WORLD_FILE, JSON.stringify({ ...world, extras }, null, 1));
     console.log(world.seedLog.join('\n'));
   });
 

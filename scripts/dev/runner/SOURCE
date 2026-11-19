@@ -1,0 +1,4 @@
+These files are a copy of the job runner's scripts, taken byte for byte from the local repository at
+C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents (not part of this repository), at commit cd62e67
+("status prints the last five hold lines; README for the clone (item 7)"), on 2026-11-18 (wave 108, D-1027).
+The running copy stays in cli-agents/ beside the worktrees. docs/dev/job-runner.md says how the two are kept in step.
