@@ -168,7 +168,7 @@ services:
       - ${SR_WEB_DIR:?set SR_WEB_DIR to the built apps/web/dist}:/srv/web:ro
       # The operator's secrets folder, read-only (D-1046, SEC-AUD-575): one file per secret, owned by uid 65532 (the user this
       # container runs as), mode 0400. The operator env file names a file here with the _FILE form, for example
-      # SR_DISCORD__CLIENT_SECRET_FILE=/run/secrets/sideroom/discord_client_secret (deploy/OPERATOR.md). Compose creates a
+      # SR_DISCORD__CLIENT_SECRET_FILE pointing at /run/secrets/sideroom/discord_client_secret (deploy/OPERATOR.md). Compose creates a
       # missing host folder root-owned and empty, which is harmless; install.sh creates it properly.
       - ${SR_SECRETS_DIR:-/etc/sideroom/secrets}:/run/secrets/sideroom:ro
     stop_grace_period: 60s # server drains for 2 x shutdown_grace_secs (docs/dev/server.md)
