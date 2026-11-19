@@ -67,3 +67,9 @@ FINDERS: none (no app file changed). PROCESSES: strays: none found.
 bash C:/Users/braxt/Desktop/SIDEROOM_wt/cli-agents/job.sh submit integ shoot after --wt lanes --dist C:/Users/braxt/Desktop/SIDEROOM_wt/p115-integ/apps/web/dist --server-env SR_VOICE__ENABLED=true --env SR_P115_VAD_ON=1 --env SR_P115_VAD_PHASE=after --env SR_P115_VAD_PART=<n> --env SR_P115_VAD_OUT=C:/Users/braxt/Desktop/SIDEROOM_wt/visual-sweep-shots/p115-vad -- tests/p115-vad-shots.spec.ts
 
 Changelog sentence: none (test only). Owner questions: none.
+
+## ADDENDUM 07:15 (vad head bbe86d5bc merged: forced-PTT, bar width, two-frame gate)
+Commits: merge of fix/p115-vad; "D-1050 vadshots: beep never opens the gate; bar width figure" (spec: the 5 % rule replaced by "the speaking state never turns on over 20 s with Silero"; part 1 records the two radiogroups' sizes); this handoff commit.
+Jobs: 0383 build rc 0; 0384 part 1 rc 0; 0385 part 3 rc 0 (1.8 min).
+- Part 3: beep/Silero: 629 frames, 0 speech frames, speaking state 0 % over 20 s (was a 0.3 s blip): the beep check passes. Beep/Standard 74.2 % speaking. Silence: 0 speech frames, 0 % speaking, both engines. Cost: mean 0.59 ms (beep) and 0.52 ms (silence) per 32 ms frame; worst 36.5 ms in one frame of 629 on the beep (28.2 ms on silence): the only problem line, an outlier, 3-second rule not triggered. No speech fixture.
+- Part 1: the "Voice detection" bar is no longer stretched: 286.9 x 38 px against the Input mode control's 235 x 38 (same height, left-aligned, same look; widths differ only by label length). Moved against the base with Standard chosen: only the sensitivity switch and slider, by 50 px at 1280 and 58 px at 375 (the new row), as before; nothing else. Shots voice-mode-silero-1280-light, -1280-dark and -375-light opened: the bar sits compact under the mode control, text whole, switch dimmed. FAULT 1 and FAULT 2 of this handoff are cured.
