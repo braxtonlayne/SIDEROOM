@@ -8,6 +8,13 @@ button. The integrator adds the new wave's section at the top from that wave's h
 Write for people who use the place, not for people who build it: what they can now do, what behaves differently, and
 what the operator now has to know. Keep each wave to a handful of lines.
 
+## Phase 111 - 2026-11-19
+
+- On a phone, a message you tapped no longer keeps its grey hover tint after the buttons are gone. A mouse still tints the row on hover and the keyboard on focus; a row you clicked with a mouse loses its tint once the pointer leaves it. Edited, replied-to, mentioned and jumped-to messages keep their colour.
+- Search now runs on tantivy 0.27, which closes the three zstd advisories; existing search indexes open without a reindex.
+- The command-line tool no longer prints the owner or seed password in debug output, and the other types that hold a secret are all covered by tests.
+- For the team: wave 111 ran its Rust work one cargo at a time at `-j 2` (D-1036). The four sr-db Postgres tests that rebuild the search index are proven by CI, not locally. The open row is SEC-AUD-558 (the redaction tests, read from CI).
+
 ## Phase 110 - 2026-11-18
 
 - On a phone, more small controls take a tap reliably: the title link of a link preview, the destinations in the Forward dialog, the name and download links of a file card, the links in the image viewer's bar (the bar now wraps onto more lines), the Friends buttons, the Arcade and Study bars (the Study bar is 16 px taller), Library Home's "See rankings" and the Library footer links (20 px taller). The Forward dialog's two fields fill the dialog.
