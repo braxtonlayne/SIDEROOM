@@ -93,6 +93,8 @@ describe('VadEngineHost (D-1048, D-1050, D-1051)', () => {
     d.to('ready');
     expect(r.host.drives).toBe(true);
     d.prob(0.9);
+    expect(r.host.open).toBe(false); // one frame is not enough
+    d.prob(0.9);
     expect(r.host.open).toBe(true);
     r.clock.t = 1000;
     d.prob(0.05);
@@ -108,6 +110,7 @@ describe('VadEngineHost (D-1048, D-1050, D-1051)', () => {
     r.host.setTap(owner, 'call', t.ctx, t.source);
     await tick();
     r.dets[0]!.to('ready');
+    r.dets[0]!.prob(0.9);
     r.dets[0]!.prob(0.9);
     r.dets[0]!.to('fallback', 'slow');
     expect(r.host.state).toBe('fallback');
