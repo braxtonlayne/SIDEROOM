@@ -74,6 +74,24 @@
   padding: 11px 0;
   border-bottom: 1px solid transparent;
 }
+/* D-1022 (SEC-AUD-530): on a phone each link (39 px, 0.5 to 39.5 px from the top edge of the screen) keeps its size
+   and gets a tap area that reaches 4 px below it (43.5 px from the top; 44 asked, nothing lies above). The bar scrolls
+   inside itself, which clips a tap area at the bar's padding box, so the bar gets 4 px of padding below the links (its
+   height is content-box 40 px): the links do not move, the content under the bar moves down 4 px. The element
+   selector outranks the phone rule `.lib-frame[data-mobile] .lib-sectionbar` further down, whose padding shorthand
+   would reset it. */
+.lib-frame[data-mobile] header.lib-sectionbar {
+  padding-block-end: 4px;
+}
+.lib-frame[data-mobile] .lib-sectionbar-link {
+  position: relative;
+}
+.lib-frame[data-mobile] .lib-sectionbar-link::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -4px;
+  inset-inline: 0;
+}
 .lib-sectionbar-link[aria-current='page'] {
   color: var(--sr-gold);
   border-bottom-color: var(--sr-gold);
@@ -422,20 +440,8 @@
     inset-block: -3px;
     inset-inline: 0;
   }
-  /* The two bare links of an empty library (rule in storage/shelves/shelves.css): 20 px text links, a 44 px tap area
-     each (12 px above and below). Wrapped, their rows are 24 px apart so the two areas do not overlap. */
-  .lib-frame .shv-empty-links {
-    row-gap: 24px;
-  }
-  .lib-frame .shv-empty-links a {
-    position: relative;
-  }
-  .lib-frame .shv-empty-links a::after {
-    content: '';
-    position: absolute;
-    inset-block: -12px;
-    inset-inline: 0;
-  }
+  /* The empty-shelf links' tap areas moved to storage/shelves/shelves.css (D-1022, SEC-AUD-532): they show in the
+     Cinema too. */
 }
 .lib-btn:hover:not(:disabled) {
   background: var(--sr-bg-2);
