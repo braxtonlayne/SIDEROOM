@@ -1529,3 +1529,433 @@ fn every_image_carries_the_source_label_in_its_last_stage() {
     }
     assert!(n >= 4, "only {n} Dockerfiles found");
 }
+
+/// Body of the shell function `name` in `script`: the lines after its `name() {` line up to the next line that is
+/// just `}`.
+fn shell_fn_body(script: &str, name: &str) -> String {
+    let header = format!("{name}() {{");
+    let mut lines = script.lines().skip_while(|l| !l.starts_with(&header));
+    assert!(lines.next().is_some(), "the script has no function {name}");
+    lines
+        .take_while(|l| *l != "}")
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The function a `mode) function ;;` line of a script's final `case` runs.
+fn shell_mode_function(script: &str, mode: &str) -> String {
+    let prefix = format!("{mode}) ");
+    script
+        .lines()
+        .find_map(|l| l.trim_start().strip_prefix(&prefix))
+        .and_then(|rest| rest.split_whitespace().next())
+        .unwrap_or_else(|| panic!("the script has no `{mode})` mode"))
+        .to_owned()
+}
+
+/// The lines of one job of a workflow (header to the next job), read without a YAML parser.
+fn workflow_job(wf: &str, job: &str) -> String {
+    let header = format!("  {job}:");
+    let mut lines = wf.lines().skip_while(|l| *l != header);
+    assert!(lines.next().is_some(), "the workflow has no job {job}");
+    lines
+        .take_while(|l| {
+            l.trim().is_empty() || l.starts_with("   ") || l.trim_start().starts_with('#')
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Shell statements of `body` with `\` continuations joined and comment lines dropped.
+fn shell_statements(body: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for l in body.lines().map(str::trim) {
+        if l.starts_with('#') {
+            continue;
+        }
+        cur.push_str(l.trim_end_matches('\\'));
+        cur.push(' ');
+        if !l.ends_with('\\') {
+            out.push(std::mem::take(&mut cur));
+        }
+    }
+    out
+}
+
+/// SEC-AUD-578 (a, b): the CI systemd job also starts the server unit as a system service, and that mode leaves the
+/// unit's own hardening alone. Caught by: the base job, which has only `verify` and `user-service`; and by any later
+/// edit that makes the new mode `sed` out `ProtectSystem`, `StateDirectory`, `ReadWritePaths` or `WorkingDirectory`
+/// (a run that deletes the hardening proves nothing about the unit).
+#[test]
+fn the_systemd_job_runs_the_server_unit_as_a_system_service_with_its_hardening_on() {
+    let wf = read(".github/workflows/prod-smoke.yml");
+    let job = workflow_job(&wf, "systemd");
+    assert!(
+        job.lines().any(|l| !l.trim_start().starts_with('#')
+            && l.contains("deploy/scripts/smoke-systemd.sh system-service")),
+        "the systemd job never runs smoke-systemd.sh system-service"
+    );
+    let script = read("deploy/scripts/smoke-systemd.sh");
+    let func = shell_mode_function(&script, "system-service");
+    let body = shell_fn_body(&script, &func);
+    assert!(!body.trim().is_empty(), "{func} is empty");
+    // The unit must really carry the four settings, or this case guards nothing.
+    let unit = read("deploy/systemd/sr-server.service");
+    let keys = [
+        "ProtectSystem",
+        "StateDirectory",
+        "ReadWritePaths",
+        "WorkingDirectory",
+    ];
+    for k in keys {
+        assert!(
+            unit.lines().any(|l| l.starts_with(&format!("{k}="))),
+            "sr-server.service no longer sets {k}"
+        );
+    }
+    for st in shell_statements(&body) {
+        // Reading a setting (`sed -n 's/^Key=//p'`) is not an edit.
+        let edits = (st.contains("sed ") && !st.contains("sed -n")) || st.contains("grep -v");
+        for k in keys {
+            assert!(
+                !(edits && st.contains(k)),
+                "{func} rewrites or drops {k} of the unit: {st}"
+            );
+        }
+    }
+    // The unit goes in as shipped: copied, then compared with the repository's file.
+    let statements = shell_statements(&body);
+    assert!(
+        statements
+            .iter()
+            .any(|st| st.contains("install -m 644")
+                && st.contains("deploy/systemd/sr-server.service")),
+        "{func} does not install deploy/systemd/sr-server.service with `install -m 644`"
+    );
+    assert!(
+        statements.iter().any(|st| st.contains("cmp -s")),
+        "{func} never compares the installed unit with the repository's"
+    );
+}
+
+/// SEC-AUD-578 (c): the mode that strips the hardening says so, in the comment above it, and points at the mode that
+/// does not (D-1044). Caught by: the base, whose comment sat inside the function and promised nothing about what the
+/// run cannot prove.
+#[test]
+fn the_user_service_mode_says_what_it_cannot_prove() {
+    let script = read("deploy/scripts/smoke-systemd.sh");
+    let lines: Vec<&str> = script.lines().collect();
+    let at = lines
+        .iter()
+        .position(|l| l.starts_with("stage_user_service() {"))
+        .expect("smoke-systemd.sh has no stage_user_service");
+    let comment: String = lines[..at]
+        .iter()
+        .rev()
+        .take_while(|l| l.starts_with('#'))
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n");
+    for needle in [
+        "CANNOT PROVE",
+        "StateDirectory=",
+        "ReadWritePaths=",
+        "ProtectSystem=",
+        "system-service",
+    ] {
+        assert!(
+            comment.contains(needle),
+            "the comment above stage_user_service lacks {needle:?}: {comment}"
+        );
+    }
+}
+
+/// SEC-AUD-573 (a): an object backup of Garage's data folder alone cannot be restored, so `backup.sh` refuses it before
+/// it does any work, and the page names both variables. Caught by: the base script, which snapshotted
+/// `SR_BACKUP_OBJECTS_DIR` alone and had no second variable.
+#[test]
+fn backup_sh_refuses_a_data_only_object_backup_and_the_page_names_both_folders() {
+    let script = read("deploy/scripts/backup.sh");
+    let lines: Vec<&str> = script.lines().collect();
+    let need = lines
+        .iter()
+        .position(|l| l.starts_with("need pg_dump"))
+        .expect("backup.sh no longer runs `need pg_dump`");
+    let refusal = lines
+        .iter()
+        .position(|l| {
+            !l.trim_start().starts_with('#')
+                && l.contains("die ")
+                && l.contains("SR_BACKUP_OBJECTS_DIR")
+                && l.contains("SR_BACKUP_OBJECTS_META_DIR")
+        })
+        .expect(
+            "backup.sh has no `die` naming SR_BACKUP_OBJECTS_DIR and SR_BACKUP_OBJECTS_META_DIR",
+        );
+    assert!(
+        refusal < need,
+        "the refusal (line {}) must come before `need pg_dump` (line {})",
+        refusal + 1,
+        need + 1
+    );
+    let page = read("deploy/BACKUP.md");
+    for v in ["SR_BACKUP_OBJECTS_DIR", "SR_BACKUP_OBJECTS_META_DIR"] {
+        assert!(page.contains(v), "BACKUP.md does not name {v}");
+    }
+}
+
+/// SEC-AUD-573 (b): the folders `BACKUP.md` tells a Compose operator to copy are the ones Garage uses and the ones the
+/// volumes are mounted at. Caught by: a page that names a path no volume is mounted at.
+#[test]
+fn the_garage_folders_the_backup_page_names_are_the_mounted_volumes() {
+    let page = read("deploy/BACKUP.md");
+    let c = compose();
+    let mounts = c.services["garage"].section("volumes");
+    let prod_toml = read("deploy/compose/garage/garage.prod.toml.example");
+    for (volume, path, key) in [
+        ("garage-data", "/var/lib/garage/data", "data_dir"),
+        ("garage-meta", "/var/lib/garage/meta", "metadata_dir"),
+    ] {
+        assert!(
+            mounts
+                .iter()
+                .any(|m| m.trim_start_matches("- ") == format!("{volume}:{path}")),
+            "prod.yml's garage does not mount {volume} at {path}"
+        );
+        assert!(
+            page.contains(volume) && page.contains(path),
+            "BACKUP.md does not name {volume} and {path}"
+        );
+        assert!(
+            prod_toml
+                .lines()
+                .any(|l| l.starts_with(key) && l.contains(&format!("\"{path}\""))),
+            "garage.prod.toml.example: {key} is not {path}"
+        );
+    }
+}
+
+/// SEC-AUD-573 (c): the storage workflow's proof of the object backup points at files that exist, and the dev Garage it
+/// stops and copies has the same two volumes. Caught by: the proof pointing at a renamed script or volume.
+#[test]
+fn the_storage_workflow_object_backup_step_calls_things_that_exist() {
+    let wf = read(".github/workflows/storage.yml");
+    let at = wf
+        .find("Object backup keeps data and metadata together")
+        .expect("storage.yml lost its object backup step");
+    let step = &wf[at..];
+    let step = &step[..step.find("\n      - name:").unwrap_or(step.len())];
+    for f in ["deploy/scripts/backup.sh", "deploy/compose/dev.yml"] {
+        assert!(step.contains(f), "the step does not use {f}");
+        assert!(root().join(f).exists(), "{f} is missing");
+    }
+    let dev = read("deploy/compose/dev.yml");
+    for m in [
+        "garage-meta:/var/lib/garage/meta",
+        "garage-data:/var/lib/garage/data",
+    ] {
+        assert!(dev.contains(m), "dev.yml's garage does not mount {m}");
+    }
+}
+
+/// The `SR_<NAME>_FILE=<path>` examples and the `/run/secrets` paths a page writes, as (token, path).
+fn secret_file_examples(page: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for w in page.split_whitespace() {
+        let w = w.trim_matches(|c: char| "`()*,;.".contains(c));
+        if let Some((_, path)) = w.split_once("_FILE=") {
+            out.push(path.trim_matches('`').to_owned());
+        } else if w.starts_with("/run/secrets") {
+            out.push(w.to_owned());
+        }
+    }
+    out
+}
+
+/// SEC-AUD-575 (a): the server sees one operator-owned secrets folder, read-only, whose host side lies outside
+/// `deploy/`. Caught by: the base service, which mounted no secrets folder (a `_FILE` path could not be read inside the
+/// container), and by a read-write mount or a default inside the repository (an upgrade replaces `deploy/`).
+#[test]
+fn the_compose_server_mounts_the_operator_secrets_folder_read_only_from_outside_deploy() {
+    let c = compose();
+    let mounts: Vec<String> = c.services["sr-server"]
+        .section("volumes")
+        .iter()
+        .map(|v| v.trim_start_matches("- ").to_owned())
+        .filter(|v| v.contains("/run/secrets"))
+        .collect();
+    assert_eq!(
+        mounts.len(),
+        1,
+        "sr-server needs exactly one secrets mount: {mounts:?}"
+    );
+    let m = &mounts[0];
+    assert!(
+        m.ends_with(":/run/secrets/sideroom:ro"),
+        "the secrets mount must be read-only at /run/secrets/sideroom: {m}"
+    );
+    let default = substitutions(m)
+        .into_iter()
+        .find(|(n, d, _)| n == "SR_SECRETS_DIR" && d.is_some())
+        .and_then(|(_, d, _)| d)
+        .unwrap_or_else(|| panic!("the host side has no ${{SR_SECRETS_DIR:-default}}: {m}"));
+    assert!(
+        default.starts_with('/')
+            && !default.contains("/deploy/")
+            && !default.starts_with("/opt/sideroom"),
+        "the default host folder must lie outside deploy/ ({default})"
+    );
+    for (name, s) in &c.services {
+        if name != "sr-server" {
+            assert!(
+                !s.section("volumes")
+                    .iter()
+                    .any(|v| v.contains("/run/secrets")),
+                "{name} mounts the secrets folder; only sr-server reads it"
+            );
+        }
+    }
+}
+
+/// SEC-AUD-575 (b): every `_FILE` example in the Compose paragraphs lies under the mount's container folder. Caught
+/// by: a page that sends the operator to a path the container cannot see (the server stops at start).
+#[test]
+fn the_secret_file_examples_in_the_pages_lie_under_the_mounted_folder() {
+    for page in ["deploy/OPERATOR.md", "docs/12-deployment-and-operations.md"] {
+        let text = read(page);
+        let examples = secret_file_examples(&text);
+        assert!(!examples.is_empty(), "{page} shows no _FILE example");
+        for p in &examples {
+            assert!(
+                p.starts_with("/run/secrets/sideroom"),
+                "{page}: {p} is not under /run/secrets/sideroom, the folder prod.yml mounts"
+            );
+        }
+        assert!(
+            !text.contains("mounts no secrets"),
+            "{page} still says the stack mounts no secrets folder"
+        );
+    }
+}
+
+/// SEC-AUD-576: the installer names a minimum Compose version, and it is not below what `prod.yml` needs
+/// (`required: false` on an `env_file` entry, Compose 2.24). Caught by: the base installer, which named none (an older
+/// Compose stopped with a schema error), and by a lowered minimum.
+#[test]
+fn the_installer_names_a_compose_minimum_that_prod_yml_needs() {
+    let install = read("deploy/install.sh");
+    let num = |name: &str| -> u32 {
+        install
+            .lines()
+            .find_map(|l| l.strip_prefix(&format!("{name}=")))
+            .unwrap_or_else(|| panic!("install.sh does not set {name}"))
+            .trim()
+            .parse()
+            .unwrap_or_else(|_| panic!("{name} is not a number"))
+    };
+    let (major, minor) = (num("MIN_COMPOSE_MAJOR"), num("MIN_COMPOSE_MINOR"));
+    if read("deploy/compose/prod.yml").contains("required: false") {
+        assert!(
+            (major, minor) >= (2, 24),
+            "prod.yml uses `required: false` (Compose 2.24) but install.sh accepts {major}.{minor}"
+        );
+    }
+    let refusal = install
+        .lines()
+        .position(|l| l.contains("die ") && l.contains("is too old"))
+        .expect("install.sh never refuses an old Compose");
+    let first_secret = install
+        .lines()
+        .position(|l| l.trim_start().starts_with("postgres_password=$(rand_hex"))
+        .expect("install.sh no longer makes the Postgres password");
+    assert!(
+        refusal < first_secret,
+        "the Compose refusal must come before the first secret is generated"
+    );
+}
+
+/// SEC-AUD-577: the smoke reruns the installer on the running stack and greps for the very sentences `install.sh`
+/// prints. Caught by: the base smoke (no rerun), and a reworded warning that would leave the grep matching nothing, so
+/// the step failed only in CI.
+#[test]
+fn the_smoke_reruns_the_installer_and_greps_for_what_it_prints() {
+    let smoke = read("deploy/scripts/prod-smoke.sh");
+    let install = read("deploy/install.sh");
+    let rerun = shell_fn_body(&smoke, "rerun_install");
+    assert!(
+        shell_fn_body(&smoke, "stage_migrate")
+            .lines()
+            .any(|l| l.trim() == "rerun_install"),
+        "stage_migrate never calls rerun_install"
+    );
+    assert!(
+        rerun.contains("install.sh") && rerun.contains("--yes") && rerun.contains("SR_IMAGE="),
+        "rerun_install does not run install.sh --yes with another SR_IMAGE"
+    );
+    // The smoke builds the sentence with $other where install.sh prints $SR_IMAGE.
+    assert!(
+        rerun.contains("grep -F \"the value given now ($other) is ignored\"")
+            && install.contains("the value given now ($SR_IMAGE) is ignored"),
+        "the ignored-image warning differs between install.sh and the smoke's grep"
+    );
+    assert!(
+        rerun.contains("grep -F \"cannot be shown again\"")
+            && install.contains("cannot be shown again"),
+        "the 'cannot be shown again' sentence differs between install.sh and the smoke's grep"
+    );
+}
+
+/// SEC-AUD-581: garage/bootstrap.sh decides whether the node already has a layout by grepping `garage status`, which
+/// prints a node id cut to 16 hex digits. Caught by: the full id from `garage node id -q` never matched, so install.sh's
+/// rerun assigned again and `layout apply --version 1` failed with "Invalid new layout version".
+#[test]
+fn the_garage_bootstrap_greps_status_for_the_short_node_id() {
+    let boot = read("deploy/compose/garage/bootstrap.sh");
+    assert!(
+        boot.contains("grep -q \"${NODE_ID:0:16}.*dc1\""),
+        "bootstrap.sh no longer greps garage status for the 16-digit node id"
+    );
+    assert!(
+        !boot.contains("grep -q \"$NODE_ID.*dc1\""),
+        "bootstrap.sh greps garage status for the full node id, which it never prints"
+    );
+}
+
+/// SEC-AUD-582: the system-service step writes a server.env with a new secret key, so it must not reuse the database the
+/// user-service step sealed push keys into. Caught by: both on `sideroom`, the server exited with "sealed blob does not
+/// open" and never answered /healthz.
+#[test]
+fn the_system_service_smoke_has_its_own_database() {
+    let wf = read(".github/workflows/prod-smoke.yml");
+    let step = wf
+        .split("- name: Plain-binary install, unit unchanged, started as a systemd system service")
+        .nth(1)
+        .expect("prod-smoke.yml has no system-service step");
+    let step = step.split("\n      - ").next().unwrap_or(step);
+    assert!(
+        step.contains("CREATE DATABASE sideroom_system") && step.contains("/sideroom_system?"),
+        "the system-service step does not create and use its own database"
+    );
+}
+
+/// SEC-AUD-583: on a rerun install.sh warns that an SR_IMAGE given now is ignored, and must then really ignore it:
+/// Compose reads SR_IMAGE from the environment before the env file. Caught by: PR #162's production smoke, where the
+/// rerun with SR_IMAGE=registry.invalid/... tried to pull that image for `sr-cli migrate`.
+#[test]
+fn the_installer_rerun_puts_the_stored_image_back() {
+    let install = read("deploy/install.sh");
+    let warn = install
+        .find("the value given now ($SR_IMAGE) is ignored")
+        .expect("install.sh no longer warns about an ignored SR_IMAGE");
+    let after = &install[warn..];
+    let end = after
+        .find("\nelse\n")
+        .expect("the rerun branch has no else");
+    assert!(
+        after[..end]
+            .lines()
+            .any(|l| l.trim() == "SR_IMAGE=$stored_image"),
+        "the rerun branch warns but leaves the SR_IMAGE given now in force"
+    );
+}

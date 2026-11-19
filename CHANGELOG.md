@@ -15,6 +15,15 @@ what the operator now has to know. Keep each wave to a handful of lines.
 - For the operator: the model and its runtime are self-hosted files of the app (no CDN, same Content Security Policy), loaded only for members who turn it on; the runtime adds 16 permissive packages to the notices. The wasm is 14.8 MB, so check that your proxy compresses it.
 - For the team: proven in Chromium on the wave's own build (the fallback, the encrypted call, nothing loaded early); speech is not proven by a committed test, and Firefox, Safari and phones are hand checks on deployment day. The first-paint entry grew 1,448 B gzip (218,390 to 219,838 B on the official build) for the host wiring; no detector code loads early (SEC-AUD-592 slims it). Row VOX-CLI-002 awaits the tick after CI; the open rows are SEC-AUD-584 to 592.
 
+## Phase 114 - 2026-11-19
+
+- Object backups now keep Garage's metadata together with its data, and the backup script refuses a data-only copy, because that copy could not be restored. The weekly drill checks the object snapshot too when the object backup is set up.
+- Compose can read secrets from files: put them in `/etc/sideroom/secrets`, which the server sees read-only, and name them in the env file with the `_FILE` form (OPERATOR.md has the Discord example).
+- The installer needs Docker Compose 2.24 or newer and says so before it writes anything. It creates the empty server env file and the secrets folder if they are missing.
+- CI now starts the systemd route with its hardening on, as the unit ships.
+- INSTALL.md's permissions for `/etc/sideroom` are corrected: the folder is 0750 root:sideroom, `config.toml` 0640, `server.env` 0600 root; the old text would have kept the service from reading its configuration.
+- For the team: all of this is proven by CI on the wave's pull request, not on a server. Rows SEC-AUD-561, 563, 564 and 566 to 570 (wave 113) are closed by the green run of the wave 113 pull request. Rows SEC-AUD-573 and 575 to 578 are built and proven by CI on the wave 114 PR; the open rows are SEC-AUD-579 and 580.
+
 ## Phase 113 - 2026-11-19
 
 - The systemd server now starts: its unit names the search folder (`/var/lib/sideroom/search`) and has a working directory.

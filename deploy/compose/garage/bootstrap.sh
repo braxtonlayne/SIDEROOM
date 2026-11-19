@@ -42,7 +42,10 @@ for _ in $(seq 1 30); do garage status >/dev/null 2>&1 && break; sleep 1; done
 garage status >/dev/null
 
 NODE_ID="$(garage node id -q 2>/dev/null | cut -d@ -f1)"
-if ! garage status | grep -q "$NODE_ID.*dc1"; then
+# `garage status` prints a node's id cut to its first 16 hex digits, never the full id `node id -q` gives: grep for the
+# short form, or a rerun on a node that already has a layout assigns again and `layout apply --version 1` then fails
+# with "Invalid new layout version" (SEC-AUD-581: install.sh's rerun in the production smoke).
+if ! garage status | grep -q "${NODE_ID:0:16}.*dc1"; then
   garage layout assign -z dc1 -c "${SR_GARAGE_CAPACITY:-1G}" "$NODE_ID"
   garage layout apply --version 1
 fi

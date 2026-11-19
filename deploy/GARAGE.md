@@ -11,6 +11,8 @@ SIDE ROOM talks to any S3-compatible store; Garage is the reference because it i
 
 `replication_factor = 1` means one copy of every block: a dead disk loses data. The nightly rustic snapshot (BACKUP.md) is the safety net on a single node.
 
+**The metadata folder.** Garage keeps two folders: the data folder (`data_dir`, the blocks) and the metadata folder (`metadata_dir`, an `lmdb` database that records which block belongs to which object, plus the layout, keys and buckets). On Compose they are the `garage-data` and `garage-meta` volumes. Blocks without the metadata are not a bucket Garage can serve, so the two are always backed up together, in one snapshot (`SR_BACKUP_OBJECTS_DIR` and `SR_BACKUP_OBJECTS_META_DIR`, BACKUP.md), and a backup of the data folder alone is not a backup.
+
 ## Several nodes
 
 Three nodes in three zones is the smallest layout that survives losing one.

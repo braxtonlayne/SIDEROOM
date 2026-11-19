@@ -6,7 +6,8 @@
 #
 #   deploy/scripts/prod-smoke.sh install       install.sh --yes against prod.yml for https://$SMOKE_DOMAIN
 #   deploy/scripts/prod-smoke.sh wait          Caddy root CA, /healthz through Caddy, headers, readiness probe
-#   deploy/scripts/prod-smoke.sh migrate       sr-cli migrate (again: it must be a no-op) and the access-log check
+#   deploy/scripts/prod-smoke.sh migrate       sr-cli migrate (again: it must be a no-op), the access-log check, a second bootstrap
+#                                              (refused) and install.sh --yes again with another SR_IMAGE (D-1046)
 #   deploy/scripts/prod-smoke.sh signin        Owner sign-in through Caddy and Admin > System (smoke-admin.mjs)
 #   deploy/scripts/prod-smoke.sh backups       backup.sh, basebackup (the systemd command), restore.sh, restore-drill.sh,
 #                                              wal-drill.sh and a live WAL segment, then the Admin > System backup time
@@ -56,6 +57,11 @@ env_file=$compose_dir/.env.prod
 base_url=https://$domain
 ca=$work/caddy-root.crt
 pwfile=$work/owner-password
+# The operator's two files (D-1046): the server env file prod.yml reads if it exists and the secrets folder it mounts
+# read-only. The defaults are under /etc/sideroom, which this script (run as an ordinary user) cannot create, so the
+# smoke keeps them in its scratch folder; install.sh creates both there. What this cannot prove: the /etc defaults.
+export SR_SERVER_ENV_FILE=${SR_SERVER_ENV_FILE:-$work/server.env}
+export SR_SECRETS_DIR=${SR_SECRETS_DIR:-$work/secrets}
 
 dc() { docker compose -f "$compose_dir/prod.yml" --env-file "$env_file" "$@"; }
 sr_cli_c() { dc run --rm --no-deps --entrypoint /usr/local/bin/sr-cli sr-server "$@"; }
@@ -159,6 +165,45 @@ stage_migrate() {
     bootstrap --owner-username owner --owner-email owner@example.test 2>&1) && second=ok || second=refused
   echo "second bootstrap: $second"
   echo "$out" | tail -n 3
+  rerun_install
+}
+
+# The installer's rerun path, on the running stack (D-1041, D-1046, SEC-AUD-577): install.sh --yes again with an SR_IMAGE that
+# differs from the stored one and without the Owner password. It must warn that the image given now is ignored, leave
+# .env.prod as it was, pull nothing, show no Owner password or sign-in link (the Owner exists), and leave the stack healthy
+# with the secrets folder mounted read-only. The warning text below is the one in install.sh ("the value given now (...)
+# is ignored"); deploy_files.rs keeps the two equal.
+rerun_install() {
+  stored=$(env_value SR_IMAGE)
+  [ -n "$stored" ] || die "no SR_IMAGE in $env_file"
+  other=registry.invalid/sideroom/rerun-never-pulled:0
+  before=$(cksum <"$env_file")
+  log "install.sh --yes again with SR_IMAGE=$other (the stored image is $stored): it must warn and change nothing"
+  rerun_rc=0
+  rerun_out=$(SR_IMAGE=$other SR_OWNER_USERNAME=owner SR_OWNER_EMAIL=owner@example.test SR_GARAGE_CAPACITY=1G     SR_INSTALL_SKIP_PULL=1 SR_INSTALL_PREFLIGHT=warn SR_INSTALL_PREFLIGHT_ARGS=--insecure-tls     sh "$deploy_dir/install.sh" --yes 2>&1) || rerun_rc=$?
+  printf '%s
+' "$rerun_out" | tail -n 25
+  [ "$rerun_rc" = "0" ] || die "the rerun of install.sh exited $rerun_rc"
+  printf '%s
+' "$rerun_out" | grep -F "the value given now ($other) is ignored" >/dev/null     || die "the rerun did not warn that the SR_IMAGE given now is ignored"
+  [ "$(env_value SR_IMAGE)" = "$stored" ] || die ".env.prod no longer names the first image after the rerun"
+  [ "$(cksum <"$env_file")" = "$before" ] || die ".env.prod changed in the rerun"
+  if docker image inspect "$other" >/dev/null 2>&1; then die "the rerun pulled or loaded $other"; fi
+  # The Owner exists: no password and no one-time link may be shown again (the installer has none to show).
+  if printf '%s
+' "$rerun_out" | grep -E "Owner password ((generated now|change it after)" >/dev/null; then
+    die "the rerun printed an Owner password"
+  fi
+  if printf '%s
+' "$rerun_out" | grep -F "$(cat "$pwfile")" >/dev/null; then die "the rerun printed the Owner password"; fi
+  printf '%s
+' "$rerun_out" | grep -F "cannot be shown again" >/dev/null     || die "the rerun did not say the first run's sign-in link cannot be shown again"
+  state=$(docker inspect -f '{{.State.Health.Status}}' "$(dc ps -q sr-server)" 2>/dev/null || echo missing)
+  [ "$state" = "healthy" ] || die "sr-server is $state after the rerun"
+  mounts=$(docker inspect -f '{{range .Mounts}}{{.Destination}} rw={{.RW}}{{println}}{{end}}' "$(dc ps -q sr-server)")
+  printf '%s
+' "$mounts" | grep -Fx "/run/secrets/sideroom rw=false" >/dev/null     || die "sr-server has no read-only /run/secrets/sideroom mount (mounts: $mounts)"
+  log "rerun: warned, wrote nothing, pulled nothing, showed no password, sr-server healthy with the secrets folder mounted read-only"
 }
 
 stage_signin() {

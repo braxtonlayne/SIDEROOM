@@ -67,6 +67,42 @@ jobs:
             echo "SR_TEST_S3_SECRET_KEY=$GARAGE_SECRET_KEY"
           } >> "$GITHUB_ENV"
 
+      # D-1045 / SEC-AUD-573: an object backup is the data folder AND the metadata folder. A plain tar of both
+      # volumes STANDS IN for the rustic/restic snapshot (the runner has neither); it proves that the two folders
+      # together bring a bucket back and the data folder alone does not. The refusal is backup.sh's own.
+      - name: Object backup keeps data and metadata together (D-1045)
+        run: |
+          set -eu
+          url="$SR_TEST_S3_ENDPOINT/$SR_TEST_S3_BUCKET/d1045-probe.bin"
+          s3() { curl -sS --aws-sigv4 "aws:amz:$SR_TEST_S3_REGION:s3" --user "$SR_TEST_S3_ACCESS_KEY:$SR_TEST_S3_SECRET_KEY" "$@"; }
+          dc="docker compose -f deploy/compose/dev.yml"
+          # backup.sh refuses a data-only object backup before it does anything else.
+          if SR_DATABASE_URL="$DATABASE_URL" SR_BACKUP_OBJECTS_DIR=/var/lib/garage/data sh deploy/scripts/backup.sh 2> refusal.txt; then
+            echo "backup.sh accepted a data-only object backup"; exit 1
+          fi
+          grep -q SR_BACKUP_OBJECTS_META_DIR refusal.txt
+          head -c 200000 /dev/urandom > probe.bin
+          s3 --fail --retry 10 --retry-connrefused --retry-delay 1 -T probe.bin "$url"
+          cid=$($dc ps -q garage)
+          mkdir snap
+          # Garage stopped for the copy (BACKUP.md). --volumes-from also works on a stopped container.
+          $dc stop garage
+          docker run --rm --volumes-from "$cid" -v "$PWD/snap:/snap" alpine sh -c \
+            'tar cf /snap/both.tar -C /var/lib/garage meta data && tar cf /snap/data-only.tar -C /var/lib/garage data'
+          wipe() { docker run --rm --volumes-from "$cid" alpine sh -c 'rm -rf /var/lib/garage/meta/* /var/lib/garage/data/*'; }
+          restore() { docker run --rm --volumes-from "$cid" -v "$PWD/snap:/snap" alpine tar xf "/snap/$1" -C /var/lib/garage; }
+          # 1. Data folder alone: the object must NOT come back.
+          wipe; restore data-only.tar; $dc start garage
+          s3 --retry 10 --retry-connrefused --retry-delay 1 -o got.bin "$url" || true
+          if cmp -s probe.bin got.bin; then echo "a data-only restore brought the object back"; exit 1; fi
+          # 2. Both folders: the object comes back byte for byte.
+          $dc stop garage
+          wipe; restore both.tar; $dc start garage
+          rm -f got.bin
+          s3 --fail --retry 20 --retry-connrefused --retry-delay 1 --retry-all-errors -o got.bin "$url"
+          cmp probe.bin got.bin
+          s3 --fail -X DELETE "$url"
+
       - name: Rust live tests (ObjectStoreStorage over S3)
         run: |
           cargo test -p sr-storage --test s3_live -- --ignored --test-threads=1
