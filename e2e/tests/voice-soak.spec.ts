@@ -4,6 +4,7 @@ import {
   inbound,
   type InboundAudioStream,
   inboundAudioStreams,
+  isMusicStream,
   joinVoice,
   mediaContext,
   musicVerdict,
@@ -30,11 +31,16 @@ import {
  *     as its music track from before the churn starts, and at the end every other member holds an inbound audio
  *     stream that was not there before the music, negotiated as Opus with two channels, whose bytes grew over the
  *     closing window. The music member takes part in the churn like everyone (the engine keeps its peer connection
- *     and its music sender across a socket resume, so the track is expected to survive the reconnect).
+ *     and its music sender across a socket resume, so the track is expected to survive the reconnect). The same
+ *     end check also needs the negotiated line to be the music line (`isMusicStream`: stereo Opus with
+ *     `stereo=1`) and still receiving, and every member's microphone (the player's too) to be still there: one
+ *     non-music stream per other member, all carrying bytes, at least one growing. Music frames go through the
+ *     same frame encryptor and so into the same E2EE counters as the microphones: the drop ratios below count
+ *     every stream of a page together, music included, and the thresholds are not loosened for it.
  *
  * Inputs (environment; voice-soak.yml maps its dispatch inputs to them): SOAK_COUNT, SOAK_MINUTES (may be
- * fractional), SOAK_MAX_DROP_RATIO, SOAK_CAMERA ("0" skips the camera on/off step), SOAK_MUSIC ("1" adds the music step; off by default: with it off no
- * music step and no music assertion run). Owner (2026-10-24): the soak
+ * fractional), SOAK_MAX_DROP_RATIO, SOAK_CAMERA ("0" skips the camera on/off step), SOAK_MUSIC ("1" adds the music step; voice-soak.yml sets it from its `music` input, default on; the
+ * spec alone has it off: with it off no music step and no music assertion run). Owner (2026-10-24): the soak
  * stays on the standard runner, and the camera step is the first thing to drop if the runner struggles. Needs the voice stack with E2EE: SR_E2E_VOICE=1 SR_E2E_SOAK=1 against an
  * sr-server with SR_VOICE__ENABLED=true. A summary is attached to the report and printed.
  */
@@ -44,7 +50,7 @@ const MINUTES = Math.max(0.25, Number(process.env.SOAK_MINUTES ?? 10));
 const MAX_DROP = Number(process.env.SOAK_MAX_DROP_RATIO ?? 0.02);
 /** The first thing to drop on a struggling runner (owner, 2026-10-24): SOAK_CAMERA=0. */
 const CAMERA = process.env.SOAK_CAMERA !== '0';
-/** MUS-JB-001 (D-720): "1" has the first member play the generated stereo tone for the whole soak. Off by default. */
+/** MUS-JB-001 (D-720): "1" has the first member play the generated stereo tone for the whole soak. Off unless set (the workflow sets it from its `music` input, default on). */
 const MUSIC = process.env.SOAK_MUSIC === '1';
 const DURATION_MS = MINUTES * 60_000;
 const TAIL_MS = Math.min(20_000, DURATION_MS * 0.25); // quiet steady state at the end
@@ -415,6 +421,8 @@ test.describe('Voice soak', () => {
             .toBe(true);
           audioBefore.set(i, await inboundAudioStreams(m.page));
         }
+        const musicStartedAt = Date.now();
+        console.log('soak music: member 0 starts the generated stereo tone as its music track');
         await playTone(members[0]!.page);
         for (const [i, m] of members.entries()) {
           if (i === 0) continue;
@@ -428,6 +436,9 @@ test.describe('Voice soak', () => {
             )
             .toBe(true);
         }
+        console.log(
+          `soak music: every other member receives the music stream ${Math.round((Date.now() - musicStartedAt) / 1000)} s after it started`,
+        );
       }
 
       // ---- The soak. Everything is scheduled as fractions of the duration so a short run exercises the same code.
@@ -544,6 +555,25 @@ test.describe('Voice soak', () => {
             verdict === null,
             `member ${i} gets stereo Opus music that is still arriving at the end: ${verdict}`,
           ).toBe(true);
+          // The music line itself (stereo=1) is still receiving packets, and every microphone is still there.
+          const growth = (x: InboundAudioStream) => x.bytes - (was.get(x.id) ?? 0);
+          const musicLines = after.filter(isMusicStream);
+          const mics = after.filter((x) => !isMusicStream(x));
+          expect(
+            musicLines.some((x) => growth(x) > 0),
+            `member ${i} has a stereo music line (isMusicStream) whose bytes grew in the closing window: ${JSON.stringify(after.map((x) => ({ id: x.id, mime: x.mimeType, ch: x.channels, fmtp: x.fmtp, grew: growth(x) })))}`,
+          ).toBe(true);
+          expect(
+            mics.length,
+            `member ${i} still has a microphone stream from each of the other ${COUNT - 1} members (the player's too)`,
+          ).toBeGreaterThanOrEqual(COUNT - 1);
+          expect(
+            mics.every((x) => x.bytes > 0) && mics.some((x) => growth(x) > 0),
+            `member ${i}: the microphone streams carry bytes and at least one grew in the closing window`,
+          ).toBe(true);
+          console.log(
+            `soak music: member ${i} ok: ${musicLines.length} music line(s), ${mics.length} microphone stream(s), music bytes in the tail ${musicLines.map(growth).join('/')}`,
+          );
         }
         const f = now.frames;
         const bf = b.snap.frames;
