@@ -562,9 +562,7 @@ async function pageCensus(page: Page, cfg: Cfg, name: string, root: Locator) {
 async function openFriends(page: Page, tab?: string) {
   await go(page, '/channels/@me', page.locator('.lng-left'));
   await tap(
-    page
-      .getByRole('button', { name: /^Friends[0-9]*$/ })
-      .or(page.getByRole('link', { name: /^Friends[0-9]*$/ })),
+    page.getByRole('button', { name: /^Friends/ }).or(page.getByRole('link', { name: /^Friends/ })),
   );
   await page.locator('section.lng-friends').first().waitFor({ timeout: 10_000 });
   await settle(page, 2500);
@@ -654,7 +652,14 @@ async function part1(browser: Browser, owner: BrowserContext, w: World, cfg: Cfg
         async () => {
           await openMore(page);
           const mb = page.getByRole('button', { name: 'Member List' });
-          if ((await mb.first().getAttribute('aria-pressed')) !== 'true') await tap(mb);
+          const pressed = (await mb.first().getAttribute('aria-pressed')) === 'true';
+          if (!pressed) await tap(mb);
+          else if (cfg.touch) {
+            await tap(mb);
+            await page.waitForTimeout(600);
+            await openMore(page);
+            await tap(mb);
+          }
         },
         () => page.locator('aside.lng-right'),
         { reload: url },
