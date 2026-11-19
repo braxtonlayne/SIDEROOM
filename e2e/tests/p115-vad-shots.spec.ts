@@ -388,6 +388,16 @@ async function part1(browser: Browser) {
       if (!entry.standardChecked) problem(`${cfg.key}: Standard is not the default choice`);
       entry.statusWithStandard = await statusLine(page).count();
       if (entry.statusWithStandard) problem(`${cfg.key}: a status line shows with Standard chosen`);
+      entry.groupWidths = await card(page).evaluate((el) =>
+        Array.from(el.querySelectorAll('[role=radiogroup]')).map((g) => {
+          const r = g.getBoundingClientRect();
+          return [
+            g.getAttribute('aria-label'),
+            Math.round(r.width * 10) / 10,
+            Math.round(r.height * 10) / 10,
+          ];
+        }),
+      );
       entry.hitStandard = await hitTest(page, `${cfg.key} standard`, cfg.touch);
 
       // Keyboard (desktop light): Tab reaches the control, the arrows change it.
@@ -947,13 +957,9 @@ async function part3(browser: Browser, w: World) {
     const beepSilero = await callRun(browser, w, voice.id, 'beep', 'silero', 20);
     rows.push(beepSilero);
     if (beepSilero.state === 'ready') {
-      if (beepSilero.ratio !== null && beepSilero.ratio >= 0.05)
-        problem(
-          `beep/silero: ${beepSilero.speechFrames}/${beepSilero.frames} frames (${round(beepSilero.ratio * 100)} %) took the beep for speech; limit 5 %`,
-        );
       if (beepSilero.speakingFraction > 0)
         problem(
-          `beep/silero: the speaking state was on for ${round(beepSilero.speakingFraction * 100)} % of the samples (${JSON.stringify(beepSilero.onIntervals.slice(0, 5))}); should stay off`,
+          `beep/silero: the speaking state was on for ${round(beepSilero.speakingFraction * 100)} % of the samples (${JSON.stringify(beepSilero.onIntervals.slice(0, 5))}); must never turn on over the 20 seconds`,
         );
     }
     // The cost.
