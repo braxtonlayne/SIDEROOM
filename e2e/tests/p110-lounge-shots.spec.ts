@@ -383,12 +383,14 @@ async function scenToolbar(browser: Browser, owner: BrowserContext, w: World, cf
       fig.covered.push('375 tap on a message');
 
       // 1b. A tap on the seeded spoiler (first line of its message), after a tap that, in the base, brought the toolbar.
-      await go(page, url, page.getByRole('log'));
-      const sart = spoiled().first();
+      await spoiled()
+        .first()
+        .evaluate((e) => e.setAttribute('data-p110s', '1'));
+      const sart = page.locator('[data-p110s="1"]');
       await sart.scrollIntoViewIfNeeded();
-      const sbody = sart.locator('.lng-msg-content').first();
-      const sb0 = await sbody.boundingBox();
-      if (sb0) await page.touchscreen.tap(sb0.x + 4, sb0.y + sb0.height - 4);
+      const stime = sart.locator('time').first();
+      const sb0 = (await stime.count()) > 0 ? await stime.boundingBox() : await sart.boundingBox();
+      if (sb0) await page.touchscreen.tap(sb0.x + sb0.width / 2, sb0.y + sb0.height / 2);
       await page.waitForTimeout(500);
       const sbtn = sart.getByRole('button', { name: 'Spoiler, click to reveal' }).first();
       const sbox = await sbtn.boundingBox();
