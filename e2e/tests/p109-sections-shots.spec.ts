@@ -18,7 +18,7 @@ import { setStudySurfacesWith } from '../support/studySwitches';
  *  - at 1024 every bar row (box, status) is equal to its base;
  *  - at 375 each bar link keeps its box (x, width, height) and the content under the bar moves by at most 5 px;
  *  - at 375 no row that passed in the base fails, and every bar link, arrow link and empty-state link passes;
- *  - the spoiler line (the comment's reveal paragraph before reveal, against the revealed text) grows by 15 px or less.
+ *  - the spoiler line (the comment's reveal paragraph, against the same line without the button's min-block-size) grows by 15 px or less.
  * It never seeds; it only reads `world.json` extras (the comment id) and switches the storefront on through the API
  * (the world is fresh for every job).
  * The commander's command, whole:
@@ -346,6 +346,16 @@ test('wave 109 sections: section bars, arrow links, empty links, spoiler comment
           const item = p.locator('li, article').filter({ has: line }).last();
           const itemHandle = await item.elementHandle();
           const lineBefore = rb(await line.boundingBox());
+          // The line as it would be without the 44 px button: the reveal button's min-block-size reset for one reading.
+          const natural = await line.evaluate((el) => {
+            const b = el.querySelector('button');
+            if (!b) return null;
+            const old = b.style.minBlockSize;
+            b.style.minBlockSize = '0';
+            const h = el.getBoundingClientRect().height;
+            b.style.minBlockSize = old;
+            return h;
+          });
           const itemBefore = rb(await item.boundingBox());
           const m = await measureRoot(p, 'cinema-comment-375', item, () => true);
           await shot(p, 'cinema-comment-375');
@@ -362,9 +372,9 @@ test('wave 109 sections: section bars, arrow links, empty links, spoiler comment
           const bodyAfter = rb(afterBoxes.body);
           const itemAfter = rb(afterBoxes.item);
           await shot(p, 'cinema-comment-revealed-375');
-          const grow = lineBefore && bodyAfter ? r1(lineBefore.height - bodyAfter.height) : null;
+          const grow = lineBefore && natural ? r1(lineBefore.height - natural) : null;
           say(
-            `spoiler line before ${JSON.stringify(lineBefore)} revealed text ${JSON.stringify(bodyAfter)} item before ${itemBefore?.height} after ${itemAfter?.height}: line taller by ${grow} px (item by ${itemBefore && itemAfter ? r1(itemBefore.height - itemAfter.height) : null})`,
+            `spoiler line before ${JSON.stringify(lineBefore)} revealed text ${JSON.stringify(bodyAfter)} item before ${itemBefore?.height} after ${itemAfter?.height}: line natural ${natural} px, so the 44 px button makes it taller by ${grow} px (item by ${itemBefore && itemAfter ? r1(itemBefore.height - itemAfter.height) : null})`,
           );
           figures['cinema-comment-375'] = {
             lineBefore,
